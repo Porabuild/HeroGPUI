@@ -24,6 +24,11 @@ surface colour -- plus one deliberate deviation (a dark overlay lightened "so
 floating panels read"), which the no-improvements rule says to undo rather than
 keep. A value that is a `color-mix` is not compared here: those are computed in
 `semantic.rs` and checked by its own tests.
+
+The third pass covers `layout.rs`: the lengths, the two tooltip delays and the
+three shadows. A shadow is compared layer by layer -- offset, blur and alpha --
+which is how the overlay's was caught having drifted to an older sheet's two
+layers instead of v3's three, one of which throws its blur *upward*.
 """
 import io
 import os
@@ -169,6 +174,125 @@ VALUE_PATH = {
     '--danger': 'danger',
     '--link': 'link',
 }
+
+
+# A length or timing -> its field in `LayoutTokens`, with the expected value in
+# the unit that field uses. `1rem` is 16px, as everywhere in v3.
+LENGTHS = {
+    '--radius': ('radius', 8.0),
+    '--spacing': ('spacing', 4.0),
+    '--border-width': ('border_width', 1.0),
+    '--field-radius': ('field_radius', 12.0),
+    '--field-border-width': ('field_border_width', 0.0),
+    '--ring-offset-width': ('ring_offset_width', 2.0),
+    '--disabled-opacity': ('disabled_opacity', 0.5),
+    '--tooltip-delay': ('tooltip_delay_ms', 1500.0),
+    '--tooltip-close-delay': ('tooltip_close_delay_ms', 500.0),
+}
+
+# The three shadow tokens, per appearance: `(x, y, blur, alpha)` per layer.
+# Dark mode keeps only the overlay's, and that one is `inset`, which gpui cannot
+# paint -- `overlay_hairline` reproduces it as a one-pixel border instead.
+SHADOWS = {
+    ('light', '--surface-shadow'): 'surface_shadow',
+    ('light', '--overlay-shadow'): 'overlay_shadow',
+    ('light', '--field-shadow'): 'field_shadow',
+}
+SHADOW_NOTE = {
+    ('dark', '--surface-shadow'): 'transparent -- no shadow',
+    ('dark', '--field-shadow'): 'transparent -- no shadow',
+    ('dark', '--overlay-shadow'): 'inset -- `overlay_hairline` draws it as a border',
+}
+
+
+def css_length(var, block, light):
+    """A `--name`'s value as a number in px, ms or a bare ratio."""
+    value = css_value(var, block, light)
+    if value is None:
+        return None
+    m = re.fullmatch(r'calc\(var\((--[a-z-]+)\)\s*\*\s*([0-9.]+)\)', value)
+    if m:
+        base = css_length(m.group(1), block, light)
+        return None if base is None else base * float(m.group(2))
+    m = re.fullmatch(r'(-?[0-9.]+)(rem|px|ms|s)?', value)
+    if not m:
+        return None
+    number = float(m.group(1))
+    unit = m.group(2)
+    if unit == 'rem':
+        return number * 16.0
+    if unit == 's':
+        return number * 1000.0
+    return number
+
+
+def layout_value(field):
+    """The number a `LayoutTokens` field is initialised with.
+
+    Comment lines are dropped first: every field is documented with the CSS it
+    ports (`/// `--spacing: 0.25rem``), and a search over the whole file finds
+    the doc comment before the code.
+    """
+    whole = io.open(THEME + 'layout.rs', encoding='utf-8', errors='replace').read()
+    # Only the constructors: the struct's own declaration (`pub spacing:
+    # Pixels,`) matches the same pattern and comes first in the file.
+    src = ''
+    for ctor in ('common', 'light', 'dark'):
+        m = re.search(r'fn %s\(\) -> Self \{(.*?)\n    \}' % ctor, whole, re.S)
+        if m:
+            src += m.group(1) + '\n'
+    src = '\n'.join(l for l in src.split('\n')
+                    if not l.lstrip().startswith(('///', '//')))
+    m = re.search(r'\b%s:\s*([^,\n]+)' % re.escape(field), src)
+    value = m.group(1).strip() if m else None
+    if value is None:
+        # `let radius = px(8.0);` with `radius,` in the literal -- Rust's
+        # field-init shorthand has no colon to match on.
+        local = re.search(r'let %s = ([^;]+);' % re.escape(field), src)
+        if not local:
+            return None
+        value = local.group(1).strip()
+    m = re.fullmatch(r'px\(([0-9.]+)\)', value)
+    if m:
+        return float(m.group(1))
+    m = re.fullmatch(r'radius \* ([0-9.]+)', value)
+    if m:
+        base = layout_value('radius')
+        return None if base is None else base * float(m.group(1))
+    m = re.fullmatch(r'([0-9.]+)', value)
+    if m:
+        return float(m.group(1))
+    return None
+
+
+def css_shadow(var, block, light):
+    """`[(x, y, blur, alpha), ..]` for a box-shadow token."""
+    value = css_value(var, block, light)
+    if value is None or 'inset' in value or 'transparent' in value:
+        return None
+    layers = []
+    for layer in re.split(r',(?![^()]*\))', value):
+        m = re.match(
+            r'\s*(-?[0-9.]+)(?:px)?\s+(-?[0-9.]+)(?:px)?\s+(-?[0-9.]+)(?:px)?\s+'
+            r'(-?[0-9.]+)(?:px)?\s+'
+            r'rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*([0-9.]+)\s*\)', layer)
+        if not m:
+            return None
+        x, y, blur, _spread, alpha = (float(g) for g in m.groups())
+        layers.append((x, y, blur, alpha))
+    return layers
+
+
+def rust_shadow(field):
+    """The `shadow(x, y, blur, alpha)` layers a field is built from."""
+    src = io.open(THEME + 'layout.rs', encoding='utf-8', errors='replace').read()
+    m = re.search(r'\b%s:\s*(vec!\[[^\]]*\]|Vec::new\(\))' % re.escape(field), src, re.S)
+    if not m:
+        return None
+    if m.group(1).startswith('Vec::new'):
+        return []
+    return [tuple(float(n) for n in call.replace(' ', '').split(','))
+            for call in re.findall(r'shadow\(([^)]*)\)', m.group(1))]
 
 
 def css_blocks():
@@ -378,6 +502,31 @@ def main():
             if any(abs(a - b) > 0.0006 for a, b in zip(theirs, ours_value)):
                 wrong.append('%-6s %-24s v3=%s ours=%s' % (appearance, var, theirs, ours_value))
 
+    # --- third pass: the lengths, timings and shadows ----------------------
+    lengths = shadows = 0
+    for var, (field, _expected) in sorted(LENGTHS.items()):
+        theirs = css_length(var, blocks['light'], blocks['light'])
+        ours_number = layout_value(field)
+        if theirs is None or ours_number is None:
+            wrong.append('layout %-24s %s does not resolve to a number' % (var, field))
+            continue
+        lengths += 1
+        if abs(theirs - ours_number) > 0.001:
+            wrong.append('layout %-24s v3=%s ours=%s' % (var, theirs, ours_number))
+
+    for (appearance, var), field in sorted(SHADOWS.items()):
+        theirs = css_shadow(var, blocks[appearance], blocks['light'])
+        ours_layers = rust_shadow(field)
+        if theirs is None or ours_layers is None:
+            wrong.append('%-6s %-24s %s does not resolve to layers'
+                         % (appearance, var, field))
+            continue
+        shadows += 1
+        if len(theirs) != len(ours_layers) or any(
+                any(abs(a - b) > 0.001 for a, b in zip(t, o))
+                for t, o in zip(theirs, ours_layers)):
+            wrong.append('%-6s %-24s v3=%s ours=%s' % (appearance, var, theirs, ours_layers))
+
     for line in wrong:
         print('WRONG    ' + line)
 
@@ -392,6 +541,9 @@ def main():
     print('MISSING            : %d' % len(missing))
     print('values compared    : %d  (%d derived, checked by semantic.rs tests)'
           % (compared, derived))
+    print('lengths compared   : %d' % lengths)
+    print('shadows compared   : %d  (%d dark ones are inset or none -- see SHADOW_NOTE)'
+          % (shadows, len(SHADOW_NOTE)))
     print('WRONG VALUES       : %d' % len(wrong))
 
 

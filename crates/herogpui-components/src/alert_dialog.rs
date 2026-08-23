@@ -244,8 +244,11 @@ impl RenderOnce for AlertDialog {
             .p(px(24.))
             .rounded(util::container_radius(cx))
             .bg(colors.overlay.background)
-            .border(layout.border_width)
-            .border_color(colors.border)
+            // v3 gives a floating panel no border; dark mode's inset hairline is
+            // what separates it from the page.
+            .when_some(layout.overlay_hairline, |el, hairline| {
+                el.border(layout.border_width).border_color(hairline)
+            })
             .text_color(colors.overlay.foreground)
             .when(!layout.overlay_shadow.is_empty(), |e| {
                 e.shadow(layout.overlay_shadow.clone())

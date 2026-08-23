@@ -52,6 +52,14 @@ pub struct LayoutTheme {
     pub tooltip_delay_ms: u64,
     /// `--tooltip-close-delay: 500ms`
     pub tooltip_close_delay_ms: u64,
+    /// The hairline a floating panel draws instead of a border.
+    ///
+    /// v3 gives its panels no border at all: light mode separates them with
+    /// `--overlay-shadow`, and dark mode adds `0 0 1px 0 rgba(255,255,255,.3)
+    /// **inset**` -- a one-pixel highlight just inside the edge. gpui has no
+    /// inset shadow, so the closest reproduction is a one-pixel border in that
+    /// colour, and in light mode there is none.
+    pub overlay_hairline: Option<gpui::Hsla>,
 }
 
 impl Default for LayoutTheme {
@@ -70,8 +78,15 @@ impl LayoutTheme {
                 shadow(0., 1., 2., 0.06),
                 shadow(0., 0., 1., 0.06),
             ],
-            // `0 4px 16px 0 rgba(24,24,27,.08), 0 8px 24px 0 rgba(24,24,27,.09)`
-            overlay_shadow: vec![shadow(0., 4., 16., 0.08), shadow(0., 8., 24., 0.09)],
+            // `0 2px 8px 0 rgba(0,0,0,.06), 0 -6px 12px 0 rgba(0,0,0,.03),
+            //  0 14px 28px 0 rgba(0,0,0,.08)` -- three, and the middle one
+            // throws its blur *upward*, which is what keeps a panel from
+            // looking pasted onto the page.
+            overlay_shadow: vec![
+                shadow(0., 2., 8., 0.06),
+                shadow(0., -6., 12., 0.03),
+                shadow(0., 14., 28., 0.08),
+            ],
             field_shadow: vec![
                 shadow(0., 2., 4., 0.04),
                 shadow(0., 1., 2., 0.06),
@@ -87,6 +102,10 @@ impl LayoutTheme {
             surface_shadow: Vec::new(),
             overlay_shadow: Vec::new(),
             field_shadow: Vec::new(),
+            // `--overlay-shadow: 0 0 1px 0 rgba(255,255,255,.3) inset` is the
+            // only shadow dark mode keeps, and it is what separates a panel from
+            // the page now that both are the same colour.
+            overlay_hairline: Some(gpui::hsla(0., 0., 1., 0.3)),
             ..Self::common()
         }
     }
@@ -107,6 +126,7 @@ impl LayoutTheme {
             skeleton_animation: SkeletonAnimation::Shimmer,
             tooltip_delay_ms: 1500,
             tooltip_close_delay_ms: 500,
+            overlay_hairline: None,
         }
     }
 

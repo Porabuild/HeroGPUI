@@ -403,11 +403,29 @@ A second pass compares the **values**, per appearance, and found four more:
   forbids. A v3 dark popover is the colour of a v3 dark card and the shadow is
   what separates them, which a screenshot confirms it still does.
 
-Reading the Rust side needs a small parser rather than a regex, and two things
+A third pass covers `layout.rs` -- the lengths, the two tooltip delays and the
+three shadows, compared layer by layer. That is how the overlay shadow was
+caught having drifted to an older sheet's two layers instead of v3's three, one
+of which throws its blur *upward*; and it is what led to the discovery that **v3
+gives a floating panel no border at all.** Light mode separates a panel with that
+shadow, and dark mode with `0 0 1px rgba(255,255,255,.3) inset` -- a hairline
+just inside the edge, which gpui cannot paint as an inset shadow, so
+`overlay_hairline` reproduces it as a one-pixel border and light mode has none.
+Every panel here had been drawing a `--separator` border instead.
+
+Reading the Rust side needs a small parser rather than a regex, and four things
 make that so: `background` is a field of the theme, of every surface *and* of the
-field colours, so a flat name map resolves the wrong one; and three of the
-theme's colours are written with Rust's field-init shorthand (`foreground,`),
-which has no `:` to match on.
+field colours, so a flat name map resolves the wrong one; three of the theme's
+colours are written with Rust's field-init shorthand (`foreground,`), which has
+no `:` to match on; every layout field is documented with the CSS it ports, so a
+whole-file search finds the doc comment first; and the struct's own declaration
+(`pub spacing: Pixels,`) looks exactly like an initialiser. Search the
+constructor bodies, with the comments stripped.
+
+Two sweeps the audits cannot do, worth running after a token or state change:
+`HEROGPUI_THEME=dark .shots/smoke.ps1` and
+`HEROGPUI_REDUCE_MOTION=1 HEROGPUI_OPEN_OVERLAYS=1 .shots/smoke.ps1`. Both were
+clean at 73/73.
 
 The design audit measures the *resting* look. What a control does when it is
 hovered, pressed, focused or disabled is a different list, and v3 states it in

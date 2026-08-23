@@ -236,8 +236,12 @@ impl RenderOnce for Popover {
             .bg(colors.overlay.background)
             .text_color(colors.surface.foreground)
             .rounded(crate::util::control_radius(cx))
-            .border_1()
-            .border_color(colors.separator)
+            // v3 gives a floating panel no border: `.popover` and friends are
+            // `bg-overlay shadow-overlay` and a radius, and dark mode's
+            // inset hairline is what separates the panel from the page.
+            .when_some(layout.overlay_hairline, |el, hairline| {
+            el.border(layout.border_width).border_color(hairline)
+            })
             .shadow(layout.overlay_shadow.clone());
 
         if self.title.is_some() || self.show_close_button {

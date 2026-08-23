@@ -292,12 +292,19 @@ impl RenderOnce for Menu {
             .py(px(6.))
             .bg(colors.overlay.background)
             .rounded(crate::util::container_radius(cx))
-            .border_1()
-            .border_color(colors.separator)
             .shadow(cx.layout().overlay_shadow.clone())
             .overflow_hidden()
             .track_focus(&focus_handle)
             .key_context("Menu");
+
+        // v3 gives a floating panel no border: it is `bg-overlay shadow-overlay`
+        // and a radius, and dark mode's inset hairline is what separates the
+        // panel from the page.
+        if let Some(hairline) = cx.layout().overlay_hairline {
+            panel = panel
+                .border(cx.layout().border_width)
+                .border_color(hairline);
+        }
 
         if !stops.is_empty() {
             let held = cursor;

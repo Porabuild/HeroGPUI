@@ -1841,8 +1841,12 @@ impl RenderOnce for ColorPicker {
             .w(px(264.))
             .rounded(util::container_radius(cx))
             .bg(colors.overlay.background)
-            .border(layout.border_width)
-            .border_color(colors.border)
+            // v3 gives a floating panel no border: it is `bg-overlay
+            // shadow-overlay` and a radius, and dark mode's inset hairline is
+            // what separates the panel from the page.
+            .when_some(layout.overlay_hairline, |el, hairline| {
+                el.border(layout.border_width).border_color(hairline)
+            })
             .when(!layout.overlay_shadow.is_empty(), |e| {
                 e.shadow(layout.overlay_shadow.clone())
             });
