@@ -1,0 +1,381 @@
+//! Accordion — port of `@heroui/accordion`.
+
+use std::collections::HashSet;
+
+use gpui::{prelude::*, px, AnyElement, App, IntoElement, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window};
+use herogpui_theme::ActiveTheme;
+
+use crate::icons;
+
+/// One accordion entry.
+pub struct AccordionItem {
+    pub key: SharedString,
+    pub title: SharedString,
+    pub subtitle: Option<SharedString>,
+    pub content: AnyElement,
+}
+
+impl AccordionItem {
+    pub fn new(key: impl Into<SharedString>, title: impl Into<SharedString>) -> Self {
+        Self {
+            key: key.into(),
+            title: title.into(),
+            subtitle: None,
+            content: gpui::div().into_any_element(),
+        }
+    }
+
+    pub fn subtitle(mut self, s: impl Into<SharedString>) -> Self {
+        self.subtitle = Some(s.into());
+        self
+    }
+
+    pub fn content(mut self, el: impl IntoElement) -> Self {
+        self.content = el.into_any_element();
+        self
+    }
+}
+
+/// Card style (`variant`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AccordionVariant {
+    /// Flush with the page, separated by rules.
+    #[default]
+    Default,
+    /// Each item sits on its own surface.
+    Surface,
+}
+
+impl AccordionVariant {
+    pub const ALL: [AccordionVariant; 2] = [AccordionVariant::Default, AccordionVariant::Surface];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            AccordionVariant::Default => "Default",
+            AccordionVariant::Surface => "Surface",
+        }
+    }
+}
+
+type OnToggle = std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
+
+/// HeroUI Accordion (controlled).
+#[derive(IntoElement)]
+pub struct Accordion {
+    items: Vec<AccordionItem>,
+    /// Distinguishes this accordion's uncontrolled state from its neighbours'.
+    id: Option<gpui::ElementId>,
+    /// `expandedKeys` — `None` leaves the accordion holding the set, seeded
+    /// from `defaultExpandedKeys`.
+    expanded_keys: Option<HashSet<SharedString>>,
+    default_expanded_keys: HashSet<SharedString>,
+    is_disabled: bool,
+    disabled_keys: HashSet<SharedString>,
+    allows_multiple_expanded: bool,
+    on_expanded_change:
+        Option<std::sync::Arc<dyn Fn(&HashSet<SharedString>, &mut Window, &mut App) + 'static>>,
+    variant: AccordionVariant,
+    hide_separator: bool,
+    on_toggle: Option<OnToggle>,
+}
+
+impl Accordion {
+    /// `allowsMultipleExpanded` — when false, expanding one item collapses the
+    /// rest. The caller still owns `expanded_keys`; this only changes what the
+    /// toggle callback reports.
+    pub fn allows_multiple_expanded(mut self, v: bool) -> Self {
+        self.allows_multiple_expanded = v;
+        self
+    }
+
+    /// `onExpandedChange` — reports the whole expanded set after a toggle,
+    /// where [`Accordion::on_toggle`] reports only the key that moved.
+    pub fn on_expanded_change(
+        mut self,
+        handler: impl Fn(&HashSet<SharedString>, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_expanded_change = Some(std::sync::Arc::new(handler));
+        self
+    }
+
+    pub fn new(items: Vec<AccordionItem>) -> Self {
+        Self {
+            items,
+            id: None,
+            expanded_keys: None,
+            default_expanded_keys: HashSet::new(),
+            is_disabled: false,
+            disabled_keys: HashSet::new(),
+            allows_multiple_expanded: true,
+            on_expanded_change: None,
+            variant: AccordionVariant::Default,
+            hide_separator: false,
+            on_toggle: None,
+        }
+    }
+
+    /// Controlled set of open item keys.
+    /// `isDisabled` — no item can be toggled.
+    pub fn is_disabled(mut self, v: bool) -> Self {
+        self.is_disabled = v;
+        self
+    }
+
+    /// `disabledKeys` — the listed items cannot be toggled.
+    pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
+        self.disabled_keys = keys.into_iter().collect();
+        self
+    }
+
+    /// Distinguishes this accordion from its neighbours.
+    ///
+    /// Only matters in the uncontrolled mode, where the expanded set lives in
+    /// element state. The default is derived from the item keys, which is
+    /// unique unless two accordions hold the same items.
+    pub fn id(mut self, id: impl Into<gpui::ElementId>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+
+    pub fn expanded_keys(mut self, keys: HashSet<SharedString>) -> Self {
+        self.expanded_keys = Some(keys);
+        self
+    }
+
+    /// `defaultExpandedKeys` — the uncontrolled initial set.
+    ///
+    /// Only consulted when `expandedKeys` is not supplied; the accordion then
+    /// owns the set and expands itself on press.
+    pub fn default_expanded_keys(mut self, keys: HashSet<SharedString>) -> Self {
+        self.default_expanded_keys = keys;
+        self
+    }
+
+    /// `defaultExpanded` on a single item — shorthand for a one-key default
+    /// set.
+    pub fn default_expanded(mut self, key: impl Into<SharedString>) -> Self {
+        self.default_expanded_keys.insert(key.into());
+        self
+    }
+
+    pub fn variant(mut self, v: AccordionVariant) -> Self {
+        self.variant = v;
+        self
+    }
+
+
+    /// `hideSeparator` — drops the rules between items.
+    pub fn hide_separator(mut self, v: bool) -> Self {
+        self.hide_separator = v;
+        self
+    }
+
+    /// Fires with the toggled key; the parent flips membership in its set.
+    pub fn on_toggle(
+        mut self,
+        f: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_toggle = Some(std::sync::Arc::new(f));
+        self
+    }
+}
+
+impl RenderOnce for Accordion {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `expandedKeys` wins; without it the accordion holds the set, seeded
+        // from `defaultExpandedKeys`. `controlled` takes `cx` mutably, so it
+        // precedes the theme tokens.
+        let (expanded_keys, expanded_own) = crate::util::controlled(
+            window,
+            cx,
+            self.id.clone().unwrap_or_else(|| {
+                let keys: Vec<&str> = self.items.iter().map(|i| i.key.as_ref()).collect();
+                gpui::ElementId::Name(format!("acc-{}-expanded", keys.join("-")).into())
+            }),
+            self.expanded_keys.clone(),
+            self.default_expanded_keys.clone(),
+        );
+
+        let colors = cx.colors();
+        let layout = cx.layout();
+
+        // `default` is flush with the page; `surface` lifts the whole group
+        // onto a surface with the surface shadow.
+        let mut container = match self.variant {
+            AccordionVariant::Default => gpui::div(),
+            AccordionVariant::Surface => gpui::div()
+                .bg(colors.surface.background)
+                .border(layout.border_width)
+                .border_color(colors.border)
+                .rounded(crate::util::container_radius(cx))
+                .when(!layout.surface_shadow.is_empty(), |e| {
+                    e.shadow(layout.surface_shadow.clone())
+                }),
+        };
+
+        container = container
+            .flex()
+            .flex_col()
+            .rounded(crate::util::control_radius(cx))
+            .bg(colors.surface.background)
+            .overflow_hidden();
+
+        let count = self.items.len();
+        for (i, item) in self.items.into_iter().enumerate() {
+            let is_open = expanded_keys.contains(&item.key);
+            let item_disabled = self.is_disabled || self.disabled_keys.contains(&item.key);
+
+            let mut header = gpui::div()
+                .id(gpui::ElementId::Name(format!("acc-{}", item.key).into()))
+                .flex()
+                .items_center()
+                .justify_between()
+                .px(px(12.))
+                .py(px(10.));
+
+            if item_disabled {
+                header = header.opacity(layout.disabled_opacity);
+            } else {
+                // v3 hovers the row surface rather than dimming its text.
+                let hover_bg = colors.default.soft();
+                header = header.cursor_pointer().hover(move |s| s.bg(hover_bg));
+            }
+
+            let mut title_col = gpui::div().flex().flex_col();
+            title_col = title_col.child(
+                gpui::div()
+                    .text_size(px(14.))
+                    .line_height(px(20.))
+                    .font_weight(gpui::FontWeight::MEDIUM)
+                    .text_color(colors.foreground)
+                    .child(item.title.to_string()),
+            );
+            if let Some(sub) = &item.subtitle {
+                title_col = title_col.child(
+                    gpui::div()
+                        .text_size(px(12.))
+                        .text_color(colors.muted)
+                        .child(sub.to_string()),
+                );
+            }
+            header = header.child(title_col);
+
+            let chevron = if is_open {
+                icons::CHEVRON_UP
+            } else {
+                icons::CHEVRON_DOWN
+            };
+            header = header.child(
+                gpui::svg()
+                    .size(px(14.))
+                    .path(chevron)
+                    .text_color(colors.muted)
+                    .flex_shrink_0(),
+            );
+
+            if !item_disabled {
+                let key = item.key.clone();
+                let on_toggle = self.on_toggle.clone();
+                let on_expanded = self.on_expanded_change.clone();
+                let current = expanded_keys.clone();
+                let multiple = self.allows_multiple_expanded;
+                let own = expanded_own.clone();
+                if on_toggle.is_some() || on_expanded.is_some() || own.is_some() {
+                    header = header.on_click(move |_, window, cx| {
+                        let next = next_expanded(&current, &key, multiple);
+                        // Uncontrolled: update our own set, or the header would
+                        // be inert.
+                        if let Some(held) = &own {
+                            let next = next.clone();
+                            held.update(cx, |v, cx| {
+                                *v = next;
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &on_toggle {
+                            cb(&key, window, cx);
+                        }
+                        if let Some(cb) = &on_expanded {
+                            cb(&next, window, cx);
+                        }
+                    });
+                }
+            }
+
+            let mut section = gpui::div().flex().flex_col().child(header);
+            if is_open {
+                section = section.child(
+                    gpui::div()
+                        .px(px(12.))
+                        .pb(px(12.))
+                        .pt(px(2.))
+                        .text_size(px(14.))
+                        .line_height(px(22.))
+                        .text_color(colors.muted)
+                        .child(item.content),
+                );
+            }
+
+            section = section.when(!self.hide_separator && i + 1 < count, |s| {
+                s.border_b_1().border_color(colors.separator)
+            });
+
+            container = container.child(section);
+        }
+
+        container
+    }
+}
+
+/// The expanded set after toggling `key`.
+///
+/// With `allowsMultipleExpanded` off, expanding an item collapses every other.
+pub fn next_expanded(
+    current: &HashSet<SharedString>,
+    key: &SharedString,
+    allows_multiple: bool,
+) -> HashSet<SharedString> {
+    let was_open = current.contains(key);
+    if was_open {
+        let mut next = current.clone();
+        next.remove(key);
+        return next;
+    }
+    if allows_multiple {
+        let mut next = current.clone();
+        next.insert(key.clone());
+        next
+    } else {
+        HashSet::from([key.clone()])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn set(keys: &[&str]) -> HashSet<SharedString> {
+        keys.iter().map(|k| SharedString::from(k.to_string())).collect()
+    }
+
+    #[test]
+    fn multiple_adds_without_collapsing() {
+        let next = next_expanded(&set(&["a"]), &SharedString::from("b"), true);
+        assert_eq!(next, set(&["a", "b"]));
+    }
+
+    #[test]
+    fn single_collapses_the_others() {
+        let next = next_expanded(&set(&["a"]), &SharedString::from("b"), false);
+        assert_eq!(next, set(&["b"]));
+    }
+
+    #[test]
+    fn toggling_an_open_item_closes_it_in_both_modes() {
+        assert_eq!(
+            next_expanded(&set(&["a", "b"]), &SharedString::from("a"), true),
+            set(&["b"])
+        );
+        assert!(next_expanded(&set(&["a"]), &SharedString::from("a"), false).is_empty());
+    }
+}

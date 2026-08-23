@@ -1,0 +1,33 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/herogpui-core",
+    "crates/herogpui-theme",
+    "crates/herogpui-components",
+    "crates/herogpui",
+    "gallery",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/heroui-inc/HeroGPUI"
+
+[workspace.dependencies]
+gpui = "0.2.2"
+herogpui-core = { path = "crates/herogpui-core" }
+herogpui-theme = { path = "crates/herogpui-theme" }
+herogpui-components = { path = "crates/herogpui-components" }
+herogpui = { path = "crates/herogpui" }
+
+[profile.dev]
+opt-level = 1
+# Antivirus on Windows intermittently locks the incremental session directory,
+# which leaves behind partial artifacts and fails the next link with
+# "unresolved external symbol anon.*". Disabling incremental trades a slower
+# rebuild for a build that does not spuriously break.
+incremental = false
+
+[profile.dev.package."*"]
+opt-level = 3

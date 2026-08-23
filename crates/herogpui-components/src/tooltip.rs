@@ -1,0 +1,317 @@
+//! Tooltip — port of `@heroui/tooltip` (v3).
+//!
+//! The tip is state-driven rather than a pure hover style, because v3's `delay`
+//! and `closeDelay` need to know *when* the hover began. State lives in a
+//! per-tooltip [`Window::use_keyed_state`] entity, so callers still write a
+//! plain builder with no entity to thread through.
+
+use std::time::Duration;
+
+use gpui::{
+    prelude::*, px, AnyElement, App, ElementId, IntoElement, ParentElement, Pixels, RenderOnce,
+    SharedString, StatefulInteractiveElement, Styled, Window,
+};
+use herogpui_theme::ActiveTheme;
+
+use crate::{anim, icons, util};
+
+/// Where the tip sits relative to its trigger.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TooltipPlacement {
+    #[default]
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
+impl TooltipPlacement {
+    pub const ALL: [TooltipPlacement; 4] = [
+        TooltipPlacement::Top,
+        TooltipPlacement::Bottom,
+        TooltipPlacement::Left,
+        TooltipPlacement::Right,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            TooltipPlacement::Top => "Top",
+            TooltipPlacement::Bottom => "Bottom",
+            TooltipPlacement::Left => "Left",
+            TooltipPlacement::Right => "Right",
+        }
+    }
+
+    /// The arrow points back at the trigger, so it faces opposite the tip.
+    fn arrow_rotation(self) -> f32 {
+        match self {
+            // The asset's apex is at the bottom, so it points down unrotated:
+            // a tip above the trigger needs no rotation at all.
+            TooltipPlacement::Top => 0.,
+            TooltipPlacement::Bottom => std::f32::consts::PI,
+            TooltipPlacement::Left => -std::f32::consts::FRAC_PI_2,
+            TooltipPlacement::Right => std::f32::consts::FRAC_PI_2,
+        }
+    }
+
+    /// The edge the animation travels in from.
+    fn entering_edge(self) -> anim::Edge {
+        match self {
+            TooltipPlacement::Top => anim::Edge::Bottom,
+            TooltipPlacement::Bottom => anim::Edge::Top,
+            TooltipPlacement::Left => anim::Edge::Right,
+            TooltipPlacement::Right => anim::Edge::Left,
+        }
+    }
+}
+
+/// Hover state for one tooltip.
+///
+/// `generation` is bumped on every hover transition; a timer that fires after a
+/// newer transition has been recorded is stale and must not flip the tip. That
+/// is what keeps a fast pass over a row of triggers from opening all of them.
+pub struct TooltipHover {
+    open: bool,
+    generation: u64,
+}
+
+impl TooltipHover {
+    fn new() -> Self {
+        Self {
+            open: false,
+            generation: 0,
+        }
+    }
+
+    /// Whether the tip is currently shown.
+    pub fn is_open(&self) -> bool {
+        self.open
+    }
+}
+
+/// HeroUI Tooltip: wraps a trigger and reveals a tip on hover.
+#[derive(IntoElement)]
+pub struct Tooltip {
+    id: Option<ElementId>,
+    content: SharedString,
+    is_disabled: bool,
+    placement: TooltipPlacement,
+    show_arrow: bool,
+    offset: Option<Pixels>,
+    should_skip_animation: bool,
+    delay: Option<u64>,
+    close_delay: Option<u64>,
+    children: Vec<AnyElement>,
+}
+
+impl Tooltip {
+    pub fn new(content: impl Into<SharedString>) -> Self {
+        Self {
+            id: None,
+            content: content.into(),
+            is_disabled: false,
+            placement: TooltipPlacement::Top,
+            show_arrow: false,
+            offset: None,
+            should_skip_animation: false,
+            delay: None,
+            close_delay: None,
+            children: Vec::new(),
+        }
+    }
+
+    /// Distinguishes this tooltip's hover state from its neighbours'.
+    ///
+    /// The default key is the tip text, which is unique on most pages; set an
+    /// id when two tooltips on one screen share the same content.
+    pub fn id(mut self, id: impl Into<ElementId>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+
+    /// `isDisabled` — suppresses the tip entirely.
+    pub fn is_disabled(mut self, v: bool) -> Self {
+        self.is_disabled = v;
+        self
+    }
+
+    pub fn placement(mut self, p: TooltipPlacement) -> Self {
+        self.placement = p;
+        self
+    }
+
+    /// `showArrow` — draws the arrow indicator pointing at the trigger.
+    pub fn show_arrow(mut self, v: bool) -> Self {
+        self.show_arrow = v;
+        self
+    }
+
+    /// `offset` — distance from the trigger. Defaults to 3px, or 7px with an
+    /// arrow, matching v3.
+    pub fn offset(mut self, offset: impl Into<Pixels>) -> Self {
+        self.offset = Some(offset.into());
+        self
+    }
+
+    /// `shouldSkipAnimation` — reveal without the entry animation.
+    ///
+    /// v3 uses this when moving quickly between neighbouring triggers, where
+    /// re-animating each tip reads as flicker.
+    pub fn should_skip_animation(mut self, v: bool) -> Self {
+        self.should_skip_animation = v;
+        self
+    }
+
+    /// `delay` — milliseconds to wait before showing. Defaults to the
+    /// `--tooltip-delay` theme token.
+    pub fn delay(mut self, ms: u64) -> Self {
+        self.delay = Some(ms);
+        self
+    }
+
+    /// `closeDelay` — milliseconds to wait before hiding. Defaults to the
+    /// `--tooltip-close-delay` theme token.
+    pub fn close_delay(mut self, ms: u64) -> Self {
+        self.close_delay = Some(ms);
+        self
+    }
+}
+
+impl ParentElement for Tooltip {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.children.extend(elements);
+    }
+}
+
+impl RenderOnce for Tooltip {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        if self.is_disabled {
+            // A disabled tooltip renders its trigger and nothing else.
+            return gpui::div().flex().children(self.children).into_any_element();
+        }
+
+        let key = self
+            .id
+            .clone()
+            .unwrap_or_else(|| ElementId::Name(format!("tooltip-{}", self.content).into()));
+        // The state entity has to be created before the theme tokens are read;
+        // `use_keyed_state` takes `cx` mutably and would conflict with them.
+        let state = window.use_keyed_state(key.clone(), cx, |_, _| TooltipHover::new());
+        let open = state.read(cx).open;
+
+        let colors = cx.colors();
+        let layout = cx.layout();
+
+        let delay = self.delay.unwrap_or(layout.tooltip_delay_ms);
+        let close_delay = self.close_delay.unwrap_or(layout.tooltip_close_delay_ms);
+        // v3 pushes the tip further out when the arrow needs room.
+        let offset = self
+            .offset
+            .unwrap_or(if self.show_arrow { px(7.) } else { px(3.) });
+
+        let mut tip = gpui::div()
+            .absolute()
+            .px(px(8.))
+            .py(px(4.))
+            .rounded(px(6.))
+            .bg(colors.foreground)
+            .text_color(colors.background)
+            .text_size(px(12.))
+            .line_height(px(16.))
+            .whitespace_nowrap()
+            .shadow(layout.overlay_shadow.clone())
+            .child(self.content.to_string());
+
+        tip = match self.placement {
+            TooltipPlacement::Top => tip.bottom_full().mb(offset),
+            TooltipPlacement::Bottom => tip.top_full().mt(offset),
+            TooltipPlacement::Left => tip.right_full().mr(offset),
+            TooltipPlacement::Right => tip.left_full().ml(offset),
+        };
+
+        if self.show_arrow {
+            let mut arrow = gpui::div().absolute().child(
+                gpui::svg()
+                    .size(px(8.))
+                    .path(icons::TOOLTIP_ARROW)
+                    // svg() never inherits text colour; the arrow has to be
+                    // tinted to match the tip body explicitly.
+                    .text_color(colors.foreground)
+                    .with_transformation(gpui::Transformation::rotate(gpui::radians(
+                        self.placement.arrow_rotation(),
+                    ))),
+            );
+            arrow = match self.placement {
+                TooltipPlacement::Top => arrow.top_full().left(px(0.)).right(px(0.)).flex().justify_center(),
+                TooltipPlacement::Bottom => {
+                    arrow.bottom_full().left(px(0.)).right(px(0.)).flex().justify_center()
+                }
+                TooltipPlacement::Left => arrow.left_full().top(px(0.)).bottom(px(0.)).flex().items_center(),
+                TooltipPlacement::Right => {
+                    arrow.right_full().top(px(0.)).bottom(px(0.)).flex().items_center()
+                }
+            };
+            tip = tip.child(arrow);
+        }
+
+        let hover_state = state.clone();
+        let mut wrapper = gpui::div()
+            // `on_hover` needs a stateful element, so the wrapper carries the id.
+            .id(key.clone())
+            .relative()
+            .flex()
+            .children(self.children)
+            .on_hover(move |over, _window, cx: &mut App| {
+                let over = *over;
+                let wait = if over { delay } else { close_delay };
+                let generation = hover_state.update(cx, |s, _| {
+                    s.generation += 1;
+                    s.generation
+                });
+
+                if wait == 0 {
+                    hover_state.update(cx, |s, cx| {
+                        s.open = over;
+                        cx.notify();
+                    });
+                    return;
+                }
+
+                let weak = hover_state.downgrade();
+                cx.spawn(async move |cx: &mut gpui::AsyncApp| {
+                    cx.background_executor()
+                        .timer(Duration::from_millis(wait))
+                        .await;
+                    if let Some(state) = weak.upgrade() {
+                        let _ = state.update(cx, |s, cx| {
+                            // A newer hover transition supersedes this timer.
+                            if s.generation == generation && s.open != over {
+                                s.open = over;
+                                cx.notify();
+                            }
+                        });
+                    }
+                })
+                .detach();
+            });
+
+        if open {
+            // `absolute` does not lift the tip above later siblings in the page,
+            // so it has to paint last.
+            let animated = if self.should_skip_animation {
+                tip.into_any_element()
+            } else {
+                anim::entering_from(
+                    tip,
+                    ElementId::Name(format!("{key:?}-tip").into()),
+                    self.placement.entering_edge(),
+                    px(4.),
+                    cx,
+                )
+            };
+            wrapper = wrapper.child(util::floating(animated));
+        }
+
+        wrapper.into_any_element()
+    }
+}

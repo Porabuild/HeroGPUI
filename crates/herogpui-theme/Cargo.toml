@@ -1,0 +1,11 @@
+[package]
+name = "herogpui-theme"
+description = "HeroUI design tokens and theming system for HeroGPUI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+gpui.workspace = true
+herogpui-core.workspace = true

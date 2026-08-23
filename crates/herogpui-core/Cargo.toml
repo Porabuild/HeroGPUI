@@ -1,0 +1,10 @@
+[package]
+name = "herogpui-core"
+description = "Core utilities and shared types for HeroGPUI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+gpui.workspace = true

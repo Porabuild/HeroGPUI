@@ -1,0 +1,18 @@
+[package]
+name = "herogpui-gallery"
+description = "HeroGPUI component gallery and documentation showcase"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "gallery"
+path = "src/main.rs"
+
+[dependencies]
+gpui.workspace = true
+herogpui-core.workspace = true
+herogpui-theme.workspace = true
+herogpui-components.workspace = true
+herogpui.workspace = true

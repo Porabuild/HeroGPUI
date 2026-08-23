@@ -1,0 +1,389 @@
+//! ListBox — port of `@heroui/list-box` (v3).
+//!
+//! A selectable list of options. Mirrors the React API: `selectionMode`,
+//! `selectedKeys`, `disabledKeys`, `onSelectionChange`, `onAction`, and the
+//! `default | danger` item variant. Sections are expressed with
+//! [`ListBoxItem::section`] headers and [`ListBoxItem::separator`].
+
+use std::collections::HashSet;
+use std::sync::Arc;
+
+use gpui::{
+    div, prelude::*, px, App, ElementId, InteractiveElement, IntoElement, RenderOnce, SharedString,
+    Styled, Window,
+};
+use herogpui_core::{SelectionMode, Size};
+use herogpui_theme::ActiveTheme;
+
+use crate::{icons, util};
+
+/// Visual variant of a list item.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ListBoxItemVariant {
+    #[default]
+    Default,
+    /// Destructive action — danger text, danger-soft hover.
+    Danger,
+}
+
+/// One row of a [`ListBox`].
+#[derive(Clone)]
+pub enum ListBoxItem {
+    /// A selectable option.
+    Option {
+        key: SharedString,
+        label: SharedString,
+        description: Option<SharedString>,
+        /// Asset path of a leading icon.
+        icon: Option<SharedString>,
+        /// Trailing shortcut hint.
+        shortcut: Option<SharedString>,
+        variant: ListBoxItemVariant,
+        is_disabled: bool,
+    },
+    /// A non-interactive section header.
+    Section(SharedString),
+    /// A horizontal rule between groups.
+    Separator,
+}
+
+impl ListBoxItem {
+    pub fn new(key: impl Into<SharedString>, label: impl Into<SharedString>) -> Self {
+        Self::Option {
+            key: key.into(),
+            label: label.into(),
+            description: None,
+            icon: None,
+            shortcut: None,
+            variant: ListBoxItemVariant::Default,
+            is_disabled: false,
+        }
+    }
+
+    pub fn section(label: impl Into<SharedString>) -> Self {
+        Self::Section(label.into())
+    }
+
+    pub fn separator() -> Self {
+        Self::Separator
+    }
+
+    /// Secondary line beneath the label.
+    pub fn description(mut self, text: impl Into<SharedString>) -> Self {
+        if let Self::Option { description, .. } = &mut self {
+            *description = Some(text.into());
+        }
+        self
+    }
+
+    pub fn icon(mut self, path: impl Into<SharedString>) -> Self {
+        if let Self::Option { icon, .. } = &mut self {
+            *icon = Some(path.into());
+        }
+        self
+    }
+
+    pub fn shortcut(mut self, text: impl Into<SharedString>) -> Self {
+        if let Self::Option { shortcut, .. } = &mut self {
+            *shortcut = Some(text.into());
+        }
+        self
+    }
+
+    pub fn variant(mut self, v: ListBoxItemVariant) -> Self {
+        if let Self::Option { variant, .. } = &mut self {
+            *variant = v;
+        }
+        self
+    }
+
+    /// Shorthand for [`ListBoxItemVariant::Danger`].
+    pub fn danger(self) -> Self {
+        self.variant(ListBoxItemVariant::Danger)
+    }
+
+    pub fn is_disabled(mut self, v: bool) -> Self {
+        if let Self::Option { is_disabled, .. } = &mut self {
+            *is_disabled = v;
+        }
+        self
+    }
+
+    /// The item's key, or `None` for headers and separators.
+    pub fn key(&self) -> Option<&SharedString> {
+        match self {
+            Self::Option { key, .. } => Some(key),
+            _ => None,
+        }
+    }
+}
+
+type OnSelectionChange = Arc<dyn Fn(&HashSet<SharedString>, &mut Window, &mut App) + 'static>;
+type OnAction = Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
+
+/// HeroUI ListBox.
+#[derive(IntoElement)]
+pub struct ListBox {
+    id: ElementId,
+    items: Vec<ListBoxItem>,
+    selection_mode: SelectionMode,
+    selected_keys: HashSet<SharedString>,
+    disabled_keys: HashSet<SharedString>,
+    size: Size,
+    /// Applies to every item unless the item overrides it.
+    variant: ListBoxItemVariant,
+    max_h: Option<gpui::Pixels>,
+    on_selection_change: Option<OnSelectionChange>,
+    on_action: Option<OnAction>,
+}
+
+impl ListBox {
+    pub fn new(id: impl Into<ElementId>, items: Vec<ListBoxItem>) -> Self {
+        Self {
+            id: id.into(),
+            items,
+            selection_mode: SelectionMode::Single,
+            selected_keys: HashSet::new(),
+            disabled_keys: HashSet::new(),
+            size: Size::Md,
+            variant: ListBoxItemVariant::Default,
+            max_h: None,
+            on_selection_change: None,
+            on_action: None,
+        }
+    }
+
+    pub fn selection_mode(mut self, mode: SelectionMode) -> Self {
+        self.selection_mode = mode;
+        self
+    }
+
+    pub fn selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
+        self.selected_keys = keys.into_iter().collect();
+        self
+    }
+
+    /// Convenience for `selectionMode="single"`.
+    pub fn selected_key(mut self, key: impl Into<SharedString>) -> Self {
+        self.selected_keys = HashSet::from([key.into()]);
+        self
+    }
+
+    pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
+        self.disabled_keys = keys.into_iter().collect();
+        self
+    }
+
+    pub fn size(mut self, size: Size) -> Self {
+        self.size = size;
+        self
+    }
+
+    pub fn variant(mut self, variant: ListBoxItemVariant) -> Self {
+        self.variant = variant;
+        self
+    }
+
+    /// Caps the list height and scrolls beyond it.
+    pub fn max_h(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.max_h = Some(h.into());
+        self
+    }
+
+    /// Called with the full selection after a toggle.
+    pub fn on_selection_change(
+        mut self,
+        handler: impl Fn(&HashSet<SharedString>, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_selection_change = Some(Arc::new(handler));
+        self
+    }
+
+    /// Called when an item is activated, regardless of selection mode.
+    pub fn on_action(
+        mut self,
+        handler: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_action = Some(Arc::new(handler));
+        self
+    }
+}
+
+impl RenderOnce for ListBox {
+    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let colors = cx.colors();
+        let row_h = match self.size {
+            Size::Sm => px(28.),
+            Size::Md => px(34.),
+            Size::Lg => px(40.),
+        };
+        let text_size = self.size.text_size();
+
+        let mut list = div()
+            .id(self.id.clone())
+            .flex()
+            .flex_col()
+            .gap(px(2.))
+            .p(px(4.))
+            .rounded(util::container_radius(cx))
+            .bg(colors.surface.background)
+            .border(cx.layout().border_width)
+            .border_color(colors.border)
+            .text_color(colors.foreground);
+
+        if let Some(max_h) = self.max_h {
+            list = list.max_h(max_h).overflow_y_scroll();
+        }
+
+        for (index, item) in self.items.iter().enumerate() {
+            match item {
+                ListBoxItem::Separator => {
+                    list = list.child(
+                        div()
+                            .my(px(4.))
+                            .mx(px(4.))
+                            .h(cx.layout().border_width)
+                            .bg(colors.separator),
+                    );
+                }
+                ListBoxItem::Section(label) => {
+                    list = list.child(
+                        div()
+                            .px(px(8.))
+                            .pt(px(8.))
+                            .pb(px(4.))
+                            .text_size(px(11.))
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .text_color(colors.muted)
+                            .child(label.to_string()),
+                    );
+                }
+                ListBoxItem::Option {
+                    key,
+                    label,
+                    description,
+                    icon,
+                    shortcut,
+                    variant,
+                    is_disabled,
+                } => {
+                    let variant = if *variant == ListBoxItemVariant::Default {
+                        self.variant
+                    } else {
+                        *variant
+                    };
+                    let disabled = *is_disabled || self.disabled_keys.contains(key);
+                    let selected = self.selected_keys.contains(key);
+
+                    let (fg, hover_bg) = match variant {
+                        ListBoxItemVariant::Default => (colors.foreground, colors.default.color),
+                        ListBoxItemVariant::Danger => {
+                            (colors.danger.soft_foreground(), colors.danger.soft())
+                        }
+                    };
+
+                    let mut row = div()
+                        .id(ElementId::Name(format!("{:?}-item-{index}", self.id).into()))
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .gap(px(8.))
+                        .px(px(8.))
+                        .min_h(row_h)
+                        .py(px(4.))
+                        .rounded(util::control_radius(cx))
+                        .text_size(text_size)
+                        .text_color(fg);
+
+                    if disabled {
+                        row = row.opacity(cx.layout().disabled_opacity);
+                    } else {
+                        row = row.cursor_pointer().hover(move |s| s.bg(hover_bg));
+                    }
+
+                    if selected {
+                        row = row.bg(match variant {
+                            ListBoxItemVariant::Default => colors.accent.soft(),
+                            ListBoxItemVariant::Danger => colors.danger.soft(),
+                        });
+                    }
+
+                    if let Some(path) = icon {
+                        row = row.child(
+                            gpui::svg()
+                                .size(self.size.icon_size())
+                                .path(path.clone())
+                                .flex_shrink_0()
+                                .text_color(fg),
+                        );
+                    }
+
+                    // Label plus optional description stack.
+                    row = row.child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .flex_1()
+                            .child(div().child(label.to_string()))
+                            .when_some(description.clone(), |el, d| {
+                                el.child(
+                                    div()
+                                        .text_size(px(11.))
+                                        .text_color(colors.muted)
+                                        .child(d.to_string()),
+                                )
+                            }),
+                    );
+
+                    if selected && self.selection_mode != SelectionMode::None {
+                        row = row.child(
+                            gpui::svg()
+                                .size(px(14.))
+                                .path(icons::CHECK)
+                                .flex_shrink_0()
+                                .text_color(colors.accent.color),
+                        );
+                    } else if let Some(sc) = shortcut {
+                        row = row.child(
+                            div()
+                                .text_size(px(11.))
+                                .text_color(colors.muted)
+                                .child(sc.to_string()),
+                        );
+                    }
+
+                    if !disabled {
+                        let key = key.clone();
+                        let mode = self.selection_mode;
+                        let current = self.selected_keys.clone();
+                        let on_selection_change = self.on_selection_change.clone();
+                        let on_action = self.on_action.clone();
+                        row = row.on_click(move |_, window, cx| {
+                            if let Some(action) = &on_action {
+                                action(&key, window, cx);
+                            }
+                            if let Some(change) = &on_selection_change {
+                                let next = match mode {
+                                    SelectionMode::None => current.clone(),
+                                    SelectionMode::Single => HashSet::from([key.clone()]),
+                                    SelectionMode::Multiple => {
+                                        let mut set = current.clone();
+                                        if !set.remove(&key) {
+                                            set.insert(key.clone());
+                                        }
+                                        set
+                                    }
+                                };
+                                change(&next, window, cx);
+                            }
+                        });
+                    }
+
+                    list = list.child(row);
+                }
+            }
+        }
+
+        list
+    }
+}
