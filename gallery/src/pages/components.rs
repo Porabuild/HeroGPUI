@@ -8697,7 +8697,7 @@ impl Gallery {
     }
 
     pub fn page_toast(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        let toast_closed = self.demo_value("toast-closed", 0.) as u32;
+        let toast_closed = crate::app::toasts_closed(cx);
         doc_page(
             "Toast",
             crate::pages::Page::Toast.description(),
@@ -8785,8 +8785,9 @@ impl Gallery {
                     "Custom Indicators",
                     col(vec![
                         para(
-                            "The status picks the indicator, so a success toast shows the \
-                             success glyph and a danger one shows the alert.",
+                            "The variant picks the glyph — success shows a tick, danger a \
+                             crossed circle. `indicator` overrides it with any icon, and \
+                             `indicator(None)` is v3's `indicator={null}`: no glyph at all.",
                             cx,
                         ),
                         row(vec![
@@ -8795,11 +8796,10 @@ impl Gallery {
                                 .variant(Variant::Secondary)
                                 .size(Size::Sm)
                                 .on_press(|_, _, cx| {
-                                    h::Toast::new("Deployed")
+                                    h::Toast::success("Deployed")
                                         .description("Build 412 is live.")
-                                        .variant(Color::Success)
                                         .closable(true)
-                                        .push(Some(std::time::Duration::from_secs(4)), cx);
+                                        .push(None, cx);
                                 })
                                 .into_any_element(),
                             h::Button::new("toast-ind-danger")
@@ -8807,11 +8807,29 @@ impl Gallery {
                                 .variant(Variant::Secondary)
                                 .size(Size::Sm)
                                 .on_press(|_, _, cx| {
-                                    h::Toast::new("Deploy failed")
+                                    h::Toast::error("Deploy failed")
                                         .description("Two tests did not pass.")
-                                        .variant(Color::Danger)
                                         .closable(true)
-                                        .push(Some(std::time::Duration::from_secs(4)), cx);
+                                        .push(None, cx);
+                                })
+                                .into_any_element(),
+                            h::Button::new("toast-ind-custom")
+                                .label("Custom glyph")
+                                .variant(Variant::Secondary)
+                                .size(Size::Sm)
+                                .on_press(|_, _, cx| {
+                                    h::Toast::new("One new message")
+                                        .description("From martha@heroui.com.")
+                                        .indicator(SharedString::from(h::icons::MAIL))
+                                        .push(None, cx);
+                                })
+                                .into_any_element(),
+                            h::Button::new("toast-ind-none")
+                                .label("No glyph")
+                                .variant(Variant::Secondary)
+                                .size(Size::Sm)
+                                .on_press(|_, _, cx| {
+                                    h::Toast::success("Saved").indicator(None).push(None, cx);
                                 })
                                 .into_any_element(),
                         ]),
@@ -8844,8 +8862,9 @@ impl Gallery {
                     "Promise & Loading",
                     col(vec![
                         para(
-                            "v3 swaps one toast through pending, resolved and rejected. The same \
-                             three pushes, driven by a background timer.",
+                            "`toast.promise` shows a loading toast while the work runs, then \
+                             replaces it. `Toast::loading` is the pending half: a spinner, and \
+                             no timeout, so it waits to be closed.",
                             cx,
                         ),
                         row(vec![h::Button::new("toast-promise")
@@ -8853,9 +8872,8 @@ impl Gallery {
                             .variant(Variant::Secondary)
                             .size(Size::Sm)
                             .on_press(|_, window, cx| {
-                                let id = h::Toast::new("Uploading\u{2026}")
+                                let id = h::Toast::loading("Uploading\u{2026}")
                                     .description("document.pdf")
-                                    .variant(Color::Accent)
                                     .push(None, cx);
                                 // The resolution replaces the pending toast,
                                 // which is what v3's promise helper does.
@@ -8866,11 +8884,11 @@ impl Gallery {
                                             .await;
                                         cx.update(|_window, cx| {
                                             h::dismiss_toast(id, cx);
-                                            h::Toast::new("Uploaded")
+                                            h::Toast::success("Uploaded")
                                                 .description("document.pdf \u{2014} 1 KB")
-                                                .variant(Color::Success)
                                                 .closable(true)
-                                                .push(Some(std::time::Duration::from_secs(4)), cx);
+                                                .action("View", |_| {})
+                                                .push(None, cx);
                                         })
                                         .ok();
                                     })
@@ -8882,22 +8900,23 @@ impl Gallery {
                 (
                     "Callbacks",
                     col(vec![
-                        para(&format!("Toasts dismissed so far: {toast_closed}"), cx),
+                        para(&format!("Toasts closed so far: {toast_closed}"), cx),
+                        para(
+                            "`onClose` runs however the toast goes -- dismissed by hand or timed \
+                             out -- so the count follows the toast, not the button.",
+                            cx,
+                        ),
                         row(vec![h::Button::new("toast-callback")
                             .label("Push a closable toast")
                             .variant(Variant::Secondary)
                             .size(Size::Sm)
-                            .on_press(cx.listener(|this, _, _, cx| {
-                                this.set_demo_value(
-                                    "toast-closed",
-                                    this.demo_value("toast-closed", 0.) + 1.,
-                                );
+                            .on_press(|_, _, cx| {
                                 h::Toast::new("Dismiss me")
-                                    .description("The counter above tracks the pushes.")
+                                    .description("Or wait four seconds.")
                                     .closable(true)
-                                    .push(Some(std::time::Duration::from_secs(4)), cx);
-                                cx.notify();
-                            }))
+                                    .on_close(crate::app::bump_toast_closed)
+                                    .push(None, cx);
+                            })
                             .into_any_element()]),
                     ]),
                 ),

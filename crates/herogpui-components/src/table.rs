@@ -248,6 +248,10 @@ pub struct Table {
     row_height: Option<Pixels>,
     /// How tall the virtual body is. v3 sets it with a `className`.
     max_h: Option<Pixels>,
+    /// `TableLayout`'s `gap` and `padding`, both 0 in v3: rows meet, separated
+    /// by their border rather than by space.
+    gap: Option<Pixels>,
+    padding: Option<Pixels>,
     /// The row factory a virtual table needs. Cells are `AnyElement`, which
     /// cannot be built up front and then handed out again on the next scroll,
     /// so a virtual table asks for its rows one at a time.
@@ -276,6 +280,8 @@ impl Table {
             on_expanded_change: None,
             row_height: None,
             max_h: None,
+            gap: None,
+            padding: None,
             virtual_rows: None,
             variant: TableVariant::Primary,
             selection_mode: SelectionMode::None,
@@ -335,6 +341,18 @@ impl Table {
     /// the table itself.
     pub fn max_h(mut self, height: impl Into<Pixels>) -> Self {
         self.max_h = Some(height.into());
+        self
+    }
+
+    /// `TableLayout`'s `gap` -- space between rows, which v3 leaves at 0.
+    pub fn gap(mut self, gap: impl Into<Pixels>) -> Self {
+        self.gap = Some(gap.into());
+        self
+    }
+
+    /// `TableLayout`'s `padding` -- space around the rows, 0 in v3.
+    pub fn padding(mut self, padding: impl Into<Pixels>) -> Self {
+        self.padding = Some(padding.into());
         self
     }
 
@@ -519,7 +537,13 @@ impl RenderOnce for Table {
                 .border_color(colors.border);
         }
 
-        let mut table = gpui::div().flex().flex_col().w_full().text_size(px(14.));
+        let mut table = gpui::div()
+            .flex()
+            .flex_col()
+            .w_full()
+            .text_size(px(14.))
+            .when_some(self.gap, |el, g| el.gap(g))
+            .when_some(self.padding, |el, p| el.p(p));
 
         // ---- header ------------------------------------------------------
         let mut header = gpui::div()

@@ -26,6 +26,25 @@ pub const MONO_FONT: &str = if cfg!(target_os = "macos") {
     "Consolas"
 };
 
+/// How many demo toasts have closed.
+///
+/// A toast outlives the button that pushed it, and its `onClose` runs from the
+/// dismissal with no view in hand, so the count cannot live in the `Gallery`
+/// entity's demo state. It lives in a global, and closing a toast refreshes the
+/// windows that show it.
+struct ToastsClosed(usize);
+impl gpui::Global for ToastsClosed {}
+
+pub fn bump_toast_closed(cx: &mut App) {
+    let next = cx.try_global::<ToastsClosed>().map_or(0, |c| c.0) + 1;
+    cx.set_global(ToastsClosed(next));
+    cx.refresh_windows();
+}
+
+pub fn toasts_closed(cx: &App) -> usize {
+    cx.try_global::<ToastsClosed>().map_or(0, |c| c.0)
+}
+
 /// Root view of the gallery window.
 pub struct Gallery {
     pub(crate) page: Page,

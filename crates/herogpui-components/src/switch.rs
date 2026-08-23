@@ -417,3 +417,66 @@ impl RenderOnce for Switch {
         }
     }
 }
+
+/// `SwitchGroup` — the layout v3 wraps a set of switches in.
+///
+/// `.switch-group` is `flex flex-col gap-6` around a `.switch-group__items`
+/// that is `flex gap-4`, and the orientation modifier is what turns that inner
+/// row into a column. The outer gap is for the label and description a caller
+/// puts beside the items.
+#[derive(IntoElement)]
+pub struct SwitchGroup {
+    orientation: herogpui_core::Orientation,
+    items: Vec<AnyElement>,
+}
+
+impl SwitchGroup {
+    pub fn new() -> Self {
+        Self {
+            // v3 documents `vertical` as the default.
+            orientation: herogpui_core::Orientation::Vertical,
+            items: Vec::new(),
+        }
+    }
+
+    pub fn orientation(mut self, orientation: herogpui_core::Orientation) -> Self {
+        self.orientation = orientation;
+        self
+    }
+
+    pub fn child(mut self, el: impl IntoElement) -> Self {
+        self.items.push(el.into_any_element());
+        self
+    }
+}
+
+impl Default for SwitchGroup {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ParentElement for SwitchGroup {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.items.extend(elements);
+    }
+}
+
+impl RenderOnce for SwitchGroup {
+    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+        let vertical = self.orientation == herogpui_core::Orientation::Vertical;
+        gpui::div().flex().flex_col().gap(px(24.)).child(
+            gpui::div()
+                .flex()
+                .map(|el| {
+                    if vertical {
+                        el.flex_col()
+                    } else {
+                        el.flex_row()
+                    }
+                })
+                .gap(px(16.))
+                .children(self.items),
+        )
+    }
+}

@@ -96,7 +96,14 @@ ALIAS = {
     'InputOTP.maxLength': 'with_length',
     # v3 calls these `type`; `type` is a Rust keyword.
     'Input.type': 'input_type',
+    'InputGroup.type': 'input_type',
     'Typography.type': 'kind',
+    # v3's toast option is spelled `isLoading` and means a spinner; the global
+    # `isLoading` alias is the v2 rename to `isPending`, which is a different
+    # prop.
+    'Toast.isLoading': 'is_loading',
+    # `actionProps` is `{children, onPress}` -- a label and a handler.
+    'Toast.actionProps': 'action',
 }
 
 # Props with no meaningful gpui analogue at all.
@@ -122,6 +129,29 @@ WONT_PORT = {
     # its own uncontrolled seed (`InputState::with_value`).
     'ComboBox.defaultSelectedKey': 'state-entity-seeds-it',
    
+    # `ListLayout`/`TableLayout` describe a virtualizer that computes scroll
+    # geometry from numbers it is given in advance. gpui's `uniform_list` takes
+    # exactly one -- `rowHeight`, which both components accept -- and gives every
+    # row that height, headings and loaders included. There is no second number
+    # to accept, and an estimate has nothing to estimate: the rows are uniform by
+    # construction.
+    'estimatedRowHeight': 'uniform-rows-only',
+    'estimatedHeadingHeight': 'uniform-rows-only',
+    'headingHeight': 'uniform-rows-only',
+    'loaderHeight': 'uniform-rows-only',
+    # The drop indicator belongs to React Aria's drag-and-drop, which this port
+    # does not implement: no list here reorders by dragging, so there is no
+    # indicator to give a thickness to.
+    'dropIndicatorThickness': 'no-drag-and-drop',
+
+    # A `ToastQueue` exists because React state lives outside React. A gpui
+    # `Entity` is observable by construction -- `cx.observe(&store, ..)` is the
+    # subscription -- so there is no method on the store to add.
+    'Toast.subscribe': 'entity-is-observable',
+    # `wrapUpdate` wraps a queue mutation in a CSS view transition. gpui has no
+    # view transitions: a change is drawn on the next frame.
+    'Toast.wrapUpdate': 'no-view-transitions',
+
     # An HTML5 ValidityState object.
     'validationDetails': 'no-html-forms',
     # The `form` attribute names the HTML form a control submits to. A `Form` is
@@ -167,6 +197,8 @@ WONT_PORT = {
     # v3 documents exactly one value for these, so there is nothing to select
     # and a builder taking a one-variant enum could not change anything.
     'CloseButton.variant': 'single-valued',
+    # "automatically set to 'search'" -- a search field has one input type.
+    'SearchField.type': 'single-valued',
     'ScrollShadow.variant': 'single-valued',
     # gpui draws no native scrollbar in a scroll container, so there is none to
     # hide.
@@ -229,6 +261,13 @@ COMPANIONS = {
     'DatePicker': ['CalendarState'],
     'DateRangePicker': ['DateRangeState'],
     'Select': ['SelectOption'],
+    'Switch': ['SwitchGroup'],
+    # v3's `### Composition Components` documents `InputGroup.Input` and
+    # `SearchField.Input` by pointing at React Aria's Input, and this port
+    # composes the real `Input` -- so its builders are what implement them. A
+    # missing `Input` prop still shows up under Input, which is audited on its
+    # own page.
+    'InputGroup': ['Input', 'TextArea'],
     'TagGroup': ['Tag'],
     'ColorSwatchPicker': ['ColorSwatch'],
 }

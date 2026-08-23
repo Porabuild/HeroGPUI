@@ -103,6 +103,11 @@ EXTRA_OK = {
     'push': 'state-entity',
     'push_toast': 'state-entity',
     'dismiss_toast': 'state-entity',
+    # v3 reaches the queue through the module-level `toast` object
+    # (`toast.clear()`, `toast.pauseAll()`); the store is a gpui global here, so
+    # the same calls are free functions over it.
+    'clear_toasts': 'state-entity',
+    'pause_toasts': 'state-entity',
     'constraints': 'state-entity',
     'validity': 'accessor',
     'selection_key': 'accessor',
