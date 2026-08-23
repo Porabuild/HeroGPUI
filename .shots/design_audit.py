@@ -74,17 +74,6 @@ COVERED_ELSEWHERE = {
     # its padding is the field's (compared as `.input`'s `px`).
     ('date-picker', '.date-picker__trigger', 'p'): 'trigger-is-the-field',
     ('date-range-picker', '.date-range-picker__trigger', 'p'): 'trigger-is-the-field',
-    # A range trigger here shows one formatted string ("Jan 1 - Jan 5"), so
-    # there is no separator element between two fields to pad.
-    ('date-range-picker', '.date-range-picker__range-separator', 'px'): 'no-such-part',
-    # A radio option takes a label, not a description, so nothing sits below the
-    # control for `.radio`'s `gap-1` to space.
-    ('radio', '.radio', 'gap'): 'no-such-part',
-    # This port has no labelled separator (v3's `.separator__container` is the
-    # line-text-line layout), and no cell indicator on a range calendar.
-    ('separator', '.separator__container', 'gap'): 'no-such-part',
-    ('range-calendar', '.range-calendar__cell-indicator', 'radius'): 'no-such-part',
-    ('range-calendar', '.range-calendar__cell-indicator', 'size'): 'no-such-part',
     # A Disclosure renders as a one-item Accordion, whose body padding is
     # `.accordion__body-inner`'s and compared there.
     ('disclosure', '.disclosure__body', 'p'): 'accordion-body',
@@ -203,7 +192,7 @@ CHECKS = [
      r'`\.separator--vertical` is `min-h-2`[\s\S]{0,200}?\.min_h\(gpui::px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('separator', '.separator', 'radius', 'Separator -> util::_radius',
      SRC + 'separator.rs',
-     r'rounded\(crate::util::(\w+_radius)', helper_px),
+     r'let radius = crate::util::(\w+_radius)\(cx\)', helper_px),
     ('toolbar', '.toolbar--attached', 'p', 'Toolbar attached padding',
      SRC + 'toolbar.rs',
      r'`\.toolbar--attached` is `p-1 rounded-3xl`\.[\s\S]{0,60}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -1229,6 +1218,28 @@ CHECKS = [
     ('table', '.table-root--primary', 'px', 'Table tray px', SRC + 'table.rs',
      r'`\.table-root--primary` is a `bg-surface-secondary px-1 pb-1` tray'
      r'[\s\S]{0,600}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+
+    # --- the four parts this port used to skip -------------------------------
+    ('date-range-picker', '.date-range-picker__range-separator', 'px',
+     'Range separator px', SRC + 'date_picker.rs',
+     r'`\.date-range-picker__range-separator` is `px-1`[\s\S]{0,200}?'
+     r'\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('radio', '.radio', 'gap', 'Radio content/description gap', SRC + 'radio_group.rs',
+     r'`\.radio` is `flex flex-col gap-1` around its content and the[\s\S]{0,420}?'
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
+    ('separator', '.separator__container', 'gap', 'Separator container gap',
+     SRC + 'separator.rs',
+     r'`\.separator__container` is `flex items-center gap-3`[\s\S]{0,300}?'
+     r'\.gap\(gpui::px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('range-calendar', '.range-calendar__cell-indicator', 'size',
+     'RangeCalendar cell indicator', SRC + 'range_calendar.rs',
+     r'`\.range-calendar__cell-indicator` is a `size-\[3px\][\s\S]{0,600}?'
+     r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('range-calendar', '.range-calendar__cell-indicator', 'radius',
+     'RangeCalendar cell indicator radius', SRC + 'range_calendar.rs',
+     r'`\.range-calendar__cell-indicator` is a `size-\[3px\][\s\S]{0,660}?'
+     r'\.rounded\(px\((\d+(?:\.\d*)?)\.\)\)', None),
 
     ('toast', '.toast__close-button', 'border', 'Toast close button border', SRC + 'toast.rs',
      r'`sm:border\s*//\s*border-border sm:bg-overlay`[\s\S]{0,200}?'

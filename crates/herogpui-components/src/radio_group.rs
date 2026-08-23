@@ -12,6 +12,10 @@ pub struct RadioGroup {
     name: Option<SharedString>,
     id: gpui::ElementId,
     options: Vec<SharedString>,
+    /// The `<Description>` v3 composes inside a `<Radio>`, per option and in the
+    /// same order. `.radio` is `flex flex-col gap-1` around its content and this
+    /// text, indented under the label by `ps-7`.
+    descriptions: Vec<Option<SharedString>>,
     selected: Option<usize>,
     /// Whether `value` was supplied. `Option<usize>` cannot distinguish
     /// "controlled, nothing selected" from "uncontrolled" on its own.
@@ -48,11 +52,23 @@ impl RadioGroup {
         self
     }
 
+    /// The per-option descriptions, in the order the options were given. v3
+    /// writes one `<Description>` inside each `<Radio>`; a monolithic group
+    /// takes the column instead.
+    pub fn descriptions<T: Into<SharedString>>(
+        mut self,
+        text: impl IntoIterator<Item = Option<T>>,
+    ) -> Self {
+        self.descriptions = text.into_iter().map(|opt| opt.map(Into::into)).collect();
+        self
+    }
+
     pub fn new(id: impl Into<gpui::ElementId>, options: Vec<SharedString>) -> Self {
         Self {
             name: None,
             id: id.into(),
             options,
+            descriptions: Vec::new(),
             selected: None,
             is_controlled: false,
             default_value: None,
@@ -333,7 +349,21 @@ impl RenderOnce for RadioGroup {
                 });
             }
 
-            group = group.child(row);
+            // `.radio` is `flex flex-col gap-1` around its content and the
+            // description, which `ps-7` indents under the label -- the control
+            // plus the content gap.
+            match self.descriptions.get(i).and_then(|d| d.clone()) {
+                Some(text) => {
+                    group = group.child(
+                        gpui::div().flex().flex_col().gap(px(4.)).child(row).child(
+                            gpui::div()
+                                .pl(circle + gap)
+                                .child(crate::field::Description::new(text)),
+                        ),
+                    );
+                }
+                None => group = group.child(row),
+            }
         }
 
         if self.is_required {

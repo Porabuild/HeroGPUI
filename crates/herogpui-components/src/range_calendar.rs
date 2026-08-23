@@ -50,6 +50,9 @@ pub struct RangeCalendar {
     on_focus_change: Option<Arc<dyn Fn(Date, &mut Window, &mut App) + 'static>>,
     /// `allowsNonContiguousRanges` — lets a range span unavailable dates.
     allows_non_contiguous_ranges: bool,
+    /// `RangeCalendar.CellIndicator` — the dot under a marked day, the same part
+    /// a [`Calendar`](crate::calendar::Calendar) draws.
+    cell_indicator: Option<Box<dyn Fn(Date) -> bool + 'static>>,
     on_change: Option<OnRangeChange>,
 }
 
@@ -98,6 +101,7 @@ impl RangeCalendar {
             on_year_picker_open_change: None,
             on_focus_change: None,
             allows_non_contiguous_ranges: false,
+            cell_indicator: None,
             on_change: None,
         }
     }
@@ -174,6 +178,12 @@ impl RangeCalendar {
     }
 
     /// `firstDayOfWeek`
+    /// `RangeCalendar.CellIndicator` — mark the days this returns `true` for.
+    pub fn cell_indicator(mut self, f: impl Fn(Date) -> bool + 'static) -> Self {
+        self.cell_indicator = Some(Box::new(f));
+        self
+    }
+
     pub fn first_day_of_week(mut self, day: Weekday) -> Self {
         self.constraints.first_day_of_week = day;
         self
@@ -375,6 +385,24 @@ impl RangeCalendar {
                     cb(next_start, next_end, window, cx);
                 }
             });
+        }
+
+        // `.range-calendar__cell-indicator` is a `size-[3px] rounded-xs` dot at
+        // `bottom-1`, in the selected cell's foreground when the day is chosen.
+        if self.cell_indicator.as_ref().is_some_and(|f| f(date)) {
+            let marker = if is_start || is_end || in_range {
+                accent.foreground
+            } else {
+                colors.muted
+            };
+            cell = cell.child(
+                div()
+                    .absolute()
+                    .bottom(px(2.))
+                    .size(px(3.))
+                    .rounded(px(2.))
+                    .bg(marker),
+            );
         }
 
         cell.into_any_element()

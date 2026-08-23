@@ -4021,6 +4021,14 @@ impl Gallery {
                     .into_any_element()]),
                 ),
                 (
+                    "Cell Indicators",
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-dots", cx))
+                        // `RangeCalendar.CellIndicator` marks a day with a dot,
+                        // the same part a `Calendar` draws.
+                        .cell_indicator(|d| d.day % 7 == 3)
+                        .into_any_element()]),
+                ),
+                (
                     "Year Picker",
                     col(vec![h::RangeCalendar::new(self.demo_range("rc-year", cx))
                         .default_year_picker_open(true)
@@ -6286,6 +6294,12 @@ impl Gallery {
                     "Usage",
                     col(vec![h::RadioGroup::new("rg-usage", plans())
                         .default_value(Some(0))
+                        // v3 composes a `<Description>` inside each `<Radio>`.
+                        .descriptions([
+                            Some("Includes 100 messages per month"),
+                            Some("Includes 200 messages per month"),
+                            None,
+                        ])
                         .into_any_element()]),
                 ),
                 (
@@ -6963,19 +6977,8 @@ impl Gallery {
                 ),
                 (
                     "With Content",
-                    col(vec![gpui::div()
-                        .w_full()
-                        .flex()
-                        .items_center()
-                        .gap(px(12.))
-                        .child(gpui::div().flex_1().child(h::Separator::new()))
-                        .child(
-                            gpui::div()
-                                .text_size(px(12.))
-                                .text_color(cx.colors().muted)
-                                .child("OR"),
-                        )
-                        .child(gpui::div().flex_1().child(h::Separator::new()))
+                    col(vec![h::Separator::new()
+                        .child(gpui::div().text_size(px(12.)).child("OR"))
                         .into_any_element()]),
                 ),
                 (

@@ -656,10 +656,10 @@ impl RenderOnce for DateRangePicker {
             let st = self.state.read(cx);
             (st.start, st.end)
         };
-        let label_text = match (start, end) {
-            (Some(s), Some(e)) => format!("{} \u{2013} {}", s.format_iso(), e.format_iso()),
-            (Some(s), None) => format!("{} \u{2013} \u{2026}", s.format_iso()),
-            _ => self.placeholder.to_string(),
+        let (start_text, end_text) = match (start, end) {
+            (Some(s), Some(e)) => (s.format_iso(), e.format_iso()),
+            (Some(s), None) => (s.format_iso(), "\u{2026}".to_owned()),
+            _ => (self.placeholder.to_string(), String::new()),
         };
         let has_range = start.is_some();
 
@@ -714,12 +714,25 @@ impl RenderOnce for DateRangePicker {
             .child(
                 gpui::div()
                     .flex_1()
+                    .flex()
+                    .items_center()
                     .text_color(if has_range {
                         colors.foreground
                     } else {
                         colors.default.color
                     })
-                    .child(label_text),
+                    .child(start_text)
+                    .when(has_range, |el| {
+                        el.child(
+                            // `.date-range-picker__range-separator` is `px-1`
+                            // in `--field-placeholder`.
+                            gpui::div()
+                                .px(px(4.))
+                                .text_color(colors.field.placeholder)
+                                .child("\u{2013}"),
+                        )
+                        .child(end_text.clone())
+                    }),
             )
             .child(
                 gpui::svg()
