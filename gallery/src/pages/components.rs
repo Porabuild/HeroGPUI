@@ -899,6 +899,18 @@ impl Gallery {
             crate::pages::Page::Slider.import_line(),
             vec![
                 (
+                    "Format options",
+                    col(vec![h::Slider::new("sl-fmt", value)
+                        .label("Budget")
+                        .show_value(true)
+                        .format_options(h::NumberFormat::currency("EUR"))
+                        .on_change(f32_cb(cx.listener(|this, v: &f32, _, cx| {
+                            this.slider_value = *v;
+                            cx.notify();
+                        })))
+                        .into_any_element()]),
+                ),
+                (
                     "Usage",
                     col(vec![h::Slider::new("sl-main", value)
                         .label("Volume")
@@ -1852,25 +1864,74 @@ impl Gallery {
             vec![(
                 "Usage",
                 col(vec![
-                    h::Form::new()
-                        .child(
+                    {
+                        // `name` rides on each field's state, so the form finds
+                        // it without the call site repeating the name.
+                        let form = h::Form::new()
+                            .field(
+                                h::FormField::text(self.input_name.clone())
+                                    .is_required(true)
+                                    .default_text(self.input_name.clone(), ""),
+                            )
+                            .field(
+                                h::FormField::text(self.input_email.clone())
+                                    .default_text(self.input_email.clone(), ""),
+                            )
+                            .on_submit(cx.listener(
+                                |this, data: &h::FormData, _, cx| {
+                                    this.input_submitted = data
+                                        .iter()
+                                        .map(|(n, v)| format!("{n}={}", v.as_text()))
+                                        .collect::<Vec<_>>()
+                                        .join(", ");
+                                    cx.notify();
+                                },
+                            ))
+                            .on_invalid(cx.listener(|this, _: &h::FormData, _, cx| {
+                                this.input_submitted = "Name is required".to_string();
+                                cx.notify();
+                            }))
+                            .on_reset({
+                                let l = cx.listener(
+                                    |this: &mut Self, _: &(), _: &mut gpui::Window, cx| {
+                                        this.input_submitted = String::new();
+                                        cx.notify();
+                                    },
+                                );
+                                move |w: &mut gpui::Window, cx: &mut gpui::App| l(&(), w, cx)
+                            });
+                        let submit = form.submit_handler();
+                        let reset = form.reset_handler();
+                        form.child(
                             h::TextField::new(self.input_name.clone())
+                                .name("name")
                                 .label("Name")
                                 .is_required(true),
                         )
                         .child(
                             h::TextField::new(self.input_email.clone())
+                                .name("email")
                                 .label("Email")
                                 .description("We reply within a day."),
                         )
-                        .child(h::Button::new("form-submit").label("Submit").on_press(
-                            cx.listener(|this, _, _, cx| {
-                                let name = this.input_name.read(cx).value().to_string();
-                                this.input_submitted = name;
-                                cx.notify();
-                            }),
-                        ))
-                        .into_any_element(),
+                        .child(
+                            gpui::div()
+                                .flex()
+                                .gap(px(8.))
+                                .child(
+                                    h::Button::new("form-submit")
+                                        .label("Submit")
+                                        .on_press(move |_, w, cx| submit(w, cx)),
+                                )
+                                .child(
+                                    h::Button::new("form-reset")
+                                        .label("Reset")
+                                        .variant(Variant::Tertiary)
+                                        .on_press(move |_, w, cx| reset(w, cx)),
+                                ),
+                        )
+                        .into_any_element()
+                    },
                     para(
                         &if submitted.is_empty() {
                             "Nothing submitted yet".to_string()
@@ -2017,6 +2078,13 @@ impl Gallery {
                     col(vec![h::NumberField::new(self.number.clone())
                         .label("Quantity")
                         .hide_steppers(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Format options",
+                    col(vec![h::NumberField::new(self.price.clone())
+                        .label("Price")
+                        .format_options(h::NumberFormat::currency("USD"))
                         .into_any_element()]),
                 ),
             ],

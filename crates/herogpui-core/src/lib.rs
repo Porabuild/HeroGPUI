@@ -4,7 +4,9 @@
 
 mod color;
 mod enums;
+mod format;
 
 pub use color::*;
 pub use enums::*;
+pub use format::*;
 pub use gpui::SharedString;

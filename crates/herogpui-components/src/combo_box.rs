@@ -522,9 +522,11 @@ impl RenderOnce for ComboBox {
 
             root = root.child(crate::util::floating(
                 crate::util::placed_field_panel(self.placement, px(6.)).child(
-                    crate::anim::entering(
+                    crate::anim::entering_zoom(
                         panel,
                         gpui::ElementId::Name(format!("combobox-{entity_id}-anim").into()),
+                        crate::anim::ZoomBox::panel(px(4.), container_radius)
+                            .padding_x(px(4.)),
                         cx,
                     ),
                 ),

@@ -303,7 +303,7 @@ impl RenderOnce for Modal {
             })
             .bg(colors.background)
             .text_color(colors.foreground)
-            .rounded(px(14.))
+            .rounded(crate::util::container_radius(cx))
             .shadow(cx.layout().overlay_shadow.clone())
             .overflow_hidden()
             .child(header)
@@ -378,23 +378,38 @@ impl RenderOnce for Modal {
             .when(self.placement == ModalPlacement::Bottom, |e| {
                 e.items_end().justify_center().pb(px(32.))
             });
+        // v3 fades the backdrop in alongside the panel (`.backdrop[data-entering]`).
         match (self.is_dismissible, backdrop_click.clone()) {
             (true, Some(on_close)) => {
-                overlay = overlay.child(
+                overlay = overlay.child(crate::anim::entering(
                     gpui::div()
                         .id("modal-backdrop")
                         .absolute()
                         .inset_0()
                         .bg(backdrop_bg)
                         .on_click(move |ev, window, cx| on_close(ev, window, cx)),
-                );
+                    "modal-backdrop-anim",
+                    cx,
+                ));
             }
             _ => {
-                overlay = overlay
-                    .child(gpui::div().absolute().inset_0().bg(backdrop_bg));
+                overlay = overlay.child(crate::anim::entering(
+                    gpui::div().absolute().inset_0().bg(backdrop_bg),
+                    "modal-backdrop-anim",
+                    cx,
+                ));
             }
         }
-        overlay = overlay.child(crate::anim::entering(panel, "modal-panel", cx));
+        overlay = overlay.child(crate::anim::entering_zoom(
+            panel,
+            "modal-panel",
+            crate::anim::ZoomBox {
+                width: Some(self.size.width()),
+                radius: Some(crate::util::container_radius(cx)),
+                ..Default::default()
+            },
+            cx,
+        ));
 
         overlay.into_any_element()
     }

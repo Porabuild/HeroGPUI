@@ -503,7 +503,15 @@ impl RenderOnce for Autocomplete {
 
             root = root.child(crate::util::floating(
                 crate::util::placed_field_panel(self.placement, px(6.)).child(
-                    crate::anim::entering(panel, el_name("autocomplete-panel".to_string()), cx),
+                    crate::anim::entering_zoom(
+                        panel,
+                        el_name("autocomplete-panel".to_string()),
+                        crate::anim::ZoomBox::panel(
+                            px(6.),
+                            crate::util::control_radius(cx),
+                        ),
+                        cx,
+                    ),
                 ),
             ));
         }

@@ -97,6 +97,12 @@ Aria X"*):
   `ProgressBar.ValueLabel` as child parts, and a monolithic builder takes them
   as a prop or as a flag that renders the built-in part.
 
+Some omissions are structural rather than unfinished, and no amount of work
+closes them: ARIA attributes with no accessibility tree to expose them to,
+`locale` without CLDR data, browser image and soft-keyboard hints, the HTTP half
+of a `<form>`, and the values v3 passes *into* a child render function. Say so
+plainly rather than reporting a number as if it were still shrinking.
+
 A prop that is stored but never read is worse than a missing one: the API
 promises behaviour it does not have. After adding fields, run
 
@@ -211,6 +217,9 @@ v2 concepts that must **not** come back:
   - Divs are `Display::Block`, so a block-level `.flex()` child fills its
     parent's width — HeroUI controls are `inline-flex`. Put controls in a flex
     parent (`.flex().items_start()`) or they stretch.
+  - No context propagation: a child cannot reach an ancestor component. `Form`
+    is therefore *told* its fields (`Form::field`), and a field's `name` rides
+    on its state entity so the form can read it back.
   - `absolute` does not lift a panel above later siblings; gpui paints in tree
     order. Floating surfaces must go through `util::floating` (`deferred`) or
     `anchored`, or the page content below will paint over them.

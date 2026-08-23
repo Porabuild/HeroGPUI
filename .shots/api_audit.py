@@ -123,15 +123,21 @@ WONT_PORT = {
     'validationBehavior': 'aria-behaviour-only',
     # An HTML5 ValidityState object.
     'validationDetails': 'no-html-forms',
-    # Fires when native form validation blocks submission.
-    'onInvalid': 'no-html-forms',
-    # Intl / locale formatting has no gpui equivalent.
-    'formatOptions': 'no-intl', 'locale': 'no-intl',
-    # HTML form submission: gpui has no form-data model.
-    'name': 'no-html-forms', 'action': 'no-html-forms', 'method': 'no-html-forms',
-    'encType': 'no-html-forms', 'target': 'no-html-forms', 'onReset': 'no-html-forms',
-    'startName': 'no-html-forms', 'endName': 'no-html-forms', 'download': 'no-html-forms',
-    'rel': 'no-html-forms',
+
+    # Choosing separators, digit systems and currency placement per locale needs
+    # CLDR data; a partial table would be worse than not offering the prop.
+    # `formatOptions` itself is implemented -- see `core/src/format.rs`.
+    'locale': 'no-intl',
+    # `Form` collects a named submission (`components/src/form.rs`), and the
+    # fields whose value lives in an entity carry their own `name`. The ones left
+    # here hold their value as a plain prop the caller re-supplies each render,
+    # and gpui gives a child no way to reach its `Form`, so the name would be
+    # stored and never read -- it goes on `FormField` at the form instead.
+    'name': 'form-names-the-field',
+    'startName': 'form-names-the-field', 'endName': 'form-names-the-field',
+    # There is no browser to navigate or post to.
+    'action': 'no-http', 'method': 'no-http', 'encType': 'no-http',
+    'target': 'no-http', 'download': 'no-http', 'rel': 'no-http',
     # A hint for the browser's autofill, which there is none of here.
     'autoComplete': 'no-browser-autofill',
     # ARIA roles have no accessibility layer to reach.

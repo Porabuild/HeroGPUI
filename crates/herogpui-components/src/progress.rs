@@ -19,6 +19,8 @@ pub struct ProgressBar {
     label: Option<String>,
     show_value: bool,
     value_label: Option<SharedString>,
+    /// `formatOptions` — how the generated value label is written.
+    format: Option<herogpui_core::NumberFormat>,
 }
 
 impl ProgressBar {
@@ -33,6 +35,7 @@ impl ProgressBar {
             label: None,
             show_value: false,
             value_label: None,
+            format: None,
         }
     }
 
@@ -61,6 +64,12 @@ impl ProgressBar {
     /// `valueLabel` — replaces the generated percentage.
     pub fn value_label(mut self, text: impl Into<SharedString>) -> Self {
         self.value_label = Some(text.into());
+        self
+    }
+
+    /// `formatOptions` — v3 defaults to `{style: "percent"}`.
+    pub fn format_options(mut self, format: herogpui_core::NumberFormat) -> Self {
+        self.format = Some(format);
         self
     }
 
@@ -111,7 +120,18 @@ impl RenderOnce for ProgressBar {
                 if self.is_indeterminate {
                     SharedString::from("")
                 } else {
-                    SharedString::from(format!("{}%", (fraction * 100.0).round() as u32))
+                    let format = self
+                        .format
+                        .clone()
+                        .unwrap_or_else(herogpui_core::NumberFormat::percent);
+                    // A percent format wants the 0..1 fraction; any other
+                    // format wants the value itself.
+                    let n = if format.style == herogpui_core::NumberStyle::Percent {
+                        fraction as f64
+                    } else {
+                        self.value as f64
+                    };
+                    SharedString::from(format.format(n))
                 }
             });
             el = el.child(
@@ -194,6 +214,8 @@ pub struct ProgressCircle {
     size_px: gpui::Pixels,
     is_indeterminate: bool,
     show_value: bool,
+    /// `formatOptions` — how the generated value label is written.
+    format: Option<herogpui_core::NumberFormat>,
 }
 
 impl ProgressCircle {
@@ -206,6 +228,7 @@ impl ProgressCircle {
             size_px: px(48.),
             is_indeterminate: false,
             show_value: false,
+            format: None,
         }
     }
 
@@ -250,6 +273,12 @@ impl ProgressCircle {
 
     pub fn show_value_label(mut self, v: bool) -> Self {
         self.show_value = v;
+        self
+    }
+
+    /// `formatOptions` — v3 defaults to `{style: "percent"}`.
+    pub fn format_options(mut self, format: herogpui_core::NumberFormat) -> Self {
+        self.format = Some(format);
         self
     }
 }
@@ -329,10 +358,20 @@ impl RenderOnce for ProgressCircle {
                         .text_size(px(12.))
                         .font_weight(gpui::FontWeight::SEMIBOLD)
                         .text_color(colors.foreground)
-                        .child(format!(
-                            "{}%",
-                            (fraction * 100.).round() as u32
-                        )),
+                        .child({
+                            let format = self
+                                .format
+                                .clone()
+                                .unwrap_or_else(herogpui_core::NumberFormat::percent);
+                            let n = if format.style
+                                == herogpui_core::NumberStyle::Percent
+                            {
+                                fraction as f64
+                            } else {
+                                self.value as f64
+                            };
+                            format.format(n)
+                        }),
                 )
             })
     }

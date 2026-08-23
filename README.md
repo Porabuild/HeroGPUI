@@ -43,11 +43,11 @@ the builders this crate exposes:
 | | |
 |---|---|
 | documented props considered | 592 |
-| implemented | 478 |
-| deliberately not ported | 114 |
+| implemented | 493 |
+| deliberately not ported | 99 |
 | real gaps | 0 |
 
-Every omission carries a reason (`no-intl`, `no-html-forms`, `render-prop-arg`,
+Every omission carries a reason (`no-a11y-attrs`, `no-http`, `render-prop-arg`,
 `constructor-arg`, `single-valued`, `state-entity-seeds-it`, …) in the audit's
 `WONT_PORT` table, so nothing hides behind a blanket claim. Reasons can be
 scoped per component, so a name that is genuinely absent in one place cannot be
@@ -76,6 +76,12 @@ Components work **controlled or uncontrolled**, as they do in v3: pass
 `is_selected` / `is_open` / `selected_key` to own the state, or
 `default_selected` / `default_open` / `default_selected_key` / `default_value`
 and let the component keep it.
+
+What is left is what a desktop toolkit structurally cannot have: ARIA
+attributes with no accessibility tree to expose them to, `locale` without CLDR
+data, browser image and soft-keyboard hints, the HTTP half of a `<form>`
+(`action` / `method` / `encType` / `target`), and the values v3 passes *into* a
+child render function, which a monolithic builder computes internally.
 
 This library tracks **v3 only**. Removed with the v2 token names
 (`content1..4`, numbered 50–900 scales, `primary`/`secondary` as colors) and the

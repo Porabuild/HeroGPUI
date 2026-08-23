@@ -111,6 +111,14 @@ Color math (`herogpui-core`): `oklch(l, c, h)`, `oklcha(..)`,
 
 ## Prop vocabularies
 
+**Number formatting.** `formatOptions` is v3's `Intl.NumberFormatOptions`;
+`herogpui_core::NumberFormat` implements the subset the components use —
+`NumberFormat::{decimal,percent,currency("USD"),unit("kilogram")}` with
+`currency_sign`, `unit_display`, `minimum_fraction_digits`,
+`maximum_fraction_digits` and `use_grouping`. Taken by `Meter`, `NumberField`,
+`ProgressBar`, `ProgressCircle` and `Slider`. `locale` is not offered: choosing
+separators and currency placement per locale needs CLDR data.
+
 v3 replaced v2's `variant` × `color` matrix with distinct enums:
 
 | Enum | Values | Used by |
@@ -272,7 +280,7 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 ### Feedback
 - **Alert** — `Alert::new(title).description().status(Color).is_closable()` (v3 spells it `status`, and removed `variant`/`radius`)
 - **Meter** — `Meter::new(value).value().min_value().max_value().value_label().label().show_value().color().size()`
-- **ProgressBar** — `value`, `min_value`, `max_value`, `value_label`, `is_indeterminate`, `size`, `color`, `label`, `show_value_label`
+- **ProgressBar** — `value`, `min_value`, `max_value`, `value_label`, `is_indeterminate`, `size`, `color`, `label`, `show_value_label`, `format_options(NumberFormat)`
 - **ProgressCircle** — `value`, `min_value`, `max_value`, `is_indeterminate`, `color`, `size(Size)` (32/48/64px), `show_value_label`. The ring weight is 10% of the diameter, as v3 scales it with `size`.
 - **Skeleton** — `id`, `w`, `h`, `animation_type(SkeletonAnimation::{Shimmer,Pulse,None})` (defaults to `--skeleton-animation`). v3 renders the skeleton *or* the content, so there is no `isLoaded`.
 - **Spinner** — `size(SpinnerSize::{Sm,Md,Lg,Xl})`, `color`, `current_color(Hsla)` for `color="current"` (gpui svgs do not inherit text colour)
@@ -303,13 +311,13 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
 - **TextField** — the labelled wrapper around `Input`
 - **TextArea** — tall variant of Input; `rows`, `variant`, `full_width`, `max_length`, `min_length`, the validation flags, `on_change`
 - **SearchField** — Input with a magnifier and clear action; `on_clear`, `is_required`, `is_read_only`, `is_invalid`
-- **NumberField** — `NumberState {value,min,max,step,input}`, `hide_steppers`, `on_change(f64)`
+- **NumberField** — `format_options(NumberFormat)`, `NumberState {value,min,max,step,input}`, `hide_steppers`, `on_change(f64)`
 - **InputOTP** — `OtpState::with_length(cx, n)`, `separator`, `on_complete(&str)`
 - **InputGroup** — `variant`, `label`, `description`, `error_message` + children; `InputAddon::new("$")`
 - **Checkbox** — `is_selected`, `is_indeterminate`, `is_disabled`, `is_read_only`, `is_required`, `is_invalid`, `variant(FieldVariant)`, `label(el)`, `on_change(bool)`
 - **CheckboxGroup** — `CheckboxGroup::new(id, options).label().value(keys).orientation().variant().is_read_only().error_message().on_change(HashSet)`, `CheckboxOption::new(key,label).description()`
 - **RadioGroup** — `RadioGroup::new(id, options).selected(Option<usize>).orientation().on_change(usize)`
-- **Form** — `is_disabled`, `validation_behavior`, `on_submit`
+- **Form** — `Form::new().field(FormField::text(state).is_required(true)).on_submit(&FormData).on_invalid(&FormData).on_reset()`, plus `submit_handler()` / `reset_handler()` to wire to buttons. v3's `name` rides on the field (`Input::name`, stored on the `InputState`), because gpui gives a child no way to reach its form; `FormField::text`/`number` read it back out. `FormData::text(name)` reads a submission. The HTTP half — `action`/`method`/`encType`/`target` — has no browser to post to.
 - **Label / Description / ErrorMessage / FieldError / Fieldset** — the composition slots; `Label::new(t).is_required().is_disabled().is_invalid()`, `FieldError::new().message(t)`, `Fieldset` + `FieldsetLegend` / `FieldsetGroup` / `FieldsetActions`
 
 ### Layout
@@ -384,7 +392,11 @@ is the gpui equivalent and the single place the timings live.
 - `anim::pressed(el, PressBox { .. }, cx)` — v3's `[data-pressed]`
   `scale(0.97)`, applied by `Button` and `ToggleButton`, the two components v3
   documents it for.
-- `anim::ENTERING_MS`, `TRANSITION_MS`, `PRESSED_SCALE`, `anim::pressed_inset`.
+- `anim::entering_zoom(el, id, ZoomBox { .. }, cx)` — v3's `[data-entering]` in
+  full: `zoom-in-90 fade-in-0 duration-200`. Used by every overlay; the backdrop
+  fades alongside it.
+- `anim::ENTERING_MS`, `TRANSITION_MS`, `PRESSED_SCALE`, `ZOOM_FROM`,
+  `anim::pressed_inset`.
 - **Reduced motion:** `cx.reduce_motion()` gates every animation with no opt-in
   from the caller. Set it with `theme::set_reduce_motion(bool, cx)` or
   `theme::toggle_reduce_motion(cx)`; `HEROGPUI_REDUCE_MOTION=1` seeds it at
@@ -405,8 +417,11 @@ consequences:
   because gpui cannot shrink text without affecting layout; and an icon child
   keeps its size, since its dimensions belong to the caller. `Toast`'s
   `scaleFactor` shrinks stacked toasts the same way, by insetting their width.
-- The `zoom-in-90` half of the overlay entry is absent; the fade is the whole of
-  it.
+- The overlay entry's `zoom-in-90` uses the same technique: `ZoomBox` grows the
+  panel's width, padding, type size and corner radius from 90% while it fades
+  in. What a real `scale()` would also carry, and this does not, is a child
+  whose size the caller fixed — an icon or image inside the panel keeps its
+  size while the chrome around it grows.
 
 ## License
 

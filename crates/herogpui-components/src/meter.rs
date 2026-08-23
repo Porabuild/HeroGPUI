@@ -23,6 +23,8 @@ pub struct Meter {
     label: Option<SharedString>,
     value_label: Option<SharedString>,
     show_value: bool,
+    /// `formatOptions` — forwarded to the bar, which writes the label.
+    format: Option<herogpui_core::NumberFormat>,
 }
 
 impl Meter {
@@ -42,6 +44,7 @@ impl Meter {
             label: None,
             value_label: None,
             show_value: false,
+            format: None,
         }
     }
 
@@ -58,6 +61,12 @@ impl Meter {
     /// `valueLabel` — replaces the generated percentage.
     pub fn value_label(mut self, text: impl Into<SharedString>) -> Self {
         self.value_label = Some(text.into());
+        self
+    }
+
+    /// `formatOptions` — v3 defaults to `{style: "percent"}`.
+    pub fn format_options(mut self, format: herogpui_core::NumberFormat) -> Self {
+        self.format = Some(format);
         self
     }
 
@@ -92,6 +101,9 @@ impl RenderOnce for Meter {
             .size(self.size)
             .color(self.color)
             .show_value_label(self.show_value);
+        if let Some(format) = self.format.clone() {
+            p = p.format_options(format);
+        }
         if let Some(vl) = self.value_label {
             p = p.value_label(vl);
         }

@@ -96,6 +96,10 @@ pub use drawer::*;
 pub use dropdown::*;
 pub use field::*;
 pub use form::*;
+
+/// `formatOptions` for the components that take it, re-exported so a caller
+/// reaches it beside the component it configures.
+pub use herogpui_core::{CurrencySign, NumberFormat, NumberStyle, UnitDisplay};
 pub use icons::*;
 pub use input::*;
 pub use input_group::*;

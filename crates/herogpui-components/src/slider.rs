@@ -24,6 +24,8 @@ pub struct Slider {
     orientation: Orientation,
     label: Option<String>,
     show_value: bool,
+    /// `formatOptions` — how the value read-out is written.
+    format: Option<herogpui_core::NumberFormat>,
     on_change: Option<OnChange>,
     on_change_end: Option<OnChange>,
 }
@@ -52,6 +54,7 @@ impl Slider {
             orientation: Orientation::Horizontal,
             label: None,
             show_value: false,
+            format: None,
             on_change: None,
             on_change_end: None,
         }
@@ -82,6 +85,12 @@ impl Slider {
 
     pub fn label(mut self, l: impl Into<String>) -> Self {
         self.label = Some(l.into());
+        self
+    }
+
+    /// `formatOptions` — how the value read-out is written.
+    pub fn format_options(mut self, format: herogpui_core::NumberFormat) -> Self {
+        self.format = Some(format);
         self
     }
 
@@ -143,7 +152,12 @@ impl RenderOnce for Slider {
                     .text_size(px(12.))
                     .text_color(colors.foreground)
                     .child(self.label.clone().unwrap_or_default())
-                    .when(self.show_value, |l| l.child(format!("{}", self.value))),
+                    .when(self.show_value, |l| {
+                        l.child(match &self.format {
+                            Some(f) => f.format(self.value as f64),
+                            None => format!("{}", self.value),
+                        })
+                    }),
             );
         }
 

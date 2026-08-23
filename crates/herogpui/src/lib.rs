@@ -25,8 +25,8 @@ pub mod prelude {
     pub use gpui::prelude::*;
     pub use herogpui_components::*;
     pub use herogpui_core::{
-        Backdrop, Color, FieldVariant, Orientation, Placement, Prominence, SelectionMode, Size,
-        SizeXl, Variant,
+        Backdrop, Color, CurrencySign, FieldVariant, NumberFormat, NumberStyle, Orientation,
+        Placement, Prominence, SelectionMode, Size, SizeXl, UnitDisplay, Variant,
     };
     pub use herogpui_theme::{
         set_theme, toggle_light_dark, use_theme, ActiveTheme, Appearance, Theme,

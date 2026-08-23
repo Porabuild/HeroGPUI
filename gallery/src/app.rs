@@ -58,6 +58,7 @@ pub struct Gallery {
     pub otp: Entity<h::OtpState>,
     pub otp_done: String,
     pub number: Entity<h::NumberState>,
+    pub price: Entity<h::NumberState>,
     pub calendar: Entity<h::CalendarState>,
     pub cal_picked: Option<h::Date>,
     pub date_range: Entity<h::DateRangeState>,
@@ -114,6 +115,12 @@ impl Gallery {
             n.set_step(1.0);
             n
         });
+        let price = cx.new(|cx| {
+            let mut n = h::NumberState::new(cx, 1200.0);
+            n.set_range(0.0, 100_000.0);
+            n.set_step(50.0);
+            n
+        });
         let calendar = cx.new(|cx| h::CalendarState::new(cx));
         let date_range = cx.new(|cx| h::DateRangeState::new(cx));
         let combo_state = cx.new(|cx| h::InputState::new(cx));
@@ -164,6 +171,7 @@ impl Gallery {
             otp,
             otp_done: String::new(),
             number,
+            price,
             calendar,
             cal_picked: None,
             date_range,

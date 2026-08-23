@@ -277,20 +277,26 @@ impl RenderOnce for Drawer {
                     }
                 }
             });
+        // v3 fades the backdrop in alongside the panel.
         match (self.is_dismissible, dismiss.clone()) {
             (true, Some(on_close)) => {
-                overlay = overlay.child(
+                overlay = overlay.child(crate::anim::entering(
                     gpui::div()
                         .id("drawer-backdrop")
                         .absolute()
                         .inset_0()
                         .bg(backdrop_bg)
                         .on_click(move |ev, window, cx| on_close(ev, window, cx)),
-                );
+                    "drawer-backdrop-anim",
+                    cx,
+                ));
             }
             _ => {
-                overlay = overlay
-                    .child(gpui::div().absolute().inset_0().bg(backdrop_bg));
+                overlay = overlay.child(crate::anim::entering(
+                    gpui::div().absolute().inset_0().bg(backdrop_bg),
+                    "drawer-backdrop-anim",
+                    cx,
+                ));
             }
         }
         // Drawers slide in from the edge they are anchored to.

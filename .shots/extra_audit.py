@@ -113,6 +113,11 @@ EXTRA_OK = {
     'input_type': 'renamed-kind',
     'uncontrolled': 'constructor',
     'submit_handler': 'accessor',
+    'reset_handler': 'accessor',
+    # `Form` is told which fields it owns, because gpui gives a child no way to
+    # reach its ancestor; `data` is the collected submission.
+    'field': 'no-context-propagation',
+    'data': 'accessor',
     'on_navigate': 'composition',
     'on_row_click': 'composition',
     'on_selection_change_all': 'composition',

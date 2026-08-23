@@ -174,7 +174,7 @@ impl RenderOnce for Menu {
             .min_w(px(180.))
             .py(px(6.))
             .bg(colors.surface.background)
-            .rounded(px(12.))
+            .rounded(crate::util::container_radius(cx))
             .border_1()
             .border_color(colors.separator)
             .shadow(cx.layout().overlay_shadow.clone())
@@ -290,7 +290,12 @@ impl RenderOnce for Menu {
             }
         }
 
-        crate::util::floating(crate::anim::entering(panel, "dropdown-panel", cx))
+        crate::util::floating(crate::anim::entering_zoom(
+            panel,
+            "dropdown-panel",
+            crate::anim::ZoomBox::panel(px(6.), crate::util::container_radius(cx)),
+            cx,
+        ))
     }
 }
 

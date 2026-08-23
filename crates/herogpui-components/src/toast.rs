@@ -355,7 +355,7 @@ impl RenderOnce for ToastCardEl {
             .gap(px(10.))
             .px(px(12.))
             .py(px(10.))
-            .rounded(px(12.))
+            .rounded(crate::util::container_radius(cx))
             .bg(colors.overlay.background)
             .text_color(colors.overlay.foreground)
             .border(cx.layout().border_width)
@@ -420,9 +420,12 @@ impl RenderOnce for ToastCardEl {
             );
         }
 
-        crate::anim::entering(
+        crate::anim::entering_zoom(
             card,
             gpui::ElementId::Name(format!("toast-anim-{}", self.t.id).into()),
+            crate::anim::ZoomBox::panel(px(10.), crate::util::container_radius(cx))
+                .padding_x(px(12.))
+                .sized(self.width),
             cx,
         )
     }

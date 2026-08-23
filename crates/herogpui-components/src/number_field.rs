@@ -1,11 +1,11 @@
-//! NumberField — port of `@heroui/number-input` (v1).
+//! NumberField — port of `@heroui/number-field` (v3).
 
 use std::sync::Arc;
 
 use gpui::{
     prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, Styled, Window,
 };
-use herogpui_core::FieldVariant;
+use herogpui_core::{FieldVariant, NumberFormat};
 use herogpui_theme::ActiveTheme;
 
 use crate::{icons, input::InputState};
@@ -17,6 +17,9 @@ pub struct NumberState {
     min: f64,
     max: f64,
     step: f64,
+    /// `formatOptions`, written in by [`NumberField::format_options`]. The
+    /// state owns it because the state is what turns a value into text.
+    format: Option<NumberFormat>,
 }
 
 impl NumberState {
@@ -32,6 +35,7 @@ impl NumberState {
             min: f64::MIN,
             max: f64::MAX,
             step: 1.0,
+            format: None,
         }
     }
 
@@ -50,7 +54,29 @@ impl NumberState {
     /// Writes a clamped value and syncs the text field.
     pub fn set_value(&mut self, v: f64, cx: &mut App) {
         self.value = v.clamp(self.min, self.max);
-        let text = format_number(self.value);
+        let text = self.display_text();
+        self.input.update(cx, |i, _| i.set_value(text));
+    }
+
+    /// The value as the field shows it: through `formatOptions` when one is
+    /// set, otherwise the plain number.
+    pub fn display_text(&self) -> String {
+        match &self.format {
+            Some(f) => f.format(self.value),
+            None => format_number(self.value),
+        }
+    }
+
+    /// Installs `formatOptions` and reformats the text to match.
+    ///
+    /// Typing is untouched — the raw text stays exactly as entered until
+    /// something writes a value back, which is when v3 reformats too.
+    pub fn set_format(&mut self, format: Option<NumberFormat>, cx: &mut App) {
+        if self.format == format {
+            return;
+        }
+        self.format = format;
+        let text = self.display_text();
         self.input.update(cx, |i, _| i.set_value(text));
     }
 
@@ -73,11 +99,15 @@ impl NumberState {
 
     /// Re-reads the text field and updates the numeric value (or restores the
     /// previous formatted value when unparsable).
+    ///
+    /// The text may be what `formatOptions` produced (`$1,200.00`), so the
+    /// group separators and affixes come off before parsing — the field would
+    /// otherwise reject its own output.
     pub fn sync_from_input(&mut self, cx: &mut App) {
-        if let Ok(v) = self.input.read(cx).value().trim().parse::<f64>() {
+        if let Some(v) = parse_number(self.input.read(cx).value()) {
             self.value = v.clamp(self.min, self.max);
         } else {
-            let text = format_number(self.value);
+            let text = self.display_text();
             self.input.update(cx, |i, _| i.set_value(text));
         }
     }
@@ -86,6 +116,29 @@ impl NumberState {
         let next = (self.value + dir * self.step).clamp(self.min, self.max);
         self.set_value(next, cx);
     }
+}
+
+/// Reads a number back out of formatted text: `$1,200.00` -> `1200.0`,
+/// `(€12.00)` -> `-12.0`, `42%` -> `42.0`.
+///
+/// Only the digits, sign and decimal point survive; a formatted value has to
+/// round-trip or the field rejects what it just rendered.
+pub fn parse_number(text: &str) -> Option<f64> {
+    let text = text.trim();
+    if text.is_empty() {
+        return None;
+    }
+    let accounting = text.starts_with('(') && text.ends_with(')');
+    let mut digits = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '0'..='9' | '.' => digits.push(c),
+            '-' if digits.is_empty() => digits.push('-'),
+            _ => {}
+        }
+    }
+    let v: f64 = digits.parse().ok()?;
+    Some(if accounting { -v } else { v })
 }
 
 fn format_number(v: f64) -> String {
@@ -110,6 +163,10 @@ pub struct NumberField {
     min_value: Option<f64>,
     max_value: Option<f64>,
     step: Option<f64>,
+    /// `formatOptions` — installed into the state, which owns the text.
+    format: Option<NumberFormat>,
+    /// `name` — forwarded to the inner field's state.
+    name: Option<SharedString>,
     /// `validate` — run by the component, not the caller.
     validate: Option<crate::validation::Validator<f64>>,
     /// `validationErrors` — messages from a server round-trip.
@@ -136,6 +193,25 @@ impl NumberField {
     /// `step`
     pub fn step(mut self, v: f64) -> Self {
         self.step = Some(v);
+        self
+    }
+
+    /// `name` — the name this field submits under.
+    ///
+    /// Forwarded to the inner text field's state, which is where
+    /// `FormField::number` looks for it.
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// `formatOptions` — how the value is written out.
+    ///
+    /// ```ignore
+    /// NumberField::new(state).format_options(NumberFormat::currency("USD"))
+    /// ```
+    pub fn format_options(mut self, format: NumberFormat) -> Self {
+        self.format = Some(format);
         self
     }
 
@@ -196,6 +272,8 @@ impl NumberField {
             min_value: None,
             max_value: None,
             step: None,
+            format: None,
+            name: None,
             validate: None,
             validation_errors: Vec::new(),
             is_invalid: false,
@@ -268,10 +346,17 @@ impl RenderOnce for NumberField {
             }
         }
 
+        // `formatOptions` lives in the state, which owns the text. `set_format`
+        // is a no-op when it already matches, so this does not loop.
+        if let Some(format) = self.format.clone() {
+            self.state.update(cx, |s, cx| s.set_format(Some(format), cx));
+        }
+
         // text field bound to the inner InputState
         let text_state = self.state.clone();
         let on_text_change = self.on_change.clone();
         let mut field = crate::input::Input::new(self.state.read(cx).input.clone())
+            .when_some(self.name.clone(), |f, n| f.name(n))
             .variant(self.variant)
             .is_disabled(self.is_disabled)
             .is_read_only(self.is_read_only)

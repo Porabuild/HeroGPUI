@@ -1544,9 +1544,12 @@ impl RenderOnce for ColorPicker {
         );
 
         root.child(crate::util::floating(
-            crate::util::placed_panel(self.placement, px(6.)).child(crate::anim::entering(
+            crate::util::placed_panel(self.placement, px(6.)).child(crate::anim::entering_zoom(
                 panel,
                 ElementId::Name(format!("{base}-panel-anim").into()),
+                crate::anim::ZoomBox::panel(px(12.), util::container_radius(cx))
+                    .padding_x(px(12.))
+                    .sized(px(264.)),
                 cx,
             )),
         ))

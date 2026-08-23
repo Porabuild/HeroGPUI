@@ -19,6 +19,10 @@ pub struct InputState {
     /// Selection anchor in char indices; `None` when the caret is collapsed.
     anchor: Option<usize>,
     pub(crate) focus_handle: FocusHandle,
+    /// `name` — what this field submits under, written in by the component's
+    /// `name` builder. The state carries it because gpui gives a child no way
+    /// to reach its `Form`; `FormField::text` reads it back out.
+    name: Option<SharedString>,
 }
 
 impl InputState {
@@ -28,6 +32,7 @@ impl InputState {
             cursor: 0,
             anchor: None,
             focus_handle: cx.focus_handle(),
+            name: None,
         }
     }
 
@@ -44,6 +49,17 @@ impl InputState {
 
     pub fn value(&self) -> &str {
         &self.value
+    }
+
+    /// The `name` this field submits under, if one was set.
+    pub fn name(&self) -> Option<SharedString> {
+        self.name.clone()
+    }
+
+    /// Sets the submission name. Called by the component's `name` builder, not
+    /// usually by hand.
+    pub fn set_name(&mut self, name: Option<SharedString>) {
+        self.name = name;
     }
 
     pub fn set_value(&mut self, value: impl Into<String>) {
@@ -373,6 +389,8 @@ pub struct Input {
     is_invalid: bool,
     /// `autoFocus` — take focus on the first render.
     auto_focus: bool,
+    /// `name` — the submission name, written into the state on render.
+    name: Option<SharedString>,
     is_clearable: bool,
     on_change: Option<TextCallback>,
     on_submit: Option<TextCallback>,
@@ -415,10 +433,21 @@ impl Input {
             is_required: false,
             is_invalid: false,
             auto_focus: false,
+            name: None,
             is_clearable: false,
             on_change: None,
             on_submit: None,
         }
+    }
+
+    /// `name` — the name this field submits under.
+    ///
+    /// Stored on the [`InputState`], because gpui gives a child no way to reach
+    /// its `Form`; `FormField::text(state)` reads it back out, so the name is
+    /// written once here and not repeated at the form.
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
     }
 
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
@@ -598,6 +627,12 @@ impl RenderOnce for Input {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `focus_once` takes `cx` mutably, so it has to run before the theme
         // tokens are borrowed.
+        // `name` lives on the state so the form can find it. Only write when
+        // it differs, so this does not loop through `notify`.
+        if self.state.read(cx).name() != self.name {
+            let name = self.name.clone();
+            self.state.update(cx, |s, _| s.set_name(name));
+        }
         let focus_handle = self.state.read(cx).focus_handle.clone();
         if self.auto_focus {
             crate::util::focus_once(
@@ -994,6 +1029,12 @@ impl TextField {
         self
     }
 
+    /// `name` — see [`Input::name`].
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
+        self.inner = self.inner.name(name);
+        self
+    }
+
     /// `validate` — see [`Input::validate`].
     pub fn validate(
         mut self,
@@ -1078,6 +1119,8 @@ impl RenderOnce for TextField {
 #[derive(IntoElement)]
 pub struct SearchField {
     state: Entity<InputState>,
+    /// `name` — the submission name, forwarded to the inner `Input`.
+    name: Option<SharedString>,
     label: Option<SharedString>,
     placeholder: SharedString,
     description: Option<SharedString>,
@@ -1102,6 +1145,7 @@ impl SearchField {
     pub fn new(state: Entity<InputState>) -> Self {
         Self {
             state,
+            name: None,
             label: None,
             placeholder: "Search".into(),
             description: None,
@@ -1167,6 +1211,12 @@ impl SearchField {
         self
     }
 
+    /// `name` — see [`Input::name`].
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
     /// `validate` — see [`Input::validate`].
     pub fn validate(
         mut self,
@@ -1222,6 +1272,7 @@ impl RenderOnce for SearchField {
         let validate = self.validate.clone();
         let mut input = Input::new(self.state)
             .placeholder(self.placeholder)
+            .when_some(self.name, |i, n| i.name(n))
             .variant(self.variant)
             .is_disabled(self.is_disabled)
             .is_read_only(self.is_read_only)

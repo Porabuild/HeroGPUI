@@ -56,6 +56,12 @@ impl TextArea {
     }
 
 
+    /// `name` — see [`crate::input::Input::name`].
+    pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+        self.inner = self.inner.name(name);
+        self
+    }
+
     pub fn variant(mut self, variant: herogpui_core::FieldVariant) -> Self {
         self.inner = self.inner.variant(variant);
         self

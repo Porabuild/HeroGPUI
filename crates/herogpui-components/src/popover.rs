@@ -238,7 +238,14 @@ impl RenderOnce for Popover {
         let placed = crate::util::placed_panel(self.placement, self.offset);
 
         // v3 fades the panel in on `[data-entering]`.
-        let panel = crate::anim::entering(panel, "popover-panel", cx);
+        let panel = crate::anim::entering_zoom(
+            panel,
+            "popover-panel",
+            crate::anim::ZoomBox::panel(px(12.), crate::util::control_radius(cx))
+                .padding_x(px(14.))
+                .sized(px(260.)),
+            cx,
+        );
 
         // `shouldFlip` lets the panel move to stay on screen. gpui's `anchored`
         // slides it back inside the window rather than mirroring it to the

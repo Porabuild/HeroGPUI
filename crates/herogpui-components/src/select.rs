@@ -371,7 +371,7 @@ impl RenderOnce for Select {
                 .flex_col()
                 .py(px(6.))
                 .bg(colors.surface.background)
-                .rounded(px(12.))
+                .rounded(crate::util::container_radius(cx))
                 .border_1()
                 .border_color(colors.separator)
                 .shadow(layout.overlay_shadow.clone())
@@ -463,7 +463,15 @@ impl RenderOnce for Select {
 
             root = root.child(crate::util::floating(
                 crate::util::placed_field_panel(self.placement, px(6.)).child(
-                    crate::anim::entering(panel, el_name(format!("{base}-panel")), cx),
+                    crate::anim::entering_zoom(
+                        panel,
+                        el_name(format!("{base}-panel")),
+                        crate::anim::ZoomBox::panel(
+                            px(6.),
+                            crate::util::container_radius(cx),
+                        ),
+                        cx,
+                    ),
                 ),
             ));
         }

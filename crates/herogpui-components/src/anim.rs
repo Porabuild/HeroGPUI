@@ -116,11 +116,119 @@ pub fn pressed(
     })
 }
 
+/// The scale v3's `zoom-in-90` starts an entering overlay at.
+pub const ZOOM_FROM: f32 = 0.90;
+
+/// Everything an entering overlay grows from [`ZOOM_FROM`] to full size.
+///
+/// Every field is optional because the overlays differ in what they know about
+/// themselves: a `Modal` has a width, a `Popover` only its padding, type and
+/// corner radius. Whatever is supplied is scaled; whatever is not keeps its
+/// size, so a panel sized by its content grows by its chrome alone.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ZoomBox {
+    pub width: Option<gpui::Pixels>,
+    pub height: Option<gpui::Pixels>,
+    pub padding_x: Option<gpui::Pixels>,
+    pub padding_y: Option<gpui::Pixels>,
+    pub gap: Option<gpui::Pixels>,
+    pub text_size: Option<gpui::Pixels>,
+    pub line_height: Option<gpui::Pixels>,
+    pub radius: Option<gpui::Pixels>,
+}
+
+impl ZoomBox {
+    /// The box for a floating panel: its padding and corner radius, with no
+    /// fixed extent.
+    pub fn panel(padding_y: gpui::Pixels, radius: gpui::Pixels) -> Self {
+        Self {
+            padding_y: Some(padding_y),
+            radius: Some(radius),
+            ..Default::default()
+        }
+    }
+
+    pub fn padding_x(mut self, padding_x: gpui::Pixels) -> Self {
+        self.padding_x = Some(padding_x);
+        self
+    }
+
+    /// Adds a fixed width, for a panel that has one.
+    pub fn sized(mut self, width: gpui::Pixels) -> Self {
+        self.width = Some(width);
+        self
+    }
+
+    /// Adds the panel's type size, which grows with the box.
+    pub fn text(mut self, text_size: gpui::Pixels) -> Self {
+        self.text_size = Some(text_size);
+        self
+    }
+}
+
+fn lerp(value: gpui::Pixels, factor: f32) -> gpui::Pixels {
+    gpui::px(f32::from(value) * factor)
+}
+
+/// v3's `[data-entering]` in full: `zoom-in-90 fade-in-0 duration-200`.
+///
+/// gpui 0.2.2 has no transform for a div, so the zoom is reproduced the same
+/// way [`pressed`] reproduces `scale(0.97)` — by growing the metrics the panel
+/// is made of, including its **type size**, which gpui accepts fractionally.
+/// What a real `scale()` would also carry, and this does not, is a child whose
+/// size the caller fixed: an icon or an image inside the panel keeps its size
+/// while the chrome around it grows.
+///
+/// Returns `el` untouched under reduced motion.
+pub fn entering_zoom<E>(el: E, id: impl Into<ElementId>, b: ZoomBox, cx: &App) -> AnyElement
+where
+    E: IntoElement + Styled + 'static,
+{
+    if cx.reduce_motion() {
+        return el.into_any_element();
+    }
+
+    el.with_animation(
+        id.into(),
+        gpui::Animation::new(Duration::from_millis(ENTERING_MS)).with_easing(ease_out_quint()),
+        move |el, delta| {
+            let f = ZOOM_FROM + (1.0 - ZOOM_FROM) * delta;
+            let mut el = el.opacity(delta);
+            if let Some(w) = b.width {
+                el = el.w(lerp(w, f));
+            }
+            if let Some(h) = b.height {
+                el = el.h(lerp(h, f));
+            }
+            if let Some(p) = b.padding_x {
+                el = el.px(lerp(p, f));
+            }
+            if let Some(p) = b.padding_y {
+                el = el.py(lerp(p, f));
+            }
+            if let Some(g) = b.gap {
+                el = el.gap(lerp(g, f));
+            }
+            if let Some(t) = b.text_size {
+                el = el.text_size(lerp(t, f));
+            }
+            if let Some(l) = b.line_height {
+                el = el.line_height(lerp(l, f));
+            }
+            if let Some(r) = b.radius {
+                el = el.rounded(lerp(r, f));
+            }
+            el
+        },
+    )
+    .into_any_element()
+}
+
 /// Applies the v3 overlay entry animation: a 200ms ease-out fade.
 ///
-/// v3 pairs the fade with `zoom-in-90`, which gpui 0.2.2 cannot express for a
-/// div, so this is the fade alone. Returns `el` untouched when the app has
-/// reduced motion enabled.
+/// The fade alone, for a panel with no metrics worth growing. Prefer
+/// [`entering_zoom`], which adds v3's `zoom-in-90`. Returns `el` untouched when
+/// the app has reduced motion enabled.
 pub fn entering<E>(el: E, id: impl Into<ElementId>, cx: &App) -> AnyElement
 where
     E: IntoElement + Styled + 'static,

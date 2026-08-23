@@ -372,6 +372,8 @@ impl RenderOnce for AlertDialog {
         if let Some(on_dismiss) = dismiss {
             backdrop = backdrop.on_click(move |ev, window, cx| on_dismiss(ev, window, cx));
         }
+        // v3 fades the backdrop in alongside the panel.
+        let backdrop = crate::anim::entering(backdrop, "alert-dialog-backdrop-anim", cx);
 
         div()
             .id("alert-dialog-root")
@@ -400,7 +402,14 @@ impl RenderOnce for AlertDialog {
                 e.items_end().justify_center().pb(px(32.))
             })
             .child(backdrop)
-            .child(crate::anim::entering(panel, "alert-dialog-panel", cx))
+            .child(crate::anim::entering_zoom(
+                panel,
+                "alert-dialog-panel",
+                crate::anim::ZoomBox::panel(px(24.), util::container_radius(cx))
+                    .padding_x(px(24.))
+                    .sized(self.size.width()),
+                cx,
+            ))
             .into_any_element()
     }
 }
