@@ -161,6 +161,16 @@ impl Motion {
         curve: Curve::Smooth,
     };
 
+    /// `.disclosure__content` is a *transition*, not an `animate-in`: `height
+    /// 200ms ease-out-quad, opacity 200ms ease-out`. gpui cannot animate a
+    /// height it has not measured, so the panel fades at that duration and
+    /// curve rather than sliding.
+    pub const DISCLOSURE: Motion = Motion {
+        ms: 200,
+        scale: 1.0,
+        curve: Curve::OutQuad,
+    };
+
     /// `translate 250ms cubic-bezier(0.32, 0.72, 0, 1)` — the drawer's slide,
     /// which `drawer.css` gives its own `--drawer-enter-*` tokens.
     pub const DRAWER_IN: Motion = Motion {

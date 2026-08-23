@@ -74,9 +74,6 @@ COVERED_ELSEWHERE = {
     # its padding is the field's (compared as `.input`'s `px`).
     ('date-picker', '.date-picker__trigger', 'p'): 'trigger-is-the-field',
     ('date-range-picker', '.date-range-picker__trigger', 'p'): 'trigger-is-the-field',
-    # A Disclosure renders as a one-item Accordion, whose body padding is
-    # `.accordion__body-inner`'s and compared there.
-    ('disclosure', '.disclosure__body', 'p'): 'accordion-body',
     ('input', '.input', 'py'): 'drives-the-height',
     ('textarea', '.textarea', 'py'): 'drives-the-height',
     ('select', '.select__trigger', 'py'): 'drives-the-height',
@@ -1182,10 +1179,13 @@ CHECKS = [
      r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.path\(if open \{\s*icons::CHEVRON_UP', None),
 
     # --- what a Disclosure borrows from the Accordion -------------------------
-    ('disclosure', '.disclosure__indicator', 'size', 'Disclosure -> Accordion indicator',
-     SRC + 'accordion.rs',
-     r'`\.accordion__indicator` is `size-4`\.[\s\S]{0,40}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)',
-     None),
+    ('disclosure', '.disclosure__indicator', 'size', 'Disclosure indicator',
+     SRC + 'disclosure.rs',
+     r'`\.disclosure__indicator` is `ms-auto size-4`[\s\S]{0,200}?'
+     r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('disclosure', '.disclosure__body', 'p', 'Disclosure body padding',
+     SRC + 'disclosure.rs',
+     r'`\.disclosure__body` is `p-2`\.\s*\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
 
     # --- the rest -------------------------------------------------------------
     ('switch-group', '.switch-group__items', 'gap', 'SwitchGroup items gap', SRC + 'switch.rs',
