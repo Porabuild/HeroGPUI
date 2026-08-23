@@ -699,6 +699,7 @@ impl RenderOnce for RangeCalendar {
                 let from = *held.read(cx);
                 let at = from.unwrap_or(from_start);
                 let key = event.keystroke.key.as_str();
+                let shift = event.keystroke.modifiers.shift;
                 if matches!(key, "enter" | "space") {
                     if !selectable.allows(at) {
                         return;
@@ -718,6 +719,9 @@ impl RenderOnce for RangeCalendar {
                     "right" => add_days(&at, 1),
                     "up" => add_days(&at, -7),
                     "down" => add_days(&at, 7),
+                    // React Aria pages by month, and by *year* with shift.
+                    "pageup" if shift => month_step(at, -12),
+                    "pagedown" if shift => month_step(at, 12),
                     "pageup" => month_step(at, -1),
                     "pagedown" => month_step(at, 1),
                     "home" => Date::new(at.year, at.month, 1),
@@ -727,6 +731,14 @@ impl RenderOnce for RangeCalendar {
                 held.update(cx, |v, cx| {
                     *v = Some(next);
                     cx.notify();
+                });
+                // The grid follows the cursor across a month boundary, the way
+                // React Aria keeps the focused date visible.
+                state.update(cx, |s, cx| {
+                    if s.view_year != next.year || s.view_month != next.month {
+                        s.set_anchor(next);
+                        cx.notify();
+                    }
                 });
                 if let Some(cb) = &on_focus {
                     cb(next, window, cx);

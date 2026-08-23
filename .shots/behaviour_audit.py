@@ -114,6 +114,11 @@ FOCUS_RETURN = ('Dropdown', 'Modal', 'Drawer', 'AlertDialog')
 # highlight walked off the bottom.
 SCROLL_INTO_VIEW = ('Select', 'ComboBox', 'Autocomplete', 'ListBox', 'Dropdown')
 
+# React Aria's calendar pages by month, by *year* with shift, and keeps the
+# focused date visible -- the grid follows the cursor across a month boundary.
+# Ours moved an invisible cursor: the month on screen never changed.
+CALENDAR_PAGING = ('Calendar', 'RangeCalendar')
+
 OVERLAY_DISMISS = (
     'Popover', 'Dropdown', 'Select', 'ComboBox', 'Autocomplete',
     'DatePicker', 'DateRangePicker', 'ColorPicker', 'Tooltip',
@@ -187,6 +192,8 @@ EVIDENCE = {
     ('TextArea', 'text-keys'): ('input.rs', r'fn vertical_target'),
     ('TextField', 'text-keys'): ('input.rs', r'key_char'),
     ('Dropdown', 'focus-return'): ('dropdown.rs', r'back_to_trigger'),
+    ('Calendar', 'calendar-paging'): ('calendar.rs', r'"pageup" if shift'),
+    ('RangeCalendar', 'calendar-paging'): ('range_calendar.rs', r'"pageup" if shift'),
     ('Select', 'scroll-into-view'): ('select.rs', r'scroll_to_item'),
     ('ComboBox', 'scroll-into-view'): ('combo_box.rs', r'scroll_to_item'),
     ('Autocomplete', 'scroll-into-view'): ('autocomplete.rs', r'scroll_to_item'),
@@ -262,11 +269,12 @@ def main():
     derived = dict.fromkeys(
         ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + FOCUS_OPEN
         + TEXT_KEYS + POINTER_CARET + SORT_KEYS + FOCUS_RETURN + SCROLL_INTO_VIEW
+        + CALENDAR_PAGING
     )
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'focus-open',
                       'text-keys', 'pointer-caret', 'sort-keys', 'focus-return',
-                      'scroll-into-view'):
+                      'scroll-into-view', 'calendar-paging'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach
             # the breakdown: reading only EVIDENCE skipped `TextArea`'s

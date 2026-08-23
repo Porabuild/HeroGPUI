@@ -145,13 +145,28 @@ fn prev_month(y: i32, m: u32) -> (i32, u32) {
     }
 }
 
-/// Steps a (year, month) pair by ±1.
+/// Steps a (year, month) pair by ±1. `dir` is a *direction*, not a count.
 pub fn bump_month(y: i32, m: u32, dir: i32) -> (i32, u32) {
     if dir >= 0 {
         next_month(y, m)
     } else {
         prev_month(y, m)
     }
+}
+
+/// The (year, month) `delta` months away, for any size of `delta`.
+///
+/// `bump_month` reads its argument as a direction and moves one month whatever
+/// the magnitude, which made shift+Page Up move a single month instead of a
+/// year. Counting in months from year zero keeps the wrap arithmetic in one
+/// place.
+pub fn add_months(year: i32, month: u32, delta: i32) -> (i32, u32) {
+    let total = i64::from(year) * 12 + i64::from(month) - 1 + i64::from(delta);
+    #[allow(clippy::cast_possible_truncation)]
+    let y = total.div_euclid(12) as i32;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let m = total.rem_euclid(12) as u32 + 1;
+    (y, m)
 }
 
 /// English month name for 1–12.
@@ -472,7 +487,7 @@ impl Calendar {
 /// `date` a month away, clamped to the target month's length -- 31 January plus
 /// a month is the end of February, not the 31st.
 pub(crate) fn month_step(date: Date, delta: i32) -> Date {
-    let (year, month) = bump_month(date.year, date.month, delta);
+    let (year, month) = add_months(date.year, date.month, delta);
     Date::new(year, month, date.day.min(days_in_month(year, month)))
 }
 
@@ -989,6 +1004,7 @@ impl RenderOnce for Calendar {
                 let from = *held.read(cx);
                 let at = from.unwrap_or(start);
                 let key = event.keystroke.key.as_str();
+                let shift = event.keystroke.modifiers.shift;
                 if matches!(key, "enter" | "space") {
                     if !constraints.allows(at) {
                         return;
@@ -1007,6 +1023,9 @@ impl RenderOnce for Calendar {
                     "right" => add_days(&at, 1),
                     "up" => add_days(&at, -7),
                     "down" => add_days(&at, 7),
+                    // React Aria pages by month, and by *year* with shift.
+                    "pageup" if shift => month_step(at, -12),
+                    "pagedown" if shift => month_step(at, 12),
                     "pageup" => month_step(at, -1),
                     "pagedown" => month_step(at, 1),
                     "home" => Date::new(at.year, at.month, 1),
@@ -1016,6 +1035,15 @@ impl RenderOnce for Calendar {
                 held.update(cx, |v, cx| {
                     *v = Some(next);
                     cx.notify();
+                });
+                // React Aria keeps the focused date visible: the grid follows
+                // the cursor across a month boundary. Without this, paging moved
+                // an invisible cursor and the month on screen never changed.
+                state.update(cx, |s, cx| {
+                    if s.view_year != next.year || s.view_month != next.month {
+                        s.set_anchor(next);
+                        cx.notify();
+                    }
                 });
                 if let Some(cb) = &on_focus {
                     cb(next, window, cx);
@@ -1146,5 +1174,39 @@ impl RenderOnce for Calendar {
         }
 
         root
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn add_months_wraps_the_year_both_ways() {
+        assert_eq!(add_months(2026, 8, 1), (2026, 9));
+        assert_eq!(add_months(2026, 12, 1), (2027, 1));
+        assert_eq!(add_months(2026, 1, -1), (2025, 12));
+    }
+
+    #[test]
+    fn add_months_counts_rather_than_stepping() {
+        // shift+Page Up is a *year*: `bump_month` moved one month whatever the
+        // magnitude, so this is the difference the calendar depends on.
+        assert_eq!(add_months(2026, 8, -12), (2025, 8));
+        assert_eq!(add_months(2026, 8, 12), (2027, 8));
+        assert_eq!(add_months(2026, 8, -20), (2024, 12));
+    }
+
+    #[test]
+    fn month_step_clamps_the_day_to_the_shorter_month() {
+        // 31 January back one month is the 28th, not the 31st of February.
+        assert_eq!(
+            month_step(Date::new(2026, 1, 31), -1),
+            Date::new(2025, 12, 31)
+        );
+        assert_eq!(
+            month_step(Date::new(2026, 3, 31), -1),
+            Date::new(2026, 2, 28)
+        );
     }
 }
