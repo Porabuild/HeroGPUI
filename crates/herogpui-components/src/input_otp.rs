@@ -542,10 +542,13 @@ impl RenderOnce for InputOTP {
                     cx.notify();
                 }),
                 single if single.chars().count() == 1 && !single.is_empty() => {
-                    let mut c = single.chars().next().unwrap();
-                    if c.is_ascii_alphabetic() && !ev.keystroke.modifiers.shift {
-                        c = c.to_ascii_lowercase();
-                    }
+                    // `key` is the key cap; `key_char` is what was typed, which
+                    // is what a capital or a shifted symbol needs.
+                    let typed = ev.keystroke.key_char.as_deref().unwrap_or(single);
+                    let mut chars = typed.chars();
+                    let (Some(c), None) = (chars.next(), chars.next()) else {
+                        return;
+                    };
                     if pattern.accepts(c) {
                         let completed = state_entity.update(cx, |s, cx| {
                             s.cells[s.cursor] = c;

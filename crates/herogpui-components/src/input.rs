@@ -282,6 +282,102 @@ fn select_all(state: &mut InputState) {
     state.cursor = state.value.chars().count();
 }
 
+/// The text a char range covers, which is what the clipboard gets.
+///
+/// Pure, so the tests can reach it: building an `InputState` needs an `App` for
+/// its focus handle, and none of the motion logic touches that.
+fn slice_selection(value: &str, selection: Option<(usize, usize)>) -> Option<String> {
+    let (lo, hi) = selection?;
+    let lo_b = char_to_byte(value, lo);
+    let hi_b = char_to_byte(value, hi);
+    Some(value[lo_b..hi_b].to_owned())
+}
+
+/// Starts the selection at the caret if `extend` and there is none yet, and
+/// clears it otherwise. Every motion begins this way.
+fn before_move(state: &mut InputState, extend: bool) {
+    if !extend {
+        state.anchor = None;
+    } else if state.anchor.is_none() {
+        state.anchor = Some(state.cursor);
+    }
+}
+
+/// Whether a char counts as part of a word for `move_word`.
+fn is_word(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
+/// Where Ctrl+Left / Ctrl+Right lands: over any run of separators, then over
+/// the word.
+fn word_target(value: &str, cursor: usize, forward: bool) -> usize {
+    let chars: Vec<char> = value.chars().collect();
+    let mut i = cursor.min(chars.len());
+    if forward {
+        while i < chars.len() && !is_word(chars[i]) {
+            i += 1;
+        }
+        while i < chars.len() && is_word(chars[i]) {
+            i += 1;
+        }
+    } else {
+        while i > 0 && !is_word(chars[i - 1]) {
+            i -= 1;
+        }
+        while i > 0 && is_word(chars[i - 1]) {
+            i -= 1;
+        }
+    }
+    i
+}
+
+fn move_word(state: &mut InputState, forward: bool, extend: bool) {
+    before_move(state, extend);
+    state.cursor = word_target(&state.value, state.cursor, forward);
+}
+
+/// The char indices bounding the line the caret is on, newlines excluded.
+fn line_bounds(value: &str, cursor: usize) -> (usize, usize) {
+    let chars: Vec<char> = value.chars().collect();
+    let mut start = cursor.min(chars.len());
+    while start > 0 && chars[start - 1] != '\n' {
+        start -= 1;
+    }
+    let mut end = cursor.min(chars.len());
+    while end < chars.len() && chars[end] != '\n' {
+        end += 1;
+    }
+    (start, end)
+}
+
+/// Where Up / Down lands in a multiline field, keeping the column where it can.
+///
+/// The lines are the *logical* ones: a wrapped line has no position gpui will
+/// report, and `Enter` is what puts a newline in.
+fn vertical_target(value: &str, cursor: usize, down: bool) -> usize {
+    let (start, end) = line_bounds(value, cursor);
+    let column = cursor - start;
+    if down {
+        let len = value.chars().count();
+        if end >= len {
+            return len;
+        }
+        let (next_start, next_end) = line_bounds(value, end + 1);
+        (next_start + column).min(next_end)
+    } else {
+        if start == 0 {
+            return 0;
+        }
+        let (prev_start, prev_end) = line_bounds(value, start - 1);
+        (prev_start + column).min(prev_end)
+    }
+}
+
+fn move_vertical(state: &mut InputState, down: bool, extend: bool) {
+    before_move(state, extend);
+    state.cursor = vertical_target(&state.value, state.cursor, down);
+}
+
 fn char_to_byte(s: &str, char_idx: usize) -> usize {
     s.char_indices().nth(char_idx).map_or(s.len(), |(b, _)| b)
 }
@@ -1068,7 +1164,8 @@ impl RenderOnce for Input {
                     });
                 }
             } else if mods.control || mods.alt || mods.platform {
-                if !is_read_only && (mods.control || mods.platform) && key == "v" {
+                let cmd = mods.control || mods.platform;
+                if !is_read_only && cmd && key == "v" {
                     if let Some(text) = cx.read_from_clipboard().and_then(|c| c.text()) {
                         state_entity.update(cx, |s, cx| {
                             for ch in text.chars() {
@@ -1080,6 +1177,31 @@ impl RenderOnce for Input {
                         });
                         changed = true;
                     }
+                } else if cmd && (key == "c" || key == "x") {
+                    // Paste was here without a copy: a field you can paste into
+                    // and not copy out of is half a clipboard.
+                    let selected = {
+                        let st = state_entity.read(cx);
+                        slice_selection(&st.value, st.selection())
+                    };
+                    if let Some(text) = selected {
+                        cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+                        if key == "x" && !is_read_only {
+                            state_entity.update(cx, |s, cx| {
+                                delete_selection(s);
+                                cx.notify();
+                            });
+                            changed = true;
+                        }
+                    }
+                } else if cmd && (key == "left" || key == "right") {
+                    // Ctrl+arrow is word-wise motion; a password field is the
+                    // one place it would leak the shape of the value, and it
+                    // does not there either, since the glyphs are dots.
+                    state_entity.update(cx, |s, cx| {
+                        move_word(s, key == "right", mods.shift);
+                        cx.notify();
+                    });
                 }
             } else {
                 let shift = mods.shift;
@@ -1112,12 +1234,32 @@ impl RenderOnce for Input {
                         move_right(s, shift);
                         cx.notify();
                     }),
+                    // Home and End are the *line's* ends in a multi-line field,
+                    // the way a `<textarea>` has it; only a single-line field
+                    // has one line to run to.
                     "home" => state_entity.update(cx, |s, cx| {
-                        move_home(s, shift);
+                        if multiline {
+                            before_move(s, shift);
+                            s.cursor = line_bounds(&s.value, s.cursor).0;
+                        } else {
+                            move_home(s, shift);
+                        }
                         cx.notify();
                     }),
                     "end" => state_entity.update(cx, |s, cx| {
-                        move_end(s, shift);
+                        if multiline {
+                            before_move(s, shift);
+                            s.cursor = line_bounds(&s.value, s.cursor).1;
+                        } else {
+                            move_end(s, shift);
+                        }
+                        cx.notify();
+                    }),
+                    // Vertical motion only means something with lines to move
+                    // between; a single-line field leaves up and down to
+                    // whatever is around it (a combo box reads them).
+                    "up" | "down" if multiline => state_entity.update(cx, |s, cx| {
+                        move_vertical(s, key == "down", shift);
                         cx.notify();
                     }),
                     // A multi-line field takes Enter as a newline, the way a
@@ -1158,10 +1300,16 @@ impl RenderOnce for Input {
                         if is_read_only {
                             return;
                         }
-                        let mut c = single.chars().next().unwrap();
-                        if c.is_ascii_alphabetic() && !mods.shift {
-                            c = c.to_ascii_lowercase();
-                        }
+                        // `keystroke.key` is the *key cap*: "a" for shift+a and
+                        // "1" for shift+1. What was typed is `key_char`, and it
+                        // is the only source that gets a capital or a shifted
+                        // symbol right -- typing "AbC dEf" used to land as
+                        // "abc def", and every shifted symbol as its digit.
+                        let typed = ev.keystroke.key_char.as_deref().unwrap_or(single);
+                        let mut chars = typed.chars();
+                        let (Some(c), None) = (chars.next(), chars.next()) else {
+                            return;
+                        };
                         state_entity.update(cx, |s, cx| {
                             if state_accepts(s, c, input_type, max_length) {
                                 insert_char(s, c);
@@ -1824,5 +1972,57 @@ mod tests {
         let value = "sécret";
         let masked = "•".repeat(value.chars().count());
         assert_eq!(masked.chars().count(), value.chars().count());
+    }
+
+    #[test]
+    fn word_motion_crosses_the_separators_then_the_word() {
+        let v = "hello world, again";
+        assert_eq!(word_target(v, 0, true), 5); // end of "hello"
+        assert_eq!(word_target(v, 5, true), 11); // end of "world"
+        assert_eq!(word_target(v, 11, false), 6); // start of "world"
+        assert_eq!(word_target(v, 0, false), 0); // nowhere left to go
+        assert_eq!(word_target(v, 18, true), 18);
+    }
+
+    #[test]
+    fn line_bounds_exclude_the_newlines() {
+        let value = "one
+two
+three";
+        assert_eq!(line_bounds(value, 0), (0, 3));
+        assert_eq!(line_bounds(value, 5), (4, 7));
+        assert_eq!(line_bounds(value, 13), (8, 13));
+    }
+
+    #[test]
+    fn vertical_motion_keeps_the_column_where_the_line_is_long_enough() {
+        let v = "hello
+hi
+world";
+        assert_eq!(vertical_target(v, 3, true), 8); // "hi" is shorter: its end
+        assert_eq!(vertical_target(v, 8, true), 11); // column 2 of "world"
+        assert_eq!(vertical_target(v, 11, false), 8);
+    }
+
+    #[test]
+    fn vertical_motion_runs_to_the_ends_at_the_edges() {
+        let v = "one
+two";
+        assert_eq!(vertical_target(v, 1, false), 0);
+        assert_eq!(vertical_target(v, 5, true), 7);
+    }
+
+    #[test]
+    fn a_selection_slices_on_char_boundaries() {
+        assert_eq!(
+            slice_selection("hello world", Some((6, 11))).as_deref(),
+            Some("world")
+        );
+        // Multi-byte: the indices are chars, not bytes.
+        assert_eq!(
+            slice_selection("sécret", Some((0, 2))).as_deref(),
+            Some("sé")
+        );
+        assert_eq!(slice_selection("hello", None), None);
     }
 }

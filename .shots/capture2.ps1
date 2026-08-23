@@ -213,7 +213,20 @@ foreach ($pg in $Pages) {
                 if ([Win2]::GetForegroundWindow() -ne $h) {
                     Write-Host "  $pg : window is not foreground; keys may go elsewhere" -ForegroundColor Yellow
                 }
-                [System.Windows.Forms.SendKeys]::SendWait($Keys)
+                # SendKeys rejects a whole string rather than part of it, and
+                # two chorded keys in a row is exactly what it rejects: `^a^c`
+                # is invalid where `^(a)^(c)` is fine. Thrown from inside the
+                # loop it left the capture running and produced a screenshot of
+                # a control that had been sent *nothing* -- which reads as a
+                # broken component. Stop instead.
+                try {
+                    [System.Windows.Forms.SendKeys]::SendWait($Keys)
+                } catch {
+                    Write-Host "  $pg : -Keys '$Keys' is not a valid SendKeys string" -ForegroundColor Red
+                    Write-Host "  chord two keys as '^(a)^(c)', not '^a^c'" -ForegroundColor Red
+                    $p.Kill()
+                    throw
+                }
                 Start-Sleep -Milliseconds 900
             }
         }

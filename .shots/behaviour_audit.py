@@ -86,6 +86,13 @@ SPIN_KEYS = ('NumberField',)
 # or focus".
 FOCUS_OPEN = ('Tooltip',)
 
+# A text field's keyboard is the platform's, and none of it is in a prop table.
+# What was missing: word-wise motion, copy and cut (paste was there), vertical
+# motion and line-wise Home/End in a multi-line field, and -- worst -- capitals,
+# because the handler read `keystroke.key` (the key *cap*) instead of `key_char`,
+# so "AbC dEf!" arrived as "abc def1".
+TEXT_KEYS = ('Input', 'TextArea', 'TextField')
+
 OVERLAY_DISMISS = (
     'Popover', 'Dropdown', 'Select', 'ComboBox', 'Autocomplete',
     'DatePicker', 'DateRangePicker', 'ColorPicker', 'Tooltip',
@@ -153,6 +160,9 @@ EVIDENCE = {
     ('Tooltip', 'dismiss'): ('tooltip.rs', r'dismiss_on_escape'),
     ('NumberField', 'spin-keys'): ('number_field.rs', r'"up" \| "pageup"'),
     ('Tooltip', 'focus-open'): ('tooltip.rs', r'contains_focused'),
+    ('Input', 'text-keys'): ('input.rs', r'fn word_target'),
+    ('TextArea', 'text-keys'): ('input.rs', r'fn vertical_target'),
+    ('TextField', 'text-keys'): ('input.rs', r'key_char'),
     ('Accordion', 'activation'): ('accordion.rs', r'tab_stop_handle'),
     ('Button', 'activation'): ('button.rs', r'tab_stop_handle'),
     ('CloseButton', 'activation'): ('close_button.rs', r'tab_stop_handle'),
@@ -204,8 +214,10 @@ def main():
     by_reason = {}
 
     # The derived claims first, so their numbers land in the same totals.
-    for page in ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + FOCUS_OPEN:
-        for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'focus-open'):
+    derived = ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + FOCUS_OPEN + TEXT_KEYS
+    for page in derived:
+        for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'focus-open',
+                      'text-keys'):
             key = (page, claim)
             if key not in EVIDENCE:
                 continue
