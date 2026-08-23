@@ -84,13 +84,18 @@ pub fn prominence_bg(prominence: Prominence, cx: &App) -> Option<Hsla> {
 
 /// Applies the v3 field chrome: background, radius, border and — for
 /// `primary` only — the `--field-shadow`.
-pub fn apply_field_chrome(
-    el: Div,
+///
+/// Generic over [`Styled`] so a field that needed an `.id()` first (and is
+/// therefore a `Stateful<Div>`) can share it. Six components used to hand-roll
+/// this, and every one of them filled the `secondary` variant with
+/// `surface_secondary` instead of `--default`.
+pub fn apply_field_chrome<T: Styled>(
+    el: T,
     variant: FieldVariant,
     is_invalid: bool,
     is_focused: bool,
     cx: &App,
-) -> Div {
+) -> T {
     let colors = cx.colors();
     let layout = cx.layout();
 

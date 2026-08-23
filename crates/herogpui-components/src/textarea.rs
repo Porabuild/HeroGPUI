@@ -154,6 +154,17 @@ impl TextArea {
     }
 }
 
+impl TextArea {
+    /// Hands the inner field to [`crate::input_group::InputGroup::text_area`].
+    ///
+    /// `InputGroup.TextArea` is the same multi-line field with the group's
+    /// chrome instead of its own, so the wrapper this normally renders (which
+    /// only carries `cols`) is dropped.
+    pub(crate) fn into_group_input(self) -> Input {
+        self.inner
+    }
+}
+
 impl RenderOnce for TextArea {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
         // The field itself is multi-line; this wrapper only gives it the height

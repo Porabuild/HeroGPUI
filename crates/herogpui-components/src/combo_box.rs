@@ -354,7 +354,6 @@ impl RenderOnce for ComboBox {
         let colors = cx.colors().clone();
         let layout = cx.layout().clone();
         let container_radius = util::container_radius(cx);
-        let control_radius = util::control_radius(cx);
         let entity_id = self.state.entity_id().as_u64();
         let raw_query = self.state.read(cx).value().to_owned();
         let query = raw_query.to_lowercase();
@@ -513,9 +512,12 @@ impl RenderOnce for ComboBox {
                     .id(gpui::ElementId::Name(
                         format!("combobox-{entity_id}-item-{index}").into(),
                     ))
+                    // `.list-box-item`: `min-h-9 rounded-2xl px-2 py-1.5 gap-3`.
+                    .min_h(util::FIELD_HEIGHT)
                     .px(px(8.))
                     .py(px(6.))
-                    .rounded(control_radius)
+                    .gap(px(12.))
+                    .rounded(util::soft_radius(cx))
                     .flex()
                     .items_center()
                     .justify_between()

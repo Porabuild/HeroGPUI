@@ -362,8 +362,8 @@ impl RenderOnce for ToastCardEl {
             .px(px(16.))
             .py(px(12.))
             .rounded(crate::util::container_radius(cx))
-            .bg(colors.overlay.background)
-            .text_color(colors.overlay.foreground)
+            .bg(colors.surface.background)
+            .text_color(colors.surface.foreground)
             .border(cx.layout().border_width)
             .border_color(colors.border)
             .when(!cx.layout().overlay_shadow.is_empty(), |c| {

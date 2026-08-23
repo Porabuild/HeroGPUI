@@ -201,12 +201,12 @@ impl RenderOnce for DatePicker {
             self.default_open,
         );
 
-        let sem = cx.colors().accent;
         let colors = cx.colors();
         let layout = cx.layout();
 
         let selected = self.state.read(cx).selected;
-        let h = px(40.);
+        // `.date-input-group` is `h-9`.
+        let h = crate::util::FIELD_HEIGHT;
 
         let mut field = gpui::div()
             .id(gpui::ElementId::Name(
@@ -220,15 +220,18 @@ impl RenderOnce for DatePicker {
             .h(h)
             .px(px(12.))
             .text_size(px(14.))
-            .rounded(crate::util::field_radius(cx))
-            .bg(colors.default.soft())
             .cursor_pointer();
 
+        field = crate::util::apply_field_chrome(
+            field,
+            herogpui_core::FieldVariant::Primary,
+            self.is_invalid,
+            is_open,
+            cx,
+        );
         if !is_open {
-            let hover_bg = colors.default.soft_hover();
+            let hover_bg = colors.field.hover();
             field = field.hover(move |s| s.bg(hover_bg));
-        } else {
-            field = field.border_2().border_color(sem.color);
         }
 
         field = field
@@ -299,18 +302,32 @@ impl RenderOnce for DatePicker {
             if let Some(on_change) = self.on_change.clone() {
                 cal = cal.on_change(move |d, window, cx| on_change(d, window, cx));
             }
-            root = root.child(
-                gpui::div()
-                    .absolute()
-                    .top_full()
-                    .left(px(0.))
-                    .mt(px(6.))
-                    .child(cal),
-            );
+            root = root.child(crate::util::floating(
+                crate::util::placed_panel(herogpui_core::Placement::BottomStart, px(6.))
+                    .child(picker_panel(cx).child(cal)),
+            ));
         }
 
         root
     }
+}
+
+/// The popover chrome every picker shares — `.date-picker__popover` is
+/// `bg-overlay p-2` at `min(32px, --radius-3xl)` with `--shadow-overlay`.
+///
+/// The calendars used to paint this themselves, which put a second panel inside
+/// the first one and left a standalone `Calendar` looking like a floating card.
+fn picker_panel(cx: &App) -> gpui::Div {
+    let colors = cx.colors();
+    let layout = cx.layout();
+    gpui::div()
+        .p(px(8.))
+        .rounded(crate::util::container_radius(cx))
+        .bg(colors.overlay.background)
+        .text_color(colors.overlay.foreground)
+        .when(!layout.overlay_shadow.is_empty(), |e| {
+            e.shadow(layout.overlay_shadow.clone())
+        })
 }
 
 // ---------------------------------------------------------------------------
@@ -595,12 +612,6 @@ impl RenderOnce for DateRangePicker {
         );
 
         let colors = cx.colors();
-        let accent = if self.is_invalid {
-            colors.danger
-        } else {
-            colors.accent
-        };
-
         let (start, end) = {
             let st = self.state.read(cx);
             (st.start, st.end)
@@ -622,18 +633,18 @@ impl RenderOnce for DateRangePicker {
             .w_full()
             .h(crate::util::FIELD_HEIGHT)
             .px(px(12.))
-            .text_size(crate::util::FIELD_TEXT)
-            .rounded(crate::util::field_radius(cx))
-            .bg(colors.default.soft());
+            .text_size(crate::util::FIELD_TEXT);
 
-        if is_open {
-            field = field.border_2().border_color(accent.color);
-        } else if self.is_invalid {
-            field = field.border_1().border_color(colors.danger.color);
-        }
+        field = crate::util::apply_field_chrome(
+            field,
+            herogpui_core::FieldVariant::Primary,
+            self.is_invalid,
+            is_open,
+            cx,
+        );
 
         if !self.is_disabled {
-            let hover_bg = colors.default.soft_hover();
+            let hover_bg = colors.field.hover();
             field = field.cursor_pointer();
             if !is_open {
                 field = field.hover(move |s| s.bg(hover_bg));
@@ -704,7 +715,7 @@ impl RenderOnce for DateRangePicker {
             // trigger and the grid would spill outside the surface.
             root = root.child(crate::util::floating(
                 crate::util::placed_panel(herogpui_core::Placement::BottomStart, px(6.))
-                    .child(calendar),
+                    .child(picker_panel(cx).child(calendar)),
             ));
         }
 
@@ -746,6 +757,50 @@ impl DateSegment {
             DateSegment::Month => "mm",
             DateSegment::Day => "dd",
             DateSegment::Year => "yyyy",
+        }
+    }
+
+    /// The segment `delta` places along, clamped to the ends.
+    ///
+    /// v3 moves the caret between segments with the left and right arrows, so
+    /// this is what those keys walk.
+    fn shift(self, delta: i32) -> DateSegment {
+        let here = Self::ALL.iter().position(|s| *s == self).unwrap_or(0) as i32;
+        let next = (here + delta).clamp(0, Self::ALL.len() as i32 - 1) as usize;
+        Self::ALL[next]
+    }
+
+    /// How many digits this segment holds — the point at which typing moves on.
+    fn digits(self) -> usize {
+        match self {
+            DateSegment::Year => 4,
+            _ => 2,
+        }
+    }
+
+    /// `date` with this segment set to `value`, clamped to what the calendar
+    /// allows (February 31st becomes the 28th or 29th).
+    fn with_value(self, date: Date, value: u32) -> Date {
+        match self {
+            DateSegment::Year => {
+                let year = value as i32;
+                let day = date
+                    .day
+                    .min(crate::calendar::days_in_month(year, date.month));
+                Date::new(year, date.month, day)
+            }
+            DateSegment::Month => {
+                let month = value.clamp(1, 12);
+                let day = date
+                    .day
+                    .min(crate::calendar::days_in_month(date.year, month));
+                Date::new(date.year, month, day)
+            }
+            DateSegment::Day => Date::new(
+                date.year,
+                date.month,
+                value.clamp(1, crate::calendar::days_in_month(date.year, date.month)),
+            ),
         }
     }
 
@@ -812,6 +867,11 @@ pub struct DateField {
     variant: herogpui_core::FieldVariant,
     constraints: DateConstraints,
     placeholder_value: Option<Date>,
+    /// `DateField.Prefix` — content before the segments, drawn in the
+    /// placeholder colour and inert (`pointer-events-none`).
+    prefix: Option<gpui::AnyElement>,
+    /// `DateField.Suffix` — content after the segments.
+    suffix: Option<gpui::AnyElement>,
     state: Entity<crate::input::InputState>,
     label: Option<SharedString>,
     on_change: Option<OnChange>,
@@ -833,6 +893,18 @@ impl DateField {
     /// `placeholderValue` — the date the empty field formats its hint from.
     pub fn placeholder_value(mut self, date: Date) -> Self {
         self.placeholder_value = Some(date);
+        self
+    }
+
+    /// `DateField.Prefix` — content before the segments.
+    pub fn prefix(mut self, el: impl IntoElement) -> Self {
+        self.prefix = Some(el.into_any_element());
+        self
+    }
+
+    /// `DateField.Suffix` — content after the segments.
+    pub fn suffix(mut self, el: impl IntoElement) -> Self {
+        self.suffix = Some(el.into_any_element());
         self
     }
 
@@ -910,6 +982,8 @@ impl DateField {
             variant: herogpui_core::FieldVariant::Primary,
             constraints: DateConstraints::new(),
             placeholder_value: None,
+            prefix: None,
+            suffix: None,
             state,
             label: None,
             on_change: None,
@@ -1004,9 +1078,16 @@ impl RenderOnce for DateField {
             |_, _| DateSegment::Month,
         );
         let focused = *focused_seg.read(cx);
+        // Digits typed into the focused segment but not yet complete, so `1` in
+        // the month segment can still become `12`. Cleared whenever focus moves.
+        let typing = window.use_keyed_state(
+            gpui::ElementId::Name(format!("datefield-{entity_id}-typing").into()),
+            cx,
+            |_, _| String::new(),
+        );
 
         let colors = cx.colors().clone();
-        let layout = cx.layout().clone();
+        let _layout = cx.layout().clone();
 
         let text = self.state.read(cx).value().to_owned();
         let parsed = parse_iso(&text);
@@ -1061,32 +1142,138 @@ impl RenderOnce for DateField {
             }
         };
 
+        // An empty field seeds from `placeholderValue`, the way v3 does, so the
+        // first arrow press lands on a sensible date instead of jumping a step
+        // from nothing.
+        let seed = self.placeholder_value.unwrap_or_else(Date::today);
+        let focus_handle = self.state.read(cx).focus_handle.clone();
+
         let mut group = gpui::div()
             .flex()
             .flex_row()
             .items_center()
             .gap(px(2.))
+            // `.date-input-group` is `h-9 items-center overflow-hidden` with the
+            // segments inside it and `ms-3`/`me-3` on the prefix and suffix.
             .px(px(12.))
             .h(crate::util::FIELD_HEIGHT)
+            .overflow_hidden()
             .rounded(crate::util::field_radius(cx))
             .text_size(crate::util::FIELD_TEXT)
             .font_family("Consolas")
             .text_color(colors.field.foreground);
 
-        group = match self.variant {
-            herogpui_core::FieldVariant::Primary => {
-                let shadow = layout.field_shadow;
-                group
-                    .bg(colors.field.background)
-                    .when(!shadow.is_empty(), |e| e.shadow(shadow))
-            }
-            herogpui_core::FieldVariant::Secondary => group.bg(colors.surface_secondary),
-        };
-        if is_invalid {
-            group = group.border_1().border_color(colors.danger.color);
+        // v3 drives a date field from the keyboard: the arrows step the focused
+        // segment and walk between segments, and digits type into it. Without
+        // this the steppers were the only way to change a value at all.
+        // v3's DateField documents no `isDisabled`/`isReadOnly`, so there is no
+        // state in which the keys should be ignored.
+        {
+            let state = self.state.clone();
+            let on_change = self.on_change.clone();
+            let constraints = self.constraints.clone();
+            let held = focused_seg.clone();
+            let buffer = typing;
+            let fh = focus_handle.clone();
+            group = group
+                .track_focus(&focus_handle)
+                .key_context("DateField")
+                .on_mouse_down(gpui::MouseButton::Left, move |_, window, _| {
+                    window.focus(&fh);
+                })
+                .on_key_down(move |event, window, cx| {
+                    let key = event.keystroke.key.as_str();
+                    // A date is only ever written back as a whole date, so every
+                    // branch produces one and commits it the same way.
+                    let commit = |date: Date, window: &mut Window, cx: &mut App| {
+                        state.update(cx, |s, cx| {
+                            s.set_value(date.format_iso());
+                            cx.notify();
+                        });
+                        if let Some(cb) = &on_change {
+                            cb(Some(date).filter(|d| constraints.allows(*d)), window, cx);
+                        }
+                    };
+                    match key {
+                        "up" | "down" => {
+                            let delta = if key == "up" { 1 } else { -1 };
+                            let base = parsed.unwrap_or(seed);
+                            // The first press on an empty field takes the seed
+                            // itself rather than stepping past it.
+                            let next = match parsed {
+                                Some(_) => focused.bump(base, delta),
+                                None => base,
+                            };
+                            buffer.update(cx, |b, _| b.clear());
+                            commit(next, window, cx);
+                        }
+                        "left" | "right" => {
+                            let delta = if key == "right" { 1 } else { -1 };
+                            buffer.update(cx, |b, _| b.clear());
+                            held.update(cx, |seg, cx| {
+                                *seg = seg.shift(delta);
+                                cx.notify();
+                            });
+                        }
+                        "backspace" | "delete" => {
+                            buffer.update(cx, |b, _| b.clear());
+                            state.update(cx, |s, cx| {
+                                s.set_value(String::new());
+                                cx.notify();
+                            });
+                            if let Some(cb) = &on_change {
+                                cb(None, window, cx);
+                            }
+                        }
+                        digit if digit.len() == 1 && digit.chars().all(|c| c.is_ascii_digit()) => {
+                            let text = buffer.update(cx, |b, _| {
+                                if b.len() >= focused.digits() {
+                                    b.clear();
+                                }
+                                b.push_str(digit);
+                                b.clone()
+                            });
+                            let Ok(value) = text.parse::<u32>() else {
+                                return;
+                            };
+                            commit(
+                                focused.with_value(parsed.unwrap_or(seed), value),
+                                window,
+                                cx,
+                            );
+                            // A full segment hands the caret on, which is what
+                            // makes `12252025` type a whole date.
+                            if text.len() >= focused.digits() {
+                                buffer.update(cx, |b, _| b.clear());
+                                held.update(cx, |seg, cx| {
+                                    *seg = seg.shift(1);
+                                    cx.notify();
+                                });
+                            }
+                        }
+                        _ => {}
+                    }
+                });
         }
+
+        group = crate::util::apply_field_chrome(group, self.variant, is_invalid, false, cx);
         if self.full_width {
             group = group.w_full();
+        }
+
+        // `.date-input-group__prefix` is `ms-3 me-0`; the shell's own `px-3`
+        // already provides that inset, so the slot only needs to sit inline and
+        // inherit the placeholder colour.
+        if let Some(prefix) = self.prefix {
+            group = group.child(
+                gpui::div()
+                    .flex()
+                    .items_center()
+                    .flex_shrink_0()
+                    .mr(px(4.))
+                    .text_color(colors.field.placeholder)
+                    .child(prefix),
+            );
         }
 
         for (index, segment) in DateSegment::ALL.iter().copied().enumerate() {
@@ -1128,10 +1315,23 @@ impl RenderOnce for DateField {
             group = group.child(seg);
         }
 
-        // Steppers move whichever segment is focused, seeding an empty field
-        // from `placeholderValue` the way v3 does.
-        let seed = self.placeholder_value.unwrap_or_else(Date::today);
-        let mut steppers = gpui::div().flex().flex_col().ml(px(8.)).flex_shrink_0();
+        if let Some(suffix) = self.suffix {
+            group = group.child(
+                gpui::div()
+                    .flex()
+                    .items_center()
+                    .flex_shrink_0()
+                    .ml(px(4.))
+                    .text_color(colors.field.placeholder)
+                    .child(suffix),
+            );
+        }
+
+        // Steppers move whichever segment is focused. v3 has no stepper on a
+        // date field -- it expects the arrow keys, which now work -- so these
+        // are a pointer affordance, kept inside the shell where v3 puts its
+        // `__suffix` rather than floating outside it.
+        let mut steppers = gpui::div().flex().flex_col().ml(px(4.)).flex_shrink_0();
         for (icon, delta, key) in [
             (icons::CHEVRON_UP, 1i32, "up"),
             (icons::CHEVRON_DOWN, -1i32, "down"),
@@ -1175,11 +1375,7 @@ impl RenderOnce for DateField {
                     }),
             );
         }
-        let row = gpui::div()
-            .flex()
-            .items_center()
-            .child(group)
-            .child(steppers);
+        let row = group.child(steppers);
 
         // -- label / description / error wrapper ------------------------------
         let mut el = gpui::div().flex().flex_col().gap(px(4.));

@@ -13,6 +13,7 @@ use herogpui_theme::ActiveTheme;
 use crate::{
     icons,
     input::{Input, InputState},
+    util,
 };
 
 type OnSelectionChange = std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
@@ -311,7 +312,7 @@ impl RenderOnce for Autocomplete {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `defaultValue` opts into the component holding its own selection;
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
-        let (selection, selection_own) = crate::util::controlled(
+        let (selection, selection_own) = util::controlled(
             window,
             cx,
             gpui::ElementId::Name(
@@ -473,8 +474,8 @@ impl RenderOnce for Autocomplete {
                 .flex()
                 .flex_col()
                 .py(px(6.))
-                .bg(colors.surface.background)
-                .rounded(crate::util::control_radius(cx))
+                .bg(colors.overlay.background)
+                .rounded(util::container_radius(cx))
                 .border_1()
                 .border_color(colors.separator)
                 .shadow(layout.overlay_shadow.clone())
@@ -484,12 +485,17 @@ impl RenderOnce for Autocomplete {
                 let item_disabled = self.disabled_keys.contains(item);
                 let mut row = gpui::div()
                     .id(el_name(format!("{base}-{item}")))
-                    .px(px(12.))
-                    .h(px(32.))
                     .flex()
                     .items_center()
                     .justify_between()
-                    .text_size(px(13.5))
+                    // Every menu row in v3 is a `.list-box-item`: `min-h-9
+                    // rounded-2xl px-2 py-1.5 gap-3` at `text-sm`.
+                    .min_h(util::FIELD_HEIGHT)
+                    .rounded(util::soft_radius(cx))
+                    .px(px(8.))
+                    .py(px(6.))
+                    .gap(px(12.))
+                    .text_size(util::FIELD_TEXT)
                     .text_color(colors.foreground)
                     .child(item.to_string());
 
@@ -562,22 +568,20 @@ impl RenderOnce for Autocomplete {
                     gpui::div()
                         .px(px(12.))
                         .py(px(6.))
-                        .text_size(crate::util::FIELD_TEXT)
+                        .text_size(util::FIELD_TEXT)
                         .text_color(colors.muted)
                         .child("No matching options"),
                 );
             }
 
-            root = root.child(crate::util::floating(
-                crate::util::placed_field_panel(self.placement, px(6.)).child(
-                    crate::anim::entering_zoom(
-                        panel,
-                        el_name("autocomplete-panel".to_owned()),
-                        crate::anim::ZoomBox::panel(px(6.), crate::util::control_radius(cx)),
-                        crate::anim::Motion::FLUID_IN,
-                        cx,
-                    ),
-                ),
+            root = root.child(util::floating(
+                util::placed_field_panel(self.placement, px(6.)).child(crate::anim::entering_zoom(
+                    panel,
+                    el_name("autocomplete-panel".to_owned()),
+                    crate::anim::ZoomBox::panel(px(6.), util::container_radius(cx)),
+                    crate::anim::Motion::FLUID_IN,
+                    cx,
+                )),
             ));
         }
 

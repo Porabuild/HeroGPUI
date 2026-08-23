@@ -1349,15 +1349,7 @@ impl RenderOnce for ColorField {
             .child(ColorSwatch::new(self.value).size(SizeXl::Xs))
             .child(div().flex_1().child(text));
 
-        field = match self.variant {
-            FieldVariant::Primary => {
-                let shadow = layout.field_shadow.clone();
-                field
-                    .bg(colors.field.background)
-                    .when(!shadow.is_empty(), |e| e.shadow(shadow))
-            }
-            FieldVariant::Secondary => field.bg(colors.surface_secondary),
-        };
+        field = util::apply_field_chrome(field, self.variant, self.is_invalid, false, cx);
 
         // v3's ColorField steps its channel on scroll; `isWheelDisabled` turns
         // that off. There is no sensible increment for a hex value, so only a

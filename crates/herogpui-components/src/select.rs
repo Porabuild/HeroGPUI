@@ -7,7 +7,7 @@ use gpui::{
 use herogpui_core::{Color, FieldVariant, Placement, SelectionMode};
 use herogpui_theme::ActiveTheme;
 
-use crate::icons;
+use crate::{icons, util};
 
 type OnSelectionChange = std::sync::Arc<dyn Fn(Option<usize>, &mut Window, &mut App) + 'static>;
 
@@ -242,14 +242,14 @@ impl Select {
 impl RenderOnce for Select {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
-        let (is_open, open_own) = crate::util::controlled(
+        let (is_open, open_own) = util::controlled(
             window,
             cx,
             gpui::ElementId::Name(format!("{:?}-open", self.id).into()),
             self.is_open,
             self.default_open,
         );
-        let (selected, value_own) = crate::util::controlled(
+        let (selected, value_own) = util::controlled(
             window,
             cx,
             gpui::ElementId::Name(format!("{:?}-value", self.id).into()),
@@ -261,7 +261,8 @@ impl RenderOnce for Select {
         let colors = cx.colors();
         let layout = cx.layout();
 
-        let (h, text) = (px(40.), px(14.));
+        // `.select__trigger` is `min-h-9 ... text-sm`.
+        let (h, text) = (util::FIELD_HEIGHT, util::FIELD_TEXT);
 
         let trigger_id = el_name(format!("select-{}", id_debug(&self.id)));
         let mut field = gpui::div()
@@ -270,26 +271,13 @@ impl RenderOnce for Select {
             .items_center()
             .justify_between()
             .gap(px(8.))
-            .h(h)
+            .min_h(h)
             .px(px(12.))
             .text_size(text)
-            .rounded(crate::util::control_radius(cx))
             .cursor_pointer();
 
         let _border_color = if is_open { sem.color } else { colors.separator };
-        field = match self.variant {
-            FieldVariant::Primary => {
-                let shadow = cx.layout().field_shadow.clone();
-                field
-                    .bg(colors.field.background)
-                    .when(!shadow.is_empty(), |e| e.shadow(shadow))
-            }
-            FieldVariant::Secondary => field.bg(colors.surface_secondary),
-        };
-
-        if self.is_invalid {
-            field = field.border_1().border_color(colors.danger.color);
-        }
+        field = util::apply_field_chrome(field, self.variant, self.is_invalid, false, cx);
 
         if !self.is_disabled {
             let hover_bg = match self.variant {
@@ -402,8 +390,8 @@ impl RenderOnce for Select {
                 .flex()
                 .flex_col()
                 .py(px(6.))
-                .bg(colors.surface.background)
-                .rounded(crate::util::container_radius(cx))
+                .bg(colors.overlay.background)
+                .rounded(util::container_radius(cx))
                 .border_1()
                 .border_color(colors.separator)
                 .shadow(layout.overlay_shadow.clone())
@@ -422,9 +410,14 @@ impl RenderOnce for Select {
                     .flex()
                     .items_center()
                     .justify_between()
-                    .px(px(12.))
-                    .h(px(34.))
-                    .text_size(px(13.5));
+                    // Every menu row in v3 is a `.list-box-item`: `min-h-9
+                    // rounded-2xl px-2 py-1.5 gap-3` at `text-sm`.
+                    .min_h(util::FIELD_HEIGHT)
+                    .rounded(util::soft_radius(cx))
+                    .px(px(8.))
+                    .py(px(6.))
+                    .gap(px(12.))
+                    .text_size(util::FIELD_TEXT);
 
                 if opt_disabled {
                     item = item.opacity(layout.disabled_opacity);
@@ -498,16 +491,14 @@ impl RenderOnce for Select {
                 panel = panel.child(item);
             }
 
-            root = root.child(crate::util::floating(
-                crate::util::placed_field_panel(self.placement, px(6.)).child(
-                    crate::anim::entering_zoom(
-                        panel,
-                        el_name(format!("{base}-panel")),
-                        crate::anim::ZoomBox::panel(px(6.), crate::util::container_radius(cx)),
-                        crate::anim::Motion::LIST_IN,
-                        cx,
-                    ),
-                ),
+            root = root.child(util::floating(
+                util::placed_field_panel(self.placement, px(6.)).child(crate::anim::entering_zoom(
+                    panel,
+                    el_name(format!("{base}-panel")),
+                    crate::anim::ZoomBox::panel(px(6.), util::container_radius(cx)),
+                    crate::anim::Motion::LIST_IN,
+                    cx,
+                )),
             ));
         }
 

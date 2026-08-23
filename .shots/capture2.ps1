@@ -15,6 +15,16 @@ param(
     [int]$HoverX = -1,
     [int]$HoverY = -1,
     [switch]$HoldPress,
+    # Click at -HoverX/-HoverY before capturing. `-HoldPress` deliberately
+    # leaves the button down (to photograph a pressed state); this is the
+    # ordinary press-and-release, which is what focusing a field takes.
+    [switch]$Click,
+    # Keystrokes to send once the window is up, in SendKeys notation:
+    #   -Keys "12252025"        digits into the focused field
+    #   -Keys "{TAB}{RIGHT}5"   navigate, then type
+    # This is the only way to verify keyboard behaviour -- a screenshot proves a
+    # control is drawn, not that it answers a key.
+    [string]$Keys = "",
     # Size the window to the monitor's work area instead of -Width/-Height.
     [switch]$Fullscreen,
     # Park the window off-screen so capturing never covers what you are doing.
@@ -42,6 +52,13 @@ public class Win2 {
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int w, int hh, uint flags);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+    // Windows refuses a foreground steal from a process that is not itself
+    // foreground, which is exactly this script's situation: SetForegroundWindow
+    // returns false and the keys go to whatever *is* foreground. SwitchToThisWindow
+    // is the documented way in (it is what Alt-Tab uses) and is not subject to
+    // the same restriction.
+    [DllImport("user32.dll")] public static extern void SwitchToThisWindow(IntPtr h, bool altTab);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     // PW_RENDERFULLCONTENT (2) is what makes this work for a GPU-composited
@@ -59,9 +76,9 @@ $SWP_NOACTIVATE = 0x0010
 $SWP_NOZORDER   = 0x0004
 $SWP_NOOWNERZORDER = 0x0200
 
-$interactive = ($HoverX -ge 0) -or $HoldPress -or ($Scroll -gt 0)
+$interactive = ($HoverX -ge 0) -or $HoldPress -or $Click -or ($Scroll -gt 0) -or ($Keys -ne "")
 if ($Offscreen -and $interactive) {
-    Write-Error "-Offscreen cannot be combined with -Scroll/-HoverX/-HoldPress: those drive the real cursor, which needs the window on screen."
+    Write-Error "-Offscreen cannot be combined with -Scroll/-HoverX/-HoldPress/-Keys: those drive the real cursor or keyboard, which needs the window on screen."
     exit 2
 }
 # Off-screen is the default for a plain capture; a hover/press needs it visible.
@@ -131,9 +148,19 @@ foreach ($pg in $Pages) {
         Start-Sleep -Milliseconds 900
 
         if ($interactive) {
-            # A real cursor needs the window under it and accepting input.
-            [Win2]::SetForegroundWindow($h) | Out-Null
-            Start-Sleep -Milliseconds 400
+            # An injected click goes to whichever window is *at that point*, so
+            # a gallery window that is positioned correctly but buried gets
+            # nothing -- the click lands on whatever is on top, and the capture
+            # then shows a control that looks like it ignored the press. Lift it
+            # to topmost first (without activating), then ask for the foreground.
+            [Win2]::SetWindowPos($h, [IntPtr](-1), 10, 10, $Width, $Height,
+                $SWP_NOACTIVATE) | Out-Null
+            Start-Sleep -Milliseconds 300
+            # SwitchToThisWindow only. A SetForegroundWindow call on top of it
+            # is refused for a background process, and the refusal costs the
+            # foreground it had just been given -- clicks then land nowhere.
+            [Win2]::SwitchToThisWindow($h, $false)
+            Start-Sleep -Milliseconds 700
             if ($Scroll -gt 0) {
                 [Win2]::SetCursorPos(900, 500) | Out-Null
                 for ($w = 0; $w -lt $Scroll; $w++) {
@@ -148,7 +175,25 @@ foreach ($pg in $Pages) {
                 if ($HoldPress) {
                     [Win2]::mouse_event(0x0002, 0, 0, 0, 0)
                     Start-Sleep -Milliseconds 500
+                } elseif ($Click -or ($Keys -ne "")) {
+                    # A press and a release. Typing needs this first: nothing
+                    # takes the keys until something has focus.
+                    [Win2]::mouse_event(0x0002, 0, 0, 0, 0)
+                    Start-Sleep -Milliseconds 80
+                    [Win2]::mouse_event(0x0004, 0, 0, 0, 0)
+                    Start-Sleep -Milliseconds 500
                 }
+            }
+            if ($Keys -ne "") {
+                # A field only answers keys once it has focus, and most take
+                # focus from a click, so pair -Keys with -HoverX/-HoverY.
+                # Keys go to the *foreground* window, so check here rather than
+                # capturing a control that looks like it ignored every one.
+                if ([Win2]::GetForegroundWindow() -ne $h) {
+                    Write-Host "  $pg : window is not foreground; keys may go elsewhere" -ForegroundColor Yellow
+                }
+                [System.Windows.Forms.SendKeys]::SendWait($Keys)
+                Start-Sleep -Milliseconds 900
             }
         }
 

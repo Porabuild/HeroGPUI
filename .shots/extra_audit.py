@@ -147,6 +147,17 @@ EXTRA_OK_SCOPED = {
     'ColorArea.size': 'no-classname',
     # v3's Avatar composes `<Avatar.Fallback>JD</Avatar.Fallback>`.
     'Avatar.name': 'composition',
+    # v3 composes these as typed child parts -- `<InputGroup.Prefix>`,
+    # `<InputGroup.Input>`, `<DateField.Suffix>`. gpui has no JSX, so a named
+    # slot is a builder. `InputGroup.input` takes an `Input` rather than an
+    # element on purpose: the group has to strip the field's chrome, and a
+    # plain child leaves a second field drawn inside the group.
+    'InputGroup.prefix': 'composition',
+    'InputGroup.suffix': 'composition',
+    'InputGroup.input': 'composition',
+    'InputGroup.text_area': 'composition',
+    'DateField.prefix': 'composition',
+    'DateField.suffix': 'composition',
 }
 
 

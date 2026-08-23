@@ -233,7 +233,7 @@ impl RenderOnce for Popover {
             .gap(px(8.))
             .px(px(16.))
             .py(px(16.))
-            .bg(colors.surface.background)
+            .bg(colors.overlay.background)
             .text_color(colors.surface.foreground)
             .rounded(crate::util::control_radius(cx))
             .border_1()

@@ -485,6 +485,10 @@ pub struct Input {
     /// Multi-line only: the height `rows` asks for. `None` leaves v3's
     /// `min-height: 38px`.
     min_h: Option<gpui::Pixels>,
+    /// Set by [`crate::input_group::InputGroup`]: `(has_prefix, has_suffix)`.
+    /// `InputGroup.Input` has no chrome of its own -- the group paints it -- and
+    /// drops the padding on whichever side touches an addon (`ps-0`/`pe-0`).
+    in_group: Option<(bool, bool)>,
     full_width: bool,
     is_disabled: bool,
     is_read_only: bool,
@@ -537,6 +541,7 @@ impl Input {
             start_content: None,
             end_content: None,
             min_h: None,
+            in_group: None,
             full_width: false,
             is_disabled: false,
             is_read_only: false,
@@ -574,6 +579,13 @@ impl Input {
     /// Multi-line only: the height `TextArea::rows` asks for.
     pub(crate) fn min_h(mut self, h: gpui::Pixels) -> Self {
         self.min_h = Some(h);
+        self
+    }
+
+    /// Renders as v3's `InputGroup.Input`: transparent, unrounded, unshadowed,
+    /// and flush against whichever addons surround it.
+    pub(crate) fn in_group(mut self, has_prefix: bool, has_suffix: bool) -> Self {
+        self.in_group = Some((has_prefix, has_suffix));
         self
     }
 
@@ -820,7 +832,7 @@ impl RenderOnce for Input {
             self.error_message.clone(),
         );
         let is_invalid = validity.is_invalid;
-        let border_color = if is_invalid {
+        let _border_color = if is_invalid {
             colors.danger.color
         } else if focused {
             colors.focus
@@ -851,7 +863,15 @@ impl RenderOnce for Input {
                 }
             })
             .gap(px(8.))
-            .px(px(12.))
+            // `.input-group__input` keeps `px-3` except on a side that touches
+            // an addon, which carries the padding instead.
+            .map(|f| match self.in_group {
+                None => f.px(px(12.)),
+                Some((prefix, suffix)) => f
+                    .flex_1()
+                    .pl(if prefix { px(0.) } else { px(12.) })
+                    .pr(if suffix { px(0.) } else { px(12.) }),
+            })
             .text_size(text)
             .rounded(crate::util::field_radius(cx))
             .when(!self.is_disabled, |e| {
@@ -865,19 +885,11 @@ impl RenderOnce for Input {
             })
             .when(self.is_disabled, |e| e.opacity(0.5));
 
-        // v3 field chrome: `primary` carries `--field-shadow`, `secondary` is the
-        // flat low-emphasis style meant for use inside a `Surface`.
-        field = match self.variant {
-            FieldVariant::Primary => {
-                let shadow = cx.layout().field_shadow.clone();
-                field
-                    .bg(colors.field.background)
-                    .when(!shadow.is_empty(), |e| e.shadow(shadow))
-            }
-            FieldVariant::Secondary => field.bg(colors.surface_secondary),
-        };
-        if is_invalid || focused {
-            field = field.border_1().border_color(border_color);
+        // Inside an `InputGroup` the group is the field: v3's
+        // `.input-group__input` is `rounded-none border-0 bg-transparent
+        // shadow-none`.
+        if self.in_group.is_none() {
+            field = crate::util::apply_field_chrome(field, self.variant, is_invalid, focused, cx);
         }
 
         // -- text content -----------------------------------------------------

@@ -202,7 +202,7 @@ impl RenderOnce for Menu {
             .flex_col()
             .min_w(px(180.))
             .py(px(6.))
-            .bg(colors.surface.background)
+            .bg(colors.overlay.background)
             .rounded(crate::util::container_radius(cx))
             .border_1()
             .border_color(colors.separator)

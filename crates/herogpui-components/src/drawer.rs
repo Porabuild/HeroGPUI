@@ -193,7 +193,7 @@ impl RenderOnce for Drawer {
         let mut panel = gpui::div()
             .flex()
             .flex_col()
-            .bg(colors.background)
+            .bg(colors.overlay.background)
             .text_color(colors.foreground)
             .shadow(cx.layout().overlay_shadow.clone())
             .overflow_hidden()

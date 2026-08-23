@@ -628,16 +628,10 @@ impl RenderOnce for RangeCalendar {
             .flex()
             .flex_col()
             .gap(px(8.))
-            .p(px(10.))
-            .rounded(util::container_radius(cx))
-            .bg(colors.surface.background)
-            .text_color(colors.surface.foreground)
-            .when(!layout.overlay_shadow.is_empty(), |e| {
-                e.shadow(layout.overlay_shadow.clone())
-            });
+            .text_color(colors.surface.foreground);
 
         if year_picker_open {
-            root = root.w(px(292.));
+            root = root.w(crate::calendar::CALENDAR_WIDTH);
             root = root.child(
                 div()
                     .flex()
@@ -705,7 +699,7 @@ impl RenderOnce for RangeCalendar {
             } else {
                 linear.len().max(1)
             };
-            root = root.w(px(292.));
+            root = root.w(crate::calendar::CALENDAR_WIDTH);
             root = root.child(
                 div()
                     .flex()

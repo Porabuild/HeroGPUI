@@ -5,8 +5,7 @@
 //! read as a single control.
 
 use gpui::{
-    div, prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, SharedString,
-    Styled, Window,
+    div, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::FieldVariant;
 use herogpui_theme::ActiveTheme;
@@ -28,11 +27,14 @@ impl InputAddon {
 
 impl RenderOnce for InputAddon {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `.input-group__prefix` / `__suffix`: `px-3`, transparent, and drawn in
+        // `--field-placeholder`.
         div()
             .flex()
             .items_center()
             .flex_shrink_0()
-            .text_color(cx.colors().muted)
+            .px(px(12.))
+            .text_color(cx.colors().field.placeholder)
             .child(self.text.to_string())
     }
 }
@@ -47,6 +49,14 @@ pub struct InputGroup {
     label: Option<SharedString>,
     description: Option<SharedString>,
     error_message: Option<SharedString>,
+    /// `InputGroup.Prefix` — the leading addon.
+    prefix: Option<AnyElement>,
+    /// `InputGroup.Suffix` — the trailing addon.
+    suffix: Option<AnyElement>,
+    /// `InputGroup.Input` / `InputGroup.TextArea` — held rather than rendered
+    /// so the group can strip its chrome and tell it which sides an addon
+    /// occupies.
+    input: Option<crate::input::Input>,
     children: Vec<AnyElement>,
 }
 
@@ -60,6 +70,9 @@ impl InputGroup {
             label: None,
             description: None,
             error_message: None,
+            prefix: None,
+            suffix: None,
+            input: None,
             children: Vec::new(),
         }
     }
@@ -98,6 +111,35 @@ impl InputGroup {
         self.error_message = Some(text.into());
         self
     }
+
+    /// `InputGroup.Prefix` — content before the field.
+    pub fn prefix(mut self, el: impl IntoElement) -> Self {
+        self.prefix = Some(el.into_any_element());
+        self
+    }
+
+    /// `InputGroup.Suffix` — content after the field.
+    pub fn suffix(mut self, el: impl IntoElement) -> Self {
+        self.suffix = Some(el.into_any_element());
+        self
+    }
+
+    /// `InputGroup.Input` — the field itself.
+    ///
+    /// Taken as an [`crate::input::Input`] rather than an element so the group
+    /// can strip its chrome: v3's group paints the box, and the inner input is
+    /// transparent and flush against the addons. Passing one as a plain child
+    /// instead leaves a second, smaller field drawn inside the group.
+    pub fn input(mut self, input: crate::input::Input) -> Self {
+        self.input = Some(input);
+        self
+    }
+
+    /// `InputGroup.TextArea` — a multi-line field in the same shared chrome.
+    pub fn text_area(mut self, text_area: crate::textarea::TextArea) -> Self {
+        self.input = Some(text_area.into_group_input());
+        self
+    }
 }
 
 impl Default for InputGroup {
@@ -118,30 +160,18 @@ impl RenderOnce for InputGroup {
         let layout = cx.layout();
         let is_invalid = self.is_invalid || self.error_message.is_some();
 
+        // `.input-group` is `inline-flex min-h-9 items-center` with no padding
+        // of its own: the prefix, the input and the suffix each carry `px-3`,
+        // which is what keeps the addons flush with the field's edges.
         let mut group = div()
             .flex()
             .flex_row()
             .items_center()
-            .gap(px(8.))
-            .px(px(12.))
-            .h(util::FIELD_HEIGHT)
+            .min_h(util::FIELD_HEIGHT)
             .text_size(util::FIELD_TEXT)
-            .rounded(util::field_radius(cx))
             .text_color(colors.field.foreground);
 
-        group = match self.variant {
-            FieldVariant::Primary => {
-                let shadow = layout.field_shadow.clone();
-                group
-                    .bg(colors.field.background)
-                    .when(!shadow.is_empty(), |e| e.shadow(shadow))
-            }
-            FieldVariant::Secondary => group.bg(colors.surface_secondary),
-        };
-
-        if is_invalid {
-            group = group.border_1().border_color(colors.danger.color);
-        }
+        group = util::apply_field_chrome(group, self.variant, is_invalid, false, cx);
         if self.is_disabled {
             group = group.opacity(layout.disabled_opacity);
         }
@@ -149,6 +179,19 @@ impl RenderOnce for InputGroup {
             group = group.w_full();
         }
 
+        // Order matters: prefix, field, suffix, then anything else the caller
+        // put in. The field is told which sides an addon occupies so it can
+        // drop that padding.
+        let (has_prefix, has_suffix) = (self.prefix.is_some(), self.suffix.is_some());
+        if let Some(prefix) = self.prefix {
+            group = group.child(prefix);
+        }
+        if let Some(input) = self.input {
+            group = group.child(input.in_group(has_prefix, has_suffix));
+        }
+        if let Some(suffix) = self.suffix {
+            group = group.child(suffix);
+        }
         group = group.children(self.children);
 
         let mut root = div().flex().flex_col().gap(px(6.));

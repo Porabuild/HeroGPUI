@@ -4,37 +4,32 @@
 # keeps the image locked for a moment after the process dies, so a build started
 # right after one of them fails with `Access is denied. (os error 5)` -- and then
 # the next capture silently screenshots the *previous* binary, which is worse
-# than a failed build. This waits for the lock to clear, renames the image out of
-# the way if it does not, and only then builds.
+# than a failed build.
 param([switch]$Quiet)
 
 $exe = "E:\work\HeroGPUI\target\debug\gallery.exe"
+$stale = "E:\work\HeroGPUI\target\debug\gallery.locked.exe"
 
 Get-Process -Name gallery -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
-function Test-Locked([string]$path) {
-    if (-not (Test-Path $path)) { return $false }
-    try {
-        $f = [System.IO.File]::Open($path, 'Open', 'ReadWrite', 'None')
-        $f.Close()
-        return $false
-    } catch { return $true }
-}
-
-for ($i = 0; $i -lt 20 -and (Test-Locked $exe); $i++) { Start-Sleep -Milliseconds 300 }
-if (Test-Locked $exe) {
-    # A closed process can leave the image locked (antivirus, or a pending
-    # delete). Renaming works where deleting does not, and cargo then writes a
-    # fresh one.
-    $stale = "E:\work\HeroGPUI\target\debug\gallery.locked.exe"
-    Remove-Item $stale -Force -ErrorAction SilentlyContinue
-    Rename-Item $exe $stale -Force
-    Write-Host "gallery.exe was still locked; renamed it aside" -ForegroundColor Yellow
+# Opening the image for read/write can succeed while *deleting* it still fails --
+# cargo needs DELETE access, and a closed process (or an antivirus scan) can hold
+# exactly that. So do not probe: move the old image out of the way. Renaming
+# works where deleting does not, and cargo then writes a fresh one.
+Remove-Item $stale -Force -ErrorAction SilentlyContinue
+if (Test-Path $exe) {
+    for ($i = 0; $i -lt 20; $i++) {
+        try { Rename-Item $exe $stale -Force -ErrorAction Stop; break }
+        catch { Start-Sleep -Milliseconds 300 }
+    }
+    if (Test-Path $exe) {
+        Write-Host "could not move gallery.exe aside; the build will likely fail" -ForegroundColor Yellow
+    }
 }
 
 cargo build --workspace
 $code = $LASTEXITCODE
-Remove-Item "E:\work\HeroGPUI\target\debug\gallery.locked.exe" -Force -ErrorAction SilentlyContinue
+Remove-Item $stale -Force -ErrorAction SilentlyContinue
 if ($code -ne 0) {
     Write-Host "build failed ($code) -- do not trust screenshots taken after this" -ForegroundColor Red
     exit $code

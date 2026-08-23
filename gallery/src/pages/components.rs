@@ -1382,7 +1382,7 @@ impl Gallery {
                     para(
                         &match iso {
                             Some(d) => format!("Parsed: {}", d.format_iso()),
-                            None => "Step a segment with the arrows to pick a date".to_owned(),
+                            None => "Type digits, or step a segment with the arrow keys".to_owned(),
                         },
                         cx,
                     ),
@@ -2030,25 +2030,22 @@ impl Gallery {
                     col(vec![h::InputGroup::new()
                         .label("Amount")
                         .description("Charged monthly.")
-                        .child(h::InputAddon::new("$"))
-                        .child(
-                            gpui::div().flex_1().child(
-                                h::Input::new(self.group_amount.clone()).placeholder("0.00"),
-                            ),
-                        )
-                        .child(h::InputAddon::new("USD"))
+                        .prefix(h::InputAddon::new("$"))
+                        .input(h::Input::new(self.group_amount.clone()).placeholder("0.00"))
+                        .suffix(h::InputAddon::new("USD"))
                         .into_any_element()]),
                 ),
                 (
                     "With a trailing action",
                     col(vec![h::InputGroup::new()
                         .variant(FieldVariant::Secondary)
-                        .child(
-                            gpui::div().flex_1().child(
-                                h::Input::new(self.input_email.clone()).placeholder("Email"),
-                            ),
+                        .input(h::Input::new(self.input_email.clone()).placeholder("Email"))
+                        .suffix(
+                            gpui::div()
+                                .pl(px(8.))
+                                .pr(px(4.))
+                                .child(h::Button::new("ig-send").label("Send").size(Size::Sm)),
                         )
-                        .child(h::Button::new("ig-send").label("Send").size(Size::Sm))
                         .into_any_element()]),
                 ),
             ],

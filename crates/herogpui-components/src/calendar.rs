@@ -110,6 +110,10 @@ fn first_weekday(year: i32, month: u32) -> usize {
     ((days + 3).rem_euclid(7)) as usize
 }
 
+/// `.calendar` is `w-63 max-w-63` — 63 spacing units, so 252px, which is
+/// exactly seven 36px cells.
+pub const CALENDAR_WIDTH: gpui::Pixels = px(252.);
+
 const MONTH_NAMES: [&str; 12] = [
     "January",
     "February",
@@ -475,12 +479,12 @@ impl Calendar {
         // Uniform circular hit area centred in the slot.
         let mut circle = gpui::div()
             .id(gpui::ElementId::Name(key.into()))
-            .size(px(30.))
+            .size(px(36.))
             .rounded_full()
             .flex()
             .items_center()
             .justify_center()
-            .text_size(px(12.5));
+            .text_size(px(14.));
 
         let marker = if self.is_invalid {
             colors.danger.color
@@ -857,17 +861,17 @@ impl RenderOnce for Calendar {
             }
         };
 
-        let column_width = if columns > 1 { px(268.) } else { px(292.) };
+        let column_width = if columns > 1 {
+            px(228.)
+        } else {
+            CALENDAR_WIDTH
+        };
 
         let mut root = gpui::div()
             .flex()
             .flex_col()
             .gap(px(8.))
-            .p(px(10.))
-            .rounded(crate::util::control_radius(cx))
-            .bg(colors.surface.background)
-            .text_color(colors.surface.foreground)
-            .shadow(layout.overlay_shadow.clone());
+            .text_color(colors.surface.foreground);
 
         if year_picker_open {
             // The picker replaces the grid area in every view.
@@ -937,7 +941,7 @@ impl RenderOnce for Calendar {
             } else {
                 linear.len().max(1)
             };
-            root = root.w(px(292.));
+            root = root.w(CALENDAR_WIDTH);
             root = root.child(
                 gpui::div()
                     .flex()

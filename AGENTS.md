@@ -71,7 +71,11 @@ Read the diff.
   element). After touching components, walk every route:
   `.shots/smoke.ps1` — it launches each of the 71 pages and reports any that
   exit early, with the panic message. Run it in the current shell, not through
-  `powershell -File`.
+  `powershell -File`. A page is only reported as failed if it dies **twice**:
+  launching 71 gpui windows back to back intermittently kills one during
+  startup — exit -1, empty stderr, a different page each run — and reporting
+  those made the gate unheedable. A real panic reproduces on the retry and
+  prints; a line reading `retry rendered` is the transient kind.
 - `.shots/` holds component screenshots used for visual verification — refresh
   the relevant screenshot when you change a component's appearance:
   `.shots/capture2.ps1 -PageList "Button,Calendar"` (sets `HEROGPUI_PAGE` per
@@ -86,6 +90,14 @@ Read the diff.
     way to capture a hover-only surface such as a Tooltip. Both drive the real
     cursor, so they need the window on screen and focused — the script refuses
     `-Offscreen` together with them rather than producing a wrong shot.
+  - `-Click` presses and releases at the hover point, and
+    `-Keys "12252025"` types once something has focus (`-Keys` clicks first).
+    This is the only way to check *behaviour*: a screenshot proves a control is
+    drawn, not that it answers a key. Injected input reaches the window only
+    when it is topmost **and** foreground, which the script arranges with
+    `SwitchToThisWindow`; a `SetForegroundWindow` call on top of that is refused
+    for a background process and costs the foreground it had just been given, at
+    which point every click lands somewhere else and the component looks broken.
 
   **Capture must never read the screen.** Both scripts had three separate ways
   of interrupting whatever the user was doing, and one of them silently wrote
@@ -112,6 +124,11 @@ Read the diff.
   Windows clamps a window to the display, so asking for more height than the
   screen has silently gives less. `capture2.ps1` prints the size it actually
   captured for that reason.
+- Build with `.shots/rebuild.ps1`, not plain `cargo build`, after any capture or
+  smoke run. Windows keeps `gallery.exe` locked for a while after the process
+  exits, so the build fails with `Access is denied. (os error 5)` — and the next
+  capture then silently screenshots the *previous* binary, which is worse than a
+  failed build.
 - Gallery env vars: `HEROGPUI_PAGE` opens a page, `HEROGPUI_THEME=dark` picks the
   appearance, `HEROGPUI_OPEN_OVERLAYS=1` starts every overlay demo open (so
   Modal/Drawer/Select/Dropdown can be screenshotted), `HEROGPUI_UNFOCUSED=1`

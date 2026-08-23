@@ -299,7 +299,7 @@ impl RenderOnce for Modal {
             .when(self.scroll == ModalScroll::Inside, |e| {
                 e.max_h(gpui::relative(0.85))
             })
-            .bg(colors.background)
+            .bg(colors.overlay.background)
             .text_color(colors.foreground)
             .rounded(crate::util::container_radius(cx))
             .shadow(cx.layout().overlay_shadow.clone())

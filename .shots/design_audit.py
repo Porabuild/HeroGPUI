@@ -242,6 +242,21 @@ CHECKS = [
      'px\(38\.\), px\(40\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('input-otp', '.input-otp', 'gap', 'InputOTP slot gap', SRC + 'input_otp.rs',
      'px\(38\.\), px\(40\.\), px\(14\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('select', '.select__trigger', 'min_h', 'Select trigger height',
+     SRC + 'select.rs',
+     'let \(h, text\) = \(util::(FIELD_HEIGHT)', lambda _: 36.0),
+    ('select', '.select__trigger', 'radius', 'field chrome -> util::_radius',
+     SRC + 'util.rs',
+     'let mut el = el\.rounded\((field_radius)\(cx\)\)', helper_px),
+    ('calendar', '.calendar', 'w', 'Calendar width', SRC + 'calendar.rs',
+     'CALENDAR_WIDTH: gpui::Pixels = px\((\d+(?:\.\d*)?)\.\)', None),
+    ('calendar', '.calendar__cell', 'text', 'Calendar cell text', SRC + 'calendar.rs',
+     '\.size\(px\(36\.\)\)\s+\.rounded_full\(\)(?:\s+\.\w+\(\))*\s+\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('list-box-item', '.list-box-item', 'radius', 'Select row -> util::_radius',
+     SRC + 'select.rs',
+     '\.rounded\(util::(\w+_radius)\(cx\)\)\s+\.px\(px\(8\.\)\)', helper_px),
+    ('list-box-item', '.list-box-item', 'gap', 'ComboBox row gap', SRC + 'combo_box.rs',
+     '\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s+\.rounded\(util::soft_radius', None),
 ]
 
 
@@ -317,7 +332,7 @@ def measure(body):
             for prefix, metric in (('h-', 'h'), ('w-', 'w'), ('px-', 'px'),
                                    ('py-', 'py'), ('gap-', 'gap'), ('p-', 'p'),
                                    ('size-', 'size'), ('min-w-', 'min_w'),
-                                   ('mt-', 'mt')):
+                                   ('mt-', 'mt'), ('min-h-', 'min_h')):
                 if tok.startswith(prefix):
                     v = px(tok[len(prefix):])
                     if v is not None:
@@ -377,6 +392,35 @@ FILLS = [
      SRC + 'switch.rs', 'herogpui_theme::white()'),
     ('input-otp', '.input-otp__slot', 'bg-field',
      SRC + 'input_otp.rs', 'colors.field.background'),
+    # Every floating panel is `bg-overlay`, which is a distinct token from
+    # `--surface` -- a panel painted with the surface colour is the right shade
+    # in light mode and the wrong one in dark.
+    ('select', '.select__popover', 'bg-overlay', SRC + 'select.rs',
+     'colors.overlay.background'),
+    ('dropdown', '.dropdown__popover', 'bg-overlay', SRC + 'dropdown.rs',
+     'colors.overlay.background'),
+    ('popover', '.popover', 'bg-overlay', SRC + 'popover.rs',
+     'colors.overlay.background'),
+    ('tooltip', '.tooltip', 'bg-overlay', SRC + 'tooltip.rs',
+     'colors.overlay.background'),
+    ('modal', '.modal__dialog', 'bg-overlay', SRC + 'modal.rs',
+     'colors.overlay.background'),
+    ('drawer', '.drawer__dialog', 'bg-overlay', SRC + 'drawer.rs',
+     'colors.overlay.background'),
+    # The one floating surface v3 paints with `--surface` rather than
+    # `--overlay`. Ours had it the other way round.
+    ('toast', '.toast', 'bg-surface', SRC + 'toast.rs',
+     'colors.surface.background'),
+    ('alert-dialog', '.alert-dialog__dialog', 'bg-overlay',
+     SRC + 'alert_dialog.rs', 'colors.overlay.background'),
+    ('autocomplete', '.autocomplete__popover', 'bg-overlay',
+     SRC + 'autocomplete.rs', 'colors.overlay.background'),
+    ('combo-box', '.combo-box__popover', 'bg-overlay', SRC + 'combo_box.rs',
+     'colors.overlay.background'),
+    ('date-picker', '.date-picker__popover', 'bg-overlay',
+     SRC + 'date_picker.rs', 'colors.overlay.background'),
+    ('color-picker', '.color-picker__popover', 'bg-overlay',
+     SRC + 'color_picker.rs', 'colors.overlay.background'),
 ]
 
 
