@@ -489,13 +489,17 @@ impl RenderOnce for Autocomplete {
                                 .flex()
                                 .items_center()
                                 .justify_center()
-                                .size(px(18.))
-                                .rounded_full()
+                                // `.autocomplete__clear-button` is `h-6 w-6`
+                                // and then `size-5`, so 20px, `rounded-xl` and
+                                // `p-1` -- which leaves the glyph 12.
+                                .size(px(20.))
+                                .p(px(4.))
+                                .rounded(util::small_radius(cx))
                                 .cursor_pointer()
                                 .hover(|st| st.bg(hover_bg))
                                 .child(
                                     gpui::svg()
-                                        .size(px(11.))
+                                        .size(px(12.))
                                         .path(icons::CLOSE)
                                         .text_color(colors.muted),
                                 )

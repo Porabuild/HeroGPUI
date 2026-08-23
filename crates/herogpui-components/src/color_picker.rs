@@ -1053,7 +1053,8 @@ impl RenderOnce for ColorSlider {
         div()
             .flex()
             .flex_col()
-            .gap(px(6.))
+            // `.color-slider` is `grid w-full gap-1`.
+            .gap(px(4.))
             .child(
                 div()
                     .flex()
@@ -1478,7 +1479,8 @@ impl RenderOnce for ColorField {
             field = field.w(px(200.));
         }
 
-        let mut root = div().flex().flex_col().gap(px(6.));
+        // `.color-field` is `flex flex-col gap-1`.
+        let mut root = div().flex().flex_col().gap(px(4.));
         if let Some(label) = self.label {
             root = root.child(
                 crate::field::Label::new(label)

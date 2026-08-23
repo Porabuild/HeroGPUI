@@ -150,6 +150,10 @@ EXTRA_OK = {
 EXTRA_OK_SCOPED = {
     # v3's ColorArea takes its dimensions from `className`.
     'ColorArea.size': 'no-classname',
+    # v3 tints `Modal.Icon` with `className="bg-default text-foreground"`.
+    'Modal.icon_color': 'no-classname',
+    # v3 composes `<Pagination.Summary>Page 1 of 10</Pagination.Summary>`.
+    'Pagination.summary': 'composition',
     # v3's Avatar composes `<Avatar.Fallback>JD</Avatar.Fallback>`.
     'Avatar.name': 'composition',
     # v3 composes these as typed child parts -- `<InputGroup.Prefix>`,

@@ -582,7 +582,7 @@ impl RenderOnce for CheckboxGroup {
         let colors = cx.colors();
         let is_invalid = self.is_invalid || self.error_message.is_some();
 
-        let mut root = gpui::div().flex().flex_col().gap(px(8.));
+        let mut root = gpui::div().flex().flex_col().gap(px(16.));
 
         if let Some(label) = &self.label {
             root = root.child(
@@ -608,6 +608,8 @@ impl RenderOnce for CheckboxGroup {
             let mut label_el = gpui::div()
                 .flex()
                 .flex_col()
+                // `.checkbox` is `gap-1` between its content and description.
+                .gap(px(4.))
                 .child(gpui::div().child(option.label.to_string()));
             if let Some(description) = &option.description {
                 label_el = label_el.child(

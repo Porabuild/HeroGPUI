@@ -213,7 +213,8 @@ impl RenderOnce for InputGroup {
         }
         group = group.children(self.children);
 
-        let mut root = div().flex().flex_col().gap(px(6.));
+        // `.input-group` wrapper is `gap-1`, like every other field.
+        let mut root = div().flex().flex_col().gap(px(4.));
         if let Some(label) = self.label {
             root = root.child(
                 crate::field::Label::new(label)

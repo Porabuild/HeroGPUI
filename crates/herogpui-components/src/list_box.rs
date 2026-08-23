@@ -500,7 +500,8 @@ impl ListBox {
         cx: &mut App,
     ) -> gpui::AnyElement {
         let colors = cx.colors();
-        let row_h = fixed_h.unwrap_or(px(34.));
+        // `.list-box-item` is `min-h-9`.
+        let row_h = fixed_h.unwrap_or(px(36.));
         let text_size = util::FIELD_TEXT;
         let sized = |el: gpui::Div| match fixed_h {
             Some(h) => el.h(h),
@@ -518,10 +519,10 @@ impl ListBox {
             ListBoxItem::Section(label) => sized(
                 div()
                     .px(px(8.))
-                    .pt(px(8.))
+                    .pt(px(6.))
                     .pb(px(4.))
-                    .text_size(px(11.))
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .text_size(px(12.))
+                    .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(colors.muted)
                     .child(label.to_string()),
             )

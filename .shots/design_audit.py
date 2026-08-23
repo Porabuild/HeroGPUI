@@ -53,6 +53,33 @@ BREAKPOINTS = ['', 'sm', 'md', 'lg', 'xl', '2xl']
 # that is a real expectation to hold us to.
 ABSENT_IS_ZERO = {('button', '.button', 'min_w')}
 
+# A metric v3 declares that no `CHECKS` row can name, with the reason. Two kinds
+# only, and both are about *where* the value lives rather than whether it is
+# honoured:
+#
+# * `drives-the-height` -- a v3 field is `py-2` plus a line box, and this port
+#   sets the 36px that comes to instead (`util::FIELD_HEIGHT`, compared as `h`
+#   or `min_h` on the same rule). Comparing the padding as well would ask the
+#   code for a number it deliberately does not spell.
+# * `no-such-part` -- v3 declares a part this port does not render, so there is
+#   nothing to measure. Each one names what is missing rather than waving at it.
+COVERED_ELSEWHERE = {
+    # `.menu`'s own `gap-1 p-1` never applies here: the only menu this port
+    # renders is a dropdown's, and `.dropdown__menu` restates both (`gap-0.5`),
+    # which is what the two `.dropdown__menu` rows compare.
+    ('menu', '.menu', 'gap'): 'restated-by-dropdown-menu',
+    ('menu', '.menu', 'p'): 'restated-by-dropdown-menu',
+    ('input', '.input', 'py'): 'drives-the-height',
+    ('textarea', '.textarea', 'py'): 'drives-the-height',
+    ('select', '.select__trigger', 'py'): 'drives-the-height',
+    ('autocomplete', '.autocomplete__trigger', 'py'): 'drives-the-height',
+    ('input-group', '.input-group__input', 'py'): 'drives-the-height',
+    ('search-field', '.search-field__input', 'py'): 'drives-the-height',
+    ('number-field', '.number-field__input', 'py'): 'drives-the-height',
+    ('color-input-group', '.color-input-group__input', 'py'): 'drives-the-height',
+    ('date-input-group', '.date-input-group__input', 'py'): 'drives-the-height',
+}
+
 CORE = 'crates/herogpui-core/src/enums.rs'
 LAYOUT = 'crates/herogpui-theme/src/layout.rs'
 SRC = 'crates/herogpui-components/src/'
@@ -256,7 +283,7 @@ CHECKS = [
      r'`\.toast__description` is `text-sm text-muted`\.[\s\S]{0,60}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('toast', '.toast__close-button', 'size', 'Toast close button',
      SRC + 'toast.rs',
-     r'`\.toast__close-button` is `size-5`[\s\S]{0,140}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.toast__close-button` is `size-5`[\s\S]{0,240}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('date-picker', '.date-picker__popover', 'p', 'DatePicker popover padding',
      SRC + 'date_picker.rs',
      r'are `p-3`\.[\s\S]{0,60}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -613,9 +640,9 @@ CHECKS = [
     ('modal', '.modal__dialog', 'p', 'Modal dialog p-6', SRC + 'modal.rs',
      r'\.when_some\(self\.size\.max_width\(\), \|e, w\| e\.max_w\(w\)\)\s*\n\s*\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('modal', '.modal__header', 'gap', 'Modal header gap-3', SRC + 'modal.rs',
-     r'let header = self\.title[\s\S]*?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'let header = if self\.title[\s\S]*?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('modal', '.modal__heading', 'text', 'Modal heading text-base', SRC + 'modal.rs',
-     r'let header = self\.title[\s\S]*?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'let header = if self\.title[\s\S]*?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('modal', '.modal__body', 'text', 'Modal body text-sm', SRC + 'modal.rs',
      r'\.id\("modal-body"\)[\s\S]*?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('modal', '.modal__footer', 'gap', 'Modal footer gap-2', SRC + 'modal.rs',
@@ -705,7 +732,7 @@ CHECKS = [
      r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
     # The menu row has no `rounded` call at all, so its radius is 0.
     ('menu-item', '.menu-item', 'radius', 'Menu row -> util::_radius', SRC + 'dropdown.rs',
-     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)[\s\S]{0,400}?px\(32\.\)', helper_px),
+     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)[\s\S]{0,400}?px\(36\.\)', helper_px),
     ('menu-item', '.menu-item', 'px', 'Menu row padding_x', SRC + 'dropdown.rs',
      r'\.px\(px\((\d+(?:\.\d*)?)\)\)\s+\.rounded\(crate::util::\w+_radius\(cx\)\)',
      None),
@@ -838,17 +865,201 @@ CHECKS = [
     # in the field's default rather than at the call site.
     ('list-box', '.list-box', 'p', 'ListBox padding default', SRC + 'list_box.rs',
      r'padding: px\((\d+(?:\.\d*)?)\.\),', None),
+
+    # --- the shared field parts: one struct in `field.rs` each ----------------
+    ('label', '.label', 'text', 'Label text', SRC + 'field.rs',
+     r'impl RenderOnce for Label[\s\S]{0,400}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('description', '.description', 'text', 'Description text', SRC + 'field.rs',
+     r'impl RenderOnce for Description[\s\S]{0,200}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
+    ('error-message', '.error-message', 'text', 'ErrorMessage text', SRC + 'field.rs',
+     r'impl RenderOnce for ErrorMessage[\s\S]{0,200}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
+    # A `FieldError` renders an `ErrorMessage`, so it is the same size ...
+    ('field-error', '.field-error', 'text', 'FieldError text -> ErrorMessage', SRC + 'field.rs',
+     r'impl RenderOnce for ErrorMessage[\s\S]{0,200}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
+    # ... but only `.field-error` carries the `px-1`.
+    ('field-error', '.field-error', 'px', 'FieldError px', SRC + 'field.rs',
+     r'`\.field-error` is `px-1`[\s\S]{0,120}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('fieldset', '.fieldset__legend', 'text', 'Fieldset legend text', SRC + 'field.rs',
+     r'impl RenderOnce for FieldsetLegend[\s\S]{0,200}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
+    ('fieldset', '.fieldset__actions', 'gap', 'Fieldset actions gap', SRC + 'field.rs',
+     r'impl FieldsetActions \{[\s\S]{0,160}?gap: px\((\d+(?:\.\d*)?)\.\)', None),
+
+    # --- a collection's section header and its empty state -------------------
+    ('header', '.header', 'px', 'Section header px', SRC + 'list_box.rs',
+     r'ListBoxItem::Section\(label\)[\s\S]{0,200}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('header', '.header', 'text', 'Section header text', SRC + 'list_box.rs',
+     r'ListBoxItem::Section\(label\)[\s\S]{0,300}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
+    ('empty-state', '.empty-state', 'p', 'Empty state padding', SRC + 'tag_group.rs',
+     r'`\.empty-state` is `p-2 text-sm text-muted`\.[\s\S]{0,60}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
+    ('empty-state', '.empty-state', 'text', 'Empty state text', SRC + 'tag_group.rs',
+     r'`\.empty-state` is `p-2 text-sm text-muted`\.'
+     r'[\s\S]{0,120}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+
+    # --- the dialogs' padded container, and the modal icon -------------------
+    ('modal', '.modal__container', 'p', 'Modal container padding', SRC + 'modal.rs',
+     r'`\.modal__container` is `p-4 sm:p-10`\.\s*\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('alert-dialog', '.alert-dialog__container', 'p', 'AlertDialog container padding',
+     SRC + 'alert_dialog.rs',
+     r'`\.alert-dialog__container` is `p-4 sm:p-10`\.\s*\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('modal', '.modal__icon', 'size', 'Modal icon box', SRC + 'modal.rs',
+     r'`\.modal__icon` is `size-10 rounded-3xl`[\s\S]{0,900}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
+    ('modal', '.modal__icon', 'radius', 'Modal icon radius -> control_radius', SRC + 'modal.rs',
+     r'`\.modal__icon` is `size-10 rounded-3xl`[\s\S]{0,1000}?'
+     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('accordion', '.accordion__body', 'text', 'Accordion body text', SRC + 'accordion.rs',
+     r'\.pt\(px\(2\.\)\)\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+
+    # --- every field wrapper is `gap-1` --------------------------------------
+    ('checkbox', '.checkbox', 'gap', 'Checkbox content/description gap',
+     SRC + 'checkbox.rs',
+     r'`\.checkbox` is `gap-1` between its content and description\.\s*'
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('checkbox', '.checkbox__content', 'text', 'Checkbox content text',
+     SRC + 'checkbox.rs',
+     r'\(box_px, icon_px, text\) = \(px\(16\.\), px\(12\.\), px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('color-field', '.color-field', 'gap', 'ColorField wrapper gap', SRC + 'color_picker.rs',
+     r'`\.color-field` is `flex flex-col gap-1`\.\s*'
+     r'let mut root = div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('color-slider', '.color-slider', 'gap', 'ColorSlider wrapper gap', SRC + 'color_picker.rs',
+     r'`\.color-slider` is `grid w-full gap-1`\.\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('date-field', '.date-field', 'gap', 'DateField wrapper gap', SRC + 'time_field.rs',
+     r'`\.date-field` is `flex flex-col gap-1`\.\s*'
+     r'let mut root = div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('dropdown', '.dropdown', 'gap', 'Dropdown wrapper gap', SRC + 'dropdown.rs',
+     r'`\.dropdown` is `flex flex-col gap-1`\.\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('combo-box', '.combo-box', 'gap', 'ComboBox wrapper gap', SRC + 'combo_box.rs',
+     r'\.flex\(\)\s*\.flex_col\(\)\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s*'
+     r'\.child\(input\.render', None),
+    ('progress-bar', '.progress-bar', 'gap', 'ProgressBar wrapper gap', SRC + 'progress.rs',
+     r'let mut el = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\.w_full\(\)',
+     None),
+    # A Meter renders a ProgressBar, so it is the same wrapper.
+    ('meter', '.meter', 'gap', 'Meter wrapper gap -> ProgressBar', SRC + 'progress.rs',
+     r'let mut el = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\.w_full\(\)',
+     None),
+    ('slider', '.slider', 'gap', 'Slider wrapper gap', SRC + 'slider.rs',
+     r'let mut el = gpui::div\(\)\s*\.flex\(\)\s*\.flex_col\(\)\s*'
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('switch', '.switch', 'gap', 'Switch content/description gap', SRC + 'switch.rs',
+     r'so the text lines up under the label\.[\s\S]{0,300}?'
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # An Autocomplete composes an Input, and the Input owns the label column.
+    ('autocomplete', '.autocomplete', 'gap', 'Autocomplete wrapper gap -> Input', SRC + 'input.rs',
+     r'-- wrapper with label / description / error -+\s*'
+     r'let mut el = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('date-range-picker', '.date-range-picker', 'gap', 'DateRangePicker wrapper gap',
+     SRC + 'date_picker.rs',
+     r'let mut wrapper = gpui::div\(\)\.flex\(\)\.flex_col\(\)'
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\.w_full\(\)', None),
+
+    # --- a menu row ----------------------------------------------------------
+    ('menu-item', '.menu-item', 'gap', 'Menu item gap', SRC + 'dropdown.rs',
+     r'let mut row = gpui::div\(\)[\s\S]{0,200}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('menu-item', '.menu-item', 'min_h', 'Menu item min height', SRC + 'dropdown.rs',
+     r'`\.menu-item` is `min-h-9 py-1\.5`[\s\S]{0,160}?'
+     r'\.min_h\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('menu-item', '.menu-item', 'py', 'Menu item py', SRC + 'dropdown.rs',
+     r'`\.menu-item` is `min-h-9 py-1\.5`[\s\S]{0,200}?\.py\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('menu-item', '.menu-item__indicator', 'size', 'Menu item icon', SRC + 'dropdown.rs',
+     r'`\.menu-item__indicator` is `size-4`\.\s*\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('list-box-item', '.list-box-item', 'min_h', 'ListBox row min height', SRC + 'list_box.rs',
+     r'`\.list-box-item` is `min-h-9`\.\s*'
+     r'let row_h = fixed_h\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('list-box-item', '.list-box-item', 'px', 'ListBox row px', SRC + 'list_box.rs',
+     r'\.gap\(px\(12\.\)\)\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+
+    # --- the three 24/20px icon buttons: close, clear, toast-close ------------
+    ('close-button', '.close-button', 'p', 'CloseButton padding', SRC + 'close_button.rs',
+     r'\.size\(box_size\)\s*\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('autocomplete', '.autocomplete__clear-button', 'size', 'Autocomplete clear box',
+     SRC + 'autocomplete.rs',
+     r'and then `size-5`, so 20px[\s\S]{0,200}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('autocomplete', '.autocomplete__clear-button', 'p', 'Autocomplete clear padding',
+     SRC + 'autocomplete.rs',
+     r'and then `size-5`, so 20px[\s\S]{0,260}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('autocomplete', '.autocomplete__clear-button', 'radius',
+     'Autocomplete clear radius -> small_radius', SRC + 'autocomplete.rs',
+     r'and then `size-5`, so 20px[\s\S]{0,320}?'
+     r'\.rounded\((?:crate::)?util::(\w+_radius)\(cx\)\)', helper_px),
+    ('toast', '.toast__close-button', 'border', 'Toast close button border', SRC + 'toast.rs',
+     r'`sm:border\s*//\s*border-border sm:bg-overlay`[\s\S]{0,200}?'
+     r'\.border\(cx\.layout\(\)\.(border_width)\)', lambda _: 1.0),
 ]
+
+
+THEME_FILES = (
+    ('variables.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3'
+                      '/packages/styles/themes/default/variables.css'),
+    ('shared_theme.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3'
+                         '/packages/styles/themes/shared/theme.css'),
+)
 
 
 def fetch():
     os.makedirs(CACHE, exist_ok=True)
+    for name, url in THEME_FILES:
+        subprocess.run(['curl', '-sL', '--max-time', '30', '-o',
+                        os.path.join(CACHE, name), url], check=False)
     names = sorted({c for c, *_ in CHECKS})
     for name in names:
         subprocess.run(['curl', '-sL', '--max-time', '30', '-o',
                         os.path.join(CACHE, name + '.css'), COMPONENTS % name],
                        check=False)
     print('fetched %d stylesheets into %s' % (len(names), CACHE))
+
+
+_WIDTH_VARS = None
+
+
+def width_vars():
+    """`--*-width` declarations, from the theme sheets, first (light) wins."""
+    global _WIDTH_VARS
+    if _WIDTH_VARS is None:
+        _WIDTH_VARS = {}
+        for name, _ in THEME_FILES:
+            path = os.path.join(CACHE, name)
+            if not os.path.exists(path):
+                continue
+            text = io.open(path, encoding='utf-8', errors='replace').read()
+            for m in re.finditer(r'(--[\w-]*width[\w-]*):\s*([^;]+);', text):
+                _WIDTH_VARS.setdefault(m.group(1), m.group(2).strip())
+    return _WIDTH_VARS
+
+
+def resolve_width(expr):
+    """`var(--border-width-field)` -> 0.0.
+
+    A field's border is the reason this exists. Every field sheet applies
+    Tailwind's bare `border` -- 1px -- and then overrides the width with
+    `var(--border-width-field)`, which chains through `--field-border-width: 0px`
+    to nothing at all. Reading the utility alone claims a 1px border on ten
+    components that draw none, and v3's field states are rings for exactly that
+    reason.
+    """
+    for _ in range(8):
+        expr = expr.strip()
+        m = re.fullmatch(r'(\d+(?:\.\d*)?)px', expr)
+        if m:
+            return float(m.group(1))
+        if expr == '0':
+            return 0.0
+        m = re.fullmatch(r'var\((--[\w-]+)\s*(?:,\s*(.*))?\)', expr, re.S)
+        if not m:
+            return None
+        value = width_vars().get(m.group(1))
+        if value is None:
+            value = m.group(2)
+        if value is None:
+            return None
+        expr = value
+    return None
 
 
 def rule_body(css, selector):
@@ -875,7 +1086,10 @@ def utilities(body):
     for m in re.finditer(r'@apply ([^;]+);', body):
         for tok in m.group(1).split():
             bp = ''
-            if ':' in tok:
+            # An arbitrary utility carries its own colon --
+            # `[border-width:var(--border-width-field)]` -- so only split on one
+            # that is outside the brackets.
+            if ':' in tok and not tok.startswith('['):
                 head, _, rest = tok.partition(':')
                 if head not in BREAKPOINTS:
                     continue  # a state variant (hover:, data-[...]:), not a size
@@ -912,9 +1126,6 @@ def measure(body):
     # -- the colour-area thumb is `border: 3px solid white`, which no `@apply`
     # can spell. Both are the same metric; Tailwind's border scale is in pixels,
     # not spacing steps, so `border-2` is 2px rather than 8.
-    m = re.search(r'border(?:-width)?:\s*(\d+(?:\.\d*)?)px', body)
-    if m:
-        offer('border', float(m.group(1)), '')
 
     for tok, bps in utilities(body).items():
         for bp in bps:
@@ -931,12 +1142,49 @@ def measure(body):
                 offer('border', float(m.group(1)), bp)
             elif tok == 'border':
                 offer('border', 1.0, bp)
+            else:
+                m = re.fullmatch(r'\[border-width:(.+)\]', tok)
+                if m:
+                    v = resolve_width(m.group(1))
+                    if v is not None:
+                        offer('border', v, bp)
             if tok.startswith('rounded-') and tok[8:] in RADIUS:
                 offer('radius', RADIUS[tok[8:]], bp)
             elif tok == 'rounded':
                 offer('radius', RADIUS['lg'], bp)
             if tok.startswith('text-') and tok[5:] in TEXT:
                 offer('text', TEXT[tok[5:]], bp)
+
+    # `size-*` and `h-*`/`w-*` set the same properties, so a rule that applies
+    # both keeps whichever comes last: `.autocomplete__clear-button` is
+    # `h-6 w-6 ... ` and then `size-5`, which makes it 20px, not 24. Reading all
+    # three claims a box that is two sizes at once.
+    if 'size' in found and ('h' in found or 'w' in found):
+        size_at = max((m.start() for m in re.finditer(r'size-\d', body)), default=-1)
+        hw_at = max((m.start() for m in re.finditer(r'[hw]-\d', body)), default=-1)
+        if size_at > hw_at:
+            found.pop('h', None)
+            found.pop('w', None)
+        else:
+            found.pop('size', None)
+
+    # `.modal__body` is `-m-[3px] my-0 overflow-visible p-[3px]`: three pixels of
+    # padding cancelled by three of negative margin, so a focus ring on the last
+    # control inside it is not clipped. Net padding is zero, and reading the
+    # `p-[3px]` alone claims an inset the dialog does not have.
+    m = re.search(r'-m-\[(\d+(?:\.\d*)?)px\]', body)
+    if m and found.get('p', (None,))[0] == float(m.group(1)):
+        offer('p', 0.0, '')
+
+    # A border width is sometimes a utility and sometimes a declaration, and the
+    # declaration is what a field uses to override the utility -- so it is read
+    # last, and at the same rank, which is what lets it win.
+    m = re.search(r'border(?:-width)?:\s*([^;]+);', body)
+    if m:
+        v = resolve_width(m.group(1).split()[0] if 'var(' not in m.group(1)
+                          else m.group(1))
+        if v is not None:
+            offer('border', v, '')
     return {k: v for k, (v, _) in found.items()}
 
 
@@ -1068,7 +1316,8 @@ def coverage():
     # geometry would put 38 rows on the list that no code can satisfy or fail.
     resets = 0
     for name in sorted(os.listdir(CACHE)):
-        if not name.endswith('.css') or name in ('variables.css', 'utilities.css'):
+        if not name.endswith('.css') or name in ('variables.css', 'utilities.css',
+                                                 'shared_theme.css'):
             continue
         comp = name[:-4]
         css = io.open(os.path.join(CACHE, name), encoding='utf-8', errors='replace').read()
@@ -1084,15 +1333,21 @@ def coverage():
                     continue
                 rows.append((comp, selector, metric, value,
                              (comp, selector, metric) in checked))
-    todo = [r for r in rows if not r[4]]
+    excused = [r for r in rows if not r[4] and (r[0], r[1], r[2]) in COVERED_ELSEWHERE]
+    todo = [r for r in rows
+            if not r[4] and (r[0], r[1], r[2]) not in COVERED_ELSEWHERE]
     if '--all' in sys.argv:
         for comp, selector, metric, value, ok in rows:
-            print('%s %-22s %-24s %-7s %g' % (' ' if ok else '!', comp, selector, metric, value))
+            reason = COVERED_ELSEWHERE.get((comp, selector, metric))
+            mark = ' ' if ok else ('~' if reason else '!')
+            print('%s %-22s %-24s %-7s %-6g %s'
+                  % (mark, comp, selector, metric, value, reason or ''))
     else:
         by_comp = {}
-        for comp, _sel, _m, _v, ok in rows:
+        for comp, sel, metric, _v, ok in rows:
             have, total = by_comp.get(comp, (0, 0))
-            by_comp[comp] = (have + (1 if ok else 0), total + 1)
+            done = ok or (comp, sel, metric) in COVERED_ELSEWHERE
+            by_comp[comp] = (have + (1 if done else 0), total + 1)
         print('  %-24s %s' % ('sheet', 'checked / declared'))
         for comp in sorted(by_comp, key=lambda c: by_comp[c][1] - by_comp[c][0], reverse=True):
             have, total = by_comp[comp]
@@ -1100,8 +1355,10 @@ def coverage():
             print('%s %-24s %d / %d' % (mark, comp, have, total))
     print()
     print('metrics v3 declares : %d' % len(rows))
-    print('compared by CHECKS  : %d' % (len(rows) - len(todo)))
+    print('compared by CHECKS  : %d' % (len(rows) - len(todo) - len(excused)))
     print('declared resets     : %d  (a `-0` utility is not a metric)' % resets)
+    print('covered elsewhere   : %d  (%s)'
+          % (len(excused), ', '.join(sorted({r for r in COVERED_ELSEWHERE.values()}))))
     print('UNCHECKED           : %d  (--all lists them)' % len(todo))
 
 

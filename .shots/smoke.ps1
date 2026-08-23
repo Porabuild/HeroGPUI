@@ -1,7 +1,7 @@
 # Walks every route and reports any page that panics.
 #
 # The gallery renders lazily, so a page can compile and still panic at runtime
-# (gpui asserts on things like a second `.hover()` call). This visits all 73 in
+# (gpui asserts on things like a second `.hover()` call). This visits all 75 in
 # one pass.
 #
 # It used to launch one process per page: about four seconds of startup each, so
@@ -31,6 +31,7 @@ if (-not (Test-Path $exe)) { throw "build the gallery first: cargo build --works
 
 # Keep in sync with Page::title in gallery/src/pages/mod.rs.
 $pages = @(
+    "All Components", "Releases",
     "Introduction", "Installation", "Theming", "Dark Mode", "Customization",
     "Styling", "Design Principles",
     "Button", "Button Group", "Close Button", "Toggle Button",

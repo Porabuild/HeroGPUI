@@ -85,6 +85,7 @@ impl RenderOnce for CloseButton {
             .justify_center()
             .flex_shrink_0()
             .size(box_size)
+            .p(px(4.))
             .rounded(crate::util::small_radius(cx))
             .text_color(colors.muted);
 

@@ -446,6 +446,8 @@ impl RenderOnce for AlertDialog {
                 .absolute()
                 .inset_0()
                 .flex()
+                // `.alert-dialog__container` is `p-4 sm:p-10`.
+                .p(px(40.))
                 .track_focus(&focus_handle),
             &focus_handle,
         )
@@ -464,10 +466,10 @@ impl RenderOnce for AlertDialog {
             |e| e.items_center().justify_center(),
         )
         .when(self.placement == ModalPlacement::Top, |e| {
-            e.items_start().justify_center().pt(px(32.))
+            e.items_start().justify_center()
         })
         .when(self.placement == ModalPlacement::Bottom, |e| {
-            e.items_end().justify_center().pb(px(32.))
+            e.items_end().justify_center()
         })
         .child(backdrop)
         .child({

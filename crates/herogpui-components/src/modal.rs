@@ -93,6 +93,8 @@ pub struct Modal {
     id: gpui::ElementId,
     is_open: bool,
     title: Option<SharedString>,
+    icon: Option<SharedString>,
+    icon_color: Option<herogpui_core::Color>,
     size: ModalSize,
     backdrop: Backdrop,
     placement: ModalPlacement,
@@ -129,6 +131,8 @@ impl Modal {
             id: gpui::ElementId::Name("modal".into()),
             is_open: false,
             title: None,
+            icon: None,
+            icon_color: None,
             size: ModalSize::Md,
             backdrop: Backdrop::Opaque,
             placement: ModalPlacement::Center,
@@ -150,6 +154,20 @@ impl Modal {
 
     pub fn title(mut self, t: impl Into<SharedString>) -> Self {
         self.title = Some(t.into());
+        self
+    }
+
+    /// `Modal.Icon` — the glyph above the heading, drawn in a `size-10
+    /// rounded-3xl` box. v3 composes it as a child part and tints it with a
+    /// class (`bg-default text-foreground`); this takes the asset path.
+    pub fn icon(mut self, path: impl Into<SharedString>) -> Self {
+        self.icon = Some(path.into());
+        self
+    }
+
+    /// The role colour of that box. Absent is v3's own default, `bg-default`.
+    pub fn icon_color(mut self, color: herogpui_core::Color) -> Self {
+        self.icon_color = Some(color);
         self
     }
 
@@ -275,14 +293,45 @@ impl RenderOnce for Modal {
         // `.modal__header` is `flex flex-col gap-3` and carries no padding of
         // its own: the dialog's `p-6` is the whole inset. The heading is
         // `text-base font-medium`.
-        let header = self.title.as_ref().map(|title| {
-            gpui::div().flex().flex_col().gap(px(12.)).child(
-                gpui::div()
-                    .text_size(px(16.))
-                    .font_weight(gpui::FontWeight::MEDIUM)
-                    .child(title.to_string()),
-            )
+        // `.modal__icon` is `size-10 rounded-3xl`, a child of the header above
+        // the heading -- not a disc in the corner.
+        let icon = self.icon.as_ref().map(|path| {
+            let (bg, fg) = match self.icon_color {
+                Some(color) => {
+                    let role = cx.role(color);
+                    (role.soft(), role.soft_foreground())
+                }
+                None => (colors.default.color, colors.foreground),
+            };
+            gpui::div()
+                .flex()
+                .items_center()
+                .justify_center()
+                .flex_shrink_0()
+                .size(px(40.))
+                .rounded(crate::util::control_radius(cx))
+                .bg(bg)
+                .child(gpui::svg().size(px(20.)).path(path.clone()).text_color(fg))
         });
+        let header = if self.title.is_some() || icon.is_some() {
+            Some(
+                gpui::div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(12.))
+                    .children(icon)
+                    .when_some(self.title.as_ref(), |el, title| {
+                        el.child(
+                            gpui::div()
+                                .text_size(px(16.))
+                                .font_weight(gpui::FontWeight::MEDIUM)
+                                .child(title.to_string()),
+                        )
+                    }),
+            )
+        } else {
+            None
+        };
 
         let has_header = header.is_some();
         let has_body = !self.body.is_empty();
@@ -386,6 +435,8 @@ impl RenderOnce for Modal {
         .absolute()
         .inset_0()
         .flex()
+        // `.modal__container` is `p-4 sm:p-10`.
+        .p(px(40.))
         .when(self.scroll == ModalScroll::Outside, |e| {
             e.overflow_y_scroll()
         })
@@ -397,10 +448,10 @@ impl RenderOnce for Modal {
             |e| e.items_center().justify_center(),
         )
         .when(self.placement == ModalPlacement::Top, |e| {
-            e.items_start().justify_center().pt(px(32.))
+            e.items_start().justify_center()
         })
         .when(self.placement == ModalPlacement::Bottom, |e| {
-            e.items_end().justify_center().pb(px(32.))
+            e.items_end().justify_center()
         });
         // v3 fades the backdrop in alongside the panel (`.backdrop[data-entering]`).
         match (self.is_dismissible && !exiting, backdrop_click.clone()) {

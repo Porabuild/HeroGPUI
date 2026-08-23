@@ -322,7 +322,8 @@ impl RenderOnce for Menu {
             .flex()
             .flex_col()
             // `.dropdown__popover` is `md:min-w-55` (220px) and the menu inside
-            // it is `gap-0.5 p-1`.
+            // it is `gap-0.5 p-1` -- `.dropdown__menu` overrides `.menu`'s
+            // `gap-1` with half a step.
             .min_w(px(220.))
             .gap(px(2.))
             .p(px(4.))
@@ -431,10 +432,11 @@ impl RenderOnce for Menu {
                 MenuItem::SectionLabel(label) => {
                     panel = panel.child(
                         gpui::div()
-                            .px(px(12.))
-                            .pt(px(8.))
-                            .pb(px(2.))
-                            .text_size(px(11.))
+                            .px(px(8.))
+                            .pt(px(6.))
+                            .pb(px(4.))
+                            .text_size(px(12.))
+                            .font_weight(gpui::FontWeight::MEDIUM)
                             .text_color(colors.muted)
                             .child(label.to_string()),
                     );
@@ -460,23 +462,18 @@ impl RenderOnce for Menu {
                     } else {
                         colors.foreground
                     };
-                    let has_description = description.is_some();
                     let mut row = gpui::div()
                         .id(gpui::ElementId::Name(format!("{base}-item-{i}").into()))
                         .flex()
                         .items_center()
-                        .gap(px(8.))
+                        .gap(px(12.))
                         .px(px(8.))
                         .rounded(crate::util::soft_radius(cx))
-                        .text_size(px(13.5))
+                        .text_size(px(14.))
                         .text_color(text_color);
-                    // A described row grows instead of clipping its second line,
-                    // which is what `.list-box-item`'s `min-h-9` does.
-                    row = if has_description {
-                        row.min_h(px(32.)).py(px(6.))
-                    } else {
-                        row.h(px(32.))
-                    };
+                    // `.menu-item` is `min-h-9 py-1.5`; a described row grows
+                    // past the minimum instead of clipping its second line.
+                    row = row.min_h(px(36.)).py(px(6.));
                     if is_item_disabled {
                         // `status-disabled` is `--disabled-opacity`; the muted
                         // text alone was this port's own idea of the state.
@@ -488,13 +485,13 @@ impl RenderOnce for Menu {
                         row = crate::anim::pressed(
                             row,
                             crate::anim::PressBox {
-                                height: px(32.),
+                                height: px(36.),
                                 padding_x: Some(px(8.)),
                                 width: None,
                                 min_width: None,
-                                text_size: px(13.5),
+                                text_size: px(14.),
                                 line_height: px(20.),
-                                gap: px(8.),
+                                gap: px(12.),
                                 radius: crate::util::soft_radius(cx),
                                 shrink_x: true,
                                 scale: crate::anim::PRESSED_SCALE_SUBTLE,
@@ -516,7 +513,8 @@ impl RenderOnce for Menu {
                     if let Some(icon_path) = icon {
                         row = row.child(
                             gpui::svg()
-                                .size(px(15.))
+                                // `.menu-item__indicator` is `size-4`.
+                                .size(px(16.))
                                 .path(icon_path)
                                 .text_color(text_color),
                         );
@@ -541,7 +539,9 @@ impl RenderOnce for Menu {
                                     .child(gpui::div().child(label.to_string()))
                                     .child(
                                         gpui::div()
-                                            .text_size(px(11.5))
+                                            // A described row composes a
+                                            // `Description`, which is `text-xs`.
+                                            .text_size(px(12.))
                                             .text_color(colors.muted)
                                             .child(text.to_string()),
                                     )
@@ -553,7 +553,7 @@ impl RenderOnce for Menu {
                     if let Some(sc) = shortcut {
                         row = row.child(
                             gpui::div()
-                                .text_size(px(11.5))
+                                .text_size(px(12.))
                                 .text_color(colors.muted)
                                 .child(sc.to_string()),
                         );
@@ -978,6 +978,8 @@ impl RenderOnce for Dropdown {
             .relative()
             .flex()
             .flex_col()
+            // `.dropdown` is `flex flex-col gap-1`.
+            .gap(px(4.))
             .items_start()
             .child(trigger_wrap.child(self.trigger));
 

@@ -180,8 +180,30 @@ impl RenderOnce for Tabs {
                     .p(px(4.))
                     .rounded(crate::util::control_radius(cx))
                     .bg(colors.surface_secondary);
+                let selected_index = self.items.iter().position(|item| item.key == selected_key);
                 for (index, item) in self.items.iter().enumerate() {
                     let active = item.key == selected_key;
+                    // `.tabs__separator` is a `w-px h-1/2 rounded-sm bg-muted/25`
+                    // hairline between segments, hidden on either side of the
+                    // selected one (`&[data-selected] .tabs__separator` and
+                    // `& + .tabs__tab .tabs__separator` are `opacity-0`).
+                    if index > 0 {
+                        let touches_selected =
+                            selected_index == Some(index) || selected_index == Some(index - 1);
+                        list = list.child(
+                            gpui::div()
+                                .w(cx.layout().border_width)
+                                .h(px(16.))
+                                .flex_shrink_0()
+                                .my_auto()
+                                .rounded(crate::util::hairline_radius(cx))
+                                .bg(if touches_selected {
+                                    gpui::transparent_black()
+                                } else {
+                                    colors.muted.alpha(0.25)
+                                }),
+                        );
+                    }
                     let mut tab = gpui::div()
                         .id(gpui::ElementId::Name(
                             format!("{base_id}-tab-{}", item.key).into(),

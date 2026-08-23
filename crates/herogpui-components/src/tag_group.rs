@@ -256,7 +256,9 @@ impl RenderOnce for TagGroup {
                 .unwrap_or_else(|| SharedString::from("No tags"));
             root = root.child(
                 div()
-                    .text_size(px(text_size.into()))
+                    // `.empty-state` is `p-2 text-sm text-muted`.
+                    .p(px(8.))
+                    .text_size(px(14.))
                     .text_color(colors.muted)
                     .child(text.to_string()),
             );

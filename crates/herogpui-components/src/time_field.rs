@@ -834,7 +834,8 @@ impl RenderOnce for TimeField {
             );
         }
 
-        let mut root = div().flex().flex_col().gap(px(6.));
+        // `.date-field` is `flex flex-col gap-1`.
+        let mut root = div().flex().flex_col().gap(px(4.));
         if let Some(label) = self.label {
             root = root.child(
                 crate::field::Label::new(label)

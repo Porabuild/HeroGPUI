@@ -655,9 +655,13 @@ impl RenderOnce for ToastCardEl {
                 .flex()
                 .items_center()
                 .justify_center()
-                // `.toast__close-button` is `size-5`, and its icon follows the
-                // close button's own `size-3`.
+                // `.toast__close-button` is `size-5` with `sm:border
+                // border-border sm:bg-overlay`, and its icon follows the close
+                // button's own `size-3`.
                 .size(px(20.))
+                .border(cx.layout().border_width)
+                .border_color(colors.border)
+                .bg(colors.overlay.background)
                 .rounded(crate::util::small_radius(cx))
                 .cursor_pointer();
             let hover_bg = colors.default.soft_hover();

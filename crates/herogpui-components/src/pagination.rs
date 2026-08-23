@@ -18,6 +18,7 @@ type Link = std::sync::Arc<dyn Fn(usize, bool) -> gpui::AnyElement + 'static>;
 pub struct Pagination {
     /// `link` — v3's render prop for a page link, handed `isActive`.
     link: Option<Link>,
+    summary: Option<gpui::SharedString>,
     id: gpui::ElementId,
     page: usize,
     total: usize,
@@ -36,6 +37,7 @@ impl Pagination {
     pub fn new(id: impl Into<gpui::ElementId>, page: usize, total: usize) -> Self {
         Self {
             link: None,
+            summary: None,
             id: id.into(),
             page: page.max(1),
             total: total.max(1),
@@ -44,6 +46,13 @@ impl Pagination {
             size: Size::Md,
             on_change: None,
         }
+    }
+
+    /// `Pagination.Summary` — the "Page 1 of 10" text v3 composes at the start
+    /// of the row (`flex items-center gap-2 text-sm text-muted`).
+    pub fn summary(mut self, text: impl Into<gpui::SharedString>) -> Self {
+        self.summary = Some(text.into());
+        self
     }
 
     /// `children` on `Pagination.Link` — replaces a page's label.
@@ -123,6 +132,7 @@ impl RenderOnce for Pagination {
                     border: colors.border,
                     disabled_opacity: layout.disabled_opacity,
                     cell,
+                    radius: crate::util::control_radius(cx),
                 },
                 &prev_focus,
                 (ring_visible && prev_focus.is_focused(window))
@@ -238,6 +248,7 @@ impl RenderOnce for Pagination {
                     border: colors.border,
                     disabled_opacity: layout.disabled_opacity,
                     cell,
+                    radius: crate::util::control_radius(cx),
                 },
                 &next_focus,
                 (ring_visible && next_focus.is_focused(window))
@@ -254,13 +265,22 @@ impl RenderOnce for Pagination {
         );
 
         // `.pagination` is the root: `flex w-full items-center justify-between
-        // gap-4` around the summary and the content. There is no summary here,
-        // so the root holds the one row -- but the gap is v3's, not the row's.
+        // gap-4` around the summary and the content.
         gpui::div()
             .flex()
             .items_center()
             .justify_between()
             .gap(px(16.))
+            .children(self.summary.map(|text| {
+                gpui::div()
+                    .flex()
+                    .items_center()
+                    // `.pagination__summary` is `gap-2 text-sm text-muted`.
+                    .gap(px(8.))
+                    .text_size(px(14.))
+                    .text_color(colors.muted)
+                    .child(text.to_string())
+            }))
             .child(row)
     }
 }
@@ -272,6 +292,8 @@ struct NavStyle {
     border: gpui::Hsla,
     disabled_opacity: f32,
     cell: gpui::Pixels,
+    /// `.pagination__link` is `rounded-3xl`; `--nav` restates only the width.
+    radius: gpui::Pixels,
 }
 
 fn nav_button(
@@ -289,6 +311,7 @@ fn nav_button(
         border,
         disabled_opacity,
         cell,
+        radius,
     } = style;
     let mut btn = gpui::div()
         .id(gpui::ElementId::Name(id.into()))
@@ -302,7 +325,7 @@ fn nav_button(
         .h(cell)
         .gap(px(6.))
         .px(px(10.))
-        .rounded(util_radius())
+        .rounded(radius)
         .border_1()
         .border_color(border)
         .text_color(foreground);
@@ -313,10 +336,6 @@ fn nav_button(
     }
     // gpui svgs do not inherit text colour.
     btn.child(gpui::svg().size(px(14.)).path(icon).text_color(foreground))
-}
-
-fn util_radius() -> gpui::Pixels {
-    px(10.)
 }
 
 enum PageRef {

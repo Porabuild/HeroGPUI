@@ -235,6 +235,8 @@ impl RenderOnce for Popover {
             .py(px(16.))
             .bg(colors.overlay.background)
             .text_color(colors.surface.foreground)
+            // `.popover` is `text-sm`.
+            .text_size(px(14.))
             .rounded(crate::util::control_radius(cx))
             // v3 gives a floating panel no border: `.popover` and friends are
             // `bg-overlay shadow-overlay` and a radius, and dark mode's

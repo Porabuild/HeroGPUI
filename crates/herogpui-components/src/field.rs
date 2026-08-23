@@ -191,7 +191,11 @@ impl Default for FieldError {
 impl RenderOnce for FieldError {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
         match (self.is_invalid, self.text) {
-            (true, Some(text)) => ErrorMessage::new(text).into_any_element(),
+            // `.field-error` is `px-1`, which `.error-message` is not.
+            (true, Some(text)) => div()
+                .px(px(4.))
+                .child(ErrorMessage::new(text))
+                .into_any_element(),
             _ => div().into_any_element(),
         }
     }
