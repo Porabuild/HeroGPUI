@@ -80,6 +80,7 @@ WONT_DEMO = {
     'Calendar.International Calendars': 'no-intl',
     'RangeCalendar.International Calendars': 'no-intl',
     'DatePicker.International Calendar': 'no-intl',
+    'DateRangePicker.International Calendar': 'no-intl',
     # A React portal renders outside the tree. gpui paints in tree order and
     # `util::floating` (deferred) is the only lift there is, so there is no
     # "render this dialog somewhere else" to show.

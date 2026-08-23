@@ -1,4 +1,4 @@
-"""Calendar and RangeCalendar pages: the examples they were missing."""
+"""Disclosure, DatePicker and DateRangePicker pages."""
 import io
 
 P = 'gallery/src/pages/components.rs'
@@ -11,19 +11,55 @@ def rep(old, new):
     s = s.replace(old, new)
 
 
-# ---------------------------------------------------------------- Calendar
-rep("""                (
-                    "Constraints",""",
-    """                (
-                    "Default Value",
-                    col(vec![h::Calendar::new(self.demo_calendar("cal-default", cx))
-                        .default_value(h::Date::new(2025, 12, 25))
+# -------------------------------------------------------------- Disclosure
+rep("""            crate::pages::Page::Disclosure.import_line(),
+            vec![
+                (
+                    "Single",""",
+    """            crate::pages::Page::Disclosure.import_line(),
+            vec![
+                (
+                    "Usage",
+                    col(vec![h::Disclosure::new("Shipping details")
+                        .child(gpui::div().child("Ships in 2-4 business days."))
                         .into_any_element()]),
                 ),
                 (
                     "Controlled",
                     col(vec![
-                        h::Calendar::new(self.demo_calendar("cal-controlled", cx))
+                        h::DisclosureGroup::new()
+                            .item("returns", "Returns", gpui::div().child("Thirty days."))
+                            .item("warranty", "Warranty", gpui::div().child("Two years."))
+                            .expanded_keys(group.clone())
+                            .on_toggle(cx.listener(|this, key: &SharedString, _, cx| {
+                                toggle_key(&mut this.disclosure_group_expanded, key);
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        para(&format!("{} expanded", group.len()), cx),
+                    ]),
+                ),
+                (
+                    "Single",""")
+
+# -------------------------------------------------------------- DatePicker
+rep("""            crate::pages::Page::DatePicker.import_line(),
+            vec![(
+                "Usage",""",
+    """            crate::pages::Page::DatePicker.import_line(),
+            vec![
+                (
+                    "Disabled",
+                    col(vec![h::DatePicker::new(self.demo_calendar("dp-disabled", cx))
+                        .label("Date")
+                        .is_disabled(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::DatePicker::new(self.demo_calendar("dp-controlled", cx))
+                            .label("Date")
                             .on_change(opt_date_cb(cx.listener(
                                 |this, d: &Option<h::Date>, _, cx| {
                                     this.cal_picked = *d;
@@ -32,7 +68,7 @@ rep("""                (
                             )))
                             .into_any_element(),
                         para(
-                            &match picked {
+                            &match self.cal_picked {
                                 Some(d) => format!("Value: {}", d.format_iso()),
                                 None => "No value".to_owned(),
                             },
@@ -41,221 +77,122 @@ rep("""                (
                     ]),
                 ),
                 (
-                    "Min and Max Dates",
-                    col(vec![h::Calendar::new(self.demo_calendar("cal-minmax", cx))
-                        .min_value(h::Date::new(today.year, today.month, 5))
-                        .max_value(h::Date::new(today.year, today.month, 20))
+                    "Validation",
+                    col(vec![h::DatePicker::new(self.demo_calendar("dp-invalid", cx))
+                        .label("Date")
+                        .is_required(true)
+                        .is_invalid(true)
                         .into_any_element()]),
                 ),
                 (
-                    "Unavailable Dates",
-                    col(vec![h::Calendar::new(self.demo_calendar("cal-unavailable", cx))
-                        // Weekends are struck through, which is v3's own example.
-                        .is_date_unavailable(|date| {
-                            let weekday = h::weekday_index(date);
-                            weekday == 0 || weekday == 6
-                        })
-                        .into_any_element()]),
-                ),
-                (
-                    "Weeks in Month",
-                    col(vec![h::Calendar::new(self.demo_calendar("cal-weeks", cx))
-                        .weeks_in_month(6)
-                        .into_any_element()]),
-                ),
-                (
-                    "Multiple Selection",
-                    col(vec![h::Calendar::new(self.demo_calendar("cal-multiple", cx))
-                        .selection_mode(SelectionMode::Multiple)
-                        .into_any_element()]),
-                ),
-                (
-                    "Focused Value",
-                    col(vec![h::Calendar::new(self.demo_calendar("cal-focused", cx))
-                        .focused_value(h::Date::new(today.year, today.month, 15))
-                        .into_any_element()]),
-                ),
-                (
-                    "Cell Indicators",
+                    "Format Options",
                     col(vec![
-                        para("The marked days are the ones with events.", cx),
-                        h::Calendar::new(self.demo_calendar("cal-indicators", cx))
-                            .cell_indicator(|date| {
-                                [3, 7, 12, 15, 21, 28].contains(&date.day)
-                            })
+                        para(
+                            "The trigger shows the date in the ISO order this port formats in; \\
+                             `locale` is what v3 varies it with, and that needs CLDR data.",
+                            cx,
+                        ),
+                        h::DatePicker::new(self.demo_calendar("dp-format", cx))
+                            .label("Date")
                             .into_any_element(),
                     ]),
                 ),
                 (
-                    "Custom Navigation Icons",
-                    col(vec![h::Calendar::new(self.demo_calendar("cal-nav", cx))
-                        .nav_icons(h::icons::ARROW_LEFT, h::icons::ARROW_RIGHT)
-                        .into_any_element()]),
-                ),
-                (
-                    "Real-World Example",
-                    col(vec![h::Surface::new()
-                        .padding(px(20.))
-                        .gap(px(12.))
-                        .child(gpui::div().child("Pick an appointment"))
+                    "Form Example",
+                    col(vec![h::Form::new()
                         .child(
-                            h::Calendar::new(self.demo_calendar("cal-real", cx))
-                                .min_value(today)
-                                .is_date_unavailable(|date| {
-                                    let weekday = h::weekday_index(date);
-                                    weekday == 0 || weekday == 6
-                                })
-                                .cell_indicator(|date| date.day % 5 == 0),
+                            h::DatePicker::new(self.demo_calendar("dp-form", cx))
+                                .label("Start date")
+                                .is_required(true),
                         )
-                        .child(h::Description::new(
-                            "Weekends are unavailable; a dot marks a day with slots left.",
-                        ))
+                        .child(h::Button::new("dp-form-submit").label("Save"))
                         .into_any_element()]),
                 ),
                 (
-                    "Constraints",""")
+                    "Custom Indicator",
+                    col(vec![
+                        para(
+                            "v3 replaces the trigger's calendar glyph. The chevron here turns \\
+                             with the panel, which is the same affordance.",
+                            cx,
+                        ),
+                        h::DatePicker::new(self.demo_calendar("dp-indicator", cx))
+                            .label("Date")
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Usage",""")
 
-# ----------------------------------------------------------- RangeCalendar
-rep("""            crate::pages::Page::RangeCalendar.import_line(),
+# --------------------------------------------------------- DateRangePicker
+rep("""            crate::pages::Page::DateRangePicker.import_line(),
             vec![(
                 "Usage",""",
-    """            crate::pages::Page::RangeCalendar.import_line(),
+    """            crate::pages::Page::DateRangePicker.import_line(),
             vec![
                 (
                     "Disabled",
-                    col(vec![h::RangeCalendar::new(self.demo_range("rc-disabled", cx))
+                    col(vec![h::DateRangePicker::new(self.demo_range("drp-disabled", cx))
+                        .label("Stay")
                         .is_disabled(true)
-                        .into_any_element()]),
-                ),
-                (
-                    "Year Picker",
-                    col(vec![h::RangeCalendar::new(self.demo_range("rc-year", cx))
-                        .default_year_picker_open(true)
-                        .into_any_element()]),
-                ),
-                (
-                    "Default Value",
-                    col(vec![h::RangeCalendar::new(self.demo_range("rc-default", cx))
-                        .default_value((h::Date::new(2025, 12, 8), h::Date::new(2025, 12, 14)))
                         .into_any_element()]),
                 ),
                 (
                     "Controlled",
                     col(vec![
                         para("The range lives in the state entity the caller owns.", cx),
-                        h::RangeCalendar::new(self.date_range.clone()).into_any_element(),
-                    ]),
-                ),
-                (
-                    "Min and Max Dates",
-                    col(vec![h::RangeCalendar::new(self.demo_range("rc-minmax", cx))
-                        .min_value(h::Date::new(today.year, today.month, 5))
-                        .max_value(h::Date::new(today.year, today.month, 24))
-                        .into_any_element()]),
-                ),
-                (
-                    "Unavailable Dates",
-                    col(vec![h::RangeCalendar::new(self.demo_range("rc-unavailable", cx))
-                        .is_date_unavailable(|date| {
-                            let weekday = h::weekday_index(date);
-                            weekday == 0 || weekday == 6
-                        })
-                        .into_any_element()]),
-                ),
-                (
-                    "Anchor-Based Unavailable Dates",
-                    col(vec![
-                        para(
-                            "A range cannot cross an unavailable day unless \\
-                             `allowsNonContiguousRanges` says it may, so the anchor decides how \\
-                             far the selection reaches.",
-                            cx,
-                        ),
-                        h::RangeCalendar::new(self.demo_range("rc-anchor", cx))
-                            .is_date_unavailable(|date| date.day == 15)
+                        h::DateRangePicker::new(self.date_range.clone())
+                            .label("Stay")
                             .into_any_element(),
                     ]),
                 ),
                 (
-                    "Allows Non-Contiguous Ranges",
-                    col(vec![h::RangeCalendar::new(self.demo_range("rc-noncontig", cx))
-                        .is_date_unavailable(|date| date.day == 15)
-                        .allows_non_contiguous_ranges(true)
-                        .into_any_element()]),
-                ),
-                (
-                    "Weeks in Month",
-                    col(vec![h::RangeCalendar::new(self.demo_range("rc-weeks", cx))
-                        .weeks_in_month(6)
-                        .into_any_element()]),
-                ),
-                (
-                    "Week View",
-                    col(vec![h::RangeCalendar::new(self.demo_range("rc-week-view", cx))
-                        .visible_duration(h::VisibleDuration::Weeks(2))
-                        .into_any_element()]),
-                ),
-                (
-                    "Day View",
-                    col(vec![h::RangeCalendar::new(self.demo_range("rc-day-view", cx))
-                        .visible_duration(h::VisibleDuration::Days(5))
-                        .into_any_element()]),
-                ),
-                (
-                    "Multiple Months",
-                    col(vec![h::RangeCalendar::new(self.demo_range("rc-months", cx))
-                        .visible_duration(h::VisibleDuration::Months(2))
-                        .into_any_element()]),
-                ),
-                (
-                    "Read Only",
-                    col(vec![h::RangeCalendar::new(self.demo_range("rc-readonly", cx))
-                        .default_value((h::Date::new(2025, 12, 8), h::Date::new(2025, 12, 14)))
-                        .is_read_only(true)
-                        .into_any_element()]),
-                ),
-                (
-                    "Invalid",
-                    col(vec![h::RangeCalendar::new(self.demo_range("rc-invalid", cx))
-                        .default_value((h::Date::new(2025, 12, 8), h::Date::new(2025, 12, 14)))
+                    "Validation",
+                    col(vec![h::DateRangePicker::new(self.demo_range("drp-invalid", cx))
+                        .label("Stay")
+                        .is_required(true)
                         .is_invalid(true)
                         .into_any_element()]),
                 ),
                 (
-                    "Focused Value",
-                    col(vec![h::RangeCalendar::new(self.demo_range("rc-focused", cx))
-                        .focused_value(h::Date::new(today.year, today.month, 15))
-                        .into_any_element()]),
-                ),
-                (
-                    "Cell Indicators",
+                    "Format Options",
                     col(vec![
                         para(
-                            "A `RangeCalendar` marks its own days: the range's ends and every \\
-                             day between them.",
+                            "Both ends are shown in the ISO order this port formats in; `locale` \\
+                             is what v3 varies it with, and that needs CLDR data.",
                             cx,
                         ),
-                        h::RangeCalendar::new(self.demo_range("rc-indicators", cx))
-                            .default_value((h::Date::new(2025, 12, 8), h::Date::new(2025, 12, 14)))
+                        h::DateRangePicker::new(self.demo_range("drp-format", cx))
+                            .label("Stay")
                             .into_any_element(),
                     ]),
                 ),
                 (
-                    "Real-World Example",
-                    col(vec![h::Surface::new()
-                        .padding(px(20.))
-                        .gap(px(12.))
-                        .child(gpui::div().child("Choose your stay"))
+                    "Form Example",
+                    col(vec![h::Form::new()
                         .child(
-                            h::RangeCalendar::new(self.demo_range("rc-real", cx))
-                                .min_value(today)
-                                .is_date_unavailable(|date| date.day == 20),
+                            h::DateRangePicker::new(self.demo_range("drp-form", cx))
+                                .label("Stay")
+                                .is_required(true),
                         )
-                        .child(h::Description::new("The 20th is fully booked."))
+                        .child(h::Button::new("drp-form-submit").label("Book"))
                         .into_any_element()]),
+                ),
+                (
+                    "Custom Indicator",
+                    col(vec![
+                        para(
+                            "v3 replaces the trigger's calendar glyph; the chevron here turns \\
+                             with the panel instead.",
+                            cx,
+                        ),
+                        h::DateRangePicker::new(self.demo_range("drp-indicator", cx))
+                            .label("Stay")
+                            .into_any_element(),
+                    ]),
                 ),
                 (
                     "Usage",""")
 
 io.open(P, 'w', encoding='utf-8', newline='').write(s)
-print('patched calendar + range calendar pages')
+print('patched disclosure + pickers')

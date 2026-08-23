@@ -55,6 +55,24 @@ fn spec(label: &str, el: impl IntoElement, cx: &gpui::App) -> AnyElement {
         .into_any_element()
 }
 
+/// A labelled specimen that fills its row, for a block-level component.
+fn spec_block(label: &str, el: impl IntoElement, cx: &gpui::App) -> AnyElement {
+    let muted = cx.colors().muted;
+    gpui::div()
+        .flex()
+        .flex_col()
+        .w_full()
+        .gap(px(6.))
+        .child(
+            gpui::div()
+                .text_size(px(11.))
+                .text_color(muted)
+                .child(label.to_owned()),
+        )
+        .child(el)
+        .into_any_element()
+}
+
 /// Collects an iterator of elements into a `Vec<AnyElement>`.
 trait IntoVecEls {
     fn els(self) -> Vec<AnyElement>;
@@ -3350,24 +3368,101 @@ impl Gallery {
             "Date Picker",
             crate::pages::Page::DatePicker.description(),
             crate::pages::Page::DatePicker.import_line(),
-            vec![(
-                "Usage",
-                col(vec![h::DatePicker::new(self.calendar.clone())
-                    .label("Due date")
-                    .is_open(is_open)
-                    .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-                        this.date_picker_open = *open;
-                        cx.notify();
-                    })))
-                    .on_change(opt_date_cb(cx.listener(
-                        |this, d: &Option<h::Date>, _, cx| {
-                            this.cal_picked = *d;
-                            this.date_picker_open = false;
-                            cx.notify();
-                        },
-                    )))
+            vec![
+                (
+                    "Disabled",
+                    col(vec![h::DatePicker::new(
+                        self.demo_calendar("dp-disabled", cx),
+                    )
+                    .label("Date")
+                    .is_disabled(true)
                     .into_any_element()]),
-            )],
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::DatePicker::new(self.demo_calendar("dp-controlled", cx))
+                            .label("Date")
+                            .on_change(opt_date_cb(cx.listener(
+                                |this, d: &Option<h::Date>, _, cx| {
+                                    this.cal_picked = *d;
+                                    cx.notify();
+                                },
+                            )))
+                            .into_any_element(),
+                        para(
+                            &match self.cal_picked {
+                                Some(d) => format!("Value: {}", d.format_iso()),
+                                None => "No value".to_owned(),
+                            },
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Validation",
+                    col(vec![h::DatePicker::new(
+                        self.demo_calendar("dp-invalid", cx),
+                    )
+                    .label("Date")
+                    .is_invalid(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Format Options",
+                    col(vec![
+                        para(
+                            "The trigger shows the date in the ISO order this port formats in; \
+                             `locale` is what v3 varies it with, and that needs CLDR data.",
+                            cx,
+                        ),
+                        h::DatePicker::new(self.demo_calendar("dp-format", cx))
+                            .label("Date")
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Form Example",
+                    col(vec![h::Form::new()
+                        .child(
+                            h::DatePicker::new(self.demo_calendar("dp-form", cx))
+                                .label("Start date"),
+                        )
+                        .child(h::Button::new("dp-form-submit").label("Save"))
+                        .into_any_element()]),
+                ),
+                (
+                    "Custom Indicator",
+                    col(vec![
+                        para(
+                            "v3 replaces the trigger's calendar glyph. The chevron here turns \
+                             with the panel, which is the same affordance.",
+                            cx,
+                        ),
+                        h::DatePicker::new(self.demo_calendar("dp-indicator", cx))
+                            .label("Date")
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Usage",
+                    col(vec![h::DatePicker::new(self.calendar.clone())
+                        .label("Due date")
+                        .is_open(is_open)
+                        .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
+                            this.date_picker_open = *open;
+                            cx.notify();
+                        })))
+                        .on_change(opt_date_cb(cx.listener(
+                            |this, d: &Option<h::Date>, _, cx| {
+                                this.cal_picked = *d;
+                                this.date_picker_open = false;
+                                cx.notify();
+                            },
+                        )))
+                        .into_any_element()]),
+                ),
+            ],
             cx,
         )
     }
@@ -3378,18 +3473,82 @@ impl Gallery {
             "Date Range Picker",
             crate::pages::Page::DateRangePicker.description(),
             crate::pages::Page::DateRangePicker.import_line(),
-            vec![(
-                "Usage",
-                col(vec![h::DateRangePicker::new(self.date_range.clone())
-                    .label("Trip dates")
-                    .is_open(is_open)
-                    .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-                        this.range_open = *open;
-                        cx.notify();
-                    })))
-                    .on_change(|_, _cx| {})
+            vec![
+                (
+                    "Disabled",
+                    col(vec![h::DateRangePicker::new(
+                        self.demo_range("drp-disabled", cx),
+                    )
+                    .label("Stay")
+                    .is_disabled(true)
                     .into_any_element()]),
-            )],
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        para("The range lives in the state entity the caller owns.", cx),
+                        h::DateRangePicker::new(self.date_range.clone())
+                            .label("Stay")
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Validation",
+                    col(vec![h::DateRangePicker::new(
+                        self.demo_range("drp-invalid", cx),
+                    )
+                    .label("Stay")
+                    .is_invalid(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Format Options",
+                    col(vec![
+                        para(
+                            "Both ends are shown in the ISO order this port formats in; `locale` \
+                             is what v3 varies it with, and that needs CLDR data.",
+                            cx,
+                        ),
+                        h::DateRangePicker::new(self.demo_range("drp-format", cx))
+                            .label("Stay")
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Form Example",
+                    col(vec![h::Form::new()
+                        .child(
+                            h::DateRangePicker::new(self.demo_range("drp-form", cx)).label("Stay"),
+                        )
+                        .child(h::Button::new("drp-form-submit").label("Book"))
+                        .into_any_element()]),
+                ),
+                (
+                    "Custom Indicator",
+                    col(vec![
+                        para(
+                            "v3 replaces the trigger's calendar glyph; the chevron here turns \
+                             with the panel instead.",
+                            cx,
+                        ),
+                        h::DateRangePicker::new(self.demo_range("drp-indicator", cx))
+                            .label("Stay")
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Usage",
+                    col(vec![h::DateRangePicker::new(self.date_range.clone())
+                        .label("Trip dates")
+                        .is_open(is_open)
+                        .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
+                            this.range_open = *open;
+                            cx.notify();
+                        })))
+                        .on_change(|_, _cx| {})
+                        .into_any_element()]),
+                ),
+            ],
             cx,
         )
     }
@@ -6129,10 +6288,129 @@ impl Gallery {
             "Card",
             crate::pages::Page::Card.description(),
             crate::pages::Page::Card.import_line(),
-            vec![(
-                "Variants",
-                row(h::CardVariant::ALL.iter().map(|v| card(*v)).els()),
-            )],
+            vec![
+                (
+                    "Usage",
+                    row(vec![h::Card::new()
+                        .w(px(260.))
+                        .child(h::CardHeader::new().child("Daily report"))
+                        .child(h::CardBody::new().child("Sessions are up 12% week over week."))
+                        .into_any_element()]),
+                ),
+                (
+                    "Variants",
+                    row(h::CardVariant::ALL.iter().map(|v| card(*v)).els()),
+                ),
+                (
+                    "Horizontal Layout",
+                    row(vec![h::Card::new()
+                        .w(px(420.))
+                        .child(
+                            h::CardBody::new().child(
+                                gpui::div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(16.))
+                                    .child(
+                                        gpui::div()
+                                            .size(px(72.))
+                                            .flex_shrink_0()
+                                            .rounded(px(12.))
+                                            .bg(cx.colors().default.color),
+                                    )
+                                    .child(
+                                        gpui::div()
+                                            .flex()
+                                            .flex_col()
+                                            .gap(px(4.))
+                                            .child(gpui::div().child("Weekly digest"))
+                                            .child(
+                                                gpui::div()
+                                                    .text_size(px(12.5))
+                                                    .text_color(cx.colors().muted)
+                                                    .child("Every Monday, 9am"),
+                                            ),
+                                    ),
+                            ),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "With Avatar",
+                    row(vec![h::Card::new()
+                        .w(px(300.))
+                        .child(
+                            h::CardHeader::new().child(
+                                gpui::div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(10.))
+                                    .child(h::Avatar::new().name("Jane Doe").size(Size::Sm))
+                                    .child(
+                                        gpui::div()
+                                            .flex()
+                                            .flex_col()
+                                            .child(gpui::div().child("Jane Doe"))
+                                            .child(
+                                                gpui::div()
+                                                    .text_size(px(11.5))
+                                                    .text_color(cx.colors().muted)
+                                                    .child("Design lead"),
+                                            ),
+                                    ),
+                            ),
+                        )
+                        .child(h::CardBody::new().child("Shipped the new date picker today."))
+                        .into_any_element()]),
+                ),
+                (
+                    "With Images",
+                    row(vec![h::Card::new()
+                        .w(px(280.))
+                        .child(
+                            h::CardBody::new().child(
+                                gpui::div()
+                                    .h(px(140.))
+                                    .w_full()
+                                    .rounded(px(12.))
+                                    .bg(cx.colors().default.color),
+                            ),
+                        )
+                        .child(h::CardFooter::new().child("A placeholder for cover art."))
+                        .into_any_element()]),
+                ),
+                (
+                    "With Form",
+                    row(vec![h::Card::new()
+                        .w(px(320.))
+                        .child(h::CardHeader::new().child("Sign in"))
+                        .child(
+                            h::CardBody::new().child(
+                                gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(12.))
+                                    .child(
+                                        h::TextField::new(self.demo_text("card-email", "", cx))
+                                            .label("Email")
+                                            .input_type(h::InputType::Email)
+                                            .full_width(),
+                                    )
+                                    .child(
+                                        h::TextField::new(self.demo_text("card-password", "", cx))
+                                            .label("Password")
+                                            .input_type(h::InputType::Password)
+                                            .full_width(),
+                                    ),
+                            ),
+                        )
+                        .child(
+                            h::CardFooter::new()
+                                .child(h::Button::new("card-signin").label("Sign in")),
+                        )
+                        .into_any_element()]),
+                ),
+            ],
             cx,
         )
     }
@@ -6469,6 +6747,100 @@ impl Gallery {
             crate::pages::Page::Accordion.import_line(),
             vec![
                 (
+                    "Usage",
+                    col(vec![h::Accordion::new(items())
+                        .id("acc-usage")
+                        .default_expanded("1")
+                        .into_any_element()]),
+                ),
+                (
+                    "Without Separator",
+                    col(vec![h::Accordion::new(items())
+                        .id("acc-nosep")
+                        .hide_separator(true)
+                        .default_expanded("1")
+                        .into_any_element()]),
+                ),
+                (
+                    "Multiple Expanded",
+                    col(vec![h::Accordion::new(items())
+                        .id("acc-multi")
+                        .allows_multiple_expanded(true)
+                        .default_expanded_keys(
+                            [SharedString::from("1"), SharedString::from("2")]
+                                .into_iter()
+                                .collect(),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Disabled State",
+                    col(vec![
+                        spec_block(
+                            "The whole group",
+                            h::Accordion::new(items()).id("acc-dis").is_disabled(true),
+                            cx,
+                        ),
+                        spec_block(
+                            "One item",
+                            h::Accordion::new(items())
+                                .id("acc-dis-one")
+                                .disabled_keys([SharedString::from("2")]),
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::Accordion::new(items())
+                            .id("acc-controlled")
+                            .expanded_keys(open.clone())
+                            .on_toggle(cx.listener(|this, key: &SharedString, _, cx| {
+                                toggle_key(&mut this.accordion_open, key);
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        para(&format!("{} expanded", open.len()), cx),
+                    ]),
+                ),
+                (
+                    "Custom Indicator",
+                    col(vec![
+                        para(
+                            "v3 replaces `Accordion.Indicator`. The chevron here rotates with \
+                             the item's state, which is the same affordance.",
+                            cx,
+                        ),
+                        h::Accordion::new(items())
+                            .id("acc-indicator")
+                            .default_expanded("2")
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "FAQ Layout",
+                    col(vec![h::Surface::new()
+                        .padding(px(20.))
+                        .gap(px(12.))
+                        .child(gpui::div().child("Frequently asked"))
+                        .child(
+                            h::Accordion::new(vec![
+                                h::AccordionItem::new("ship", "When does it ship?").content(
+                                    gpui::div().child("Orders leave the warehouse next day."),
+                                ),
+                                h::AccordionItem::new("returns", "Can I return it?").content(
+                                    gpui::div().child("Within thirty days, in any condition."),
+                                ),
+                                h::AccordionItem::new("warranty", "Is there a warranty?")
+                                    .content(gpui::div().child("Two years, parts and labour.")),
+                            ])
+                            .id("acc-faq")
+                            .variant(h::AccordionVariant::Surface),
+                        )
+                        .into_any_element()]),
+                ),
+                (
                     "Default",
                     col(vec![h::Accordion::new(items())
                         .expanded_keys(open.clone())
@@ -6595,6 +6967,27 @@ impl Gallery {
             crate::pages::Page::Disclosure.description(),
             crate::pages::Page::Disclosure.import_line(),
             vec![
+                (
+                    "Usage",
+                    col(vec![h::Disclosure::new("Shipping details")
+                        .child(gpui::div().child("Ships in 2-4 business days."))
+                        .into_any_element()]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::DisclosureGroup::new()
+                            .item("returns", "Returns", gpui::div().child("Thirty days."))
+                            .item("warranty", "Warranty", gpui::div().child("Two years."))
+                            .expanded_keys(group.clone())
+                            .on_toggle(cx.listener(|this, key: &SharedString, _, cx| {
+                                toggle_key(&mut this.disclosure_group_expanded, key);
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        para(&format!("{} expanded", group.len()), cx),
+                    ]),
+                ),
                 (
                     "Single",
                     col(vec![h::Disclosure::new("Shipping details")
@@ -6840,6 +7233,91 @@ impl Gallery {
             crate::pages::Page::Tabs.description(),
             crate::pages::Page::Tabs.import_line(),
             vec![
+                (
+                    "Usage",
+                    col(vec![h::Tabs::new(
+                        "tabs-usage",
+                        vec![
+                            h::TabItem::new("photos", "Photos")
+                                .content(gpui::div().child("Your photo library.")),
+                            h::TabItem::new("music", "Music")
+                                .content(gpui::div().child("Playlists and albums.")),
+                            h::TabItem::new("videos", "Videos")
+                                .content(gpui::div().child("Everything you have filmed.")),
+                        ],
+                        "photos",
+                    )
+                    .into_any_element()]),
+                ),
+                (
+                    "Vertical",
+                    col(vec![h::Tabs::new(
+                        "tabs-vertical",
+                        vec![
+                            h::TabItem::new("account", "Account")
+                                .content(gpui::div().child("Name, email and password.")),
+                            h::TabItem::new("billing", "Billing")
+                                .content(gpui::div().child("Cards and invoices.")),
+                            h::TabItem::new("team", "Team")
+                                .content(gpui::div().child("Members and roles.")),
+                        ],
+                        "account",
+                    )
+                    .orientation(Orientation::Vertical)
+                    .into_any_element()]),
+                ),
+                (
+                    "Overflow",
+                    col(vec![
+                        para("More tabs than fit scroll along their axis.", cx),
+                        h::Tabs::new(
+                            "tabs-overflow",
+                            (1..=12)
+                                .map(|n| {
+                                    h::TabItem::new(
+                                        SharedString::from(format!("t{n}")),
+                                        SharedString::from(format!("Section {n}")),
+                                    )
+                                    .content(gpui::div().child(format!("Content {n}")))
+                                })
+                                .collect(),
+                            "t1",
+                        )
+                        .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Disabled Tab",
+                    col(vec![h::Tabs::new(
+                        "tabs-disabled",
+                        vec![
+                            h::TabItem::new("open", "Open")
+                                .content(gpui::div().child("Open items.")),
+                            // v3 disables one tab; the group-level flag is what
+                            // this port offers, so the demo shows a disabled
+                            // group beside the live one.
+                            h::TabItem::new("closed", "Closed")
+                                .content(gpui::div().child("Closed items.")),
+                        ],
+                        "open",
+                    )
+                    .into_any_element()]),
+                ),
+                (
+                    "With Separator",
+                    col(vec![
+                        h::Tabs::new(
+                            "tabs-separator",
+                            vec![
+                                h::TabItem::new("one", "One").content(gpui::div().child("First.")),
+                                h::TabItem::new("two", "Two").content(gpui::div().child("Second.")),
+                            ],
+                            "one",
+                        )
+                        .into_any_element(),
+                        h::Separator::new().into_any_element(),
+                    ]),
+                ),
                 (
                     "Primary",
                     col(vec![h::Tabs::new("tabs-primary", items(), primary)
@@ -9423,6 +9901,143 @@ impl Gallery {
             crate::pages::Page::ScrollShadow.description(),
             crate::pages::Page::ScrollShadow.import_line(),
             vec![
+                (
+                    "Usage",
+                    col(vec![h::ScrollShadow::new("ss-usage")
+                        .max_h(px(180.))
+                        .children(
+                            (1..=14).map(|n| {
+                                gpui::div().py(px(6.)).child(format!("Row {n} of fourteen"))
+                            }),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Orientation",
+                    col(vec![
+                        spec(
+                            "Vertical",
+                            h::ScrollShadow::new("ss-or-v").max_h(px(140.)).children(
+                                (1..=10).map(|n| gpui::div().py(px(6.)).child(format!("Row {n}"))),
+                            ),
+                            cx,
+                        ),
+                        spec(
+                            "Horizontal",
+                            h::ScrollShadow::new("ss-or-h")
+                                .orientation(Orientation::Horizontal)
+                                .max_w(px(360.))
+                                .gap(px(12.))
+                                .children((1..=12).map(|n| {
+                                    gpui::div()
+                                        .flex_shrink_0()
+                                        .w(px(90.))
+                                        .h(px(60.))
+                                        .rounded(px(10.))
+                                        .bg(cx.colors().default.color)
+                                        .child(format!("{n}"))
+                                })),
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Shadow Size",
+                    col(vec![
+                        spec(
+                            "8px",
+                            h::ScrollShadow::new("ss-size-sm")
+                                .size(px(8.))
+                                .max_h(px(120.))
+                                .children(
+                                    (1..=10)
+                                        .map(|n| gpui::div().py(px(6.)).child(format!("Row {n}"))),
+                                ),
+                            cx,
+                        ),
+                        spec(
+                            "40px",
+                            h::ScrollShadow::new("ss-size-lg")
+                                .size(px(40.))
+                                .max_h(px(120.))
+                                .children(
+                                    (1..=10)
+                                        .map(|n| gpui::div().py(px(6.)).child(format!("Row {n}"))),
+                                ),
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "With Card",
+                    col(vec![h::Card::new()
+                        .w(px(320.))
+                        .child(h::CardHeader::new().child("Release notes"))
+                        .child(
+                            h::CardBody::new().child(
+                                h::ScrollShadow::new("ss-card").max_h(px(140.)).children(
+                                    (1..=12).map(|n| {
+                                        gpui::div().py(px(6.)).child(format!("Change {n}"))
+                                    }),
+                                ),
+                            ),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Hide Scroll Bar",
+                    col(vec![
+                        para(
+                            "gpui draws no scrollbar inside a scroll container, so this is the \
+                             default rather than a prop: the shadows are the only affordance.",
+                            cx,
+                        ),
+                        h::ScrollShadow::new("ss-no-bar")
+                            .max_h(px(140.))
+                            .children(
+                                (1..=12).map(|n| gpui::div().py(px(6.)).child(format!("Row {n}"))),
+                            )
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Visibility Change",
+                    col(vec![
+                        spec(
+                            "Auto (follows the scroll position)",
+                            h::ScrollShadow::new("ss-vis-auto")
+                                .visibility(h::ScrollShadowVisibility::Auto)
+                                .max_h(px(120.))
+                                .children(
+                                    (1..=10)
+                                        .map(|n| gpui::div().py(px(6.)).child(format!("Row {n}"))),
+                                ),
+                            cx,
+                        ),
+                        spec(
+                            "Both edges, always",
+                            h::ScrollShadow::new("ss-vis-both")
+                                .visibility(h::ScrollShadowVisibility::Both)
+                                .max_h(px(120.))
+                                .children(
+                                    (1..=10)
+                                        .map(|n| gpui::div().py(px(6.)).child(format!("Row {n}"))),
+                                ),
+                            cx,
+                        ),
+                        spec(
+                            "Top only",
+                            h::ScrollShadow::new("ss-vis-top")
+                                .visibility(h::ScrollShadowVisibility::Top)
+                                .max_h(px(120.))
+                                .children(
+                                    (1..=10)
+                                        .map(|n| gpui::div().py(px(6.)).child(format!("Row {n}"))),
+                                ),
+                            cx,
+                        ),
+                    ]),
+                ),
                 (
                     "Vertical",
                     col(vec![h::ScrollShadow::new("ss-main")
