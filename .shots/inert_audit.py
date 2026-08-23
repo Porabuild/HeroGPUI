@@ -1,4 +1,7 @@
-"""Find gallery demos that cannot change.
+"""Find state that is not per-instance: frozen demos, and shared keys.
+
+Two failures with one cause -- the state a control reads is not the state the
+user is changing -- and neither shows up in a screenshot.
 
 Every other audit asks about the library; this one asks about the demo app, and
 it exists because a green audit hid a dead component for weeks. `Tabs::new`'s
@@ -37,6 +40,13 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 SRC = 'crates/herogpui-components/src/'
 PAGES = ('gallery/src/pages/components.rs', 'gallery/src/pages/docs.rs')
+
+# The calls that put a piece of state in the window's keyed store. Each one needs
+# a key derived from the component's own id, or every instance shares it.
+KEYED = (
+    'use_keyed_state', 'controlled', 'overlay_phase', 'focus_once',
+    'panel_focus', 'tab_stop_handle',
+)
 
 # Props that read like state and are not. A `default*` sibling is the test, and
 # `ScrollShadow.visibility` has one without being anything the user changes.
@@ -123,6 +133,33 @@ def instances(src):
         yield m.group(1), eid.rstrip('-'), src[:m.start()].count('\n') + 1, chunk
 
 
+def shared_keys():
+    """Keyed state whose key is a bare literal, so every instance shares it.
+
+    `Dropdown` keyed its open flag by the constant `"dropdown-open"`, so pressing
+    any trigger on a page opened *every* menu on it. Modal, Drawer and
+    AlertDialog shared one exit phase, one focus handle and one drag offset the
+    same way, which `HEROGPUI_OPEN_OVERLAYS=1` puts on screen at once. The fix is
+    an `id` builder and `format!("{id:?}-open")`; the check is that no literal
+    key is left.
+    """
+    quote = chr(34)
+    pattern = re.compile(
+        r'(' + '|'.join(KEYED) + r')\(\s*(?:window,\s*)?(?:cx,\s*)?'
+        + quote + r'([^' + quote + r']*)' + quote
+    )
+    out = []
+    for name in sorted(os.listdir(SRC)):
+        if not name.endswith('.rs'):
+            continue
+        src = io.open(SRC + name, encoding='utf-8', errors='replace').read()
+        for m in pattern.finditer(src):
+            out.append('%-20s line %-6d %-16s %s%s%s'
+                       % (name, src[:m.start()].count('\n') + 1, m.group(1),
+                          quote, m.group(2), quote))
+    return out
+
+
 def main():
     builders = controlled_builders()
     for struct, props in documented_state().items():
@@ -150,11 +187,15 @@ def main():
 
     for row in frozen:
         print('FROZEN   ' + row)
+    shared = shared_keys()
+    for row in shared:
+        print('SHARED   ' + row)
     print()
     print('controlled components : %d' % len(builders))
     print('driven instances      : %d' % checked)
     print('frozen on purpose     : %d' % allowed)
     print('FROZEN                : %d' % len(frozen))
+    print('SHARED KEYS           : %d' % len(shared))
 
 
 if __name__ == '__main__':

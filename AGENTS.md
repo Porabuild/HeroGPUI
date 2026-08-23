@@ -381,8 +381,8 @@ in a screenshot:
 python .shots/inert_audit.py
 ```
 
-reports every gallery instance that sets a **controlled** prop with no `on_*`
-callback. `Tabs::new`'s positional key filled `selectedKey`, so
+reports two things. First, every gallery instance that sets a **controlled**
+prop with no `on_*` callback. `Tabs::new`'s positional key filled `selectedKey`, so
 `util::controlled` handed the value straight back with no state entity and the
 component skipped its whole interactive block — every Tabs demo that passed a
 literal was inert, and nine green audits said nothing. It also found four
@@ -397,6 +397,15 @@ call, so v3's tables decide — a prop `P` documented next to `defaultP` or
 `onPChange` is state by definition. `.value(None)` is the uncontrolled path, not
 a frozen demo, and `ALLOW` holds the instances that are frozen on purpose
 (a disabled control cannot change whatever it is passed).
+
+Second, every `use_keyed_state`, `controlled`, `overlay_phase`, `focus_once`,
+`panel_focus` or `tab_stop_handle` key that is a **bare literal** rather than one
+derived from the component's id. `Dropdown` keyed its open flag by the constant
+`"dropdown-open"`, so pressing any trigger on a page opened *every* menu on it;
+Modal, Drawer and AlertDialog shared one exit phase, one focus handle and one
+drag offset, which is exactly what `HEROGPUI_OPEN_OVERLAYS=1` puts on screen. All
+four take an `id` now (`EXTRA_OK`'s `gpui-element-id`), and every keyed state
+hangs off it.
 
 Two lessons that belong with it. A constructor must never seed the controlled
 prop — a positional seed is `defaultX`. And two components on one page sharing an
@@ -657,6 +666,21 @@ v2 concepts that must **not** come back:
     it to `window.focus_next()`, holds the focus when nothing else does (with no
     focus there is no key-event chain at all) and records keyboard-versus-pointer
     input, which is what `:focus-visible` means.
+  - **Where a dismissal handler goes is forced by how events reach it.** v3's
+    floating surfaces all close on Escape and on a press outside, and no prop
+    table says so — React Aria's `useOverlay` does it, so the docs only mention
+    dismissal where it is configurable (`isDismissable` on a dialog backdrop).
+    `util::dismissable` is both halves, and they attach in different places:
+    `on_mouse_down_out` reads the element's *own bounds*, so it belongs on the
+    panel (the wrapper an absolute panel sits in has none, which would make every
+    press inside the panel count as outside), while a key event goes to the
+    focused element and bubbles *up*, so a panel that claims the focus silences
+    the keyboard of everything inside it. Popover and the dropdown menu hold the
+    focus themselves (`util::panel_focus`); the date and colour pickers read
+    Escape on their root and leave the arrows to the calendar grid; Select and
+    ComboBox already read Escape where they read the arrows, and binding it twice
+    closes twice. `util::panel_focus` takes `open` for a reason — claiming the
+    focus on a closed frame spends the one-shot, and Escape then does nothing.
   - **A roving tab stop is one handle, claimed by a different element.** A
     radio group, a tab list and a tag group are each *one* tab stop with the
     arrows moving inside, and the obvious port -- a handle per row, and
