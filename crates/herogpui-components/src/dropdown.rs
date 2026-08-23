@@ -866,8 +866,20 @@ impl RenderOnce for Dropdown {
             |_, _| false,
         );
 
+        // Where the focus goes when the menu closes. React Aria hands it back
+        // to the trigger, and the trigger element is the caller's, so the
+        // wrapper holds the handle. It is deliberately *not* a tab stop: gpui
+        // keeps any tracked handle in the tab order, so Tab carries on from here
+        // instead of starting the page over.
+        let trigger_focus = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{wrap_base}-trigger-focus").into()),
+            cx,
+            |_, cx| cx.focus_handle(),
+        );
+        let trigger_handle = trigger_focus.read(cx).clone();
         let mut trigger_wrap = gpui::div()
             .id(gpui::ElementId::Name(format!("{wrap_base}-trigger").into()))
+            .track_focus(&trigger_handle)
             .cursor_pointer();
         let dismiss_own = open_own.clone();
         let on_open_change = self.on_open_change.clone();
@@ -963,6 +975,7 @@ impl RenderOnce for Dropdown {
             }
             let dismiss_cb = self.on_open_change.clone();
             if dismiss_cb.is_some() || dismiss_own.is_some() {
+                let back_to_trigger = trigger_handle;
                 menu = menu.on_dismiss(move |window, cx| {
                     if let Some(held) = &dismiss_own {
                         held.update(cx, |v, cx| {
@@ -973,6 +986,8 @@ impl RenderOnce for Dropdown {
                     if let Some(cb) = &dismiss_cb {
                         cb(false, window, cx);
                     }
+                    // The menu held the focus for its arrows; hand it back.
+                    window.focus(&back_to_trigger);
                 });
             }
             let anchor = crate::util::placed_panel(self.placement, px(6.));

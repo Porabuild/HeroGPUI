@@ -102,6 +102,12 @@ POINTER_CARET = ('Input', 'TextField', 'TextArea')
 # sorting was mouse-only.
 SORT_KEYS = ('Table',)
 
+# Closing an overlay hands the focus back to what opened it. Only a surface that
+# *took* the focus has to: the pickers and the popover leave it on the trigger,
+# so the menu is the one with something to return. A dialog's trigger belongs to
+# the caller and the component has no handle for it.
+FOCUS_RETURN = ('Dropdown', 'Modal', 'Drawer', 'AlertDialog')
+
 OVERLAY_DISMISS = (
     'Popover', 'Dropdown', 'Select', 'ComboBox', 'Autocomplete',
     'DatePicker', 'DateRangePicker', 'ColorPicker', 'Tooltip',
@@ -158,7 +164,9 @@ EVIDENCE = {
     # Dismissal: the panel reads the press, and Escape reads wherever the focus
     # is -- on the panel when it holds it, on the component root otherwise (a
     # panel that claims the focus silences the calendar grid inside it).
-    ('Popover', 'dismiss'): ('popover.rs', r'util::dismissable'),
+    # The popover reads Escape on its *root* and the press on the panel: it
+    # leaves the focus on whatever opened it, so there is nothing to hand back.
+    ('Popover', 'dismiss'): ('popover.rs', r'dismiss_on_press_outside'),
     ('Dropdown', 'dismiss'): ('dropdown.rs', r'util::dismissable'),
     ('Select', 'dismiss'): ('select.rs', r'dismiss_on_press_outside'),
     ('ComboBox', 'dismiss'): ('combo_box.rs', r'dismiss_on_press_outside'),
@@ -172,6 +180,7 @@ EVIDENCE = {
     ('Input', 'text-keys'): ('input.rs', r'fn word_target'),
     ('TextArea', 'text-keys'): ('input.rs', r'fn vertical_target'),
     ('TextField', 'text-keys'): ('input.rs', r'key_char'),
+    ('Dropdown', 'focus-return'): ('dropdown.rs', r'back_to_trigger'),
     ('Table', 'sort-keys'): ('table.rs', r'sort_focus'),
     ('Input', 'pointer-caret'): ('input.rs', r'fn char_at_x'),
     ('TextField', 'pointer-caret'): ('input.rs', r'closest_index_for_x'),
@@ -205,6 +214,12 @@ WONT_DO = {
     # line, and a paragraph in a text area is laid out by the text system into
     # as many as it needs. The caret still moves by key, including up and down.
     ('TextArea', 'pointer-caret'): 'no-wrapped-line-metrics',
+    # A dialog claims the focus on open and has nothing to give it back to: the
+    # trigger is the caller's element, rendered outside the component, and gpui
+    # gives a child no way to reach it. The caller can restore it.
+    ('Modal', 'focus-return'): 'no-handle-for-callers-trigger',
+    ('Drawer', 'focus-return'): 'no-handle-for-callers-trigger',
+    ('AlertDialog', 'focus-return'): 'no-handle-for-callers-trigger',
 }
 
 
@@ -235,11 +250,11 @@ def main():
     # every total.
     derived = dict.fromkeys(
         ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + FOCUS_OPEN
-        + TEXT_KEYS + POINTER_CARET + SORT_KEYS
+        + TEXT_KEYS + POINTER_CARET + SORT_KEYS + FOCUS_RETURN
     )
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'focus-open',
-                      'text-keys', 'pointer-caret', 'sort-keys'):
+                      'text-keys', 'pointer-caret', 'sort-keys', 'focus-return'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach
             # the breakdown: reading only EVIDENCE skipped `TextArea`'s

@@ -137,14 +137,6 @@ impl RenderOnce for Popover {
             is_open,
         );
         let exiting = phase == crate::util::OverlayPhase::Exiting;
-        // The panel has to hold the focus for Escape to reach it.
-        // `use_keyed_state` takes `cx` mutably, so it precedes the theme.
-        let panel_focus = crate::util::panel_focus(
-            window,
-            cx,
-            &format!("{:?}", self.id),
-            phase != crate::util::OverlayPhase::Closed,
-        );
         let colors = cx.colors();
         let layout = cx.layout();
 
@@ -258,19 +250,32 @@ impl RenderOnce for Popover {
         panel = panel.children(self.children);
 
         // React Aria dismisses a popover on Escape and on a press outside it.
-        let dismiss_own = open_own;
-        let dismiss_cb = self.on_open_change.clone();
-        let panel = crate::util::dismissable(panel.track_focus(&panel_focus), move |window, cx| {
-            if let Some(held) = &dismiss_own {
-                held.update(cx, |v, cx| {
-                    *v = false;
-                    cx.notify();
-                });
-            }
-            if let Some(cb) = &dismiss_cb {
-                cb(false, window, cx);
+        //
+        // The panel deliberately does *not* take the focus: whatever opened it
+        // keeps it, so Escape bubbles up from there to the root and the trigger
+        // keeps its own ring. A panel that claimed the focus would also have to
+        // hand it back on close, and it has no handle for the trigger -- the
+        // caller built that element.
+        let close = crate::util::shared({
+            let own = open_own;
+            let cb = self.on_open_change.clone();
+            move |window: &mut Window, cx: &mut App| {
+                if let Some(held) = &own {
+                    held.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &cb {
+                    cb(false, window, cx);
+                }
             }
         });
+        let out = close.clone();
+        let panel = crate::util::dismiss_on_press_outside(panel, move |window, cx| {
+            out(window, cx);
+        });
+        root = crate::util::dismiss_on_escape(root, move |window, cx| close(window, cx));
 
         let placed = crate::util::placed_panel(self.placement, self.offset);
 
