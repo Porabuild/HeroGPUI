@@ -1079,7 +1079,7 @@ CHECKS = [
      r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
     ('tabs', '.tabs__indicator', 'radius', 'Tabs selected segment -> control_radius',
      SRC + 'tabs.rs',
-     r'`\.tabs__tab` is `h-8 px-4 rounded-3xl text-sm[\s\S]{0,300}?'
+     r'`\.tabs__tab` is `h-8 px-4 rounded-3xl text-sm[\s\S]{0,700}?'
      r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
     ('pagination', '.pagination__summary', 'gap', 'Pagination summary gap', SRC + 'pagination.rs',
      r'`\.pagination__summary` is `gap-2 text-sm text-muted`\.\s*'

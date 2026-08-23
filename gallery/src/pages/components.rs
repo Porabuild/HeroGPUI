@@ -7797,20 +7797,24 @@ impl Gallery {
                     "Overflow",
                     col(vec![
                         para("More tabs than fit scroll along their axis.", cx),
-                        h::Tabs::new(
-                            "tabs-overflow",
-                            (1..=12)
-                                .map(|n| {
-                                    h::TabItem::new(
-                                        SharedString::from(format!("t{n}")),
-                                        SharedString::from(format!("Section {n}")),
-                                    )
-                                    .content(gpui::div().child(format!("Content {n}")))
-                                })
-                                .collect(),
-                            "t1",
-                        )
-                        .into_any_element(),
+                        // The list only overflows inside a bounded box, which is
+                        // how v3's own example frames it.
+                        gpui::div()
+                            .w(px(420.))
+                            .child(h::Tabs::new(
+                                "tabs-overflow",
+                                (1..=12)
+                                    .map(|n| {
+                                        h::TabItem::new(
+                                            SharedString::from(format!("t{n}")),
+                                            SharedString::from(format!("Section {n}")),
+                                        )
+                                        .content(gpui::div().child(format!("Content {n}")))
+                                    })
+                                    .collect(),
+                                "t1",
+                            ))
+                            .into_any_element(),
                     ]),
                 ),
                 (

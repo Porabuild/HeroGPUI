@@ -172,13 +172,34 @@ impl RenderOnce for Tabs {
             fallback,
         );
 
+        // `.tabs__list-container__scroller` is the box `.tabs__list` scrolls
+        // inside; the handle is what says how far it has, which is what decides
+        // whether each chevron shows.
+        let scroll = window
+            .use_keyed_state(
+                gpui::ElementId::Name(format!("{base_id}-scroll").into()),
+                cx,
+                |_, _| gpui::ScrollHandle::new(),
+            )
+            .read(cx)
+            .clone();
+
+        // The two chevrons' visibility, measured a frame ago; `use_keyed_state`
+        // takes `cx` mutably, so it precedes the theme borrow.
+        let arrows = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{base_id}-arrows").into()),
+            cx,
+            |_, _| (false, false),
+        );
+
         let colors = cx.colors();
         let layout = cx.layout();
 
         let vertical = self.orientation == Orientation::Vertical;
-        // `.tabs__list-container` is the scroll box around `.tabs__list`; with
-        // no overflow to scroll they are one element here.
-        let mut list = gpui::div().flex();
+        // `.tabs__list` is `w-max min-w-full`: it grows with its content, which is
+        // what lets the scroller overflow -- a shrinking row always fits and
+        // never scrolls.
+        let mut list = gpui::div().flex().flex_shrink_0();
         if vertical {
             list = list.flex_col().items_start();
         }
@@ -226,6 +247,11 @@ impl RenderOnce for Tabs {
                         // font-medium`.
                         .h(px(32.))
                         .px(px(16.))
+                        .flex_shrink_0()
+                        // A tab's label does not wrap: `.tabs__list` is `w-max`,
+                        // so the row is as wide as its labels and the scroller
+                        // is what handles the overflow.
+                        .whitespace_nowrap()
                         .flex()
                         .items_center()
                         .justify_center()
@@ -336,6 +362,11 @@ impl RenderOnce for Tabs {
                         // the indicator as a 2px bar along the bottom.
                         .h(px(32.))
                         .px(px(16.))
+                        .flex_shrink_0()
+                        // A tab's label does not wrap: `.tabs__list` is `w-max`,
+                        // so the row is as wide as its labels and the scroller
+                        // is what handles the overflow.
+                        .whitespace_nowrap()
                         .flex()
                         .items_center()
                         .justify_center()
@@ -431,8 +462,124 @@ impl RenderOnce for Tabs {
         // Active panel
         let mut items = self.items;
         let active_idx = items.iter().position(|i| i.key == selected_key);
+        // `.tabs__list-container` is `relative`, holds the scroller, and hangs
+        // the two `size-4` chevrons off its edges -- `hidden` until there is
+        // something to scroll to in that direction (`start-1`/`end-1`, centred
+        // on the cross axis).
+        let (before, after) = *arrows.read(cx);
+        let step = px(120.);
+        let arrow =
+            |id: &str, icon: &'static str, delta: gpui::Pixels, handle: gpui::ScrollHandle| {
+                gpui::div()
+                    .id(gpui::ElementId::Name(format!("{base_id}-{id}").into()))
+                    .absolute()
+                    .size(px(16.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded_full()
+                    .cursor_pointer()
+                    .bg(colors.surface.background)
+                    .text_color(colors.foreground)
+                    .child(
+                        gpui::svg()
+                            .size(px(12.))
+                            .path(icon)
+                            .text_color(colors.foreground),
+                    )
+                    .on_click(move |_, _, _| {
+                        let at = handle.offset();
+                        let next = if vertical {
+                            gpui::point(at.x, at.y + delta)
+                        } else {
+                            gpui::point(at.x + delta, at.y)
+                        };
+                        handle.set_offset(next);
+                    })
+            };
+        let container = gpui::div()
+            .relative()
+            // A scroller only overflows if it is bounded: without `w_full` the
+            // box grows to fit every tab and nothing ever scrolls.
+            .when(!vertical, |c| c.w_full())
+            .when(vertical, |c| c.h_full())
+            .child(
+                gpui::div()
+                    .id(gpui::ElementId::Name(format!("{base_id}-scroller").into()))
+                    // A flex box, so the `flex_shrink_0` list inside keeps its
+                    // content width (`w-max`) instead of being stretched to the
+                    // scroller -- a stretched list is never wider than its box
+                    // and never scrolls.
+                    .flex()
+                    .when(!vertical, |e| e.w_full().overflow_x_scroll())
+                    .when(vertical, |e| e.h_full().overflow_y_scroll())
+                    .track_scroll(&scroll)
+                    .child(list),
+            )
+            .child({
+                // `max_offset` is written during prepaint, so the render that
+                // decided whether to draw an arrow read the frame before. This
+                // canvas reads it in place and stores what it found; the entity
+                // update is what asks for the frame that draws them.
+                let measured = arrows;
+                let handle = scroll.clone();
+                gpui::canvas(
+                    move |_bounds, _window, cx| {
+                        let offset = handle.offset();
+                        let max = handle.max_offset();
+                        let next = if vertical {
+                            (
+                                f32::from(offset.y) < -0.5,
+                                f32::from(offset.y) - 0.5 > -f32::from(max.height),
+                            )
+                        } else {
+                            (
+                                f32::from(offset.x) < -0.5,
+                                f32::from(offset.x) - 0.5 > -f32::from(max.width),
+                            )
+                        };
+                        if *measured.read(cx) != next {
+                            measured.update(cx, |flags, cx| {
+                                *flags = next;
+                                cx.notify();
+                            });
+                        }
+                    },
+                    |_, _, _, _| {},
+                )
+                .absolute()
+                .size(px(0.))
+            })
+            .when(before, |c| {
+                let a = arrow(
+                    "scroll-prev",
+                    crate::icons::CHEVRON_LEFT,
+                    step,
+                    scroll.clone(),
+                );
+                c.child(if vertical {
+                    a.top(px(4.)).left(gpui::relative(0.5)).ml(px(-8.))
+                } else {
+                    // `start-1 top-1/2 -translate-y-1/2`.
+                    a.left(px(4.)).top(gpui::relative(0.5)).mt(px(-8.))
+                })
+            })
+            .when(after, |c| {
+                let a = arrow(
+                    "scroll-next",
+                    crate::icons::CHEVRON_RIGHT,
+                    -step,
+                    scroll.clone(),
+                );
+                c.child(if vertical {
+                    a.bottom(px(4.)).left(gpui::relative(0.5)).ml(px(-8.))
+                } else {
+                    a.right(px(4.)).top(gpui::relative(0.5)).mt(px(-8.))
+                })
+            });
+
         // `.tabs` is `flex gap-2`: the gap between the list and the panel.
-        let mut el = gpui::div().flex().flex_col().gap(px(8.)).child(list);
+        let mut el = gpui::div().flex().flex_col().gap(px(8.)).child(container);
 
         if let Some(idx) = active_idx {
             if let Some(content) = items.swap_remove(idx).content {
