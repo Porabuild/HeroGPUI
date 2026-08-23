@@ -119,6 +119,10 @@ SCROLL_INTO_VIEW = ('Select', 'ComboBox', 'Autocomplete', 'ListBox', 'Dropdown')
 # Ours moved an invisible cursor: the month on screen never changed.
 CALENDAR_PAGING = ('Calendar', 'RangeCalendar')
 
+# Opening a picker moves the focus into the calendar. Without it the grid was a
+# tab stop the user had to *find*, and the arrows did nothing until they did.
+PANEL_FOCUS = ('DatePicker', 'DateRangePicker')
+
 OVERLAY_DISMISS = (
     'Popover', 'Dropdown', 'Select', 'ComboBox', 'Autocomplete',
     'DatePicker', 'DateRangePicker', 'ColorPicker', 'Tooltip',
@@ -192,6 +196,8 @@ EVIDENCE = {
     ('TextArea', 'text-keys'): ('input.rs', r'fn vertical_target'),
     ('TextField', 'text-keys'): ('input.rs', r'key_char'),
     ('Dropdown', 'focus-return'): ('dropdown.rs', r'back_to_trigger'),
+    ('DatePicker', 'panel-focus'): ('date_picker.rs', r'autofocus_grid\(true\)'),
+    ('DateRangePicker', 'panel-focus'): ('date_picker.rs', r'autofocus_grid\(true\)'),
     ('Calendar', 'calendar-paging'): ('calendar.rs', r'"pageup" if shift'),
     ('RangeCalendar', 'calendar-paging'): ('range_calendar.rs', r'"pageup" if shift'),
     ('Select', 'scroll-into-view'): ('select.rs', r'scroll_to_item'),
@@ -269,12 +275,12 @@ def main():
     derived = dict.fromkeys(
         ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + FOCUS_OPEN
         + TEXT_KEYS + POINTER_CARET + SORT_KEYS + FOCUS_RETURN + SCROLL_INTO_VIEW
-        + CALENDAR_PAGING
+        + CALENDAR_PAGING + PANEL_FOCUS
     )
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'focus-open',
                       'text-keys', 'pointer-caret', 'sort-keys', 'focus-return',
-                      'scroll-into-view', 'calendar-paging'):
+                      'scroll-into-view', 'calendar-paging', 'panel-focus'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach
             # the breakdown: reading only EVIDENCE skipped `TextArea`'s

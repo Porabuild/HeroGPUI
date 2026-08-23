@@ -34,6 +34,9 @@ pub struct RangeCalendar {
     constraints: DateConstraints,
     is_disabled: bool,
     is_read_only: bool,
+    /// Set by a picker: take the focus as the panel opens. See
+    /// [`RangeCalendar::autofocus_grid`].
+    autofocus_grid: bool,
     is_invalid: bool,
     focused_value: Option<Date>,
     duration: VisibleDuration,
@@ -84,6 +87,7 @@ impl RangeCalendar {
             constraints: DateConstraints::new(),
             is_disabled: false,
             is_read_only: false,
+            autofocus_grid: false,
             is_invalid: false,
             focused_value: None,
             duration: VisibleDuration::default(),
@@ -206,6 +210,14 @@ impl RangeCalendar {
 
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
+        self
+    }
+
+    /// Takes the focus the first time the grid renders; see
+    /// [`crate::calendar::Calendar::autofocus_grid`]. Crate-only for the same
+    /// reason: a standalone calendar must not steal the focus.
+    pub(crate) fn autofocus_grid(mut self, v: bool) -> Self {
+        self.autofocus_grid = v;
         self
     }
 
@@ -511,6 +523,16 @@ impl RenderOnce for RangeCalendar {
         // `use_keyed_state` takes `cx` mutably, so both precede the theme.
         let grid_focus =
             util::tab_stop_handle(ElementId::Name(format!("{base}-focus").into()), window, cx);
+        // Inside a picker the grid takes the focus as the panel opens, so the
+        // arrows work without hunting for it with Tab.
+        if self.autofocus_grid && !self.is_disabled {
+            util::focus_once(
+                window,
+                cx,
+                ElementId::Name(format!("{base}-autofocus").into()),
+                &grid_focus,
+            );
+        }
         let cursor = window.use_keyed_state(
             ElementId::Name(format!("{base}-cursor").into()),
             cx,

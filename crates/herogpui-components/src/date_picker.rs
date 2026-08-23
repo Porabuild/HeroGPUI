@@ -311,6 +311,9 @@ impl RenderOnce for DatePicker {
             let mut cal = Calendar::new(self.state.clone())
                 .constraints(self.constraints.clone())
                 .is_disabled(self.is_disabled)
+                // React Aria moves the focus into the calendar as the popover
+                // opens, so the arrows work straight away.
+                .autofocus_grid(true)
                 .is_invalid(self.is_invalid);
             if let Some(on_change) = self.on_change.clone() {
                 cal = cal.on_change(move |d, window, cx| on_change(d, window, cx));
@@ -741,6 +744,7 @@ impl RenderOnce for DateRangePicker {
             let on_change = self.on_change.clone();
             let mut calendar = crate::range_calendar::RangeCalendar::new(self.state.clone())
                 .constraints(self.constraints.clone())
+                .autofocus_grid(true)
                 .is_invalid(self.is_invalid);
             if let Some(cb) = on_change {
                 calendar = calendar.on_change(move |_s, _e, window, cx| cb(window, cx));

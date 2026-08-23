@@ -282,6 +282,9 @@ pub struct Calendar {
     constraints: DateConstraints,
     is_disabled: bool,
     is_read_only: bool,
+    /// Set by a picker: take the focus as the panel opens. See
+    /// [`Calendar::autofocus_grid`].
+    autofocus_grid: bool,
     /// `Calendar.CellIndicator` — whether a day carries a mark. v3 uses it for
     /// event dots; the closure is handed the date.
     cell_indicator: Option<Box<dyn Fn(Date) -> bool + 'static>>,
@@ -334,6 +337,7 @@ impl Calendar {
             constraints: DateConstraints::new(),
             is_disabled: false,
             is_read_only: false,
+            autofocus_grid: false,
             cell_indicator: None,
             nav_icons: None,
             is_invalid: false,
@@ -408,6 +412,18 @@ impl Calendar {
 
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
+        self
+    }
+
+    /// Takes the focus the first time the grid renders.
+    ///
+    /// Not a v3 prop: React Aria moves the focus into the calendar when a date
+    /// picker's popover opens, and a picker whose arrows do nothing until the
+    /// user finds it with Tab is not the same component. Crate-only, because a
+    /// standalone calendar must *not* steal the focus -- a page with three of
+    /// them would fight over it.
+    pub(crate) fn autofocus_grid(mut self, v: bool) -> Self {
+        self.autofocus_grid = v;
         self
     }
 
@@ -796,6 +812,16 @@ impl RenderOnce for Calendar {
             window,
             cx,
         );
+        // Inside a picker the grid takes the focus as the panel opens, so the
+        // arrows work without hunting for it with Tab.
+        if self.autofocus_grid && !self.is_disabled {
+            crate::util::focus_once(
+                window,
+                cx,
+                gpui::ElementId::Name(format!("{base}-autofocus").into()),
+                &grid_focus,
+            );
+        }
         let cursor = window.use_keyed_state(
             gpui::ElementId::Name(format!("{base}-cursor").into()),
             cx,
