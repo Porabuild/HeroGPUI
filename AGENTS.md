@@ -69,10 +69,10 @@ Read the diff.
 - The gallery is a GUI app and renders lazily, so a page can compile and still
   panic at runtime (gpui asserts on e.g. a second `.hover()` call on one
   element). After touching components, walk every route:
-  `.shots/smoke.ps1` — it launches each of the 75 pages and reports any that
+  `.shots/smoke.ps1` — it launches each of the 76 pages and reports any that
   exit early, with the panic message. Run it in the current shell, not through
   `powershell -File`. A page is only reported as failed if it dies **twice**:
-  launching 75 gpui windows back to back intermittently kills one during
+  launching 76 gpui windows back to back intermittently kills one during
   startup — exit -1, empty stderr, a different page each run — and reporting
   those made the gate unheedable. A real panic reproduces on the retry and
   prints; a line reading `retry rendered` is the transient kind.
@@ -101,6 +101,19 @@ Read the diff.
     for a background process and costs the foreground it had just been given, at
     which point every click lands somewhere else and the component looks broken.
 
+  **PowerShell variable names are case-insensitive**, so a local `$vk` holding a
+  looked-up key code *is* the `$VK` table it was looked up in. `batch.ps1` and
+  `drive.ps1` both did that: the first keystroke of a step worked and the second
+  threw `unknown key 'tab'`, which reads like a missing entry rather than a
+  clobbered hashtable.
+
+  **Posted keys carry no modifiers**, so `key:shift+tab` arrives as a plain Tab
+  and moves focus *forward*. To prove a focus-only behaviour, click the control
+  (which focuses it but leaves `:focus-visible` off, because a pointer is not a
+  keyboard) and then press any key: the root's `on_key_down` sets focus-visible
+  as the event bubbles, and the ring -- and anything keyed to it, such as a
+  `trigger="focus"` tooltip -- appears.
+
   **A single posted click sometimes does not register.** The first
   `WM_LBUTTONDOWN`/`UP` pair after the pointer moves onto a control can be
   swallowed -- the element takes the hover and nothing else -- so a check that
@@ -120,7 +133,7 @@ Read the diff.
     back blank for anything presenting through DirectComposition, as gpui does.
     Check the result is not a uniform frame before saving.
   - `gallery.exe` is a **console-subsystem** binary, so every launch pops a
-    console window and takes focus — 75 times in a smoke run. Launch it through
+    console window and takes focus — 76 times in a smoke run. Launch it through
     `ProcessStartInfo` with `CreateNoWindow = $true` (the CREATE_NO_WINDOW
     creation flag), which suppresses that console and nothing else.
     `Start-Process -WindowStyle Hidden` hides the gpui window too, and then
@@ -145,8 +158,8 @@ Read the diff.
       @{ page='Table'; section='Sorting'; do='click:353,387 key:enter' }
       @{ page='Switch'; section='Usage'; out='...\~sw.png' }
   )
-  .shots/refresh.ps1              # all 75 reference shots, one process
-  .shots/smoke.ps1                # all 75 routes, one process
+  .shots/refresh.ps1              # all 76 reference shots, one process
+  .shots/smoke.ps1                # all 76 routes, one process
   ```
 
   This is not a small saving. Startup is about four seconds and a render is about
@@ -173,7 +186,7 @@ Read the diff.
 
   `capture2.ps1` injects *real* input, which Windows only delivers to the
   foreground window, so every interactive capture raises the gallery and
-  interrupts whatever the user is doing — 75 times in a smoke run. `drive.ps1`
+  interrupts whatever the user is doing — 76 times in a smoke run. `drive.ps1`
   posts the input messages to the window instead (`PostMessage`), so the window
   stays parked off-screen and unfocused throughout, and `PrintWindow` never
   needed it on screen anyway. Steps are `click:X,Y`, `dblclick:`, `drag:X,Y>X,Y`,

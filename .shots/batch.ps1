@@ -55,6 +55,8 @@ $WM_KEYUP = 0x0101
 $WM_CHAR = 0x0102
 $MK_LBUTTON = 1
 
+# NB: PowerShell variable names are case-insensitive, so a local `$vk` would be
+# this very table -- one keystroke worked and the next threw "unknown key".
 $VK = @{
     'tab' = 0x09; 'enter' = 0x0D; 'return' = 0x0D; 'escape' = 0x1B; 'esc' = 0x1B
     'space' = 0x20; 'pageup' = 0x21; 'pgup' = 0x21; 'pagedown' = 0x22; 'pgdn' = 0x22
@@ -128,19 +130,19 @@ function Invoke-Step($h, [string]$do) {
                 if ($parts.Count -gt 1) { foreach ($m in $parts[0..($parts.Count - 2)]) { $mods += (Get-Vk $m) } }
                 for ($i = 0; $i -lt $n; $i++) {
                     foreach ($m in $mods) { [void][Batch]::PostMessage($h, $WM_KEYDOWN, [IntPtr]$m, [IntPtr]0) }
-                    $vk = Get-Vk $key
-                    [void][Batch]::PostMessage($h, $WM_KEYDOWN, [IntPtr]$vk, [IntPtr]0)
-                    [void][Batch]::PostMessage($h, $WM_KEYUP, [IntPtr]$vk, [IntPtr]0)
+                    $code = Get-Vk $key
+                    [void][Batch]::PostMessage($h, $WM_KEYDOWN, [IntPtr]$code, [IntPtr]0)
+                    [void][Batch]::PostMessage($h, $WM_KEYUP, [IntPtr]$code, [IntPtr]0)
                     foreach ($m in $mods) { [void][Batch]::PostMessage($h, $WM_KEYUP, [IntPtr]$m, [IntPtr]0) }
                     Start-Sleep -Milliseconds 70
                 }
             }
             'type' {
                 foreach ($ch in ($arg -replace '_', ' ').ToCharArray()) {
-                    $vk = [int][char]([string]$ch).ToUpper()
-                    [void][Batch]::PostMessage($h, $WM_KEYDOWN, [IntPtr]$vk, [IntPtr]0)
+                    $code = [int][char]([string]$ch).ToUpper()
+                    [void][Batch]::PostMessage($h, $WM_KEYDOWN, [IntPtr]$code, [IntPtr]0)
                     [void][Batch]::PostMessage($h, $WM_CHAR, [IntPtr][int][char]$ch, [IntPtr]0)
-                    [void][Batch]::PostMessage($h, $WM_KEYUP, [IntPtr]$vk, [IntPtr]0)
+                    [void][Batch]::PostMessage($h, $WM_KEYUP, [IntPtr]$code, [IntPtr]0)
                     Start-Sleep -Milliseconds 35
                 }
             }

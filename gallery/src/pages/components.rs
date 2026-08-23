@@ -9368,6 +9368,17 @@ impl Gallery {
                             .delay(0)
                             .child(icon(h::icons::SEARCH, cx))
                             .into_any_element(),
+                        h::Tooltip::new("Tab to me")
+                            .delay(0)
+                            // `trigger="focus"`: the pointer does nothing and
+                            // keyboard focus is what opens it.
+                            .trigger(h::TooltipTrigger::Focus)
+                            .child(
+                                h::Button::new("tt-focus-only")
+                                    .label("Focus only")
+                                    .variant(Variant::Secondary),
+                            )
+                            .into_any_element(),
                     ]),
                 ),
                 (

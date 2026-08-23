@@ -1028,6 +1028,7 @@ fn preview_kind(page: Page) -> PreviewKind {
         Page::ScrollShadow => PreviewKind::Utilities,
         Page::AllComponents
         | Page::Releases
+        | Page::ReleaseCurrent
         | Page::Introduction
         | Page::Installation
         | Page::Theming

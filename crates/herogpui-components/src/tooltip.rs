@@ -79,6 +79,29 @@ impl TooltipHover {
     }
 }
 
+/// `trigger` — what reveals the tip.
+///
+/// v3's default is `hover`, and React Aria shows a hovered tooltip on keyboard
+/// focus as well, so `Hover` means "either". `Focus` is the narrower one: the
+/// pointer does nothing and only focus opens it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TooltipTrigger {
+    #[default]
+    Hover,
+    Focus,
+}
+
+impl TooltipTrigger {
+    pub const ALL: [TooltipTrigger; 2] = [TooltipTrigger::Hover, TooltipTrigger::Focus];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            TooltipTrigger::Hover => "Hover",
+            TooltipTrigger::Focus => "Focus",
+        }
+    }
+}
+
 /// HeroUI Tooltip: wraps a trigger and reveals a tip on hover.
 #[derive(IntoElement)]
 pub struct Tooltip {
@@ -91,6 +114,7 @@ pub struct Tooltip {
     should_skip_animation: bool,
     delay: Option<u64>,
     close_delay: Option<u64>,
+    trigger: TooltipTrigger,
     children: Vec<AnyElement>,
 }
 
@@ -106,6 +130,7 @@ impl Tooltip {
             should_skip_animation: false,
             delay: None,
             close_delay: None,
+            trigger: TooltipTrigger::default(),
             children: Vec::new(),
         }
     }
@@ -149,6 +174,13 @@ impl Tooltip {
     /// re-animating each tip reads as flicker.
     pub fn should_skip_animation(mut self, v: bool) -> Self {
         self.should_skip_animation = v;
+        self
+    }
+
+    /// `trigger` — `hover` (the default, which also answers keyboard focus) or
+    /// `focus`, which the pointer cannot open.
+    pub fn trigger(mut self, trigger: TooltipTrigger) -> Self {
+        self.trigger = trigger;
         self
     }
 
@@ -202,7 +234,12 @@ impl RenderOnce for Tooltip {
         );
         let wrap_handle = wrap_focus.read(cx).clone();
         let focus_open = wrap_handle.contains_focused(window, cx) && util::focus_visible(cx);
-        let open = state.read(cx).open || focus_open;
+        // `trigger="focus"` takes the pointer out of it; `hover` is both, which
+        // is React Aria's behaviour for the default.
+        let open = match self.trigger {
+            TooltipTrigger::Hover => state.read(cx).open || focus_open,
+            TooltipTrigger::Focus => focus_open,
+        };
 
         let colors = cx.colors();
         let layout = cx.layout();

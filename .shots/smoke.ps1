@@ -1,7 +1,7 @@
 # Walks every route and reports any page that panics.
 #
 # The gallery renders lazily, so a page can compile and still panic at runtime
-# (gpui asserts on things like a second `.hover()` call). This visits all 75 in
+# (gpui asserts on things like a second `.hover()` call). This visits all 76 in
 # one pass.
 #
 # It used to launch one process per page: about four seconds of startup each, so
@@ -30,8 +30,11 @@ $exe = "E:\work\HeroGPUI\target\debug\gallery.exe"
 if (-not (Test-Path $exe)) { throw "build the gallery first: cargo build --workspace" }
 
 # Keep in sync with Page::title in gallery/src/pages/mod.rs.
+$metadata = cargo metadata --no-deps --format-version 1 | ConvertFrom-Json
+$workspaceVersion = ($metadata.packages | Where-Object name -eq "herogpui-gallery").version
+$currentVersionPage = "v$workspaceVersion"
 $pages = @(
-    "All Components", "Releases",
+    "All Components", "Releases", $currentVersionPage,
     "Introduction", "Installation", "Theming", "Dark Mode", "Customization",
     "Styling", "Design Principles",
     "Button", "Button Group", "Close Button", "Toggle Button",

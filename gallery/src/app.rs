@@ -591,16 +591,16 @@ impl Render for Gallery {
         // ---- sidebar ---------------------------------------------------------
         let mut sidebar = gpui::div()
             .id("sidebar")
-            .w(px(238.))
+            .w(px(232.))
             .flex_shrink_0()
             .overflow_y_scroll()
             .border_r_1()
             .border_color(colors.separator)
-            .px(px(14.))
-            .py(px(20.))
+            .px(px(16.))
+            .py(px(22.))
             .flex()
             .flex_col()
-            .gap(px(18.));
+            .gap(px(20.));
 
         for section in nav_sections().into_iter().filter(|section| {
             section
@@ -608,12 +608,12 @@ impl Render for Gallery {
                 .first()
                 .is_some_and(|item| item.docs_root() == active_root)
         }) {
-            let mut col = gpui::div().flex().flex_col().gap(px(2.));
+            let mut col = gpui::div().flex().flex_col().gap(px(1.));
             col = col.child(
                 gpui::div()
-                    .px(px(8.))
-                    .pb(px(6.))
-                    .text_size(px(11.5))
+                    .px(px(10.))
+                    .pb(px(7.))
+                    .text_size(px(10.5))
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .text_color(colors.muted)
                     .child(section.title.to_owned()),
@@ -623,27 +623,21 @@ impl Render for Gallery {
                 let mut row = gpui::div()
                     .id(gpui::ElementId::Name(format!("nav-{item:?}").into()))
                     .px(px(10.))
-                    .py(px(6.))
-                    .border_l_2()
-                    .border_color(if active {
-                        colors.accent.color
-                    } else {
-                        gpui::transparent_black()
-                    })
-                    .rounded(px(9.))
-                    .text_size(px(13.5))
+                    .py(px(5.))
+                    .rounded(px(6.))
+                    .text_size(px(13.))
                     .cursor_pointer()
                     .tab_index(0)
-                    .focus(move |style| style.bg(colors.default.soft()));
+                    .focus(move |style| style.bg(colors.default.hover()));
                 if active {
                     row = row
-                        .bg(colors.accent.soft())
-                        .font_weight(gpui::FontWeight::MEDIUM);
+                        .bg(colors.default.soft())
+                        .font_weight(gpui::FontWeight::SEMIBOLD);
                 } else {
                     row = row.hover(move |s| s.bg(colors.default.soft()));
                 }
                 row = row.text_color(if active {
-                    colors.accent.color
+                    colors.foreground
                 } else {
                     colors.muted
                 });

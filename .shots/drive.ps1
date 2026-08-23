@@ -74,6 +74,8 @@ $WM_KEYUP       = 0x0101
 $WM_CHAR        = 0x0102
 $MK_LBUTTON     = 1
 
+# NB: PowerShell variable names are case-insensitive, so a local `$vk` would be
+# this very table -- one keystroke worked and the next threw "unknown key".
 $VK = @{
     'tab' = 0x09; 'enter' = 0x0D; 'return' = 0x0D; 'escape' = 0x1B; 'esc' = 0x1B
     'space' = 0x20; 'pageup' = 0x21; 'pgup' = 0x21; 'pagedown' = 0x22; 'pgdn' = 0x22
@@ -103,9 +105,9 @@ function Send-Key($h, [string]$spec) {
     foreach ($m in $mods) {
         [void][Drive]::PostMessage($h, $WM_KEYDOWN, [IntPtr]$m, [IntPtr]0)
     }
-    $vk = Get-Vk $key
-    [void][Drive]::PostMessage($h, $WM_KEYDOWN, [IntPtr]$vk, [IntPtr]0)
-    [void][Drive]::PostMessage($h, $WM_KEYUP, [IntPtr]$vk, [IntPtr]0)
+    $code = Get-Vk $key
+    [void][Drive]::PostMessage($h, $WM_KEYDOWN, [IntPtr]$code, [IntPtr]0)
+    [void][Drive]::PostMessage($h, $WM_KEYUP, [IntPtr]$code, [IntPtr]0)
     foreach ($m in $mods) {
         [void][Drive]::PostMessage($h, $WM_KEYUP, [IntPtr]$m, [IntPtr]0)
     }
@@ -119,10 +121,10 @@ function Send-Text($h, [string]$text) {
     # `GetKeyState` for real input, and gpui asks it -- so a capital or a shifted
     # symbol needs `capture2.ps1` and the foreground.
     foreach ($ch in $text.ToCharArray()) {
-        $vk = [int][char]([string]$ch).ToUpper()
-        [void][Drive]::PostMessage($h, $WM_KEYDOWN, [IntPtr]$vk, [IntPtr]0)
+        $code = [int][char]([string]$ch).ToUpper()
+        [void][Drive]::PostMessage($h, $WM_KEYDOWN, [IntPtr]$code, [IntPtr]0)
         [void][Drive]::PostMessage($h, $WM_CHAR, [IntPtr][int][char]$ch, [IntPtr]0)
-        [void][Drive]::PostMessage($h, $WM_KEYUP, [IntPtr]$vk, [IntPtr]0)
+        [void][Drive]::PostMessage($h, $WM_KEYUP, [IntPtr]$code, [IntPtr]0)
         Start-Sleep -Milliseconds 45
     }
 }

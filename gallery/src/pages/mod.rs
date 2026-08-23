@@ -24,6 +24,7 @@ impl Gallery {
 
             // Releases
             Page::Releases => self.page_releases(cx),
+            Page::ReleaseCurrent => self.page_release_current(cx),
 
             // Getting started
             Page::Introduction => self.page_introduction(cx),
@@ -141,6 +142,7 @@ pub enum Page {
 
     // Releases
     Releases,
+    ReleaseCurrent,
 
     // Getting started
     Introduction,
@@ -254,6 +256,7 @@ impl Page {
         match self {
             Page::AllComponents => "All Components",
             Page::Releases => "Releases",
+            Page::ReleaseCurrent => concat!("v", env!("CARGO_PKG_VERSION")),
             Page::Introduction => "Introduction",
             Page::Installation => "Installation",
             Page::Theming => "Theming",
@@ -337,6 +340,9 @@ impl Page {
             }
             Page::Releases => {
                 "Updates to HeroGPUI, including new components, fixes and documentation changes."
+            }
+            Page::ReleaseCurrent => {
+                "The current workspace release, with its component, documentation and verification highlights."
             }
             Page::Introduction => "Beautiful, fast and modern cross-platform UI library for Rust GPUI. A faithful port of HeroUI v3.",
             Page::Installation => "Get HeroGPUI running in your GPUI application in minutes.",
@@ -503,7 +509,7 @@ impl Page {
     }
 
     pub fn docs_root(self) -> Self {
-        if self == Page::Releases {
+        if matches!(self, Page::Releases | Page::ReleaseCurrent) {
             Page::Releases
         } else if self == Page::AllComponents || !self.import_line().is_empty() {
             Page::AllComponents
@@ -526,8 +532,12 @@ pub fn nav_sections() -> Vec<NavSection> {
             items: vec![Page::AllComponents],
         },
         NavSection {
-            title: "Releases",
+            title: "Overview",
             items: vec![Page::Releases],
+        },
+        NavSection {
+            title: "Versions",
+            items: vec![Page::ReleaseCurrent],
         },
         NavSection {
             title: "Getting Started",

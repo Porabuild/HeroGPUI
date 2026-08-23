@@ -275,10 +275,6 @@ WONT_PORT = {
 
     # Sub-component/table-parsing artefacts, not real props of ours.
     'state': 'not-a-prop', 'toast': 'not-a-prop',
-    # Tooltip's `trigger` is a real prop, unlike the sub-component rows
-    # above: 'focus' needs a child that takes keyboard focus, and nothing
-    # in this library is focusable yet, so it would be a dead builder.
-    'Tooltip.trigger': 'no-keyboard-focus',
     # `TextArea` wraps (gpui's default `WhiteSpace::Normal`), so there is
     # multi-line layout -- but no `pre`/`pre-wrap` mode to select between, which
     # is what `wrap` chooses.
