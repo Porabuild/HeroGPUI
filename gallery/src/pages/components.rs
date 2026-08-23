@@ -3211,34 +3211,43 @@ impl Gallery {
                 ),
                 (
                     "Pagination",
-                    col(vec![
-                        {
-                            let start = table_page.saturating_sub(1) * 2;
-                            let people = [
-                                ("Tony Reichert", "CEO"),
-                                ("Zoey Lang", "Tech Lead"),
-                                ("Jane Fisher", "Designer"),
-                                ("William Howard", "Support"),
-                                ("Kristen Copper", "Sales Manager"),
-                                ("Emily Collins", "Marketing"),
-                            ];
-                            let mut paged = h::Table::new(vec!["Name".into(), "Role".into()])
-                                .id("tbl-pagination");
-                            for (name, role) in people.iter().skip(start).take(2) {
-                                paged = paged.row(vec![
-                                    gpui::div().child(*name).into_any_element(),
-                                    gpui::div().child(*role).into_any_element(),
-                                ]);
-                            }
-                            paged.into_any_element()
-                        },
-                        h::Pagination::new("tbl-pages", table_page, 3)
-                            .on_change(usize_cb(cx.listener(|this, p: &usize, _, cx| {
-                                this.set_demo_value("tbl-page", *p as f32);
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                    ]),
+                    col(vec![{
+                        let start = table_page.saturating_sub(1) * 2;
+                        let people = [
+                            ("Tony Reichert", "CEO"),
+                            ("Zoey Lang", "Tech Lead"),
+                            ("Jane Fisher", "Designer"),
+                            ("William Howard", "Support"),
+                            ("Kristen Copper", "Sales Manager"),
+                            ("Emily Collins", "Marketing"),
+                        ];
+                        let mut paged =
+                            h::Table::new(vec!["Name".into(), "Role".into()]).id("tbl-pagination");
+                        for (name, role) in people.iter().skip(start).take(2) {
+                            paged = paged.row(vec![
+                                gpui::div().child(*name).into_any_element(),
+                                gpui::div().child(*role).into_any_element(),
+                            ]);
+                        }
+                        // v3 puts the pagination in a `Table.Footer`, with a
+                        // `Pagination.Summary` at its start.
+                        paged
+                            .footer(
+                                h::Pagination::new("tbl-pages", table_page, 3)
+                                    .size(Size::Sm)
+                                    .summary(format!(
+                                        "{} to {} of {} results",
+                                        start + 1,
+                                        (start + 2).min(people.len()),
+                                        people.len()
+                                    ))
+                                    .on_change(usize_cb(cx.listener(|this, p: &usize, _, cx| {
+                                        this.set_demo_value("tbl-page", *p as f32);
+                                        cx.notify();
+                                    }))),
+                            )
+                            .into_any_element()
+                    },]),
                 ),
                 (
                     "Custom Cells",
@@ -7673,18 +7682,22 @@ impl Gallery {
                 ),
                 (
                     "With Separator",
-                    col(vec![
-                        h::Tabs::new(
-                            "tabs-separator",
-                            vec![
-                                h::TabItem::new("one", "One").content(gpui::div().child("First.")),
-                                h::TabItem::new("two", "Two").content(gpui::div().child("Second.")),
-                            ],
-                            "one",
-                        )
-                        .into_any_element(),
-                        h::Separator::new().into_any_element(),
-                    ]),
+                    col(vec![h::Tabs::new(
+                        "tabs-separator",
+                        vec![
+                            h::TabItem::new("one", "One").content(gpui::div().child("First.")),
+                            // v3: `<Tabs.Separator />` inside every tab but
+                            // the first.
+                            h::TabItem::new("two", "Two")
+                                .separator()
+                                .content(gpui::div().child("Second.")),
+                            h::TabItem::new("three", "Three")
+                                .separator()
+                                .content(gpui::div().child("Third.")),
+                        ],
+                        "one",
+                    )
+                    .into_any_element(),]),
                 ),
                 (
                     "Primary",
@@ -8695,6 +8708,8 @@ impl Gallery {
                             h::Modal::new()
                                 .id("md-usage")
                                 .is_open(is_open)
+                                // `Modal.Icon` sits above the heading.
+                                .icon(h::icons::MAIL)
                                 .title("Create account")
                                 .is_dismissible(true)
                                 .child(gpui::div().child("Sign up to get started with HeroGPUI."))

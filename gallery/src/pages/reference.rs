@@ -51,7 +51,7 @@ pub fn panels(
         ),
         ("API Reference", method_table(&methods, cx)),
         (
-            "Render Props Analog",
+            "Element Composition & Callbacks",
             if composition.is_empty() {
                 empty_panel(
                     "This component has no slot or callback builders; its rendered structure is fixed.",

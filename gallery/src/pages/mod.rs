@@ -1,12 +1,14 @@
 //! Page routing and navigation registry for the HeroGPUI gallery.
 //!
-//! The route list and its grouping mirror heroui.com/docs/react/components
-//! for v3: fifteen categories, one page per documented component.
+//! The route list mirrors HeroUI's getting-started, component and release
+//! documentation, with fifteen component categories.
 
 pub mod components;
 pub mod docs;
 pub mod docs_guides;
+mod overview;
 mod reference;
+mod releases;
 
 use gpui::{px, App};
 use herogpui_theme::ActiveTheme;
@@ -17,6 +19,12 @@ use crate::app::Gallery;
 impl Gallery {
     pub fn render_current_page(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
         match self.page {
+            // Overview
+            Page::AllComponents => self.page_all_components(cx),
+
+            // Releases
+            Page::Releases => self.page_releases(cx),
+
             // Getting started
             Page::Introduction => self.page_introduction(cx),
             Page::Installation => self.page_installation(cx),
@@ -128,6 +136,12 @@ impl Gallery {
 /// Every route of the gallery — mirrors heroui.com/docs/react/components.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Page {
+    // Overview
+    AllComponents,
+
+    // Releases
+    Releases,
+
     // Getting started
     Introduction,
     Installation,
@@ -238,6 +252,8 @@ pub enum Page {
 impl Page {
     pub fn title(self) -> &'static str {
         match self {
+            Page::AllComponents => "All Components",
+            Page::Releases => "Releases",
             Page::Introduction => "Introduction",
             Page::Installation => "Installation",
             Page::Theming => "Theming",
@@ -316,6 +332,12 @@ impl Page {
 
     pub fn description(self) -> &'static str {
         match self {
+            Page::AllComponents => {
+                "Explore every component in the library, grouped by what it helps you build."
+            }
+            Page::Releases => {
+                "Updates to HeroGPUI, including new components, fixes and documentation changes."
+            }
             Page::Introduction => "Beautiful, fast and modern cross-platform UI library for Rust GPUI. A faithful port of HeroUI v3.",
             Page::Installation => "Get HeroGPUI running in your GPUI application in minutes.",
             Page::Theming => "The OKLCH semantic token system shared by every component.",
@@ -479,6 +501,16 @@ impl Page {
             _ => "",
         }
     }
+
+    pub fn docs_root(self) -> Self {
+        if self == Page::Releases {
+            Page::Releases
+        } else if self == Page::AllComponents || !self.import_line().is_empty() {
+            Page::AllComponents
+        } else {
+            Page::Introduction
+        }
+    }
 }
 
 /// Sidebar section definition.
@@ -489,6 +521,14 @@ pub struct NavSection {
 
 pub fn nav_sections() -> Vec<NavSection> {
     vec![
+        NavSection {
+            title: "Overview",
+            items: vec![Page::AllComponents],
+        },
+        NavSection {
+            title: "Releases",
+            items: vec![Page::Releases],
+        },
         NavSection {
             title: "Getting Started",
             items: vec![
@@ -660,6 +700,7 @@ fn doc_page_shell(title: &str, description: &str, import_line: &str, cx: &App) -
     let colors = cx.colors();
     let mut el = gpui::div()
         .w(px(860.))
+        .max_w(gpui::relative(1.))
         .flex()
         .flex_col()
         .gap(px(20.))

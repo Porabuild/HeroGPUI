@@ -464,14 +464,12 @@ impl Render for Gallery {
             .label("GitHub")
             .href("https://github.com/heroui-inc/heroui");
 
-        let navbar = gpui::div()
+        let navbar_top = gpui::div()
             .flex()
             .items_center()
             .justify_between()
             .h(px(60.))
             .px(px(20.))
-            .border_b_1()
-            .border_color(colors.separator)
             .bg(colors.background)
             .child(
                 gpui::div()
@@ -519,21 +517,92 @@ impl Render for Gallery {
                     .child(theme_button),
             );
 
+        let active_root = self.page.docs_root();
+        let mut docs_tabs = gpui::div()
+            .h(px(38.))
+            .px(px(20.))
+            .flex()
+            .items_center()
+            .gap(px(18.));
+        for (label, target) in [
+            ("Getting Started", Page::Introduction),
+            ("Components", Page::AllComponents),
+            ("Releases", Page::Releases),
+        ] {
+            let active = active_root == target;
+            let mut tab = gpui::div()
+                .id(gpui::ElementId::Name(format!("docs-tab-{target:?}").into()))
+                .h_full()
+                .px(px(4.))
+                .border_b_2()
+                .border_color(if active {
+                    colors.accent.color
+                } else {
+                    gpui::transparent_black()
+                })
+                .flex()
+                .items_center()
+                .text_size(px(13.))
+                .font_weight(if active {
+                    gpui::FontWeight::SEMIBOLD
+                } else {
+                    gpui::FontWeight::NORMAL
+                })
+                .text_color(if active {
+                    colors.foreground
+                } else {
+                    colors.muted
+                })
+                .cursor_pointer()
+                .tab_index(0)
+                .focus(move |style| style.bg(colors.default.soft()));
+            if !active {
+                tab = tab.hover(move |style| style.text_color(colors.foreground));
+            }
+            docs_tabs = docs_tabs.child(
+                tab.child(label)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.set_initial_page(target);
+                        cx.notify();
+                    }))
+                    .on_key_down(cx.listener(move |this, event: &gpui::KeyDownEvent, _, cx| {
+                        if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                            this.set_initial_page(target);
+                            cx.notify();
+                        }
+                    })),
+            );
+        }
+
+        let navbar = gpui::div()
+            .flex()
+            .flex_col()
+            .border_b_1()
+            .border_color(colors.separator)
+            .bg(colors.background)
+            .child(navbar_top)
+            .child(docs_tabs);
+
         // ---- sidebar ---------------------------------------------------------
         let mut sidebar = gpui::div()
             .id("sidebar")
-            .w(px(250.))
+            .w(px(238.))
             .flex_shrink_0()
             .overflow_y_scroll()
             .border_r_1()
             .border_color(colors.separator)
-            .px(px(12.))
-            .py(px(16.))
+            .px(px(14.))
+            .py(px(20.))
             .flex()
             .flex_col()
-            .gap(px(16.));
+            .gap(px(18.));
 
-        for section in nav_sections() {
+        for section in nav_sections().into_iter().filter(|section| {
+            section
+                .items
+                .first()
+                .is_some_and(|item| item.docs_root() == active_root)
+        }) {
             let mut col = gpui::div().flex().flex_col().gap(px(2.));
             col = col.child(
                 gpui::div()
@@ -548,30 +617,48 @@ impl Render for Gallery {
                 let active = self.page == item;
                 let mut row = gpui::div()
                     .id(gpui::ElementId::Name(format!("nav-{item:?}").into()))
-                    .px(px(8.))
-                    .py(px(5.))
-                    .rounded(px(8.))
+                    .px(px(10.))
+                    .py(px(6.))
+                    .border_l_2()
+                    .border_color(if active {
+                        colors.accent.color
+                    } else {
+                        gpui::transparent_black()
+                    })
+                    .rounded(px(9.))
                     .text_size(px(13.5))
-                    .cursor_pointer();
+                    .cursor_pointer()
+                    .tab_index(0)
+                    .focus(move |style| style.bg(colors.default.soft()));
                 if active {
                     row = row
-                        .bg(colors.default.soft())
+                        .bg(colors.accent.soft())
                         .font_weight(gpui::FontWeight::MEDIUM);
                 } else {
                     row = row.hover(move |s| s.bg(colors.default.soft()));
                 }
                 row = row.text_color(if active {
-                    colors.foreground
+                    colors.accent.color
                 } else {
                     colors.muted
                 });
-                col = col.child(row.child(item.title()).on_click(cx.listener(
-                    move |this, _, _, cx| {
-                        this.page = item;
-                        this.dropdown_open = false;
-                        cx.notify();
-                    },
-                )));
+                col = col.child(
+                    row.child(item.title())
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.page = item;
+                            this.dropdown_open = false;
+                            cx.notify();
+                        }))
+                        .on_key_down(cx.listener(
+                            move |this, event: &gpui::KeyDownEvent, _, cx| {
+                                if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+                                    this.page = item;
+                                    this.dropdown_open = false;
+                                    cx.notify();
+                                }
+                            },
+                        )),
+                );
             }
             sidebar = sidebar.child(col);
         }
@@ -619,5 +706,17 @@ impl Gallery {
     /// file (see `control.rs`) switches it between batch steps.
     pub fn set_overlays_open(&mut self, open: bool) {
         self.overlays_open = open;
+        // The keyed demos read `overlays_open` through `demo_overlay`, but the
+        // nine dialogs with a field of their own are seeded once at startup, so
+        // a control-file step has to move those too -- otherwise `overlays=1`
+        // opens every overlay except the Modal, the Drawer and the Dropdown.
+        self.modal_open = open;
+        self.dropdown_open = open;
+        self.select_open = open;
+        self.drawer_open = open;
+        self.range_open = open;
+        self.popover_open = open;
+        self.alert_dialog_open = open;
+        self.cal_year_picker = open;
     }
 }

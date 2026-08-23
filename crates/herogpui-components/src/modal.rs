@@ -369,9 +369,15 @@ impl RenderOnce for Modal {
                         // `leading-[1.43]` on `text-sm`.
                         .line_height(px(20.))
                         .text_color(colors.muted)
-                        // `Inside` scrolls the body; `Outside` lets it grow and
-                        // scrolls the container instead.
-                        .when(self.scroll == ModalScroll::Inside, |e| e.overflow_y_scroll())
+                        // v3 spells the body `min-h-0 flex-1` and scrolls it
+                        // inside `.modal__dialog--scroll-inside`'s max height.
+                        // There is no equivalent here: a gpui scroll container
+                        // in an auto-height flex column measures as *zero*, so
+                        // that spelling made every default modal draw its
+                        // heading and its footer with nothing between them. The
+                        // body is content-sized instead and the container is
+                        // what scrolls -- one scrollbar in the wrong place beats
+                        // unreachable text.
                         .children(self.body),
                 )
             });
@@ -437,9 +443,8 @@ impl RenderOnce for Modal {
         .flex()
         // `.modal__container` is `p-4 sm:p-10`.
         .p(px(40.))
-        .when(self.scroll == ModalScroll::Outside, |e| {
-            e.overflow_y_scroll()
-        })
+        // Both scroll modes scroll here; see `.modal__body`'s comment.
+        .overflow_y_scroll()
         .when(
             matches!(
                 self.placement,
