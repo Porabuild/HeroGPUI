@@ -277,6 +277,8 @@ CHECKS = [
     ('accordion', '.accordion__trigger', 'py', 'Accordion trigger padding_y',
      SRC + 'accordion.rs',
      r'\.px\(px\(16\.\)\)\s+\.py\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('list-box', '.list-box', 'p', 'ListBox padding', SRC + 'list_box.rs',
+     r'\.gap\(px\(4\.\)\)\s+\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
 ]
 
 

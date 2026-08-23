@@ -34,6 +34,7 @@ pub mod input_otp;
 pub mod kbd;
 pub mod link;
 pub mod list_box;
+pub mod list_nav;
 pub mod meter;
 pub mod modal;
 pub mod number_field;

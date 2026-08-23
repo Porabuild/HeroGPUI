@@ -132,6 +132,8 @@ pub struct ListBox {
     /// Applies to every item unless the item overrides it.
     variant: ListBoxItemVariant,
     max_h: Option<gpui::Pixels>,
+    /// `shouldFocusWrap` — whether arrow keys wrap at the ends.
+    should_focus_wrap: bool,
     on_selection_change: Option<OnSelectionChange>,
     on_action: Option<OnAction>,
 }
@@ -145,6 +147,7 @@ impl ListBox {
             selected_keys: HashSet::new(),
             disabled_keys: HashSet::new(),
             variant: ListBoxItemVariant::Default,
+            should_focus_wrap: false,
             max_h: None,
             on_selection_change: None,
             on_action: None,
@@ -178,6 +181,12 @@ impl ListBox {
     }
 
     /// Caps the list height and scrolls beyond it.
+    /// `shouldFocusWrap` — whether the arrow keys wrap at the ends of the list.
+    pub fn should_focus_wrap(mut self, v: bool) -> Self {
+        self.should_focus_wrap = v;
+        self
+    }
+
     pub fn max_h(mut self, h: impl Into<gpui::Pixels>) -> Self {
         self.max_h = Some(h.into());
         self
@@ -203,25 +212,124 @@ impl ListBox {
 }
 
 impl RenderOnce for ListBox {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // Which row the keyboard is on, and the handle that receives the keys.
+        // `use_keyed_state` takes `cx` mutably, so both precede the tokens.
+        let base = format!("{:?}", self.id);
+        let focus_handle = window.use_keyed_state(
+            ElementId::Name(format!("{base}-focus").into()),
+            cx,
+            |_, cx| cx.focus_handle(),
+        );
+        let focus_handle = focus_handle.read(cx).clone();
+        let cursor = window.use_keyed_state(
+            ElementId::Name(format!("{base}-cursor").into()),
+            cx,
+            |_, _| None::<usize>,
+        );
+        let cursor_at = *cursor.read(cx);
+
         let colors = cx.colors();
         let row_h = px(34.);
         let text_size = util::FIELD_TEXT;
 
+        // `.list-box` is `relative w-full overflow-clip p-1` with `mt-1` between
+        // children, and nothing else: the popover around it paints the panel.
+        // This used to draw its own surface, border and radius, which put a
+        // second panel inside every picker.
         let mut list = div()
             .id(self.id.clone())
+            .relative()
+            .w_full()
             .flex()
             .flex_col()
-            .gap(px(2.))
+            .gap(px(4.))
             .p(px(4.))
-            .rounded(util::container_radius(cx))
-            .bg(colors.surface.background)
-            .border(cx.layout().border_width)
-            .border_color(colors.border)
-            .text_color(colors.foreground);
+            .overflow_hidden()
+            .text_color(colors.foreground)
+            .track_focus(&focus_handle)
+            .key_context("ListBox")
+            // A click has to move the keyboard's focus onto the list, or the
+            // arrow keys would go nowhere after a pointer selection.
+            .on_mouse_down(gpui::MouseButton::Left, {
+                let fh = focus_handle.clone();
+                move |_, window, _| window.focus(&fh)
+            });
 
         if let Some(max_h) = self.max_h {
             list = list.max_h(max_h).overflow_y_scroll();
+        }
+
+        // The rows a keyboard can land on: an item that is not disabled.
+        // Sections and separators are skipped, so the cursor never stops on
+        // something that cannot be chosen.
+        let stops: Vec<usize> = self
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| match item {
+                ListBoxItem::Option {
+                    key, is_disabled, ..
+                } => !is_disabled && !self.disabled_keys.contains(key),
+                _ => false,
+            })
+            .map(|(i, _)| i)
+            .collect();
+
+        if !stops.is_empty() {
+            let held = cursor.clone();
+            let stops_for_keys = stops.clone();
+            let wrap = self.should_focus_wrap;
+            let keys: Vec<SharedString> = self
+                .items
+                .iter()
+                .map(|item| item.key().cloned().unwrap_or_default())
+                .collect();
+            let mode = self.selection_mode;
+            let selected_now = self.selected_keys.clone();
+            let on_selection_change = self.on_selection_change.clone();
+            let on_action = self.on_action.clone();
+            list = list.on_key_down(move |event, window, cx| {
+                let from = *held.read(cx);
+                match crate::list_nav::resolve(
+                    &stops_for_keys,
+                    from,
+                    event.keystroke.key.as_str(),
+                    wrap,
+                ) {
+                    crate::list_nav::Move::To(next) => {
+                        held.update(cx, |v, cx| {
+                            *v = Some(next);
+                            cx.notify();
+                        });
+                    }
+                    crate::list_nav::Move::Activate => {
+                        let Some(item_key) = from.and_then(|i| keys.get(i).cloned()) else {
+                            return;
+                        };
+                        if let Some(cb) = &on_action {
+                            cb(&item_key, window, cx);
+                        }
+                        if let Some(cb) = &on_selection_change {
+                            // The same answer a click gives: `Single` collapses
+                            // to this key, `Multiple` toggles it.
+                            let next = match mode {
+                                SelectionMode::None => selected_now.clone(),
+                                SelectionMode::Single => HashSet::from([item_key.clone()]),
+                                SelectionMode::Multiple => {
+                                    let mut set = selected_now.clone();
+                                    if !set.remove(&item_key) {
+                                        set.insert(item_key.clone());
+                                    }
+                                    set
+                                }
+                            };
+                            cb(&next, window, cx);
+                        }
+                    }
+                    crate::list_nav::Move::Ignore => {}
+                }
+            });
         }
 
         for (index, item) in self.items.iter().enumerate() {
@@ -297,6 +405,11 @@ impl RenderOnce for ListBox {
                             ListBoxItemVariant::Default => colors.accent.soft(),
                             ListBoxItemVariant::Danger => colors.danger.soft(),
                         });
+                    }
+
+                    // `status-focused` on the row the keyboard is on.
+                    if cursor_at == Some(index) {
+                        row = row.border_2().border_color(colors.focus);
                     }
 
                     if let Some(path) = icon {
