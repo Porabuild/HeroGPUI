@@ -186,17 +186,38 @@ impl TagGroup {
 
 impl RenderOnce for TagGroup {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        // One tab stop per tag. `use_keyed_state` takes `cx` mutably, so the
-        // handles come before the theme is borrowed.
-        let tag_focus: Vec<gpui::FocusHandle> = (0..self.tags.len())
-            .map(|index| {
-                crate::util::tab_stop_handle(
-                    ElementId::Name(format!("{:?}-tag-{index}-focus", self.id).into()),
-                    window,
-                    cx,
-                )
+        // A tag group is *one* tab stop: React Aria roves the tabindex, so Tab
+        // enters the group once and the arrows move inside it. Which tag claims
+        // the handle is held here, because a handle's `tab_stop` is fixed where
+        // the handle is made. `use_keyed_state` takes `cx` mutably, so both
+        // precede the theme.
+        let group_focus = crate::util::tab_stop_handle(
+            ElementId::Name(format!("{:?}-focus", self.id).into()),
+            window,
+            cx,
+        );
+        let cursor = window.use_keyed_state(
+            ElementId::Name(format!("{:?}-cursor", self.id).into()),
+            cx,
+            |_, _| 0usize,
+        );
+        // Removing a tag shortens the list and disabled tags take no focus, so
+        // the stop lands on the first enabled tag at or after the cursor.
+        let enabled: Vec<usize> = self
+            .tags
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| {
+                !(self.is_disabled || t.is_disabled || self.disabled_keys.contains(&t.key))
             })
+            .map(|(i, _)| i)
             .collect();
+        let at = *cursor.read(cx);
+        let cursor_index = enabled
+            .iter()
+            .copied()
+            .find(|i| *i >= at)
+            .or_else(|| enabled.first().copied());
         let ring_visible = crate::util::focus_visible(cx);
         let colors = cx.colors();
         let layout = cx.layout();
@@ -237,8 +258,8 @@ impl RenderOnce for TagGroup {
 
             let mut chip = div()
                 .id(ElementId::Name(format!("{:?}-tag-{index}", self.id).into()))
-                .when_some(tag_focus.get(index).filter(|_| !disabled), |c, handle| {
-                    c.track_focus(handle)
+                .when(!disabled && cursor_index == Some(index), |c| {
+                    c.track_focus(&group_focus)
                 })
                 .flex()
                 .flex_row()
@@ -318,6 +339,45 @@ impl RenderOnce for TagGroup {
                 chip = chip.child(close);
             }
 
+            // React Aria's TagGroup: the arrows move between tags and Delete or
+            // Backspace removes the focused one.
+            if !disabled {
+                let stops = enabled.clone();
+                let moved = cursor.clone();
+                let remove = self.on_remove.clone();
+                let key_for_remove = tag.key.clone();
+                chip =
+                    chip.on_key_down(
+                        move |event, window, cx| match event.keystroke.key.as_str() {
+                            "delete" | "backspace" => {
+                                if let Some(cb) = &remove {
+                                    cb(&key_for_remove, window, cx);
+                                }
+                            }
+                            key @ ("left" | "right" | "up" | "down" | "home" | "end") => {
+                                let key = match key {
+                                    "right" | "down" => "down",
+                                    "left" | "up" => "up",
+                                    other => other,
+                                };
+                                let crate::list_nav::Move::To(next) =
+                                    crate::list_nav::resolve(&stops, Some(index), key, false)
+                                else {
+                                    return;
+                                };
+                                // No refocusing: the next render has the tag
+                                // at `next` claim the group's handle, so the
+                                // focus goes with it.
+                                moved.update(cx, |v, cx| {
+                                    *v = next;
+                                    cx.notify();
+                                });
+                            }
+                            _ => {}
+                        },
+                    );
+            }
+
             if selectable && !disabled {
                 let key = tag.key.clone();
                 let mode = self.selection_mode;
@@ -352,7 +412,8 @@ impl RenderOnce for TagGroup {
                 chip,
                 !disabled
                     && ring_visible
-                    && tag_focus.get(index).is_some_and(|h| h.is_focused(window)),
+                    && cursor_index == Some(index)
+                    && group_focus.is_focused(window),
                 true,
                 Vec::new(),
                 cx,

@@ -74,13 +74,15 @@ impl Tabs {
         self
     }
 
-    /// `selectedKey` — also accepted positionally by [`Tabs::new`].
+    /// `selectedKey` — drives the tabs from outside; without it they hold
+    /// their own selection, seeded positionally by [`Tabs::new`].
     pub fn selected_key(mut self, key: impl Into<SharedString>) -> Self {
         self.selected_key = Some(key.into());
         self
     }
 
-    /// `defaultSelectedKey` — the uncontrolled initial tab.
+    /// `defaultSelectedKey` — the uncontrolled initial tab, also accepted
+    /// positionally by [`Tabs::new`].
     ///
     /// Only consulted when `selectedKey` is not supplied; the tabs then own the
     /// selection and switch themselves on press.
@@ -89,16 +91,20 @@ impl Tabs {
         self
     }
 
+    /// The positional key is `defaultSelectedKey`, not `selectedKey`: seeding
+    /// the *controlled* prop leaves the tabs unable to switch themselves, so
+    /// every demo that passed a literal was inert. Pass
+    /// [`Tabs::selected_key`] to drive them from outside.
     pub fn new(
         id: impl Into<gpui::ElementId>,
         items: Vec<TabItem>,
-        selected_key: impl Into<SharedString>,
+        default_selected_key: impl Into<SharedString>,
     ) -> Self {
         Self {
             id: id.into(),
             items,
-            selected_key: Some(selected_key.into()),
-            default_selected_key: None,
+            selected_key: None,
+            default_selected_key: Some(default_selected_key.into()),
             variant: TabsVariant::Primary,
             is_disabled: false,
             orientation: Orientation::Horizontal,
@@ -139,17 +145,14 @@ impl RenderOnce for Tabs {
             .clone()
             .or_else(|| self.items.first().map(|i| i.key.clone()))
             .unwrap_or_default();
-        let tab_focus: Vec<gpui::FocusHandle> = self
-            .items
-            .iter()
-            .map(|item| {
-                crate::util::tab_stop_handle(
-                    gpui::ElementId::Name(format!("{base_id}-tab-{}-focus", item.key).into()),
-                    window,
-                    cx,
-                )
-            })
-            .collect();
+        // One handle for the list: a tab list is one tab stop and the selected
+        // tab claims it, which is how the stop roves. Flipping a handle's
+        // `tab_stop` cannot do that -- it is fixed where the handle is made.
+        let list_focus = crate::util::tab_stop_handle(
+            gpui::ElementId::Name(format!("{base_id}-focus").into()),
+            window,
+            cx,
+        );
         let (selected_key, selection_own) = crate::util::controlled(
             window,
             cx,
@@ -182,10 +185,7 @@ impl RenderOnce for Tabs {
                         .id(gpui::ElementId::Name(
                             format!("{base_id}-tab-{}", item.key).into(),
                         ))
-                        .when_some(
-                            tab_focus.get(index).filter(|_| !self.is_disabled),
-                            |t, handle| t.track_focus(handle),
-                        )
+                        .when(!self.is_disabled && active, |t| t.track_focus(&list_focus))
                         .px(px(14.))
                         .py(px(6.))
                         .rounded(crate::util::control_radius(cx))
@@ -212,6 +212,42 @@ impl RenderOnce for Tabs {
                     if !self.is_disabled
                         && (self.on_selection_change.is_some() || selection_own.is_some())
                     {
+                        // A tab list is one stop and the arrows move within
+                        // it, selecting as they go -- React Aria's automatic
+                        // activation, which is what v3 ships.
+                        let key_stops: Vec<usize> = (0..self.items.len()).collect();
+                        let key_keys: Vec<SharedString> =
+                            self.items.iter().map(|i| i.key.clone()).collect();
+                        let key_cb = self.on_selection_change.clone();
+                        let key_own = selection_own.clone();
+                        tab = tab.on_key_down(move |event, window, cx| {
+                            let key = match event.keystroke.key.as_str() {
+                                "right" | "down" => "down",
+                                "left" | "up" => "up",
+                                other @ ("home" | "end") => other,
+                                _ => return,
+                            };
+                            let crate::list_nav::Move::To(next) =
+                                crate::list_nav::resolve(&key_stops, Some(index), key, true)
+                            else {
+                                return;
+                            };
+                            let Some(next_key) = key_keys.get(next).cloned() else {
+                                return;
+                            };
+                            if let Some(held) = &key_own {
+                                let next_key = next_key.clone();
+                                held.update(cx, |v, cx| {
+                                    *v = next_key;
+                                    cx.notify();
+                                });
+                            }
+                            if let Some(f) = &key_cb {
+                                f(&next_key, window, cx);
+                            }
+                            // No refocusing: the next render has the newly
+                            // selected tab claim the list's handle.
+                        });
                         let key = item.key.clone();
                         let cb = self.on_selection_change.clone();
                         let own = selection_own.clone();
@@ -232,7 +268,8 @@ impl RenderOnce for Tabs {
                     // `.tab:focus-visible` is `status-focused`.
                     let tab = crate::util::with_focus_ring(
                         tab,
-                        tab_focus.get(index).is_some_and(|h| h.is_focused(window))
+                        active
+                            && list_focus.is_focused(window)
                             && crate::util::focus_visible(cx)
                             && !self.is_disabled,
                         true,
@@ -251,10 +288,7 @@ impl RenderOnce for Tabs {
                         .id(gpui::ElementId::Name(
                             format!("{base_id}-tab-{}", item.key).into(),
                         ))
-                        .when_some(
-                            tab_focus.get(index).filter(|_| !self.is_disabled),
-                            |t, handle| t.track_focus(handle),
-                        )
+                        .when(!self.is_disabled && active, |t| t.track_focus(&list_focus))
                         .px(px(2.))
                         .pb(px(6.))
                         .text_size(px(14.))
@@ -276,6 +310,42 @@ impl RenderOnce for Tabs {
                     if !self.is_disabled
                         && (self.on_selection_change.is_some() || selection_own.is_some())
                     {
+                        // A tab list is one stop and the arrows move within
+                        // it, selecting as they go -- React Aria's automatic
+                        // activation, which is what v3 ships.
+                        let key_stops: Vec<usize> = (0..self.items.len()).collect();
+                        let key_keys: Vec<SharedString> =
+                            self.items.iter().map(|i| i.key.clone()).collect();
+                        let key_cb = self.on_selection_change.clone();
+                        let key_own = selection_own.clone();
+                        tab = tab.on_key_down(move |event, window, cx| {
+                            let key = match event.keystroke.key.as_str() {
+                                "right" | "down" => "down",
+                                "left" | "up" => "up",
+                                other @ ("home" | "end") => other,
+                                _ => return,
+                            };
+                            let crate::list_nav::Move::To(next) =
+                                crate::list_nav::resolve(&key_stops, Some(index), key, true)
+                            else {
+                                return;
+                            };
+                            let Some(next_key) = key_keys.get(next).cloned() else {
+                                return;
+                            };
+                            if let Some(held) = &key_own {
+                                let next_key = next_key.clone();
+                                held.update(cx, |v, cx| {
+                                    *v = next_key;
+                                    cx.notify();
+                                });
+                            }
+                            if let Some(f) = &key_cb {
+                                f(&next_key, window, cx);
+                            }
+                            // No refocusing: the next render has the newly
+                            // selected tab claim the list's handle.
+                        });
                         let key = item.key.clone();
                         let cb = self.on_selection_change.clone();
                         let own = selection_own.clone();
@@ -296,7 +366,8 @@ impl RenderOnce for Tabs {
                     // `.tab:focus-visible` is `status-focused`.
                     let tab = crate::util::with_focus_ring(
                         tab,
-                        tab_focus.get(index).is_some_and(|h| h.is_focused(window))
+                        active
+                            && list_focus.is_focused(window)
                             && crate::util::focus_visible(cx)
                             && !self.is_disabled,
                         true,

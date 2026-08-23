@@ -628,6 +628,28 @@ v2 concepts that must **not** come back:
     it to `window.focus_next()`, holds the focus when nothing else does (with no
     focus there is no key-event chain at all) and records keyboard-versus-pointer
     input, which is what `:focus-visible` means.
+  - **A roving tab stop is one handle, claimed by a different element.** A
+    radio group, a tab list and a tag group are each *one* tab stop with the
+    arrows moving inside, and the obvious port -- a handle per row, and
+    `window.focus(next)` on an arrow -- loses the focus outright: only a handle
+    an element is currently tracking receives keys. `tab_stop` is fixed where the
+    handle is made, so what moves is the `track_focus` call. RadioGroup and Tabs
+    let the *selected* row claim the group's handle (arrows select, and the focus
+    follows for free); TagGroup keeps its cursor in a keyed `usize`, because
+    moving between tags there does not select. Clamp that cursor to the enabled
+    tags -- Delete shortens the list, and a stop pointing past the end or at a
+    disabled tag takes the group out of the tab order.
+  - **A constructor must not seed the *controlled* prop.** `Tabs::new(id, items,
+    "photos")` filled `selected_key`, so `util::controlled` handed back the
+    caller's value with no state entity, and the whole interactive block --
+    clicks and arrows both -- was skipped: every Tabs demo that passed a literal
+    was inert while looking perfectly normal. A positional seed is
+    `defaultSelectedKey`; `selected_key` is the builder a controlled caller adds.
+    The same check applies to any `pub fn new` that assigns `Some(..)` to the
+    field `controlled()` reads.
+  - Two components on one gallery page sharing an id share their keyed state,
+    which is silent: two `TagGroup`s both called `tg-remove` shared one focus
+    cursor. The ids are per page, so grep the page function, not the file.
   - `uniform_list(id, count, |range, window, cx| ..)` is the virtual list, and
     it is what `<Virtualizer layout={ListLayout}>` ports to: one fixed row
     height, which is why `row_height` is the builder that turns virtualization

@@ -140,20 +140,23 @@ impl RenderOnce for RadioGroup {
             self.default_value,
         );
 
-        // One tab stop per option, all of them created before the theme is
-        // borrowed: `use_keyed_state` takes `cx` mutably, and the loop below
-        // holds `cx.colors()`.
-        let option_focus: Vec<gpui::FocusHandle> = (0..self.options.len())
-            .map(|i| {
-                crate::util::tab_stop_handle(
-                    gpui::ElementId::Name(
-                        format!("{}-opt-{i}-focus", element_id_name(&self.id)).into(),
-                    ),
-                    window,
-                    cx,
-                )
-            })
-            .collect();
+        // *One* handle for the whole group, because a radio group is one tab
+        // stop. Which row claims it is what moves: a roving tab stop cannot be
+        // done by flipping a handle's `tab_stop`, since that is fixed where the
+        // handle is made. `use_keyed_state` takes `cx` mutably, so it precedes
+        // the theme.
+        let group_focus = crate::util::tab_stop_handle(
+            gpui::ElementId::Name(format!("{}-focus", element_id_name(&self.id)).into()),
+            window,
+            cx,
+        );
+
+        // A radio group is *one* tab stop: Tab moves past the whole group and
+        // the arrows choose within it, which is the ARIA radio-group pattern
+        // React Aria implements. The stop is the selected option, or the first
+        // when nothing is selected yet.
+        let tab_stop_index = selected.unwrap_or(0);
+        let stops: Vec<usize> = (0..self.options.len()).collect();
 
         let sem = cx.role(Color::Accent);
         let colors = cx.colors();
@@ -219,9 +222,9 @@ impl RenderOnce for RadioGroup {
 
             // v3 focuses the radio and rings `.radio__control`: the row takes the
             // focus, the control shows it.
-            let focused = option_focus
-                .get(i)
-                .is_some_and(|h| h.is_focused(window) && crate::util::focus_visible(cx));
+            let focused = i == tab_stop_index
+                && group_focus.is_focused(window)
+                && crate::util::focus_visible(cx);
             let circle_el = crate::util::with_focus_ring(
                 circle_el,
                 focused && !self.is_disabled,
@@ -263,10 +266,9 @@ impl RenderOnce for RadioGroup {
                 .id(gpui::ElementId::Name(
                     format!("{}-opt-{i}", element_id_name(&self.id)).into(),
                 ))
-                .when_some(
-                    option_focus.get(i).filter(|_| !self.is_disabled),
-                    |r, handle| r.track_focus(handle),
-                )
+                .when(!self.is_disabled && i == tab_stop_index, |r| {
+                    r.track_focus(&group_focus)
+                })
                 .flex()
                 .items_center()
                 .gap(gap)
@@ -285,6 +287,37 @@ impl RenderOnce for RadioGroup {
             {
                 let on_change = self.on_change.clone();
                 let own = own.clone();
+                // The arrows choose the next option and take the focus with
+                // them, which is what makes the group one tab stop: the focused
+                // radio is always the selected one.
+                let key_change = on_change.clone();
+                let key_own = own.clone();
+                let key_stops = stops.clone();
+                row = row.on_key_down(move |event, window, cx| {
+                    let key = match event.keystroke.key.as_str() {
+                        "down" | "right" => "down",
+                        "up" | "left" => "up",
+                        other @ ("home" | "end") => other,
+                        _ => return,
+                    };
+                    // The group wraps, as a radio group does.
+                    let crate::list_nav::Move::To(next) =
+                        crate::list_nav::resolve(&key_stops, Some(i), key, true)
+                    else {
+                        return;
+                    };
+                    if let Some(held) = &key_own {
+                        held.update(cx, |v, cx| {
+                            *v = Some(next);
+                            cx.notify();
+                        });
+                    }
+                    if let Some(f) = &key_change {
+                        f(next, window, cx);
+                    }
+                    // No refocusing: the next render has the newly selected row
+                    // claim the group's handle, so the focus goes with it.
+                });
                 row = row.on_click(move |_, window, cx| {
                     // Uncontrolled: move our own selection, or pressing a
                     // radio would do nothing.

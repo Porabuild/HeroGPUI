@@ -4,7 +4,8 @@
 //! React API: `orientation` and `isAttached`.
 
 use gpui::{
-    div, px, AnyElement, App, IntoElement, ParentElement, Pixels, RenderOnce, Styled, Window,
+    div, px, AnyElement, App, InteractiveElement, IntoElement, KeyDownEvent, ParentElement, Pixels,
+    RenderOnce, Styled, Window,
 };
 use herogpui_core::Orientation;
 use herogpui_theme::ActiveTheme;
@@ -83,6 +84,18 @@ impl RenderOnce for Toolbar {
                 .border_color(colors.border);
         }
 
-        el.children(self.children)
+        // `Inherits from React Aria Toolbar`: the arrows move between the
+        // controls inside it. Those controls are the tab stops, so the arrows
+        // ask gpui for the next and the previous one -- the difference from v3 is
+        // at the ends, where React Aria stays inside the toolbar and this walks
+        // on to whatever follows.
+        el.on_key_down(
+            |event: &KeyDownEvent, window, _| match event.keystroke.key.as_str() {
+                "right" | "down" => window.focus_next(),
+                "left" | "up" => window.focus_prev(),
+                _ => {}
+            },
+        )
+        .children(self.children)
     }
 }

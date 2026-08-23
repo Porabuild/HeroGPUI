@@ -1469,9 +1469,13 @@ impl Gallery {
                 ),
                 (
                     "With Remove Button",
-                    col(vec![h::TagGroup::new("tg-remove", tags())
+                    col(vec![h::TagGroup::new("tg-remove-button", tags())
                         .label("Skills")
-                        .on_remove(cx.listener(|_, _key: &SharedString, _, cx| cx.notify()))
+                        .on_remove(cx.listener(|this, key: &SharedString, _, cx| {
+                            this.tags.retain(|k| k != key);
+                            this.tag_selection.remove(key);
+                            cx.notify();
+                        }))
                         .into_any_element()]),
                 ),
                 (
@@ -7608,7 +7612,8 @@ impl Gallery {
                 ),
                 (
                     "Primary",
-                    col(vec![h::Tabs::new("tabs-primary", items(), primary)
+                    col(vec![h::Tabs::new("tabs-primary", items(), primary.clone())
+                        .selected_key(primary)
                         .on_selection_change(cx.listener(|this, key: &SharedString, _, cx| {
                             this.tab_solid = key.clone();
                             cx.notify();
@@ -7617,13 +7622,18 @@ impl Gallery {
                 ),
                 (
                     "Secondary",
-                    col(vec![h::Tabs::new("tabs-secondary", items(), secondary)
-                        .variant(h::TabsVariant::Secondary)
-                        .on_selection_change(cx.listener(|this, key: &SharedString, _, cx| {
-                            this.tab_underline = key.clone();
-                            cx.notify();
-                        }))
-                        .into_any_element()]),
+                    col(vec![h::Tabs::new(
+                        "tabs-secondary",
+                        items(),
+                        secondary.clone(),
+                    )
+                    .selected_key(secondary)
+                    .variant(h::TabsVariant::Secondary)
+                    .on_selection_change(cx.listener(|this, key: &SharedString, _, cx| {
+                        this.tab_underline = key.clone();
+                        cx.notify();
+                    }))
+                    .into_any_element()]),
                 ),
             ],
             cx,

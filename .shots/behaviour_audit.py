@@ -62,6 +62,15 @@ def activation_claims():
     return {comp for comp in api_audit.FILES if 'onPress' in api_audit.props_for(comp)}
 
 
+# The collection primitives whose ARIA pattern is "one tab stop, arrows inside".
+# v3 claims each by saying it inherits from the React Aria component, and the
+# pattern is that component's documented keyboard -- a radio group selects with
+# the arrows, a tab list moves with them, a toolbar walks its controls, a tag
+# group walks its tags and removes with Delete.
+ARROW_NAV = ('RadioGroup', 'Tabs', 'Toolbar', 'TagGroup')
+REMOVE_KEY = ('TagGroup',)
+
+
 # (component, claim) -> (module, a pattern that must appear in it).
 #
 # The pattern names the code that implements the behaviour, so a rewrite that
@@ -100,6 +109,15 @@ EVIDENCE = {
     # gpui does that itself -- a *focused* element's click listeners fire with
     # `ClickEvent::Keyboard` -- so the evidence is the focus handle, which is
     # what the element was missing. Binding the handler again fires it twice.
+    # The ARIA patterns these primitives name: a radio group, a tab list, a
+    # toolbar and a tag group are each *one* tab stop, with the arrows moving
+    # inside. That is behaviour v3 claims by inheriting them, and it is why
+    # `list_nav` is shared as widely as it is.
+    ('RadioGroup', 'arrow-nav'): ('radio_group.rs', r'list_nav::resolve'),
+    ('Tabs', 'arrow-nav'): ('tabs.rs', r'list_nav::resolve'),
+    ('Toolbar', 'arrow-nav'): ('toolbar.rs', r'focus_next'),
+    ('TagGroup', 'arrow-nav'): ('tag_group.rs', r'list_nav::resolve'),
+    ('TagGroup', 'remove-key'): ('tag_group.rs', r'"delete" \| "backspace"'),
     ('Accordion', 'activation'): ('accordion.rs', r'tab_stop_handle'),
     ('Button', 'activation'): ('button.rs', r'tab_stop_handle'),
     ('CloseButton', 'activation'): ('close_button.rs', r'tab_stop_handle'),
@@ -150,7 +168,23 @@ def main():
     missing, unmapped = [], []
     by_reason = {}
 
-    # The derived claim first, so its numbers land in the same totals.
+    # The derived claims first, so their numbers land in the same totals.
+    for page in ARROW_NAV + REMOVE_KEY:
+        for claim in ('arrow-nav', 'remove-key'):
+            key = (page, claim)
+            if key not in EVIDENCE:
+                continue
+            claimed += 1
+            module, evidence = EVIDENCE[key]
+            if module not in sources:
+                path = SRC + module
+                sources[module] = (io.open(path, encoding='utf-8', errors='replace').read()
+                                   if os.path.exists(path) else '')
+            if re.search(evidence, sources[module]):
+                implemented += 1
+            else:
+                missing.append('%-14s %-14s %s: /%s/' % (page, claim, module, evidence))
+
     for page in sorted(activation_claims()):
         key = (page, 'activation')
         claimed += 1
