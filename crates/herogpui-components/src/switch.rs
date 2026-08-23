@@ -43,7 +43,9 @@ pub struct Switch {
     /// Whether the label comes before the control. v3 gets this from the order
     /// of `Switch.Content`'s children.
     label_first: bool,
-    on_change: Option<Box<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
+    /// `Arc` rather than `Box`: the handler is bound twice, once for the
+    /// pointer and once for Enter and Space.
+    on_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
 }
 
 impl Switch {
@@ -215,7 +217,7 @@ impl Switch {
     }
 
     pub fn on_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
-        self.on_change = Some(Box::new(f));
+        self.on_change = Some(std::sync::Arc::new(f));
         self
     }
 }

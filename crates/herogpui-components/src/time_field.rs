@@ -515,7 +515,7 @@ impl RenderOnce for TimeField {
         let focus_handle = window.use_keyed_state(
             ElementId::Name(format!("timefield-{entity_id}-focus").into()),
             cx,
-            |_, cx| cx.focus_handle(),
+            |_, cx| cx.focus_handle().tab_stop(true),
         );
         let focus_handle = focus_handle.read(cx).clone();
         if self.auto_focus {

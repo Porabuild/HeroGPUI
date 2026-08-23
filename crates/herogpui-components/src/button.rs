@@ -13,7 +13,9 @@ use herogpui_theme::ActiveTheme;
 
 use crate::{spinner::Spinner, util};
 
-type OnPress = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+/// A press handler. `Arc` rather than `Box` because it is bound twice: the
+/// pointer's `on_click` and the keyboard's Enter/Space both run it.
+type OnPress = std::sync::Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
 /// Which edge of a [`crate::button_group::ButtonGroup`] a button sits on.
 ///
@@ -131,7 +133,7 @@ impl Button {
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.on_press = Some(Box::new(handler));
+        self.on_press = Some(std::sync::Arc::new(handler));
         self
     }
 }
@@ -433,6 +435,11 @@ impl RenderOnce for Button {
 
         if let Some(on_press) = self.on_press {
             if interactive {
+                // gpui fires a *focused* element's click listeners on Enter and
+                // Space with `ClickEvent::Keyboard`, which is React Aria's press
+                // exactly -- so this one binding answers the pointer and the
+                // keyboard, and the focus handle above is what switched the
+                // second half on.
                 el = el.on_click(move |ev: &ClickEvent, window, cx| on_press(ev, window, cx));
             }
         }

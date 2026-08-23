@@ -68,7 +68,8 @@ impl OtpState {
         Self {
             cells: vec![' '; length.max(1)],
             cursor: 0,
-            focus_handle: cx.focus_handle(),
+            // A field is a tab stop: the handle carries that, not the element.
+            focus_handle: cx.focus_handle().tab_stop(true),
         }
     }
 

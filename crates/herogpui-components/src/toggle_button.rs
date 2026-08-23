@@ -41,8 +41,12 @@ pub struct ToggleButton {
     group_edge: Option<(crate::button::GroupEdge, bool)>,
     is_disabled: bool,
     children: Vec<AnyElement>,
-    on_press: Option<Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>,
-    on_change: Option<Box<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
+    /// `Arc` for the same reason as `on_change`: the pointer and the keyboard
+    /// each hold it.
+    on_press: Option<std::sync::Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>,
+    /// `Arc` rather than `Box`: the handler is bound twice, once for the
+    /// pointer and once for Enter and Space.
+    on_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
 }
 
 impl ToggleButton {
@@ -134,12 +138,12 @@ impl ToggleButton {
     ///
     /// Fires alongside [`ToggleButton::on_press`]; use whichever shape suits.
     pub fn on_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
-        self.on_change = Some(Box::new(f));
+        self.on_change = Some(std::sync::Arc::new(f));
         self
     }
 
     pub fn on_press(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
-        self.on_press = Some(Box::new(f));
+        self.on_press = Some(std::sync::Arc::new(f));
         self
     }
 }

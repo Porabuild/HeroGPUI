@@ -215,7 +215,7 @@ impl RenderOnce for Slider {
         let focus_handle = window.use_keyed_state(
             gpui::ElementId::Name(format!("{:?}-focus", self.id).into()),
             cx,
-            |_, cx| cx.focus_handle(),
+            |_, cx| cx.focus_handle().tab_stop(true),
         );
         let focus_handle = focus_handle.read(cx).clone();
         let active_thumb = window.use_keyed_state(

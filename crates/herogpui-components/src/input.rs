@@ -32,7 +32,8 @@ impl InputState {
             value: String::new(),
             cursor: 0,
             anchor: None,
-            focus_handle: cx.focus_handle(),
+            // A field is a tab stop: the handle carries that, not the element.
+            focus_handle: cx.focus_handle().tab_stop(true),
             name: None,
             validation_behavior: crate::form::ValidationBehavior::Native,
         }

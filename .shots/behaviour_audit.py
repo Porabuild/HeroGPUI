@@ -53,6 +53,15 @@ CLAIMS = [
     (r'Full keyboard navigation support(?!\s*\()', 'arrows'),
 ]
 
+# A component that documents `onPress` promises keyboard activation, because a
+# React Aria `PressEvent` is mouse, touch *and* keyboard -- gpui's `on_click` is
+# the pointer alone. This claim is derived from the prop tables rather than the
+# prose, which is why it is built rather than listed.
+def activation_claims():
+    import api_audit
+    return {comp for comp in api_audit.FILES if 'onPress' in api_audit.props_for(comp)}
+
+
 # (component, claim) -> (module, a pattern that must appear in it).
 #
 # The pattern names the code that implements the behaviour, so a rewrite that
@@ -87,6 +96,17 @@ EVIDENCE = {
     ('Drawer', 'focus-trap'): ('drawer.rs', r'track_focus'),
     ('AlertDialog', 'focus-trap'): ('alert_dialog.rs', r'track_focus'),
     ('Breadcrumbs', 'arrows'): ('breadcrumbs.rs', r'on_click'),
+    # `onPress` is a press, not a click: Enter and Space run the same handler.
+    # gpui does that itself -- a *focused* element's click listeners fire with
+    # `ClickEvent::Keyboard` -- so the evidence is the focus handle, which is
+    # what the element was missing. Binding the handler again fires it twice.
+    ('Accordion', 'activation'): ('accordion.rs', r'tab_stop_handle'),
+    ('Button', 'activation'): ('button.rs', r'tab_stop_handle'),
+    ('CloseButton', 'activation'): ('close_button.rs', r'tab_stop_handle'),
+    ('Link', 'activation'): ('link.rs', r'tab_stop_handle'),
+    ('Pagination', 'activation'): ('pagination.rs', r'tab_stop_handle'),
+    ('Switch', 'activation'): ('switch.rs', r'tab_stop_handle'),
+    ('ToggleButton', 'activation'): ('toggle_button.rs', r'tab_stop_handle'),
 }
 
 # Documented behaviour this port does not implement, with the reason.
@@ -129,6 +149,20 @@ def main():
     claimed = implemented = excused = 0
     missing, unmapped = [], []
     by_reason = {}
+
+    # The derived claim first, so its numbers land in the same totals.
+    for page in sorted(activation_claims()):
+        key = (page, 'activation')
+        claimed += 1
+        module, evidence = EVIDENCE[key]
+        if module not in sources:
+            path = SRC + module
+            sources[module] = (io.open(path, encoding='utf-8', errors='replace').read()
+                               if os.path.exists(path) else '')
+        if re.search(evidence, sources[module]):
+            implemented += 1
+        else:
+            missing.append('%-14s %-14s %s: /%s/' % (page, 'activation', module, evidence))
 
     for page, prose in sorted(sections.items()):
         for pattern, claim in CLAIMS:

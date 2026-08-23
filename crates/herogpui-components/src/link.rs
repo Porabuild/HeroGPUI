@@ -10,7 +10,9 @@ use gpui::{
 };
 use herogpui_theme::ActiveTheme;
 
-type OnPress = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+/// A press handler. `Arc` rather than `Box` because it is bound twice: the
+/// pointer's `on_click` and the keyboard's Enter/Space both run it.
+type OnPress = std::sync::Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
 /// HeroUI Link.
 #[derive(IntoElement)]
@@ -85,7 +87,7 @@ impl Link {
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.on_press = Some(Box::new(handler));
+        self.on_press = Some(std::sync::Arc::new(handler));
         self
     }
 }

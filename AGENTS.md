@@ -609,6 +609,14 @@ v2 concepts that must **not** come back:
     lands on it. `shadow()` *replaces* the list, so a ring on an element that
     already casts one (a field, a checkbox) has to be appended --
     `util::with_focus_ring` takes the base list for that reason.
+  - **gpui already activates a focused element on Enter and Space.** When an
+    element with click listeners holds the focus, gpui fires them with
+    `ClickEvent::Keyboard` -- which is React Aria's press exactly, mouse, touch
+    and keyboard in one handler. A helper that bound Enter to the same handler
+    fired everything twice (a switch flipped and flipped back). The corollary
+    bites the other way too: an element that has *both* a click listener and its
+    own Enter handling does the thing twice, which is why the Select trigger
+    keeps only the arrows and lets the click own the open and close.
   - **A tab stop comes from the handle, not the element.** `.tab_index(0)`
     configures a handle the element creates for itself, which a component that
     reads its own focus state cannot use; `util::tab_stop_handle` marks the

@@ -861,7 +861,7 @@ impl RenderOnce for ColorSlider {
         let focus_handle = window.use_keyed_state(
             ElementId::Name(format!("{:?}-slider-focus", self.id).into()),
             cx,
-            |_, cx| cx.focus_handle(),
+            |_, cx| cx.focus_handle().tab_stop(true),
         );
         let focus_handle = focus_handle.read(cx).clone();
         let colors = cx.colors();

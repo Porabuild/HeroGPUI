@@ -231,7 +231,7 @@ impl RenderOnce for Menu {
         let focus_handle = window.use_keyed_state(
             gpui::ElementId::Name(format!("{base}-focus").into()),
             cx,
-            |_, cx| cx.focus_handle(),
+            |_, cx| cx.focus_handle().tab_stop(true),
         );
         let focus_handle = focus_handle.read(cx).clone();
         let cursor = window.use_keyed_state(

@@ -320,7 +320,7 @@ impl RenderOnce for Select {
         let focus_handle = window.use_keyed_state(
             el_name(format!("select-{}-focus", id_debug(&self.id))),
             cx,
-            |_, cx| cx.focus_handle(),
+            |_, cx| cx.focus_handle().tab_stop(true),
         );
         let focus_handle = focus_handle.read(cx).clone();
         let cursor = window.use_keyed_state(
@@ -405,8 +405,12 @@ impl RenderOnce for Select {
                 .on_key_down(move |event, window, cx| {
                     let key = event.keystroke.key.as_str();
                     if !was_open {
-                        // Closed: Down, Up and Enter all open the list.
-                        if matches!(key, "down" | "up" | "enter" | "space") {
+                        // Closed: Down and Up open the list. Enter and Space are
+                        // *not* handled here -- the trigger has a click listener
+                        // and gpui fires those on Enter and Space for a focused
+                        // element, so handling them again would open and close
+                        // the list in one keystroke.
+                        if matches!(key, "down" | "up") {
                             if let Some(held) = &open_own_keys {
                                 held.update(cx, |v, cx| {
                                     *v = true;
@@ -454,6 +458,10 @@ impl RenderOnce for Select {
                             });
                         }
                         crate::list_nav::Move::Activate => {
+                            // Take the selection only. Closing is the trigger's
+                            // click listener, which gpui fires from the same
+                            // keystroke -- doing it here as well would toggle the
+                            // list back open.
                             let Some(index) = from else { return };
                             if let Some(held) = &value_own_keys {
                                 held.update(cx, |v, cx| {
@@ -461,17 +469,8 @@ impl RenderOnce for Select {
                                     cx.notify();
                                 });
                             }
-                            if let Some(held) = &open_own_keys {
-                                held.update(cx, |v, cx| {
-                                    *v = false;
-                                    cx.notify();
-                                });
-                            }
                             if let Some(cb) = &on_select {
                                 cb(Some(index), window, cx);
-                            }
-                            if let Some(cb) = &on_open_change {
-                                cb(false, window, cx);
                             }
                         }
                         crate::list_nav::Move::Ignore => {
