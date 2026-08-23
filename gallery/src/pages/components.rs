@@ -184,6 +184,26 @@ fn virtual_users() -> Vec<h::ListBoxItem> {
         .collect()
 }
 
+/// The same thousand users, but every third row carries a description and a
+/// section header lands every hundred -- rows of three different heights, which
+/// is what `estimated_row_height` virtualizes.
+fn virtual_users_described() -> Vec<h::ListBoxItem> {
+    let mut items = Vec::with_capacity(1010);
+    for i in 0..1000 {
+        if i % 100 == 0 {
+            items.push(h::ListBoxItem::section(format!("Batch {}", i / 100 + 1)));
+        }
+        let (name, email) = virtual_user(i);
+        let item = h::ListBoxItem::new(format!("user-{i}"), name);
+        items.push(if i % 3 == 0 {
+            item.description(email)
+        } else {
+            item
+        });
+    }
+    items
+}
+
 /// Adapter: turn a `cx.listener` over `&bool` into a `Fn(bool, ..)` callback.
 fn bool_cb(
     l: impl Fn(&bool, &mut gpui::Window, &mut gpui::App) + 'static,
@@ -1355,6 +1375,22 @@ impl Gallery {
                                 h::ListBox::new("lb-virtual", virtual_users())
                                     .selection_mode(SelectionMode::None)
                                     .row_height(px(50.))
+                                    .max_h(px(400.)),
+                            )
+                            .into_any_element(),
+                        para(
+                            "`estimated_row_height` is the other half: rows that are \
+                             *not* all one height, measured as they are built. Every \
+                             third row here carries a description, so it is taller.",
+                            cx,
+                        ),
+                        gpui::div()
+                            .w(px(300.))
+                            .child(
+                                h::ListBox::new("lb-virtual-var", virtual_users_described())
+                                    .selection_mode(SelectionMode::None)
+                                    .estimated_row_height(px(44.))
+                                    .heading_height(px(28.))
                                     .max_h(px(400.)),
                             )
                             .into_any_element(),
@@ -3111,6 +3147,38 @@ impl Gallery {
                                     gpui::div().child(name).into_any_element(),
                                     gpui::div().child(email).into_any_element(),
                                 ])
+                            })
+                            .into_any_element(),
+                        para(
+                            "`estimated_row_height` virtualizes rows that differ: gpui's \
+                             `list` measures each one it builds, and `loader_height` \
+                             fixes the load-more row underneath.",
+                            cx,
+                        ),
+                        h::Table::new(vec![])
+                            .id("tbl-virtual-var")
+                            .column(h::TableColumn::new("Name").is_row_header(true))
+                            .column("Email")
+                            .estimated_row_height(px(44.))
+                            .loader_height(px(44.))
+                            .max_h(px(320.))
+                            .is_pending(true)
+                            .virtual_rows(1000, |i| {
+                                let (name, email) = virtual_user(i);
+                                let mut cells = vec![gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .child(name)
+                                    .when(i % 3 == 0, |el| {
+                                        el.child(
+                                            gpui::div()
+                                                .text_size(px(12.))
+                                                .child("Signed up this week"),
+                                        )
+                                    })
+                                    .into_any_element()];
+                                cells.push(gpui::div().child(email).into_any_element());
+                                h::TableRow::new(cells)
                             })
                             .into_any_element(),
                     ]),

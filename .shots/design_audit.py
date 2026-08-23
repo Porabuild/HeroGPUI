@@ -538,7 +538,7 @@ CHECKS = [
     ('table', '.table__load-more-content', 'gap', 'Table load-more gap', SRC + 'table.rs',
      r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)[\s\S]{0,40}?\.w_full\(\)[\s\S]{0,40}?//', None),
     ('table', '.table__load-more-content', 'py', 'Table load-more py', SRC + 'table.rs',
-     r'`\.table__load-more-content` is `gap-2 py-2`\.[\s\S]{0,40}?\.py\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.table__load-more-content` is `gap-2 py-2`[\s\S]{0,160}?\.py\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('pagination', '.pagination__content', 'gap', 'Pagination row gap',
      SRC + 'pagination.rs',
      r'is `gap-1`[\s\S]{0,120}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),

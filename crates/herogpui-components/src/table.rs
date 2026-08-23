@@ -252,6 +252,11 @@ pub struct Table {
     /// virtualizes the body: a fixed row height is what lets the scroll geometry
     /// be computed rather than laid out.
     row_height: Option<Pixels>,
+    /// `TableLayout`'s `estimatedRowHeight` — virtualizes rows whose heights
+    /// differ, where `rowHeight` needs them all the same.
+    estimated_row_height: Option<Pixels>,
+    /// `TableLayout`'s `loaderHeight` — the fixed height of the load-more row.
+    loader_height: Option<Pixels>,
     /// How tall the virtual body is. v3 sets it with a `className`.
     max_h: Option<Pixels>,
     /// `TableLayout`'s `gap` and `padding`, both 0 in v3: rows meet, separated
@@ -287,6 +292,8 @@ impl Table {
             expanded_keys: Vec::new(),
             on_expanded_change: None,
             row_height: None,
+            estimated_row_height: None,
+            loader_height: None,
             max_h: None,
             gap: None,
             padding: None,
@@ -382,6 +389,24 @@ impl Table {
     /// `AnyElement`, which is built once and consumed once, so a virtual table
     /// cannot be handed its rows up front -- it has to be able to ask again
     /// every time the viewport moves.
+    /// `TableLayout`'s `estimatedRowHeight` — virtualize rows that are not all
+    /// one height.
+    ///
+    /// `rowHeight` maps to `uniform_list`, which measures one row and multiplies;
+    /// this maps to gpui's `list`, which measures every row it builds. The
+    /// estimate is what it renders beyond the viewport while it learns the real
+    /// heights.
+    pub fn estimated_row_height(mut self, height: impl Into<Pixels>) -> Self {
+        self.estimated_row_height = Some(height.into());
+        self
+    }
+
+    /// `TableLayout`'s `loaderHeight` — the height of the load-more row.
+    pub fn loader_height(mut self, height: impl Into<Pixels>) -> Self {
+        self.loader_height = Some(height.into());
+        self
+    }
+
     pub fn virtual_rows(mut self, count: usize, row: impl Fn(usize) -> TableRow + 'static) -> Self {
         self.virtual_rows = Some((count, std::sync::Arc::new(row)));
         self
@@ -972,11 +997,45 @@ impl RenderOnce for Table {
         }
 
         let row_count = match &self.virtual_rows {
-            Some((count, _)) if self.row_height.is_some() => *count,
+            Some((count, _))
+                if self.row_height.is_some() || self.estimated_row_height.is_some() =>
+            {
+                *count
+            }
             _ => flat.len(),
         };
 
-        if let (Some(row_height), Some((count, factory))) =
+        // `estimatedRowHeight` takes the variable-height path: gpui's `list`
+        // measures each row it builds, and its state is intrusive, so it lives in
+        // the window's keyed store and resets when the count changes.
+        if let (Some(estimate), Some((count, factory))) =
+            (self.estimated_row_height, self.virtual_rows.clone())
+        {
+            let height = self.max_h.unwrap_or(px(400.));
+            let state = window
+                .use_keyed_state(
+                    gpui::ElementId::Name(format!("{}-list-state", self.id).into()),
+                    cx,
+                    move |_, _| {
+                        gpui::ListState::new(count, gpui::ListAlignment::Top, estimate * 3.)
+                    },
+                )
+                .read(cx)
+                .clone();
+            if state.item_count() != count {
+                state.reset(count);
+            }
+            let rows = ctx.clone();
+            body = body.child(
+                gpui::list(state, move |i, _window, cx| {
+                    let row_data = factory(i);
+                    let key = row_data.selection_key(i);
+                    rows.row(i, row_data, 0, false, &key, None, cx)
+                })
+                .h(height)
+                .w_full(),
+            );
+        } else if let (Some(row_height), Some((count, factory))) =
             (self.row_height, self.virtual_rows.clone())
         {
             // The body scrolls inside `uniform_list`, which asks for the rows the
@@ -1035,8 +1094,10 @@ impl RenderOnce for Table {
                 .justify_center()
                 .gap(px(8.))
                 .w_full()
-                // `.table__load-more-content` is `gap-2 py-2`.
+                // `.table__load-more-content` is `gap-2 py-2`; `loaderHeight`
+                // fixes the row's height instead when the caller sets it.
                 .py(px(8.))
+                .when_some(self.loader_height, |el, h| el.h(h))
                 .text_size(px(13.))
                 .text_color(muted);
 
@@ -1134,7 +1195,12 @@ impl RowCtx {
         let mut row = gpui::div()
             .id(gpui::ElementId::Name(format!("{}-row-{i}", self.id).into()))
             .flex()
-            .when_some(fixed_h, |e, h| e.h(h).w_full())
+            // A virtual row is laid out on its own, so it takes the width it is
+            // *given*: without `w_full` the columns bunch at the left edge. That
+            // is true of both virtual paths, so it is not conditional on the
+            // fixed height any more -- `gpui::list`'s rows have none.
+            .w_full()
+            .when_some(fixed_h, |e, h| e.h(h))
             .border_b_1()
             .border_color(colors.separator);
 

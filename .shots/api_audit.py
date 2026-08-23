@@ -135,16 +135,20 @@ WONT_PORT = {
     # its own uncontrolled seed (`InputState::with_value`).
     'ComboBox.defaultSelectedKey': 'state-entity-seeds-it',
    
-    # `ListLayout`/`TableLayout` describe a virtualizer that computes scroll
-    # geometry from numbers it is given in advance. gpui's `uniform_list` takes
-    # exactly one -- `rowHeight`, which both components accept -- and gives every
-    # row that height, headings and loaders included. There is no second number
-    # to accept, and an estimate has nothing to estimate: the rows are uniform by
-    # construction.
-    'estimatedRowHeight': 'uniform-rows-only',
-    'estimatedHeadingHeight': 'uniform-rows-only',
-    'headingHeight': 'uniform-rows-only',
-    'loaderHeight': 'uniform-rows-only',
+    # `ListLayout`/`TableLayout` describe a virtualizer told its geometry in
+    # advance. gpui has two: `uniform_list` takes one height and gives it to every
+    # row (`rowHeight`), and `list` measures each row it builds -- which is what
+    # `estimatedRowHeight` selects, on both components. What is left is about the
+    # rows this port does not have rather than about the virtualizer:
+    #
+    # * A section header here is one line of text, so there is no *variable*
+    #   heading height to estimate.
+    # * `Table` has no section rows at all -- its groups are expandable rows --
+    #   so `headingHeight` has nothing to size; `ListBox` accepts it.
+    # * `Table`'s load-more row takes `loaderHeight`; `ListBox` has no loader.
+    'estimatedHeadingHeight': 'single-line-headings',
+    'Table.headingHeight': 'no-section-rows',
+    'ListBox.loaderHeight': 'no-loader-row',
     # The drop indicator belongs to React Aria's drag-and-drop, which this port
     # does not implement: no list here reorders by dragging, so there is no
     # indicator to give a thickness to.

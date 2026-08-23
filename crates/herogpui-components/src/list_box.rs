@@ -139,6 +139,12 @@ pub struct ListBox {
     /// `ListLayout`'s `rowHeight`. Setting it virtualizes the list: a fixed row
     /// height is what lets the geometry be computed instead of laid out.
     row_height: Option<gpui::Pixels>,
+    /// `ListLayout`'s `estimatedRowHeight` — the estimate that virtualizes a
+    /// list whose rows are *not* all one height.
+    estimated_row_height: Option<gpui::Pixels>,
+    /// `ListLayout`'s `headingHeight` — a section row's height when the list is
+    /// virtual.
+    heading_height: Option<gpui::Pixels>,
     /// `ListLayout`'s `gap` and `padding`, which override the stylesheet's.
     gap: gpui::Pixels,
     padding: gpui::Pixels,
@@ -160,6 +166,8 @@ impl ListBox {
             variant: ListBoxItemVariant::Default,
             should_focus_wrap: false,
             row_height: None,
+            estimated_row_height: None,
+            heading_height: None,
             // `.list-box` is `p-1` with `mt-1` between children.
             gap: px(4.),
             padding: px(4.),
@@ -217,6 +225,26 @@ impl ListBox {
     /// that because every row is this tall.
     pub fn row_height(mut self, h: impl Into<gpui::Pixels>) -> Self {
         self.row_height = Some(h.into());
+        self
+    }
+
+    /// `ListLayout`'s `estimatedRowHeight` — virtualize rows that are *not* all
+    /// the same height.
+    ///
+    /// `rowHeight` maps to `uniform_list`, which measures one row and multiplies;
+    /// this maps to gpui's `list`, which measures each row it builds and keeps a
+    /// running total, so a described row and a plain one can differ. The estimate
+    /// is what it renders beyond the viewport (`overdraw`) while it learns the
+    /// real heights.
+    pub fn estimated_row_height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.estimated_row_height = Some(h.into());
+        self
+    }
+
+    /// `ListLayout`'s `headingHeight` — how tall a section row is in a virtual
+    /// list, where a row cannot size itself.
+    pub fn heading_height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.heading_height = Some(h.into());
         self
     }
 
@@ -289,6 +317,18 @@ impl RenderOnce for ListBox {
             cx,
             |_, _| gpui::ScrollHandle::new(),
         );
+        // `gpui::list`'s state is intrusive -- the caller holds it -- so a
+        // variable-height list keeps one here, seeded with the item count and
+        // the estimate it overdraws by.
+        let list_state = {
+            let count = self.items.len();
+            let overdraw = self.estimated_row_height.unwrap_or(px(36.)) * 3.;
+            window.use_keyed_state(
+                ElementId::Name(format!("{base}-list-state").into()),
+                cx,
+                move |_, _| gpui::ListState::new(count, gpui::ListAlignment::Top, overdraw),
+            )
+        };
         let list_scroll_now = list_scroll.read(cx).clone();
         let box_scroll_now = box_scroll.read(cx).clone();
         // The letters typed so far. A search that reset every frame could only
@@ -453,6 +493,30 @@ impl RenderOnce for ListBox {
         // shows are built, which is what makes a thousand of them affordable.
         // `uniform_list` measures row 0 and multiplies, so the row builder is
         // told the height rather than left to size itself.
+        // `estimatedRowHeight` virtualizes a list whose rows differ: gpui's
+        // `list` measures each row it builds, where `uniform_list` measures one
+        // and multiplies. Its state is intrusive -- the caller has to hold it --
+        // so it lives in the window's keyed store, and a change in the item
+        // count resets it.
+        if self.estimated_row_height.is_some() {
+            let height = self.max_h.unwrap_or(px(400.));
+            let count = self.items.len();
+            let rows = std::rc::Rc::new(self);
+            let state = list_state.read(cx).clone();
+            if state.item_count() != count {
+                state.reset(count);
+            }
+            return list
+                .child(
+                    gpui::list(state, move |index, _window, cx| {
+                        rows.row(index, cursor_at, None, cx)
+                    })
+                    .h(height)
+                    .w_full(),
+                )
+                .into_any_element();
+        }
+
         if let Some(row_height) = self.row_height {
             let height = self.max_h.unwrap_or(px(400.));
             let list_id = self.id.clone();
@@ -518,6 +582,7 @@ impl ListBox {
             .into_any_element(),
             ListBoxItem::Section(label) => sized(
                 div()
+                    .when_some(self.heading_height, |el, h| el.h(h))
                     .px(px(8.))
                     .pt(px(6.))
                     .pb(px(4.))
