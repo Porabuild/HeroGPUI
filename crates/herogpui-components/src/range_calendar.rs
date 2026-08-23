@@ -389,7 +389,8 @@ impl RangeCalendar {
                 div()
                     .w(px(38.))
                     .text_center()
-                    .text_size(px(11.))
+                    // `.range-calendar__header-cell` is `text-xs`.
+                    .text_size(px(12.))
                     .text_color(muted)
                     .child(label),
             );
@@ -591,14 +592,18 @@ impl RenderOnce for RangeCalendar {
                 .flex()
                 .items_center()
                 .justify_center()
-                .size(px(28.))
-                .rounded(util::control_radius(cx))
+                // `.range-calendar__nav-button` is `size-6 rounded-xl` -- one
+                // radius step tighter than the single calendar's, which is
+                // `rounded-2xl`.
+                .size(px(24.))
+                .rounded(util::small_radius(cx))
                 .cursor_pointer()
                 .text_color(colors.muted)
                 .hover(move |s| s.bg(hover_bg))
                 .child(
                     gpui::svg()
-                        .size(px(14.))
+                        // `.range-calendar__nav-button-icon` is `size-4`.
+                        .size(px(16.))
                         .path(icon)
                         .text_color(colors.muted),
                 )

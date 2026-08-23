@@ -989,7 +989,11 @@ impl RenderOnce for Input {
         let accent = colors.accent;
         let focused = focus_handle.is_focused(window);
 
-        let (h, text) = (px(40.), px(14.));
+        // Every v3 field is one box: `.input` is `px-3 py-2 text-sm`, which is
+        // 36px tall, and its siblings say so outright (`.input-group` and
+        // `.search-field__group` are `min-h-9`, `.number-field__group` is `h-9`).
+        // This was 40, so every field in the port stood 4px taller than v3's.
+        let (h, text) = (crate::util::FIELD_HEIGHT, crate::util::FIELD_TEXT);
 
         // v3 order: the controlled flag, then server errors, then `validate`,
         // with `errorMessage` as the fallback.

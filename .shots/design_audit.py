@@ -79,8 +79,18 @@ def helper_px(name):
 
 
 def SIZE_XL(name):
-    """`SizeXl` variant -> pixels, matching `SizeXl::px`."""
-    return {'Xs': 16.0, 'Sm': 20.0, 'Md': 24.0, 'Lg': 32.0, 'Xl': 40.0}.get(name)
+    """`SizeXl` variant -> pixels, matching `SizeXl::swatch_px`.
+
+    Read out of the enum rather than restated, since that is the mapping under
+    test: a shared 16/20/24/32/40 scale matched neither of v3's two sheets.
+    """
+    src = io.open(CORE, encoding='utf-8').read()
+    body = re.search(r'pub fn swatch_px\(self\) -> gpui::Pixels \{([\s\S]*?)\n    \}', src)
+    if not body:
+        return None
+    m = re.search(r'SizeXl::' + re.escape(name) + r'(?: \| SizeXl::\w+)? => gpui::px\(([0-9.]+)\)',
+                  body.group(1))
+    return float(m.group(1)) if m else None
 
 
 # (css file, rule selector, metric, our label, our file, regex, transform)
@@ -88,6 +98,181 @@ def SIZE_XL(name):
 # The regex must capture our value in group 1, or the transform turns the match
 # into one. `None` means "parse group 1 as a float".
 CHECKS = [
+    ('calendar-year-picker', '.calendar-year-picker__year-grid', 'gap',
+     'Year grid gap', SRC + 'calendar.rs',
+     r'`\.calendar-year-picker__year-grid` is `gap-1 p-1`\.[\s\S]{0,80}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('calendar-year-picker', '.calendar-year-picker__year-grid', 'p',
+     'Year grid padding', SRC + 'calendar.rs',
+     r'`gap-1 p-1`\.[\s\S]{0,120}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('calendar-year-picker', '.calendar-year-picker__year-cell', 'h',
+     'Year cell height', SRC + 'calendar.rs',
+     r'`h-8 px-2\.5[\s\S]{0,120}?\.h\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('calendar-year-picker', '.calendar-year-picker__year-cell', 'px',
+     'Year cell px', SRC + 'calendar.rs',
+     r'`h-8 px-2\.5[\s\S]{0,160}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('calendar-year-picker', '.calendar-year-picker__year-cell', 'text',
+     'Year cell text', SRC + 'calendar.rs',
+     r'`h-8 px-2\.5[\s\S]{0,320}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('autocomplete', '.autocomplete__trigger', 'min_h', 'autocomplete height',
+     SRC + 'autocomplete.rs',
+     r'\.min_h\(util::(FIELD_HEIGHT)\)', lambda _: 36.0),
+    ('search-field', '.search-field__group', 'h', 'search-field height',
+     SRC + 'input.rs',
+     r'let \(h, text\) = \(crate::util::(FIELD_HEIGHT)', lambda _: 36.0),
+    ('color-input-group', '.color-input-group', 'h', 'color-input-group height',
+     SRC + 'color_picker.rs',
+     r'\.h\(util::(FIELD_HEIGHT)\)', lambda _: 36.0),
+    ('autocomplete', '.autocomplete__trigger', 'radius', 'autocomplete radius -> field_radius',
+     SRC + 'util.rs',
+     r'pub fn (field_radius)', helper_px),
+    ('search-field', '.search-field__group', 'radius', 'search-field radius -> field_radius',
+     SRC + 'util.rs',
+     r'pub fn (field_radius)', helper_px),
+    ('color-input-group', '.color-input-group', 'radius', 'color-input-group radius -> field_radius',
+     SRC + 'util.rs',
+     r'pub fn (field_radius)', helper_px),
+    ('date-input-group', '.date-input-group', 'radius', 'date-input-group radius -> field_radius',
+     SRC + 'util.rs',
+     r'pub fn (field_radius)', helper_px),
+    ('select', '.select__trigger', 'radius', 'select radius -> field_radius',
+     SRC + 'util.rs',
+     r'pub fn (field_radius)', helper_px),
+    ('autocomplete', '.autocomplete__trigger', 'text', '.autocomplete__trigger text -> FIELD_TEXT',
+     SRC + 'autocomplete.rs',
+     r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('autocomplete', '.autocomplete__value', 'text', '.autocomplete__value text -> FIELD_TEXT',
+     SRC + 'autocomplete.rs',
+     r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('select', '.select__trigger', 'text', '.select__trigger text -> FIELD_TEXT',
+     SRC + 'select.rs',
+     r'let \(h, text\) = \(util::FIELD_HEIGHT, util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('select', '.select__value', 'text', '.select__value text -> FIELD_TEXT',
+     SRC + 'select.rs',
+     r'let \(h, text\) = \(util::FIELD_HEIGHT, util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('color-input-group', '.color-input-group', 'text', '.color-input-group text -> FIELD_TEXT',
+     SRC + 'color_picker.rs',
+     r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('date-input-group', '.date-input-group', 'text', '.date-input-group text -> FIELD_TEXT',
+     SRC + 'date_picker.rs',
+     r'\.text_size\(crate::util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('search-field', '.search-field__input', 'px', '.search-field__input px -> Input',
+     SRC + 'input.rs',
+     r'None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('color-input-group', '.color-input-group__input', 'px', '.color-input-group__input px -> Input',
+     SRC + 'input.rs',
+     r'None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('date-input-group', '.date-input-group__input', 'px', '.date-input-group__input px -> Input',
+     SRC + 'input.rs',
+     r'None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('number-field', '.number-field__input', 'px', '.number-field__input px -> Input',
+     SRC + 'input.rs',
+     r'None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('search-field', '.search-field__search-icon', 'size', 'SearchField icon -> FIELD_ICON',
+     SRC + 'input.rs',
+     r'\.size\(crate::util::(FIELD_ICON)\)', lambda _: 16.0),
+    # --- Avatar, Alert, Accordion, the swatches ---------------------------
+    ('avatar', '.avatar--sm', 'radius', 'Avatar Sm -> util::_radius', SRC + 'avatar.rs',
+     r'if self\.small [\s\S]{0,40}?crate::util::(\w+_radius)', helper_px),
+    ('avatar', '.avatar__fallback', 'text', 'Avatar fallback text', SRC + 'avatar.rs',
+     r'`\.avatar__fallback` is `text-sm`[\s\S]{0,80}?let font = px\((\d+(?:\.\d*)?)\.\)', None),
+    ('alert', '.alert__description', 'text', 'Alert description text', SRC + 'alert.rs',
+     r'`\.alert__description` is `text-sm`\.[\s\S]{0,40}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('accordion', '.accordion__indicator', 'size', 'Accordion indicator', SRC + 'accordion.rs',
+     r'`\.accordion__indicator` is `size-4`\.[\s\S]{0,40}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('color-swatch-picker', '.color-swatch-picker', 'gap', 'ColorSwatchPicker gap',
+     SRC + 'color_picker.rs',
+     r'let mut row = div\(\)\.flex\(\)\.flex_row\(\)\.items_center\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('input-otp', '.input-otp__separator', 'w', 'InputOTP separator width',
+     SRC + 'input_otp.rs',
+     r'group separator every 3 cells[\s\S]{0,200}?\.w\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('input-otp', '.input-otp__separator', 'h', 'InputOTP separator height',
+     SRC + 'input_otp.rs',
+     r'group separator every 3 cells[\s\S]{0,240}?\.h\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('input-otp', '.input-otp__separator', 'radius', 'InputOTP separator -> util::_radius',
+     SRC + 'input_otp.rs',
+     r'group separator every 3 cells[\s\S]{0,300}?\.rounded\(crate::util::(\w+_radius)', helper_px),
+    # --- The calendars ----------------------------------------------------
+    # The two calendars are not the same component twice: the range one's nav
+    # button is `rounded-xl` where the single one's is `rounded-2xl`.
+    ('calendar', '.calendar__nav-button', 'size', 'Calendar nav button', SRC + 'calendar.rs',
+     r'`size-6 rounded-2xl`\.[\s\S]{0,40}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('calendar', '.calendar__nav-button', 'radius', 'Calendar nav -> util::_radius',
+     SRC + 'calendar.rs',
+     r'`size-6 rounded-2xl`[\s\S]{0,80}?\.rounded\(crate::util::(\w+_radius)', helper_px),
+    ('calendar', '.calendar__nav-button-icon', 'size', 'Calendar nav icon', SRC + 'calendar.rs',
+     r'`\.calendar__nav-button-icon` is `size-4`\.[\s\S]{0,40}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('calendar', '.calendar__header-cell', 'text', 'Calendar header cell', SRC + 'calendar.rs',
+     r'`\.calendar__header-cell` is `text-xs`\.[\s\S]{0,40}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('calendar', '.calendar__cell', 'text', 'Calendar day cell text', SRC + 'calendar.rs',
+     r'Uniform circular hit area[\s\S]{0,260}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # `rounded-3xl` on a 36px box is clamped to a circle by any renderer, so
+    # `rounded_full` is the same pixels -- the equality only holds because the
+    # cell is smaller than twice the radius, which is why it is stated here.
+    ('calendar', '.calendar__cell', 'radius', 'Calendar day cell (circle == 3xl at 36px)',
+     SRC + 'calendar.rs',
+     r'Uniform circular hit area[\s\S]{0,260}?\.rounded_(full)\(\)', lambda _: 24.0),
+    ('calendar', '.calendar__cell-indicator', 'size', 'Calendar cell indicator',
+     SRC + 'calendar.rs',
+     r'smaller than any radius[\s\S]{0,120}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('calendar', '.calendar', 'w', 'Calendar width', SRC + 'calendar.rs',
+     r'CALENDAR_WIDTH: gpui::Pixels = px\((\d+(?:\.\d*)?)\.\)', None),
+    ('range-calendar', '.range-calendar__nav-button', 'size', 'RangeCalendar nav button',
+     SRC + 'range_calendar.rs',
+     r'is `size-6 rounded-xl`[\s\S]{0,200}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('range-calendar', '.range-calendar__nav-button', 'radius',
+     'RangeCalendar nav -> util::_radius', SRC + 'range_calendar.rs',
+     r'`size-6 rounded-xl`[\s\S]{0,200}?\.rounded\(util::(\w+_radius)', helper_px),
+    ('range-calendar', '.range-calendar__nav-button-icon', 'size', 'RangeCalendar nav icon',
+     SRC + 'range_calendar.rs',
+     r'`\.range-calendar__nav-button-icon` is `size-4`\.[\s\S]{0,40}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('range-calendar', '.range-calendar__header-cell', 'text', 'RangeCalendar header cell',
+     SRC + 'range_calendar.rs',
+     r'`\.range-calendar__header-cell` is `text-xs`\.[\s\S]{0,40}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # --- Tabs, Table, Pagination -----------------------------------------
+    ('tabs', '.tabs__list', 'p', 'Tabs list padding', SRC + 'tabs.rs',
+     r'list = list[\s\S]{0,40}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('tabs', '.tabs__tab', 'h', 'Tabs tab height', SRC + 'tabs.rs',
+     r'font-medium`\.[\s\S]{0,40}?\.h\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('tabs', '.tabs__tab', 'px', 'Tabs tab px', SRC + 'tabs.rs',
+     r'font-medium`\.[\s\S]{0,40}?\.h\(px\(32\.\)\)[\s\S]{0,40}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('tabs', '.tabs__tab', 'text', 'Tabs tab text', SRC + 'tabs.rs',
+     r'\.rounded\(crate::util::control_radius\(cx\)\)[\s\S]{0,40}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('tabs', '.tabs__tab', 'radius', 'Tabs tab -> util::_radius', SRC + 'tabs.rs',
+     r'\.justify_center\(\)[\s\S]{0,40}?\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('tabs', '.tabs__panel', 'p', 'Tabs panel padding', SRC + 'tabs.rs',
+     r'`\.tabs__panel` is `w-full p-2`\.[\s\S]{0,40}?el = el\.child\(gpui::div\(\)\.w_full\(\)\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('table', '.table__column', 'px', 'Table header px', SRC + 'table.rs',
+     r'`\.table__column` is `px-4 py-2\.5 text-xs`\.[\s\S]{0,40}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('table', '.table__column', 'py', 'Table header py', SRC + 'table.rs',
+     r'`\.table__column` is[\s\S]{0,80}?\.py\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('table', '.table__column', 'text', 'Table header text', SRC + 'table.rs',
+     r'`\.table__column` is[\s\S]{0,120}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('table', '.table__cell', 'px', 'Table cell px', SRC + 'table.rs',
+     r'`\.table__cell` is `px-4 py-3`\.[\s\S]{0,40}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('table', '.table__cell', 'py', 'Table cell py', SRC + 'table.rs',
+     r'`\.table__cell` is[\s\S]{0,80}?\.py\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('table', '.table__content', 'text', 'Table text', SRC + 'table.rs',
+     r'let mut table = gpui::div\([\s\S]{0,80}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('table', '.table__column-resizer', 'h', 'Table resizer line height', SRC + 'table.rs',
+     r'\.w\(px\(1\.\)\)[\s\S]{0,40}?\.h\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('table', '.table__column-resizer', 'radius', 'Table resizer -> util::_radius',
+     SRC + 'table.rs',
+     r'\.h\(px\(16\.\)\)[\s\S]{0,40}?\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('table', '.table__load-more-content', 'gap', 'Table load-more gap', SRC + 'table.rs',
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)[\s\S]{0,40}?\.w_full\(\)[\s\S]{0,40}?//', None),
+    ('table', '.table__load-more-content', 'py', 'Table load-more py', SRC + 'table.rs',
+     r'`\.table__load-more-content` is `gap-2 py-2`\.[\s\S]{0,40}?\.py\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('pagination', '.pagination__content', 'gap', 'Pagination row gap',
+     SRC + 'pagination.rs',
+     r'is `gap-1`[\s\S]{0,120}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('pagination', '.pagination__link', 'size', 'Pagination cell Md', SRC + 'pagination.rs',
+     r'Size::Md => px\((\d+(?:\.\d*)?)\.\)', None),
+    ('pagination', '.pagination__link--nav', 'gap', 'Pagination nav gap',
+     SRC + 'pagination.rs',
+     r'`w-auto gap-1\.5 px-2\.5`[\s\S]{0,120}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('pagination', '.pagination__link--nav', 'px', 'Pagination nav px',
+     SRC + 'pagination.rs',
+     r'`w-auto gap-1\.5 px-2\.5`[\s\S]{0,160}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     # --- Chip -------------------------------------------------------------
     ('chip', '.chip', 'px', 'Chip Md px', SRC + 'chip.rs',
      r'Size::Md => \(px\((\d+(?:\.\d*)?)\.\)', None),
@@ -261,8 +446,9 @@ CHECKS = [
      r'SpinnerSize::Md => px\((\d+(?:\.\d*)?)\)', None),
     ('avatar', '.avatar', 'size', 'Avatar default size', SRC + 'avatar.rs',
      r'size_px: px\((\d+(?:\.\d*)?)\)', None),
-    ('avatar', '.avatar', 'radius', 'Avatar -> util::_radius', SRC + 'avatar.rs',
-     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('avatar', '.avatar', 'radius', 'Avatar Md/Lg -> util::_radius', SRC + 'avatar.rs',
+     r'if self\.small \{[\s\S]{0,120}?\} else \{[\s\S]{0,40}?crate::util::(\w+_radius)',
+     helper_px),
     ('close-button', '.close-button', 'h', 'CloseButton box', SRC + 'close_button.rs',
      r'let \(box_size, icon_size\) = \(px\((\d+(?:\.\d*)?)\)', None),
     ('kbd', '.kbd', 'h', 'Kbd height', SRC + 'kbd.rs',
@@ -291,8 +477,8 @@ CHECKS = [
      '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
     ('popover', '.popover__dialog', 'p', 'Popover padding', SRC + 'popover.rs',
      '\\.px\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)\\s+\\.py\\(px\\(16\\.\\)\\)', None),
-    ('pagination', '.pagination', 'gap', 'Pagination gap', SRC + 'pagination.rs',
-     'items_center\\(\\)\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
+    ('pagination', '.pagination', 'gap', 'Pagination root gap', SRC + 'pagination.rs',
+     r'\.justify_between\(\)[\s\S]{0,40}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('alert', '.alert', 'gap', 'Alert gap', SRC + 'alert.rs',
      '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
     ('alert', '.alert', 'px', 'Alert padding_x', SRC + 'alert.rs',
@@ -336,8 +522,8 @@ CHECKS = [
      'is_attached \\{ px\\(\\d+(?:\\.\\d*)?\\) \\} else \\{ px\\((\\d+(?:\\.\\d*)?)\\) \\}', None),
     ('toast', '.toast', 'gap', 'Toast gap', SRC + 'toast.rs',
      '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
-    ('tabs', '.tabs', 'gap', 'Tabs gap', SRC + 'tabs.rs',
-     '\\n                    \\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
+    ('tabs', '.tabs', 'gap', 'Tabs root gap', SRC + 'tabs.rs',
+     r'let mut el = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('progress-bar', '.progress-bar__track', 'radius', 'ProgressBar track', SRC + 'progress.rs',
      '\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
     ('checkbox', '.checkbox__content', 'gap', 'Checkbox row gap', SRC + 'checkbox.rs',
@@ -620,6 +806,11 @@ def coverage():
     """
     checked = {(c, sel, metric) for c, sel, metric, *_ in CHECKS}
     rows = []
+    # A declared *zero* is a reset, not a metric: `min-h-0`, `mt-0`, `p-0` and
+    # `rounded-none` say "no minimum", "no margin", "no padding", which is what
+    # an element that never sets them already does. Counting them as unchecked
+    # geometry would put 38 rows on the list that no code can satisfy or fail.
+    resets = 0
     for name in sorted(os.listdir(CACHE)):
         if not name.endswith('.css') or name in ('variables.css', 'utilities.css'):
             continue
@@ -632,6 +823,9 @@ def coverage():
             if body is None:
                 continue
             for metric, value in sorted(measure(body).items()):
+                if value == 0.0 and (comp, selector, metric) not in checked:
+                    resets += 1
+                    continue
                 rows.append((comp, selector, metric, value,
                              (comp, selector, metric) in checked))
     todo = [r for r in rows if not r[4]]
@@ -651,6 +845,7 @@ def coverage():
     print()
     print('metrics v3 declares : %d' % len(rows))
     print('compared by CHECKS  : %d' % (len(rows) - len(todo)))
+    print('declared resets     : %d  (a `-0` utility is not a metric)' % resets)
     print('UNCHECKED           : %d  (--all lists them)' % len(todo))
 
 

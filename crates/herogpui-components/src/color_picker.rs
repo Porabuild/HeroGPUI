@@ -391,8 +391,9 @@ impl ColorSwatch {
     pub fn new(color: PickerColor) -> Self {
         Self {
             color,
-            // `.color-swatch` is `size-8` (32px), which is `SizeXl::Lg`.
-            size: SizeXl::Lg,
+            // `.color-swatch` is `size-8` (32px), which is `SizeXl::Md` on v3's
+            // own swatch scale (16/24/32/36/40).
+            size: SizeXl::Md,
             shape: SwatchShape::Circle,
         }
     }
@@ -411,7 +412,7 @@ impl ColorSwatch {
 impl RenderOnce for ColorSwatch {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
-        let edge = self.size.px();
+        let edge = self.size.swatch_px();
         let radius = match self.shape {
             SwatchShape::Circle => px(f32::from(edge) / 2.),
             SwatchShape::Square => cx.layout().radius_md(),
@@ -1524,8 +1525,9 @@ impl ColorSwatchPicker {
             id: id.into(),
             swatches,
             value: None,
-            // `.color-swatch` is `size-8` (32px), which is `SizeXl::Lg`.
-            size: SizeXl::Lg,
+            // `.color-swatch` is `size-8` (32px), which is `SizeXl::Md` on v3's
+            // own swatch scale (16/24/32/36/40).
+            size: SizeXl::Md,
             shape: SwatchShape::Circle,
             layout: SwatchLayout::Grid,
             is_disabled: false,

@@ -285,13 +285,19 @@ pub enum SizeXl {
 impl SizeXl {
     pub const ALL: [SizeXl; 5] = [SizeXl::Xs, SizeXl::Sm, SizeXl::Md, SizeXl::Lg, SizeXl::Xl];
 
-    /// Square edge length: 16 / 20 / 24 / 32 / 40 px.
-    pub fn px(self) -> gpui::Pixels {
+    /// A colour swatch's edge: `size-4 / 6 / 8 / 9 / 10` from
+    /// `color-swatch.css`, so 16 / 24 / 32 / 36 / 40.
+    ///
+    /// Named for the component on purpose: v3 declares its sizes per sheet, and
+    /// a swatch's `sm` (24px) is not a spinner's (16px, and `Spinner` has its own
+    /// `SpinnerSize` for exactly that reason). The shared `px()` this replaces
+    /// was 16/20/24/32/40 and matched neither sheet.
+    pub fn swatch_px(self) -> gpui::Pixels {
         match self {
             SizeXl::Xs => gpui::px(16.0),
-            SizeXl::Sm => gpui::px(20.0),
-            SizeXl::Md => gpui::px(24.0),
-            SizeXl::Lg => gpui::px(32.0),
+            SizeXl::Sm => gpui::px(24.0),
+            SizeXl::Md => gpui::px(32.0),
+            SizeXl::Lg => gpui::px(36.0),
             SizeXl::Xl => gpui::px(40.0),
         }
     }

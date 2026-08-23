@@ -644,8 +644,11 @@ impl Calendar {
                     gpui::div()
                         .absolute()
                         .bottom(px(2.))
-                        .size(px(4.))
-                        .rounded_full()
+                        // `.calendar__cell-indicator` is `size-[3px]` with a
+                        // `rounded-[2px]` corner -- smaller than any radius
+                        // token, so the literal is v3's own.
+                        .size(px(3.))
+                        .rounded(px(2.))
                         .bg(if is_sel { accent.foreground } else { marker }),
                 )
             })
@@ -661,7 +664,8 @@ impl Calendar {
                 gpui::div()
                     .flex_1()
                     .text_center()
-                    .text_size(px(11.))
+                    // `.calendar__header-cell` is `text-xs`.
+                    .text_size(px(12.))
                     .text_color(muted)
                     .child(d.to_owned())
             }))
@@ -718,7 +722,8 @@ impl Calendar {
         let colors = cx.colors();
         let accent = colors.accent;
         let years = calendar_view::year_page(anchor.year, 12);
-        let mut grid = gpui::div().flex().flex_col().gap(px(4.));
+        // `.calendar-year-picker__year-grid` is `gap-1 p-1`.
+        let mut grid = gpui::div().flex().flex_col().gap(px(4.)).p(px(4.));
         for chunk in years.chunks(3) {
             let mut row = gpui::div().flex().gap(px(4.));
             for &year in chunk {
@@ -726,11 +731,14 @@ impl Calendar {
                 let mut cell = gpui::div()
                     .id(gpui::ElementId::Name(format!("{base}-y{year}").into()))
                     .flex_1()
-                    .h(px(38.))
+                    // `.calendar-year-picker__year-cell` is `h-8 px-2.5
+                    // rounded-3xl text-sm`.
+                    .h(px(32.))
+                    .px(px(10.))
                     .flex()
                     .items_center()
                     .justify_center()
-                    .text_size(px(13.))
+                    .text_size(px(14.))
                     .rounded(crate::util::control_radius(cx));
 
                 if is_current {
@@ -892,8 +900,9 @@ impl RenderOnce for Calendar {
                 .flex()
                 .items_center()
                 .justify_center()
-                .size(px(28.))
-                .rounded_full()
+                // `.calendar__nav-button` is `size-6 rounded-2xl`.
+                .size(px(24.))
+                .rounded(crate::util::soft_radius(cx))
                 .cursor_pointer()
                 .hover(move |s| s.bg(hover_bg))
                 .on_click(move |_, _, cx| {
@@ -904,7 +913,8 @@ impl RenderOnce for Calendar {
                 })
                 .child(
                     gpui::svg()
-                        .size(px(13.))
+                        // `.calendar__nav-button-icon` is `size-4`.
+                        .size(px(16.))
                         .path(icon_path)
                         .text_color(colors.foreground),
                 )

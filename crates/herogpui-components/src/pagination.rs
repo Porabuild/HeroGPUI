@@ -109,7 +109,8 @@ impl RenderOnce for Pagination {
         };
         let cell_text = self.size.text_size();
 
-        let mut row = gpui::div().flex().items_center().gap(px(16.));
+        // `.pagination__content` is `gap-1`, not the 16px this used to leave.
+        let mut row = gpui::div().flex().items_center().gap(px(4.));
 
         row = row.child(
             nav_button(
@@ -150,9 +151,10 @@ impl RenderOnce for Pagination {
                         .flex()
                         .items_center()
                         .justify_center()
+                        // `.pagination__link` is `size-8` from `md` up: a square
+                        // cell with no padding of its own.
                         .min_w(cell)
                         .h(cell)
-                        .px(px(6.))
                         .text_size(cell_text)
                         .rounded(crate::util::control_radius(cx))
                         .when(!self.is_disabled, |b| b.cursor_pointer());
@@ -214,9 +216,10 @@ impl RenderOnce for Pagination {
                             .flex()
                             .items_center()
                             .justify_center()
-                            .w(px(24.))
-                            .h(px(32.))
-                            .text_size(px(13.5))
+                            // `.pagination__ellipsis` is the same `size-8
+                            // text-sm` cell as a page link.
+                            .size(cell)
+                            .text_size(cell_text)
                             .text_color(colors.muted)
                             .child("…"),
                     );
@@ -250,7 +253,15 @@ impl RenderOnce for Pagination {
             }),
         );
 
-        row
+        // `.pagination` is the root: `flex w-full items-center justify-between
+        // gap-4` around the summary and the content. There is no summary here,
+        // so the root holds the one row -- but the gap is v3's, not the row's.
+        gpui::div()
+            .flex()
+            .items_center()
+            .justify_between()
+            .gap(px(16.))
+            .child(row)
     }
 }
 
@@ -286,7 +297,11 @@ fn nav_button(
         .flex()
         .items_center()
         .justify_center()
-        .size(cell)
+        // `.pagination__link--nav` is `w-auto gap-1.5 px-2.5`: the height of a
+        // page cell, but as wide as its content needs.
+        .h(cell)
+        .gap(px(6.))
+        .px(px(10.))
         .rounded(util_radius())
         .border_1()
         .border_color(border)

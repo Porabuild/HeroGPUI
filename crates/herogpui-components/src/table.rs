@@ -667,7 +667,8 @@ impl RenderOnce for Table {
                 .flex()
                 .items_center()
                 .gap(px(4.))
-                .px(px(12.))
+                // `.table__column` is `px-4 py-2.5 text-xs`.
+                .px(px(16.))
                 .py(px(10.))
                 .text_size(px(12.))
                 .font_weight(gpui::FontWeight::SEMIBOLD)
@@ -735,6 +736,8 @@ impl RenderOnce for Table {
             let cell = if column.allows_resizing {
                 let held = dragging.clone();
                 let start_width = effective.unwrap_or(px(160.));
+                let resizer_group: SharedString = format!("table-resizer-{column_index}").into();
+                let accent_color = colors.accent.color;
                 gpui::div()
                     .relative()
                     .when(effective.is_none(), flex_cell)
@@ -745,11 +748,29 @@ impl RenderOnce for Table {
                             .id(gpui::ElementId::Name(
                                 format!("table-resize-{column_index}").into(),
                             ))
+                            .group(resizer_group.clone())
                             .absolute()
                             .top(px(0.))
-                            .right(px(-2.))
-                            .w(px(5.))
+                            // `px-2` around a `w-px` line, `box-content`: an
+                            // 8px grab margin either side of the column edge.
+                            .right(px(-8.))
+                            .w(px(17.))
                             .h_full()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(
+                                // `h-4 w-px rounded-sm bg-separator`, and
+                                // `h-full w-0.5 bg-accent` while hovered.
+                                gpui::div()
+                                    .w(px(1.))
+                                    .h(px(16.))
+                                    .rounded(crate::util::hairline_radius(cx))
+                                    .bg(colors.separator)
+                                    .group_hover(resizer_group.clone(), |s| {
+                                        s.w(px(2.)).h_full().bg(accent_color)
+                                    }),
+                            )
                             .cursor(gpui::CursorStyle::ResizeLeftRight)
                             .on_mouse_down(gpui::MouseButton::Left, move |ev, _window, cx| {
                                 let x = f32::from(ev.position.x);
@@ -978,7 +999,8 @@ impl RenderOnce for Table {
                 .justify_center()
                 .gap(px(8.))
                 .w_full()
-                .py(px(12.))
+                // `.table__load-more-content` is `gap-2 py-2`.
+                .py(px(8.))
                 .text_size(px(13.))
                 .text_color(muted);
 
@@ -1105,8 +1127,9 @@ impl RowCtx {
                 .flex()
                 .items_center()
                 .gap(px(6.))
-                .px(px(12.))
-                .py(px(10.))
+                // `.table__cell` is `px-4 py-3`.
+                .px(px(16.))
+                .py(px(12.))
                 .when(row_header_columns.get(c).copied().unwrap_or(false), |e| {
                     e.font_weight(gpui::FontWeight::MEDIUM)
                 });

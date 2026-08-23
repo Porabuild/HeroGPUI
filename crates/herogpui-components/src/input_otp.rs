@@ -148,7 +148,7 @@ pub struct InputOTP {
     on_change: Option<std::sync::Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>>,
     state: Entity<OtpState>,
     is_disabled: bool,
-    separator: Option<SharedString>,
+    separator: bool,
     on_complete: Option<OnComplete>,
 }
 
@@ -176,7 +176,7 @@ impl InputOTP {
             on_change: None,
             state,
             is_disabled: false,
-            separator: None,
+            separator: false,
             on_complete: None,
         }
     }
@@ -291,9 +291,13 @@ impl InputOTP {
         self
     }
 
-    /// Text between cell groups (e.g. "-").
-    pub fn separator(mut self, s: impl Into<SharedString>) -> Self {
-        self.separator = Some(s.into());
+    /// `InputOTP.Separator` — the dash between cell groups.
+    ///
+    /// It takes no content in v3: `.input-otp__separator` is `h-[2px] w-[6px]
+    /// rounded-sm bg-separator`, a bar rather than a glyph, so this is a flag
+    /// and not the string it used to accept.
+    pub fn separator(mut self) -> Self {
+        self.separator = true;
         self
     }
 
@@ -370,16 +374,15 @@ impl RenderOnce for InputOTP {
 
         for (i, cell_ch) in cells_snapshot.iter().enumerate() {
             // group separator every 3 cells
-            if i > 0 && i % 3 == 0 {
-                if let Some(sep) = &self.separator {
-                    row = row.child(
-                        gpui::div()
-                            .px(px(4.))
-                            .text_size(text)
-                            .text_color(colors.muted)
-                            .child(sep.to_string()),
-                    );
-                }
+            if i > 0 && i % 3 == 0 && self.separator {
+                row = row.child(
+                    gpui::div()
+                        .flex_shrink_0()
+                        .w(px(6.))
+                        .h(px(2.))
+                        .rounded(crate::util::hairline_radius(cx))
+                        .bg(colors.separator),
+                );
             }
 
             let ch = *cell_ch;

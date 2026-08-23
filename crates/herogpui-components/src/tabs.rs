@@ -174,8 +174,9 @@ impl RenderOnce for Tabs {
         // selected tab, `secondary` underlines it.
         match self.variant {
             TabsVariant::Primary => {
+                // `.tabs__list` is `p-1` and nothing else: the tabs sit
+                // shoulder to shoulder, with no gap between them.
                 list = list
-                    .gap(px(8.))
                     .p(px(4.))
                     .rounded(crate::util::control_radius(cx))
                     .bg(colors.surface_secondary);
@@ -186,10 +187,16 @@ impl RenderOnce for Tabs {
                             format!("{base_id}-tab-{}", item.key).into(),
                         ))
                         .when(!self.is_disabled && active, |t| t.track_focus(&list_focus))
-                        .px(px(14.))
-                        .py(px(6.))
+                        // `.tabs__tab` is `h-8 px-4 rounded-3xl text-sm
+                        // font-medium`.
+                        .h(px(32.))
+                        .px(px(16.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
                         .rounded(crate::util::control_radius(cx))
                         .text_size(px(14.))
+                        .font_weight(gpui::FontWeight::MEDIUM)
                         .when(!self.is_disabled, |t| t.cursor_pointer())
                         // `status-disabled` is `--disabled-opacity`.
                         .when(self.is_disabled, |t| {
@@ -280,8 +287,9 @@ impl RenderOnce for Tabs {
                 }
             }
             TabsVariant::Secondary => {
-                list = list.gap(px(16.));
-                list = list.border_b_1().border_color(colors.separator);
+                // `.tabs--secondary` gives the list `p-0` and the *container*
+                // `border-b border-border`; the tabs keep their own box.
+                list = list.border_b_1().border_color(colors.border);
                 for (index, item) in self.items.iter().enumerate() {
                     let active = item.key == selected_key;
                     let mut tab = gpui::div()
@@ -289,10 +297,16 @@ impl RenderOnce for Tabs {
                             format!("{base_id}-tab-{}", item.key).into(),
                         ))
                         .when(!self.is_disabled && active, |t| t.track_focus(&list_focus))
-                        .px(px(2.))
-                        .pb(px(6.))
+                        // The same `h-8 px-4 text-sm` box, `rounded-none`, with
+                        // the indicator as a 2px bar along the bottom.
+                        .h(px(32.))
+                        .px(px(16.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
                         .text_size(px(14.))
                         .line_height(px(20.))
+                        .font_weight(gpui::FontWeight::MEDIUM)
                         .border_b_2()
                         .when(!self.is_disabled, |t| t.cursor_pointer())
                         // `status-disabled` is `--disabled-opacity`.
@@ -382,11 +396,13 @@ impl RenderOnce for Tabs {
         // Active panel
         let mut items = self.items;
         let active_idx = items.iter().position(|i| i.key == selected_key);
-        let mut el = gpui::div().flex().flex_col().gap(px(16.)).child(list);
+        // `.tabs` is `flex gap-2`: the gap between the list and the panel.
+        let mut el = gpui::div().flex().flex_col().gap(px(8.)).child(list);
 
         if let Some(idx) = active_idx {
             if let Some(content) = items.swap_remove(idx).content {
-                el = el.child(gpui::div().pt(px(10.)).child(content));
+                // `.tabs__panel` is `w-full p-2`.
+                el = el.child(gpui::div().w_full().p(px(8.)).child(content));
             }
         }
 

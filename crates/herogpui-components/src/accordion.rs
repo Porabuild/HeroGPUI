@@ -282,7 +282,8 @@ impl RenderOnce for Accordion {
             };
             header = header.child(
                 gpui::svg()
-                    .size(px(14.))
+                    // `.accordion__indicator` is `size-4`.
+                    .size(px(16.))
                     .path(chevron)
                     .text_color(colors.muted)
                     .flex_shrink_0(),

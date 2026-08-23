@@ -34,6 +34,8 @@ pub struct Avatar {
     src: Option<SharedString>,
     /// Edge length, set by [`Avatar::size`]. v3 has no custom-pixel prop.
     size_px: gpui::Pixels,
+    /// Whether [`Avatar::size`] was `Sm`, which rounds one step tighter.
+    small: bool,
     color: Color,
     variant: AvatarVariant,
     /// Set by [`AvatarGroup`], which rings each member so the stack reads as
@@ -47,6 +49,7 @@ impl Avatar {
             name: "".into(),
             src: None,
             size_px: px(40.),
+            small: false,
             color: Color::Default,
             variant: AvatarVariant::Default,
             is_bordered: false,
@@ -75,6 +78,9 @@ impl Avatar {
             herogpui_core::Size::Md => px(40.),
             herogpui_core::Size::Lg => px(48.),
         };
+        // `.avatar--sm` is `rounded-2xl` where the other two are `rounded-3xl`:
+        // at 32px a 24px radius would be all but a circle, so v3 steps it down.
+        self.small = size == herogpui_core::Size::Sm;
         self
     }
 
@@ -122,14 +128,19 @@ impl RenderOnce for Avatar {
             AvatarVariant::Soft if neutral => (cx.colors().default.soft(), cx.colors().muted),
             AvatarVariant::Soft => (sem.soft(), sem.soft_foreground()),
         };
-        let font = self.size_px * 0.375;
+        // `.avatar__fallback` is `text-sm`, not a share of the box.
+        let font = px(14.);
 
         let mut el = gpui::div()
             .flex()
             .items_center()
             .justify_center()
             .size(self.size_px)
-            .rounded(crate::util::control_radius(cx))
+            .rounded(if self.small {
+                crate::util::soft_radius(cx)
+            } else {
+                crate::util::control_radius(cx)
+            })
             .bg(bg)
             .text_color(fg)
             .text_size(font)

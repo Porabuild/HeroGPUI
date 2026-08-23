@@ -106,8 +106,9 @@ impl RenderOnce for Alert {
         if let Some(desc) = self.description {
             text_col = text_col.child(
                 gpui::div()
-                    .text_size(px(13.))
-                    .line_height(px(18.))
+                    // `.alert__description` is `text-sm`.
+                    .text_size(px(14.))
+                    .line_height(px(20.))
                     .child(desc.to_string()),
             );
         }
