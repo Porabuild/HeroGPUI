@@ -9287,8 +9287,11 @@ impl Gallery {
                         row(vec![
                             h::Autocomplete::new(self.demo_text("ac-async", "", cx), languages())
                                 .label("Language")
+                                // `useFilter({sensitivity: "base"}).contains`:
+                                // case and accents both ignored, so "cafe"
+                                // finds "Café".
                                 .filter(|query, item| {
-                                    item.to_lowercase().contains(&query.to_lowercase())
+                                    h::Filter::new(h::Sensitivity::Base).contains(item, query)
                                 })
                                 .into_any_element(),
                             h::Spinner::new("ac-async-spinner")
@@ -9560,11 +9563,15 @@ impl Gallery {
                 (
                     "Custom Filtering",
                     col(vec![
-                        para("`defaultFilter` here matches on the start of the name only.", cx),
+                        para(
+                            "`defaultFilter` here is `useFilter`'s `startsWith`, so it matches \
+                             on the start of the name only.",
+                            cx,
+                        ),
                         h::ComboBox::new(self.demo_text("cb-filter", "", cx), languages())
                             .label("Language")
                             .filter(|query, item| {
-                                item.to_lowercase().starts_with(&query.to_lowercase())
+                                h::Filter::new(h::Sensitivity::Base).starts_with(item, query)
                             })
                             .default_open(true)
                             .into_any_element(),
@@ -9844,7 +9851,7 @@ impl Gallery {
                         .label("Language")
                         .placeholder("Choose one")
                         .value(selected)
-                        .value_content(move |index| match index {
+                        .value_content(move |chosen| match chosen.first() {
                             Some(i) => gpui::div()
                                 .flex()
                                 .items_center()
@@ -9854,8 +9861,9 @@ impl Gallery {
                                         .size(Size::Sm)
                                         .variant(h::ChipVariant::Soft),
                                 )
-                                .child(languages().get(i).cloned().unwrap_or_default().to_string())
+                                .child(languages().get(*i).cloned().unwrap_or_default().to_string())
                                 .into_any_element(),
+                            // An empty selection is v3's `isPlaceholder`.
                             None => gpui::div().child("Choose one").into_any_element(),
                         })
                         .into_any_element()]),

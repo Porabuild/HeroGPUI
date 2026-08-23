@@ -26,6 +26,7 @@ pub mod disclosure;
 pub mod drawer;
 pub mod dropdown;
 pub mod field;
+pub mod filter;
 pub mod form;
 pub mod icons;
 pub mod input;
@@ -96,6 +97,7 @@ pub use disclosure::*;
 pub use drawer::*;
 pub use dropdown::*;
 pub use field::*;
+pub use filter::*;
 pub use form::*;
 
 /// `formatOptions` for the components that take it, re-exported so a caller

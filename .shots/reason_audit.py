@@ -28,16 +28,19 @@ only = set(sys.argv[1:])
 # prop -> {component: description}
 where = {}
 for comp in FILES:
-    pattern = r'^### (%s(?:\.[A-Za-z]+)?)\s*$' % re.escape(comp)
-    for m in re.finditer(pattern, bundle, re.M):
-        heading = m.group(1)
-        # To the next heading of level 3 or shallower, with no character cap: a
-        # fixed window truncates the widest tables, and the rows past it then
-        # read as "not documented" (the same fix `api_audit.py` needed).
-        chunk = bundle[m.end():]
-        nxt = re.search(r'^#{1,3} ', chunk, re.M)
-        if nxt:
-            chunk = chunk[:nxt.start()]
+    # The component's whole `## API Reference` section, one `###` table at a
+    # time -- the same unit `api_audit.props_for` reads. Matching only
+    # `### <Comp>` here left every row of `### ListLayout`, `### toast Function`
+    # and `### Composition Components` looking undocumented, so a reason that
+    # excuses one of them read as stale.
+    anchor = r'^[ \t]*### (%s(?:\.[A-Za-z]+)?)[ \t]*$' % re.escape(comp)
+    owners = [x for x in A.api_sections() if re.search(anchor, x, re.M)]
+    if len(owners) != 1:
+        continue
+    heads = [(m.end(), m.group(1))
+             for m in re.finditer(r'^[ \t]*### (.+?)[ \t]*$', owners[0], re.M)]
+    for i, (at, heading) in enumerate(heads):
+        chunk = owners[0][at:heads[i + 1][0]] if i + 1 < len(heads) else owners[0][at:]
         for row in re.finditer(r'^\|\s*`([a-zA-Z-]+)`\s*\|([^\n]*)$', chunk, re.M):
             prop, desc = row.group(1), re.sub(r'\s+', ' ', row.group(2)).strip()
             # Skip the translated duplicates.

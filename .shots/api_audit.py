@@ -89,6 +89,12 @@ ALIAS = {
     'Table.sortDirection': 'indicator',
     'Slider.index': 'thumb',
     'DateField.segment': 'segment',
+    'ListBox.isSelected': 'indicator',
+    'Select.selectedItems': 'value_content',
+    'Select.isPlaceholder': 'value_content',
+    # `getThumbValueLabel` formats one thumb's value; the thumb closure is handed
+    # the index and the value, so the caller formats it there.
+    'Slider.getThumbValueLabel': 'thumb',
     # Taken positionally or by the state's constructor, so the prop exists --
     # it is just not spelled as a builder.
     'TagGroup.items': 'tags',
@@ -152,6 +158,93 @@ WONT_PORT = {
     # view transitions: a change is drawn on the next frame.
     'Toast.wrapUpdate': 'no-view-transitions',
 
+    # v3's `render` prop hands a component its own interaction state so the
+    # caller can draw the part itself. This port draws it -- the hover, press,
+    # focus and selected treatments are what `design_audit.py` measures -- and
+    # exposes no whole-part render override, so there is no closure to hand
+    # them to. Where a part *is* overridable the value is an alias instead:
+    # `ListBox.isSelected` reaches `indicator`, `Select.selectedItems` reaches
+    # `value_content`.
+    'Button.isHovered': 'drawn-not-delegated',
+    'Button.isPressed': 'drawn-not-delegated',
+    'Button.isFocused': 'drawn-not-delegated',
+    'Button.isFocusVisible': 'drawn-not-delegated',
+    'CloseButton.isHovered': 'drawn-not-delegated',
+    'CloseButton.isPressed': 'drawn-not-delegated',
+    'CloseButton.isFocused': 'drawn-not-delegated',
+    'ToggleButton.isHovered': 'drawn-not-delegated',
+    'ToggleButton.isPressed': 'drawn-not-delegated',
+    'ToggleButton.isFocused': 'drawn-not-delegated',
+    'ToggleButton.isFocusVisible': 'drawn-not-delegated',
+    'Switch.isHovered': 'drawn-not-delegated',
+    'Switch.isPressed': 'drawn-not-delegated',
+    'Switch.isFocused': 'drawn-not-delegated',
+    'Switch.isFocusVisible': 'drawn-not-delegated',
+    'TagGroup.isHovered': 'drawn-not-delegated',
+    'TagGroup.isPressed': 'drawn-not-delegated',
+    'TagGroup.isFocused': 'drawn-not-delegated',
+    'TagGroup.isFocusVisible': 'drawn-not-delegated',
+    'TagGroup.isSelected': 'drawn-not-delegated',
+    'Dropdown.isPressed': 'drawn-not-delegated',
+    'Dropdown.isFocused': 'drawn-not-delegated',
+    'Dropdown.isDisabled': 'drawn-not-delegated',
+    'ListBox.isPressed': 'drawn-not-delegated',
+    'ListBox.isFocused': 'drawn-not-delegated',
+    'RadioGroup.isSelected': 'drawn-not-delegated',
+    'TextField.isFocused': 'drawn-not-delegated',
+    'TextField.isFocusVisible': 'drawn-not-delegated',
+    'TextField.isFocusWithin': 'drawn-not-delegated',
+    'SearchField.isFocused': 'drawn-not-delegated',
+    'SearchField.isFocusVisible': 'drawn-not-delegated',
+    'SearchField.isFocusWithin': 'drawn-not-delegated',
+    'NumberField.isFocused': 'drawn-not-delegated',
+    'NumberField.isFocusVisible': 'drawn-not-delegated',
+    'NumberField.isFocusWithin': 'drawn-not-delegated',
+    'ColorField.isFocused': 'drawn-not-delegated',
+    'ColorField.isFocusVisible': 'drawn-not-delegated',
+    'ColorField.isFocusWithin': 'drawn-not-delegated',
+    'DateField.isFocused': 'drawn-not-delegated',
+    'DateField.isFocusVisible': 'drawn-not-delegated',
+    'DateField.isFocusWithin': 'drawn-not-delegated',
+    'TimeField.isFocused': 'drawn-not-delegated',
+    'TimeField.isFocusVisible': 'drawn-not-delegated',
+    'TimeField.isFocusWithin': 'drawn-not-delegated',
+    # A calendar cell is drawn here, so the values its render function would
+    # receive -- the formatted date, whether the day falls outside the month,
+    # is selected, is unavailable, starts or ends the range -- are computed and
+    # used rather than handed over.
+    'Calendar.formattedDate': 'drawn-not-delegated',
+    'Calendar.isOutsideMonth': 'drawn-not-delegated',
+    'Calendar.isSelected': 'drawn-not-delegated',
+    'Calendar.isUnavailable': 'drawn-not-delegated',
+    'RangeCalendar.formattedDate': 'drawn-not-delegated',
+    'RangeCalendar.isOutsideMonth': 'drawn-not-delegated',
+    'RangeCalendar.isSelected': 'drawn-not-delegated',
+    'RangeCalendar.isUnavailable': 'drawn-not-delegated',
+    'RangeCalendar.isSelectionStart': 'drawn-not-delegated',
+    'RangeCalendar.isSelectionEnd': 'drawn-not-delegated',
+    # Likewise the value label: the component computes the percentage and
+    # formats the value (`format_options` chooses how), and `value_label`
+    # replaces the text outright.
+    'Meter.percentage': 'drawn-not-delegated',
+    'Meter.valueText': 'drawn-not-delegated',
+    'ProgressBar.percentage': 'drawn-not-delegated',
+    'ProgressBar.valueText': 'drawn-not-delegated',
+    'ProgressCircle.percentage': 'drawn-not-delegated',
+    'ProgressCircle.valueText': 'drawn-not-delegated',
+    'ColorSlider.color': 'drawn-not-delegated',
+    # React Aria passes the rendering the component *would* have done, so a
+    # render function can fall back to it. A builder that replaces the slot has
+    # nothing to hand over: the default is the thing being replaced.
+    'Select.defaultChildren': 'no-default-children',
+    'Autocomplete.defaultChildren': 'no-default-children',
+    # An Autocomplete's or ComboBox's text and selection live in the caller's
+    # `InputState` and `selected_keys`; the caller owns both, so there is
+    # nothing to give back.
+    'Autocomplete.selectedItems': 'caller-owns-the-selection',
+    'Autocomplete.selectedText': 'caller-owns-the-selection',
+    'Autocomplete.isPlaceholder': 'caller-owns-the-selection',
+    'ComboBox.selectedItem': 'caller-owns-the-selection',
     # An HTML5 ValidityState object.
     'validationDetails': 'no-html-forms',
     # The `form` attribute names the HTML form a control submits to. A `Form` is
@@ -262,6 +355,10 @@ COMPANIONS = {
     'DateRangePicker': ['DateRangeState'],
     'Select': ['SelectOption'],
     'Switch': ['SwitchGroup'],
+    # `useFilter` is a hook, so its options and its three returned matchers are
+    # one value here: `Filter::new(sensitivity).contains(..)`.
+    'Autocomplete': ['Filter'],
+    'ComboBox': ['Filter'],
     # v3's `### Composition Components` documents `InputGroup.Input` and
     # `SearchField.Input` by pointing at React Aria's Input, and this port
     # composes the real `Input` -- so its builders are what implement them. A
@@ -414,6 +511,10 @@ def prop_rows(text):
 def main():
     gap_total = 0
     wont_total = 0
+    # Per reason, because one blanket number says nothing about what it covers:
+    # 55 interaction values a render function would have received is a different
+    # claim from 55 missing props.
+    by_reason = {}
     documented = 0
     unattributed = []
     for comp in sorted(FILES):
@@ -446,8 +547,10 @@ def main():
                 continue
             # A reason may be global (`prop`) or scoped (`Component.prop`); the
             # scoped form keeps a blanket name from hiding a real gap elsewhere.
-            if ('%s.%s' % (comp, p)) in WONT_PORT or p in WONT_PORT:
+            reason = WONT_PORT.get('%s.%s' % (comp, p)) or WONT_PORT.get(p)
+            if reason:
                 wont_total += 1
+                by_reason[reason] = by_reason.get(reason, 0) + 1
                 continue
             missing.append(p)
         if missing:
@@ -458,6 +561,8 @@ def main():
     print('documented props considered : %d' % documented)
     print('implemented                 : %d' % (documented - gap_total - wont_total))
     print('deliberately not ported     : %d  (see WONT_PORT)' % wont_total)
+    for reason, n in sorted(by_reason.items(), key=lambda kv: (-kv[1], kv[0])):
+        print('    %-28s %d' % (reason, n))
     print('REAL GAPS                   : %d' % gap_total)
     if unattributed:
         print()

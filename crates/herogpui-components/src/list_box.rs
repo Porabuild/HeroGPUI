@@ -120,6 +120,8 @@ impl ListBoxItem {
 
 type OnSelectionChange = Arc<dyn Fn(&HashSet<SharedString>, &mut Window, &mut App) + 'static>;
 type OnAction = Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
+/// `ListBox.ItemIndicator`'s render function, handed `isSelected`.
+type Indicator = Arc<dyn Fn(bool) -> gpui::AnyElement + 'static>;
 
 /// HeroUI ListBox.
 #[derive(IntoElement)]
@@ -140,6 +142,9 @@ pub struct ListBox {
     /// `ListLayout`'s `gap` and `padding`, which override the stylesheet's.
     gap: gpui::Pixels,
     padding: gpui::Pixels,
+    /// `ListBox.ItemIndicator` — draw the tick yourself. v3 hands its render
+    /// function `isSelected`, so this closure receives it.
+    indicator: Option<Indicator>,
     on_selection_change: Option<OnSelectionChange>,
     on_action: Option<OnAction>,
 }
@@ -159,6 +164,7 @@ impl ListBox {
             gap: px(4.),
             padding: px(4.),
             max_h: None,
+            indicator: None,
             on_selection_change: None,
             on_action: None,
         }
@@ -223,6 +229,15 @@ impl ListBox {
     /// `ListLayout`'s `padding`, overriding the stylesheet's `p-1`.
     pub fn padding(mut self, padding: impl Into<gpui::Pixels>) -> Self {
         self.padding = padding.into();
+        self
+    }
+
+    /// `ListBox.ItemIndicator` — draw the selected tick yourself.
+    ///
+    /// The closure is handed `isSelected`, the value v3 passes into the same
+    /// render function, so a caller can return its own glyph, or nothing.
+    pub fn indicator(mut self, render: impl Fn(bool) -> gpui::AnyElement + 'static) -> Self {
+        self.indicator = Some(Arc::new(render));
         self
     }
 
@@ -532,7 +547,9 @@ impl ListBox {
                         }),
                 );
 
-                if selected && self.selection_mode != SelectionMode::None {
+                if let Some(render) = &self.indicator {
+                    row = row.child(render(selected));
+                } else if selected && self.selection_mode != SelectionMode::None {
                     row = row.child(
                         gpui::svg()
                             .size(px(14.))

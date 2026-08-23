@@ -47,7 +47,7 @@ pub struct Select {
     indicator: Option<Box<dyn Fn(bool) -> gpui::AnyElement + 'static>>,
     /// `Select.Value` — draws the trigger's value. The closure is handed the
     /// selected index, or `None` while the placeholder shows.
-    value_content: Option<Box<dyn Fn(Option<usize>) -> gpui::AnyElement + 'static>>,
+    value_content: Option<Box<dyn Fn(&[usize]) -> gpui::AnyElement + 'static>>,
     is_required: bool,
     disabled_keys: std::collections::HashSet<usize>,
     full_width: bool,
@@ -90,11 +90,14 @@ impl Select {
         self
     }
 
-    /// `Select.Value` — draw the trigger's value yourself. The closure is handed
-    /// the selected index, or `None` while the placeholder shows.
+    /// `Select.Value` — draw the trigger's value yourself.
+    ///
+    /// The closure is handed `selectedItems`: every chosen index, in order, so a
+    /// `multiple` select can draw all of them. An empty slice is v3's
+    /// `isPlaceholder` -- nothing is chosen and the placeholder would show.
     pub fn value_content(
         mut self,
-        render: impl Fn(Option<usize>) -> gpui::AnyElement + 'static,
+        render: impl Fn(&[usize]) -> gpui::AnyElement + 'static,
     ) -> Self {
         self.value_content = Some(Box::new(render));
         self
@@ -460,11 +463,22 @@ impl RenderOnce for Select {
 
         // `Select.Value` — a caller-drawn value replaces the trigger's text.
         let value_slot = match &self.value_content {
-            Some(render) => gpui::div()
-                .flex_1()
-                .min_w_0()
-                .child(render(if has_value { selected } else { None }))
-                .into_any_element(),
+            Some(render) => {
+                let chosen: Vec<usize> = if !has_value {
+                    Vec::new()
+                } else if multiple {
+                    let mut all: Vec<usize> = self.selected_indices.iter().copied().collect();
+                    all.sort_unstable();
+                    all
+                } else {
+                    selected.into_iter().collect()
+                };
+                gpui::div()
+                    .flex_1()
+                    .min_w_0()
+                    .child(render(&chosen))
+                    .into_any_element()
+            }
             None => gpui::div()
                 .flex_1()
                 .truncate()
