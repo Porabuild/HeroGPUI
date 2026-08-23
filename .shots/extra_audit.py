@@ -161,6 +161,13 @@ EXTRA_OK_SCOPED = {
     # `ButtonGroup.Separator` is a child part in v3, composed inside whichever
     # member should show one. A monolithic group takes it as a flag.
     'ButtonGroup.separators': 'composition',
+    # `Switch.Thumb` takes children (v3 swaps an icon per state), and the
+    # label's side comes from the order of `Switch.Content`'s children.
+    'Switch.thumb_icons': 'composition',
+    'Switch.label_first': 'composition',
+    # v3 changes the spin rate with an animation utility class
+    # (`animate-[spin_1.5s_linear_infinite]`), which is its "Speed" example.
+    'Spinner.duration_ms': 'no-classname',
 }
 
 

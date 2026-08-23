@@ -66,6 +66,8 @@ WONT_DEMO_NAMES = {
     'Render Function': 'no-dom-element',
 }
 WONT_DEMO = {
+    # v3's example is about integrating TanStack Table, an npm package.
+    'Table.TanStack Table': 'third-party-lib',
     # v3 composes a third-party npm ripple component as a child
     # (`<Button><Ripple /></Button>`); the example is about that library.
     'Button.Adding Ripple Effect': 'third-party-lib',
@@ -78,6 +80,20 @@ WONT_DEMO = {
     # "render this dialog somewhere else" to show.
     'AlertDialog.Custom Portal': 'no-portal',
     'Modal.Custom Portal': 'no-portal',
+}
+
+# Examples that need a component feature this port has not built yet.
+#
+# These are not excused: they are counted separately so the number cannot hide
+# behind "unportable", and each one names the feature it is waiting on.
+NEEDS_FEATURE = {
+    'Table.Expandable Rows': 'tree-rows',
+    'Table.Column Resizing': 'column-resize',
+    'Table.Virtualization': 'virtual-list',
+    'ListBox.Virtualization': 'virtual-list',
+    'ComboBox.Virtualization': 'virtual-list',
+    'Autocomplete.Virtualization': 'virtual-list',
+    'Select.Virtualization': 'virtual-list',
 }
 
 SYNONYM = {
@@ -152,7 +168,7 @@ def main():
     v3 = v3_examples()
     ours = our_sections()
 
-    rows, total, covered, unportable = [], 0, 0, 0
+    rows, total, covered, unportable, waiting = [], 0, 0, 0, 0
     missing_by_page = {}
     for page in sorted(v3):
         if page in NOT_A_COMPONENT:
@@ -177,6 +193,9 @@ def main():
             if key in WONT_DEMO or ex in WONT_DEMO_NAMES:
                 unportable += 1
                 continue
+            if key in NEEDS_FEATURE:
+                waiting += 1
+                continue
             target = norm(ALIAS.get(key, ALIAS.get(ex, ex)))
             if target in have or any(target in h or h in target for h in have if len(h) > 3):
                 covered += 1
@@ -194,8 +213,10 @@ def main():
     print('examples documented : %d' % total)
     print('demonstrated        : %d' % covered)
     print('recorded unportable : %d' % unportable)
+    print('waiting on a feature: %d  (%s)'
+          % (waiting, ', '.join(sorted(set(NEEDS_FEATURE.values())))))
     print('MISSING             : %d  (in %d pages)'
-          % (total - covered - unportable, len(missing_by_page)))
+          % (total - covered - unportable - waiting, len(missing_by_page)))
 
 
 if __name__ == '__main__':

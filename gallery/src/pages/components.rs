@@ -1111,6 +1111,7 @@ impl Gallery {
     // -----------------------------------------------------------------------
 
     pub fn page_slider(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let volume = self.demo_value("sl-controlled", 40.);
         let value = self.slider_value;
         doc_page(
             "Slider",
@@ -1139,6 +1140,110 @@ impl Gallery {
                             cx.notify();
                         })))
                         .into_any_element()]),
+                ),
+                (
+                    "Range Slider Anatomy",
+                    col(vec![
+                        para(
+                            "v3 builds a range slider from its parts: a `Label`, an `Output`, and \
+                             a `Track` whose render prop is handed the state so it can draw one \
+                             `Thumb` per value. The `thumb` closure is that render prop.",
+                            cx,
+                        ),
+                        h::Slider::new("sl-anatomy", 0.)
+                            .values([25., 75.])
+                            .label("Price range")
+                            .show_value(true)
+                            .thumb(|index, value| {
+                                gpui::div()
+                                    .id(("sl-anatomy-thumb", index))
+                                    .size(px(18.))
+                                    .rounded_full()
+                                    .border_2()
+                                    .border_color(gpui::white())
+                                    .bg(gpui::rgb(0x0085F5))
+                                    // The closure is handed the value the slider
+                                    // already computed for this thumb, so the
+                                    // caller never re-derives it.
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .child(
+                                        gpui::div()
+                                            .absolute()
+                                            .top(px(-20.))
+                                            .text_size(px(11.))
+                                            .child(format!("{value:.0}")),
+                                    )
+                                    .into_any_element()
+                            })
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Controlled Value",
+                    col(vec![
+                        h::Slider::new("sl-controlled", volume)
+                            .label("Volume")
+                            .show_value(true)
+                            .on_change(f32_cb(cx.listener(|this, v: &f32, _, cx| {
+                                this.set_demo_value("sl-controlled", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        para(&format!("Value: {volume:.0}"), cx),
+                    ]),
+                ),
+                (
+                    "Custom Value Formatting",
+                    col(vec![
+                        h::Slider::new("sl-fmt-pct", 0.35)
+                            .min_value(0.)
+                            .max_value(1.)
+                            .step(0.01)
+                            .label("Opacity")
+                            .show_value(true)
+                            .format_options(herogpui_core::NumberFormat::percent())
+                            .into_any_element(),
+                        h::Slider::new("sl-fmt-cur", 1200.)
+                            .min_value(0.)
+                            .max_value(5000.)
+                            .step(50.)
+                            .label("Budget")
+                            .show_value(true)
+                            .format_options(herogpui_core::NumberFormat::currency("USD"))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Custom Output Display",
+                    col(vec![
+                        para(
+                            "v3's `Slider.Output` takes a render prop. The value is the caller's \
+                             own state here, so the readout is drawn next to the slider.",
+                            cx,
+                        ),
+                        gpui::div()
+                            .flex()
+                            .items_center()
+                            .gap(px(16.))
+                            .child(
+                                gpui::div().w(px(320.)).child(
+                                    h::Slider::new("sl-output", volume)
+                                        .label("Brightness")
+                                        .on_change(f32_cb(cx.listener(|this, v: &f32, _, cx| {
+                                            this.set_demo_value("sl-controlled", *v);
+                                            cx.notify();
+                                        }))),
+                                ),
+                            )
+                            .child(
+                                h::Chip::new(format!("{volume:.0}%"))
+                                    .variant(h::ChipVariant::Soft)
+                                    .color(Color::Accent),
+                            )
+                            .into_any_element(),
+                    ]),
                 ),
                 (
                     "Range (multi-thumb)",
@@ -1186,6 +1291,11 @@ impl Gallery {
 
     pub fn page_switch(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let (a, b) = (self.switch_a, self.switch_b);
+        let controlled = self.demo_flag("sw-controlled", false);
+        let wifi = self.demo_flag("sw-group-wifi", true);
+        let bluetooth = self.demo_flag("sw-group-bt", false);
+        let airplane = self.demo_flag("sw-group-air", false);
+        let terms = self.demo_flag("sw-form", false);
         doc_page(
             "Switch",
             crate::pages::Page::Switch.description(),
@@ -1228,6 +1338,153 @@ impl Gallery {
                         .collect()),
                 ),
                 (
+                    "With Icons",
+                    row(vec![
+                        h::Switch::new("sw-icon-1")
+                            .is_selected(true)
+                            .thumb_icons(icon(h::icons::MOON, cx), icon(h::icons::SUN, cx))
+                            .label(gpui::div().child("Appearance"))
+                            .into_any_element(),
+                        h::Switch::new("sw-icon-2")
+                            .thumb_icons(icon(h::icons::EYE_OFF, cx), icon(h::icons::EYE, cx))
+                            .label(gpui::div().child("Show preview"))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Without Label",
+                    row(vec![
+                        h::Switch::new("sw-nolabel-1")
+                            .is_selected(true)
+                            .into_any_element(),
+                        h::Switch::new("sw-nolabel-2").into_any_element(),
+                    ]),
+                ),
+                (
+                    "With Description",
+                    col(vec![h::Switch::new("sw-desc")
+                        .default_selected(true)
+                        .label(gpui::div().child("Sync across devices"))
+                        .description("Changes are pushed to every signed-in device.")
+                        .into_any_element()]),
+                ),
+                (
+                    "Default Selected",
+                    col(vec![h::Switch::new("sw-default")
+                        .default_selected(true)
+                        .label(gpui::div().child("On by default"))
+                        .into_any_element()]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::Switch::new("sw-controlled")
+                            .is_selected(controlled)
+                            .label(gpui::div().child("Notifications"))
+                            .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("sw-controlled", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        para(
+                            if controlled {
+                                "Status: selected"
+                            } else {
+                                "Status: not selected"
+                            },
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Label Position",
+                    col(vec![
+                        h::Switch::new("sw-lp-after")
+                            .label(gpui::div().child("Label after"))
+                            .into_any_element(),
+                        h::Switch::new("sw-lp-before")
+                            .label_first(true)
+                            .label(gpui::div().child("Label before"))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Group",
+                    col(vec![
+                        h::Switch::new("sw-g-wifi")
+                            .is_selected(wifi)
+                            .label(gpui::div().child("Wi-Fi"))
+                            .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("sw-group-wifi", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        h::Switch::new("sw-g-bt")
+                            .is_selected(bluetooth)
+                            .label(gpui::div().child("Bluetooth"))
+                            .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("sw-group-bt", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        h::Switch::new("sw-g-air")
+                            .is_selected(airplane)
+                            .label(gpui::div().child("Airplane mode"))
+                            .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("sw-group-air", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Group Horizontal",
+                    row(vec![
+                        h::Switch::new("sw-gh-1")
+                            .default_selected(true)
+                            .label(gpui::div().child("Email"))
+                            .into_any_element(),
+                        h::Switch::new("sw-gh-2")
+                            .label(gpui::div().child("SMS"))
+                            .into_any_element(),
+                        h::Switch::new("sw-gh-3")
+                            .label(gpui::div().child("Push"))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Form Integration",
+                    col(vec![
+                        h::Switch::new("sw-form")
+                            .name("terms")
+                            .is_selected(terms)
+                            .is_required(true)
+                            .label(gpui::div().child("Accept the terms"))
+                            .is_invalid(!terms)
+                            .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("sw-form", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        para(
+                            "A `Switch` with a `name` produces a `FormField`, which is what a \
+                             `Form` reads back on submit.",
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Render Props",
+                    col(vec![h::Switch::new("sw-render")
+                        .is_selected(controlled)
+                        .label(gpui::div().child(if controlled { "Enabled" } else { "Disabled" }))
+                        .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                            this.set_demo_flag("sw-controlled", *v);
+                            cx.notify();
+                        })))
+                        .into_any_element()]),
+                ),
+                (
                     "Disabled",
                     row(vec![
                         h::Switch::new("sw-d-off")
@@ -1254,6 +1511,74 @@ impl Gallery {
             crate::pages::Page::Badge.description(),
             crate::pages::Page::Badge.import_line(),
             vec![
+                (
+                    "Usage",
+                    row(vec![h::Badge::new()
+                        .content("5")
+                        .child(avatar_box(cx))
+                        .into_any_element()]),
+                ),
+                (
+                    "Sizes",
+                    row(Size::ALL
+                        .iter()
+                        .map(|sz| {
+                            spec(
+                                sz.label(),
+                                h::Badge::new().content("5").size(*sz).child(avatar_box(cx)),
+                                cx,
+                            )
+                        })
+                        .collect()),
+                ),
+                (
+                    "Dot Badge",
+                    row(Color::ALL
+                        .iter()
+                        .map(|c| {
+                            spec(
+                                c.label(),
+                                h::Badge::new().color(*c).child(avatar_box(cx)),
+                                cx,
+                            )
+                        })
+                        .collect()),
+                ),
+                (
+                    "With Content",
+                    row(vec![
+                        spec(
+                            "Number",
+                            h::Badge::new()
+                                .content("5")
+                                .color(Color::Danger)
+                                .size(Size::Sm)
+                                .child(avatar_box(cx)),
+                            cx,
+                        ),
+                        spec(
+                            "Text",
+                            h::Badge::new()
+                                .content("NEW")
+                                .color(Color::Accent)
+                                .child(avatar_box(cx)),
+                            cx,
+                        ),
+                        spec(
+                            "Icon",
+                            h::Badge::new()
+                                .content(
+                                    gpui::svg()
+                                        .size(px(10.))
+                                        .path(h::icons::CHECK)
+                                        .text_color(cx.colors().success.foreground),
+                                )
+                                .color(Color::Success)
+                                .child(avatar_box(cx)),
+                            cx,
+                        ),
+                    ]),
+                ),
                 (
                     "Variants",
                     row(h::BadgeVariant::ALL
@@ -1315,6 +1640,40 @@ impl Gallery {
             crate::pages::Page::Chip.description(),
             crate::pages::Page::Chip.import_line(),
             vec![
+                ("Usage", row(vec![h::Chip::new("Chip").into_any_element()])),
+                (
+                    "Statuses",
+                    row(vec![
+                        h::Chip::new("Active")
+                            .color(Color::Success)
+                            .variant(h::ChipVariant::Soft)
+                            .into_any_element(),
+                        h::Chip::new("Paused")
+                            .color(Color::Warning)
+                            .variant(h::ChipVariant::Soft)
+                            .into_any_element(),
+                        h::Chip::new("Vacation")
+                            .color(Color::Danger)
+                            .variant(h::ChipVariant::Soft)
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "With Icons",
+                    row(vec![
+                        h::Chip::new("Verified")
+                            .color(Color::Success)
+                            .start_content(icon(h::icons::CHECK, cx))
+                            .into_any_element(),
+                        h::Chip::new("Link")
+                            .start_content(icon(h::icons::EXTERNAL_LINK, cx))
+                            .into_any_element(),
+                        h::Chip::new("Search")
+                            .color(Color::Accent)
+                            .start_content(icon(h::icons::SEARCH, cx))
+                            .into_any_element(),
+                    ]),
+                ),
                 (
                     "Variants",
                     row(h::ChipVariant::ALL
@@ -1342,6 +1701,7 @@ impl Gallery {
     }
 
     pub fn page_table(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let table_page = self.demo_value("tbl-page", 1.) as usize;
         let build = || {
             h::Table::new(vec!["Name".into(), "Role".into(), "Status".into()])
                 .row(vec![
@@ -1469,6 +1829,117 @@ impl Gallery {
                             cx,
                         ),
                     ]),
+                ),
+                (
+                    "Secondary Variant",
+                    col(vec![build()
+                        .variant(h::TableVariant::Secondary)
+                        .into_any_element()]),
+                ),
+                (
+                    "Async Loading",
+                    col(vec![
+                        para(
+                            "`isPending` covers the table while a request is in flight; \
+                             `onLoadMore` fires when the last row scrolls into view.",
+                            cx,
+                        ),
+                        build()
+                            .is_pending(true)
+                            .on_load_more(|_, _| {})
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Pagination",
+                    col(vec![
+                        {
+                            let start = table_page.saturating_sub(1) * 2;
+                            let people = [
+                                ("Tony Reichert", "CEO"),
+                                ("Zoey Lang", "Tech Lead"),
+                                ("Jane Fisher", "Designer"),
+                                ("William Howard", "Support"),
+                                ("Kristen Copper", "Sales Manager"),
+                                ("Emily Collins", "Marketing"),
+                            ];
+                            let mut paged = h::Table::new(vec!["Name".into(), "Role".into()]);
+                            for (name, role) in people.iter().skip(start).take(2) {
+                                paged = paged.row(vec![
+                                    gpui::div().child(*name).into_any_element(),
+                                    gpui::div().child(*role).into_any_element(),
+                                ]);
+                            }
+                            paged.into_any_element()
+                        },
+                        h::Pagination::new("tbl-pages", table_page, 3)
+                            .on_change(usize_cb(cx.listener(|this, p: &usize, _, cx| {
+                                this.set_demo_value("tbl-page", *p as f32);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Custom Cells",
+                    col(vec![h::Table::new(vec![
+                        "Member".into(),
+                        "Role".into(),
+                        "Status".into(),
+                    ])
+                    .row(vec![
+                        gpui::div()
+                            .flex()
+                            .items_center()
+                            .gap(px(10.))
+                            .child(h::Avatar::new().name("Tony Reichert").size(Size::Sm))
+                            .child(
+                                gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .child(gpui::div().child("Tony Reichert"))
+                                    .child(
+                                        gpui::div()
+                                            .text_size(px(11.5))
+                                            .text_color(cx.colors().muted)
+                                            .child("tony@example.com"),
+                                    ),
+                            )
+                            .into_any_element(),
+                        gpui::div().child("CEO").into_any_element(),
+                        h::Chip::new("Active")
+                            .color(Color::Success)
+                            .variant(h::ChipVariant::Soft)
+                            .size(Size::Sm)
+                            .into_any_element(),
+                    ])
+                    .row(vec![
+                        gpui::div()
+                            .flex()
+                            .items_center()
+                            .gap(px(10.))
+                            .child(h::Avatar::new().name("Zoey Lang").size(Size::Sm))
+                            .child(
+                                gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .child(gpui::div().child("Zoey Lang"))
+                                    .child(
+                                        gpui::div()
+                                            .text_size(px(11.5))
+                                            .text_color(cx.colors().muted)
+                                            .child("zoey@example.com"),
+                                    ),
+                            )
+                            .into_any_element(),
+                        gpui::div().child("Tech Lead").into_any_element(),
+                        h::Chip::new("Paused")
+                            .color(Color::Warning)
+                            .variant(h::ChipVariant::Soft)
+                            .size(Size::Sm)
+                            .into_any_element(),
+                    ])
+                    .into_any_element()]),
                 ),
                 (
                     "Empty and loading",
@@ -1723,6 +2194,12 @@ impl Gallery {
             crate::pages::Page::Alert.import_line(),
             vec![
                 (
+                    "Usage",
+                    col(vec![h::Alert::new("Heads up")
+                        .description("This is an alert with a title and a description.")
+                        .into_any_element()]),
+                ),
+                (
                     "Colors",
                     col(Color::ALL
                         .iter()
@@ -1789,6 +2266,20 @@ impl Gallery {
                         .map(|s| h::Meter::new(value).size(*s))
                         .els()),
                 ),
+                (
+                    "Without Label",
+                    col(vec![h::Meter::new(value).into_any_element()]),
+                ),
+                (
+                    "Custom Value Scale",
+                    col(vec![h::Meter::new(320.)
+                        .min_value(0.)
+                        .max_value(500.)
+                        .label("Storage")
+                        .show_value(true)
+                        .format_options(herogpui_core::NumberFormat::unit("GB"))
+                        .into_any_element()]),
+                ),
             ],
             cx,
         )
@@ -1832,6 +2323,28 @@ impl Gallery {
                             .into_any_element(),
                     ]),
                 ),
+                (
+                    "Without Label",
+                    col(vec![h::ProgressBar::new().value(65.0).into_any_element()]),
+                ),
+                (
+                    "Indeterminate",
+                    col(vec![h::ProgressBar::new()
+                        .is_indeterminate(true)
+                        .label("Uploading")
+                        .into_any_element()]),
+                ),
+                (
+                    "Custom Value Scale",
+                    col(vec![h::ProgressBar::new()
+                        .value(320.0)
+                        .min_value(0.0)
+                        .max_value(500.0)
+                        .label("Downloaded")
+                        .show_value_label(true)
+                        .format_options(herogpui_core::NumberFormat::unit("MB"))
+                        .into_any_element()]),
+                ),
             ],
             cx,
         )
@@ -1843,6 +2356,47 @@ impl Gallery {
             crate::pages::Page::ProgressCircle.description(),
             crate::pages::Page::ProgressCircle.import_line(),
             vec![
+                (
+                    "Usage",
+                    row(vec![h::ProgressCircle::new().value(60.).into_any_element()]),
+                ),
+                (
+                    "Indeterminate",
+                    row(vec![h::ProgressCircle::new()
+                        .is_indeterminate(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "With Label",
+                    row(vec![gpui::div()
+                        .flex()
+                        .items_center()
+                        .gap(px(12.))
+                        .child(h::ProgressCircle::new().value(75.))
+                        .child(gpui::div().text_size(px(14.)).child("75% Complete"))
+                        .into_any_element()]),
+                ),
+                (
+                    "Custom SVG Props",
+                    col(vec![
+                        para(
+                            "v3 overrides `strokeWidth` on the composed circle parts. The stroke \
+                             here follows the size, so the three sizes are the same three \
+                             thicknesses.",
+                            cx,
+                        ),
+                        row(Size::ALL
+                            .iter()
+                            .map(|sz| {
+                                spec(
+                                    sz.label(),
+                                    h::ProgressCircle::new().value(60.).size(*sz),
+                                    cx,
+                                )
+                            })
+                            .collect()),
+                    ]),
+                ),
                 (
                     "Colors",
                     row(Color::ALL
@@ -1884,14 +2438,153 @@ impl Gallery {
             "Skeleton",
             crate::pages::Page::Skeleton.description(),
             crate::pages::Page::Skeleton.import_line(),
-            vec![(
-                "Loading",
-                col(vec![
-                    h::Skeleton::new().w(px(320.)).h(px(16.)).into_any_element(),
-                    h::Skeleton::new().w(px(260.)).h(px(16.)).into_any_element(),
-                    h::Skeleton::new().w(px(180.)).h(px(16.)).into_any_element(),
-                ]),
-            )],
+            vec![
+                (
+                    "Usage",
+                    col(vec![gpui::div()
+                        .w(px(250.))
+                        .flex()
+                        .flex_col()
+                        .gap(px(20.))
+                        .child(h::Skeleton::new().w(px(218.)).h(px(128.)))
+                        .child(
+                            gpui::div()
+                                .flex()
+                                .flex_col()
+                                .gap(px(12.))
+                                .child(h::Skeleton::new().w(px(130.)).h(px(12.)))
+                                .child(h::Skeleton::new().w(px(174.)).h(px(12.)))
+                                .child(h::Skeleton::new().w(px(87.)).h(px(12.))),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Text Content",
+                    col(vec![gpui::div()
+                        .w(px(420.))
+                        .flex()
+                        .flex_col()
+                        .gap(px(12.))
+                        .children(
+                            [1.0_f32, 0.83, 0.66, 1.0, 0.5]
+                                .into_iter()
+                                .map(|f| h::Skeleton::new().w(px(420. * f)).h(px(16.))),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "User Profile",
+                    col(vec![gpui::div()
+                        .flex()
+                        .items_center()
+                        .gap(px(12.))
+                        // v3 rounds this one with `rounded-full`. Clipping it in
+                        // the wrapper is the same result without inventing a
+                        // per-instance radius prop v3 does not have.
+                        .child(
+                            gpui::div()
+                                .rounded_full()
+                                .overflow_hidden()
+                                .flex_shrink_0()
+                                .child(h::Skeleton::new().w(px(40.)).h(px(40.))),
+                        )
+                        .child(
+                            gpui::div()
+                                .flex()
+                                .flex_col()
+                                .gap(px(8.))
+                                .child(h::Skeleton::new().w(px(144.)).h(px(12.)))
+                                .child(h::Skeleton::new().w(px(96.)).h(px(12.))),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "List Items",
+                    col((0..3)
+                        .map(|_| {
+                            gpui::div()
+                                .flex()
+                                .items_center()
+                                .gap(px(12.))
+                                .child(h::Skeleton::new().w(px(40.)).h(px(40.)))
+                                .child(
+                                    gpui::div()
+                                        .flex()
+                                        .flex_col()
+                                        .gap(px(8.))
+                                        .child(h::Skeleton::new().w(px(320.)).h(px(12.)))
+                                        .child(h::Skeleton::new().w(px(256.)).h(px(12.))),
+                                )
+                        })
+                        .els()),
+                ),
+                (
+                    "Grid",
+                    col(vec![gpui::div()
+                        .flex()
+                        .flex_wrap()
+                        .gap(px(16.))
+                        .children((0..6).map(|_| h::Skeleton::new().w(px(130.)).h(px(96.))))
+                        .into_any_element()]),
+                ),
+                (
+                    "Single Shimmer",
+                    col(vec![
+                        para(
+                            "v3 runs one shimmer across a whole group by putting the animation on \
+                             the parent and turning it off on each child.",
+                            cx,
+                        ),
+                        gpui::div()
+                            .flex()
+                            .gap(px(16.))
+                            .children((0..3).map(|_| {
+                                h::Skeleton::new()
+                                    .w(px(130.))
+                                    .h(px(96.))
+                                    .animation_type(herogpui_theme::SkeletonAnimation::None)
+                            }))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Animation Types",
+                    row(vec![
+                        spec(
+                            "Shimmer",
+                            h::Skeleton::new()
+                                .w(px(160.))
+                                .h(px(80.))
+                                .animation_type(herogpui_theme::SkeletonAnimation::Shimmer),
+                            cx,
+                        ),
+                        spec(
+                            "Pulse",
+                            h::Skeleton::new()
+                                .w(px(160.))
+                                .h(px(80.))
+                                .animation_type(herogpui_theme::SkeletonAnimation::Pulse),
+                            cx,
+                        ),
+                        spec(
+                            "None",
+                            h::Skeleton::new()
+                                .w(px(160.))
+                                .h(px(80.))
+                                .animation_type(herogpui_theme::SkeletonAnimation::None),
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Loading",
+                    col(vec![
+                        h::Skeleton::new().w(px(320.)).h(px(16.)).into_any_element(),
+                        h::Skeleton::new().w(px(260.)).h(px(16.)).into_any_element(),
+                        h::Skeleton::new().w(px(180.)).h(px(16.)).into_any_element(),
+                    ]),
+                ),
+            ],
             cx,
         )
     }
@@ -1902,6 +2595,18 @@ impl Gallery {
             crate::pages::Page::Spinner.description(),
             crate::pages::Page::Spinner.import_line(),
             vec![
+                (
+                    "Usage",
+                    row(vec![h::Spinner::new("sp-usage").into_any_element()]),
+                ),
+                (
+                    "Speed",
+                    row(vec![
+                        spec("Slow", h::Spinner::new("sp-slow").duration_ms(1500), cx),
+                        spec("Default", h::Spinner::new("sp-default"), cx),
+                        spec("Fast", h::Spinner::new("sp-fast").duration_ms(500), cx),
+                    ]),
+                ),
                 (
                     "Colors",
                     row(Color::ALL
@@ -2653,6 +3358,21 @@ impl Gallery {
             crate::pages::Page::Avatar.description(),
             crate::pages::Page::Avatar.import_line(),
             vec![
+                (
+                    "Usage",
+                    row(vec![h::Avatar::new().name("Jane Doe").into_any_element()]),
+                ),
+                (
+                    "Fallback Content",
+                    row(vec![
+                        spec(
+                            "Initials from a name",
+                            h::Avatar::new().name("Jane Doe"),
+                            cx,
+                        ),
+                        spec("No name at all", h::Avatar::new(), cx),
+                    ]),
+                ),
                 (
                     "Sizes",
                     row(Size::ALL

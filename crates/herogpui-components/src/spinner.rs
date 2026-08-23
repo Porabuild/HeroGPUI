@@ -67,6 +67,10 @@ pub struct Spinner {
     color: Color,
     /// Set by `color="current"`: the resolved colour of the surrounding text.
     current_color: Option<gpui::Hsla>,
+    /// One full turn, in milliseconds. v3 changes this with an animation
+    /// utility class (`animate-[spin_1.5s_linear_infinite]`), which is its
+    /// "Speed" example; there are no classes here, so it is a prop.
+    duration_ms: u64,
 }
 
 impl Spinner {
@@ -76,7 +80,14 @@ impl Spinner {
             size: SpinnerSize::default(),
             color: Color::Accent,
             current_color: None,
+            duration_ms: 800,
         }
+    }
+
+    /// How long one full turn takes. v3 sets it with an animation utility.
+    pub fn duration_ms(mut self, ms: u64) -> Self {
+        self.duration_ms = ms.max(1);
+        self
     }
 
     pub fn size(mut self, size: impl Into<SpinnerSize>) -> Self {
@@ -111,7 +122,7 @@ impl RenderOnce for Spinner {
             .text_color(color)
             .with_animation(
                 self.id,
-                Animation::new(Duration::from_millis(800)).repeat(),
+                Animation::new(Duration::from_millis(self.duration_ms)).repeat(),
                 |svg, delta| {
                     let t = if delta.is_finite() {
                         delta.clamp(0.0, 1.0)

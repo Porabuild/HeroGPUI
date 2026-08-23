@@ -33,6 +33,16 @@ pub struct Switch {
     is_required: bool,
     is_read_only: bool,
     label: Option<AnyElement>,
+    /// `Description` — v3 composes it as a sibling of the button row, indented
+    /// to sit under the label.
+    description: Option<gpui::SharedString>,
+    /// `Switch.Thumb` children — v3 draws an icon inside the thumb, one per
+    /// state (`.switch__thumb > *` is a centred, full-size box).
+    thumb_off: Option<AnyElement>,
+    thumb_on: Option<AnyElement>,
+    /// Whether the label comes before the control. v3 gets this from the order
+    /// of `Switch.Content`'s children.
+    label_first: bool,
     on_change: Option<Box<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
 }
 
@@ -93,6 +103,10 @@ impl Switch {
             is_required: false,
             is_read_only: false,
             label: None,
+            description: None,
+            thumb_off: None,
+            thumb_on: None,
+            label_first: false,
             on_change: None,
         }
     }
@@ -177,6 +191,29 @@ impl Switch {
         self
     }
 
+    /// `Description` — help text under the control and label.
+    pub fn description(mut self, text: impl Into<gpui::SharedString>) -> Self {
+        self.description = Some(text.into());
+        self
+    }
+
+    /// `Switch.Thumb` children — what the thumb shows in each state.
+    ///
+    /// v3 composes an icon inside the thumb and swaps it on selection, which is
+    /// its "With Icons" example.
+    pub fn thumb_icons(mut self, off: impl IntoElement, on: impl IntoElement) -> Self {
+        self.thumb_off = Some(off.into_any_element());
+        self.thumb_on = Some(on.into_any_element());
+        self
+    }
+
+    /// Puts the label before the control, which v3 does by ordering the
+    /// children of `Switch.Content`.
+    pub fn label_first(mut self, v: bool) -> Self {
+        self.label_first = v;
+        self
+    }
+
     pub fn on_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Box::new(f));
         self
@@ -257,11 +294,22 @@ impl RenderOnce for Switch {
         // here. It is `bg-white` unchecked and `bg-accent-foreground` checked --
         // not the page background and a soft grey, which is what this drew
         // before.
-        let thumb_el = gpui::div()
+        let mut thumb_el = gpui::div()
             .w(thumb_w)
             .h(thumb_h)
             .rounded(thumb_r)
-            .flex_shrink_0();
+            .flex_shrink_0()
+            // `.switch__thumb > *` is a centred, full-size box.
+            .flex()
+            .items_center()
+            .justify_center();
+        if let Some(glyph) = if checked {
+            self.thumb_on
+        } else {
+            self.thumb_off
+        } {
+            thumb_el = thumb_el.child(glyph);
+        }
         track = track.child(if checked {
             thumb_el
                 .ml_auto()
@@ -312,13 +360,47 @@ impl RenderOnce for Switch {
             });
         }
 
-        // `.switch__content` is `gap-3`.
-        let mut el = gpui::div().flex().items_center().gap(px(12.)).child(track);
-        if let Some(label) = self.label {
-            el = el.child(label);
-            if self.is_required {
-                el = el.child(gpui::div().text_color(colors.danger.color).child("*"));
-            }
+        // `.switch__content` is `gap-3`. v3 gets the label's side from the order
+        // of its children, so `label_first` puts it before the control.
+        let mut el = gpui::div().flex().items_center().gap(px(12.));
+        let label_row = self.label.map(|label| {
+            gpui::div()
+                .flex()
+                .items_center()
+                .gap(px(4.))
+                .child(label)
+                .when(self.is_required, |r| {
+                    r.child(gpui::div().text_color(colors.danger.color).child("*"))
+                })
+        });
+        match (self.label_first, label_row) {
+            (true, Some(label)) => el = el.child(label).child(track),
+            (false, Some(label)) => el = el.child(track).child(label),
+            (_, None) => el = el.child(track),
+        }
+
+        // `& > [data-slot="description"]` is indented by the track width plus
+        // the row's `gap-3`, so the text lines up under the label.
+        if let Some(description) = self.description {
+            let indent = w + px(12.);
+            return gpui::div()
+                .flex()
+                .flex_col()
+                .gap(px(4.))
+                .child(el)
+                .child(
+                    gpui::div()
+                        .pl(indent)
+                        .child(crate::field::Description::new(description)),
+                )
+                .when_some(validity.first(), |c, message| {
+                    c.child(
+                        gpui::div()
+                            .pl(indent)
+                            .child(crate::field::ErrorMessage::new(message)),
+                    )
+                })
+                .into_any_element();
         }
 
         // A switch that can be invalid has to be able to say why, so the row

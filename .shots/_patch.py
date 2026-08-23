@@ -1,7 +1,7 @@
-"""Add the per-demo state pools the ported examples need."""
+"""Table: Secondary Variant, Async Loading, Pagination, Custom Cells."""
 import io
 
-P = 'gallery/src/app.rs'
+P = 'gallery/src/pages/components.rs'
 s = io.open(P, encoding='utf-8', newline='').read()
 
 
@@ -11,110 +11,145 @@ def rep(old, new):
     s = s.replace(old, new)
 
 
-rep("""    pub color_field_state: Entity<h::InputState>,
-}""",
-    """    pub color_field_state: Entity<h::InputState>,
+rep("""                (
+                    "Empty and loading",
+                    col(vec![
+                        h::Table::new(vec!["Name".into(), "Role".into()])
+                            .empty_state("Nobody here yet")
+                            .into_any_element(),
+                        build().is_pending(true).into_any_element(),
+                    ]),
+                ),
+            ],""",
+    """                (
+                    "Secondary Variant",
+                    col(vec![build()
+                        .variant(h::TableVariant::Secondary)
+                        .into_any_element()]),
+                ),
+                (
+                    "Async Loading",
+                    col(vec![
+                        para(
+                            "`isPending` covers the table while a request is in flight; \\
+                             `onLoadMore` fires when the last row scrolls into view.",
+                            cx,
+                        ),
+                        build()
+                            .is_pending(true)
+                            .on_load_more(|_, _| {})
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Pagination",
+                    col(vec![
+                        {
+                            let start = table_page.saturating_sub(1) * 2;
+                            let people = [
+                                ("Tony Reichert", "CEO"),
+                                ("Zoey Lang", "Tech Lead"),
+                                ("Jane Fisher", "Designer"),
+                                ("William Howard", "Support"),
+                                ("Kristen Copper", "Sales Manager"),
+                                ("Emily Collins", "Marketing"),
+                            ];
+                            let mut paged =
+                                h::Table::new(vec!["Name".into(), "Role".into()]);
+                            for (name, role) in people.iter().skip(start).take(2) {
+                                paged = paged.row(vec![
+                                    gpui::div().child(*name).into_any_element(),
+                                    gpui::div().child(*role).into_any_element(),
+                                ]);
+                            }
+                            paged.into_any_element()
+                        },
+                        h::Pagination::new("tbl-pages", 3)
+                            .page(table_page)
+                            .on_change(usize_cb(cx.listener(|this, p: &usize, _, cx| {
+                                this.set_demo_value("tbl-page", *p as f32);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Custom Cells",
+                    col(vec![h::Table::new(vec![
+                        "Member".into(),
+                        "Role".into(),
+                        "Status".into(),
+                    ])
+                    .row(vec![
+                        gpui::div()
+                            .flex()
+                            .items_center()
+                            .gap(px(10.))
+                            .child(h::Avatar::new().name("Tony Reichert").size(Size::Sm))
+                            .child(
+                                gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .child(gpui::div().child("Tony Reichert"))
+                                    .child(
+                                        gpui::div()
+                                            .text_size(px(11.5))
+                                            .text_color(cx.colors().muted)
+                                            .child("tony@example.com"),
+                                    ),
+                            )
+                            .into_any_element(),
+                        gpui::div().child("CEO").into_any_element(),
+                        h::Chip::new("Active")
+                            .color(Color::Success)
+                            .variant(h::ChipVariant::Soft)
+                            .size(Size::Sm)
+                            .into_any_element(),
+                    ])
+                    .row(vec![
+                        gpui::div()
+                            .flex()
+                            .items_center()
+                            .gap(px(10.))
+                            .child(h::Avatar::new().name("Zoey Lang").size(Size::Sm))
+                            .child(
+                                gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .child(gpui::div().child("Zoey Lang"))
+                                    .child(
+                                        gpui::div()
+                                            .text_size(px(11.5))
+                                            .text_color(cx.colors().muted)
+                                            .child("zoey@example.com"),
+                                    ),
+                            )
+                            .into_any_element(),
+                        gpui::div().child("Tech Lead").into_any_element(),
+                        h::Chip::new("Paused")
+                            .color(Color::Warning)
+                            .variant(h::ChipVariant::Soft)
+                            .size(Size::Sm)
+                            .into_any_element(),
+                    ])
+                    .into_any_element()]),
+                ),
+                (
+                    "Empty and loading",
+                    col(vec![
+                        h::Table::new(vec!["Name".into(), "Role".into()])
+                            .empty_state("Nobody here yet")
+                            .into_any_element(),
+                        build().is_pending(true).into_any_element(),
+                    ]),
+                ),
+            ],""")
 
-    // -- per-demo state -----------------------------------------------------
-    //
-    // v3's examples each own their state: its "Controlled" demo and its
-    // "Disabled State" demo are separate fields. Sharing one entity across a
-    // page would make typing in one demo change every other, so these are
-    // keyed by demo id and created on first render -- a page only pays for the
-    // demos it actually shows.
-    pub demo_text: HashMap<&'static str, Entity<h::InputState>>,
-    pub demo_number: HashMap<&'static str, Entity<h::NumberState>>,
-    pub demo_flags: HashMap<&'static str, bool>,
-    pub demo_choice: HashMap<&'static str, Option<usize>>,
-    pub demo_keys: HashMap<&'static str, Vec<SharedString>>,
-    pub demo_values: HashMap<&'static str, f32>,
-}""")
-
-rep("""impl Gallery {
-    pub fn new(cx: &mut Context<'_, Self>) -> Self {""",
-    """impl Gallery {
-    /// The text state for one demo, created on first use.
-    ///
-    /// `initial` seeds it the way v3's `defaultValue` does, and only on the
-    /// first call -- later renders return the state the user has been editing.
-    pub fn demo_text(
-        &mut self,
-        key: &'static str,
-        initial: &str,
-        cx: &mut App,
-    ) -> Entity<h::InputState> {
-        if let Some(state) = self.demo_text.get(key) {
-            return state.clone();
-        }
-        let initial = initial.to_owned();
-        let state = cx.new(|cx| h::InputState::with_value(cx, initial));
-        self.demo_text.insert(key, state.clone());
-        state
-    }
-
-    /// The numeric state for one demo, created on first use.
-    pub fn demo_number(
-        &mut self,
-        key: &'static str,
-        value: f64,
-        min: f64,
-        max: f64,
-        step: f64,
-        cx: &mut App,
-    ) -> Entity<h::NumberState> {
-        if let Some(state) = self.demo_number.get(key) {
-            return state.clone();
-        }
-        let state = cx.new(|cx| {
-            let mut n = h::NumberState::new(cx, value);
-            n.set_range(min, max);
-            n.set_step(step);
-            n
-        });
-        self.demo_number.insert(key, state.clone());
-        state
-    }
-
-    /// A boolean a demo owns (selected, open, checked).
-    pub fn demo_flag(&self, key: &str, default: bool) -> bool {
-        self.demo_flags.get(key).copied().unwrap_or(default)
-    }
-
-    pub fn set_demo_flag(&mut self, key: &'static str, v: bool) {
-        self.demo_flags.insert(key, v);
-    }
-
-    /// A single-selection index a demo owns.
-    pub fn demo_choice(&self, key: &str, default: Option<usize>) -> Option<usize> {
-        self.demo_choice.get(key).copied().unwrap_or(default)
-    }
-
-    pub fn set_demo_choice(&mut self, key: &'static str, v: Option<usize>) {
-        self.demo_choice.insert(key, v);
-    }
-
-    /// A multi-selection a demo owns.
-    pub fn demo_keys(&self, key: &str) -> Vec<SharedString> {
-        self.demo_keys.get(key).cloned().unwrap_or_default()
-    }
-
-    pub fn set_demo_keys(&mut self, key: &'static str, v: Vec<SharedString>) {
-        self.demo_keys.insert(key, v);
-    }
-
-    /// A numeric value a demo owns (slider, progress).
-    pub fn demo_value(&self, key: &str, default: f32) -> f32 {
-        self.demo_values.get(key).copied().unwrap_or(default)
-    }
-
-    pub fn set_demo_value(&mut self, key: &'static str, v: f32) {
-        self.demo_values.insert(key, v);
-    }
-
-    pub fn new(cx: &mut Context<'_, Self>) -> Self {""")
-
-rep("use std::collections::HashSet;",
-    "use std::collections::{HashMap, HashSet};")
+rep("""    pub fn page_table(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let build = || {""",
+    """    pub fn page_table(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let table_page = self.demo_value("tbl-page", 1.) as usize;
+        let build = || {""")
 
 io.open(P, 'w', encoding='utf-8', newline='').write(s)
-print('patched app.rs')
+print('patched table page')
