@@ -285,6 +285,26 @@ pub fn button_foreground(variant: Variant, cx: &App) -> gpui::Hsla {
     }
 }
 
+/// [`group_radius`] for any styled element — `ToggleButtonGroup` merges its
+/// members' corners the same way `.button-group` does.
+pub(crate) fn group_radius_any<T: Styled>(
+    el: T,
+    edge: Option<(GroupEdge, bool)>,
+    radius: gpui::Pixels,
+) -> T {
+    let Some((edge, vertical)) = edge else {
+        return el.rounded(radius);
+    };
+    match (edge, vertical) {
+        (GroupEdge::Only, _) => el.rounded(radius),
+        (GroupEdge::Start, false) => el.rounded_tl(radius).rounded_bl(radius),
+        (GroupEdge::End, false) => el.rounded_tr(radius).rounded_br(radius),
+        (GroupEdge::Start, true) => el.rounded_tl(radius).rounded_tr(radius),
+        (GroupEdge::End, true) => el.rounded_bl(radius).rounded_br(radius),
+        (GroupEdge::Middle, _) => el,
+    }
+}
+
 /// Applies `radius` to only the corners a group edge leaves round.
 fn group_radius(
     el: Stateful<Div>,

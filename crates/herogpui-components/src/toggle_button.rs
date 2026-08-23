@@ -35,6 +35,10 @@ pub struct ToggleButton {
     is_selected: Option<bool>,
     default_selected: bool,
     is_icon_only: bool,
+    /// Set by [`ToggleButtonGroup`]: which end of the group this member is,
+    /// and whether the group stacks. `.toggle-button-group .toggle-button` is
+    /// `rounded-none` with the outer radius on the first and last member.
+    group_edge: Option<(crate::button::GroupEdge, bool)>,
     is_disabled: bool,
     children: Vec<AnyElement>,
     on_press: Option<Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>,
@@ -66,6 +70,7 @@ impl ToggleButton {
             is_selected: None,
             default_selected: false,
             is_icon_only: false,
+            group_edge: None,
             is_disabled: false,
             children: Vec::new(),
             on_press: None,
@@ -105,6 +110,13 @@ impl ToggleButton {
 
     pub fn is_icon_only(mut self, v: bool) -> Self {
         self.is_icon_only = v;
+        self
+    }
+
+    /// Joins this toggle to a group edge. Internal: a caller reaches it by
+    /// putting the toggle in a [`ToggleButtonGroup`].
+    pub(crate) fn group_edge(mut self, edge: crate::button::GroupEdge, vertical: bool) -> Self {
+        self.group_edge = Some((edge, vertical));
         self
     }
 
@@ -180,10 +192,13 @@ impl RenderOnce for ToggleButton {
 
         // sizing — kept in locals so the press geometry below scales exactly
         // what was applied here.
+        // `.toggle-button` is `h-10 md:h-9` with `--sm` at `h-9 md:h-8` and
+        // `--lg` at `h-11 md:h-10`: 32 / 36 / 40 on a desktop, the same pair as
+        // `.button`. This had them a step too tall.
         let (height, pad_x, gap) = match self.size {
             Size::Sm => (px(32.), px(12.), px(6.)),
-            Size::Md => (px(40.), px(16.), px(8.)),
-            Size::Lg => (px(48.), px(20.), px(8.)),
+            Size::Md => (px(36.), px(16.), px(8.)),
+            Size::Lg => (px(40.), px(20.), px(8.)),
         };
         let text = self.size.text_size();
         let line = self.size.line_height();
@@ -195,7 +210,7 @@ impl RenderOnce for ToggleButton {
             el.px(pad_x).gap(gap)
         };
 
-        el = el.rounded(radius);
+        el = crate::button::group_radius_any(el, self.group_edge, radius);
 
         if self.is_disabled {
             el = el.opacity(layout.disabled_opacity);
@@ -263,6 +278,9 @@ pub struct ToggleButtonGroup {
     selected: Vec<SharedString>,
     selection_mode: SelectionMode,
     is_detached: bool,
+    /// Whether a `ToggleButtonGroup.Separator` sits before each member after
+    /// the first. v3 composes it as a child, and hides it when detached.
+    separators: bool,
     is_vertical: bool,
     disallow_empty_selection: bool,
     full_width: bool,
@@ -296,6 +314,7 @@ impl ToggleButtonGroup {
             selected: Vec::new(),
             selection_mode: SelectionMode::Multiple,
             is_detached: false,
+            separators: true,
             is_vertical: false,
             disallow_empty_selection: false,
             full_width: false,
@@ -306,6 +325,12 @@ impl ToggleButtonGroup {
 
     pub fn selection_mode(mut self, m: SelectionMode) -> Self {
         self.selection_mode = m;
+        self
+    }
+
+    /// `ToggleButtonGroup.Separator` — the hairline between members.
+    pub fn separators(mut self, v: bool) -> Self {
+        self.separators = v;
         self
     }
 
@@ -356,29 +381,34 @@ impl ParentElement for ToggleButtonGroup {
 
 impl RenderOnce for ToggleButtonGroup {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let gap = if self.is_detached { px(8.) } else { px(0.) };
+        // `.toggle-button-group` is `inline-flex items-center justify-center
+        // gap-0`; `--detached` is `gap-1` and restores each member's full
+        // radius.
+        let gap = if self.is_detached { px(4.) } else { px(0.) };
         let mut row = div()
             .flex()
+            .items_center()
+            .justify_center()
             .when(self.is_vertical, |r| r.flex_col())
             .when(!self.is_vertical, |r| r.flex_row())
             .gap(gap)
             .when(self.full_width, |r| r.w_full());
+        let total = self.children.len();
+        let separators = self.separators && !self.is_detached;
+        let is_vertical = self.is_vertical;
+        let full_width = self.full_width;
+        // `.toggle-button-group__separator` is `bg-current opacity-15`, 1px by
+        // half the member, one pixel before its leading edge. This used to be a
+        // 20px line in `--separator` with a 2px margin, which is neither the
+        // colour nor the geometry v3 draws.
+        let separator_color = cx.colors().foreground.alpha(0.15);
+        let separator_radius = crate::util::hairline_radius(cx);
 
         let selected = self.selected.clone();
         let mode = self.selection_mode;
         let disallow_empty = self.disallow_empty_selection;
 
         for (i, btn) in self.children.into_iter().enumerate() {
-            if !self.is_detached && i > 0 {
-                // Separator line between attached toggles
-                row = row.child(
-                    div()
-                        .w(px(1.))
-                        .h(px(20.))
-                        .bg(cx.colors().separator)
-                        .mx(px(2.)),
-                );
-            }
             // Reflect the group's selection into the child, and let the child
             // report the next selection back through the group's callback.
             let key = btn.selection_key();
@@ -395,7 +425,43 @@ impl RenderOnce for ToggleButtonGroup {
                 });
             }
 
-            row = row.child(btn);
+            // The edge decides which corners stay round, so it has to reach the
+            // `ToggleButton` before it becomes an element.
+            let edge = if self.is_detached || total <= 1 {
+                crate::button::GroupEdge::Only
+            } else if i == 0 {
+                crate::button::GroupEdge::Start
+            } else if i + 1 == total {
+                crate::button::GroupEdge::End
+            } else {
+                crate::button::GroupEdge::Middle
+            };
+            let mut slot = div()
+                .relative()
+                .child(btn.group_edge(edge, is_vertical))
+                .when(full_width, |sl| sl.flex_1());
+            if separators && i > 0 {
+                slot = slot.child(
+                    div()
+                        .absolute()
+                        .bg(separator_color)
+                        .rounded(separator_radius)
+                        .map(|sep| {
+                            if is_vertical {
+                                sep.left(gpui::relative(0.25))
+                                    .top(px(-1.))
+                                    .w(gpui::relative(0.5))
+                                    .h(px(1.))
+                            } else {
+                                sep.left(px(-1.))
+                                    .top(gpui::relative(0.25))
+                                    .w(px(1.))
+                                    .h(gpui::relative(0.5))
+                            }
+                        }),
+                );
+            }
+            row = row.child(slot);
         }
 
         row

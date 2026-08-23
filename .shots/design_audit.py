@@ -235,7 +235,7 @@ CHECKS = [
     ('switch', '.switch__thumb', 'h', 'Switch md thumb height', SRC + 'switch.rs',
      'Size::Md => \(px\(40\.\), px\(20\.\), px\(22\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('switch', '.switch__content', 'gap', 'Switch row gap', SRC + 'switch.rs',
-     '`\.switch__content` is `gap-3`\.\s+let mut el = gpui::div\(\)\.flex\(\)\.items_center\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.switch__content` is `gap-3`\. [\s\S]{0,200}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('input-otp', '.input-otp__slot', 'w', 'InputOTP slot width', SRC + 'input_otp.rs',
      'let \(cell_w, cell_h, text, slot_gap\) = \(px\((\d+(?:\.\d*)?)\.?\)', None),
     ('input-otp', '.input-otp__slot', 'h', 'InputOTP slot height', SRC + 'input_otp.rs',
@@ -259,6 +259,18 @@ CHECKS = [
      '\.rounded\(util::(\w+_radius)\(cx\)\)\s+\.px\(px\(8\.\)\)', helper_px),
     ('list-box-item', '.list-box-item', 'gap', 'ComboBox row gap', SRC + 'combo_box.rs',
      '\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s+\.rounded\(util::soft_radius', None),
+    ('toggle-button', '.toggle-button', 'h', 'ToggleButton md height',
+     SRC + 'toggle_button.rs',
+     r'Size::Md => \(px\((\d+(?:\.\d*)?)\.\), px\(16\.\)', None),
+    ('toggle-button', '.toggle-button--sm', 'h', 'ToggleButton sm height',
+     SRC + 'toggle_button.rs',
+     r'Size::Sm => \(px\((\d+(?:\.\d*)?)\.\), px\(12\.\)', None),
+    ('toggle-button', '.toggle-button--lg', 'h', 'ToggleButton lg height',
+     SRC + 'toggle_button.rs',
+     r'Size::Lg => \(px\((\d+(?:\.\d*)?)\.\), px\(20\.\)', None),
+    ('toggle-button-group', '.toggle-button-group--detached', 'gap',
+     'ToggleButtonGroup detached gap', SRC + 'toggle_button.rs',
+     r'is_detached \{ px\((\d+(?:\.\d*)?)\.\) \} else \{ px\(0\.\) \}', None),
 ]
 
 
