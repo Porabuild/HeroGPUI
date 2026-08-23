@@ -3433,34 +3433,63 @@ impl Gallery {
             "Fieldset",
             crate::pages::Page::Fieldset.description(),
             crate::pages::Page::Fieldset.import_line(),
-            vec![(
-                "Usage",
-                col(vec![h::Fieldset::new()
-                    .child(h::FieldsetLegend::new("Shipping address"))
-                    .child(
-                        h::FieldsetGroup::new()
-                            .child(
-                                h::TextField::new(self.input_name.clone())
-                                    .label("Street")
-                                    .placeholder("221B Baker Street"),
-                            )
-                            .child(
-                                h::TextField::new(self.input_email.clone())
-                                    .label("City")
-                                    .placeholder("London"),
-                            ),
-                    )
-                    .child(
-                        h::FieldsetActions::new()
-                            .child(
-                                h::Button::new("fs-cancel")
-                                    .label("Cancel")
-                                    .variant(Variant::Tertiary),
-                            )
-                            .child(h::Button::new("fs-save").label("Save")),
-                    )
-                    .into_any_element()]),
-            )],
+            vec![
+                (
+                    "In Surface",
+                    col(vec![h::Surface::new()
+                        .padding(px(24.))
+                        .gap(px(16.))
+                        .child(
+                            h::Fieldset::new()
+                                .child(h::FieldsetLegend::new("Profile"))
+                                .child(
+                                    h::FieldsetGroup::new()
+                                        .child(
+                                            h::TextField::new(self.demo_text("fset-name", "", cx))
+                                                .label("Name")
+                                                .variant(FieldVariant::Secondary),
+                                        )
+                                        .child(
+                                            h::TextField::new(self.demo_text("fset-email", "", cx))
+                                                .label("Email")
+                                                .variant(FieldVariant::Secondary),
+                                        ),
+                                )
+                                .child(h::FieldsetActions::new().child(
+                                    h::Button::new("fset-save").label("Save").size(Size::Sm),
+                                )),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Usage",
+                    col(vec![h::Fieldset::new()
+                        .child(h::FieldsetLegend::new("Shipping address"))
+                        .child(
+                            h::FieldsetGroup::new()
+                                .child(
+                                    h::TextField::new(self.input_name.clone())
+                                        .label("Street")
+                                        .placeholder("221B Baker Street"),
+                                )
+                                .child(
+                                    h::TextField::new(self.input_email.clone())
+                                        .label("City")
+                                        .placeholder("London"),
+                                ),
+                        )
+                        .child(
+                            h::FieldsetActions::new()
+                                .child(
+                                    h::Button::new("fs-cancel")
+                                        .label("Cancel")
+                                        .variant(Variant::Tertiary),
+                                )
+                                .child(h::Button::new("fs-save").label("Save")),
+                        )
+                        .into_any_element()]),
+                ),
+            ],
             cx,
         )
     }
@@ -3471,6 +3500,114 @@ impl Gallery {
             crate::pages::Page::FieldSlots.description(),
             crate::pages::Page::FieldSlots.import_line(),
             vec![
+                (
+                    "Usage",
+                    col(vec![
+                        h::Label::new("Email").into_any_element(),
+                        h::Description::new("We will never share your address.").into_any_element(),
+                        h::ErrorMessage::new("Enter a valid email address.").into_any_element(),
+                    ]),
+                ),
+                (
+                    "With Required Indicator",
+                    col(vec![h::Label::new("Email")
+                        .is_required(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "With Disabled State",
+                    col(vec![h::Label::new("Email")
+                        .is_disabled(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "With Invalid State",
+                    col(vec![h::Label::new("Email")
+                        .is_invalid(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "With Form Fields",
+                    col(vec![h::TextField::new(self.demo_text(
+                        "fs-with-field",
+                        "",
+                        cx,
+                    ))
+                    .label("Email")
+                    .input_type(h::InputType::Email)
+                    .description("We will never share your email")
+                    .into_any_element()]),
+                ),
+                (
+                    "Integration with TextField",
+                    col(vec![
+                        para(
+                            "A `TextField` composes all three parts itself: the label above, the \
+                             input, and the description or the error message below.",
+                            cx,
+                        ),
+                        h::TextField::new(self.demo_text("fs-integration", "", cx))
+                            .label("Email")
+                            .placeholder("Enter your email")
+                            .description("We will never share your email")
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Basic Validation",
+                    col(vec![h::TextField::new(self.demo_text(
+                        "fs-validate",
+                        "",
+                        cx,
+                    ))
+                    .label("Password")
+                    .input_type(h::InputType::Password)
+                    .is_required(true)
+                    .validate(|value| {
+                        (value.chars().count() < 8).then(|| "Use at least 8 characters".into())
+                    })
+                    .into_any_element()]),
+                ),
+                (
+                    "With Dynamic Messages",
+                    col(vec![
+                        para(
+                            "v3's `FieldError` takes a render prop and joins \
+                             `validation.validationErrors`. `validationErrors` here is a list, \
+                             and the field shows them in order.",
+                            cx,
+                        ),
+                        h::TextField::new(self.demo_text("fs-dynamic", "abc", cx))
+                            .label("Password")
+                            .is_invalid(true)
+                            .validation_errors(["Use at least 8 characters", "Include a digit"])
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Custom Validation Logic",
+                    col(vec![h::TextField::new(self.demo_text("fs-custom", "", cx))
+                        .label("Username")
+                        .description("Letters, digits and dashes only")
+                        .validate(|value| {
+                            (!value.is_empty()
+                                && !value.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
+                            .then(|| "Letters, digits and dashes only".into())
+                        })
+                        .into_any_element()]),
+                ),
+                (
+                    "Multiple Error Messages",
+                    col(vec![h::TextField::new(self.demo_text("fs-multi", "", cx))
+                        .label("Password")
+                        .is_invalid(true)
+                        .validation_errors([
+                            "Use at least 8 characters",
+                            "Include an uppercase letter",
+                            "Include a digit",
+                        ])
+                        .into_any_element()]),
+                ),
                 (
                     "Label",
                     col(vec![
@@ -4444,6 +4581,45 @@ impl Gallery {
             crate::pages::Page::Separator.import_line(),
             vec![
                 (
+                    "Usage",
+                    col(vec![gpui::div()
+                        .w_full()
+                        .flex()
+                        .flex_col()
+                        .gap(px(12.))
+                        .child(gpui::div().child("Above"))
+                        .child(h::Separator::new())
+                        .child(gpui::div().child("Below"))
+                        .into_any_element()]),
+                ),
+                (
+                    "With Surface",
+                    col(vec![h::Surface::new()
+                        .padding(px(20.))
+                        .gap(px(12.))
+                        .child(gpui::div().child("Notifications"))
+                        .child(h::Separator::new())
+                        .child(gpui::div().child("Privacy"))
+                        .into_any_element()]),
+                ),
+                (
+                    "With Content",
+                    col(vec![gpui::div()
+                        .w_full()
+                        .flex()
+                        .items_center()
+                        .gap(px(12.))
+                        .child(gpui::div().flex_1().child(h::Separator::new()))
+                        .child(
+                            gpui::div()
+                                .text_size(px(12.))
+                                .text_color(cx.colors().muted)
+                                .child("OR"),
+                        )
+                        .child(gpui::div().flex_1().child(h::Separator::new()))
+                        .into_any_element()]),
+                ),
+                (
                     "Variants",
                     col(h::SeparatorVariant::ALL
                         .iter()
@@ -4497,6 +4673,13 @@ impl Gallery {
             crate::pages::Page::Surface.description(),
             crate::pages::Page::Surface.import_line(),
             vec![
+                (
+                    "Usage",
+                    col(vec![h::Surface::new()
+                        .padding(px(24.))
+                        .child(gpui::div().child("A surface groups related content."))
+                        .into_any_element()]),
+                ),
                 (
                     "Variants",
                     col(vec![
@@ -4557,6 +4740,49 @@ impl Gallery {
             crate::pages::Page::Toolbar.description(),
             crate::pages::Page::Toolbar.import_line(),
             vec![
+                (
+                    "Usage",
+                    col(vec![h::Toolbar::new()
+                        .child(
+                            h::Button::new("tb-usage-1")
+                                .label("Cut")
+                                .variant(Variant::Tertiary)
+                                .size(Size::Sm),
+                        )
+                        .child(
+                            h::Button::new("tb-usage-2")
+                                .label("Copy")
+                                .variant(Variant::Tertiary)
+                                .size(Size::Sm),
+                        )
+                        .child(
+                            h::Button::new("tb-usage-3")
+                                .label("Paste")
+                                .variant(Variant::Tertiary)
+                                .size(Size::Sm),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "With ButtonGroup",
+                    col(vec![h::Toolbar::new()
+                        .child(
+                            h::ButtonGroup::new()
+                                .variant(Variant::Secondary)
+                                .size(Size::Sm)
+                                .button(h::Button::new("tb-bg-1").label("Left"))
+                                .button(h::Button::new("tb-bg-2").label("Center"))
+                                .button(h::Button::new("tb-bg-3").label("Right")),
+                        )
+                        .child(h::Separator::new().orientation(Orientation::Vertical))
+                        .child(
+                            h::Button::new("tb-bg-4")
+                                .label("Reset")
+                                .variant(Variant::Tertiary)
+                                .size(Size::Sm),
+                        )
+                        .into_any_element()]),
+                ),
                 (
                     "Horizontal",
                     col(vec![
@@ -4734,6 +4960,52 @@ impl Gallery {
                     col(vec![h::Breadcrumbs::new(crumbs()).into_any_element()]),
                 ),
                 (
+                    "Navigation Levels",
+                    col(vec![
+                        h::Breadcrumbs::new(vec![h::Crumb::new("Home").href("#")])
+                            .into_any_element(),
+                        h::Breadcrumbs::new(vec![
+                            h::Crumb::new("Home").href("#"),
+                            h::Crumb::new("Library"),
+                        ])
+                        .into_any_element(),
+                        h::Breadcrumbs::new(vec![
+                            h::Crumb::new("Home").href("#"),
+                            h::Crumb::new("Library").href("#"),
+                            h::Crumb::new("Data"),
+                        ])
+                        .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Disabled State",
+                    col(vec![h::Breadcrumbs::new(vec![
+                        h::Crumb::new("Home").href("#"),
+                        h::Crumb::new("Archive").href("#"),
+                        h::Crumb::new("2025"),
+                    ])
+                    .is_disabled(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Custom Separator",
+                    col([
+                        h::BreadcrumbSeparator::Chevron,
+                        h::BreadcrumbSeparator::Slash,
+                        h::BreadcrumbSeparator::Dash,
+                    ]
+                    .iter()
+                    .map(|sep| {
+                        h::Breadcrumbs::new(vec![
+                            h::Crumb::new("Home").href("#"),
+                            h::Crumb::new("Library").href("#"),
+                            h::Crumb::new("Data"),
+                        ])
+                        .separator(*sep)
+                    })
+                    .els()),
+                ),
+                (
                     "Separators",
                     col(vec![
                         h::Breadcrumbs::new(crumbs())
@@ -4801,13 +5073,55 @@ impl Gallery {
             "Link",
             crate::pages::Page::Link.description(),
             crate::pages::Page::Link.import_line(),
-            vec![(
-                "Usage",
-                col(vec![h::Link::new("ln-hover")
-                    .label("Hover to see the underline")
-                    .href("#")
-                    .into_any_element()]),
-            )],
+            vec![
+                (
+                    "Usage",
+                    col(vec![h::Link::new("ln-hover")
+                        .label("Hover to see the underline")
+                        .href("#")
+                        .into_any_element()]),
+                ),
+                (
+                    "Icon Placement",
+                    col(vec![
+                        h::Link::new("ln-icon-end")
+                            .label("Icon at end (default)")
+                            .icon(icon(h::icons::EXTERNAL_LINK, cx))
+                            .href("#")
+                            .into_any_element(),
+                        h::Link::new("ln-icon-start")
+                            .label("Icon at start")
+                            .icon(icon(h::icons::EXTERNAL_LINK, cx))
+                            .icon_first(true)
+                            .href("#")
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Text Decoration",
+                    col(vec![
+                        para(
+                            "v3 changes the underline with Tailwind utilities. `.link` is \
+                             `no-underline hover:underline`, which is what this draws; a \
+                             different decoration is the caller's own styling on the element \
+                             they own.",
+                            cx,
+                        ),
+                        h::Link::new("ln-decor")
+                            .label("Underlined on hover")
+                            .href("#")
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Custom Icon",
+                    col(vec![h::Link::new("ln-custom-icon")
+                        .label("Open the docs")
+                        .icon(icon(h::icons::ARROW_RIGHT, cx))
+                        .href("#")
+                        .into_any_element()]),
+                ),
+            ],
             cx,
         )
     }
@@ -4827,6 +5141,112 @@ impl Gallery {
                             cx.notify();
                         })))
                         .into_any_element()]),
+                ),
+                (
+                    "Sizes",
+                    col(Size::ALL
+                        .iter()
+                        .map(|sz| {
+                            h::Pagination::new(el_id(format!("pg-{sz:?}")), page, 8).size(*sz)
+                        })
+                        .els()),
+                ),
+                (
+                    "Disabled",
+                    col(vec![h::Pagination::new("pg-disabled", page, 8)
+                        .is_disabled(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Simple (Previous / Next)",
+                    col(vec![row(vec![
+                        h::Button::new("pg-prev")
+                            .label("Previous")
+                            .variant(Variant::Tertiary)
+                            .is_disabled(page <= 1)
+                            .on_press(cx.listener(|this, _, _, cx| {
+                                this.pagination_page =
+                                    this.pagination_page.saturating_sub(1).max(1);
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        gpui::div()
+                            .text_size(px(13.5))
+                            .child(format!("Page {page} of 8"))
+                            .into_any_element(),
+                        h::Button::new("pg-next")
+                            .label("Next")
+                            .variant(Variant::Tertiary)
+                            .is_disabled(page >= 8)
+                            .on_press(cx.listener(|this, _, _, cx| {
+                                this.pagination_page = (this.pagination_page + 1).min(8);
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                    ])]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::Pagination::new("pg-controlled", page, 8)
+                            .on_change(usize_cb(cx.listener(|this, p: &usize, _, cx| {
+                                this.pagination_page = *p;
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        para(&format!("Page {page}"), cx),
+                    ]),
+                ),
+                (
+                    "With Ellipsis",
+                    col(vec![h::Pagination::new("pg-ellipsis", page, 24)
+                        .on_change(usize_cb(cx.listener(|this, p: &usize, _, cx| {
+                            this.pagination_page = *p;
+                            cx.notify();
+                        })))
+                        .into_any_element()]),
+                ),
+                (
+                    "With Summary",
+                    col(vec![
+                        h::Pagination::new("pg-summary", page, 12)
+                            .on_change(usize_cb(cx.listener(|this, p: &usize, _, cx| {
+                                this.pagination_page = *p;
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        para(
+                            &format!(
+                                "Showing {}-{} of 120 items",
+                                (page.saturating_sub(1)) * 10 + 1,
+                                (page * 10).min(120)
+                            ),
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Custom Icons",
+                    col(vec![
+                        para(
+                            "`link` is v3's render prop on `Pagination.Item`: the closure is \
+                             handed the page number and whether it is the active one.",
+                            cx,
+                        ),
+                        h::Pagination::new("pg-custom", page, 5)
+                            .link(|page, is_active| {
+                                gpui::div()
+                                    .px(px(8.))
+                                    .py(px(2.))
+                                    .child(if is_active {
+                                        format!("[{page}]")
+                                    } else {
+                                        format!("{page}")
+                                    })
+                                    .into_any_element()
+                            })
+                            .into_any_element(),
+                    ]),
                 ),
                 (
                     "Without controls",
@@ -5315,6 +5735,58 @@ impl Gallery {
             crate::pages::Page::Kbd.import_line(),
             vec![
                 (
+                    "Navigation Keys",
+                    row(vec![
+                        h::Kbd::new().child("\u{2190}").into_any_element(),
+                        h::Kbd::new().child("\u{2192}").into_any_element(),
+                        h::Kbd::new().child("\u{2191}").into_any_element(),
+                        h::Kbd::new().child("\u{2193}").into_any_element(),
+                        h::Kbd::new().child("Home").into_any_element(),
+                        h::Kbd::new().child("End").into_any_element(),
+                    ]),
+                ),
+                (
+                    "Special Keys",
+                    row(vec![
+                        h::Kbd::new().child("\u{21e7}").into_any_element(),
+                        h::Kbd::new().child("\u{2318}").into_any_element(),
+                        h::Kbd::new().child("\u{2325}").into_any_element(),
+                        h::Kbd::new().child("\u{21b5}").into_any_element(),
+                        h::Kbd::new().child("\u{232b}").into_any_element(),
+                        h::Kbd::new().child("Esc").into_any_element(),
+                    ]),
+                ),
+                (
+                    "Inline Usage",
+                    col(vec![gpui::div()
+                        .flex()
+                        .items_center()
+                        .gap(px(6.))
+                        .text_size(px(14.))
+                        .child("Press")
+                        .child(h::Kbd::new().child("Ctrl"))
+                        .child(h::Kbd::new().child("K"))
+                        .child("to open the command palette.")
+                        .into_any_element()]),
+                ),
+                (
+                    "Instructional Text",
+                    col(vec![gpui::div()
+                        .flex()
+                        .items_center()
+                        .gap(px(6.))
+                        .text_size(px(13.5))
+                        .text_color(cx.colors().muted)
+                        .child("Save with")
+                        .child(
+                            h::Kbd::new()
+                                .variant(h::KbdVariant::Light)
+                                .child("\u{2318}"),
+                        )
+                        .child(h::Kbd::new().variant(h::KbdVariant::Light).child("S"))
+                        .into_any_element()]),
+                ),
+                (
                     "Usage",
                     row(vec![
                         h::Kbd::new().child("Ctrl").into_any_element(),
@@ -5353,6 +5825,28 @@ impl Gallery {
             crate::pages::Page::Typography.description(),
             crate::pages::Page::Typography.import_line(),
             vec![
+                (
+                    "Usage",
+                    col(vec![h::Typography::new(
+                        "Typography sets the size, weight and line height of a run of text.",
+                    )
+                    .into_any_element()]),
+                ),
+                (
+                    "Render Props",
+                    col(vec![
+                        para(
+                            "v3's `Prose` hands its children the resolved styles. Here the same \
+                             thing is a nested element: `Prose` styles whatever it wraps.",
+                            cx,
+                        ),
+                        h::Prose::new()
+                            .child(gpui::div().child(
+                                "A paragraph inside `Prose` inherits its measure and rhythm.",
+                            ))
+                            .into_any_element(),
+                    ]),
+                ),
                 (
                     "Scale",
                     col(scale

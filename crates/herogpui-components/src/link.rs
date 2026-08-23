@@ -21,6 +21,12 @@ pub struct Link {
     is_disabled: bool,
     /// `autoFocus` — take focus on the first render.
     auto_focus: bool,
+    /// `Link.Icon` — the glyph v3 composes beside the label. `None` when the
+    /// caller composes no icon at all.
+    icon: Option<gpui::AnyElement>,
+    /// Whether the icon comes first. v3 gets this from where `Link.Icon` sits
+    /// among the link's children.
+    icon_first: bool,
     on_press: Option<OnPress>,
 }
 
@@ -32,8 +38,23 @@ impl Link {
             href: None,
             is_disabled: false,
             auto_focus: false,
+            icon: None,
+            icon_first: false,
             on_press: None,
         }
+    }
+
+    /// `Link.Icon` — the glyph beside the label. Pass
+    /// `icons::EXTERNAL_LINK` for the one v3 draws by default.
+    pub fn icon(mut self, el: impl IntoElement) -> Self {
+        self.icon = Some(el.into_any_element());
+        self
+    }
+
+    /// Puts the icon before the label, which v3 does by ordering the children.
+    pub fn icon_first(mut self, v: bool) -> Self {
+        self.icon_first = v;
+        self
     }
 
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
@@ -70,7 +91,7 @@ impl Link {
 }
 
 impl RenderOnce for Link {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `autoFocus` needs a focus target, and a link is not one by default.
         // `focus_once` takes `cx` mutably, so it runs before the tokens.
         let focus = self.auto_focus.then(|| {
@@ -119,8 +140,20 @@ impl RenderOnce for Link {
             });
         }
 
-        if let Some(label) = self.label {
+        // v3 orders `Link.Icon` among the children, so the icon can lead or
+        // trail the label.
+        if self.icon_first {
+            if let Some(icon) = self.icon.take() {
+                el = el.child(icon);
+            }
+        }
+        if let Some(label) = self.label.clone() {
             el = el.child(label.to_string());
+        }
+        if !self.icon_first {
+            if let Some(icon) = self.icon.take() {
+                el = el.child(icon);
+            }
         }
 
         if !self.is_disabled {

@@ -158,6 +158,9 @@ def our_sections():
             titles = re.findall(r'^                \("([^"]+)",', body, re.M)
             titles += re.findall(
                 r'^ {16}\(\s*\n {20}"([^"]+)",', body, re.M)
+            # A page with a single section is written `vec![(` on one line, so
+            # that tuple's `(` never starts a line of its own.
+            titles += re.findall(r'^ {12}vec!\[\(\s*\n {16}"([^"]+)",', body, re.M)
             out.setdefault(name, []).extend(titles)
     return out
 

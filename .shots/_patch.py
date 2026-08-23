@@ -1,4 +1,4 @@
-"""The Colors category: every v3 example on all six pages."""
+"""Label & Messages, Fieldset, Form: the v3 examples for the field parts."""
 import io
 
 P = 'gallery/src/pages/components.rs'
@@ -11,386 +11,162 @@ def rep(old, new):
     s = s.replace(old, new)
 
 
-# --------------------------------------------------------------- ColorArea
-rep("""            vec![
-                (
-                    "Saturation & brightness",""",
-    """            vec![
-                (
-                    "Usage",
-                    col(vec![h::ColorArea::new("ca-usage", value).into_any_element()]),
-                ),
-                (
-                    "With Dots",
-                    col(vec![h::ColorArea::new("ca-dots", value)
-                        .show_dots(true)
-                        .into_any_element()]),
-                ),
-                (
-                    "Color Space & Channels",
-                    row(vec![
-                        spec(
-                            "Saturation / Brightness (HSB)",
-                            h::ColorArea::new("ca-hsb", value)
-                                .color_space(h::ColorSpace::Hsb)
-                                .x_channel(h::ColorChannel::Saturation)
-                                .y_channel(h::ColorChannel::Brightness)
-                                .size(px(160.), px(120.)),
-                            cx,
-                        ),
-                        spec(
-                            "Red / Green (RGB)",
-                            h::ColorArea::new("ca-rgb", value)
-                                .color_space(h::ColorSpace::Rgb)
-                                .x_channel(h::ColorChannel::Red)
-                                .y_channel(h::ColorChannel::Green)
-                                .size(px(160.), px(120.)),
-                            cx,
-                        ),
-                    ]),
-                ),
-                (
-                    "Controlled",
-                    col(vec![
-                        h::ColorArea::new("ca-controlled", value)
-                            .size(px(180.), px(120.))
-                            .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
-                                this.picker_color = *c;
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                        row(vec![
-                            h::ColorSwatch::new(value).into_any_element(),
-                            para(&format!("Value: {}", value.to_hex()), cx),
-                        ]),
-                    ]),
-                ),
-                (
-                    "Saturation & brightness",""")
-
-# ------------------------------------------------------------- ColorPicker
-rep("""            vec![(
-                "Usage",
-                col(vec![h::ColorPicker::new("cp-main", value)
-                    .label("Accent")
-                    .is_open(is_open)
-                    .show_alpha(true)
-                    .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-                        this.color_picker_open = *open;
-                        cx.notify();
-                    })))
-                    .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
-                        this.picker_color = *c;
-                        cx.notify();
-                    })))
-                    .into_any_element()]),
-            )],""",
-    """            vec![
-                (
-                    "Usage",
-                    col(vec![h::ColorPicker::new("cp-main", value)
-                        .label("Accent")
-                        .is_open(is_open)
-                        .show_alpha(true)
-                        .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-                            this.color_picker_open = *open;
-                            cx.notify();
-                        })))
-                        .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
-                            this.picker_color = *c;
-                            cx.notify();
-                        })))
-                        .into_any_element()]),
-                ),
-                (
-                    "Controlled",
-                    col(vec![
-                        para(
-                            "The trigger's swatch and the readout below it are the same value: \\
-                             the caller owns it and the picker reports each change.",
-                            cx,
-                        ),
-                        row(vec![
-                            h::ColorSwatch::new(value).into_any_element(),
-                            para(&format!("Value: {}", value.to_hex()), cx),
-                        ]),
-                    ]),
-                ),
-                (
-                    "With Swatches",
-                    col(vec![
-                        para("A preset row beside the picker, which is v3's own layout.", cx),
-                        h::ColorSwatchPicker::new("cp-presets", palette())
-                            .value(value)
-                            .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
-                                this.picker_color = *c;
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                    ]),
-                ),
-                (
-                    "With Fields",
-                    col(vec![
-                        h::ColorField::new("cp-field", value)
-                            .state(self.demo_text("cp-field", "#0085F5", cx))
-                            .label("Hex")
-                            .into_any_element(),
-                        row(vec![
-                            h::ColorField::new("cp-field-h", value)
-                                .state(self.demo_text("cp-field-h", "", cx))
-                                .channel(h::ColorChannel::Hue)
-                                .label("H")
-                                .into_any_element(),
-                            h::ColorField::new("cp-field-s", value)
-                                .state(self.demo_text("cp-field-s", "", cx))
-                                .channel(h::ColorChannel::Saturation)
-                                .label("S")
-                                .into_any_element(),
-                            h::ColorField::new("cp-field-l", value)
-                                .state(self.demo_text("cp-field-l", "", cx))
-                                .channel(h::ColorChannel::Lightness)
-                                .label("L")
-                                .into_any_element(),
-                        ]),
-                    ]),
-                ),
-                (
-                    "With Sliders",
-                    col(vec![
-                        h::ColorSlider::new("cp-sl-hue", value, h::ColorChannel::Hue)
-                            .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
-                                this.picker_color = *c;
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                        h::ColorSlider::new("cp-sl-alpha", value, h::ColorChannel::Alpha)
-                            .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
-                                this.picker_color = *c;
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                    ]),
-                ),
-            ],""")
-
-# ------------------------------------------------------------- ColorSlider
-rep("""            vec![
-                (
-                    "Channels",""",
-    """            vec![
-                (
-                    "Usage",
-                    col(vec![h::ColorSlider::new(
-                        "cs-usage",
-                        value,
-                        h::ColorChannel::Hue,
-                    )
-                    .into_any_element()]),
-                ),
-                (
-                    "Disabled",
-                    col(vec![h::ColorSlider::new(
-                        "cs-disabled",
-                        value,
-                        h::ColorChannel::Hue,
-                    )
-                    .is_disabled(true)
-                    .into_any_element()]),
-                ),
-                (
-                    "Vertical",
-                    row(vec![h::ColorSlider::new(
-                        "cs-vertical",
-                        value,
-                        h::ColorChannel::Hue,
-                    )
-                    .orientation(Orientation::Vertical)
-                    .length(px(160.))
-                    .into_any_element()]),
-                ),
-                (
-                    "Controlled",
-                    col(vec![
-                        h::ColorSlider::new("cs-controlled", value, h::ColorChannel::Hue)
-                            .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
-                                this.picker_color = *c;
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                        row(vec![
-                            h::ColorSwatch::new(value).into_any_element(),
-                            para(&format!("Value: {}", value.to_hex()), cx),
-                        ]),
-                    ]),
-                ),
-                (
-                    "Alpha Channel",
-                    col(vec![h::ColorSlider::new(
-                        "cs-alpha",
-                        value,
-                        h::ColorChannel::Alpha,
-                    )
-                    .show_label(true)
-                    .into_any_element()]),
-                ),
-                (
-                    "HSL Channels",
-                    col([
-                        h::ColorChannel::Hue,
-                        h::ColorChannel::Saturation,
-                        h::ColorChannel::Lightness,
-                    ]
-                    .iter()
-                    .map(|ch| {
-                        h::ColorSlider::new(el_id(format!("cs-hsl-{ch:?}")), value, *ch)
-                            .color_space(h::ColorSpace::Hsl)
-                            .show_label(true)
-                    })
-                    .els()),
-                ),
-                (
-                    "Channels",""")
-
-# ------------------------------------------------------------- ColorSwatch
-rep("""            crate::pages::Page::ColorSwatch.import_line(),
+# ---------------------------------------------------- Label & Messages page
+rep("""            crate::pages::Page::FieldSlots.import_line(),
             vec![
                 (
-                    "Sizes",""",
-    """            crate::pages::Page::ColorSwatch.import_line(),
+                    "Label",""",
+    """            crate::pages::Page::FieldSlots.import_line(),
             vec![
                 (
                     "Usage",
-                    row(vec![h::ColorSwatch::new(
-                        h::PickerColor::from_hex("#0085F5").unwrap_or_default(),
-                    )
-                    .into_any_element()]),
-                ),
-                (
-                    "Transparency",
-                    row(vec![
-                        spec(
-                            "50% alpha",
-                            h::ColorSwatch::new(
-                                h::PickerColor::from_hex("#0085F5")
-                                    .unwrap_or_default()
-                                    .with_alpha(0.5),
-                            ),
-                            cx,
-                        ),
-                        spec(
-                            "Fully transparent",
-                            h::ColorSwatch::new(
-                                h::PickerColor::from_hex("#0085F5")
-                                    .unwrap_or_default()
-                                    .with_alpha(0.0),
-                            ),
-                            cx,
-                        ),
-                    ]),
-                ),
-                (
-                    "Accessibility",
                     col(vec![
-                        para(
-                            "v3 gives a swatch an accessible colour name. gpui has no \\
-                             accessibility tree, so the name is shown as a caption instead of \\
-                             announced.",
-                            cx,
-                        ),
-                        row(palette()
-                            .into_iter()
-                            .map(|c| {
-                                let hex = c.to_hex();
-                                spec(&hex, h::ColorSwatch::new(c), cx)
-                            })
-                            .collect()),
+                        h::Label::new("Email").into_any_element(),
+                        h::Description::new("We will never share your address.")
+                            .into_any_element(),
+                        h::ErrorMessage::new("Enter a valid email address.").into_any_element(),
                     ]),
                 ),
                 (
-                    "Sizes",""")
-
-# ------------------------------------------------------- ColorSwatchPicker
-rep("""                (
-                    "Square, stacked",""",
-    """                (
-                    "Variants",
-                    col(vec![
-                        spec(
-                            "Circle (default)",
-                            h::ColorSwatchPicker::new("csp-circle", palette()).value(selected),
-                            cx,
-                        ),
-                        spec(
-                            "Square",
-                            h::ColorSwatchPicker::new("csp-sq", palette())
-                                .value(selected)
-                                .shape(h::SwatchShape::Square),
-                            cx,
-                        ),
-                    ]),
+                    "With Required Indicator",
+                    col(vec![h::Label::new("Email")
+                        .is_required(true)
+                        .into_any_element()]),
                 ),
                 (
-                    "Sizes",
-                    col(SizeXl::ALL
-                        .iter()
-                        .map(|sz| {
-                            h::ColorSwatchPicker::new(el_id(format!("csp-{sz:?}")), palette())
-                                .value(selected)
-                                .size(*sz)
-                        })
-                        .els()),
-                ),
-                (
-                    "Disabled",
-                    col(vec![h::ColorSwatchPicker::new("csp-disabled", palette())
-                        .value(selected)
+                    "With Disabled State",
+                    col(vec![h::Label::new("Email")
                         .is_disabled(true)
                         .into_any_element()]),
                 ),
                 (
-                    "Stack Layout",
-                    col(vec![h::ColorSwatchPicker::new("csp-stack", palette())
-                        .value(selected)
-                        .layout(h::SwatchLayout::Stack)
+                    "With Invalid State",
+                    col(vec![h::Label::new("Email")
+                        .is_invalid(true)
                         .into_any_element()]),
                 ),
                 (
-                    "Default Value",
-                    col(vec![h::ColorSwatchPicker::new("csp-default", palette())
-                        .default_value(palette()[2])
+                    "With Form Fields",
+                    col(vec![h::TextField::new(self.demo_text("fs-with-field", "", cx))
+                        .label("Email")
+                        .input_type(h::InputType::Email)
+                        .description("We will never share your email")
                         .into_any_element()]),
                 ),
                 (
-                    "Controlled",
-                    col(vec![
-                        h::ColorSwatchPicker::new("csp-controlled", palette())
-                            .value(selected)
-                            .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
-                                this.swatch_selected = *c;
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                        para(&format!("Selected: {}", selected.to_hex()), cx),
-                    ]),
-                ),
-                (
-                    "Custom Indicator",
+                    "Integration with TextField",
                     col(vec![
                         para(
-                            "v3 replaces `ColorSwatchPicker.Indicator`. The square shape shows \\
-                             the selected item with the same tick in a different frame.",
+                            "A `TextField` composes all three parts itself: the label above, the \\
+                             input, and the description or the error message below.",
                             cx,
                         ),
-                        h::ColorSwatchPicker::new("csp-indicator", palette())
-                            .value(selected)
-                            .shape(h::SwatchShape::Square)
-                            .size(SizeXl::Lg)
+                        h::TextField::new(self.demo_text("fs-integration", "", cx))
+                            .label("Email")
+                            .placeholder("Enter your email")
+                            .description("We will never share your email")
                             .into_any_element(),
                     ]),
                 ),
                 (
-                    "Square, stacked",""")
+                    "Basic Validation",
+                    col(vec![h::TextField::new(self.demo_text("fs-validate", "", cx))
+                        .label("Password")
+                        .input_type(h::InputType::Password)
+                        .is_required(true)
+                        .validate(|value| {
+                            (value.chars().count() < 8)
+                                .then(|| "Use at least 8 characters".into())
+                        })
+                        .into_any_element()]),
+                ),
+                (
+                    "With Dynamic Messages",
+                    col(vec![
+                        para(
+                            "v3's `FieldError` takes a render prop and joins \\
+                             `validation.validationErrors`. `validationErrors` here is a list, \\
+                             and the field shows them in order.",
+                            cx,
+                        ),
+                        h::TextField::new(self.demo_text("fs-dynamic", "abc", cx))
+                            .label("Password")
+                            .is_invalid(true)
+                            .validation_errors([
+                                "Use at least 8 characters",
+                                "Include a digit",
+                            ])
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Custom Validation Logic",
+                    col(vec![h::TextField::new(self.demo_text("fs-custom", "", cx))
+                        .label("Username")
+                        .description("Letters, digits and dashes only")
+                        .validate(|value| {
+                            (!value.is_empty()
+                                && !value
+                                    .chars()
+                                    .all(|c| c.is_ascii_alphanumeric() || c == '-'))
+                            .then(|| "Letters, digits and dashes only".into())
+                        })
+                        .into_any_element()]),
+                ),
+                (
+                    "Multiple Error Messages",
+                    col(vec![h::TextField::new(self.demo_text("fs-multi", "", cx))
+                        .label("Password")
+                        .is_invalid(true)
+                        .validation_errors([
+                            "Use at least 8 characters",
+                            "Include an uppercase letter",
+                            "Include a digit",
+                        ])
+                        .into_any_element()]),
+                ),
+                (
+                    "Label",""")
+
+# ---------------------------------------------------------------- Fieldset
+rep("""            crate::pages::Page::Fieldset.import_line(),
+            vec![(
+                "Usage",""",
+    """            crate::pages::Page::Fieldset.import_line(),
+            vec![
+                (
+                    "In Surface",
+                    col(vec![h::Surface::new()
+                        .padding(px(24.))
+                        .gap(px(16.))
+                        .child(
+                            h::Fieldset::new()
+                                .child(h::FieldsetLegend::new("Profile"))
+                                .child(
+                                    h::FieldsetGroup::new()
+                                        .child(
+                                            h::TextField::new(
+                                                self.demo_text("fset-name", "", cx),
+                                            )
+                                            .label("Name")
+                                            .variant(FieldVariant::Secondary),
+                                        )
+                                        .child(
+                                            h::TextField::new(
+                                                self.demo_text("fset-email", "", cx),
+                                            )
+                                            .label("Email")
+                                            .variant(FieldVariant::Secondary),
+                                        ),
+                                )
+                                .child(h::FieldsetActions::new().child(
+                                    h::Button::new("fset-save").label("Save").size(Size::Sm),
+                                )),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Usage",""")
 
 io.open(P, 'w', encoding='utf-8', newline='').write(s)
-print('patched the colors pages')
+print('patched field slots + fieldset')
