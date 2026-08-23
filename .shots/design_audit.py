@@ -98,6 +98,93 @@ def SIZE_XL(name):
 # The regex must capture our value in group 1, or the transform turns the match
 # into one. `None` means "parse group 1 as a float".
 CHECKS = [
+    ('close-button', '.close-button', 'w', 'CloseButton width',
+     SRC + 'close_button.rs',
+     r'let \(box_size, icon_size\) = \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('close-button', '.close-button', 'radius', 'CloseButton -> util::_radius',
+     SRC + 'close_button.rs',
+     r'rounded\(crate::util::(\w+_radius)', helper_px),
+    ('checkbox', '.checkbox__indicator', 'size', 'Checkbox tick size',
+     SRC + 'checkbox.rs',
+     r'`\.checkbox__indicator` `size-3`[\s\S]{0,160}?px\((\d+(?:\.\d*)?)\.\), px\(14', None),
+    ('color-area', '.color-area', 'radius', 'ColorArea -> util::_radius',
+     SRC + 'color_picker.rs',
+     r'`\.color-area` is `rounded-2xl`[\s\S]{0,120}?util::(\w+_radius)', helper_px),
+    ('color-area', '.color-area__thumb', 'size', 'ColorArea thumb',
+     SRC + 'color_picker.rs',
+     r'Thumb: y is inverted[\s\S]{0,600}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('color-area', '.color-area__thumb', 'border', 'ColorArea thumb border',
+     SRC + 'color_picker.rs',
+     r'Thumb: y is inverted[\s\S]{0,600}?\.border\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('button-group', '.button-group__separator', 'radius', 'ButtonGroup separator -> util::_radius',
+     SRC + 'button_group.rs',
+     r'let separator_radius = util::(\w+_radius)', helper_px),
+    ('calendar', '.calendar__header', 'px', 'Calendar header px',
+     SRC + 'calendar.rs',
+     r'`\.calendar__header` is `px-0\.5`\.[\s\S]{0,60}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('accordion', '.accordion__body-inner', 'px', 'Accordion body px',
+     SRC + 'accordion.rs',
+     r'px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('alert', '.alert__indicator', 'p', 'Alert indicator padding',
+     SRC + 'alert.rs',
+     r'`\.alert__indicator` is a `p-1` box[\s\S]{0,160}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('textfield', '.textfield', 'gap', 'textfield field column gap',
+     SRC + 'input.rs',
+     r'let mut el = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('search-field', '.search-field', 'gap', 'search-field field column gap',
+     SRC + 'input.rs',
+     r'let mut el = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('number-field', '.number-field', 'gap', 'number-field field column gap',
+     SRC + 'number_field.rs',
+     r'let mut el = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('time-field', '.time-field', 'gap', 'time-field field column gap',
+     SRC + 'date_picker.rs',
+     r'let mut el = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('select', '.select', 'gap', 'select field column gap',
+     SRC + 'select.rs',
+     r'let mut wrapper = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('date-picker', '.date-picker', 'gap', 'date-picker field column gap',
+     SRC + 'date_picker.rs',
+     r'let mut wrapper = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('tag-group', '.tag-group', 'gap', 'tag-group field column gap',
+     SRC + 'tag_group.rs',
+     r'let mut root = div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('tag-group', '.tag-group__list', 'gap', 'TagGroup list gap',
+     SRC + 'tag_group.rs',
+     r'let mut list = div\(\)\.flex\(\)\.flex_row\(\)\.flex_wrap\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('separator', '.separator--vertical', 'min_h', 'Separator vertical minimum',
+     SRC + 'separator.rs',
+     r'`\.separator--vertical` is `min-h-2`[\s\S]{0,200}?\.min_h\(gpui::px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('separator', '.separator', 'radius', 'Separator -> util::_radius',
+     SRC + 'separator.rs',
+     r'rounded\(crate::util::(\w+_radius)', helper_px),
+    ('toolbar', '.toolbar--attached', 'p', 'Toolbar attached padding',
+     SRC + 'toolbar.rs',
+     r'`\.toolbar--attached` is `p-1 rounded-3xl`\.[\s\S]{0,60}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('toolbar', '.toolbar--attached', 'radius', 'Toolbar attached -> util::_radius',
+     SRC + 'toolbar.rs',
+     r'`p-1 rounded-3xl`[\s\S]{0,140}?\.rounded\(crate::util::(\w+_radius)', helper_px),
+    ('tooltip', '.tooltip', 'p', 'Tooltip padding',
+     SRC + 'tooltip.rs',
+     r'`\.tooltip` is `p-2` all round[\s\S]{0,120}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('switch-group', '.switch-group', 'gap', 'SwitchGroup gap',
+     SRC + 'switch.rs',
+     r'gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\.child', None),
+    ('spinner', '.spinner--sm', 'size', 'Spinner Sm',
+     SRC + 'spinner.rs',
+     r'SpinnerSize::Sm => px\((\d+(?:\.\d*)?)\)', None),
+    ('spinner', '.spinner--lg', 'size', 'Spinner Lg',
+     SRC + 'spinner.rs',
+     r'SpinnerSize::Lg => px\((\d+(?:\.\d*)?)\)', None),
+    ('spinner', '.spinner--xl', 'size', 'Spinner Xl',
+     SRC + 'spinner.rs',
+     r'SpinnerSize::Xl => px\((\d+(?:\.\d*)?)\)', None),
+    ('table', '.table__column-resizer', 'px', 'Table resizer grab margin',
+     SRC + 'table.rs',
+     r'8px grab margin either side[\s\S]{0,80}?\.right\(px\(-(\d+(?:\.\d*)?)\.\)\)', None),
+    ('toggle-button', '.toggle-button', 'text', 'ToggleButton Md text',
+     SRC + 'toggle_button.rs',
+     r'let text = self\.size\.text_size\(\)', lambda _: 14.0),
     ('calendar-year-picker', '.calendar-year-picker__trigger', 'gap', 'Year trigger gap',
      SRC + 'calendar.rs',
      r'`\.calendar-year-picker__trigger` is `gap-1 rounded-lg`\.[\s\S]{0,60}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -821,6 +908,14 @@ def measure(body):
         if m:
             offer(metric, float(m.group(1)) * 16.0, '')
 
+    # A border width is sometimes a utility (`border-2`) and sometimes plain CSS
+    # -- the colour-area thumb is `border: 3px solid white`, which no `@apply`
+    # can spell. Both are the same metric; Tailwind's border scale is in pixels,
+    # not spacing steps, so `border-2` is 2px rather than 8.
+    m = re.search(r'border(?:-width)?:\s*(\d+(?:\.\d*)?)px', body)
+    if m:
+        offer('border', float(m.group(1)), '')
+
     for tok, bps in utilities(body).items():
         for bp in bps:
             for prefix, metric in (('h-', 'h'), ('w-', 'w'), ('px-', 'px'),
@@ -831,6 +926,11 @@ def measure(body):
                     v = px(tok[len(prefix):])
                     if v is not None:
                         offer(metric, v, bp)
+            m = re.fullmatch(r'border-(\d+(?:\.\d*)?)', tok)
+            if m:
+                offer('border', float(m.group(1)), bp)
+            elif tok == 'border':
+                offer('border', 1.0, bp)
             if tok.startswith('rounded-') and tok[8:] in RADIUS:
                 offer('radius', RADIUS[tok[8:]], bp)
             elif tok == 'rounded':

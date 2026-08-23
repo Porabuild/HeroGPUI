@@ -567,7 +567,8 @@ impl RenderOnce for ColorArea {
             cx,
         );
         let colors = cx.colors();
-        let radius = cx.layout().radius_lg();
+        // `.color-area` is `rounded-2xl`, which is `soft_radius`.
+        let radius = util::soft_radius(cx);
         let hue_color = PickerColor::hsb(self.value.hue, 1.0, 1.0).to_hsla();
 
         let (x_min, x_max) = self.x_channel.range();
@@ -638,7 +639,8 @@ impl RenderOnce for ColorArea {
                 .top(px(f32::from(self.height) * (1.0 - y_norm) - 8.))
                 .size(px(16.))
                 .rounded_full()
-                .border_2()
+                // `.color-area__thumb` is `border: 3px solid white`.
+                .border(px(3.))
                 .border_color(gpui::white())
                 .bg(self.value.to_hsla()),
         );
@@ -927,9 +929,11 @@ impl RenderOnce for ColorSlider {
                 .absolute()
                 .when(vertical, |t| t.left(px(-2.)).top(thumb_offset))
                 .when(!vertical, |t| t.top(px(-2.)).left(thumb_offset))
-                .size(px(18.))
+                // `.color-slider__thumb` is `size-4`.
+                .size(px(16.))
                 .rounded_full()
-                .border_2()
+                // `.color-area__thumb` is `border: 3px solid white`.
+                .border(px(3.))
                 .border_color(gpui::white())
                 .bg(self.value.to_hsla()),
         );

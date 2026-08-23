@@ -103,7 +103,9 @@ impl RenderOnce for Separator {
 
         match self.orientation {
             Orientation::Horizontal => el.w_full().h(weight),
-            Orientation::Vertical => el.h_full().w(weight),
+            // `.separator--vertical` is `min-h-2`: a vertical rule between two
+            // inline items still draws when its row is shorter than that.
+            Orientation::Vertical => el.h_full().min_h(gpui::px(8.)).w(weight),
         }
     }
 }

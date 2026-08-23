@@ -1097,6 +1097,8 @@ impl RenderOnce for Calendar {
                     .flex()
                     .items_center()
                     .justify_between()
+                    // `.calendar__header` is `px-0.5`.
+                    .px(px(2.))
                     .child(nav_btn(
                         icons::CHEVRON_LEFT,
                         Date::new(anchor.year - 12, anchor.month, anchor.day),
@@ -1121,12 +1123,15 @@ impl RenderOnce for Calendar {
                 let mut col = gpui::div().w(column_width).flex().flex_col().gap(px(8.));
                 // Only the outer columns carry nav buttons; the others keep
                 // a same-size spacer so every heading lines up.
-                let spacer = || gpui::div().size(px(28.)).into_any_element();
+                // The same box as a nav button, so every heading lines up.
+                let spacer = || gpui::div().size(px(24.)).into_any_element();
                 col = col.child(
                     gpui::div()
                         .flex()
                         .items_center()
                         .justify_between()
+                        // `.calendar__header` is `px-0.5`.
+                        .px(px(2.))
                         .child(if first {
                             nav_btn(prev_icon, nav_target(-1), format!("{base}-prev"))
                                 .into_any_element()
@@ -1163,6 +1168,8 @@ impl RenderOnce for Calendar {
                     .flex()
                     .items_center()
                     .justify_between()
+                    // `.calendar__header` is `px-0.5`.
+                    .px(px(2.))
                     .child(nav_btn(
                         icons::CHEVRON_LEFT,
                         nav_target(-1),

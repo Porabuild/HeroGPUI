@@ -178,7 +178,12 @@ $psi.FileName = "E:\work\HeroGPUI\target\debug\gallery.exe"
 $psi.WorkingDirectory = "E:\work\HeroGPUI"
 $psi.UseShellExecute = $false
 $psi.CreateNoWindow = $true
-$p = [System.Diagnostics.Process]::Start($psi)
+# `Process::Start(psi)` returns null in pwsh for a console-subsystem binary
+# launched with `CreateNoWindow`; constructing the object and calling `Start()`
+# on it always hands back something to poll.
+$p = New-Object System.Diagnostics.Process
+$p.StartInfo = $psi
+[void]$p.Start()
 
 $h = [IntPtr]::Zero
 for ($try = 0; $try -lt 20; $try++) {

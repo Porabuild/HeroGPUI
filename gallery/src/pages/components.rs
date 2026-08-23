@@ -8,7 +8,25 @@ use herogpui_core::{Color, FieldVariant, Orientation, SelectionMode, Size, SizeX
 use herogpui_theme::ActiveTheme;
 
 use crate::app::Gallery;
-use crate::pages::{doc_page, para};
+use crate::pages::para;
+
+macro_rules! component_doc_page {
+    (
+        $title:expr,
+        $description:expr,
+        $import_line:expr,
+        vec![$(($heading:expr, $body:expr $(,)?)),* $(,)?],
+        $cx:expr $(,)?
+    ) => {
+        crate::pages::component_doc_page(
+            $title,
+            $description,
+            $import_line,
+            vec![$(($heading, $body, stringify!($body))),*],
+            $cx,
+        )
+    };
+}
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -294,7 +312,7 @@ fn palette() -> Vec<h::PickerColor> {
 impl Gallery {
     pub fn page_button(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let clicks = self.button_clicks;
-        doc_page(
+        component_doc_page!(
             "Button",
             crate::pages::Page::Button.description(),
             crate::pages::Page::Button.import_line(),
@@ -440,7 +458,7 @@ impl Gallery {
     }
 
     pub fn page_button_group(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Button Group",
             crate::pages::Page::ButtonGroup.description(),
             crate::pages::Page::ButtonGroup.import_line(),
@@ -576,7 +594,7 @@ impl Gallery {
 
     pub fn page_close_button(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let presses = self.close_button_presses;
-        doc_page(
+        component_doc_page!(
             "Close Button",
             crate::pages::Page::CloseButton.description(),
             crate::pages::Page::CloseButton.import_line(),
@@ -623,7 +641,7 @@ impl Gallery {
         let liked = self.toggle_like;
         let single = self.toggle_single.clone();
         let multiple = self.toggle_multiple.clone();
-        doc_page(
+        component_doc_page!(
             "Toggle Button",
             crate::pages::Page::ToggleButton.description(),
             crate::pages::Page::ToggleButton.import_line(),
@@ -864,7 +882,7 @@ impl Gallery {
             ]
         };
         let dd_multi = self.dropdown_multi.clone();
-        doc_page(
+        component_doc_page!(
             "Dropdown",
             crate::pages::Page::Dropdown.description(),
             crate::pages::Page::Dropdown.import_line(),
@@ -1205,7 +1223,7 @@ impl Gallery {
             h::ListBoxItem::separator(),
             h::ListBoxItem::new("trash", "Move to trash").danger(),
         ];
-        doc_page(
+        component_doc_page!(
             "List Box",
             crate::pages::Page::ListBox.description(),
             crate::pages::Page::ListBox.import_line(),
@@ -1405,7 +1423,7 @@ impl Gallery {
         };
         let selection = self.tag_selection.clone();
         let tag_selection = selection.clone();
-        doc_page(
+        component_doc_page!(
             "Tag Group",
             crate::pages::Page::TagGroup.description(),
             crate::pages::Page::TagGroup.import_line(),
@@ -1550,7 +1568,7 @@ impl Gallery {
 
     pub fn page_color_area(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let value = self.picker_color;
-        doc_page(
+        component_doc_page!(
             "Color Area",
             crate::pages::Page::ColorArea.description(),
             crate::pages::Page::ColorArea.import_line(),
@@ -1630,7 +1648,7 @@ impl Gallery {
 
     pub fn page_color_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let value = self.picker_color;
-        doc_page(
+        component_doc_page!(
             "Color Field",
             crate::pages::Page::ColorField.description(),
             crate::pages::Page::ColorField.import_line(),
@@ -1832,7 +1850,7 @@ impl Gallery {
     pub fn page_color_picker(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let value = self.picker_color;
         let is_open = self.color_picker_open;
-        doc_page(
+        component_doc_page!(
             "Color Picker",
             crate::pages::Page::ColorPicker.description(),
             crate::pages::Page::ColorPicker.import_line(),
@@ -1939,7 +1957,7 @@ impl Gallery {
             h::ColorChannel::Brightness,
             h::ColorChannel::Alpha,
         ];
-        doc_page(
+        component_doc_page!(
             "Color Slider",
             crate::pages::Page::ColorSlider.description(),
             crate::pages::Page::ColorSlider.import_line(),
@@ -2052,7 +2070,7 @@ impl Gallery {
     }
 
     pub fn page_color_swatch(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Color Swatch",
             crate::pages::Page::ColorSwatch.description(),
             crate::pages::Page::ColorSwatch.import_line(),
@@ -2161,7 +2179,7 @@ impl Gallery {
 
     pub fn page_color_swatch_picker(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let selected = self.swatch_selected;
-        doc_page(
+        component_doc_page!(
             "Color Swatch Picker",
             crate::pages::Page::ColorSwatchPicker.description(),
             crate::pages::Page::ColorSwatchPicker.import_line(),
@@ -2307,7 +2325,7 @@ impl Gallery {
     pub fn page_slider(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let volume = self.demo_value("sl-controlled", 40.);
         let value = self.slider_value;
-        doc_page(
+        component_doc_page!(
             "Slider",
             crate::pages::Page::Slider.description(),
             crate::pages::Page::Slider.import_line(),
@@ -2490,7 +2508,7 @@ impl Gallery {
         let bluetooth = self.demo_flag("sw-group-bt", false);
         let airplane = self.demo_flag("sw-group-air", false);
         let terms = self.demo_flag("sw-form", false);
-        doc_page(
+        component_doc_page!(
             "Switch",
             crate::pages::Page::Switch.description(),
             crate::pages::Page::Switch.import_line(),
@@ -2700,7 +2718,7 @@ impl Gallery {
     // -----------------------------------------------------------------------
 
     pub fn page_badge(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Badge",
             crate::pages::Page::Badge.description(),
             crate::pages::Page::Badge.import_line(),
@@ -2829,7 +2847,7 @@ impl Gallery {
     }
 
     pub fn page_chip(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Chip",
             crate::pages::Page::Chip.description(),
             crate::pages::Page::Chip.import_line(),
@@ -2925,7 +2943,7 @@ impl Gallery {
                         .into_any_element(),
                 ])
         };
-        doc_page(
+        component_doc_page!(
             "Table",
             crate::pages::Page::Table.description(),
             crate::pages::Page::Table.import_line(),
@@ -3308,7 +3326,7 @@ impl Gallery {
     pub fn page_calendar(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let picked = self.cal_picked;
         let today = h::Date::today();
-        doc_page(
+        component_doc_page!(
             "Calendar",
             crate::pages::Page::Calendar.description(),
             crate::pages::Page::Calendar.import_line(),
@@ -3501,7 +3519,7 @@ impl Gallery {
 
     pub fn page_date_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let iso = self.date_iso;
-        doc_page(
+        component_doc_page!(
             "Date Field",
             crate::pages::Page::DateField.description(),
             crate::pages::Page::DateField.import_line(),
@@ -3700,7 +3718,7 @@ impl Gallery {
 
     pub fn page_date_picker(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.date_picker_open;
-        doc_page(
+        component_doc_page!(
             "Date Picker",
             crate::pages::Page::DatePicker.description(),
             crate::pages::Page::DatePicker.import_line(),
@@ -3805,7 +3823,7 @@ impl Gallery {
 
     pub fn page_date_range_picker(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.range_open;
-        doc_page(
+        component_doc_page!(
             "Date Range Picker",
             crate::pages::Page::DateRangePicker.description(),
             crate::pages::Page::DateRangePicker.import_line(),
@@ -3891,7 +3909,7 @@ impl Gallery {
 
     pub fn page_range_calendar(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let today = h::Date::today();
-        doc_page(
+        component_doc_page!(
             "Range Calendar",
             crate::pages::Page::RangeCalendar.description(),
             crate::pages::Page::RangeCalendar.import_line(),
@@ -4063,7 +4081,7 @@ impl Gallery {
     }
 
     pub fn page_time_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Time Field",
             crate::pages::Page::TimeField.description(),
             crate::pages::Page::TimeField.import_line(),
@@ -4202,7 +4220,7 @@ impl Gallery {
     // -----------------------------------------------------------------------
 
     pub fn page_alert(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Alert",
             crate::pages::Page::Alert.description(),
             crate::pages::Page::Alert.import_line(),
@@ -4254,7 +4272,7 @@ impl Gallery {
 
     pub fn page_meter(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let value = self.meter_value;
-        doc_page(
+        component_doc_page!(
             "Meter",
             crate::pages::Page::Meter.description(),
             crate::pages::Page::Meter.import_line(),
@@ -4300,7 +4318,7 @@ impl Gallery {
     }
 
     pub fn page_progress_bar(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Progress Bar",
             crate::pages::Page::ProgressBar.description(),
             crate::pages::Page::ProgressBar.import_line(),
@@ -4365,7 +4383,7 @@ impl Gallery {
     }
 
     pub fn page_progress_circle(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Progress Circle",
             crate::pages::Page::ProgressCircle.description(),
             crate::pages::Page::ProgressCircle.import_line(),
@@ -4448,7 +4466,7 @@ impl Gallery {
     }
 
     pub fn page_skeleton(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Skeleton",
             crate::pages::Page::Skeleton.description(),
             crate::pages::Page::Skeleton.import_line(),
@@ -4604,7 +4622,7 @@ impl Gallery {
     }
 
     pub fn page_spinner(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Spinner",
             crate::pages::Page::Spinner.description(),
             crate::pages::Page::Spinner.import_line(),
@@ -4659,7 +4677,7 @@ impl Gallery {
     pub fn page_checkbox(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let (basic, colored) = (self.cb_basic, self.cb_color);
         let cb_controlled = self.demo_flag("cb-controlled", false);
-        doc_page(
+        component_doc_page!(
             "Checkbox",
             crate::pages::Page::Checkbox.description(),
             crate::pages::Page::Checkbox.import_line(),
@@ -4865,7 +4883,7 @@ impl Gallery {
             ]
         };
         let options = group_options();
-        doc_page(
+        component_doc_page!(
             "Checkbox Group",
             crate::pages::Page::CheckboxGroup.description(),
             crate::pages::Page::CheckboxGroup.import_line(),
@@ -5035,7 +5053,7 @@ impl Gallery {
     }
 
     pub fn page_fieldset(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Fieldset",
             crate::pages::Page::Fieldset.description(),
             crate::pages::Page::Fieldset.import_line(),
@@ -5101,7 +5119,7 @@ impl Gallery {
     }
 
     pub fn page_field_slots(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Label & Messages",
             crate::pages::Page::FieldSlots.description(),
             crate::pages::Page::FieldSlots.import_line(),
@@ -5247,7 +5265,7 @@ impl Gallery {
 
     pub fn page_form(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let submitted = self.input_submitted.clone();
-        doc_page(
+        component_doc_page!(
             "Form",
             crate::pages::Page::Form.description(),
             crate::pages::Page::Form.import_line(),
@@ -5340,7 +5358,7 @@ impl Gallery {
             .read(cx)
             .value()
             .to_owned();
-        doc_page(
+        component_doc_page!(
             "Input",
             crate::pages::Page::Input.description(),
             crate::pages::Page::Input.import_line(),
@@ -5455,7 +5473,7 @@ impl Gallery {
 
     pub fn page_input_group(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let ig_reveal = self.demo_flag("ig-reveal", false);
-        doc_page(
+        component_doc_page!(
             "Input Group",
             crate::pages::Page::InputGroup.description(),
             crate::pages::Page::InputGroup.import_line(),
@@ -5764,7 +5782,7 @@ impl Gallery {
     pub fn page_input_otp(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let done = self.otp_done.clone();
         let otp_typed = self.otp_typed.clone();
-        doc_page(
+        component_doc_page!(
             "Input OTP",
             crate::pages::Page::InputOtp.description(),
             crate::pages::Page::InputOtp.import_line(),
@@ -5909,7 +5927,7 @@ impl Gallery {
             .demo_number("nf-ctl", 5., 0., 20., 1., cx)
             .read(cx)
             .value();
-        doc_page(
+        component_doc_page!(
             "Number Field",
             crate::pages::Page::NumberField.description(),
             crate::pages::Page::NumberField.import_line(),
@@ -6122,7 +6140,7 @@ impl Gallery {
         let options: Vec<SharedString> = vec!["Free".into(), "Pro".into(), "Enterprise".into()];
         let plans =
             || -> Vec<SharedString> { vec!["Free".into(), "Pro".into(), "Enterprise".into()] };
-        doc_page(
+        component_doc_page!(
             "Radio Group",
             crate::pages::Page::RadioGroup.description(),
             crate::pages::Page::RadioGroup.import_line(),
@@ -6255,7 +6273,7 @@ impl Gallery {
         let shortcut = self.demo_text("sf-shortcut", "", cx);
         let controlled_text = controlled.read(cx).value().to_owned();
 
-        doc_page(
+        component_doc_page!(
             "Search Field",
             crate::pages::Page::SearchField.description(),
             crate::pages::Page::SearchField.import_line(),
@@ -6423,7 +6441,7 @@ impl Gallery {
             .read(cx)
             .value()
             .to_owned();
-        doc_page(
+        component_doc_page!(
             "Text Area",
             crate::pages::Page::TextArea.description(),
             crate::pages::Page::TextArea.import_line(),
@@ -6500,7 +6518,7 @@ impl Gallery {
             .read(cx)
             .value()
             .to_owned();
-        doc_page(
+        component_doc_page!(
             "Text Field",
             crate::pages::Page::TextField.description(),
             crate::pages::Page::TextField.import_line(),
@@ -6634,7 +6652,7 @@ impl Gallery {
                     ),
                 )
         };
-        doc_page(
+        component_doc_page!(
             "Card",
             crate::pages::Page::Card.description(),
             crate::pages::Page::Card.import_line(),
@@ -6766,7 +6784,7 @@ impl Gallery {
     }
 
     pub fn page_separator(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Separator",
             crate::pages::Page::Separator.description(),
             crate::pages::Page::Separator.import_line(),
@@ -6859,7 +6877,7 @@ impl Gallery {
                     .into_any_element(),
                 )
         };
-        doc_page(
+        component_doc_page!(
             "Surface",
             crate::pages::Page::Surface.description(),
             crate::pages::Page::Surface.import_line(),
@@ -6926,7 +6944,7 @@ impl Gallery {
                         .button(h::Button::new(el_id(format!("tbar-{key}-cut"))).label("Cut")),
                 )
         };
-        doc_page(
+        component_doc_page!(
             "Toolbar",
             crate::pages::Page::Toolbar.description(),
             crate::pages::Page::Toolbar.import_line(),
@@ -7002,7 +7020,7 @@ impl Gallery {
     // -----------------------------------------------------------------------
 
     pub fn page_avatar(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Avatar",
             crate::pages::Page::Avatar.description(),
             crate::pages::Page::Avatar.import_line(),
@@ -7091,7 +7109,7 @@ impl Gallery {
                     ),
             ]
         };
-        doc_page(
+        component_doc_page!(
             "Accordion",
             crate::pages::Page::Accordion.description(),
             crate::pages::Page::Accordion.import_line(),
@@ -7235,7 +7253,7 @@ impl Gallery {
                 h::Crumb::new("Breadcrumbs"),
             ]
         };
-        doc_page(
+        component_doc_page!(
             "Breadcrumbs",
             crate::pages::Page::Breadcrumbs.description(),
             crate::pages::Page::Breadcrumbs.import_line(),
@@ -7312,7 +7330,7 @@ impl Gallery {
     pub fn page_disclosure(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let expanded = self.disclosure_expanded;
         let group = self.disclosure_group_expanded.clone();
-        doc_page(
+        component_doc_page!(
             "Disclosure",
             crate::pages::Page::Disclosure.description(),
             crate::pages::Page::Disclosure.import_line(),
@@ -7375,7 +7393,7 @@ impl Gallery {
     }
 
     pub fn page_link(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Link",
             crate::pages::Page::Link.description(),
             crate::pages::Page::Link.import_line(),
@@ -7434,7 +7452,7 @@ impl Gallery {
 
     pub fn page_pagination(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let page = self.pagination_page;
-        doc_page(
+        component_doc_page!(
             "Pagination",
             crate::pages::Page::Pagination.description(),
             crate::pages::Page::Pagination.import_line(),
@@ -7578,7 +7596,7 @@ impl Gallery {
                 h::TabItem::new("videos", "Videos").content(gpui::div().child("The videos panel.")),
             ]
         };
-        doc_page(
+        component_doc_page!(
             "Tabs",
             crate::pages::Page::Tabs.description(),
             crate::pages::Page::Tabs.import_line(),
@@ -7704,7 +7722,7 @@ impl Gallery {
 
     pub fn page_alert_dialog(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.alert_dialog_open;
-        doc_page(
+        component_doc_page!(
             "Alert Dialog",
             crate::pages::Page::AlertDialog.description(),
             crate::pages::Page::AlertDialog.import_line(),
@@ -8013,7 +8031,7 @@ impl Gallery {
 
     pub fn page_drawer(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.drawer_open;
-        doc_page(
+        component_doc_page!(
             "Drawer",
             crate::pages::Page::Drawer.description(),
             crate::pages::Page::Drawer.import_line(),
@@ -8089,13 +8107,11 @@ impl Gallery {
                             .is_open(self.demo_overlay("dr-scroll"))
                             .title("Release notes")
                             .is_dismissible(true)
-                            .child(
-                                gpui::div().flex().flex_col().gap(px(8.)).children(
-                                    (1..=20).map(|n| {
-                                        gpui::div().child(format!("Change {n} of twenty."))
-                                    }),
-                                ),
-                            )
+                            .child(gpui::div().flex().flex_col().gap(px(8.)).children(
+                                (1..=20).map(|n| {
+                                    gpui::div().child(format!("Change {n} of twenty."))
+                                }),
+                            ),)
                             .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                 this.set_demo_flag("dr-scroll", *v);
                                 cx.notify();
@@ -8286,7 +8302,7 @@ impl Gallery {
         let md_no_dismiss = self.demo_overlay("md-no-dismiss");
         let md_close = self.demo_overlay("md-close");
         let md_anim = self.demo_overlay("md-anim");
-        doc_page(
+        component_doc_page!(
             "Modal",
             crate::pages::Page::Modal.description(),
             crate::pages::Page::Modal.import_line(),
@@ -8712,7 +8728,7 @@ impl Gallery {
     pub fn page_popover(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.popover_open;
         let po_following = self.demo_flag("po-following", false);
-        doc_page(
+        component_doc_page!(
             "Popover",
             crate::pages::Page::Popover.description(),
             crate::pages::Page::Popover.import_line(),
@@ -8852,7 +8868,7 @@ impl Gallery {
 
     pub fn page_toast(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let toast_closed = crate::app::toasts_closed(cx);
-        doc_page(
+        component_doc_page!(
             "Toast",
             crate::pages::Page::Toast.description(),
             crate::pages::Page::Toast.import_line(),
@@ -9133,7 +9149,7 @@ impl Gallery {
     }
 
     pub fn page_tooltip(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Tooltip",
             crate::pages::Page::Tooltip.description(),
             crate::pages::Page::Tooltip.import_line(),
@@ -9251,7 +9267,7 @@ impl Gallery {
         let ac_picked = self.demo_text_value("ac-picked");
         let ac_multi = self.demo_selection("ac-multi");
         let ac_open = self.demo_flag("ac-open", false);
-        doc_page(
+        component_doc_page!(
             "Autocomplete",
             crate::pages::Page::Autocomplete.description(),
             crate::pages::Page::Autocomplete.import_line(),
@@ -9523,7 +9539,7 @@ impl Gallery {
         let cb_picked = self.demo_text_value("cb-picked");
         let cb_typed = self.demo_text_value("cb-typed");
         let cb_multi = self.demo_selection("cb-multi");
-        doc_page(
+        component_doc_page!(
             "Combo Box",
             crate::pages::Page::ComboBox.description(),
             crate::pages::Page::ComboBox.import_line(),
@@ -9884,7 +9900,7 @@ impl Gallery {
         let selected = self.select_lang;
         let is_open = self.select_open;
         let sel_multi = self.select_multi.clone();
-        doc_page(
+        component_doc_page!(
             "Select",
             crate::pages::Page::Select.description(),
             crate::pages::Page::Select.import_line(),
@@ -10169,7 +10185,7 @@ impl Gallery {
     // -----------------------------------------------------------------------
 
     pub fn page_kbd(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        doc_page(
+        component_doc_page!(
             "Kbd",
             crate::pages::Page::Kbd.description(),
             crate::pages::Page::Kbd.import_line(),
@@ -10260,7 +10276,7 @@ impl Gallery {
             (h::TypographyType::Code, "code", "14 / mono"),
         ];
         let muted = cx.colors().muted;
-        doc_page(
+        component_doc_page!(
             "Typography",
             crate::pages::Page::Typography.description(),
             crate::pages::Page::Typography.import_line(),
@@ -10372,7 +10388,7 @@ impl Gallery {
                     .into_any_element()
             })
             .collect();
-        doc_page(
+        component_doc_page!(
             "Scroll Shadow",
             crate::pages::Page::ScrollShadow.description(),
             crate::pages::Page::ScrollShadow.import_line(),
@@ -10381,11 +10397,9 @@ impl Gallery {
                     "Usage",
                     col(vec![h::ScrollShadow::new("ss-usage")
                         .max_h(px(180.))
-                        .children(
-                            (1..=14).map(|n| {
-                                gpui::div().py(px(6.)).child(format!("Row {n} of fourteen"))
-                            }),
-                        )
+                        .children((1..=14).map(|n| {
+                            gpui::div().py(px(6.)).child(format!("Row {n} of fourteen"))
+                        }),)
                         .into_any_element()]),
                 ),
                 (
@@ -10449,15 +10463,13 @@ impl Gallery {
                     col(vec![h::Card::new()
                         .w(px(320.))
                         .child(h::CardHeader::new().child("Release notes"))
-                        .child(
-                            h::CardBody::new().child(
-                                h::ScrollShadow::new("ss-card").max_h(px(140.)).children(
-                                    (1..=12).map(|n| {
-                                        gpui::div().py(px(6.)).child(format!("Change {n}"))
-                                    }),
-                                ),
+                        .child(h::CardBody::new().child(
+                            h::ScrollShadow::new("ss-card").max_h(px(140.)).children(
+                                (1..=12).map(|n| {
+                                    gpui::div().py(px(6.)).child(format!("Change {n}"))
+                                }),
                             ),
-                        )
+                        ),)
                         .into_any_element()]),
                 ),
                 (

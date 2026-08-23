@@ -126,8 +126,38 @@ Read the diff.
   Windows clamps a window to the display, so asking for more height than the
   screen has silently gives less. `capture2.ps1` prints the size it actually
   captured for that reason.
-- **`.shots/drive.ps1` drives the app without taking the focus**, and it is the
-  loop to reach for first:
+- **One process, many checks.** `HEROGPUI_CONTROL=<file>` lets the running
+  gallery be told which page, section, theme and overlay state to show, so a
+  batch of checks costs one launch instead of one launch each (`control.rs`; the
+  file is polled, and the app writes the sequence number back to `<file>.ack`
+  once it has *drawn* the change, which is what the driver waits for -- a fixed
+  sleep either wastes time or photographs the previous page):
+
+  ```powershell
+  .shots/batch.ps1 -Steps @(
+      @{ page='Table'; section='Sorting'; do='click:353,387 key:enter' }
+      @{ page='Switch'; section='Usage'; out='...\~sw.png' }
+  )
+  .shots/refresh.ps1              # all 73 reference shots, one process
+  .shots/smoke.ps1                # all 73 routes, one process
+  ```
+
+  This is not a small saving. Startup is about four seconds and a render is about
+  a third of one, so the sweeps went from **five minutes to 24 seconds** (smoke)
+  and from eight minutes to **23 seconds** (a full screenshot refresh). A gate
+  that takes half a minute gets run after every change; one that takes ten
+  minutes gets run "later".
+
+  A panic still takes the process with it, so `smoke.ps1` retries the page that
+  died *alone* and reports it only if it dies again -- the shared process makes
+  the "died during startup" flake more likely, not less, so that retry matters
+  more than before. `-PerProcess` keeps the old behaviour.
+
+  `Process::Start(psi)` returns **null** in pwsh for a console-subsystem binary
+  launched with `CreateNoWindow`; construct the `Process` and call `Start()` on
+  it, or the script quietly polls a null handle for a few minutes.
+- **`.shots/drive.ps1` drives one page without taking the focus**, and it is
+  the single-shot version of the same thing:
 
   ```powershell
   python .shots/sections.py Table                      # what sections exist

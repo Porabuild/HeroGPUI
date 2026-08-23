@@ -87,12 +87,16 @@ impl RenderOnce for Alert {
         } else {
             sem.color
         };
+        // `.alert__indicator` is a `p-1` box around the glyph, not the glyph on
+        // its own.
         alert = alert.child(
-            gpui::svg()
-                .size(px(18.))
-                .path(icons::ELLIPSIS)
-                .text_color(icon_color)
-                .flex_shrink_0(),
+            gpui::div().p(px(4.)).flex_shrink_0().child(
+                gpui::svg()
+                    .size(px(18.))
+                    .path(icons::ELLIPSIS)
+                    .text_color(icon_color)
+                    .flex_shrink_0(),
+            ),
         );
 
         let mut text_col = gpui::div().flex().flex_col().gap(px(2.)).flex_1();

@@ -807,7 +807,8 @@ impl RenderOnce for RangeCalendar {
                 let mut col = div().flex().flex_col().gap(px(8.)).w(px(266.));
                 // Only the outer columns carry nav buttons; the rest keep a
                 // same-size spacer so every heading lines up.
-                let spacer = || div().size(px(28.)).into_any_element();
+                // The same box as a nav button, so every heading lines up.
+                let spacer = || div().size(px(24.)).into_any_element();
                 col = col.child(
                     div()
                         .flex()

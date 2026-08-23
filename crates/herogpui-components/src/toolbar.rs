@@ -77,8 +77,9 @@ impl RenderOnce for Toolbar {
 
         if self.is_attached {
             el = el
+                // `.toolbar--attached` is `p-1 rounded-3xl`.
                 .p(px(4.))
-                .rounded_full()
+                .rounded(crate::util::control_radius(cx))
                 .bg(colors.surface_secondary)
                 .border_1()
                 .border_color(colors.border);

@@ -236,7 +236,9 @@ impl RenderOnce for TagGroup {
         let (pad_x, pad_y, text_size) = Self::metrics(self.size);
         let tag_radius = Self::radius(self.size, cx);
 
-        let mut root = div().flex().flex_col().gap(px(6.));
+        // `.tag-group` is `flex flex-col gap-1`: the label, the list and the
+        // description.
+        let mut root = div().flex().flex_col().gap(px(4.));
 
         if let Some(label) = &self.label {
             root = root.child(

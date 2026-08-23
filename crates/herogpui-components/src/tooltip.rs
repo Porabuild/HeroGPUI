@@ -216,8 +216,8 @@ impl RenderOnce for Tooltip {
 
         let mut tip = gpui::div()
             .absolute()
-            .px(px(8.))
-            .py(px(4.))
+            // `.tooltip` is `p-2` all round, not a wider-than-tall pill.
+            .p(px(8.))
             .rounded(util::small_radius(cx))
             .bg(colors.overlay.background)
             .text_color(colors.overlay.foreground)

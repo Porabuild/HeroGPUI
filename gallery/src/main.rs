@@ -3,6 +3,7 @@
 
 mod app;
 mod assets;
+mod control;
 mod pages;
 
 use gpui::{
@@ -13,15 +14,18 @@ use herogpui_theme::ThemeProvider;
 use crate::app::Gallery;
 use crate::pages::Page;
 
+/// The page whose nav title is `name`, if there is one.
+pub fn page_named(name: &str) -> Option<Page> {
+    herogpui_gallery_pages::all_pages()
+        .into_iter()
+        .find(|p| section_title(*p) == name)
+}
+
 fn initial_page() -> Page {
-    if let Ok(arg) = std::env::var("HEROGPUI_PAGE") {
-        for section in herogpui_gallery_pages::all_pages() {
-            if section_title(section) == arg {
-                return section;
-            }
-        }
-    }
-    Page::Introduction
+    std::env::var("HEROGPUI_PAGE")
+        .ok()
+        .and_then(|arg| page_named(&arg))
+        .unwrap_or(Page::Introduction)
 }
 
 /// Flat list of every page for CLI lookup.
@@ -59,6 +63,7 @@ fn main() {
         .with_assets(assets::Assets)
         .run(move |cx: &mut App| {
             ThemeProvider::init_with(theme, cx);
+            control::init_section_filter(cx);
 
             // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
             // A capture is one PrintWindow of the whole window, so a taller
@@ -91,25 +96,30 @@ fn main() {
             let unfocused = std::env::var("HEROGPUI_UNFOCUSED")
                 .map(|v| v == "1")
                 .unwrap_or(false);
-            cx.open_window(
-                WindowOptions {
-                    window_bounds: Some(WindowBounds::Windowed(bounds)),
-                    focus: !unfocused,
-                    titlebar: Some(TitlebarOptions {
-                        title: Some("HeroGPUI — Gallery".into()),
+            let window = cx
+                .open_window(
+                    WindowOptions {
+                        window_bounds: Some(WindowBounds::Windowed(bounds)),
+                        focus: !unfocused,
+                        titlebar: Some(TitlebarOptions {
+                            title: Some("HeroGPUI — Gallery".into()),
+                            ..Default::default()
+                        }),
                         ..Default::default()
-                    }),
-                    ..Default::default()
-                },
-                move |_, cx| {
-                    cx.new(move |cx| {
-                        let mut g = Gallery::new(cx);
-                        g.set_initial_page(start_page);
-                        g
-                    })
-                },
-            )
-            .unwrap();
+                    },
+                    move |_, cx| {
+                        cx.new(move |cx| {
+                            let mut g = Gallery::new(cx);
+                            g.set_initial_page(start_page);
+                            g
+                        })
+                    },
+                )
+                .unwrap();
+            // `HEROGPUI_CONTROL=<file>` lets one process serve a whole batch of
+            // checks: the page, section, theme and overlay state all come from
+            // that file while the app runs.
+            control::spawn(window, cx);
 
             // Activating raises the window and takes the focus, which is the
             // one thing `HEROGPUI_UNFOCUSED=1` is asked not to do: a capture run

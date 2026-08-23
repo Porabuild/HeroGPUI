@@ -6,6 +6,7 @@
 pub mod components;
 pub mod docs;
 pub mod docs_guides;
+mod reference;
 
 use gpui::{px, App};
 use herogpui_theme::ActiveTheme;
@@ -632,6 +633,30 @@ pub fn doc_page(
     sections: Vec<(&str, gpui::AnyElement)>,
     cx: &App,
 ) -> gpui::AnyElement {
+    let mut el = doc_page_shell(title, description, import_line, cx);
+
+    // `HEROGPUI_SECTION=Sorting` renders only the sections whose title contains
+    // that text, case-insensitively. A page is long, a window is at most a
+    // monitor tall, and scrolling to a section by wheel notches to photograph it
+    // is both slow and fragile -- naming it puts it at the top of an otherwise
+    // empty page instead. Several names can be given, comma separated.
+    //
+    // The filter is a global rather than an env read, so the control file can
+    // change it while the app runs (see `control.rs`).
+    for (heading, body) in sections {
+        if !crate::control::section_wanted(heading, cx) {
+            continue;
+        }
+        el = el
+            .mt(px(4.))
+            .child(section_heading(heading))
+            .child(example_frame(body, cx));
+    }
+
+    el.into_any_element()
+}
+
+fn doc_page_shell(title: &str, description: &str, import_line: &str, cx: &App) -> gpui::Div {
     let colors = cx.colors();
     let mut el = gpui::div()
         .w(px(860.))
@@ -656,29 +681,35 @@ pub fn doc_page(
     if !import_line.is_empty() {
         el = el.child(code_block(import_line, cx));
     }
+    el
+}
 
-    // `HEROGPUI_SECTION=Sorting` renders only the sections whose title contains
-    // that text, case-insensitively. A page is long, a window is at most a
-    // monitor tall, and scrolling to a section by wheel notches to photograph it
-    // is both slow and fragile -- naming it puts it at the top of an otherwise
-    // empty page instead. Several names can be given, comma separated.
-    let wanted = std::env::var("HEROGPUI_SECTION").unwrap_or_default();
-    let wanted: Vec<String> = wanted
-        .split(',')
-        .map(|s| s.trim().to_lowercase())
-        .filter(|s| !s.is_empty())
-        .collect();
-    for (heading, body) in sections {
-        if !wanted.is_empty() {
-            let lower = heading.to_lowercase();
-            if !wanted.iter().any(|w| lower.contains(w.as_str())) {
-                continue;
-            }
+/// Component docs use the same page layout, with the Rust expression that
+/// renders each live example shown directly beneath it.
+pub fn component_doc_page(
+    title: &str,
+    description: &str,
+    import_line: &str,
+    sections: Vec<(&str, gpui::AnyElement, &str)>,
+    cx: &App,
+) -> gpui::AnyElement {
+    let references = reference::panels(import_line, &sections, cx);
+    let mut el = doc_page_shell(title, description, import_line, cx);
+
+    for (heading, body, code) in sections {
+        if !crate::control::section_wanted(heading, cx) {
+            continue;
         }
         el = el
             .mt(px(4.))
             .child(section_heading(heading))
-            .child(example_frame(body, cx));
+            .child(example_frame_with_code(body, code, cx));
+    }
+
+    for (heading, body) in references {
+        if crate::control::section_wanted(heading, cx) {
+            el = el.mt(px(4.)).child(section_heading(heading)).child(body);
+        }
     }
 
     el.into_any_element()
@@ -707,6 +738,49 @@ pub fn example_frame(content: gpui::AnyElement, cx: &App) -> gpui::AnyElement {
         .flex_col()
         .gap(px(16.))
         .child(content)
+        .into_any_element()
+}
+
+/// Live preview and its exact gallery source, presented as one example card.
+pub fn example_frame_with_code(
+    content: gpui::AnyElement,
+    code: &str,
+    cx: &App,
+) -> gpui::AnyElement {
+    let colors = cx.colors();
+    gpui::div()
+        .rounded(px(14.))
+        .border_1()
+        .border_color(colors.border)
+        .bg(colors.background)
+        .shadow(cx.layout().surface_shadow.clone())
+        .overflow_hidden()
+        .child(
+            gpui::div()
+                .p(px(28.))
+                .flex()
+                .flex_col()
+                .gap(px(16.))
+                .child(content),
+        )
+        .child(
+            gpui::div()
+                .id(gpui::ElementId::Name(code.to_owned().into()))
+                .w_full()
+                .border_t_1()
+                .border_color(colors.border)
+                .px(px(16.))
+                .py(px(14.))
+                .max_h(px(220.))
+                .focusable()
+                .overflow_y_scroll()
+                .bg(gpui::rgb(0x18181B))
+                .font_family(crate::app::MONO_FONT)
+                .text_size(px(12.))
+                .line_height(px(20.))
+                .text_color(gpui::rgb(0xD4D4D8))
+                .child(code.to_owned()),
+        )
         .into_any_element()
 }
 

@@ -253,7 +253,9 @@ impl RenderOnce for Checkbox {
         let colors = cx.colors();
         let layout = cx.layout();
 
-        let (box_px, icon_px, text) = (px(16.), px(10.), px(14.));
+        // `.checkbox__control` is `size-4`, `.checkbox__indicator` `size-3`,
+        // and `.checkbox__content` `text-sm`.
+        let (box_px, icon_px, text) = (px(16.), px(12.), px(14.));
 
         let active = checked || self.is_indeterminate;
 

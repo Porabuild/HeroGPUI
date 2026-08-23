@@ -614,4 +614,10 @@ impl Gallery {
     pub fn set_initial_page(&mut self, page: Page) {
         self.page = page;
     }
+
+    /// `HEROGPUI_OPEN_OVERLAYS`, but settable while the app runs: the control
+    /// file (see `control.rs`) switches it between batch steps.
+    pub fn set_overlays_open(&mut self, open: bool) {
+        self.overlays_open = open;
+    }
 }
