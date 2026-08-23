@@ -558,6 +558,13 @@ impl RenderOnce for ColorArea {
             self.default_value.unwrap_or(self.value),
         );
         self.value = resolved;
+        // `.color-area:focus-visible` is `status-focused`. `use_keyed_state`
+        // takes `cx` mutably, so the handle precedes the theme.
+        let area_focus = util::tab_stop_handle(
+            ElementId::Name(format!("{:?}-area-focus", self.id).into()),
+            window,
+            cx,
+        );
         let colors = cx.colors();
         let radius = cx.layout().radius_lg();
         let hue_color = PickerColor::hsb(self.value.hue, 1.0, 1.0).to_hsla();
@@ -572,6 +579,7 @@ impl RenderOnce for ColorArea {
         // Saturation left-to-right over the hue, brightness bottom-to-top.
         let mut area = div()
             .id(self.id.clone())
+            .track_focus(&area_focus)
             .relative()
             .w(self.width)
             .h(self.height)
@@ -637,6 +645,9 @@ impl RenderOnce for ColorArea {
         if self.is_disabled {
             return area.opacity(cx.layout().disabled_opacity);
         }
+
+        // `.color-area:focus-visible` is `status-focused`.
+        area = util::ring_if_focused(area, &area_focus, true, Vec::new(), window, cx);
 
         if let Some(cb) = self.on_change_end {
             let value = self.value;
@@ -942,6 +953,8 @@ impl RenderOnce for ColorSlider {
             };
             let resolve_up = resolve;
             track = track.cursor_pointer();
+            // `.color-slider:focus-visible` is `status-focused`.
+            track = util::ring_if_focused(track, &focus_handle, true, Vec::new(), window, cx);
 
             // v3: the arrows step the channel, Home and End take it to its ends,
             // and Page Up/Down move by a tenth of the range -- React Aria's page
@@ -1579,6 +1592,19 @@ impl RenderOnce for ColorSwatchPicker {
         );
         self.value = resolved;
 
+        // One tab stop per swatch: `.color-swatch-picker__item:focus-visible` is
+        // `status-focused`. The handles precede the theme borrow.
+        let swatch_focus: Vec<gpui::FocusHandle> = (0..self.swatches.len())
+            .map(|index| {
+                util::tab_stop_handle(
+                    ElementId::Name(format!("{:?}-swatch-{index}-focus", self.id).into()),
+                    window,
+                    cx,
+                )
+            })
+            .collect();
+        let swatch_ring = util::focus_visible(cx);
+
         let colors = cx.colors();
         let mut row = div().flex().flex_row().items_center().gap(px(8.));
         if self.layout == SwatchLayout::Grid {
@@ -1592,6 +1618,7 @@ impl RenderOnce for ColorSwatchPicker {
                 .id(ElementId::Name(
                     format!("{:?}-swatch-{index}", self.id).into(),
                 ))
+                .when_some(swatch_focus.get(index), |c, handle| c.track_focus(handle))
                 .flex()
                 .items_center()
                 .justify_center()
@@ -1630,6 +1657,16 @@ impl RenderOnce for ColorSwatchPicker {
                 });
             }
 
+            let cell = util::with_focus_ring(
+                cell,
+                swatch_ring
+                    && swatch_focus
+                        .get(index)
+                        .is_some_and(|h| h.is_focused(window)),
+                true,
+                Vec::new(),
+                cx,
+            );
             row = row.child(cell);
         }
 
@@ -1743,6 +1780,13 @@ impl RenderOnce for ColorPicker {
             self.default_value.unwrap_or(self.value),
         );
         self.value = resolved;
+        // `.color-picker__trigger:focus-visible` is `status-focused`.
+        // `use_keyed_state` takes `cx` mutably, so the handle precedes the theme.
+        let trigger_focus = util::tab_stop_handle(
+            ElementId::Name(format!("{:?}-picker-focus", self.id).into()),
+            window,
+            cx,
+        );
         let colors = cx.colors();
         let layout = cx.layout();
         let base = format!("{:?}", self.id);
@@ -1750,6 +1794,7 @@ impl RenderOnce for ColorPicker {
         // Trigger: swatch plus the hex value.
         let mut trigger = div()
             .id(ElementId::Name(format!("{base}-trigger").into()))
+            .track_focus(&trigger_focus)
             .flex()
             .flex_row()
             .items_center()
@@ -1781,6 +1826,7 @@ impl RenderOnce for ColorPicker {
         if let Some(label) = self.label {
             root = root.child(crate::field::Label::new(label));
         }
+        let trigger = util::ring_if_focused(trigger, &trigger_focus, true, Vec::new(), window, cx);
         root = root.child(trigger);
 
         if !self.is_open || self.is_disabled {

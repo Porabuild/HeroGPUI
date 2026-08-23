@@ -126,7 +126,11 @@ impl RenderOnce for Link {
             .rounded(crate::util::small_radius(cx))
             .border_color(color)
             .pb(px(1.))
-            .track_focus(&focus);
+            .track_focus(&focus)
+            // `.link:focus-visible` is `status-focused`.
+            .map(|el| {
+                crate::util::ring_if_focused(el, &focus, true, Vec::new(), window, cx)
+            });
 
         if self.is_disabled {
             el = el.opacity(cx.layout().disabled_opacity);

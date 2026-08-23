@@ -826,6 +826,7 @@ impl RenderOnce for Input {
                 &focus_handle,
             );
         }
+        let disabled_opacity = cx.layout().disabled_opacity;
         let colors = cx.colors();
         let accent = colors.accent;
         let focused = focus_handle.is_focused(window);
@@ -893,7 +894,8 @@ impl RenderOnce for Input {
                         move |_, window, _| window.focus(&fh)
                     })
             })
-            .when(self.is_disabled, |e| e.opacity(0.5));
+            // `status-disabled` is `--disabled-opacity`, which the theme owns.
+            .when(self.is_disabled, |e| e.opacity(disabled_opacity));
 
         // Inside an `InputGroup` the group is the field: v3's
         // `.input-group__input` is `rounded-none border-0 bg-transparent

@@ -417,8 +417,15 @@ impl RenderOnce for InputOTP {
                 cell = cell.shadow(layout.field_shadow.clone());
             }
             if is_cursor_cell {
-                // `status-focused-field` — a 2px focus ring, no offset.
-                cell = cell.border_2().border_color(colors.focus);
+                // `status-focused-field` -- a 2px ring, no offset. A ring rather
+                // than a border, which would shrink the digit's box by 2px as
+                // the caret arrived.
+                let base = if self.variant == FieldVariant::Primary {
+                    layout.field_shadow.clone()
+                } else {
+                    Vec::new()
+                };
+                cell = crate::util::with_focus_ring(cell, true, false, base, cx);
             } else if invalid {
                 // `status-invalid-field` — a 1px danger outline.
                 cell = cell.border_1().border_color(colors.danger.color);

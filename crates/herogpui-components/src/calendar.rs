@@ -469,6 +469,13 @@ impl Calendar {
     }
 }
 
+/// `date` a month away, clamped to the target month's length -- 31 January plus
+/// a month is the end of February, not the 31st.
+fn month_step(date: Date, delta: i32) -> Date {
+    let (year, month) = bump_month(date.year, date.month, delta);
+    Date::new(year, month, date.day.min(days_in_month(year, month)))
+}
+
 /// The per-frame facts every cell needs, bundled so the helpers below take a
 /// readable argument list.
 struct Frame<'a> {
@@ -478,6 +485,10 @@ struct Frame<'a> {
     today: Date,
     interactive: bool,
     base: &'a str,
+    /// The date wearing the focus ring: `focusedValue` when the caller controls
+    /// it, otherwise wherever the arrow keys have walked to. `None` while the
+    /// grid does not hold the keyboard.
+    focused: Option<Date>,
 }
 
 impl Calendar {
@@ -537,11 +548,12 @@ impl Calendar {
             }
         }
 
-        // The focus ring is independent of selection, so it shows on an
-        // unselected date too.
-        if self.focused_value == Some(date) && !is_sel {
-            circle = circle.border_2().border_color(colors.focus);
-        }
+        // `.calendar__cell` takes `status-focused`, independently of selection,
+        // so it shows on an unselected date too. A ring rather than a border:
+        // a border shrinks the 36px circle as the cursor lands on it.
+        let circle =
+            crate::util::with_focus_ring(circle, frame.focused == Some(date), true, Vec::new(), cx);
+        let mut circle = circle;
 
         if selectable {
             let st = self.state.clone();
@@ -741,6 +753,21 @@ impl RenderOnce for Calendar {
             self.default_year_picker_open,
         );
 
+        // The grid is one tab stop with a cursor inside it, the way a list is:
+        // v3 gives the calendar a roving focus and rings the date it is on.
+        // `use_keyed_state` takes `cx` mutably, so both precede the theme.
+        let grid_focus = crate::util::tab_stop_handle(
+            gpui::ElementId::Name(format!("{base}-focus").into()),
+            window,
+            cx,
+        );
+        let cursor = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{base}-cursor").into()),
+            cx,
+            |_, _| None::<Date>,
+        );
+        let cursor_at = *cursor.read(cx);
+
         let colors = cx.colors();
         let layout = cx.layout();
         let first_day = self.constraints.first_day_of_week;
@@ -765,12 +792,24 @@ impl RenderOnce for Calendar {
             ),
             _ => stored_anchor,
         };
+        // `focusedValue` wins; without it the keyboard's own cursor does, and it
+        // starts from the selection or today.
+        // Taking the focus puts the ring on the date v3 would have focused --
+        // the selection, or today -- rather than waiting for a keystroke to
+        // place it.
+        let ring_at = self
+            .focused_value
+            .or(cursor_at)
+            .or(selected)
+            .or_else(|| Some(Date::today()))
+            .filter(|_| grid_focus.is_focused(window));
         let frame = Frame {
             selected,
             selected_dates: &selected_dates,
             today: Date::today(),
             interactive: !self.is_disabled && !self.is_read_only,
             base: &base,
+            focused: ring_at,
         };
 
         let months = calendar_view::month_headings(self.duration, anchor);
@@ -908,7 +947,57 @@ impl RenderOnce for Calendar {
             .flex()
             .flex_col()
             .gap(px(8.))
-            .text_color(colors.surface.foreground);
+            .text_color(colors.surface.foreground)
+            .track_focus(&grid_focus);
+
+        // v3 drives a calendar from the keyboard: the arrows step a day and a
+        // week, Page Up/Down a month, Home and End the ends of the month, and
+        // Enter takes the date the ring is on.
+        if !self.is_disabled && !self.is_read_only {
+            let held = cursor;
+            let start = self.focused_value.or(selected).unwrap_or_else(Date::today);
+            let constraints = self.constraints.clone();
+            let state = self.state.clone();
+            let mode = self.selection_mode;
+            let on_change = self.on_change.clone();
+            let on_focus = self.on_focus_change.clone();
+            root = root.on_key_down(move |event, window, cx| {
+                let from = *held.read(cx);
+                let at = from.unwrap_or(start);
+                let key = event.keystroke.key.as_str();
+                if matches!(key, "enter" | "space") {
+                    if !constraints.allows(at) {
+                        return;
+                    }
+                    state.update(cx, |s, cx| {
+                        s.toggle(at, mode);
+                        cx.notify();
+                    });
+                    if let Some(cb) = &on_change {
+                        cb(Some(at), window, cx);
+                    }
+                    return;
+                }
+                let next = match key {
+                    "left" => add_days(&at, -1),
+                    "right" => add_days(&at, 1),
+                    "up" => add_days(&at, -7),
+                    "down" => add_days(&at, 7),
+                    "pageup" => month_step(at, -1),
+                    "pagedown" => month_step(at, 1),
+                    "home" => Date::new(at.year, at.month, 1),
+                    "end" => Date::new(at.year, at.month, days_in_month(at.year, at.month)),
+                    _ => return,
+                };
+                held.update(cx, |v, cx| {
+                    *v = Some(next);
+                    cx.notify();
+                });
+                if let Some(cb) = &on_focus {
+                    cb(next, window, cx);
+                }
+            });
+        }
 
         if year_picker_open {
             // The picker replaces the grid area in every view.

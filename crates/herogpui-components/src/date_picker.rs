@@ -201,6 +201,14 @@ impl RenderOnce for DatePicker {
             self.default_open,
         );
 
+        // The trigger is a tab stop that rings. `use_keyed_state` takes `cx`
+        // mutably, so the handle precedes the theme.
+        let trigger_focus = crate::util::tab_stop_handle(
+            gpui::ElementId::Name(format!("dp-{}-focus", self.state.entity_id().as_u64()).into()),
+            window,
+            cx,
+        );
+
         let colors = cx.colors();
         let layout = cx.layout();
 
@@ -212,6 +220,7 @@ impl RenderOnce for DatePicker {
             .id(gpui::ElementId::Name(
                 format!("dp-{}", self.state.entity_id().as_u64()).into(),
             ))
+            .track_focus(&trigger_focus)
             .flex()
             .items_center()
             .justify_between()
@@ -222,13 +231,17 @@ impl RenderOnce for DatePicker {
             .text_size(px(14.))
             .cursor_pointer();
 
+        // `.date-picker__trigger:focus-visible` is `status-focused` -- the offset
+        // ring, which is why the chrome is not told about the focus: it draws a
+        // field's flush one.
         field = crate::util::apply_field_chrome(
             field,
             herogpui_core::FieldVariant::Primary,
             self.is_invalid,
-            is_open,
+            false,
             cx,
         );
+        field = crate::util::ring_if_focused(field, &trigger_focus, true, Vec::new(), window, cx);
         if !is_open {
             let hover_bg = colors.field.hover();
             field = field.hover(move |s| s.bg(hover_bg));

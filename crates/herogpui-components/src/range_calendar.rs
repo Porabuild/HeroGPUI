@@ -290,9 +290,10 @@ impl RangeCalendar {
             }
         }
 
-        if self.focused_value == Some(date) && !is_start && !is_end {
-            cell = cell.border_2().border_color(colors.focus);
-        }
+        // `.range-calendar__cell` takes `status-focused` -- a ring, not a border,
+        // which would shrink the cell as the cursor arrived.
+        let mut cell =
+            util::with_focus_ring(cell, self.focused_value == Some(date), true, Vec::new(), cx);
 
         if !selectable {
             cell = cell.text_color(colors.muted);

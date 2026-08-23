@@ -357,14 +357,13 @@ impl RenderOnce for Select {
             .cursor_pointer();
 
         let _border_color = if is_open { sem.color } else { colors.separator };
-        // `.select__trigger[data-focused]` is `status-focused-field`.
-        field = util::apply_field_chrome(
-            field,
-            self.variant,
-            self.is_invalid,
-            focus_handle.is_focused(window),
-            cx,
-        );
+        // `.select__trigger:focus-visible` is `status-focused` -- the offset
+        // ring, not a field's flush one, which is why the chrome is not told
+        // about the focus here.
+        field = util::apply_field_chrome(field, self.variant, self.is_invalid, false, cx);
+        if !self.is_disabled {
+            field = util::ring_if_focused(field, &focus_handle, true, Vec::new(), window, cx);
+        }
 
         if !self.is_disabled {
             let hover_bg = match self.variant {

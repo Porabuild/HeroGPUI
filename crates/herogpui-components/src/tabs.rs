@@ -187,7 +187,11 @@ impl RenderOnce for Tabs {
                         .py(px(6.))
                         .rounded(crate::util::control_radius(cx))
                         .text_size(px(14.))
-                        .when(!self.is_disabled, |t| t.cursor_pointer());
+                        .when(!self.is_disabled, |t| t.cursor_pointer())
+                        // `status-disabled` is `--disabled-opacity`.
+                        .when(self.is_disabled, |t| {
+                            t.opacity(cx.layout().disabled_opacity)
+                        });
                     if active {
                         tab = tab
                             .bg(colors.segment.background)
@@ -250,7 +254,11 @@ impl RenderOnce for Tabs {
                         .text_size(px(14.))
                         .line_height(px(20.))
                         .border_b_2()
-                        .when(!self.is_disabled, |t| t.cursor_pointer());
+                        .when(!self.is_disabled, |t| t.cursor_pointer())
+                        // `status-disabled` is `--disabled-opacity`.
+                        .when(self.is_disabled, |t| {
+                            t.opacity(cx.layout().disabled_opacity)
+                        });
                     tab = if active {
                         tab.border_color(colors.accent.color)
                             .text_color(colors.foreground)

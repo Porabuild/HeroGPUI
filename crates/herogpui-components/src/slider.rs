@@ -378,13 +378,17 @@ impl RenderOnce for Slider {
                     .border_color(sem.color)
                     .shadow(layout.surface_shadow.clone()),
             };
-            // `status-focused` on the thumb the keys move, and only while the
-            // slider holds the focus.
-            if index == active_at.min(fractions.len().saturating_sub(1))
-                && focus_handle.is_focused(window)
-                && fractions.len() > 1
-            {
-                thumb_el = thumb_el.border_2().border_color(colors.focus);
+            // `.slider__thumb` takes `status-focused` -- the thumb the keys
+            // move, while the slider holds a keyboard focus.
+            if index == active_at.min(fractions.len().saturating_sub(1)) {
+                thumb_el = crate::util::ring_if_focused(
+                    thumb_el,
+                    &focus_handle,
+                    true,
+                    Vec::new(),
+                    window,
+                    cx,
+                );
             }
             track = track.child(thumb_el);
         }

@@ -181,6 +181,19 @@ impl Accordion {
 
 impl RenderOnce for Accordion {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // One tab stop per trigger. `use_keyed_state` takes `cx` mutably, so the
+        // handles come before anything borrows the theme.
+        let trigger_focus: Vec<gpui::FocusHandle> = self
+            .items
+            .iter()
+            .map(|item| {
+                crate::util::tab_stop_handle(
+                    gpui::ElementId::Name(format!("acc-{}-focus", item.key).into()),
+                    window,
+                    cx,
+                )
+            })
+            .collect();
         // `expandedKeys` wins; without it the accordion holds the set, seeded
         // from `defaultExpandedKeys`. `controlled` takes `cx` mutably, so it
         // precedes the theme tokens.
@@ -216,12 +229,16 @@ impl RenderOnce for Accordion {
         container = container.w_full().flex().flex_col();
 
         let count = self.items.len();
+        let ring_visible = crate::util::focus_visible(cx);
         for (i, item) in self.items.into_iter().enumerate() {
             let is_open = expanded_keys.contains(&item.key);
             let item_disabled = self.is_disabled || self.disabled_keys.contains(&item.key);
 
+            // `.accordion__trigger:focus-visible` is `status-focused`.
+            let header_focus = trigger_focus.get(i);
             let mut header = gpui::div()
                 .id(gpui::ElementId::Name(format!("acc-{}", item.key).into()))
+                .when_some(header_focus, |h, handle| h.track_focus(handle))
                 .flex()
                 .items_center()
                 .justify_between()
@@ -298,6 +315,15 @@ impl RenderOnce for Accordion {
                 }
             }
 
+            let header = crate::util::with_focus_ring(
+                header,
+                !item_disabled
+                    && ring_visible
+                    && header_focus.is_some_and(|h| h.is_focused(window)),
+                true,
+                Vec::new(),
+                cx,
+            );
             let mut section = gpui::div().flex().flex_col().child(header);
             if is_open {
                 section = section.child(

@@ -557,10 +557,12 @@ impl ListBox {
                     });
                 }
 
-                // `status-focused` on the row the keyboard is on.
-                if cursor_at == Some(index) {
-                    row = row.border_2().border_color(colors.focus);
-                }
+                // `.list-box-item` takes `status-focused` on the row the keyboard
+                // is on. A ring rather than a border: a border would move the
+                // row's content by two pixels as the cursor arrived.
+                let row =
+                    util::with_focus_ring(row, cursor_at == Some(index), true, Vec::new(), cx);
+                let mut row = row;
 
                 if let Some(path) = icon {
                     row = row.child(

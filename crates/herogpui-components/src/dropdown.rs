@@ -423,15 +423,24 @@ impl RenderOnce for Menu {
                     } else {
                         row.h(px(32.))
                     };
-                    if !is_item_disabled {
+                    if is_item_disabled {
+                        // `status-disabled` is `--disabled-opacity`; the muted
+                        // text alone was this port's own idea of the state.
+                        row = row.opacity(cx.layout().disabled_opacity);
+                    } else {
                         row = row.cursor_pointer();
                         row = row.hover(move |s| s.bg(colors.default.soft()));
                     }
                     row = when_selected(row, is_selected, sem_primary(cx));
-                    // `status-focused` on the row the keyboard is on.
-                    if cursor_at == Some(i) {
-                        row = row.border_2().border_color(colors.focus);
-                    }
+                    // `.menu-item` takes `status-focused` on the row the keyboard
+                    // is on -- a ring, not a border, which would shift the row.
+                    row = crate::util::with_focus_ring(
+                        row,
+                        cursor_at == Some(i),
+                        true,
+                        Vec::new(),
+                        cx,
+                    );
 
                     if let Some(icon_path) = icon {
                         row = row.child(

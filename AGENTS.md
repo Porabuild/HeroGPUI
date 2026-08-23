@@ -374,6 +374,36 @@ share a field name cover for each other — that hid an unwired
 `SearchField::validate` next to `Input::validate`. It now lists shared names at
 the end; check those by hand.
 
+The design audit measures the *resting* look. What a control does when it is
+hovered, pressed, focused or disabled is a different list, and v3 states it in
+the stylesheets: every component sheet reaches for the same handful of
+`status-*` utilities.
+
+```bash
+python .shots/state_audit.py
+```
+
+It reads which ones each sheet applies -- 100 claims across 46 sheets -- and maps
+each to the code that draws it. That is how it was discovered that **41 of v3's
+sheets ring a focused control and this port rang none of them**: keyboard focus
+was invisible everywhere. Four things worth keeping:
+
+- **A `status-*` whose evidence is a call needs its argument checked too.**
+  `apply_field_chrome(.., is_invalid, false, cx)` compiles, reads fine and draws
+  no ring; eight fields shipped that way. The check demands at least one call in
+  the module whose focus argument is not the literal `false`.
+- **One module can serve several sheets**, and then a module-wide search proves
+  nothing: `color_picker.rs` answers for five. Those name their own handle
+  (`ring_if_focused(area,` / `(track,` / `(trigger,`) so each is asked
+  separately.
+- **A state is often drawn by a different component.** A `TextArea` composes an
+  `Input`, a `Disclosure` is a one-item `Accordion`, an overlay's disabled state
+  belongs to the close button inside it. `ELSEWHERE` records where to look.
+- **Some states have nothing to trigger them.** v3 styles `[aria-disabled]` on a
+  progress bar and `[data-pending]` on a close button but documents no prop that
+  could set either, so `no-disabled-prop` / `no-pending-prop` are reasons rather
+  than gaps -- inventing the builder would fail `extra_audit.py`.
+
 None of those audits asks whether a control answers a key. v3 says what each
 one does under `## Accessibility`, in prose:
 
@@ -507,6 +537,22 @@ v2 concepts that must **not** come back:
   - `absolute` does not lift a panel above later siblings; gpui paints in tree
     order. Floating surfaces must go through `util::floating` (`deferred`) or
     `anchored`, or the page content below will paint over them.
+  - **A focus ring is a shadow, and its blur cannot be zero.** gpui's shadow
+    shader integrates a Gaussian over `3 * blur_radius`; at zero the interval is
+    empty and the shadow paints fully transparent -- the first version of the
+    ring drew nothing at all. One pixel is the smallest blur that draws. Rings
+    are shadows rather than borders because a border moves the content inside
+    it: a 2px border on a 36px calendar cell shrinks the date as the cursor
+    lands on it. `shadow()` *replaces* the list, so a ring on an element that
+    already casts one (a field, a checkbox) has to be appended --
+    `util::with_focus_ring` takes the base list for that reason.
+  - **A tab stop comes from the handle, not the element.** `.tab_index(0)`
+    configures a handle the element creates for itself, which a component that
+    reads its own focus state cannot use; `util::tab_stop_handle` marks the
+    handle it returns. Tab itself is the app's job: `util::app_focus_root` binds
+    it to `window.focus_next()`, holds the focus when nothing else does (with no
+    focus there is no key-event chain at all) and records keyboard-versus-pointer
+    input, which is what `:focus-visible` means.
   - `uniform_list(id, count, |range, window, cx| ..)` is the virtual list, and
     it is what `<Virtualizer layout={ListLayout}>` ports to: one fixed row
     height, which is why `row_height` is the builder that turns virtualization
