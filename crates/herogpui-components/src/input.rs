@@ -370,6 +370,91 @@ impl InputType {
 
 type TextCallback = std::sync::Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>;
 
+/// The character Enter inserts in a multi-line field.
+const NEWLINE: char = '\n';
+
+/// Everything the multi-line body needs to draw itself.
+struct MultilineBody<'a> {
+    value: &'a str,
+    cursor: usize,
+    selection: Option<(usize, usize)>,
+    focused: bool,
+    /// The caret's element id, height and colour.
+    caret: (gpui::ElementId, gpui::Pixels, gpui::Hsla),
+    selection_bg: gpui::Hsla,
+}
+
+/// One paragraph per newline, each wrapping, with the caret and selection
+/// placed inside the paragraph they fall in.
+///
+/// gpui does wrap text — the default `WhiteSpace::Normal` — so a real
+/// multi-line surface only needed the newlines split out and the caret located
+/// within them. The single-line field opts out with `whitespace_nowrap`.
+fn multiline_body(b: MultilineBody<'_>, cx: &App) -> gpui::AnyElement {
+    let (caret_id, caret_h, caret_color) = b.caret;
+    let mut col = gpui::div().flex().flex_col().items_start().w_full();
+    // Char offset each line starts at, so the cursor and selection — which are
+    // offsets into the whole value — can be mapped into it.
+    let mut start = 0usize;
+    let lines: Vec<&str> = b.value.split('\n').collect();
+    let last = lines.len().saturating_sub(1);
+    for (i, line) in lines.iter().enumerate() {
+        let len = line.chars().count();
+        let end = start + len;
+        // `min_w_0` on the text spans is what lets each wrap inside the field
+        // instead of pushing the row wider than its box.
+        let mut para = gpui::div().flex().flex_wrap().items_center().w_full().min_w_0();
+
+        // The selection, clipped to this line.
+        let local_sel = b.selection.and_then(|(lo, hi)| {
+            let lo = lo.max(start);
+            let hi = hi.min(end);
+            (lo < hi).then_some((lo - start, hi - start))
+        });
+
+        if let Some((lo, hi)) = local_sel {
+            let before: String = line.chars().take(lo).collect();
+            let selected: String = line.chars().skip(lo).take(hi - lo).collect();
+            let after: String = line.chars().skip(hi).collect();
+            para = para
+                .child(gpui::div().min_w_0().child(before))
+                .child(
+                    gpui::div()
+                        .min_w_0()
+                        .px(px(1.))
+                        .rounded(px(4.))
+                        .bg(b.selection_bg)
+                        .child(selected),
+                )
+                .child(gpui::div().min_w_0().child(after));
+        } else if b.selection.is_none() && b.cursor >= start && b.cursor <= end {
+            let at = b.cursor - start;
+            let before: String = line.chars().take(at).collect();
+            let after: String = line.chars().skip(at).collect();
+            para = para.child(gpui::div().min_w_0().child(before));
+            if b.focused {
+                para = para.child(crate::anim::caret_blink(
+                    gpui::div()
+                        .w(px(1.5))
+                        .h(caret_h)
+                        .bg(caret_color)
+                        .flex_shrink_0(),
+                    caret_id.clone(),
+                    cx,
+                ));
+            }
+            para = para.child(gpui::div().min_w_0().child(after));
+        } else {
+            para = para.child(gpui::div().w_full().min_w_0().child(line.to_string()));
+        }
+
+        col = col.child(para);
+        // +1 for the newline the split consumed, except after the last line.
+        start = end + usize::from(i < last);
+    }
+    col.into_any_element()
+}
+
 /// HeroUI Input.
 #[derive(IntoElement)]
 pub struct Input {
@@ -406,6 +491,9 @@ pub struct Input {
     auto_focus: bool,
     /// `name` — the submission name, written into the state on render.
     name: Option<SharedString>,
+    /// Set by `TextArea`: wrap the text, lay lines out top-down, and let Enter
+    /// insert a newline instead of submitting.
+    multiline: bool,
     /// `defaultValue` — seeds the state on the first render only.
     default_value: Option<SharedString>,
     is_clearable: bool,
@@ -453,6 +541,7 @@ impl Input {
             auto_focus: false,
             name: None,
             default_value: None,
+            multiline: false,
             is_clearable: false,
             on_change: None,
             on_submit: None,
@@ -466,6 +555,15 @@ impl Input {
     /// there.
     pub fn validation_behavior(mut self, behavior: crate::form::ValidationBehavior) -> Self {
         self.validation_behavior = Some(behavior);
+        self
+    }
+
+    /// Turns this into the multi-line surface `TextArea` renders.
+    ///
+    /// Not a v3 prop: v3 has a separate `<textarea>`, and this is the flag that
+    /// switches one implementation between the two.
+    pub(crate) fn multiline(mut self, v: bool) -> Self {
+        self.multiline = v;
         self
     }
 
@@ -731,14 +829,22 @@ impl RenderOnce for Input {
         } else {
             colors.border
         };
+        let multiline = self.multiline;
         let mut field = gpui::div()
             .id(gpui::ElementId::Name(
                 format!("input-{}", self.state.entity_id().as_u64()).into(),
             ))
             .flex()
-            .items_center()
+            // Multi-line: the text starts at the top, the box grows downward
+            // with the content, and the width is fixed so lines can wrap.
+            .map(|f| {
+                if multiline {
+                    f.items_start().min_h(h).py(px(10.)).w_full().overflow_hidden()
+                } else {
+                    f.items_center().h(h)
+                }
+            })
             .gap(px(8.))
-            .h(h)
             .px(px(12.))
             .text_size(text)
             .rounded(crate::util::field_radius(cx))
@@ -781,9 +887,35 @@ impl RenderOnce for Input {
         let is_empty = value.is_empty();
         let selection = st.selection();
 
-        let mut row = gpui::div().flex().items_center().min_w_0().flex_1();
+        // A multi-line field lays its lines out top-down and lets each one
+        // wrap; a single-line one is a centred, non-wrapping row.
+        let mut row = if self.multiline {
+            gpui::div()
+                .flex()
+                .flex_col()
+                .items_start()
+                .w_full()
+                .min_w_0()
+                .flex_1()
+        } else {
+            gpui::div().flex().items_center().min_w_0().flex_1()
+        };
 
-        if is_empty && !focused && self.placeholder.is_some() {
+        if self.multiline && !(is_empty && !focused && self.placeholder.is_some()) {
+            // One wrapping paragraph per newline, with the caret and any
+            // selection placed inside the line they fall in.
+            let caret_id = gpui::ElementId::Name(
+                format!("caret-{}", self.state.entity_id().as_u64()).into(),
+            );
+            row = row.child(multiline_body(MultilineBody {
+                value: &value,
+                cursor,
+                selection,
+                focused,
+                caret: (caret_id, text * 1.3, accent.color),
+                selection_bg: accent.with_alpha(0.24),
+            }, cx));
+        } else if is_empty && !focused && self.placeholder.is_some() {
             row = row.child(
                 gpui::div()
                     .text_color(colors.muted)
@@ -824,13 +956,18 @@ impl RenderOnce for Input {
                     .overflow_hidden()
                     .child(before)
                     .when(focused, |r| {
-                        r.child(
+                        // v3's `@keyframes caret-blink`.
+                        r.child(crate::anim::caret_blink(
                             gpui::div()
                                 .w(px(1.5))
                                 .h(text * 1.3)
                                 .bg(accent.color)
                                 .flex_shrink_0(),
-                        )
+                            gpui::ElementId::Name(
+                                format!("caret-{}", self.state.entity_id().as_u64()).into(),
+                            ),
+                            cx,
+                        ))
                     })
                     .child(after),
             );
@@ -883,6 +1020,7 @@ impl RenderOnce for Input {
             let mods = ev.keystroke.modifiers;
             let input_type = self.input_type;
             let max_length = self.max_length;
+            let multiline = self.multiline;
             let mut changed = false;
             let mut submit = false;
 
@@ -947,6 +1085,20 @@ impl RenderOnce for Input {
                         move_end(s, shift);
                         cx.notify();
                     }),
+                    // A multi-line field takes Enter as a newline, the way a
+                    // `<textarea>` does; a single-line one submits.
+                    "enter" if multiline => {
+                        if is_read_only {
+                            return;
+                        }
+                        state_entity.update(cx, |s, cx| {
+                            if state_accepts(s, NEWLINE, input_type, max_length) {
+                                insert_char(s, NEWLINE);
+                            }
+                            cx.notify();
+                        });
+                        changed = true;
+                    }
                     "enter" => submit = true,
                     "space" => {
                         if is_read_only {

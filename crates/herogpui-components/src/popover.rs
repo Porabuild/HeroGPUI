@@ -132,6 +132,15 @@ impl RenderOnce for Popover {
             self.is_open,
             self.default_open,
         );
+        // v3 keeps a closing panel on screen for its `[data-exiting]` run.
+        // `overlay_phase` takes `cx` mutably too, so it goes here.
+        let phase = crate::util::overlay_phase(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("{:?}-popover-phase", self.id).into()),
+            is_open,
+        );
+        let exiting = phase == crate::util::OverlayPhase::Exiting;
         let colors = cx.colors();
         let layout = cx.layout();
 
@@ -160,7 +169,7 @@ impl RenderOnce for Popover {
 
         let mut root = gpui::div().relative().flex().flex_col().items_start().child(trigger_wrap.child(self.trigger));
 
-        if !is_open {
+        if phase == crate::util::OverlayPhase::Closed {
             return root;
         }
 
@@ -238,14 +247,14 @@ impl RenderOnce for Popover {
         let placed = crate::util::placed_panel(self.placement, self.offset);
 
         // v3 fades the panel in on `[data-entering]`.
-        let panel = crate::anim::entering_zoom(
-            panel,
-            "popover-panel",
-            crate::anim::ZoomBox::panel(px(12.), crate::util::control_radius(cx))
-                .padding_x(px(14.))
-                .sized(px(260.)),
-            cx,
-        );
+        let zoom = crate::anim::ZoomBox::panel(px(12.), crate::util::control_radius(cx))
+            .padding_x(px(14.))
+            .sized(px(260.));
+        let panel = if exiting {
+            crate::anim::exiting(panel, "popover-panel-out", zoom, cx)
+        } else {
+            crate::anim::entering_zoom(panel, "popover-panel", zoom, cx)
+        };
 
         // `shouldFlip` lets the panel move to stay on screen. gpui's `anchored`
         // slides it back inside the window rather than mirroring it to the

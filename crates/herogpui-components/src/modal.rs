@@ -210,9 +210,12 @@ impl ParentElement for Modal {
 
 impl RenderOnce for Modal {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        if !self.is_open {
+        // v3 keeps a closing panel on screen for its `[data-exiting]` run.
+        let phase = crate::util::overlay_phase(window, cx, "modal-phase", self.is_open);
+        if phase == crate::util::OverlayPhase::Closed {
             return gpui::div().into_any_element();
         }
+        let exiting = phase == crate::util::OverlayPhase::Exiting;
 
         // Escape has to reach the overlay, and key events only travel to the
         // focused element and its ancestors. Claiming focus while nothing
@@ -379,7 +382,7 @@ impl RenderOnce for Modal {
                 e.items_end().justify_center().pb(px(32.))
             });
         // v3 fades the backdrop in alongside the panel (`.backdrop[data-entering]`).
-        match (self.is_dismissible, backdrop_click.clone()) {
+        match (self.is_dismissible && !exiting, backdrop_click.clone()) {
             (true, Some(on_close)) => {
                 overlay = overlay.child(crate::anim::entering(
                     gpui::div()
@@ -393,23 +396,29 @@ impl RenderOnce for Modal {
                 ));
             }
             _ => {
-                overlay = overlay.child(crate::anim::entering(
-                    gpui::div().absolute().inset_0().bg(backdrop_bg),
-                    "modal-backdrop-anim",
-                    cx,
-                ));
+                let scrim = gpui::div().absolute().inset_0().bg(backdrop_bg);
+                overlay = overlay.child(if exiting {
+                    crate::anim::exiting(
+                        scrim,
+                        "modal-backdrop-out",
+                        crate::anim::ZoomBox::default(),
+                        cx,
+                    )
+                } else {
+                    crate::anim::entering(scrim, "modal-backdrop-anim", cx)
+                });
             }
         }
-        overlay = overlay.child(crate::anim::entering_zoom(
-            panel,
-            "modal-panel",
-            crate::anim::ZoomBox {
-                width: Some(self.size.width()),
-                radius: Some(crate::util::container_radius(cx)),
-                ..Default::default()
-            },
-            cx,
-        ));
+        let zoom = crate::anim::ZoomBox {
+            width: Some(self.size.width()),
+            radius: Some(crate::util::container_radius(cx)),
+            ..Default::default()
+        };
+        overlay = overlay.child(if exiting {
+            crate::anim::exiting(panel, "modal-panel-out", zoom, cx)
+        } else {
+            crate::anim::entering_zoom(panel, "modal-panel", zoom, cx)
+        });
 
         overlay.into_any_element()
     }

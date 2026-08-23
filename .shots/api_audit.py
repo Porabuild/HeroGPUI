@@ -88,6 +88,7 @@ ALIAS = {
     'Pagination.isActive': 'link',
     'Table.sortDirection': 'indicator',
     'Slider.index': 'thumb',
+    'DateField.segment': 'segment',
     # Taken positionally or by the state's constructor, so the prop exists --
     # it is just not spelled as a builder.
     'TagGroup.items': 'tags',
@@ -146,9 +147,10 @@ WONT_PORT = {
     # above: 'focus' needs a child that takes keyboard focus, and nothing
     # in this library is focusable yet, so it would be a dead builder.
     'Tooltip.trigger': 'no-keyboard-focus',
-    # gpui 0.2.2 has no multi-line text layout, so TextArea renders one tall
-    # line and there is no wrapping to configure.
-    'TextArea.wrap': 'no-multiline-layout',
+    # `TextArea` wraps (gpui's default `WhiteSpace::Normal`), so there is
+    # multi-line layout -- but no `pre`/`pre-wrap` mode to select between, which
+    # is what `wrap` chooses.
+    'TextArea.wrap': 'single-wrap-mode',
     # v3 documents exactly one value for these, so there is nothing to select
     # and a builder taking a one-variant enum could not change anything.
     'CloseButton.variant': 'single-valued',
@@ -169,10 +171,6 @@ WONT_PORT = {
     'ColorSlider.channel': 'constructor-arg',
     # Values v3 passes *into* a child render function. A monolithic builder
     # computes them internally, so there is no prop to accept.
-    # v3's DateField is segmented (day/month/year cells); this one is a text
-    # field, so there are no segments for a render prop to be handed. The
-    # segmented form is a missing feature, not an unportable prop.
-    'DateField.segment': 'not-segmented',
     # gpui exposes no accessibility title attribute.
     'Kbd.title': 'no-a11y-attrs',
     # Browser image-loading attributes with no gpui analogue.

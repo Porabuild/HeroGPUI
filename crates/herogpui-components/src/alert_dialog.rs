@@ -214,9 +214,12 @@ impl ParentElement for AlertDialog {
 
 impl RenderOnce for AlertDialog {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        if !self.is_open {
+        // v3 keeps a closing panel on screen for its `[data-exiting]` run.
+        let phase = crate::util::overlay_phase(window, cx, "alert-dialog-phase", self.is_open);
+        if phase == crate::util::OverlayPhase::Closed {
             return div().into_any_element();
         }
+        let exiting = phase == crate::util::OverlayPhase::Exiting;
 
         // Escape has to reach the overlay, and key events only travel to the
         // focused element and its ancestors. Claiming focus while nothing
@@ -372,8 +375,17 @@ impl RenderOnce for AlertDialog {
         if let Some(on_dismiss) = dismiss {
             backdrop = backdrop.on_click(move |ev, window, cx| on_dismiss(ev, window, cx));
         }
-        // v3 fades the backdrop in alongside the panel.
-        let backdrop = crate::anim::entering(backdrop, "alert-dialog-backdrop-anim", cx);
+        // v3 fades the backdrop in alongside the panel, and out with it.
+        let backdrop = if exiting {
+            crate::anim::exiting(
+                backdrop,
+                "alert-dialog-backdrop-out",
+                crate::anim::ZoomBox::default(),
+                cx,
+            )
+        } else {
+            crate::anim::entering(backdrop, "alert-dialog-backdrop-anim", cx)
+        };
 
         div()
             .id("alert-dialog-root")
@@ -402,14 +414,16 @@ impl RenderOnce for AlertDialog {
                 e.items_end().justify_center().pb(px(32.))
             })
             .child(backdrop)
-            .child(crate::anim::entering_zoom(
-                panel,
-                "alert-dialog-panel",
-                crate::anim::ZoomBox::panel(px(24.), util::container_radius(cx))
+            .child({
+                let zoom = crate::anim::ZoomBox::panel(px(24.), util::container_radius(cx))
                     .padding_x(px(24.))
-                    .sized(self.size.width()),
-                cx,
-            ))
+                    .sized(self.size.width());
+                if exiting {
+                    crate::anim::exiting(panel, "alert-dialog-panel-out", zoom, cx)
+                } else {
+                    crate::anim::entering_zoom(panel, "alert-dialog-panel", zoom, cx)
+                }
+            })
             .into_any_element()
     }
 }

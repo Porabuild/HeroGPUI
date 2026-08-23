@@ -22,22 +22,54 @@ cargo fix --allow-dirty --workspace
 - The gallery is a GUI app and renders lazily, so a page can compile and still
   panic at runtime (gpui asserts on e.g. a second `.hover()` call on one
   element). After touching components, walk every route:
-  `powershell -File .shots/smoke.ps1` — it launches each of the 71 pages and
-  reports any that exit early, with the panic message.
+  `.shots/smoke.ps1` — it launches each of the 71 pages and reports any that
+  exit early, with the panic message. Run it in the current shell, not through
+  `powershell -File`.
 - `.shots/` holds component screenshots used for visual verification — refresh
   the relevant screenshot when you change a component's appearance:
-  `powershell -File .shots/capture2.ps1 -PageList "Button,Calendar"` (sets
-  `HEROGPUI_PAGE` per page). Extra flags exist because "it did not panic" is
-  not the same as "it looks right":
-  - `-Height 1400` for a taller window, `-Scroll 34` to wheel down before
-    capturing — the only way to see a section below the fold.
-  - `-HoverX 455 -HoverY 544` parks the cursor on a control first, which is the
-    only way to capture a hover-only surface such as a Tooltip.
+  `.shots/capture2.ps1 -PageList "Button,Calendar"` (sets `HEROGPUI_PAGE` per
+  page). Call it in the current shell; `powershell -File ...` starts a second
+  console, which pops a window and takes focus. Extra flags exist because "it
+  did not panic" is not the same as "it looks right":
+  - `-Fullscreen` sizes the window to the monitor; the default 1200 x
+    (screen height) already fits most pages in one shot, since the nav rail plus
+    content column come to ~1200px and the pages are long rather than wide.
+  - `-Scroll 34` wheels down before capturing, for a page longer than the
+    screen. `-HoverX 455 -HoverY 544` parks the cursor on a control, the only
+    way to capture a hover-only surface such as a Tooltip. Both drive the real
+    cursor, so they need the window on screen and focused — the script refuses
+    `-Offscreen` together with them rather than producing a wrong shot.
+
+  **Capture must never read the screen.** Both scripts had three separate ways
+  of interrupting whatever the user was doing, and one of them silently wrote
+  the user's own screen into the repo:
+
+  - `Graphics.CopyFromScreen` reads the *monitor* at the window's coordinates.
+    When Windows refuses the foreground steal — which it does whenever another
+    app is active, and always for a fullscreen game — the PNG holds whatever was
+    in front instead. Use `PrintWindow(hwnd, hdc, 2)`, which asks the window to
+    render itself; `PW_RENDERFULLCONTENT` (2) is required, because flag 0 comes
+    back blank for anything presenting through DirectComposition, as gpui does.
+    Check the result is not a uniform frame before saving.
+  - `gallery.exe` is a **console-subsystem** binary, so every launch pops a
+    console window and takes focus — 71 times in a smoke run. Launch it through
+    `ProcessStartInfo` with `CreateNoWindow = $true` (the CREATE_NO_WINDOW
+    creation flag), which suppresses that console and nothing else.
+    `Start-Process -WindowStyle Hidden` hides the gpui window too, and then
+    `MainWindowHandle` stays zero and there is nothing to capture.
+  - `HEROGPUI_UNFOCUSED=1` opens the gpui window with `focus: false`, and the
+    scripts park it at -32000,-32000 with `SWP_NOACTIVATE`. Off-screen still
+    renders; **minimized may not**, which would let the smoke test pass without
+    having drawn anything.
+
+  Windows clamps a window to the display, so asking for more height than the
+  screen has silently gives less. `capture2.ps1` prints the size it actually
+  captured for that reason.
 - Gallery env vars: `HEROGPUI_PAGE` opens a page, `HEROGPUI_THEME=dark` picks the
   appearance, `HEROGPUI_OPEN_OVERLAYS=1` starts every overlay demo open (so
-  Modal/Drawer/Select/Dropdown can be screenshotted), and
-  `HEROGPUI_REDUCE_MOTION=1` stands in for the OS `prefers-reduced-motion`
-  setting that gpui does not surface.
+  Modal/Drawer/Select/Dropdown can be screenshotted), `HEROGPUI_UNFOCUSED=1`
+  opens the window without taking focus, and `HEROGPUI_REDUCE_MOTION=1` stands in
+  for the OS `prefers-reduced-motion` setting that gpui does not surface.
 
 ## Measuring parity
 
@@ -97,7 +129,19 @@ Aria X"*):
   `ProgressBar.ValueLabel` as child parts, and a monolithic builder takes them
   as a prop or as a flag that renders the built-in part.
 
-Before recording an omission, check which kind it is. Three categories that
+Motion needs its own audit, because a prop diff says nothing about it — a
+component can expose every prop and still not move:
+
+```bash
+python .shots/anim_audit.py
+```
+
+It maps each animation v3's stylesheet defines to the symbol implementing it and
+fails when a mapped symbol is missing. That is how `transition-colors` was caught
+pointing at a `TRANSITION_MS` constant nothing read; the fix was
+`anim::hover_fade`, not a softer claim.
+
+Before recording an omission, check which kind it is. Four categories that
 looked structural were not:
 
 - **A prop the constructor takes positionally** is implemented, not missing.
@@ -107,15 +151,22 @@ looked structural were not:
   `InputOTP.index`, `Dropdown.isSelected`, `Slider.index`) is implementable by
   inverting it: the builder takes a closure and *hands over* the value it
   computes anyway. `ALIAS` then points the prop at that builder.
-- **"gpui cannot do X"** deserves a second look. The overlay `zoom-in-90` was
-  recorded as impossible because transforms only reach `paint_svg`; the press
-  animation had already shown that a scale can be reproduced geometrically.
+- **"gpui cannot do X"** deserves a second look, and has been wrong twice. The
+  overlay `zoom-in-90` was recorded as impossible because transforms only reach
+  `paint_svg`; the press animation had already shown a scale can be reproduced
+  geometrically. And "gpui has no multi-line text layout" was simply false —
+  `WhiteSpace::Normal` is the *default* and wraps; it was `whitespace_nowrap` on
+  the single-line field suppressing it. Check the gpui source before writing the
+  reason down.
+- **An exit animation** looks impossible because a `RenderOnce` component leaves
+  the tree the moment `isOpen` goes false. `util::overlay_phase` keeps it for
+  `EXITING_MS` first, which is what gives `[data-exiting]` something to play.
 
 What is genuinely out of reach: ARIA attributes with no accessibility tree,
 `locale` without CLDR data, browser image and soft-keyboard hints, the HTTP half
-of a `<form>`, and single-valued enums. Two more are missing *features*, and are
-named that way (`not-segmented`, `no-multiline-layout`) rather than dressed up as
-unportable props. Say which is which rather than reporting one number.
+of a `<form>`, and single-valued enums. One more is a missing *mode*, named that
+way (`single-wrap-mode`) rather than dressed up as an unportable prop. Say which
+is which rather than reporting one number.
 
 A prop that is stored but never read is worse than a missing one: the API
 promises behaviour it does not have. After adding fields, run

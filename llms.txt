@@ -160,6 +160,7 @@ caller to supply them — so the prop is real, just inverted:
   `Dropdown.Item`, handed `isSelected` / `isIndeterminate`
 - `Slider::thumb(|index, value| ..)` — `Slider.Thumb`, handed `index`
 - `TimeField::segment(|TimeSegment, text| ..)` — `TimeField.Segment`
+- `DateField::segment(|DateSegment, text| ..)` — `DateField.Segment`
 
 ## Controlled and uncontrolled
 
@@ -289,7 +290,7 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 ### Date and Time
 - **DateConstraints** — shared by all five: `min_value`, `max_value`, `is_date_unavailable(fn)`, `first_day_of_week(Weekday)`, `weeks_in_month`. Each component takes them individually, or a whole set via `.constraints(..)`.
 - **Calendar** — `CalendarState::new(cx)`, `Calendar::new(state).value(..).is_disabled().is_read_only().is_invalid().focused_value().on_focus_change().on_change(Option<Date>)` plus the constraints
-- **DateField** — `DateField::new(InputState).label().full_width().is_required().is_invalid().variant().placeholder_value().value(Option<Date>, cx).on_change(Option<Date>)` (ISO parse)
+- **DateField** — three editable segments (`mm / dd / yyyy`) with click-to-focus, arrow steppers that roll over month and year correctly, and the `segment(|DateSegment, text|)` render prop. The ISO text stays in the bound `InputState`, so `name`, `FormField::text` and `on_change` are unchanged. `DateField::new(InputState).label().full_width().is_required().is_invalid().variant().placeholder_value().value(Option<Date>, cx).on_change(Option<Date>)` 
   - constraints: `min_value`, `max_value`, `is_date_unavailable`, or `constraints(DateConstraints)`. The three ways a typed date can be wrong — unparseable, out of range, unavailable — report as distinct messages, and `on_change` yields `None` for a date the constraints reject, so a caller never receives a value it said it would not accept.
 - **DatePicker** — `DatePicker::new(CalendarState).label().is_open().on_open_change().value().is_disabled().is_invalid().on_change()` plus the constraints
 - **DateRangePicker** — `DateRangeState::new(cx)`, `DateRangePicker::new(state).label().placeholder().size().is_open().is_disabled().is_invalid().on_open_change(bool).on_change()`, plus the `DateConstraints` setters
@@ -329,7 +330,7 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
   - `max_length` (enforced while typing), `min_length`, `min`, `max`, `step`, `pattern(fn)`
   - `validity(&str) -> InputValidity` — a pure query; feed the result back through `is_invalid` / `error_message`
 - **TextField** — the labelled wrapper around `Input`
-- **TextArea** — tall variant of Input; `rows`, `variant`, `full_width`, `max_length`, `min_length`, the validation flags, `on_change`
+- **TextArea** — genuinely multi-line: one wrapping paragraph per newline, Enter inserts a newline, and the caret sits in the line it belongs to. gpui wraps text by default (`WhiteSpace::Normal`); it is the single-line field that opts out with `whitespace_nowrap`. `rows`, `variant`, `full_width`, `max_length`, `min_length`, the validation flags, `on_change`
 - **SearchField** — Input with a magnifier and clear action; `on_clear`, `is_required`, `is_read_only`, `is_invalid`
 - **NumberField** — `format_options(NumberFormat)`, `NumberState {value,min,max,step,input}`, `hide_steppers`, `on_change(f64)`
 - **InputOTP** — `OtpState::with_length(cx, n)`, `separator`, `on_complete(&str)`
@@ -415,8 +416,18 @@ is the gpui equivalent and the single place the timings live.
 - `anim::entering_zoom(el, id, ZoomBox { .. }, cx)` — v3's `[data-entering]` in
   full: `zoom-in-90 fade-in-0 duration-200`. Used by every overlay; the backdrop
   fades alongside it.
-- `anim::ENTERING_MS`, `TRANSITION_MS`, `PRESSED_SCALE`, `ZOOM_FROM`,
-  `anim::pressed_inset`.
+- `anim::exiting(el, id, ZoomBox, cx)` / `exiting_to(..)` — v3's
+  `[data-exiting]`: `animate-out zoom-out-95 fade-out duration-150`, and the
+  drawer's `slide-out-to-*`. A `RenderOnce` component leaves the tree the moment
+  `isOpen` goes false, so `util::overlay_phase` holds it for `EXITING_MS` first:
+  it returns `Closed` / `Open` / `Exiting`, and the caller picks the animation.
+- `anim::hover_fade(el, id, idle, hovered, window, cx)` — v3's
+  `transition-colors`. gpui has no property transitions, so the element keeps its
+  own hover flag and generation counter and each change eases the fill in OKLab.
+- `anim::caret_blink(el, id, cx)` — v3's `@keyframes caret-blink`, on the text
+  and OTP carets.
+- `anim::ENTERING_MS`, `EXITING_MS`, `TRANSITION_MS`, `PRESSED_SCALE`,
+  `ZOOM_FROM`, `ZOOM_TO`, `anim::pressed_inset`.
 - **Reduced motion:** `cx.reduce_motion()` gates every animation with no opt-in
   from the caller. Set it with `theme::set_reduce_motion(bool, cx)` or
   `theme::toggle_reduce_motion(cx)`; `HEROGPUI_REDUCE_MOTION=1` seeds it at
@@ -424,7 +435,7 @@ is the gpui equivalent and the single place the timings live.
 
 **No div transforms.** gpui 0.2.2 plumbs `TransformationMatrix` into
 `paint_svg` alone, so quads and text cannot be scaled or rotated. Two
-consequences:
+consequences — both worked around geometrically rather than left undone:
 
 - The press is **geometric** rather than a transform: `PressBox` scales the
   height, padding, gap, corner radius, minimum width **and type size** by 0.97,

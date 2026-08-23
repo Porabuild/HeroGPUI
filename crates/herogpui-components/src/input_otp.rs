@@ -440,7 +440,12 @@ impl RenderOnce for InputOTP {
             } else if ch != ' ' {
                 cell = cell.child(ch.to_string());
             } else if is_cursor_cell {
-                cell = cell.child(gpui::div().w(px(1.5)).h(text).bg(ring));
+                // v3's `@keyframes caret-blink`.
+                cell = cell.child(crate::anim::caret_blink(
+                    gpui::div().w(px(1.5)).h(text).bg(ring),
+                    gpui::ElementId::Name(format!("otp-caret-{}-{i}", self.state.entity_id().as_u64()).into()),
+                    cx,
+                ));
             } else {
                 // `placeholder` fills the empty, unfocused cells.
                 cell = cell

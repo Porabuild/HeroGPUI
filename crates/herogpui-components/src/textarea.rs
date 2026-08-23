@@ -1,7 +1,9 @@
 //! TextArea — port of `@heroui/text-area` (v3).
 //!
-//! Reuses [`InputState`]; gpui 0.2.2 has no multi-line text layout, so this
-//! renders a taller, top-aligned single-line surface and `rows` sets its height.
+//! Reuses [`InputState`] in multi-line mode: gpui wraps text by default
+//! (`WhiteSpace::Normal`), so the field lays one wrapping paragraph out per
+//! newline, Enter inserts a newline instead of submitting, and the caret is
+//! placed inside the line it falls in. `rows` sets the visible height.
 
 use gpui::{
     prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, Styled, Window,
@@ -38,8 +40,6 @@ impl TextArea {
         self
     }
 
-    /// `rows` — visible line count. gpui has no multi-line text layout in this
-    /// version, so this sets the control height at ~20px per row.
     /// `cols` — visible width, in characters.
     ///
     /// gpui has no `ch` unit, so this is the column count times the size's
@@ -50,6 +50,8 @@ impl TextArea {
         self
     }
 
+    /// `rows` — the visible line count, at one line height per row plus the
+    /// field's vertical padding.
     pub fn rows(mut self, rows: u32) -> Self {
         self.min_h = px(rows.max(1) as f32 * 20.0 + 20.0);
         self
@@ -137,7 +139,7 @@ impl TextArea {
 
     pub fn new(state: Entity<InputState>) -> Self {
         Self {
-            inner: Input::new(state),
+            inner: Input::new(state).multiline(true),
             min_h: px(80.),
             min_w: None,
         }
@@ -164,11 +166,12 @@ impl TextArea {
 impl RenderOnce for TextArea {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
-        // Render the input inside a tall surface; the caret row is vertically
-        // top-aligned by overriding alignment via a wrapper.
+        // The field itself is multi-line; this wrapper only gives it the height
+        // `rows` asks for and keeps the text at the top of it.
         gpui::div()
             .flex()
             .flex_col()
+            .items_start()
             .min_h(self.min_h)
             .when_some(self.min_w, |e, w| e.min_w(w))
             .bg(colors.default.soft())

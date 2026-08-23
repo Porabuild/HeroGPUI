@@ -12,7 +12,7 @@
 use std::time::Duration;
 
 use gpui::{
-    ease_out_quint, AnimationExt, AnyElement, App, ElementId, IntoElement,
+    ease_out_quint, AnimationExt, AnyElement, App, ElementId, InteractiveElement, IntoElement,
     StatefulInteractiveElement, StyleRefinement, Styled,
 };
 use herogpui_theme::ActiveTheme;
@@ -20,7 +20,8 @@ use herogpui_theme::ActiveTheme;
 /// `[data-entering]` duration — `duration-200` in the v3 stylesheet.
 pub const ENTERING_MS: u64 = 200;
 
-/// Duration of a hover/press colour transition.
+/// Duration of a hover colour transition — `transition-colors` in the v3
+/// stylesheet, which Tailwind runs at 150ms.
 pub const TRANSITION_MS: u64 = 150;
 
 /// The scale v3 applies to a pressed control (`transform: scale(0.97)`).
@@ -115,6 +116,12 @@ pub fn pressed(
         }
     })
 }
+
+/// `[data-exiting]` duration — `duration-150` in the v3 stylesheet.
+pub const EXITING_MS: u64 = 150;
+
+/// The scale v3's `zoom-out-95` takes a leaving overlay to.
+pub const ZOOM_TO: f32 = 0.95;
 
 /// The scale v3's `zoom-in-90` starts an entering overlay at.
 pub const ZOOM_FROM: f32 = 0.90;
@@ -224,6 +231,159 @@ where
     .into_any_element()
 }
 
+/// v3's `[data-exiting]`: `animate-out zoom-out-95 fade-out duration-150`.
+///
+/// The mirror of [`entering_zoom`] — the panel shrinks to [`ZOOM_TO`] and fades
+/// as it leaves. It only has anything to animate because the component keeps
+/// rendering for [`EXITING_MS`] after `isOpen` goes false; see
+/// [`crate::util::overlay_phase`].
+///
+/// Returns `el` untouched under reduced motion, which is also what makes the
+/// panel disappear immediately: with nothing to animate, the extra frames are
+/// invisible.
+pub fn exiting<E>(el: E, id: impl Into<ElementId>, b: ZoomBox, cx: &App) -> AnyElement
+where
+    E: IntoElement + Styled + 'static,
+{
+    if cx.reduce_motion() {
+        return el.into_any_element();
+    }
+
+    el.with_animation(
+        id.into(),
+        gpui::Animation::new(Duration::from_millis(EXITING_MS)),
+        move |el, delta| {
+            // `delta` runs 0 -> 1 over the exit, so the scale runs 1 -> ZOOM_TO.
+            let f = 1.0 - (1.0 - ZOOM_TO) * delta;
+            let mut el = el.opacity(1.0 - delta);
+            if let Some(w) = b.width {
+                el = el.w(lerp(w, f));
+            }
+            if let Some(h) = b.height {
+                el = el.h(lerp(h, f));
+            }
+            if let Some(p) = b.padding_x {
+                el = el.px(lerp(p, f));
+            }
+            if let Some(p) = b.padding_y {
+                el = el.py(lerp(p, f));
+            }
+            if let Some(g) = b.gap {
+                el = el.gap(lerp(g, f));
+            }
+            if let Some(t) = b.text_size {
+                el = el.text_size(lerp(t, f));
+            }
+            if let Some(l) = b.line_height {
+                el = el.line_height(lerp(l, f));
+            }
+            if let Some(r) = b.radius {
+                el = el.rounded(lerp(r, f));
+            }
+            el
+        },
+    )
+    .into_any_element()
+}
+
+/// v3's `transition-colors`: the background eases between two colours instead
+/// of switching on the frame the pointer arrives.
+///
+/// gpui has no property transitions — `hover` swaps the style outright — so the
+/// element keeps its own hover flag and a generation counter, and each change
+/// starts a fresh animation that interpolates in OKLab. `idle` and `hovered` are
+/// the two ends; everything else about the element is untouched.
+///
+/// Returns the element with a plain `hover` swap under reduced motion, so the
+/// state is still visible without motion.
+pub fn hover_fade(
+    el: gpui::Stateful<gpui::Div>,
+    id: impl Into<ElementId>,
+    idle: gpui::Hsla,
+    hovered: gpui::Hsla,
+    window: &mut gpui::Window,
+    cx: &mut App,
+) -> AnyElement {
+    let id = id.into();
+    if cx.reduce_motion() {
+        return el
+            .bg(idle)
+            .hover(move |s: StyleRefinement| s.bg(hovered))
+            .into_any_element();
+    }
+
+    let state = window.use_keyed_state(id.clone(), cx, |_, _| HoverFade::default());
+    let current = *state.read(cx);
+    let held = state.clone();
+    let el = el
+        .bg(if current.hovered { hovered } else { idle })
+        .on_hover(move |over: &bool, _, cx| {
+            let over = *over;
+            held.update(cx, |s, cx| {
+                if s.hovered != over {
+                    s.hovered = over;
+                    // A new generation gives `with_animation` a new id, which is
+                    // what restarts it mid-flight when the pointer turns around.
+                    s.generation = s.generation.wrapping_add(1);
+                    cx.notify();
+                }
+            });
+        });
+
+    let (from, to) = if current.hovered {
+        (idle, hovered)
+    } else {
+        (hovered, idle)
+    };
+    // Generation 0 is the first render: there is nothing to ease from yet.
+    if current.generation == 0 {
+        return el.into_any_element();
+    }
+    el.with_animation(
+        ElementId::Name(format!("{id:?}-fade-{}", current.generation).into()),
+        gpui::Animation::new(Duration::from_millis(TRANSITION_MS)),
+        move |el, delta| el.bg(herogpui_core::mix_oklab(from, to, delta)),
+    )
+    .into_any_element()
+}
+
+/// The hover flag and restart counter [`hover_fade`] keeps per element.
+#[derive(Clone, Copy, Debug, Default)]
+struct HoverFade {
+    hovered: bool,
+    generation: usize,
+}
+
+/// v3's `@keyframes caret-blink`: opaque at 0/70/100%, transparent at 20/50%.
+///
+/// Reproduced as a repeating 1s animation over the same stops, so a text caret
+/// blinks the way it does on the web instead of sitting solid.
+pub fn caret_blink<E>(el: E, id: impl Into<ElementId>, cx: &App) -> AnyElement
+where
+    E: IntoElement + Styled + 'static,
+{
+    if cx.reduce_motion() {
+        return el.into_any_element();
+    }
+
+    el.with_animation(
+        id.into(),
+        gpui::Animation::new(Duration::from_millis(1000)).repeat(),
+        |el, delta| el.opacity(caret_opacity(delta)),
+    )
+    .into_any_element()
+}
+
+/// The `caret-blink` keyframe curve, linear between its stops.
+fn caret_opacity(delta: f32) -> f32 {
+    match delta {
+        d if d < 0.20 => 1.0 - (d / 0.20),
+        d if d < 0.50 => 0.0,
+        d if d < 0.70 => (d - 0.50) / 0.20,
+        _ => 1.0,
+    }
+}
+
 /// Applies the v3 overlay entry animation: a 200ms ease-out fade.
 ///
 /// The fade alone, for a panel with no metrics worth growing. Prefer
@@ -281,6 +441,40 @@ where
     .into_any_element()
 }
 
+/// The mirror of [`entering_from`]: the panel slides back out to `edge`.
+///
+/// v3's drawer uses `slide-out-to-*` here, at the shorter exit duration.
+pub fn exiting_to<E>(
+    el: E,
+    id: impl Into<ElementId>,
+    edge: Edge,
+    travel: gpui::Pixels,
+    cx: &App,
+) -> AnyElement
+where
+    E: IntoElement + Styled + 'static,
+{
+    if cx.reduce_motion() {
+        return el.into_any_element();
+    }
+
+    el.with_animation(
+        id.into(),
+        gpui::Animation::new(Duration::from_millis(EXITING_MS)),
+        move |el, delta| {
+            let gone = travel * delta;
+            let el = el.opacity(1.0 - delta);
+            match edge {
+                Edge::Left => el.ml(-gone),
+                Edge::Right => el.mr(-gone),
+                Edge::Top => el.mt(-gone),
+                Edge::Bottom => el.mb(-gone),
+            }
+        },
+    )
+    .into_any_element()
+}
+
 /// Which window edge a sliding panel enters from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Edge {
@@ -312,6 +506,20 @@ mod tests {
             let shrunk = f32::from(shrink(px(h), pressed_inset(px(h)) + pressed_inset(px(h))));
             assert!((shrunk + inset * 2.0 - h).abs() < 1e-4, "footprint changed at {h}");
         }
+    }
+
+    #[test]
+    fn caret_blink_matches_its_keyframes() {
+        // 0%, 70% and 100% are opaque; 20% and 50% are transparent.
+        assert_eq!(caret_opacity(0.0), 1.0);
+        assert_eq!(caret_opacity(0.20), 0.0);
+        assert_eq!(caret_opacity(0.35), 0.0);
+        assert_eq!(caret_opacity(0.50), 0.0);
+        assert_eq!(caret_opacity(0.70), 1.0);
+        assert_eq!(caret_opacity(1.0), 1.0);
+        // and it ramps rather than jumping
+        assert!((caret_opacity(0.10) - 0.5).abs() < 1e-6);
+        assert!((caret_opacity(0.60) - 0.5).abs() < 1e-6);
     }
 
     #[test]

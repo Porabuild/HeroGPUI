@@ -62,9 +62,17 @@ fn main() {
 
             let bounds = Bounds::centered(None, size(px(1280.), px(820.)), cx);
             let start_page = page;
+            // `HEROGPUI_UNFOCUSED=1` opens the window without taking focus, so
+            // the screenshot and smoke scripts do not interrupt whatever you are
+            // doing. The window still renders, which is what those scripts need;
+            // only the activation is skipped.
+            let unfocused = std::env::var("HEROGPUI_UNFOCUSED")
+                .map(|v| v == "1")
+                .unwrap_or(false);
             cx.open_window(
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
+                    focus: !unfocused,
                     titlebar: Some(TitlebarOptions {
                         title: Some("HeroGPUI — Gallery".into()),
                         ..Default::default()

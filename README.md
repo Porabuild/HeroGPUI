@@ -43,8 +43,8 @@ the builders this crate exposes:
 | | |
 |---|---|
 | documented props considered | 592 |
-| implemented | 559 |
-| deliberately not ported | 33 |
+| implemented | 560 |
+| deliberately not ported | 32 |
 | real gaps | 0 |
 
 Every omission carries a reason (`no-a11y-attrs`, `no-http`, `render-prop-arg`,
@@ -65,6 +65,14 @@ prop-by-prop diff cannot see:
   `isInvalid` though every sibling field does) from names v3 documents nowhere,
   and every one of the latter is either deleted or recorded in `EXTRA_OK` with a
   reason.
+- `python .shots/anim_audit.py` covers what a prop diff cannot see at all:
+  motion. A component can expose every prop and still not move, so this lists
+  every animation v3's stylesheet defines — the `animate-in`/`animate-out`
+  pairs, the `@keyframes`, the timing tokens, the reduced-motion rule — and maps
+  each to the symbol implementing it. A mapping whose symbol no longer exists
+  fails, which is how `transition-colors` was caught pointing at a `TRANSITION_MS`
+  constant nothing read. **21 implemented, 19 recorded with a reason, 0
+  unimplemented.**
 - `python .shots/write_only.py` checks that no builder stores a value nothing
   ever reads — a prop that is accepted and ignored is worse than one that is
   missing.
@@ -84,10 +92,10 @@ filed fourteen of those as omissions.
 What is left is what a desktop toolkit does not have: ARIA attributes with no
 accessibility tree to expose them to, `locale` without CLDR data, browser image
 and soft-keyboard hints, the HTTP half of a `<form>` (`action` / `method` /
-`encType` / `target`), and a handful of single-valued enums. Two are missing
-*features* rather than unportable props, and are named as such in `WONT_PORT`:
-`DateField` is a text field here, not v3's segmented one, and `TextArea` renders
-one tall line because gpui 0.2.2 has no multi-line text layout.
+`encType` / `target`), and a handful of single-valued enums. One is a missing
+*mode* rather than an unportable prop, and is named as such in `WONT_PORT`:
+`TextArea` has one wrap mode rather than v3's `wrap` choice between `soft` and
+`hard`.
 
 This library tracks **v3 only**. Removed with the v2 token names
 (`content1..4`, numbered 50–900 scales, `primary`/`secondary` as colors) and the

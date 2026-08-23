@@ -5,6 +5,20 @@
 # so those surface in one pass.
 param([int]$SecondsPerPage = 4)
 
+# The window is parked off-screen rather than minimized. Minimizing is quieter
+# but a minimized window may never present a frame, which would make this pass
+# without having rendered anything -- the opposite of what it is for. Off-screen
+# renders normally and still never covers what you are doing.
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class Smoke {
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int w, int hh, uint flags);
+}
+"@
+$SWP_NOACTIVATE = 0x0010
+$SWP_NOZORDER = 0x0004
+
 $exe = "E:\work\HeroGPUI\target\debug\gallery.exe"
 if (-not (Test-Path $exe)) { throw "build the gallery first: cargo build --workspace" }
 
@@ -32,15 +46,39 @@ $pages = @(
   "Scroll Shadow"
 )
 
+$env:HEROGPUI_UNFOCUSED = "1"
 $failed = @()
 foreach ($pg in $pages) {
   $env:HEROGPUI_PAGE = $pg
-  $out = [System.IO.Path]::GetTempFileName()
-  $p = Start-Process -FilePath $exe -PassThru -WorkingDirectory "E:\work\HeroGPUI" `
-        -RedirectStandardError $out -WindowStyle Minimized
+  # Hide the *console*, not the app. `gallery.exe` is a console-subsystem
+  # binary, so 71 launches would pop 71 console windows and take focus 71 times.
+  # `CreateNoWindow` is the CREATE_NO_WINDOW creation flag: it suppresses that
+  # console only, leaving the gpui window created and reporting a handle.
+  # (`-WindowStyle Hidden` hides both, and a hidden window never renders — which
+  # would make this pass without having rendered anything.)
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $exe
+  $psi.WorkingDirectory = "E:\work\HeroGPUI"
+  $psi.UseShellExecute = $false
+  $psi.CreateNoWindow = $true
+  # stderr is read only once the process has exited, so the panic message is
+  # still reported and a live process cannot block on a full pipe.
+  $psi.RedirectStandardError = $true
+  $p = [System.Diagnostics.Process]::Start($psi)
+  # Move it out of sight as soon as it has a window, without taking focus.
+  for ($t = 0; $t -lt 12; $t++) {
+    Start-Sleep -Milliseconds 250
+    if ($p.HasExited) { break }
+    $p.Refresh()
+    if ($p.MainWindowHandle -ne [IntPtr]::Zero) {
+      [Smoke]::SetWindowPos($p.MainWindowHandle, [IntPtr]::Zero, -32000, -32000, 1690, 900,
+        $SWP_NOACTIVATE -bor $SWP_NOZORDER) | Out-Null
+      break
+    }
+  }
   Start-Sleep -Seconds $SecondsPerPage
   if ($p.HasExited) {
-    $err = (Get-Content $out -Raw)
+    $err = $p.StandardError.ReadToEnd()
     $failed += [pscustomobject]@{ Page = $pg; Exit = $p.ExitCode; Error = $err }
     Write-Host ("FAIL  {0}  (exit {1})" -f $pg, $p.ExitCode) -ForegroundColor Red
     if ($err) { Write-Host ($err.Trim()) -ForegroundColor DarkRed }
@@ -48,10 +86,10 @@ foreach ($pg in $pages) {
     Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
     Write-Host ("ok    {0}" -f $pg)
   }
-  Remove-Item $out -Force -ErrorAction SilentlyContinue
 }
 
 Remove-Item Env:\HEROGPUI_PAGE -ErrorAction SilentlyContinue
+Remove-Item Env:\HEROGPUI_UNFOCUSED -ErrorAction SilentlyContinue
 Write-Host ""
 if ($failed.Count -eq 0) {
   Write-Host ("all {0} pages rendered" -f $pages.Count) -ForegroundColor Green

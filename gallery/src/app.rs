@@ -106,7 +106,14 @@ impl Gallery {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let name = cx.new(|cx| h::InputState::new(cx));
         let email = cx.new(|cx| h::InputState::new(cx));
-        let bio = cx.new(|cx| h::InputState::new(cx));
+        // Seeded with newlines so the multi-line surface is visible at rest.
+        let bio = cx.new(|cx| {
+            h::InputState::with_value(
+                cx,
+                "Ported HeroUI v3 to GPUI.
+Enter inserts a newline here, and a long paragraph wraps inside the field instead of running off the edge.",
+            )
+        });
         let ac = cx.new(|cx| h::InputState::new(cx));
         let date_input = cx.new(|cx| h::InputState::new(cx));
         let otp = cx.new(|cx| h::OtpState::with_length(cx, 6));

@@ -184,6 +184,81 @@ pub fn focus_once(
     }
 }
 
+/// Which phase an overlay is in, so `[data-exiting]` has something to render.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum OverlayPhase {
+    /// Not rendered at all.
+    #[default]
+    Closed,
+    /// Rendered, and animating in.
+    Open,
+    /// `isOpen` has gone false, but the panel is still on screen for its exit.
+    Exiting,
+}
+
+/// What `overlay_phase` remembers between renders.
+#[derive(Clone, Copy, Debug, Default)]
+struct PhaseState {
+    was_open: bool,
+    exiting: bool,
+}
+
+/// Resolves `isOpen` into a phase that includes v3's `[data-exiting]`.
+///
+/// A `RenderOnce` component drops out of the tree the moment `isOpen` goes
+/// false, which leaves an exit animation nothing to play. This keeps the panel
+/// alive for [`crate::anim::EXITING_MS`] afterwards: the flip to closed starts a
+/// timer, and until it fires the phase is `Exiting`.
+///
+/// Callers render nothing on `Closed`, [`crate::anim::entering_zoom`] on `Open`
+/// and [`crate::anim::exiting`] on `Exiting`.
+pub fn overlay_phase(
+    window: &mut gpui::Window,
+    cx: &mut gpui::App,
+    key: impl Into<gpui::ElementId>,
+    is_open: bool,
+) -> OverlayPhase {
+    let held = window.use_keyed_state(key.into(), cx, |_, _| PhaseState::default());
+    let current = *held.read(cx);
+
+    if is_open {
+        if !current.was_open {
+            held.update(cx, |s, _| {
+                s.was_open = true;
+                s.exiting = false;
+            });
+        }
+        return OverlayPhase::Open;
+    }
+
+    if current.was_open {
+        // Just closed: hold the panel for its exit, then drop it.
+        held.update(cx, |s, _| {
+            s.was_open = false;
+            s.exiting = true;
+        });
+        let held = held.clone();
+        cx.spawn(async move |cx: &mut gpui::AsyncApp| {
+            cx.background_executor()
+                .timer(std::time::Duration::from_millis(crate::anim::EXITING_MS))
+                .await;
+            let _ = cx.update(|cx| {
+                held.update(cx, |s, cx| {
+                    s.exiting = false;
+                    cx.notify();
+                });
+            });
+        })
+        .detach();
+        return OverlayPhase::Exiting;
+    }
+
+    if current.exiting {
+        return OverlayPhase::Exiting;
+    }
+    OverlayPhase::Closed
+}
+
 /// Runs `apply` on the first render only.
 ///
 /// This is how a `default*` prop seeds a caller-owned state entity: the entity

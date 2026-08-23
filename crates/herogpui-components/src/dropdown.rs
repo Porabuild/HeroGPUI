@@ -85,6 +85,8 @@ type ItemContent =
 
 #[derive(IntoElement)]
 pub struct Menu {
+    /// Set by `Dropdown` while the menu is playing its `[data-exiting]` run.
+    exiting: bool,
     /// `children` on `Dropdown.Item` — v3's render prop, handed the item's
     /// key, `isSelected` and `isIndeterminate`.
     item_content: Option<ItemContent>,
@@ -102,6 +104,7 @@ pub struct Menu {
 impl Menu {
     pub fn new(items: Vec<MenuItem>) -> Self {
         Self {
+            exiting: false,
             item_content: None,
             id: gpui::ElementId::Name("menu".into()),
             items,
@@ -113,6 +116,15 @@ impl Menu {
             on_selection_change: None,
             on_action: None,
         }
+    }
+
+    /// Plays the menu's exit instead of its entry.
+    ///
+    /// Not a v3 prop: v3's menu leaves the tree with a `[data-exiting]`
+    /// attribute, and this is the flag that stands in for it.
+    pub fn exiting(mut self, v: bool) -> Self {
+        self.exiting = v;
+        self
     }
 
     /// `children` on `Dropdown.Item` — replaces an item's label.
@@ -320,12 +332,12 @@ impl RenderOnce for Menu {
             }
         }
 
-        crate::util::floating(crate::anim::entering_zoom(
-            panel,
-            "dropdown-panel",
-            crate::anim::ZoomBox::panel(px(6.), crate::util::container_radius(cx)),
-            cx,
-        ))
+        let zoom = crate::anim::ZoomBox::panel(px(6.), crate::util::container_radius(cx));
+        crate::util::floating(if self.exiting {
+            crate::anim::exiting(panel, "dropdown-panel-out", zoom, cx)
+        } else {
+            crate::anim::entering_zoom(panel, "dropdown-panel", zoom, cx)
+        })
     }
 }
 
@@ -485,6 +497,8 @@ impl RenderOnce for Dropdown {
             self.is_open,
             self.default_open,
         );
+        // `overlay_phase` takes `cx` mutably too, so it goes here.
+        let phase = crate::util::overlay_phase(window, cx, "dropdown-phase", is_open);
 
         let mut trigger_wrap = gpui::div().id("dropdown-trigger").cursor_pointer();
         let on_open_change = self.on_open_change.clone();
@@ -516,8 +530,10 @@ impl RenderOnce for Dropdown {
             .items_start()
             .child(trigger_wrap.child(self.trigger));
 
-        if is_open {
+        // v3 keeps a closing menu on screen for its `[data-exiting]` run.
+        if phase != crate::util::OverlayPhase::Closed {
             let mut menu = Menu::new(self.items)
+                .exiting(phase == crate::util::OverlayPhase::Exiting)
                 .selection_mode(self.selection_mode)
                 .selected_keys(self.selected_keys.clone())
                 .disabled_keys(self.disabled_keys.clone())

@@ -711,12 +711,86 @@ impl RenderOnce for DateRangePicker {
 }
 
 // ---------------------------------------------------------------------------
-// DateField (ISO text entry)
+// DateField (segmented)
 // ---------------------------------------------------------------------------
 
-/// Simple ISO date text field bound to an `InputState`; emits parsed dates.
+/// One editable part of a [`DateField`], in en-US reading order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DateSegment {
+    Month,
+    Day,
+    Year,
+}
+
+impl DateSegment {
+    /// The segments a date field shows, in the order it shows them.
+    pub const ALL: [DateSegment; 3] =
+        [DateSegment::Month, DateSegment::Day, DateSegment::Year];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            DateSegment::Month => "month",
+            DateSegment::Day => "day",
+            DateSegment::Year => "year",
+        }
+    }
+
+    /// The placeholder this segment shows with no value, sized like its digits.
+    fn hint(self) -> &'static str {
+        match self {
+            DateSegment::Month => "mm",
+            DateSegment::Day => "dd",
+            DateSegment::Year => "yyyy",
+        }
+    }
+
+    /// `date` with this segment moved by `delta`, keeping the result a real
+    /// calendar date (31 January + 1 month is the end of February, not the 31st).
+    fn bump(self, date: Date, delta: i32) -> Date {
+        match self {
+            DateSegment::Year => {
+                let year = date.year + delta;
+                let day = date.day.min(crate::calendar::days_in_month(year, date.month));
+                Date::new(year, date.month, day)
+            }
+            DateSegment::Month => {
+                // Months are 1..=12, so wrap through a zero-based index.
+                let zero = date.month as i32 - 1 + delta;
+                let year = date.year + zero.div_euclid(12);
+                let month = zero.rem_euclid(12) as u32 + 1;
+                let day = date.day.min(crate::calendar::days_in_month(year, month));
+                Date::new(year, month, day)
+            }
+            DateSegment::Day => {
+                // Stepping past either end of the month rolls into the next.
+                let days = crate::calendar::days_in_month(date.year, date.month);
+                let target = date.day as i32 + delta;
+                if target < 1 {
+                    let prev = DateSegment::Month.bump(Date::new(date.year, date.month, 1), -1);
+                    let last = crate::calendar::days_in_month(prev.year, prev.month);
+                    Date::new(prev.year, prev.month, last)
+                } else if target > days as i32 {
+                    let next = DateSegment::Month.bump(Date::new(date.year, date.month, 1), 1);
+                    Date::new(next.year, next.month, 1)
+                } else {
+                    Date::new(date.year, date.month, target as u32)
+                }
+            }
+        }
+    }
+}
+
+type DateSegmentRender =
+    std::sync::Arc<dyn Fn(DateSegment, SharedString) -> gpui::AnyElement + 'static>;
+
+/// v3's DateField: three editable segments (month / day / year), with the ISO
+/// text kept in the bound `InputState` so the form and `onChange` still see a
+/// plain date string.
 #[derive(IntoElement)]
 pub struct DateField {
+    /// `segment` — v3's render prop for one editable segment,
+    /// handed which segment it is and the text the field would show.
+    segment: Option<DateSegmentRender>,
     /// `validationBehavior` — written into the text state on render.
     validation_behavior: Option<crate::form::ValidationBehavior>,
     /// `defaultValue` — seeds the text state on the first render only.
@@ -821,6 +895,7 @@ impl DateField {
 
     pub fn new(state: Entity<crate::input::InputState>) -> Self {
         Self {
+            segment: None,
             validation_behavior: None,
             default_value: None,
             full_width: false,
@@ -835,6 +910,18 @@ impl DateField {
             label: None,
             on_change: None,
         }
+    }
+
+    /// `segment` — replaces the contents of each editable segment.
+    ///
+    /// The closure receives which [`DateSegment`] it is drawing and the text the
+    /// field would have shown, the values v3 passes into the same render prop.
+    pub fn segment(
+        mut self,
+        render: impl Fn(DateSegment, SharedString) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.segment = Some(std::sync::Arc::new(render));
+        self
     }
 
     /// `validationBehavior` — see [`crate::input::Input::validation_behavior`].
@@ -904,29 +991,38 @@ impl RenderOnce for DateField {
             );
         }
 
-        let value = self.state.read(cx).value().to_string();
-        let parsed = parse_iso(&value);
-        let non_empty = !value.trim().is_empty();
+        let entity_id = self.state.entity_id().as_u64();
+        // Which segment the arrows and typing act on. `use_keyed_state` takes
+        // `cx` mutably, so this precedes the theme tokens.
+        let focused_seg = window.use_keyed_state(
+            gpui::ElementId::Name(format!("datefield-{entity_id}-seg").into()),
+            cx,
+            |_, _| DateSegment::Month,
+        );
+        let focused = *focused_seg.read(cx);
 
-        // `placeholderValue` formats the hint, so a caller can show the shape
-        // of a real date rather than the literal pattern.
-        let hint = match self.placeholder_value {
-            Some(d) => d.format_iso(),
-            None => "YYYY-MM-DD".to_string(),
-        };
-        // The three ways a typed date can be wrong are reported separately, as
-        // the calendar grids distinguish them too.
+        let colors = cx.colors().clone();
+        let layout = cx.layout().clone();
+
+        let text = self.state.read(cx).value().to_string();
+        let parsed = parse_iso(&text);
+        let non_empty = !text.trim().is_empty();
+
+        // The three ways a date can be wrong are reported separately, as the
+        // calendar grids distinguish them too.
         let rejection = if !non_empty {
             None
         } else if parsed.is_none() {
-            Some("Enter a valid date as YYYY-MM-DD.".to_string())
+            Some("Enter a valid date.".to_string())
         } else {
             let date = parsed.expect("checked above");
             if self.constraints.out_of_range(date) {
                 Some(match (self.constraints.min_value, self.constraints.max_value) {
-                    (Some(min), Some(max)) => {
-                        format!("Pick a date between {} and {}.", min.format_iso(), max.format_iso())
-                    }
+                    (Some(min), Some(max)) => format!(
+                        "Pick a date between {} and {}.",
+                        min.format_iso(),
+                        max.format_iso()
+                    ),
                     (Some(min), None) => format!("Pick {} or later.", min.format_iso()),
                     (None, Some(max)) => format!("Pick {} or earlier.", max.format_iso()),
                     (None, None) => "Date is out of range.".to_string(),
@@ -939,43 +1035,157 @@ impl RenderOnce for DateField {
         };
 
         // v3 order: the controlled flag, then server errors, then `validate`,
-        // then whichever constraint the typed date breaks.
+        // then whichever constraint the date breaks.
         let validity = crate::validation::resolve(
             self.is_invalid,
             &self.validation_errors,
             self.validate.as_ref().and_then(|f| f(&parsed)),
-            rejection.clone().map(Into::into),
+            rejection.map(Into::into),
         );
+        let is_invalid = validity.is_invalid;
 
-        let mut input = crate::input::Input::new(self.state.clone())
-            .placeholder(hint)
-            .variant(self.variant)
-            .is_required(self.is_required)
-            .is_invalid(validity.is_invalid);
+        let segment_text = move |segment: DateSegment| -> String {
+            let Some(d) = parsed else {
+                return segment.hint().to_string();
+            };
+            match segment {
+                DateSegment::Month => format!("{:02}", d.month),
+                DateSegment::Day => format!("{:02}", d.day),
+                DateSegment::Year => format!("{:04}", d.year),
+            }
+        };
+
+        let mut group = gpui::div()
+            .flex()
+            .flex_row()
+            .items_center()
+            .gap(px(2.))
+            .px(px(12.))
+            .h(crate::util::FIELD_HEIGHT)
+            .rounded(crate::util::field_radius(cx))
+            .text_size(crate::util::FIELD_TEXT)
+            .font_family("Consolas")
+            .text_color(colors.field.foreground);
+
+        group = match self.variant {
+            herogpui_core::FieldVariant::Primary => {
+                let shadow = layout.field_shadow.clone();
+                group
+                    .bg(colors.field.background)
+                    .when(!shadow.is_empty(), |e| e.shadow(shadow))
+            }
+            herogpui_core::FieldVariant::Secondary => group.bg(colors.surface_secondary),
+        };
+        if is_invalid {
+            group = group.border_1().border_color(colors.danger.color);
+        }
         if self.full_width {
-            input = input.full_width();
-        }
-        if let Some(label) = &self.label {
-            input = input.label(label.clone());
-        }
-        match validity.first() {
-            Some(message) => input = input.error_message(message),
-            None => input = input.description("ISO format: YYYY-MM-DD".to_string()),
+            group = group.w_full();
         }
 
-        if let Some(on_change) = self.on_change.clone() {
-            let st = self.state.clone();
-            let constraints = self.constraints.clone();
-            input = input.on_change(move |_v: &str, window, cx| {
-                let text = st.read(cx).value().to_string();
-                // A date the constraints reject is reported as no date, so a
-                // caller never receives a value it said it would not accept.
-                let date = parse_iso(&text).filter(|d| constraints.allows(*d));
-                on_change(date, window, cx);
+        for (index, segment) in DateSegment::ALL.iter().copied().enumerate() {
+            if index > 0 {
+                group = group.child(gpui::div().text_color(colors.muted).child("/"));
+            }
+
+            let mut seg = gpui::div()
+                .id(gpui::ElementId::Name(
+                    format!("date-{entity_id}-seg-{index}").into(),
+                ))
+                .px(px(4.))
+                .py(px(1.))
+                .rounded(px(4.))
+                // `segment` is v3's render prop on `DateField.Segment`: the
+                // closure is handed which segment it is drawing.
+                .child(match &self.segment {
+                    Some(render) => render(segment, segment_text(segment).into()),
+                    None => segment_text(segment).into_any_element(),
+                });
+
+            if parsed.is_none() {
+                seg = seg.text_color(colors.muted);
+            }
+            if focused == segment {
+                seg = seg
+                    .bg(colors.accent.soft())
+                    .text_color(colors.accent.soft_foreground());
+            }
+
+            let held = focused_seg.clone();
+            seg = seg.cursor_pointer().on_click(move |_, _, cx| {
+                held.update(cx, |s, cx| {
+                    *s = segment;
+                    cx.notify();
+                });
             });
+
+            group = group.child(seg);
         }
 
-        input.into_any_element()
+        // Steppers move whichever segment is focused, seeding an empty field
+        // from `placeholderValue` the way v3 does.
+        let seed = self.placeholder_value.unwrap_or_else(Date::today);
+        let mut steppers = gpui::div().flex().flex_col().ml(px(8.)).flex_shrink_0();
+        for (icon, delta, key) in [
+            (crate::icons::CHEVRON_UP, 1i32, "up"),
+            (crate::icons::CHEVRON_DOWN, -1i32, "down"),
+        ] {
+            let state = self.state.clone();
+            let on_change = self.on_change.clone();
+            let constraints = self.constraints.clone();
+            let current = parsed;
+            steppers = steppers.child(
+                gpui::div()
+                    .id(gpui::ElementId::Name(
+                        format!("date-{entity_id}-{key}").into(),
+                    ))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .size(px(14.))
+                    .cursor_pointer()
+                    .text_color(colors.muted)
+                    .child(gpui::svg().size(px(10.)).path(icon).text_color(colors.muted))
+                    .on_click(move |_, window, cx| {
+                        let base = current.unwrap_or(seed);
+                        // An empty field takes the seed itself on the first
+                        // press, so one click does not jump a whole step.
+                        let next = match current {
+                            Some(_) => focused.bump(base, delta),
+                            None => base,
+                        };
+                        state.update(cx, |s, cx| {
+                            s.set_value(next.format_iso());
+                            cx.notify();
+                        });
+                        if let Some(cb) = &on_change {
+                            cb(Some(next).filter(|d| constraints.allows(*d)), window, cx);
+                        }
+                    }),
+            );
+        }
+        let row = gpui::div().flex().items_center().child(group).child(steppers);
+
+        // -- label / description / error wrapper ------------------------------
+        let mut el = gpui::div().flex().flex_col().gap(px(4.));
+        if !self.full_width {
+            el = el.max_w(px(320.));
+        } else {
+            el = el.w_full();
+        }
+        if let Some(label) = self.label.clone() {
+            el = el.child(
+                crate::field::Label::new(label)
+                    .is_required(self.is_required)
+                    .is_invalid(is_invalid),
+            );
+        }
+        el = el.child(row);
+        match validity.first() {
+            Some(message) => el = el.child(crate::field::ErrorMessage::new(message)),
+            None => el = el.child(crate::field::Description::new("MM/DD/YYYY")),
+        }
+        el.into_any_element()
     }
 }
 

@@ -122,15 +122,47 @@ pub fn apply_button_variant(
     interactive: bool,
     cx: &App,
 ) -> Stateful<Div> {
+    apply_variant(el, variant, interactive, true, cx)
+}
+
+/// The background pair `variant` eases between on hover, or `None` when the
+/// variant has no background to ease.
+///
+/// Used by [`Button`] to run v3's `transition-colors` through
+/// [`crate::anim::hover_fade`] instead of swapping the fill on one frame.
+pub fn button_hover_colors(variant: Variant, cx: &App) -> Option<(gpui::Hsla, gpui::Hsla)> {
+    let colors = cx.colors();
+    match variant {
+        Variant::Primary => Some((colors.accent.color, colors.accent.hover())),
+        Variant::Secondary => Some((colors.default.color, colors.default.hover())),
+        Variant::Danger => Some((colors.danger.color, colors.danger.hover())),
+        Variant::DangerSoft => Some((colors.danger.soft(), colors.danger.soft_hover())),
+        // These three start transparent and fill in on hover.
+        Variant::Tertiary | Variant::Outline | Variant::Ghost => {
+            Some((gpui::transparent_black(), colors.default.color))
+        }
+    }
+}
+
+/// [`apply_button_variant`], with `hover_bg` off when the caller is going to
+/// animate the background itself.
+fn apply_variant(
+    el: Stateful<Div>,
+    variant: Variant,
+    interactive: bool,
+    hover_bg: bool,
+    cx: &App,
+) -> Stateful<Div> {
     let colors = cx.colors();
     let layout = cx.layout();
 
     match variant {
         Variant::Primary => {
             let base = colors.accent;
-            let el = el.bg(base.color).text_color(base.foreground);
+            let el = el.text_color(base.foreground);
+            let el = if hover_bg { el.bg(base.color) } else { el };
             if interactive {
-                el.hover(move |s| s.bg(base.hover()))
+                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.hover())))
                     .active(|s| s.opacity(0.85))
             } else {
                 el
@@ -140,9 +172,10 @@ pub fn apply_button_variant(
         // `bg-secondary` token to `bg-default`.
         Variant::Secondary => {
             let base = colors.default;
-            let el = el.bg(base.color).text_color(base.foreground);
+            let el = el.text_color(base.foreground);
+            let el = if hover_bg { el.bg(base.color) } else { el };
             if interactive {
-                el.hover(move |s| s.bg(base.hover()))
+                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.hover())))
                     .active(|s| s.opacity(0.85))
             } else {
                 el
@@ -153,7 +186,8 @@ pub fn apply_button_variant(
             let fg = colors.foreground;
             let el = el.text_color(fg);
             if interactive {
-                el.hover(move |s| s.bg(base.color)).active(|s| s.opacity(0.85))
+                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.color)))
+                    .active(|s| s.opacity(0.85))
             } else {
                 el
             }
@@ -165,7 +199,8 @@ pub fn apply_button_variant(
                 .border_color(colors.border)
                 .text_color(colors.foreground);
             if interactive {
-                el.hover(move |s| s.bg(base.color)).active(|s| s.opacity(0.85))
+                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.color)))
+                    .active(|s| s.opacity(0.85))
             } else {
                 el
             }
@@ -174,7 +209,9 @@ pub fn apply_button_variant(
             let base = colors.default;
             let el = el.text_color(colors.muted);
             if interactive {
-                el.hover(move |s| s.bg(base.color).text_color(colors.foreground))
+                el.when(hover_bg, |e| {
+                    e.hover(move |s| s.bg(base.color).text_color(colors.foreground))
+                })
                     .active(|s| s.opacity(0.85))
             } else {
                 el
@@ -182,9 +219,10 @@ pub fn apply_button_variant(
         }
         Variant::Danger => {
             let base = colors.danger;
-            let el = el.bg(base.color).text_color(base.foreground);
+            let el = el.text_color(base.foreground);
+            let el = if hover_bg { el.bg(base.color) } else { el };
             if interactive {
-                el.hover(move |s| s.bg(base.hover()))
+                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.hover())))
                     .active(|s| s.opacity(0.85))
             } else {
                 el
@@ -192,9 +230,10 @@ pub fn apply_button_variant(
         }
         Variant::DangerSoft => {
             let base = colors.danger;
-            let el = el.bg(base.soft()).text_color(base.soft_foreground());
+            let el = el.text_color(base.soft_foreground());
+            let el = if hover_bg { el.bg(base.soft()) } else { el };
             if interactive {
-                el.hover(move |s| s.bg(base.soft_hover()))
+                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.soft_hover())))
                     .active(|s| s.opacity(0.85))
             } else {
                 el
@@ -228,9 +267,15 @@ pub fn button_foreground(variant: Variant, cx: &App) -> gpui::Hsla {
 }
 
 impl RenderOnce for Button {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let layout = cx.layout();
         let interactive = !self.is_disabled && !self.is_pending;
+        // v3's `transition-colors`: the fill eases rather than switching on the
+        // frame the pointer arrives. The variant then leaves the background
+        // alone so the two do not fight over it.
+        let fade = interactive
+            .then(|| button_hover_colors(self.variant, cx))
+            .flatten();
 
         let mut el = div()
             .id(self.id.clone())
@@ -259,7 +304,7 @@ impl RenderOnce for Button {
             el = el.w_full();
         }
 
-        el = apply_button_variant(el, self.variant, interactive, cx);
+        el = apply_variant(el, self.variant, interactive, fade.is_none(), cx);
 
         if self.is_disabled {
             el = el.opacity(layout.disabled_opacity);
@@ -312,6 +357,18 @@ impl RenderOnce for Button {
             }
         }
 
-        el
+        // The fade owns the background, so it wraps last and yields an
+        // `AnyElement`; without one the button is the plain styled div.
+        match fade {
+            Some((idle, hovered)) => crate::anim::hover_fade(
+                el,
+                ElementId::Name(format!("{:?}-fade", self.id).into()),
+                idle,
+                hovered,
+                window,
+                cx,
+            ),
+            None => el.into_any_element(),
+        }
     }
 }

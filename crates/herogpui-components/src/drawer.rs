@@ -135,9 +135,12 @@ impl ParentElement for Drawer {
 
 impl RenderOnce for Drawer {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        if !self.is_open {
+        // v3 keeps a closing panel on screen for its `slide-out-to-*` run.
+        let phase = crate::util::overlay_phase(window, cx, "drawer-phase", self.is_open);
+        if phase == crate::util::OverlayPhase::Closed {
             return gpui::div().into_any_element();
         }
+        let exiting = phase == crate::util::OverlayPhase::Exiting;
 
         // Escape has to reach the overlay, and key events only travel to the
         // focused element and its ancestors. Claiming focus while nothing
@@ -278,7 +281,7 @@ impl RenderOnce for Drawer {
                 }
             });
         // v3 fades the backdrop in alongside the panel.
-        match (self.is_dismissible, dismiss.clone()) {
+        match (self.is_dismissible && !exiting, dismiss.clone()) {
             (true, Some(on_close)) => {
                 overlay = overlay.child(crate::anim::entering(
                     gpui::div()
@@ -292,11 +295,17 @@ impl RenderOnce for Drawer {
                 ));
             }
             _ => {
-                overlay = overlay.child(crate::anim::entering(
-                    gpui::div().absolute().inset_0().bg(backdrop_bg),
-                    "drawer-backdrop-anim",
-                    cx,
-                ));
+                let scrim = gpui::div().absolute().inset_0().bg(backdrop_bg);
+                overlay = overlay.child(if exiting {
+                    crate::anim::exiting(
+                        scrim,
+                        "drawer-backdrop-out",
+                        crate::anim::ZoomBox::default(),
+                        cx,
+                    )
+                } else {
+                    crate::anim::entering(scrim, "drawer-backdrop-anim", cx)
+                });
             }
         }
         // Drawers slide in from the edge they are anchored to.
@@ -306,13 +315,11 @@ impl RenderOnce for Drawer {
             DrawerPlacement::Top => crate::anim::Edge::Top,
             DrawerPlacement::Bottom => crate::anim::Edge::Bottom,
         };
-        overlay = overlay.child(crate::anim::entering_from(
-            anchored,
-            "drawer-panel",
-            edge,
-            PANEL_EXTENT,
-            cx,
-        ));
+        overlay = overlay.child(if exiting {
+            crate::anim::exiting_to(anchored, "drawer-panel-out", edge, PANEL_EXTENT, cx)
+        } else {
+            crate::anim::entering_from(anchored, "drawer-panel", edge, PANEL_EXTENT, cx)
+        });
 
         overlay.into_any_element()
     }

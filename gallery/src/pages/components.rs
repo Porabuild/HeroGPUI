@@ -1170,7 +1170,23 @@ impl Gallery {
                 ),
                 (
                     "Custom sort indicator",
-                    col(vec![build()
+                    // Sorted on load, so the custom indicator is actually
+                    // visible: `indicator` only renders for the sorted column.
+                    col(vec![h::Table::new(vec![])
+                        .column(h::TableColumn::new("Name").allows_sorting(true))
+                        .column("Role")
+                        .row(vec![
+                            gpui::div().child("Tony Reichert").into_any_element(),
+                            gpui::div().child("CEO").into_any_element(),
+                        ])
+                        .row(vec![
+                            gpui::div().child("Zoey Lang").into_any_element(),
+                            gpui::div().child("Tech Lead").into_any_element(),
+                        ])
+                        .sort_descriptor(h::SortDescriptor::new(
+                            "Name",
+                            h::SortDirection::Ascending,
+                        ))
                         .indicator(|dir| {
                             gpui::div()
                                 .text_size(px(11.))
@@ -1378,7 +1394,7 @@ impl Gallery {
                     para(
                         &match iso {
                             Some(d) => format!("Parsed: {}", d.format_iso()),
-                            None => "Type a date as YYYY-MM-DD".to_string(),
+                            None => "Step a segment with the arrows to pick a date".to_string(),
                         },
                         cx,
                     ),
@@ -2201,14 +2217,23 @@ impl Gallery {
             "Text Area",
             crate::pages::Page::TextArea.description(),
             crate::pages::Page::TextArea.import_line(),
-            vec![(
-                "Usage",
-                col(vec![h::TextArea::new(self.input_bio.clone())
-                    .label("Bio")
-                    .placeholder("Tell us about yourself")
-                    .description("Markdown is supported.")
-                    .into_any_element()]),
-            )],
+            vec![
+                (
+                    "Usage",
+                    col(vec![h::TextArea::new(self.input_bio.clone())
+                        .label("Bio")
+                        .placeholder("Tell us about yourself")
+                        .description("Markdown is supported.")
+                        .into_any_element()]),
+                ),
+                (
+                    "Rows",
+                    col(vec![h::TextArea::new(self.input_bio.clone())
+                        .label("Six rows")
+                        .rows(6)
+                        .into_any_element()]),
+                ),
+            ],
             cx,
         )
     }

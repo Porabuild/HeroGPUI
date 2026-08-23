@@ -1,2 +1,3 @@
 /target
 check*.txt
+__pycache__/
