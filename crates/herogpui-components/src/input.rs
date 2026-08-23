@@ -336,6 +336,53 @@ fn move_word(state: &mut InputState, forward: bool, extend: bool) {
     state.cursor = word_target(&state.value, state.cursor, forward);
 }
 
+/// What the field draws: the value, or one bullet per char for a password.
+///
+/// The click maths runs on this rather than on the value, so a masked field maps
+/// its own glyph widths.
+fn displayed_value(state: &InputState, masks: bool) -> String {
+    if masks {
+        "\u{2022}".repeat(state.value.chars().count())
+    } else {
+        state.value.clone()
+    }
+}
+
+/// Which char a pointer at `x` (relative to the text's left edge) is nearest.
+///
+/// A mouse listener is handed the pointer position and nothing else, so the
+/// text's own origin has to be remembered from the previous frame -- see
+/// `TEXT_ORIGIN` in `Input::render`. gpui shapes the line for us, and
+/// `closest_index_for_x` answers in *bytes*, which the state counts in chars.
+fn char_at_x(
+    value: &str,
+    x: gpui::Pixels,
+    font: &gpui::Font,
+    font_size: gpui::Pixels,
+    window: &mut Window,
+) -> usize {
+    if value.is_empty() {
+        return 0;
+    }
+    let run = gpui::TextRun {
+        len: value.len(),
+        font: font.clone(),
+        // Shaping needs a colour and does not use it.
+        color: gpui::black(),
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+    let line = window.text_system().shape_line(
+        SharedString::from(value.to_owned()),
+        font_size,
+        &[run],
+        None,
+    );
+    let byte = line.closest_index_for_x(x.max(px(0.)));
+    value[..byte.min(value.len())].chars().count()
+}
+
 /// The char indices bounding the line the caret is on, newlines excluded.
 fn line_bounds(value: &str, cursor: usize) -> (usize, usize) {
     let chars: Vec<char> = value.chars().collect();
@@ -923,6 +970,20 @@ impl RenderOnce for Input {
                 &focus_handle,
             );
         }
+        // Where the text starts, remembered from the last frame: a `canvas` is
+        // the only element that is told its own bounds, and a click has to be
+        // measured against something. `use_keyed_state` takes `cx` mutably, so
+        // it precedes the theme.
+        let text_origin = window.use_keyed_state(
+            gpui::ElementId::Name(
+                format!("input-text-origin-{}", self.state.entity_id().as_u64()).into(),
+            ),
+            cx,
+            |_, _| None::<gpui::Pixels>,
+        );
+        // The font the field draws with, captured here: at event time the text
+        // style stack is empty and the shaping would use the wrong face.
+        let text_font = window.text_style().font();
         let disabled_opacity = cx.layout().disabled_opacity;
         let colors = cx.colors();
         let accent = colors.accent;
@@ -986,9 +1047,62 @@ impl RenderOnce for Input {
                 e.cursor(gpui::CursorStyle::IBeam)
                     .track_focus(&focus_handle)
                     .key_context("Input")
+                    // A click puts the caret where it landed, and a drag with
+                    // the button down selects -- what a text field does, and
+                    // what this one did not: the caret stayed wherever the
+                    // value had left it, so the middle of a word was
+                    // unreachable with the mouse.
                     .on_mouse_down(gpui::MouseButton::Left, {
                         let fh = focus_handle.clone();
-                        move |_, window, _| window.focus(&fh)
+                        let st = self.state.clone();
+                        let origin = text_origin.clone();
+                        let font = text_font.clone();
+                        let masks = self.input_type.masks();
+                        let multiline = self.multiline;
+                        let size = text;
+                        move |ev: &gpui::MouseDownEvent, window, cx| {
+                            window.focus(&fh);
+                            // A wrapped, multi-line body has no single line to
+                            // measure against; its caret still moves by key.
+                            if multiline {
+                                return;
+                            }
+                            let Some(left) = *origin.read(cx) else {
+                                return;
+                            };
+                            let shown = displayed_value(st.read(cx), masks);
+                            let at = char_at_x(&shown, ev.position.x - left, &font, size, window);
+                            st.update(cx, |s, cx| {
+                                s.cursor = at;
+                                s.anchor = None;
+                                cx.notify();
+                            });
+                        }
+                    })
+                    .on_mouse_move({
+                        let st = self.state.clone();
+                        let origin = text_origin.clone();
+                        let font = text_font.clone();
+                        let masks = self.input_type.masks();
+                        let multiline = self.multiline;
+                        let size = text;
+                        move |ev: &gpui::MouseMoveEvent, window, cx| {
+                            if multiline || ev.pressed_button != Some(gpui::MouseButton::Left) {
+                                return;
+                            }
+                            let Some(left) = *origin.read(cx) else {
+                                return;
+                            };
+                            let shown = displayed_value(st.read(cx), masks);
+                            let at = char_at_x(&shown, ev.position.x - left, &font, size, window);
+                            st.update(cx, |s, cx| {
+                                if s.anchor.is_none() {
+                                    s.anchor = Some(s.cursor);
+                                }
+                                s.cursor = at;
+                                cx.notify();
+                            });
+                        }
                     })
             })
             // `status-disabled` is `--disabled-opacity`, which the theme owns.
@@ -1025,7 +1139,29 @@ impl RenderOnce for Input {
                 .min_w_0()
                 .flex_1()
         } else {
-            gpui::div().flex().items_center().min_w_0().flex_1()
+            let origin = text_origin;
+            gpui::div()
+                .flex()
+                .items_center()
+                .min_w_0()
+                .flex_1()
+                // A zero-width item at the head of the row: its bounds are the
+                // text's left edge, which is what a click is measured against.
+                // Only `canvas` is told its own bounds.
+                .child(
+                    gpui::canvas(
+                        move |bounds, _window, cx| {
+                            let left = bounds.origin.x;
+                            if *origin.read(cx) != Some(left) {
+                                origin.update(cx, |v, _| *v = Some(left));
+                            }
+                        },
+                        |_, _, _, _| {},
+                    )
+                    .w(px(0.))
+                    .h(px(0.))
+                    .flex_shrink_0(),
+                )
         };
 
         if self.multiline && !(is_empty && !focused && self.placeholder.is_some()) {

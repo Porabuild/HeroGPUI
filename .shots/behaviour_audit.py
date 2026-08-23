@@ -93,6 +93,11 @@ FOCUS_OPEN = ('Tooltip',)
 # so "AbC dEf!" arrived as "abc def1".
 TEXT_KEYS = ('Input', 'TextArea', 'TextField')
 
+# A click puts the caret where it landed and a drag selects. The caret used to
+# stay wherever the value had left it, so the middle of a word was unreachable
+# with the mouse.
+POINTER_CARET = ('Input', 'TextField', 'TextArea')
+
 OVERLAY_DISMISS = (
     'Popover', 'Dropdown', 'Select', 'ComboBox', 'Autocomplete',
     'DatePicker', 'DateRangePicker', 'ColorPicker', 'Tooltip',
@@ -163,6 +168,8 @@ EVIDENCE = {
     ('Input', 'text-keys'): ('input.rs', r'fn word_target'),
     ('TextArea', 'text-keys'): ('input.rs', r'fn vertical_target'),
     ('TextField', 'text-keys'): ('input.rs', r'key_char'),
+    ('Input', 'pointer-caret'): ('input.rs', r'fn char_at_x'),
+    ('TextField', 'pointer-caret'): ('input.rs', r'closest_index_for_x'),
     ('Accordion', 'activation'): ('accordion.rs', r'tab_stop_handle'),
     ('Button', 'activation'): ('button.rs', r'tab_stop_handle'),
     ('CloseButton', 'activation'): ('close_button.rs', r'tab_stop_handle'),
@@ -189,6 +196,10 @@ WONT_DO = {
     # Tab order is the platform's, and gpui walks the focusable elements in tree
     # order without being told to.
     ('Pagination', 'tab-order'): 'platform-tab-order',
+    # A wrapped line has no position gpui reports: `shape_line` measures one
+    # line, and a paragraph in a text area is laid out by the text system into
+    # as many as it needs. The caret still moves by key, including up and down.
+    ('TextArea', 'pointer-caret'): 'no-wrapped-line-metrics',
 }
 
 
@@ -214,11 +225,25 @@ def main():
     by_reason = {}
 
     # The derived claims first, so their numbers land in the same totals.
-    derived = ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + FOCUS_OPEN + TEXT_KEYS
+    # Deduplicated: a component appears in several of these tuples (a text area
+    # has both the keys and the caret), and counting it once per tuple inflated
+    # every total.
+    derived = dict.fromkeys(
+        ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + FOCUS_OPEN
+        + TEXT_KEYS + POINTER_CARET
+    )
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'focus-open',
-                      'text-keys'):
+                      'text-keys', 'pointer-caret'):
             key = (page, claim)
+            # A derived claim can be excused too, and the reason has to reach
+            # the breakdown: reading only EVIDENCE skipped `TextArea`'s
+            # pointer caret silently, which is the one thing this audit is for.
+            if key in WONT_DO:
+                claimed += 1
+                excused += 1
+                by_reason[WONT_DO[key]] = by_reason.get(WONT_DO[key], 0) + 1
+                continue
             if key not in EVIDENCE:
                 continue
             claimed += 1
