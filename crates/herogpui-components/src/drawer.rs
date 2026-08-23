@@ -148,6 +148,15 @@ impl RenderOnce for Drawer {
             window.focus(&focus_handle);
         }
 
+        // A drag in progress: where it started along the dismissal axis, and how
+        // far it has come. `use_keyed_state` takes `cx` mutably, so it precedes
+        // the theme tokens.
+        let drag = window.use_keyed_state("drawer-drag", cx, |_, _| None::<(f32, f32)>);
+        let drag_now = *drag.read(cx);
+        // How far the panel has been pulled toward its edge, which is what the
+        // panel is offset by while the pointer is down.
+        let drag_offset = drag_now.map_or(0.0, |(_, offset)| offset.max(0.0));
+
         let colors = cx.colors();
 
         // header
@@ -190,6 +199,21 @@ impl RenderOnce for Drawer {
             }
         }
 
+        if self.is_dismissible {
+            let axis = self.placement;
+            let held_down = drag.clone();
+            header = header.on_mouse_down(
+                gpui::MouseButton::Left,
+                move |ev: &gpui::MouseDownEvent, _window, cx| {
+                    let at = drag_axis_position(axis, ev.position);
+                    held_down.update(cx, |v, cx| {
+                        *v = Some((at, 0.0));
+                        cx.notify();
+                    });
+                },
+            );
+        }
+
         let mut panel = gpui::div()
             .flex()
             .flex_col()
@@ -225,14 +249,16 @@ impl RenderOnce for Drawer {
             );
         }
 
-        // anchor to the requested edge
+        // anchor to the requested edge, pulled out by however far the drag has
+        // come: a div cannot be translated in this gpui, so the inset moves.
+        let pulled = px(-drag_offset);
         let anchored = match self.placement {
             DrawerPlacement::Left => panel
                 .w(PANEL_EXTENT)
                 .max_w(gpui::relative(0.9))
                 .h_full()
                 .absolute()
-                .left(px(0.))
+                .left(pulled)
                 .top(px(0.))
                 .bottom(px(0.)),
             DrawerPlacement::Right => panel
@@ -240,7 +266,7 @@ impl RenderOnce for Drawer {
                 .max_w(gpui::relative(0.9))
                 .h_full()
                 .absolute()
-                .right(px(0.))
+                .right(pulled)
                 .top(px(0.))
                 .bottom(px(0.)),
             DrawerPlacement::Top => panel
@@ -248,7 +274,7 @@ impl RenderOnce for Drawer {
                 .max_h(gpui::relative(0.9))
                 .w_full()
                 .absolute()
-                .top(px(0.))
+                .top(pulled)
                 .left(px(0.))
                 .right(px(0.)),
             DrawerPlacement::Bottom => panel
@@ -256,7 +282,7 @@ impl RenderOnce for Drawer {
                 .max_h(gpui::relative(0.9))
                 .w_full()
                 .absolute()
-                .bottom(px(0.))
+                .bottom(pulled)
                 .left(px(0.))
                 .right(px(0.)),
         };
@@ -303,6 +329,53 @@ impl RenderOnce for Drawer {
                     }
                 }
             });
+
+        // `Drag to dismiss`: pull the panel toward its edge and let go. The
+        // pointer leaves the header the moment it moves, so the move and the
+        // release are watched here, on the overlay that covers the window --
+        // the same reason a table's column resize is handled on the table.
+        if self.is_dismissible {
+            let axis = self.placement;
+            let held_move = drag.clone();
+            let held_up = drag;
+            let release = dismiss.clone();
+            overlay = overlay
+                .on_mouse_move(move |ev: &gpui::MouseMoveEvent, _window, cx| {
+                    let Some((start, offset)) = *held_move.read(cx) else {
+                        return;
+                    };
+                    let at = drag_axis_position(axis, ev.position);
+                    // Toward the edge is positive, whichever edge that is.
+                    let next = match axis {
+                        DrawerPlacement::Left | DrawerPlacement::Top => start - at,
+                        DrawerPlacement::Right | DrawerPlacement::Bottom => at - start,
+                    }
+                    .max(0.0);
+                    // Redraw only when the pull actually changes.
+                    if (next - offset).abs() >= 1.0 {
+                        held_move.update(cx, |v, cx| {
+                            *v = Some((start, next));
+                            cx.notify();
+                        });
+                    }
+                })
+                .on_mouse_up(gpui::MouseButton::Left, move |_, window, cx| {
+                    let Some((_, offset)) = *held_up.read(cx) else {
+                        return;
+                    };
+                    held_up.update(cx, |v, cx| {
+                        *v = None;
+                        cx.notify();
+                    });
+                    // A quarter of the panel is far enough to mean it; anything
+                    // less springs back, which is what clearing the drag does.
+                    if offset >= f32::from(PANEL_EXTENT) * 0.25 {
+                        if let Some(f) = &release {
+                            f(&ClickEvent::default(), window, cx);
+                        }
+                    }
+                });
+        }
         // v3 fades the backdrop in alongside the panel.
         match (self.is_dismissible && !exiting, dismiss.clone()) {
             (true, Some(on_close)) => {
@@ -345,6 +418,8 @@ impl RenderOnce for Drawer {
             DrawerPlacement::Top => crate::anim::Edge::Top,
             DrawerPlacement::Bottom => crate::anim::Edge::Bottom,
         };
+        // A pulled panel is being placed by the drag, so it must not also be
+        // running its entry animation from the same edge.
         overlay = overlay.child(if exiting {
             crate::anim::exiting_to(
                 anchored,
@@ -366,5 +441,13 @@ impl RenderOnce for Drawer {
         });
 
         overlay.into_any_element()
+    }
+}
+
+/// Where a pointer sits along the axis a drawer is dismissed on.
+fn drag_axis_position(placement: DrawerPlacement, at: gpui::Point<gpui::Pixels>) -> f32 {
+    match placement {
+        DrawerPlacement::Left | DrawerPlacement::Right => f32::from(at.x),
+        DrawerPlacement::Top | DrawerPlacement::Bottom => f32::from(at.y),
     }
 }

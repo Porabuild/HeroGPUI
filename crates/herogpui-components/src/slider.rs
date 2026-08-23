@@ -209,6 +209,22 @@ impl RenderOnce for Slider {
             self.default_value.unwrap_or(self.value),
         );
 
+        // The keyboard's own state: the handle that receives the keys and which
+        // thumb they move. React Aria focuses one thumb at a time, so a range
+        // slider needs to know which.
+        let focus_handle = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{:?}-focus", self.id).into()),
+            cx,
+            |_, cx| cx.focus_handle(),
+        );
+        let focus_handle = focus_handle.read(cx).clone();
+        let active_thumb = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{:?}-thumb", self.id).into()),
+            cx,
+            |_, _| 0usize,
+        );
+        let active_at = *active_thumb.read(cx);
+
         let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
@@ -362,10 +378,75 @@ impl RenderOnce for Slider {
                     .border_color(sem.color)
                     .shadow(layout.surface_shadow.clone()),
             };
+            // `status-focused` on the thumb the keys move, and only while the
+            // slider holds the focus.
+            if index == active_at.min(fractions.len().saturating_sub(1))
+                && focus_handle.is_focused(window)
+                && fractions.len() > 1
+            {
+                thumb_el = thumb_el.border_2().border_color(colors.focus);
+            }
             track = track.child(thumb_el);
         }
 
+        // v3 drives a slider from the keyboard: the arrows step it, Home and End
+        // jump to the ends, and Page Up/Down move by a tenth of the range --
+        // React Aria's page step. Without this the pointer was the only way to
+        // move a value at all.
         if !self.is_disabled {
+            let keys_thumbs = thumbs.clone();
+            let on_change_keys = self.on_change.clone();
+            let all_keys = self.on_change_all.clone();
+            let end_keys = self.on_change_end.clone();
+            let own_keys = own.clone();
+            let held_thumb = active_thumb;
+            let (min, max, step) = (self.min, self.max, self.step);
+            // A tenth of the range, but never less than one step.
+            let page = ((max - min) / 10.0).max(step);
+            track = track
+                .track_focus(&focus_handle)
+                .key_context("Slider")
+                .on_key_down(move |event, window, cx| {
+                    let key = event.keystroke.key.as_str();
+                    let index = (*held_thumb.read(cx)).min(keys_thumbs.len().saturating_sub(1));
+                    let current = keys_thumbs.get(index).copied().unwrap_or(min);
+                    // Tab-like movement between the thumbs of a range slider.
+                    if key == "tab" && keys_thumbs.len() > 1 {
+                        held_thumb.update(cx, |v, cx| {
+                            *v = (index + 1) % keys_thumbs.len();
+                            cx.notify();
+                        });
+                        return;
+                    }
+                    let next = match key {
+                        "right" | "up" => current + step,
+                        "left" | "down" => current - step,
+                        "pageup" => current + page,
+                        "pagedown" => current - page,
+                        "home" => min,
+                        "end" => max,
+                        _ => return,
+                    };
+                    // Snapped and clamped the same way a drag is, so the two
+                    // cannot land on different values.
+                    let next = ((next / step).round() * step).clamp(min, max);
+                    set_thumb(
+                        index,
+                        next,
+                        &keys_thumbs,
+                        &on_change_keys,
+                        &all_keys,
+                        &own_keys,
+                        window,
+                        cx,
+                    );
+                    // A keystroke is a finished change, so `onChangeEnd` fires
+                    // with it rather than waiting for a release that never comes.
+                    if let Some(cb) = &end_keys {
+                        cb(next, window, cx);
+                    }
+                });
+
             let target_down = DragTarget {
                 min: self.min,
                 span: range_span,
@@ -374,6 +455,7 @@ impl RenderOnce for Slider {
             };
             let on_change_down = self.on_change.clone();
             let all_down = self.on_change_all.clone();
+            let focus_for_press = focus_handle;
             let own_down = own.clone();
             let b_down = bounds_slot.clone();
             let d_down = dragging.clone();
@@ -381,6 +463,8 @@ impl RenderOnce for Slider {
                 gpui::MouseButton::Left,
                 move |ev: &MouseDownEvent, window, cx| {
                     d_down.set(true);
+                    // The keys have to land somewhere after a pointer grab.
+                    window.focus(&focus_for_press);
                     set_from_x(
                         &b_down,
                         axis_pos(ev.position, vertical),
@@ -465,6 +549,44 @@ struct DragTarget {
     step: f32,
     /// The current thumb set. With more than one, the nearest moves.
     thumbs: Vec<f32>,
+}
+
+/// Writes one thumb's value through the uncontrolled copy and both callbacks.
+///
+/// The pointer path reaches this through `set_from_x`, which turns a position
+/// into a value first; the keyboard already has the value.
+#[allow(clippy::too_many_arguments)]
+fn set_thumb(
+    index: usize,
+    value: f32,
+    thumbs: &[f32],
+    on_change: &Option<OnChange>,
+    on_change_all: &Option<OnChangeAll>,
+    own: &Option<gpui::Entity<f32>>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    if thumbs.len() > 1 {
+        let mut next = thumbs.to_vec();
+        if let Some(slot) = next.get_mut(index) {
+            *slot = value;
+        }
+        // A range keeps its ends in order, as v3's does.
+        next.sort_by(f32::total_cmp);
+        if let Some(cb) = on_change_all {
+            cb(&next, window, cx);
+        }
+        return;
+    }
+    if let Some(held) = own {
+        held.update(cx, |v, cx| {
+            *v = value;
+            cx.notify();
+        });
+    }
+    if let Some(cb) = on_change {
+        cb(value, window, cx);
+    }
 }
 
 #[allow(clippy::too_many_arguments)] // one struct per call site would be worse

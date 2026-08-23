@@ -226,6 +226,63 @@ impl RenderOnce for Menu {
             |_, _| None::<SharedString>,
         );
         let submenu_open = submenu_state.read(cx).clone();
+        // The keyboard's own state: which row it is on, the handle that receives
+        // the keys, and the letters typed so far.
+        let focus_handle = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{base}-focus").into()),
+            cx,
+            |_, cx| cx.focus_handle(),
+        );
+        let focus_handle = focus_handle.read(cx).clone();
+        let cursor = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{base}-cursor").into()),
+            cx,
+            |_, _| None::<usize>,
+        );
+        let cursor_at = *cursor.read(cx);
+        let typed = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{base}-typed").into()),
+            cx,
+            |_, _| crate::list_nav::Typeahead::default(),
+        );
+        // A menu takes focus when it opens, which is what makes the arrows work
+        // without a click first.
+        crate::util::focus_once(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("{base}-autofocus").into()),
+            &focus_handle,
+        );
+
+        // The rows a keyboard can land on -- an item that is not disabled -- and
+        // the text a typed letter searches.
+        let stops: Vec<usize> = self
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| match item {
+                MenuItem::Item { key, .. } => !self.disabled_keys.contains(key),
+                _ => false,
+            })
+            .map(|(i, _)| i)
+            .collect();
+        let labels: Vec<String> = self
+            .items
+            .iter()
+            .map(|item| match item {
+                MenuItem::Item { label, .. } => label.to_string(),
+                _ => String::new(),
+            })
+            .collect();
+        let item_keys: Vec<SharedString> = self
+            .items
+            .iter()
+            .map(|item| match item {
+                MenuItem::Item { key, .. } => key.clone(),
+                _ => SharedString::default(),
+            })
+            .collect();
+
         let colors = cx.colors();
 
         let mut panel = gpui::div()
@@ -238,7 +295,73 @@ impl RenderOnce for Menu {
             .border_1()
             .border_color(colors.separator)
             .shadow(cx.layout().overlay_shadow.clone())
-            .overflow_hidden();
+            .overflow_hidden()
+            .track_focus(&focus_handle)
+            .key_context("Menu");
+
+        if !stops.is_empty() {
+            let held = cursor;
+            let stops_for_keys = stops;
+            let typed_keys = typed;
+            let on_action = self.on_action.clone();
+            let on_selection_change = self.on_selection_change.clone();
+            let mode = self.selection_mode;
+            let selected_now = self.selected_keys.clone();
+            let keys = item_keys;
+            panel = panel.on_key_down(move |event, window, cx| {
+                let key = event.keystroke.key.as_str();
+                let from = *held.read(cx);
+                match crate::list_nav::resolve(&stops_for_keys, from, key, false) {
+                    crate::list_nav::Move::To(next) => {
+                        held.update(cx, |v, cx| {
+                            *v = Some(next);
+                            cx.notify();
+                        });
+                    }
+                    crate::list_nav::Move::Activate => {
+                        let Some(item_key) = from.and_then(|i| keys.get(i).cloned()) else {
+                            return;
+                        };
+                        // The same two callbacks a click fires, in the same
+                        // order, so a keyboard choice is not a different event.
+                        if let Some(cb) = &on_action {
+                            cb(&item_key, window, cx);
+                        }
+                        if let Some(cb) = &on_selection_change {
+                            let next = crate::selection::next_selection(
+                                &selected_now,
+                                &item_key,
+                                mode,
+                                false,
+                            );
+                            cb(&next, window, cx);
+                        }
+                    }
+                    crate::list_nav::Move::Ignore => {
+                        if !crate::list_nav::is_typeahead_key(key) {
+                            return;
+                        }
+                        let now = std::time::Instant::now();
+                        let (query, repeat) = typed_keys.update(cx, |t, _| {
+                            let query = t.push(key, now);
+                            (query, t.is_repeat())
+                        });
+                        if let Some(found) = crate::list_nav::typeahead(
+                            &labels,
+                            &stops_for_keys,
+                            from,
+                            &query,
+                            repeat,
+                        ) {
+                            held.update(cx, |v, cx| {
+                                *v = Some(found);
+                                cx.notify();
+                            });
+                        }
+                    }
+                }
+            });
+        }
 
         for (i, item) in self.items.into_iter().enumerate() {
             match item {
@@ -305,6 +428,10 @@ impl RenderOnce for Menu {
                         row = row.hover(move |s| s.bg(colors.default.soft()));
                     }
                     row = when_selected(row, is_selected, sem_primary(cx));
+                    // `status-focused` on the row the keyboard is on.
+                    if cursor_at == Some(i) {
+                        row = row.border_2().border_color(colors.focus);
+                    }
 
                     if let Some(icon_path) = icon {
                         row = row.child(

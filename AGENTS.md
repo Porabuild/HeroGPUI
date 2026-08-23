@@ -155,7 +155,7 @@ spell a prop differently. Both tables accept a scoped `Component.prop` key,
 which is the form to use whenever a bare name would mean different things in
 different components.
 
-**The audit is only as honest as its inputs**, and it has been wrong three
+**The audit is only as honest as its inputs**, and it has been wrong five
 times:
 
 - v3 splits a component's API across the root table *and* one table per
@@ -178,6 +178,33 @@ times:
   missing *uncontrolled* seed counted as an implemented *controlled* prop — 18
   of them. An alias is for a prop we spell differently, never for a different
   prop that happens to be adjacent.
+- **Not every table on a page is named after the component.** Matching
+  `### <Comp>` and `### <Comp>.<Part>` skipped `### ListLayout` and
+  `### TableLayout` (the virtualization props), `### Tag` and
+  `### Tag.RemoveButton` on the TagGroup page, `### SwitchGroup`, `### Radio.*`,
+  `### Disclosure{Trigger,Content}`, `### Composition Components` on the three
+  field pages, `### ToastQueue`, `### toast Function` and `### useFilter Hook`:
+  139 documented rows that were never checked against anything. `props_for`
+  reads the page's whole `## API Reference` **section** now, which is also the
+  boundary that keeps the v2 migration guides out — their `### 2. Prop Changes`
+  tables list props v3 *removed*. A heading pattern cannot tell those apart; the
+  section can. Every component must resolve to exactly one section, and that is
+  asserted rather than assumed.
+- **A table of values is not a table of props.** Reading the first column of
+  every table turned `### Kbd.Content Type` — the key names `keyValue` accepts,
+  under `| Modifier Keys | Special Keys |` — into five missing Kbd props. A
+  table is only read when its first header cell says `Prop`, `Name`, `Option`,
+  `Function`, `Method` or `Event`.
+
+Because one number cannot say what it covers, the report breaks the omissions
+down by reason. 61 of them are `drawn-not-delegated`: values v3 hands *into* a
+`render` closure (`isHovered`, `isPressed`, `formattedDate`, `percentage`) which
+this port computes and draws itself. Where the part *is* overridable the value is
+an alias instead — `ListBox.isSelected` reaches `indicator`,
+`Select.selectedItems` reaches `value_content`, `Slider.getThumbValueLabel`
+reaches `thumb`. A blanket reason is only honest if the thing it claims is true
+of every row it covers, which is what `reason_audit.py` prints them for: it
+caught four `isFocusWithin` entries on components that never document it.
 
 The diff also only ever ran in one direction. `api_audit.py` asks "is every
 documented prop implemented?", which cannot see a prop held over from v2:
@@ -325,7 +352,9 @@ wrong first, each of which silently inflated or deflated the number:
   same DOM-substituting prop every time); `WONT_DEMO` is for one page's example;
   and `NEEDS_FEATURE` is for an example waiting on a component feature this port
   has not built -- counted and named separately rather than excused, so the
-  number cannot hide.
+  number cannot hide. It is empty now: the last two entries were virtualization
+  (`uniform_list`, for the list, the table and the three pickers) and a date
+  field spanning a date *and* a time (`granularity`).
 
 A prop that is stored but never read is worse than a missing one: the API
 promises behaviour it does not have. After adding fields, run
@@ -344,6 +373,37 @@ The detector matches `self.<field>` module-wide, so two structs in one file that
 share a field name cover for each other — that hid an unwired
 `SearchField::validate` next to `Input::validate`. It now lists shared names at
 the end; check those by hand.
+
+None of those audits asks whether a control answers a key. v3 says what each
+one does under `## Accessibility`, in prose:
+
+```bash
+python .shots/behaviour_audit.py
+```
+
+`CLAIMS` turns the prose into claim ids (`arrows`, `home-end`, `page-up-down`,
+`typeahead`, `escape`, `long-press`, `submenu`, `drag-dismiss`), `EVIDENCE` names
+the code that implements one, and a claim with neither evidence nor a recorded
+reason is a gap. It found seven on its first run, and they were not small: the
+Slider and ColorSlider had **no `on_key_down` at all** — a slider that only
+answers the pointer — the Dropdown menu had no arrow keys, typeahead existed
+nowhere, and the Drawer could not be dragged shut. `list_nav.rs` now holds the
+typeahead beside the arrow-key resolver, so a listbox, a menu and a select
+search the same way.
+
+The prose is this audit's weak side: a claim only counts if it is *written*, so a
+component with a short Accessibility section is asked less. That is why an
+unmapped claim is an error rather than a skip — the mapping table is where the
+reading gets pinned down. Two things it excuses with reasons: there is no
+document scroll to lock and no page outside the window to trap focus in.
+
+Verify a claim by driving it, not by reading the diff — `capture2.ps1 -Keys`
+proved the typeahead moves the ring to "Sent" and `-DragX` proved the drawer
+closes. Both took several tries to *aim*: the click lands at the bitmap
+coordinate you pass (the client offset cancels out), and a demo that wires no
+`on_change` cannot change, so a static specimen looks exactly like a broken
+handler. Instrument the handler with a one-line `std::fs::write` before
+concluding it never ran.
 
 To decide whether a reported gap is a real prop or just a render-prop argument
 v3 passes into a child, print its source table and description:
@@ -447,6 +507,23 @@ v2 concepts that must **not** come back:
   - `absolute` does not lift a panel above later siblings; gpui paints in tree
     order. Floating surfaces must go through `util::floating` (`deferred`) or
     `anchored`, or the page content below will paint over them.
+  - `uniform_list(id, count, |range, window, cx| ..)` is the virtual list, and
+    it is what `<Virtualizer layout={ListLayout}>` ports to: one fixed row
+    height, which is why `row_height` is the builder that turns virtualization
+    on. Three things it needs. Its callback is `'static` and runs again on every
+    scroll, so it can borrow neither `self` nor `cx.colors()` — copy the tokens
+    out and move owned data in. A row is laid out on its own, so it takes the
+    width it is *given*: without `w_full` the table's columns bunched at the left
+    edge. And it sizes from the style, so the list needs an explicit height.
+  - A row builder shared by the plain and the virtual path is what keeps a
+    thousand-row list drawing the same row as a three-row one. Extracting one
+    from a loop has two catches: `continue` cannot cross a closure boundary (the
+    closure returns the row it has finished instead), and a section header stops
+    being a sibling — header and row are one element, because a virtual row is
+    one slot tall.
+  - `AnyElement` is built once and consumed once, so a component whose cells are
+    elements cannot be handed them up front: `Table::virtual_rows` takes the row
+    *factory* v3 spells as `<Table items={users}>{(user) => …}</Table>`.
 - Theme tokens are already `Hsla` — do not wrap them in `gpui::Hsla::from(..)`.
 - Keep OKLCH token values identical to upstream HeroUI; do not "improve" them.
 - Component ids: give every interactive element a distinct id within its page.

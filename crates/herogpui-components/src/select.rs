@@ -329,6 +329,13 @@ impl RenderOnce for Select {
             |_, _| None::<usize>,
         );
         let cursor_at = *cursor.read(cx);
+        // The letters typed so far, which a search resetting every frame could
+        // not accumulate.
+        let typeahead = window.use_keyed_state(
+            el_name(format!("select-{}-typed", id_debug(&self.id))),
+            cx,
+            |_, _| crate::list_nav::Typeahead::default(),
+        );
 
         let sem = cx.role(Color::Accent);
         let colors = cx.colors();
@@ -374,6 +381,9 @@ impl RenderOnce for Select {
                 .collect();
             let held = cursor;
             let wrap = self.should_focus_wrap;
+            // Every option's text, so a typed letter can find one.
+            let labels: Vec<String> = self.options.iter().map(ToString::to_string).collect();
+            let typed = typeahead;
             let open_own_keys = open_own.clone();
             let value_own_keys = value_own.clone();
             let on_open_change = self.on_open_change.clone();
@@ -400,6 +410,32 @@ impl RenderOnce for Select {
                             if let Some(cb) = &on_open_change {
                                 cb(true, window, cx);
                             }
+                            return;
+                        }
+                        // A closed select still answers letters: React Aria
+                        // picks the matching option where it stands rather than
+                        // opening the list.
+                        if !crate::list_nav::is_typeahead_key(key) {
+                            return;
+                        }
+                        let now = std::time::Instant::now();
+                        let (query, repeat) = typed.update(cx, |t, _| {
+                            let query = t.push(key, now);
+                            (query, t.is_repeat())
+                        });
+                        let Some(found) =
+                            crate::list_nav::typeahead(&labels, &stops, selected, &query, repeat)
+                        else {
+                            return;
+                        };
+                        if let Some(held) = &value_own_keys {
+                            held.update(cx, |v, cx| {
+                                *v = Some(found);
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &on_select {
+                            cb(Some(found), window, cx);
                         }
                         return;
                     }
@@ -444,6 +480,24 @@ impl RenderOnce for Select {
                                 if let Some(cb) = &on_open_change {
                                     cb(false, window, cx);
                                 }
+                                return;
+                            }
+                            // Typeahead moves the cursor over the open list.
+                            if !crate::list_nav::is_typeahead_key(key) {
+                                return;
+                            }
+                            let now = std::time::Instant::now();
+                            let (query, repeat) = typed.update(cx, |t, _| {
+                                let query = t.push(key, now);
+                                (query, t.is_repeat())
+                            });
+                            if let Some(found) =
+                                crate::list_nav::typeahead(&labels, &stops, from, &query, repeat)
+                            {
+                                held.update(cx, |v, cx| {
+                                    *v = Some(found);
+                                    cx.notify();
+                                });
                             }
                         }
                     }

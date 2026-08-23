@@ -845,6 +845,14 @@ impl RenderOnce for ColorSlider {
             self.default_value.unwrap_or(self.value),
         );
         self.value = resolved;
+        // The handle the keys arrive on. `use_keyed_state` takes `cx` mutably, so
+        // it precedes the theme tokens.
+        let focus_handle = window.use_keyed_state(
+            ElementId::Name(format!("{:?}-slider-focus", self.id).into()),
+            cx,
+            |_, cx| cx.focus_handle(),
+        );
+        let focus_handle = focus_handle.read(cx).clone();
         let colors = cx.colors();
         let (min, max) = self.channel.range();
         // Read in the requested space: HSL and HSB saturation are different
@@ -934,11 +942,59 @@ impl RenderOnce for ColorSlider {
             };
             let resolve_up = resolve;
             track = track.cursor_pointer();
+
+            // v3: the arrows step the channel, Home and End take it to its ends,
+            // and Page Up/Down move by a tenth of the range -- React Aria's page
+            // step. A colour slider with no keyboard is not the same control.
+            let keys_value = self.value;
+            let on_change_keys = self.on_change.clone();
+            let end_keys = self.on_change_end.clone();
+            let own_keys = own.clone();
+            // One step per unit for a 0-360 hue or an 0-255 byte, and a
+            // percentage point for the normalised channels.
+            let step = if max - min > 2.0 { 1.0 } else { 0.01 };
+            let page = ((max - min) / 10.0).max(step);
+            track = track
+                .track_focus(&focus_handle)
+                .key_context("ColorSlider")
+                .on_key_down(move |event, window, cx| {
+                    let current = keys_value.channel_in(channel, space);
+                    let next = match event.keystroke.key.as_str() {
+                        "right" | "up" => current + step,
+                        "left" | "down" => current - step,
+                        "pageup" => current + page,
+                        "pagedown" => current - page,
+                        "home" => min,
+                        // Hue is cyclic -- 360 degrees *is* zero -- so End lands
+                        // on the last distinct value rather than wrapping back to
+                        // the start of the track.
+                        "end" if channel == ColorChannel::Hue => max - step,
+                        "end" => max,
+                        _ => return,
+                    };
+                    let next = keys_value.with_channel_in(channel, space, next.clamp(min, max));
+                    if let Some(held) = &own_keys {
+                        held.update(cx, |v, cx| {
+                            *v = next;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &on_change_keys {
+                        cb(next, window, cx);
+                    }
+                    // A keystroke is a finished change, so `onChangeEnd` fires
+                    // with it rather than waiting for a release.
+                    if let Some(cb) = &end_keys {
+                        cb(next, window, cx);
+                    }
+                });
             if on_change.is_some() || own.is_some() {
                 let own = own;
+                let focus_for_press = focus_handle;
                 track = track.on_mouse_down(
                     gpui::MouseButton::Left,
                     move |event: &MouseDownEvent, window, cx| {
+                        window.focus(&focus_for_press);
                         let next = resolve(event.position);
                         // Uncontrolled: move our own copy, or dragging the
                         // track would do nothing.

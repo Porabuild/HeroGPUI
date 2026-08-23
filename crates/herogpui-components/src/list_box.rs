@@ -277,6 +277,13 @@ impl RenderOnce for ListBox {
             |_, _| None::<usize>,
         );
         let cursor_at = *cursor.read(cx);
+        // The letters typed so far. A search that reset every frame could only
+        // ever match one letter.
+        let typed = window.use_keyed_state(
+            ElementId::Name(format!("{base}-typed").into()),
+            cx,
+            |_, _| crate::list_nav::Typeahead::default(),
+        );
 
         let colors = cx.colors();
 
@@ -335,6 +342,17 @@ impl RenderOnce for ListBox {
                 .iter()
                 .map(|item| item.key().cloned().unwrap_or_default())
                 .collect();
+            // Every row's text, so typeahead can search it. A row that cannot be
+            // landed on has no label here, so it is never a match.
+            let labels: Vec<String> = self
+                .items
+                .iter()
+                .map(|item| match item {
+                    ListBoxItem::Option { label, .. } => label.to_string(),
+                    _ => String::new(),
+                })
+                .collect();
+            let typed_keys = typed;
             let mode = self.selection_mode;
             let selected_now = self.selected_keys.clone();
             let on_selection_change = self.on_selection_change.clone();
@@ -377,7 +395,31 @@ impl RenderOnce for ListBox {
                             cb(&next, window, cx);
                         }
                     }
-                    crate::list_nav::Move::Ignore => {}
+                    crate::list_nav::Move::Ignore => {
+                        // Typeahead: letters jump to the row that starts with
+                        // them, which is the other half of v3's keyboard.
+                        let key = event.keystroke.key.as_str();
+                        if !crate::list_nav::is_typeahead_key(key) {
+                            return;
+                        }
+                        let now = std::time::Instant::now();
+                        let (query, repeat) = typed_keys.update(cx, |t, _| {
+                            let query = t.push(key, now);
+                            (query, t.is_repeat())
+                        });
+                        if let Some(found) = crate::list_nav::typeahead(
+                            &labels,
+                            &stops_for_keys,
+                            from,
+                            &query,
+                            repeat,
+                        ) {
+                            held.update(cx, |v, cx| {
+                                *v = Some(found);
+                                cx.notify();
+                            });
+                        }
+                    }
                 }
             });
         }

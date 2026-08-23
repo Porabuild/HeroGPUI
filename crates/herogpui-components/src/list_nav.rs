@@ -72,6 +72,103 @@ pub fn resolve(stops: &[usize], from: Option<usize>, key: &str, wrap: bool) -> M
     }
 }
 
+/// How long a typeahead buffer survives without a keystroke.
+///
+/// React Aria clears after a second of quiet, which is what makes "de" find
+/// "Denmark" while a later "n" starts again at "Netherlands" rather than looking
+/// for "den".
+pub const TYPEAHEAD_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(1000);
+
+/// The letters typed so far, and when the last one arrived.
+///
+/// Held in the component's keyed state, because a search that reset every frame
+/// could only ever match one letter.
+#[derive(Clone, Debug, Default)]
+pub struct Typeahead {
+    query: String,
+    last: Option<std::time::Instant>,
+}
+
+impl Typeahead {
+    /// Adds a keystroke and returns the search it makes.
+    ///
+    /// Repeating one letter is not a two-letter search: React Aria treats
+    /// `aa` as "the next row starting with a", which is how a list of names is
+    /// walked by initial.
+    pub fn push(&mut self, key: &str, now: std::time::Instant) -> String {
+        let stale = self
+            .last
+            .is_none_or(|last| now.duration_since(last) > TYPEAHEAD_TIMEOUT);
+        if stale {
+            self.query.clear();
+        }
+        self.last = Some(now);
+        let repeat = !self.query.is_empty() && self.query.chars().all(|c| c.to_string() == key);
+        if repeat {
+            self.query = key.to_owned();
+        } else {
+            self.query.push_str(key);
+        }
+        self.query.clone()
+    }
+
+    /// Whether the last keystroke repeated a single letter, in which case the
+    /// search starts *after* the cursor rather than at it.
+    pub fn is_repeat(&self) -> bool {
+        self.query.chars().count() == 1
+    }
+
+    pub fn query(&self) -> &str {
+        &self.query
+    }
+}
+
+/// Whether `key` is a character a typeahead should collect.
+///
+/// One printable character, and not a space: a space activates the focused row
+/// in every one of these controls, which is why React Aria only takes it into a
+/// search that has already started.
+pub fn is_typeahead_key(key: &str) -> bool {
+    let mut chars = key.chars();
+    match (chars.next(), chars.next()) {
+        (Some(c), None) => c.is_alphanumeric(),
+        _ => false,
+    }
+}
+
+/// The row `query` finds, searching from the cursor.
+///
+/// `labels` is every row's text, indexed like the item list -- a row that cannot
+/// be landed on has an empty label, so it is never a match. The search wraps
+/// once, so typing the initial of a row above the cursor still finds it.
+pub fn typeahead(
+    labels: &[String],
+    stops: &[usize],
+    from: Option<usize>,
+    query: &str,
+    repeat: bool,
+) -> Option<usize> {
+    let needle = query.trim().to_lowercase();
+    if needle.is_empty() || stops.is_empty() {
+        return None;
+    }
+    // A repeated letter walks to the *next* match; a growing query re-tests the
+    // row the cursor is on, so "d" then "e" does not skip "Denmark".
+    let start = match (from, repeat) {
+        (Some(at), true) => stops.iter().position(|s| *s == at).map_or(0, |p| p + 1),
+        (Some(at), false) => stops.iter().position(|s| *s == at).unwrap_or(0),
+        (None, _) => 0,
+    };
+    for step in 0..stops.len() {
+        let index = stops[(start + step) % stops.len()];
+        let label = labels.get(index).map(String::as_str).unwrap_or_default();
+        if label.to_lowercase().starts_with(&needle) {
+            return Some(index);
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -120,5 +217,87 @@ mod tests {
     fn anything_else_is_ignored() {
         assert_eq!(resolve(&[1], Some(1), "a", false), Move::Ignore);
         assert_eq!(resolve(&[], None, "down", false), Move::Ignore);
+    }
+
+    #[test]
+    fn typeahead_finds_the_first_match_from_the_cursor() {
+        let labels: Vec<String> = ["Argentina", "Belgium", "Denmark", "Brazil"]
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+        let stops = [0, 1, 2, 3];
+        assert_eq!(typeahead(&labels, &stops, None, "b", true), Some(1));
+        // Case does not matter, and a growing query re-tests the current row.
+        assert_eq!(typeahead(&labels, &stops, Some(2), "DEN", false), Some(2));
+    }
+
+    #[test]
+    fn a_repeated_letter_walks_the_matches() {
+        let labels: Vec<String> = ["Belgium", "Brazil", "Denmark"]
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+        let stops = [0, 1, 2];
+        assert_eq!(typeahead(&labels, &stops, Some(0), "b", true), Some(1));
+        // And wraps back round.
+        assert_eq!(typeahead(&labels, &stops, Some(1), "b", true), Some(0));
+    }
+
+    #[test]
+    fn typeahead_skips_rows_that_are_not_stops() {
+        let labels: Vec<String> = ["Section", "Belgium"]
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+        // 0 is a heading, so "s" matches nothing.
+        assert_eq!(typeahead(&labels, &[1], None, "s", true), None);
+    }
+
+    #[test]
+    fn nothing_matches_nothing() {
+        let labels = vec!["Belgium".to_owned()];
+        assert_eq!(typeahead(&labels, &[0], None, "", true), None);
+        assert_eq!(typeahead(&labels, &[0], None, "z", true), None);
+        assert_eq!(typeahead(&[], &[], None, "b", true), None);
+    }
+
+    #[test]
+    fn the_buffer_clears_after_the_timeout() {
+        let mut ta = Typeahead::default();
+        let t0 = std::time::Instant::now();
+        assert_eq!(ta.push("d", t0), "d");
+        assert_eq!(
+            ta.push("e", t0 + std::time::Duration::from_millis(200)),
+            "de"
+        );
+        // A second of quiet starts a new search.
+        assert_eq!(ta.push("n", t0 + std::time::Duration::from_secs(3)), "n");
+    }
+
+    #[test]
+    fn a_repeated_letter_is_not_a_two_letter_search() {
+        let mut ta = Typeahead::default();
+        let t0 = std::time::Instant::now();
+        assert_eq!(ta.push("b", t0), "b");
+        assert_eq!(
+            ta.push("b", t0 + std::time::Duration::from_millis(100)),
+            "b"
+        );
+        assert!(ta.is_repeat());
+        assert_eq!(
+            ta.push("r", t0 + std::time::Duration::from_millis(200)),
+            "br"
+        );
+        assert!(!ta.is_repeat());
+    }
+
+    #[test]
+    fn only_single_printable_characters_are_collected() {
+        assert!(is_typeahead_key("a"));
+        assert!(is_typeahead_key("7"));
+        assert!(!is_typeahead_key("space"));
+        assert!(!is_typeahead_key("enter"));
+        assert!(!is_typeahead_key("-"));
+        assert!(!is_typeahead_key(""));
     }
 }
