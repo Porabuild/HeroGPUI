@@ -19,6 +19,11 @@ param(
     # leaves the button down (to photograph a pressed state); this is the
     # ordinary press-and-release, which is what focusing a field takes.
     [switch]$Click,
+    # Drag from -HoverX/-HoverY to -DragX/-DragY: press, move, release. This is
+    # the only way to check a drag -- a resize handle, a slider thumb -- since a
+    # click and a drag are different gestures.
+    [int]$DragX = -1,
+    [int]$DragY = -1,
     # Keystrokes to send once the window is up, in SendKeys notation:
     #   -Keys "12252025"        digits into the focused field
     #   -Keys "{TAB}{RIGHT}5"   navigate, then type
@@ -76,7 +81,8 @@ $SWP_NOACTIVATE = 0x0010
 $SWP_NOZORDER   = 0x0004
 $SWP_NOOWNERZORDER = 0x0200
 
-$interactive = ($HoverX -ge 0) -or $HoldPress -or $Click -or ($Scroll -gt 0) -or ($Keys -ne "")
+$interactive = ($HoverX -ge 0) -or $HoldPress -or $Click -or ($DragX -ge 0) `
+    -or ($Scroll -gt 0) -or ($Keys -ne "")
 if ($Offscreen -and $interactive) {
     Write-Error "-Offscreen cannot be combined with -Scroll/-HoverX/-HoldPress/-Keys: those drive the real cursor or keyboard, which needs the window on screen."
     exit 2
@@ -175,6 +181,21 @@ foreach ($pg in $Pages) {
                 if ($HoldPress) {
                     [Win2]::mouse_event(0x0002, 0, 0, 0, 0)
                     Start-Sleep -Milliseconds 500
+                } elseif ($DragX -ge 0) {
+                    # Press, then move in steps -- a single jump can land as a
+                    # click, because the app never sees the intermediate motion.
+                    [Win2]::mouse_event(0x0002, 0, 0, 0, 0)
+                    Start-Sleep -Milliseconds 120
+                    $steps = 12
+                    for ($sx = 1; $sx -le $steps; $sx++) {
+                        $ix = 10 + $HoverX + [int](($DragX - $HoverX) * $sx / $steps)
+                        $iy = 10 + $HoverY + [int](($DragY - $HoverY) * $sx / $steps)
+                        [Win2]::SetCursorPos($ix, $iy) | Out-Null
+                        Start-Sleep -Milliseconds 40
+                    }
+                    Start-Sleep -Milliseconds 200
+                    [Win2]::mouse_event(0x0004, 0, 0, 0, 0)
+                    Start-Sleep -Milliseconds 400
                 } elseif ($Click -or ($Keys -ne "")) {
                     # A press and a release. Typing needs this first: nothing
                     # takes the keys until something has focus.

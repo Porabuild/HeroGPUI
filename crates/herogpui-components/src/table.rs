@@ -109,6 +109,9 @@ pub struct TableColumn {
     label: SharedString,
     allows_sorting: bool,
     is_row_header: bool,
+    /// `allowsResizing` — whether a handle on this column's trailing edge
+    /// resizes it.
+    allows_resizing: bool,
     /// `defaultWidth` — a fixed column width. Without one the column shares the
     /// row evenly, which is what `flex-1` does.
     width: Option<Pixels>,
@@ -122,15 +125,20 @@ impl TableColumn {
             label: label.into(),
             allows_sorting: false,
             is_row_header: false,
+            allows_resizing: false,
             width: None,
             min_width: None,
         }
     }
 
-    /// `defaultWidth` — a fixed width for this column.
-    ///
-    /// v3 pairs this with a resizer, which does not exist here; the width
-    /// itself is just layout and does apply.
+    /// `allowsResizing` — put a drag handle on this column's trailing edge.
+    pub fn allows_resizing(mut self, v: bool) -> Self {
+        self.allows_resizing = v;
+        self
+    }
+
+    /// `defaultWidth` — the column's starting width, which a resize handle then
+    /// moves.
     pub fn default_width(mut self, width: impl Into<Pixels>) -> Self {
         self.width = Some(width.into());
         self
@@ -415,7 +423,21 @@ impl Table {
 }
 
 impl RenderOnce for Table {
-    fn render(mut self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // Column widths a resize handle has moved, and the drag in progress.
+        // `use_keyed_state` takes `cx` mutably, so both precede the tokens.
+        let resized =
+            window.use_keyed_state(gpui::ElementId::Name("table-resized".into()), cx, |_, _| {
+                Vec::<Option<Pixels>>::new()
+            });
+        let resized_now = resized.read(cx).clone();
+        let dragging = window.use_keyed_state(
+            gpui::ElementId::Name("table-resizing".into()),
+            cx,
+            |_, _| None::<(usize, f32, f32)>,
+        );
+        let drag_now = *dragging.read(cx);
+        let resizable = self.columns.iter().any(|c| c.allows_resizing);
         let colors = cx.colors();
         let accent = colors.accent;
         let secondary = self.variant == TableVariant::Secondary;
@@ -481,26 +503,27 @@ impl RenderOnce for Table {
             header = header.child(cell);
         }
 
-        // A column with a `defaultWidth` takes it; the rest share the row in
-        // equal fractions. A bare `flex_1` sizes a cell by its content, so the
-        // tree column's indent used to shift every column after it.
-        let flexible = self.columns.iter().filter(|c| c.width.is_none()).count();
-        let share = if flexible == 0 {
-            1.0
-        } else {
-            1.0 / flexible as f32
-        };
+        // A column with a `defaultWidth` takes it; the rest split what is left.
+        // `flex_basis(0)` is the part that matters: a bare `flex_1` sizes a cell
+        // by its content, so the tree column's indent shifted every column
+        // after it, and a fraction of the *whole* row cannot account for the
+        // fixed columns.
+        let flex_cell = |el: gpui::Div| el.flex_basis(px(0.)).flex_1();
 
-        for column in &self.columns {
+        for (column_index, column) in self.columns.iter().enumerate() {
             let sorted = self
                 .sort_descriptor
                 .as_ref()
                 .filter(|d| d.column == column.label);
+            // A resized column keeps the width the drag left it at.
+            let effective = resized_now
+                .get(column_index)
+                .copied()
+                .flatten()
+                .or(column.width);
             let mut cell = gpui::div()
-                .when(column.width.is_none(), |c| {
-                    c.w(gpui::relative(share)).flex_shrink_0()
-                })
-                .when_some(column.width, |c, w| c.w(w))
+                .when(effective.is_none(), flex_cell)
+                .when_some(effective, |c, w| c.w(w))
                 .when_some(column.min_width, |c, w| c.min_w(w))
                 .flex()
                 .items_center()
@@ -554,9 +577,74 @@ impl RenderOnce for Table {
                 }
                 _ => cell.into_any_element(),
             };
+
+            // `allowsResizing` puts a handle on the column's trailing edge. The
+            // wrapper is what keeps the handle inside the column's box.
+            let cell = if column.allows_resizing {
+                let held = dragging.clone();
+                let start_width = effective.unwrap_or(px(160.));
+                gpui::div()
+                    .relative()
+                    .when(effective.is_none(), flex_cell)
+                    .when_some(effective, |c, w| c.w(w))
+                    .child(cell)
+                    .child(
+                        gpui::div()
+                            .id(gpui::ElementId::Name(
+                                format!("table-resize-{column_index}").into(),
+                            ))
+                            .absolute()
+                            .top(px(0.))
+                            .right(px(-2.))
+                            .w(px(5.))
+                            .h_full()
+                            .cursor(gpui::CursorStyle::ResizeLeftRight)
+                            .on_mouse_down(gpui::MouseButton::Left, move |ev, _window, cx| {
+                                let x = f32::from(ev.position.x);
+                                held.update(cx, |v, _| {
+                                    *v = Some((column_index, x, f32::from(start_width)));
+                                });
+                            }),
+                    )
+                    .into_any_element()
+            } else {
+                cell
+            };
             header = header.child(cell);
         }
         table = table.child(header);
+
+        // The drag itself: the pointer can leave the handle, so the table
+        // watches the move and the release.
+        if resizable {
+            let held = dragging.clone();
+            let held_up = dragging.clone();
+            let widths = resized.clone();
+            table = table
+                .on_mouse_move(move |ev, _window, cx| {
+                    let Some((column, from_x, from_w)) = *held.read(cx) else {
+                        return;
+                    };
+                    // 48px is the floor a header label needs to stay readable.
+                    let next = (from_w + f32::from(ev.position.x) - from_x).max(48.);
+                    widths.update(cx, |v, cx| {
+                        if v.len() <= column {
+                            v.resize(column + 1, None);
+                        }
+                        v[column] = Some(px(next));
+                        cx.notify();
+                    });
+                })
+                .on_mouse_up(gpui::MouseButton::Left, move |_, _window, cx| {
+                    if held_up.read(cx).is_some() {
+                        held_up.update(cx, |v, cx| {
+                            *v = None;
+                            cx.notify();
+                        });
+                    }
+                });
+        }
+        let _ = drag_now;
 
         // ---- rows --------------------------------------------------------
         let column_count = self.columns.len();
@@ -640,7 +728,11 @@ impl RenderOnce for Table {
             let widths: Vec<(Option<Pixels>, Option<Pixels>)> = self
                 .columns
                 .iter()
-                .map(|c| (c.width, c.min_width))
+                .enumerate()
+                .map(|(i, c)| {
+                    let w = resized_now.get(i).copied().flatten().or(c.width);
+                    (w, c.min_width)
+                })
                 .collect();
             let is_expanded = expanded_now.iter().any(|k| *k == tree_key);
             let toggle_key = tree_key.clone();
@@ -649,9 +741,7 @@ impl RenderOnce for Table {
             row = row.children(row_data.cells.into_iter().enumerate().map(|(c, cell)| {
                 let (width, min_width) = widths.get(c).copied().unwrap_or((None, None));
                 let mut cell_el = gpui::div()
-                    .when(width.is_none(), |e| {
-                        e.w(gpui::relative(share)).flex_shrink_0()
-                    })
+                    .when(width.is_none(), flex_cell)
                     .when_some(width, |e, w| e.w(w))
                     .when_some(min_width, |e, w| e.min_w(w))
                     .flex()

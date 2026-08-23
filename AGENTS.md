@@ -90,8 +90,10 @@ Read the diff.
     way to capture a hover-only surface such as a Tooltip. Both drive the real
     cursor, so they need the window on screen and focused — the script refuses
     `-Offscreen` together with them rather than producing a wrong shot.
-  - `-Click` presses and releases at the hover point, and
-    `-Keys "12252025"` types once something has focus (`-Keys` clicks first).
+  - `-Click` presses and releases at the hover point, `-DragX/-DragY` presses
+    there and drags to that point in twelve steps (a single jump lands as a
+    click, because the app never sees the motion), and `-Keys "12252025"` types
+    once something has focus (`-Keys` clicks first).
     This is the only way to check *behaviour*: a screenshot proves a control is
     drawn, not that it answers a key. Injected input reaches the window only
     when it is topmost **and** foreground, which the script arranges with
