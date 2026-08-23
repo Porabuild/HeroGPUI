@@ -61,6 +61,8 @@ pub struct Gallery {
     pub drawer_open: bool,
     pub otp: Entity<h::OtpState>,
     pub otp_done: String,
+    /// InputOTP "Controlled": every keystroke, not just completion.
+    pub otp_typed: String,
     pub number: Entity<h::NumberState>,
     pub price: Entity<h::NumberState>,
     pub calendar: Entity<h::CalendarState>,
@@ -116,6 +118,7 @@ pub struct Gallery {
     pub demo_text: HashMap<&'static str, Entity<h::InputState>>,
     pub demo_number: HashMap<&'static str, Entity<h::NumberState>>,
     pub demo_time: HashMap<&'static str, Entity<h::TimeState>>,
+    pub demo_otp: HashMap<&'static str, Entity<h::OtpState>>,
     pub demo_flags: HashMap<&'static str, bool>,
     pub demo_choice: HashMap<&'static str, Option<usize>>,
     pub demo_keys: HashMap<&'static str, Vec<SharedString>>,
@@ -172,6 +175,21 @@ impl Gallery {
         }
         let state = cx.new(|cx| h::TimeState::with_value(cx, h::Time::new(9, 30)));
         self.demo_time.insert(key, state.clone());
+        state
+    }
+
+    /// The one-time-code state for one demo, created on first use.
+    pub fn demo_otp(
+        &mut self,
+        key: &'static str,
+        length: usize,
+        cx: &mut App,
+    ) -> Entity<h::OtpState> {
+        if let Some(state) = self.demo_otp.get(key) {
+            return state.clone();
+        }
+        let state = cx.new(|cx| h::OtpState::with_length(cx, length));
+        self.demo_otp.insert(key, state.clone());
         state
     }
 
@@ -287,6 +305,7 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             drawer_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
             otp,
             otp_done: String::new(),
+            otp_typed: String::new(),
             number,
             price,
             calendar,
@@ -332,6 +351,7 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             demo_text: HashMap::new(),
             demo_number: HashMap::new(),
             demo_time: HashMap::new(),
+            demo_otp: HashMap::new(),
             demo_flags: HashMap::new(),
             demo_choice: HashMap::new(),
             demo_keys: HashMap::new(),

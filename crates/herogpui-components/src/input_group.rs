@@ -46,6 +46,7 @@ pub struct InputGroup {
     full_width: bool,
     is_disabled: bool,
     is_invalid: bool,
+    is_required: bool,
     label: Option<SharedString>,
     description: Option<SharedString>,
     error_message: Option<SharedString>,
@@ -67,6 +68,7 @@ impl InputGroup {
             full_width: false,
             is_disabled: false,
             is_invalid: false,
+            is_required: false,
             label: None,
             description: None,
             error_message: None,
@@ -89,6 +91,13 @@ impl InputGroup {
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
+        self
+    }
+
+    /// `isRequired` — marks the group's label as required. v3's examples get
+    /// this from the `TextField` around the group.
+    pub fn is_required(mut self, v: bool) -> Self {
+        self.is_required = v;
         self
     }
 
@@ -196,7 +205,12 @@ impl RenderOnce for InputGroup {
 
         let mut root = div().flex().flex_col().gap(px(6.));
         if let Some(label) = self.label {
-            root = root.child(crate::field::Label::new(label).is_invalid(is_invalid));
+            root = root.child(
+                crate::field::Label::new(label)
+                    .is_invalid(is_invalid)
+                    .is_required(self.is_required)
+                    .is_disabled(self.is_disabled),
+            );
         }
         root = root.child(group);
 

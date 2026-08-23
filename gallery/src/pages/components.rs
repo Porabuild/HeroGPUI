@@ -4171,11 +4171,285 @@ impl Gallery {
     }
 
     pub fn page_input_group(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let ig_reveal = self.demo_flag("ig-reveal", false);
         doc_page(
             "Input Group",
             crate::pages::Page::InputGroup.description(),
             crate::pages::Page::InputGroup.import_line(),
             vec![
+                (
+                    "Usage",
+                    col(vec![h::InputGroup::new()
+                        .label("Website")
+                        .prefix(h::InputAddon::new("https://"))
+                        .input(
+                            h::Input::new(self.demo_text("ig-usage", "", cx))
+                                .placeholder("heroui.com"),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Variants",
+                    col(vec![
+                        h::InputGroup::new()
+                            .label("Primary")
+                            .prefix(h::InputAddon::new("@"))
+                            .input(h::Input::new(self.demo_text("ig-v-primary", "", cx)))
+                            .into_any_element(),
+                        h::InputGroup::new()
+                            .label("Secondary")
+                            .variant(FieldVariant::Secondary)
+                            .prefix(h::InputAddon::new("@"))
+                            .input(h::Input::new(self.demo_text("ig-v-secondary", "", cx)))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "In Surface",
+                    col(vec![h::Surface::new()
+                        .padding(px(24.))
+                        .child(
+                            h::InputGroup::new()
+                                .label("Handle")
+                                .variant(FieldVariant::Secondary)
+                                .prefix(h::InputAddon::new("@"))
+                                .input(h::Input::new(self.demo_text("ig-surface", "", cx))),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Loading State",
+                    col(vec![h::InputGroup::new()
+                        .label("Checking availability")
+                        .input(h::Input::new(self.demo_text("ig-loading", "heroui", cx)))
+                        .suffix(
+                            gpui::div()
+                                .pr(px(8.))
+                                .child(h::Spinner::new("ig-spinner").size(h::SpinnerSize::Sm)),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Required Field",
+                    col(vec![h::InputGroup::new()
+                        .label("Website")
+                        .is_required(true)
+                        .prefix(h::InputAddon::new("https://"))
+                        .input(h::Input::new(self.demo_text("ig-required", "", cx)))
+                        .into_any_element()]),
+                ),
+                (
+                    "Disabled State",
+                    col(vec![h::InputGroup::new()
+                        .label("Website")
+                        .is_disabled(true)
+                        .prefix(h::InputAddon::new("https://"))
+                        .input(
+                            h::Input::new(self.demo_text("ig-disabled", "heroui.com", cx))
+                                .is_disabled(true),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Full Width",
+                    col(vec![h::InputGroup::new()
+                        .label("Website")
+                        .full_width(true)
+                        .prefix(h::InputAddon::new("https://"))
+                        .input(h::Input::new(self.demo_text("ig-full", "", cx)))
+                        .into_any_element()]),
+                ),
+                (
+                    "Text Prefix",
+                    col(vec![h::InputGroup::new()
+                        .prefix(h::InputAddon::new("https://"))
+                        .input(h::Input::new(self.demo_text("ig-text-prefix", "", cx)))
+                        .into_any_element()]),
+                ),
+                (
+                    "Text Suffix",
+                    col(vec![h::InputGroup::new()
+                        .input(h::Input::new(self.demo_text("ig-text-suffix", "", cx)))
+                        .suffix(h::InputAddon::new(".com"))
+                        .into_any_element()]),
+                ),
+                (
+                    "Icon Prefix and Text Suffix",
+                    col(vec![h::InputGroup::new()
+                        .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::MAIL, cx)))
+                        .input(h::Input::new(self.demo_text("ig-icon-text", "", cx)))
+                        .suffix(h::InputAddon::new("@heroui.com"))
+                        .into_any_element()]),
+                ),
+                (
+                    "Copy Button Suffix",
+                    col(vec![h::InputGroup::new()
+                        .label("Website")
+                        .input(h::Input::new(self.demo_text("ig-copy", "heroui.com", cx)))
+                        .suffix(
+                            gpui::div().pr(px(4.)).child(
+                                h::Button::new("ig-copy-btn")
+                                    .is_icon_only(true)
+                                    .variant(Variant::Ghost)
+                                    .size(Size::Sm)
+                                    .start_content(icon(h::icons::COPY, cx)),
+                            ),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Icon Prefix and Copy Button",
+                    col(vec![h::InputGroup::new()
+                        .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::KEY, cx)))
+                        .input(h::Input::new(self.demo_text(
+                            "ig-key",
+                            "sk_live_51H...",
+                            cx,
+                        )))
+                        .suffix(
+                            gpui::div().pr(px(4.)).child(
+                                h::Button::new("ig-key-copy")
+                                    .is_icon_only(true)
+                                    .variant(Variant::Ghost)
+                                    .size(Size::Sm)
+                                    .start_content(icon(h::icons::COPY, cx)),
+                            ),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Password Toggle",
+                    col(vec![h::InputGroup::new()
+                        .label("Password")
+                        .input(
+                            h::Input::new(self.demo_text("ig-pw", "correct horse", cx)).input_type(
+                                if ig_reveal {
+                                    h::InputType::Text
+                                } else {
+                                    h::InputType::Password
+                                },
+                            ),
+                        )
+                        .suffix(
+                            gpui::div().pr(px(4.)).child(
+                                h::Button::new("ig-pw-toggle")
+                                    .is_icon_only(true)
+                                    .variant(Variant::Ghost)
+                                    .size(Size::Sm)
+                                    .start_content(icon(
+                                        if ig_reveal {
+                                            h::icons::EYE_OFF
+                                        } else {
+                                            h::icons::EYE
+                                        },
+                                        cx,
+                                    ))
+                                    .on_press(cx.listener(move |this, _, _, cx| {
+                                        this.set_demo_flag("ig-reveal", !ig_reveal);
+                                        cx.notify();
+                                    })),
+                            ),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Keyboard Shortcut",
+                    col(vec![h::InputGroup::new()
+                        .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::SEARCH, cx)))
+                        .input(
+                            h::Input::new(self.demo_text("ig-kbd", "", cx)).placeholder("Search"),
+                        )
+                        .suffix(
+                            gpui::div()
+                                .pr(px(8.))
+                                .flex()
+                                .gap(px(4.))
+                                .child(h::Kbd::new().variant(h::KbdVariant::Light).child("Ctrl"))
+                                .child(h::Kbd::new().variant(h::KbdVariant::Light).child("K")),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Badge Suffix",
+                    col(vec![h::InputGroup::new()
+                        .label("Plan")
+                        .input(h::Input::new(self.demo_text("ig-badge", "Pro", cx)))
+                        .suffix(
+                            gpui::div().pr(px(8.)).child(
+                                h::Chip::new("Trial")
+                                    .size(Size::Sm)
+                                    .variant(h::ChipVariant::Soft)
+                                    .color(Color::Accent),
+                            ),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Validation",
+                    col(vec![h::InputGroup::new()
+                        .label("Website")
+                        .is_required(true)
+                        .is_invalid(true)
+                        .error_message("Enter a valid URL")
+                        .prefix(h::InputAddon::new("https://"))
+                        .input(h::Input::new(self.demo_text("ig-invalid", "not a url", cx)))
+                        .into_any_element()]),
+                ),
+                (
+                    "With Prefix Icon",
+                    col(vec![h::InputGroup::new()
+                        .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::GLOBE, cx)))
+                        .input(h::Input::new(self.demo_text("ig-prefix-icon", "", cx)))
+                        .into_any_element()]),
+                ),
+                (
+                    "With Suffix Icon",
+                    col(vec![h::InputGroup::new()
+                        .input(h::Input::new(self.demo_text("ig-suffix-icon", "", cx)))
+                        .suffix(gpui::div().pr(px(12.)).child(icon(h::icons::CHECK, cx)))
+                        .into_any_element()]),
+                ),
+                (
+                    "With Prefix and Suffix",
+                    col(vec![h::InputGroup::new()
+                        .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::SEARCH, cx)))
+                        .input(h::Input::new(self.demo_text("ig-both", "", cx)))
+                        .suffix(gpui::div().pr(px(12.)).child(icon(h::icons::CLOSE, cx)))
+                        .into_any_element()]),
+                ),
+                (
+                    "With TextArea",
+                    col(vec![h::InputGroup::new()
+                        .label("Note")
+                        .prefix(
+                            gpui::div()
+                                .pl(px(12.))
+                                .pt(px(8.))
+                                .child(icon(h::icons::COPY, cx)),
+                        )
+                        .text_area(h::TextArea::new(self.demo_text("ig-area", "", cx)).rows(3))
+                        .into_any_element()]),
+                ),
+                (
+                    "Usage Example",
+                    col(vec![h::InputGroup::new()
+                        .label("Amount")
+                        .description("Billed in US dollars.")
+                        .prefix(h::InputAddon::new("$"))
+                        .input(
+                            h::Input::new(self.demo_text("ig-example", "", cx)).placeholder("0.00"),
+                        )
+                        .suffix(h::InputAddon::new("USD"))
+                        .into_any_element()]),
+                ),
+                (
+                    "TextArea Usage Example",
+                    col(vec![h::InputGroup::new()
+                        .label("Changelog")
+                        .description("Markdown is supported.")
+                        .text_area(h::TextArea::new(self.demo_text("ig-area-2", "", cx)).rows(4))
+                        .into_any_element()]),
+                ),
                 (
                     "Addons",
                     col(vec![h::InputGroup::new()
@@ -4206,29 +4480,143 @@ impl Gallery {
 
     pub fn page_input_otp(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let done = self.otp_done.clone();
+        let otp_typed = self.otp_typed.clone();
         doc_page(
             "Input OTP",
             crate::pages::Page::InputOtp.description(),
             crate::pages::Page::InputOtp.import_line(),
-            vec![(
-                "Usage",
-                col(vec![
-                    h::InputOTP::new(self.otp.clone())
-                        .on_complete(cx.listener(|this, code: &str, _, cx| {
-                            this.otp_done = code.to_owned();
-                            cx.notify();
-                        }))
-                        .into_any_element(),
-                    para(
-                        &if done.is_empty() {
-                            "Enter six digits".to_owned()
-                        } else {
-                            format!("Complete: {done}")
-                        },
-                        cx,
-                    ),
-                ]),
-            )],
+            vec![
+                (
+                    "Usage",
+                    col(vec![
+                        h::InputOTP::new(self.otp.clone())
+                            .on_complete(cx.listener(|this, code: &str, _, cx| {
+                                this.otp_done = code.to_owned();
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        para(
+                            &if done.is_empty() {
+                                "Enter six digits".to_owned()
+                            } else {
+                                format!("Complete: {done}")
+                            },
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Variants",
+                    col(vec![
+                        h::InputOTP::new(self.demo_otp("otp-primary", 6, cx)).into_any_element(),
+                        h::InputOTP::new(self.demo_otp("otp-secondary", 6, cx))
+                            .variant(FieldVariant::Secondary)
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "In Surface",
+                    col(vec![h::Surface::new()
+                        .padding(px(24.))
+                        .child(
+                            h::InputOTP::new(self.demo_otp("otp-surface", 6, cx))
+                                .variant(FieldVariant::Secondary),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Disabled State",
+                    col(vec![h::InputOTP::new(self.demo_otp("otp-disabled", 6, cx))
+                        .is_disabled(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Four Digits",
+                    col(vec![
+                        h::InputOTP::new(self.demo_otp("otp-four", 4, cx)).into_any_element()
+                    ]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::InputOTP::new(self.demo_otp("otp-controlled", 6, cx))
+                            .on_change(cx.listener(|this, code: &str, _, cx| {
+                                this.otp_typed = code.to_owned();
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        para(
+                            &if otp_typed.is_empty() {
+                                "Nothing typed yet".to_owned()
+                            } else {
+                                format!("Value: {otp_typed}")
+                            },
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "On Complete",
+                    col(vec![
+                        h::InputOTP::new(self.demo_otp("otp-complete", 6, cx))
+                            .on_complete(cx.listener(|this, code: &str, _, cx| {
+                                this.otp_done = code.to_owned();
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        para(
+                            &if done.is_empty() {
+                                "`onComplete` fires once every slot is filled".to_owned()
+                            } else {
+                                format!("Completed with {done}")
+                            },
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Form Example",
+                    col(vec![{
+                        let state = self.demo_otp("otp-form", 6, cx);
+                        h::Form::new()
+                            .field(h::FormField::code("code", state.clone()).is_required(true))
+                            .child(h::InputOTP::new(state).name("code"))
+                            .child(h::Button::new("otp-form-submit").label("Verify"))
+                            .into_any_element()
+                    }]),
+                ),
+                (
+                    "With Pattern",
+                    col(vec![
+                        spec(
+                            "Digits (default)",
+                            h::InputOTP::new(self.demo_otp("otp-pat-digits", 4, cx))
+                                .pattern(h::OtpPattern::Digits),
+                            cx,
+                        ),
+                        spec(
+                            "Alphanumeric",
+                            h::InputOTP::new(self.demo_otp("otp-pat-alnum", 4, cx))
+                                .pattern(h::OtpPattern::Alphanumeric),
+                            cx,
+                        ),
+                        spec(
+                            "Any character",
+                            h::InputOTP::new(self.demo_otp("otp-pat-any", 4, cx))
+                                .pattern(h::OtpPattern::Any),
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "With Validation",
+                    col(vec![h::InputOTP::new(self.demo_otp("otp-validate", 6, cx))
+                        .validate(|code| {
+                            (code.chars().count() < 6).then(|| "Enter all six digits".into())
+                        })
+                        .into_any_element()]),
+                ),
+            ],
             cx,
         )
     }
