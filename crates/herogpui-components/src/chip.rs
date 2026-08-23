@@ -85,20 +85,25 @@ impl RenderOnce for Chip {
         let sem = cx.role(self.color);
         let fg_default = cx.colors().foreground;
 
-        let (height, text, pad_x) = match self.size {
-            Size::Sm => (px(20.), px(11.), px(6.)),
-            Size::Md => (px(24.), px(12.), px(8.)),
-            Size::Lg => (px(28.), px(14.), px(10.)),
+        // `.chip` is `px-2 py-0.5 text-xs`, `--sm` is `px-1 py-0 text-xs` and
+        // `--lg` is `px-3 py-1 text-sm`. Like a tag, a chip has no height of its
+        // own: it is padding around one 20px line.
+        let (pad_x, pad_y, text) = match self.size {
+            Size::Sm => (px(4.), px(0.), px(12.)),
+            Size::Md => (px(8.), px(2.), px(12.)),
+            Size::Lg => (px(12.), px(4.), px(14.)),
         };
 
         let mut el = gpui::div()
             .flex()
             .items_center()
             .gap(px(2.))
-            .h(height)
             .px(pad_x)
+            .py(pad_y)
             .text_size(text)
-            .line_height(px(16.))
+            // `leading-5` and `font-medium` on `.chip`.
+            .line_height(px(20.))
+            .font_weight(gpui::FontWeight::MEDIUM)
             .rounded(crate::util::soft_radius(cx))
             .whitespace_nowrap()
             .overflow_hidden()
@@ -134,7 +139,8 @@ impl RenderOnce for Chip {
         if let Some(start) = self.start_content {
             el = el.child(start);
         }
-        el = el.child(self.label.to_string());
+        // `.chip__label` is `px-0.5`.
+        el = el.child(gpui::div().px(px(2.)).child(self.label.to_string()));
 
         el
     }

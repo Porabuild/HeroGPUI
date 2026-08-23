@@ -88,6 +88,136 @@ def SIZE_XL(name):
 # The regex must capture our value in group 1, or the transform turns the match
 # into one. `None` means "parse group 1 as a float".
 CHECKS = [
+    # --- Chip -------------------------------------------------------------
+    ('chip', '.chip', 'px', 'Chip Md px', SRC + 'chip.rs',
+     r'Size::Md => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('chip', '.chip', 'py', 'Chip Md py', SRC + 'chip.rs',
+     r'Size::Md => \(px\(8\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('chip', '.chip', 'text', 'Chip Md text', SRC + 'chip.rs',
+     r'Size::Md => \(px\(8\.\), px\(2\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('chip', '.chip--sm', 'px', 'Chip Sm px', SRC + 'chip.rs',
+     r'Size::Sm => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('chip', '.chip--sm', 'py', 'Chip Sm py', SRC + 'chip.rs',
+     r'Size::Sm => \(px\(4\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('chip', '.chip--lg', 'px', 'Chip Lg px', SRC + 'chip.rs',
+     r'Size::Lg => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('chip', '.chip--lg', 'py', 'Chip Lg py', SRC + 'chip.rs',
+     r'Size::Lg => \(px\(12\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('chip', '.chip--lg', 'text', 'Chip Lg text', SRC + 'chip.rs',
+     r'Size::Lg => \(px\(12\.\), px\(4\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('chip', '.chip__label', 'px', 'Chip label px', SRC + 'chip.rs',
+     r'`\.chip__label` is `px-0\.5`\.[\s\S]{0,60}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+
+    # --- The field groups -------------------------------------------------
+    # Every v3 field is one height (`h-9`) and one radius (`rounded-field`); the
+    # number field's steppers are `w-10` slots inside that box.
+    ('number-field', '.number-field__group', 'h', 'NumberField group height',
+     SRC + 'number_field.rs', r'let h = crate::util::(FIELD_HEIGHT)', lambda _: 36.0),
+    ('number-field', '.number-field__decrement-button', 'w', 'NumberField stepper width',
+     SRC + 'number_field.rs', r'let btn_px = px\((\d+(?:\.\d*)?)\.\)', None),
+    ('number-field', '.number-field__group', 'text', 'NumberField group text',
+     SRC + 'number_field.rs', r'\.text_size\(crate::util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('input-group', '.input-group', 'min_h', 'InputGroup height', SRC + 'input_group.rs',
+     r'\.min_h\(util::(FIELD_HEIGHT)\)', lambda _: 36.0),
+    ('input-group', '.input-group', 'text', 'InputGroup text', SRC + 'input_group.rs',
+     r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('input-group', '.input-group__prefix', 'px', 'InputGroup addon px',
+     SRC + 'input_group.rs', r'\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('input-group', '.input-group__input', 'px', 'Input px', SRC + 'input.rs',
+     r'None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # --- Badge and Tag ----------------------------------------------------
+    # Both are padding-driven boxes with a radius *step* per size, not pills:
+    # `rounded_full` on a 32px badge is not `rounded-2xl`, and a tag has no
+    # height of its own at all.
+    ('badge', '.badge', 'min_h', 'Badge Md box', SRC + 'badge.rs',
+     r'Size::Md => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('badge', '.badge--sm', 'min_h', 'Badge Sm box', SRC + 'badge.rs',
+     r'Size::Sm => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('badge', '.badge--lg', 'min_h', 'Badge Lg box', SRC + 'badge.rs',
+     r'Size::Lg => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('badge', '.badge', 'text', 'Badge Md text', SRC + 'badge.rs',
+     r'Size::Md => \(px\(28\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('badge', '.badge--lg', 'text', 'Badge Lg text', SRC + 'badge.rs',
+     r'Size::Lg => \(px\(32\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('badge', '.badge', 'radius', 'Badge Md -> util::_radius', SRC + 'badge.rs',
+     r'Size::Md => \(px\(28\.\), px\(12\.\), crate::util::(\w+_radius)', helper_px),
+    ('badge', '.badge--sm', 'radius', 'Badge Sm -> util::_radius', SRC + 'badge.rs',
+     r'Size::Sm => \(px\(16\.\), px\(10\.\), crate::util::(\w+_radius)', helper_px),
+    ('badge', '.badge--lg', 'radius', 'Badge Lg -> util::_radius', SRC + 'badge.rs',
+     r'Size::Lg => \(px\(32\.\), px\(14\.\), crate::util::(\w+_radius)', helper_px),
+    ('badge', '.badge', 'gap', 'Badge gap', SRC + 'badge.rs',
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)[\s\S]{0,20}?\.rounded\(radius\)', None),
+    ('badge', '.badge__label', 'px', 'Badge label px', SRC + 'badge.rs',
+     r'gpui::div\(\)\.px\(px\((\d+(?:\.\d*)?)\.\)\)\.child\(content\)', None),
+    ('tag', '.tag', 'gap', 'Tag gap', SRC + 'tag_group.rs',
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)[\s\S]{0,20}?\.px\(pad_x\)', None),
+    ('tag', '.tag--sm', 'px', 'Tag Sm px', SRC + 'tag_group.rs',
+     r'Size::Sm => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('tag', '.tag--sm', 'py', 'Tag Sm py', SRC + 'tag_group.rs',
+     r'Size::Sm => \(px\(8\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('tag', '.tag--sm', 'text', 'Tag Sm text', SRC + 'tag_group.rs',
+     r'Size::Sm => \(px\(8\.\), px\(2\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('tag', '.tag--md', 'px', 'Tag Md px', SRC + 'tag_group.rs',
+     r'Size::Md => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('tag', '.tag--md', 'py', 'Tag Md py', SRC + 'tag_group.rs',
+     r'Size::Md => \(px\(8\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('tag', '.tag--md', 'text', 'Tag Md text', SRC + 'tag_group.rs',
+     r'Size::Md => \(px\(8\.\), px\(4\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('tag', '.tag--lg', 'px', 'Tag Lg px', SRC + 'tag_group.rs',
+     r'Size::Lg => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('tag', '.tag--lg', 'py', 'Tag Lg py', SRC + 'tag_group.rs',
+     r'Size::Lg => \(px\(10\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('tag', '.tag--lg', 'text', 'Tag Lg text', SRC + 'tag_group.rs',
+     r'Size::Lg => \(px\(10\.\), px\(6\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('tag', '.tag', 'radius', 'Tag Sm/Md -> util::_radius', SRC + 'tag_group.rs',
+     r'Size::Sm \| Size::Md => crate::util::(\w+_radius)', helper_px),
+    ('tag', '.tag--lg', 'radius', 'Tag Lg -> util::_radius', SRC + 'tag_group.rs',
+     r'Size::Lg => crate::util::(\w+_radius)', helper_px),
+    ('tag', '.tag__remove-button', 'size', 'Tag remove button', SRC + 'tag_group.rs',
+     r'is `size-3`\.[\s\S]{0,40}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # --- The three dialogs ------------------------------------------------
+    # v3's dialog is one padded box with unpadded parts, and the spacing between
+    # them comes from `+` rules rather than a gap. This port had a padded header,
+    # a padded body and a padded footer with a separator between them -- a shape
+    # v3 does not have -- so every number here was wrong at once.
+    ('modal', '.modal__dialog', 'p', 'Modal dialog p-6', SRC + 'modal.rs',
+     r'\.when_some\(self\.size\.max_width\(\), \|e, w\| e\.max_w\(w\)\)\s*\n\s*\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('modal', '.modal__header', 'gap', 'Modal header gap-3', SRC + 'modal.rs',
+     r'let header = self\.title[\s\S]*?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('modal', '.modal__heading', 'text', 'Modal heading text-base', SRC + 'modal.rs',
+     r'let header = self\.title[\s\S]*?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('modal', '.modal__body', 'text', 'Modal body text-sm', SRC + 'modal.rs',
+     r'\.id\("modal-body"\)[\s\S]*?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('modal', '.modal__footer', 'gap', 'Modal footer gap-2', SRC + 'modal.rs',
+     r'v3\'s sheet[\s\S]*?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('alert-dialog', '.alert-dialog__dialog', 'p', 'AlertDialog dialog p-6',
+     SRC + 'alert_dialog.rs',
+     r'\.when_some\(self\.size\.max_width\(\), \|e, w\| e\.max_w\(w\)\)\s*\n\s*\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('alert-dialog', '.alert-dialog__header', 'gap', 'AlertDialog header gap-3',
+     SRC + 'alert_dialog.rs',
+     r'let mut header = div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('alert-dialog', '.alert-dialog__heading', 'text', 'AlertDialog heading text-base',
+     SRC + 'alert_dialog.rs',
+     r'header\.child\(\s*\n\s*div\(\)\s*\n\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('alert-dialog', '.alert-dialog__icon', 'size', 'AlertDialog icon size-10',
+     SRC + 'alert_dialog.rs',
+     r'\.flex_shrink_0\(\)\s*\n\s*\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('alert-dialog', '.alert-dialog__icon', 'radius', 'AlertDialog icon rounded-3xl',
+     SRC + 'alert_dialog.rs',
+     r'\.size\(px\(40\.\)\)\s*\n\s*\.rounded\(util::(\w+_radius)\(cx\)\)', helper_px),
+    ('alert-dialog', '.alert-dialog__footer', 'gap', 'AlertDialog footer gap-2',
+     SRC + 'alert_dialog.rs',
+     r'\.justify_end\(\)\s*\n\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s*\n\s*//', None),
+    ('drawer', '.drawer__dialog', 'p', 'Drawer dialog p-6', SRC + 'drawer.rs',
+     r'let mut panel = gpui::div\(\)[\s\S]*?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('drawer', '.drawer__header', 'gap', 'Drawer header gap-3', SRC + 'drawer.rs',
+     r'let mut header = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('drawer', '.drawer__heading', 'text', 'Drawer heading text-base', SRC + 'drawer.rs',
+     r'header = header\.child\([\s\S]*?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('drawer', '.drawer__body', 'text', 'Drawer body text-sm', SRC + 'drawer.rs',
+     r'\.when\(has_header, \|b\| b\.mt\(px\(8\.\)\)\)\s*\n\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('drawer', '.drawer__footer', 'gap', 'Drawer footer gap-2', SRC + 'drawer.rs',
+     r'not in v3\'s sheet[\s\S]*?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     # --- Button, the whole size scale -------------------------------------
     # The radius reaches the button through `group_radius`, which is what lets a
     # grouped member round only its outer corners.
@@ -159,10 +289,6 @@ CHECKS = [
     # --- The sweep: the rest of the measurable geometry -------------------
     ('chip', '.chip', 'gap', 'Chip gap', SRC + 'chip.rs',
      '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
-    # chip's tuple is (height, text, pad_x), so the padding is the third slot.
-    ('chip', '.chip', 'px', 'Chip padding_x Md', SRC + 'chip.rs',
-     'Size::Md => \\(px\\(\\d+(?:\\.\\d*)?\\), px\\(\\d+(?:\\.\\d*)?\\), '
-     'px\\((\\d+(?:\\.\\d*)?)\\)', None),
     ('popover', '.popover__dialog', 'p', 'Popover padding', SRC + 'popover.rs',
      '\\.px\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)\\s+\\.py\\(px\\(16\\.\\)\\)', None),
     ('pagination', '.pagination', 'gap', 'Pagination gap', SRC + 'pagination.rs',
@@ -195,8 +321,10 @@ CHECKS = [
      'let \\(circle, dot, text, gap\\) = \\(px\\(\\d+(?:\\.\\d*)?\\), px\\(\\d+(?:\\.\\d*)?\\), px\\(\\d+(?:\\.\\d*)?\\), px\\((\\d+(?:\\.\\d*)?)\\)', None),
     ('list-box-item', '.list-box-item', 'gap', 'ListBox row gap', SRC + 'list_box.rs',
      '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)\\s+\\.px\\(px\\(8\\.\\)\\)', None),
+    # A row is `min_h(row_h)` on the plain path and a fixed height on the virtual
+    # one, so the two arms of that `match` sit between the height and the padding.
     ('list-box-item', '.list-box-item', 'py', 'ListBox row padding_y', SRC + 'list_box.rs',
-     '\\.min_h\\(row_h\\)\\s+\\.py\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
+     r'\.min_h\(row_h\),[\s\S]{0,60}?\.py\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     # Anchored on the row, since the panel around it has a radius too.
     ('list-box-item', '.list-box-item', 'radius', 'ListBox row -> util::_radius', SRC + 'list_box.rs',
      '\\.py\\(px\\(6\\.\\)\\)\\s+\\.rounded\\(util::(\\w+_radius)\\(cx\\)\\)', helper_px),
@@ -277,8 +405,10 @@ CHECKS = [
     ('accordion', '.accordion__trigger', 'py', 'Accordion trigger padding_y',
      SRC + 'accordion.rs',
      r'\.px\(px\(16\.\)\)\s+\.py\(px\((\d+(?:\.\d*)?)\.\)\)', None),
-    ('list-box', '.list-box', 'p', 'ListBox padding', SRC + 'list_box.rs',
-     r'\.gap\(px\(4\.\)\)\s+\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # `ListLayout`'s `padding` prop overrides it, so the stylesheet's value lives
+    # in the field's default rather than at the call site.
+    ('list-box', '.list-box', 'p', 'ListBox padding default', SRC + 'list_box.rs',
+     r'padding: px\((\d+(?:\.\d*)?)\.\),', None),
 ]
 
 
@@ -479,9 +609,57 @@ def check_fills():
     return bad, stale
 
 
+def coverage():
+    """Every metric v3 declares, and whether `CHECKS` compares it.
+
+    `CHECKS` is hand-written -- each row has to name where in the Rust the
+    metric lives -- so the audit can only be as complete as the list, and
+    nothing said how complete that was. This reads the sheets instead: every
+    rule, every measurable utility in it, resolved through the same scales. What
+    it reports is the audit's own coverage, which is the honest denominator.
+    """
+    checked = {(c, sel, metric) for c, sel, metric, *_ in CHECKS}
+    rows = []
+    for name in sorted(os.listdir(CACHE)):
+        if not name.endswith('.css') or name in ('variables.css', 'utilities.css'):
+            continue
+        comp = name[:-4]
+        css = io.open(os.path.join(CACHE, name), encoding='utf-8', errors='replace').read()
+        for m in re.finditer(r'^\.([a-z0-9_-]+(?:__[a-z0-9-]+)?(?:--[a-z0-9-]+)?)\s*\{',
+                             css, re.M):
+            selector = '.' + m.group(1)
+            body = rule_body(css, selector)
+            if body is None:
+                continue
+            for metric, value in sorted(measure(body).items()):
+                rows.append((comp, selector, metric, value,
+                             (comp, selector, metric) in checked))
+    todo = [r for r in rows if not r[4]]
+    if '--all' in sys.argv:
+        for comp, selector, metric, value, ok in rows:
+            print('%s %-22s %-24s %-7s %g' % (' ' if ok else '!', comp, selector, metric, value))
+    else:
+        by_comp = {}
+        for comp, _sel, _m, _v, ok in rows:
+            have, total = by_comp.get(comp, (0, 0))
+            by_comp[comp] = (have + (1 if ok else 0), total + 1)
+        print('  %-24s %s' % ('sheet', 'checked / declared'))
+        for comp in sorted(by_comp, key=lambda c: by_comp[c][1] - by_comp[c][0], reverse=True):
+            have, total = by_comp[comp]
+            mark = ' ' if have == total else '!'
+            print('%s %-24s %d / %d' % (mark, comp, have, total))
+    print()
+    print('metrics v3 declares : %d' % len(rows))
+    print('compared by CHECKS  : %d' % (len(rows) - len(todo)))
+    print('UNCHECKED           : %d  (--all lists them)' % len(todo))
+
+
 def main():
     if '--fetch' in sys.argv:
         fetch()
+        return
+    if '--coverage' in sys.argv:
+        coverage()
         return
     if not os.path.isdir(CACHE):
         print('no cache: run `python .shots/design_audit.py --fetch` first')

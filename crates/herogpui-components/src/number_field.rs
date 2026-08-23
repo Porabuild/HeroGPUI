@@ -344,7 +344,8 @@ impl RenderOnce for NumberField {
         let colors = cx.colors().clone();
         let layout = cx.layout().clone();
 
-        let h = px(40.);
+        // `.number-field__group` is `h-9`, the one height every v3 field has.
+        let h = crate::util::FIELD_HEIGHT;
         // v3 order: the controlled flag, then server errors, then `validate`.
         let value_now = self.state.read(cx).value();
         let validity = crate::validation::resolve(
@@ -354,7 +355,9 @@ impl RenderOnce for NumberField {
             None,
         );
 
-        let btn_px = px(26.);
+        // `.number-field__increment-button` is `h-full w-10`: a 40px square-ish
+        // slot at the end of the group, not the 26px one this used to draw.
+        let btn_px = px(40.);
 
         // Component-level `minValue`/`maxValue`/`step` win over whatever the
         // state was seeded with. Only write when something actually differs,

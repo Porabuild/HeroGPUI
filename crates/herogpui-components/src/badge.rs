@@ -114,10 +114,15 @@ impl RenderOnce for Badge {
         let sem = cx.role(self.color);
         let colors = cx.colors();
 
-        let (size_px, font) = match self.size {
-            Size::Sm => (px(16.), px(10.)),
-            Size::Md => (px(28.), px(12.)),
-            Size::Lg => (px(24.), px(14.)),
+        // `.badge` is `min-h-7 min-w-7 rounded-3xl text-xs`, `--lg` is
+        // `min-h-8 min-w-8 rounded-2xl text-sm` and `--sm` is `min-h-4 min-w-4
+        // rounded-xl text-[10px]`. The radius is a *step per size*, not a pill:
+        // a large badge is a rounded rectangle, which `rounded_full` could not
+        // draw, and its box was 24px where v3 asks for 32.
+        let (size_px, font, radius) = match self.size {
+            Size::Sm => (px(16.), px(10.), crate::util::small_radius(cx)),
+            Size::Md => (px(28.), px(12.), crate::util::control_radius(cx)),
+            Size::Lg => (px(32.), px(14.), crate::util::soft_radius(cx)),
         };
 
         let offset = size_px / -2.0 + px(4.);
@@ -143,21 +148,23 @@ impl RenderOnce for Badge {
 
         let mut badge = gpui::div()
             .absolute()
+            // `min-h`/`min-w`, not a fixed box: a badge with a longer label
+            // grows sideways rather than clipping.
             .min_w(size_px)
-            .h(size_px)
-            .px(px(3.))
-            .rounded_full()
+            .min_h(size_px)
+            .gap(px(2.))
+            .rounded(radius)
             .bg(bg)
             .text_color(fg)
             .text_size(font)
-            .font_weight(gpui::FontWeight::BOLD)
+            .font_weight(gpui::FontWeight::MEDIUM)
             .flex()
             .items_center()
             .justify_center()
-            // v3 rings every anchored badge against the page background;
-            // there is no prop, because without it the badge and its anchor
-            // bleed together.
-            .border_2()
+            // v3 rings every anchored badge against the page background with
+            // `border: 1px solid var(--background)`; there is no prop, because
+            // without it the badge and its anchor bleed together.
+            .border_1()
             .border_color(colors.background)
             .when_some(top, |b, t| b.top(t))
             .when_some(bottom, |b, v| b.bottom(v))
@@ -166,8 +173,10 @@ impl RenderOnce for Badge {
 
         // No content is v3's dot badge: a circle at the badge size.
         badge = match self.content {
-            Some(content) => badge.child(content),
-            None => badge.size(size_px).max_w(size_px).px(px(0.)),
+            // `.badge__label` is `px-0.5`, which is the only horizontal padding
+            // in v3's sheet -- the badge itself has none.
+            Some(content) => badge.child(gpui::div().px(px(2.)).child(content)),
+            None => badge.size(size_px).max_w(size_px),
         };
 
         gpui::div()

@@ -259,7 +259,11 @@ fn overlay_demo(
         .flex_col()
         .items_start()
         .w_full()
-        .min_h(px(120.))
+        // Tall enough for a dialog to lay out in: the panel is `absolute
+        // inset-0` inside this frame, and v3's body is `min-h-0 flex-1`, so a
+        // 120px frame squeezed the body to nothing and showed a heading with a
+        // footer stuck to it.
+        .min_h(px(320.))
         .child(
             h::Button::new(el_id(format!("{key}-open")))
                 .label(label.to_owned())

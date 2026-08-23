@@ -256,8 +256,11 @@ PROSE_WONT_DO = {
 # A state drawn by a component this one composes.
 PROSE_ELSEWHERE = {
     # An overlay's hover and press states belong to the close button and the
-    # buttons inside it.
+    # buttons inside it. All three dialogs compose `CloseButton` now -- they used
+    # to hand-roll a circle with its own `.hover`, which is not a shape v3 has.
     ('AlertDialog', 'hover'): 'close_button.rs',
+    ('Modal', 'hover'): 'close_button.rs',
+    ('Drawer', 'hover'): 'close_button.rs',
     ('AlertDialog', 'active'): 'button.rs',
     # These compose an `Input`, which is what hovers and takes the focus.
     ('InputGroup', 'hover'): 'input.rs',

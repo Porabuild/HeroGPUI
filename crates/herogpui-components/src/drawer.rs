@@ -10,10 +10,7 @@ use herogpui_theme::ActiveTheme;
 
 use herogpui_core::Backdrop;
 
-use crate::{
-    icons,
-    modal::{OnClose, OnOpenChange},
-};
+use crate::modal::{OnClose, OnOpenChange};
 
 /// Which edge the drawer is anchored to (`placement`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -184,45 +181,35 @@ impl RenderOnce for Drawer {
 
         let colors = cx.colors();
 
-        // header
-        let mut header = gpui::div()
-            .flex()
-            .items_center()
-            .justify_between()
-            .px(px(16.))
-            .py(px(14.));
+        // Every dismissal path reports through both callbacks.
+        let dismiss: Option<OnClose> = match (self.on_close.clone(), self.on_open_change.clone()) {
+            (None, None) => None,
+            (close, open_change) => Some(crate::util::shared(
+                move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
+                    if let Some(f) = &close {
+                        f(ev, window, cx);
+                    }
+                    if let Some(f) = &open_change {
+                        f(false, window, cx);
+                    }
+                },
+            )),
+        };
+
+        // `.drawer__header` is `flex flex-col gap-3` with no padding of its
+        // own: the dialog's `p-6` is the inset, and the close trigger is
+        // positioned against the dialog rather than sitting in the header.
+        let mut header = gpui::div().flex().flex_col().gap(px(12.));
         if let Some(title) = &self.title {
             header = header.child(
                 gpui::div()
                     .text_size(px(16.))
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .line_height(px(24.))
+                    .font_weight(gpui::FontWeight::MEDIUM)
                     .child(title.to_string()),
             );
-        } else {
-            header = header.child("");
         }
-        if !self.hide_close_button && self.is_dismissible {
-            if let Some(on_close) = self.on_close.clone() {
-                let mut btn = gpui::div()
-                    .id("drawer-close")
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .size(px(28.))
-                    .rounded_full()
-                    .cursor_pointer();
-                btn = btn.hover(move |s| s.bg(colors.default.soft_hover()));
-                btn = btn.on_click(move |ev, window, cx| on_close(ev, window, cx));
-                header = header.child(
-                    btn.child(
-                        gpui::svg()
-                            .size(px(14.))
-                            .path(icons::CLOSE)
-                            .text_color(colors.foreground),
-                    ),
-                );
-            }
-        }
+        let has_header = self.title.is_some();
 
         if self.is_dismissible {
             let axis = self.placement;
@@ -239,26 +226,35 @@ impl RenderOnce for Drawer {
             );
         }
 
+        let has_body = !self.body.is_empty();
         let mut panel = gpui::div()
+            .relative()
             .flex()
             .flex_col()
+            .p(px(24.))
             .bg(colors.overlay.background)
             .text_color(colors.foreground)
             .shadow(cx.layout().overlay_shadow.clone())
             .overflow_hidden()
-            .child(header)
-            .child(
-                gpui::div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(10.))
-                    .px(px(16.))
-                    .pb(px(12.))
-                    .text_size(px(14.))
-                    .line_height(px(22.))
-                    .children(self.body),
-            );
+            .when(has_header, |p| p.child(header))
+            .when(has_body, |p| {
+                p.child(
+                    gpui::div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(10.))
+                        // `.drawer__header + .drawer__body` is `mt-2`.
+                        .when(has_header, |b| b.mt(px(8.)))
+                        .text_size(px(14.))
+                        // `leading-[1.43]` on `text-sm`.
+                        .line_height(px(20.))
+                        .text_color(colors.muted)
+                        .children(self.body),
+                )
+            });
 
+        // `.drawer__footer` has no border: the separator this used to draw is
+        // not in v3's sheet, and `+ .drawer__footer` is `mt-5`.
         if !self.footer.is_empty() {
             panel = panel.child(
                 gpui::div()
@@ -266,12 +262,21 @@ impl RenderOnce for Drawer {
                     .items_center()
                     .justify_end()
                     .gap(px(8.))
-                    .px(px(16.))
-                    .py(px(12.))
-                    .border_t_1()
-                    .border_color(colors.separator)
+                    .when(has_header || has_body, |f| f.mt(px(20.)))
                     .children(self.footer),
             );
+        }
+
+        // `.drawer__close-trigger` is `absolute end-4 top-4`.
+        if !self.hide_close_button && self.is_dismissible {
+            if let Some(on_close) = dismiss.clone() {
+                panel = panel.child(
+                    gpui::div().absolute().top(px(16.)).right(px(16.)).child(
+                        crate::close_button::CloseButton::new("drawer-close")
+                            .on_press(move |ev, window, cx| on_close(ev, window, cx)),
+                    ),
+                );
+            }
         }
 
         // anchor to the requested edge, pulled out by however far the drag has
@@ -318,20 +323,6 @@ impl RenderOnce for Drawer {
             Backdrop::Opaque => colors.backdrop,
             Backdrop::Blur => colors.backdrop.alpha(colors.backdrop.a * 0.6),
             Backdrop::Transparent => gpui::transparent_black(),
-        };
-        // Every dismissal path reports through both callbacks.
-        let dismiss: Option<OnClose> = match (self.on_close.clone(), self.on_open_change.clone()) {
-            (None, None) => None,
-            (close, open_change) => Some(crate::util::shared(
-                move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
-                    if let Some(f) = &close {
-                        f(ev, window, cx);
-                    }
-                    if let Some(f) = &open_change {
-                        f(false, window, cx);
-                    }
-                },
-            )),
         };
 
         // `ClickEvent::default()` is the Keyboard variant, so a caller

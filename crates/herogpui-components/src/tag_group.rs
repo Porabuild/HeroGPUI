@@ -175,11 +175,23 @@ impl TagGroup {
         self
     }
 
+    /// `(px, py, text)` from `.tag--sm` / `--md` / `--lg`.
+    ///
+    /// v3 gives a tag no height: it is padding around one line, which is why
+    /// this returns a vertical padding rather than the box it used to force.
     fn metrics(size: Size) -> (gpui::Pixels, gpui::Pixels, gpui::Pixels) {
         match size {
-            Size::Sm => (px(22.), px(8.), px(11.)),
-            Size::Md => (px(26.), px(10.), px(12.)),
-            Size::Lg => (px(32.), px(12.), px(14.)),
+            Size::Sm => (px(8.), px(2.), px(12.)),
+            Size::Md => (px(8.), px(4.), px(12.)),
+            Size::Lg => (px(10.), px(6.), px(14.)),
+        }
+    }
+
+    /// `rounded-xl` on `.tag`, `rounded-2xl` on `.tag--lg`.
+    fn radius(size: Size, cx: &App) -> gpui::Pixels {
+        match size {
+            Size::Sm | Size::Md => crate::util::small_radius(cx),
+            Size::Lg => crate::util::soft_radius(cx),
         }
     }
 }
@@ -221,7 +233,8 @@ impl RenderOnce for TagGroup {
         let ring_visible = crate::util::focus_visible(cx);
         let colors = cx.colors();
         let layout = cx.layout();
-        let (height, pad_x, text_size) = Self::metrics(self.size);
+        let (pad_x, pad_y, text_size) = Self::metrics(self.size);
+        let tag_radius = Self::radius(self.size, cx);
 
         let mut root = div().flex().flex_col().gap(px(6.));
 
@@ -265,9 +278,9 @@ impl RenderOnce for TagGroup {
                 .flex_row()
                 .items_center()
                 .gap(px(4.))
-                .h(height)
                 .px(pad_x)
-                .rounded(px(f32::from(height) / 2.))
+                .py(pad_y)
+                .rounded(tag_radius)
                 .text_size(text_size)
                 .whitespace_nowrap();
 
@@ -319,7 +332,8 @@ impl RenderOnce for TagGroup {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .size(px(14.))
+                    // `.tag__remove-button` is `size-3`.
+                    .size(px(12.))
                     .rounded_full()
                     .flex_shrink_0()
                     // gpui svgs need an explicit color; they do not inherit.

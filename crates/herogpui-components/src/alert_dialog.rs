@@ -43,13 +43,15 @@ impl AlertDialogSize {
         AlertDialogSize::Cover,
     ];
 
-    fn width(self) -> gpui::Pixels {
+    /// `max-w-xs` … `max-w-lg` from `.alert-dialog__dialog--*`, which is
+    /// Tailwind's scale: 20rem, 24rem, 28rem, 32rem. `Cover` is `w-full`.
+    fn max_width(self) -> Option<gpui::Pixels> {
         match self {
-            AlertDialogSize::Xs => px(280.),
-            AlertDialogSize::Sm => px(360.),
-            AlertDialogSize::Md => px(440.),
-            AlertDialogSize::Lg => px(560.),
-            AlertDialogSize::Cover => px(800.),
+            AlertDialogSize::Xs => Some(px(320.)),
+            AlertDialogSize::Sm => Some(px(384.)),
+            AlertDialogSize::Md => Some(px(448.)),
+            AlertDialogSize::Lg => Some(px(512.)),
+            AlertDialogSize::Cover => None,
         }
     }
 
@@ -256,13 +258,15 @@ impl RenderOnce for AlertDialog {
         let colors = cx.colors();
         let layout = cx.layout();
 
+        // `.alert-dialog__dialog` has no gap: the spacing between the header,
+        // the body and the footer comes from v3's `+` rules (mt-2, mt-5), so
+        // each part carries its own top margin instead.
         let mut panel = div()
             .relative()
             .flex()
             .flex_col()
-            .gap(px(8.))
-            .w(self.size.width())
-            .max_w_full()
+            .w_full()
+            .when_some(self.size.max_width(), |e, w| e.max_w(w))
             .p(px(24.))
             .rounded(util::container_radius(cx))
             .bg(colors.overlay.background)
@@ -275,50 +279,62 @@ impl RenderOnce for AlertDialog {
             .when(!layout.overlay_shadow.is_empty(), |e| {
                 e.shadow(layout.overlay_shadow.clone())
             })
-            .child(
-                div()
-                    .text_size(px(18.))
-                    .line_height(px(25.))
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child(self.title.to_string()),
-            );
+            .child({
+                // `.alert-dialog__header` is `flex flex-col gap-3`, and the icon
+                // is a *child* of it: `size-10 rounded-3xl` above the heading,
+                // not a disc floating in the corner.
+                let mut header = div().flex().flex_col().gap(px(12.));
+                if let Some(status) = self.status {
+                    let role = cx.role(status);
+                    header = header.child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .flex_shrink_0()
+                            .size(px(40.))
+                            .rounded(util::control_radius(cx))
+                            .bg(role.soft())
+                            .child(
+                                gpui::svg()
+                                    .size(px(20.))
+                                    .path(icons::ALERT_TRIANGLE)
+                                    // svg() never inherits text colour.
+                                    .text_color(role.color),
+                            ),
+                    );
+                }
+                header.child(
+                    div()
+                        .text_size(px(16.))
+                        .line_height(px(24.))
+                        .font_weight(gpui::FontWeight::MEDIUM)
+                        .child(self.title.to_string()),
+                )
+            });
 
-        if let Some(status) = self.status {
-            let role = cx.role(status);
-            // Soft disc behind the glyph, as in v3's Icon slot.
-            panel = panel.child(
-                div()
-                    .absolute()
-                    .top(px(24.))
-                    .right(px(24.))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .size(px(36.))
-                    .rounded_full()
-                    .bg(role.soft())
-                    .child(
-                        gpui::svg()
-                            .size(px(18.))
-                            .path(icons::ALERT_TRIANGLE)
-                            // svg() never inherits text colour.
-                            .text_color(role.color),
-                    ),
-            );
-        }
-
+        // `.alert-dialog__body` is `text-sm leading-[1.43] text-muted`, `mt-2`
+        // after the header.
         if let Some(description) = &self.description {
             panel = panel.child(
                 div()
+                    .mt(px(8.))
                     .text_size(px(14.))
-                    .line_height(px(21.))
+                    .line_height(px(20.))
                     .text_color(colors.muted)
                     .child(description.to_string()),
             );
         }
 
         if !self.children.is_empty() {
-            panel = panel.child(div().flex().flex_col().gap(px(8.)).children(self.children));
+            panel = panel.child(
+                div()
+                    .mt(px(8.))
+                    .flex()
+                    .flex_col()
+                    .gap(px(8.))
+                    .children(self.children),
+            );
         }
 
         // Cancel first, confirm last — the destructive action is furthest from
@@ -329,7 +345,8 @@ impl RenderOnce for AlertDialog {
             .items_center()
             .justify_end()
             .gap(px(8.))
-            .mt(px(8.));
+            // `+ .alert-dialog__footer` is `mt-5`.
+            .mt(px(20.));
 
         let mut cancel = Button::new("alert-dialog-cancel")
             .label(self.cancel_label.clone())
@@ -454,9 +471,13 @@ impl RenderOnce for AlertDialog {
         })
         .child(backdrop)
         .child({
-            let zoom = crate::anim::ZoomBox::panel(px(24.), util::container_radius(cx))
-                .padding_x(px(24.))
-                .sized(self.size.width());
+            let mut zoom =
+                crate::anim::ZoomBox::panel(px(24.), util::container_radius(cx)).padding_x(px(24.));
+            // The zoom scales a known box; `Cover` has no width of its own, so
+            // there is nothing to hand it.
+            if let Some(w) = self.size.max_width() {
+                zoom = zoom.sized(w);
+            }
             if exiting {
                 crate::anim::exiting(
                     panel,

@@ -10,8 +10,6 @@ use gpui::{
 use herogpui_core::Backdrop;
 use herogpui_theme::ActiveTheme;
 
-use crate::icons;
-
 /// Modal width preset (`size`) — `xs | sm | md | lg | cover | full`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ModalSize {
@@ -36,14 +34,16 @@ impl ModalSize {
         ModalSize::Full,
     ];
 
-    fn width(self) -> gpui::Pixels {
+    /// `max-w-xs` … `max-w-lg` from `.modal__dialog--*`, which is Tailwind's
+    /// scale: 20rem, 24rem, 28rem, 32rem. `Cover` and `Full` are `w-full`
+    /// instead, so the width comes from the container.
+    fn max_width(self) -> Option<gpui::Pixels> {
         match self {
-            ModalSize::Xs => px(280.),
-            ModalSize::Sm => px(360.),
-            ModalSize::Md => px(480.),
-            ModalSize::Lg => px(640.),
-            ModalSize::Cover => px(900.),
-            ModalSize::Full => px(1600.),
+            ModalSize::Xs => Some(px(320.)),
+            ModalSize::Sm => Some(px(384.)),
+            ModalSize::Md => Some(px(448.)),
+            ModalSize::Lg => Some(px(512.)),
+            ModalSize::Cover | ModalSize::Full => None,
         }
     }
 
@@ -272,78 +272,63 @@ impl RenderOnce for Modal {
             dismiss.clone()
         };
 
-        // Header: title (optional) + close button
-        let mut header = gpui::div()
-            .flex()
-            .items_center()
-            .justify_between()
-            .px(px(16.))
-            .py(px(14.));
-        if let Some(title) = &self.title {
-            header = header.child(
+        // `.modal__header` is `flex flex-col gap-3` and carries no padding of
+        // its own: the dialog's `p-6` is the whole inset. The heading is
+        // `text-base font-medium`.
+        let header = self.title.as_ref().map(|title| {
+            gpui::div().flex().flex_col().gap(px(12.)).child(
                 gpui::div()
                     .text_size(px(16.))
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .font_weight(gpui::FontWeight::MEDIUM)
                     .child(title.to_string()),
-            );
-        } else {
-            header = header.child("");
-        }
-        if !self.hide_close_button && self.is_dismissible {
-            if let Some(on_close) = dismiss.clone() {
-                let mut btn = gpui::div()
-                    .id("modal-close")
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .size(px(28.))
-                    .rounded_full()
-                    .cursor_pointer();
-                btn = btn.hover(move |s| s.bg(colors.default.soft_hover()));
-                btn = btn.on_click(move |ev, window, cx| on_close(ev, window, cx));
-                header = header.child(
-                    btn.child(
-                        gpui::svg()
-                            .size(px(14.))
-                            .path(icons::CLOSE)
-                            .text_color(colors.foreground),
-                    ),
-                );
-            }
-        }
+            )
+        });
 
+        let has_header = header.is_some();
+        let has_body = !self.body.is_empty();
+        // `.modal__dialog`: `w-full` with a `max-w-*` per size, `p-6`, and the
+        // floating-panel radius. `Full` drops the radius and the shadow.
+        let full = self.size == ModalSize::Full;
         let panel = gpui::div()
             .relative()
             .flex()
             .flex_col()
-            .w(self.size.width())
-            .max_w(px(720.))
+            .w_full()
+            .when_some(self.size.max_width(), |e, w| e.max_w(w))
+            .p(px(24.))
             .when(self.scroll == ModalScroll::Inside, |e| {
                 e.max_h(gpui::relative(0.85))
             })
             .bg(colors.overlay.background)
             .text_color(colors.foreground)
-            .rounded(crate::util::container_radius(cx))
-            .shadow(cx.layout().overlay_shadow.clone())
+            .when(!full, |e| {
+                e.rounded(crate::util::container_radius(cx))
+                    .shadow(cx.layout().overlay_shadow.clone())
+            })
             .overflow_hidden()
-            .child(header)
-            .child(
-                gpui::div()
-                    .id("modal-body")
-                    .flex()
-                    .flex_col()
-                    .gap(px(10.))
-                    .px(px(16.))
-                    .pb(px(12.))
-                    .text_size(px(14.))
-                    .line_height(px(22.))
-                    // `Inside` scrolls the body; `Outside` lets it grow and
-                    // scrolls the container instead.
-                    .when(self.scroll == ModalScroll::Inside, |e| e.overflow_y_scroll())
-                    .children(self.body),
-            );
+            .when_some(header, gpui::ParentElement::child)
+            .when(has_body, |panel| {
+                panel.child(
+                    gpui::div()
+                        .id("modal-body")
+                        .flex()
+                        .flex_col()
+                        .gap(px(10.))
+                        // `.modal__header + .modal__body` is `mt-2`.
+                        .when(has_header, |b| b.mt(px(8.)))
+                        .text_size(px(14.))
+                        // `leading-[1.43]` on `text-sm`.
+                        .line_height(px(20.))
+                        .text_color(colors.muted)
+                        // `Inside` scrolls the body; `Outside` lets it grow and
+                        // scrolls the container instead.
+                        .when(self.scroll == ModalScroll::Inside, |e| e.overflow_y_scroll())
+                        .children(self.body),
+                )
+            });
 
-        // Footer
+        // `.modal__footer` is `flex-row items-center justify-end gap-2` with no
+        // border: the separator this used to draw is not in v3's sheet.
         let panel = if self.footer.is_empty() {
             panel
         } else {
@@ -353,12 +338,24 @@ impl RenderOnce for Modal {
                     .items_center()
                     .justify_end()
                     .gap(px(8.))
-                    .px(px(16.))
-                    .py(px(12.))
-                    .border_t_1()
-                    .border_color(colors.separator)
+                    // `+ .modal__footer` is `mt-5` after either sibling.
+                    .when(has_header || has_body, |f| f.mt(px(20.)))
                     .children(self.footer),
             )
+        };
+
+        // `.modal__close-trigger` is `absolute end-4 top-4`, outside the header.
+        let panel = match (
+            self.hide_close_button || !self.is_dismissible,
+            dismiss.clone(),
+        ) {
+            (false, Some(on_close)) => panel.child(
+                gpui::div().absolute().top(px(16.)).right(px(16.)).child(
+                    crate::close_button::CloseButton::new("modal-close")
+                        .on_press(move |ev, window, cx| on_close(ev, window, cx)),
+                ),
+            ),
+            _ => panel,
         };
 
         // Backdrop — v3 variants: opaque / blur / transparent
@@ -441,7 +438,9 @@ impl RenderOnce for Modal {
             }
         }
         let zoom = crate::anim::ZoomBox {
-            width: Some(self.size.width()),
+            // The zoom needs a width to scale geometrically; `Cover` and `Full`
+            // have none of their own, so the container's is as close as it gets.
+            width: self.size.max_width(),
             radius: Some(crate::util::container_radius(cx)),
             ..Default::default()
         };
