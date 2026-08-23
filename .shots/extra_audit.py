@@ -152,6 +152,11 @@ EXTRA_OK_SCOPED = {
     'ColorArea.size': 'no-classname',
     # v3 tints `Modal.Icon` with `className="bg-default text-foreground"`.
     'Modal.icon_color': 'no-classname',
+    # v3 composes `<Tabs.Separator />` inside the tab it precedes.
+    'TabItem.separator': 'composition',
+    # v3 composes `<Table.Footer>` under the body, where a table's pagination
+    # goes.
+    'Table.footer': 'composition',
     # v3 composes `<Pagination.Summary>Page 1 of 10</Pagination.Summary>`.
     'Pagination.summary': 'composition',
     # v3's Avatar composes `<Avatar.Fallback>JD</Avatar.Fallback>`.

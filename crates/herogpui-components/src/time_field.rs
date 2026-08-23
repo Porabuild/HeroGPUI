@@ -743,9 +743,10 @@ impl RenderOnce for TimeField {
                 .id(ElementId::Name(
                     format!("time-{entity_id}-seg-{index}").into(),
                 ))
-                .px(px(4.))
+                // `.date-input-group__segment` is `rounded-md px-0.5`.
+                .px(px(2.))
                 .py(px(1.))
-                .rounded(px(4.))
+                .rounded(cx.layout().radius_md())
                 // `segment` is v3's render prop on `TimeField.Segment`: the
                 // closure is handed which segment it is drawing.
                 .child(match &self.segment {

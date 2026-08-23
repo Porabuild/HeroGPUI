@@ -413,6 +413,10 @@ impl RenderOnce for ColorSwatch {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
         let edge = self.size.swatch_px();
+        // `.color-swatch--circle` names a radius per size -- `rounded-lg` at 16px
+        // through `rounded-3xl` at 40 -- and every one of them is at least half
+        // the edge, so the shape is a circle at every size. `--square` is
+        // `rounded-md` throughout.
         let radius = match self.shape {
             SwatchShape::Circle => px(f32::from(edge) / 2.),
             SwatchShape::Square => cx.layout().radius_md(),
@@ -638,7 +642,10 @@ impl RenderOnce for ColorArea {
                 .left(px(f32::from(self.width) * x_norm - 8.))
                 .top(px(f32::from(self.height) * (1.0 - y_norm) - 8.))
                 .size(px(16.))
-                .rounded_full()
+                // `.color-area__thumb` is `rounded-xl`, which on a 16px box is
+                // a circle -- gpui clamps a radius to half the box, as a
+                // browser does.
+                .rounded(px(12.))
                 // `.color-area__thumb` is `border: 3px solid white`.
                 .border(px(3.))
                 .border_color(gpui::white())
@@ -1613,7 +1620,6 @@ impl RenderOnce for ColorSwatchPicker {
             .collect();
         let swatch_ring = util::focus_visible(cx);
 
-        let colors = cx.colors();
         let mut row = div().flex().flex_row().items_center().gap(px(8.));
         if self.layout == SwatchLayout::Grid {
             row = row.flex_wrap().max_w(px(280.));
@@ -1633,18 +1639,46 @@ impl RenderOnce for ColorSwatchPicker {
                 .flex()
                 .items_center()
                 .justify_center()
-                .p(px(2.))
-                .rounded(match self.shape {
-                    SwatchShape::Circle => px(9999.),
-                    SwatchShape::Square => cx.layout().radius_lg(),
-                })
-                .child(ColorSwatch::new(*swatch).size(self.size).shape(self.shape));
+                // `.color-swatch-picker__item` is `size-8 rounded-2xl border-2`.
+                .size(px(32.))
+                .rounded(util::soft_radius(cx))
+                .border_2()
+                .child({
+                    // `.color-swatch-picker__swatch` is `size-full` inside the
+                    // border, `scale(1.1)` on hover and `scale(0.77)` when the
+                    // item is selected. gpui has no div transform, so each of
+                    // those is the size it comes to.
+                    let edge = if selected { px(22.) } else { px(28.) };
+                    let radius = match self.shape {
+                        SwatchShape::Circle => px(f32::from(edge) / 2.),
+                        SwatchShape::Square => cx.layout().radius_md(),
+                    };
+                    let grown = px(f32::from(edge) * 1.1);
+                    let grown_radius = match self.shape {
+                        SwatchShape::Circle => px(f32::from(grown) / 2.),
+                        SwatchShape::Square => cx.layout().radius_md(),
+                    };
+                    div()
+                        .size(edge)
+                        .rounded(radius)
+                        .flex_shrink_0()
+                        .overflow_hidden()
+                        // The checkerboard that shows through a translucent
+                        // colour, as on a plain `ColorSwatch`.
+                        .bg(cx.colors().surface_secondary)
+                        .when(!self.is_disabled, |el| {
+                            el.hover(move |st| st.size(grown).rounded(grown_radius))
+                        })
+                        .child(div().size_full().rounded(radius).bg(swatch.to_hsla()))
+                });
 
-            // The selection ring sits outside the swatch so the color stays true.
+            // Selected: `border-color: var(--color-swatch-current)` -- the
+            // border takes the swatch's own colour, and the gap the shrunk
+            // swatch leaves is what reads as a ring.
             if selected {
-                cell = cell.border_2().border_color(colors.focus);
+                cell = cell.border_color(swatch.to_hsla());
             } else {
-                cell = cell.border_2().border_color(gpui::transparent_black());
+                cell = cell.border_color(gpui::transparent_black());
             }
 
             if self.is_disabled {
@@ -1809,13 +1843,11 @@ impl RenderOnce for ColorPicker {
             .flex()
             .flex_row()
             .items_center()
-            .gap(px(8.))
-            .h(px(40.))
-            .px(px(10.))
-            .rounded(util::control_radius(cx))
-            .border(layout.border_width)
-            .border_color(colors.border)
-            .bg(colors.surface.background)
+            // `.color-picker__trigger` is `inline-flex items-center gap-3
+            // rounded-sm text-sm` -- a swatch beside its value, with no box of
+            // its own.
+            .gap(px(12.))
+            .rounded(util::hairline_radius(cx))
             .text_size(px(14.))
             .text_color(colors.foreground)
             .child(ColorSwatch::new(self.value).size(SizeXl::Sm))
@@ -1824,8 +1856,7 @@ impl RenderOnce for ColorPicker {
         if self.is_disabled {
             trigger = trigger.opacity(layout.disabled_opacity);
         } else {
-            let hover_bg = colors.default.color;
-            trigger = trigger.cursor_pointer().hover(move |s| s.bg(hover_bg));
+            trigger = trigger.cursor_pointer();
             if let Some(cb) = self.on_open_change.clone() {
                 let next = !self.is_open;
                 trigger = trigger.on_click(move |_, window, cx| cb(next, window, cx));

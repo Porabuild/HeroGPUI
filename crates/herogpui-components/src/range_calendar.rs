@@ -783,6 +783,8 @@ impl RenderOnce for RangeCalendar {
                     .items_center()
                     .justify_between()
                     .w_full()
+                    // `.range-calendar__header` is `px-0.5`.
+                    .px(px(2.))
                     .child(nav_btn(
                         icons::CHEVRON_LEFT,
                         Date::new(anchor.year - 12, anchor.month, anchor.day),
@@ -816,6 +818,8 @@ impl RenderOnce for RangeCalendar {
                         .items_center()
                         .justify_between()
                         .w_full()
+                        // `.range-calendar__header` is `px-0.5`.
+                        .px(px(2.))
                         .child(if first {
                             nav_btn(icons::CHEVRON_LEFT, nav_target(-1), format!("{base}-prev"))
                                 .into_any_element()
@@ -853,6 +857,8 @@ impl RenderOnce for RangeCalendar {
                     .items_center()
                     .justify_between()
                     .w_full()
+                    // `.range-calendar__header` is `px-0.5`.
+                    .px(px(2.))
                     .child(nav_btn(
                         icons::CHEVRON_LEFT,
                         nav_target(-1),
@@ -875,7 +881,8 @@ impl RenderOnce for RangeCalendar {
                     div()
                         .w(px(38.))
                         .text_center()
-                        .text_size(px(11.))
+                        // A header cell is `text-xs`, like the seven-column one.
+                        .text_size(px(12.))
                         .text_color(colors.muted)
                         .child(Weekday::ALL[weekday_index(*d)].short_label().to_owned())
                 })));

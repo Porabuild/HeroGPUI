@@ -623,7 +623,8 @@ impl ListBox {
                 } else if selected && self.selection_mode != SelectionMode::None {
                     row = row.child(
                         gpui::svg()
-                            .size(px(14.))
+                            // `.list-box-item__indicator` is `size-4`.
+                            .size(px(16.))
                             .path(icons::CHECK)
                             .flex_shrink_0()
                             .text_color(colors.accent.color),
@@ -631,7 +632,8 @@ impl ListBox {
                 } else if let Some(sc) = shortcut {
                     row = row.child(
                         div()
-                            .text_size(px(11.))
+                            // A shortcut is a `Kbd`, which is `text-xs`.
+                            .text_size(px(12.))
                             .text_color(colors.muted)
                             .child(sc.to_string()),
                     );

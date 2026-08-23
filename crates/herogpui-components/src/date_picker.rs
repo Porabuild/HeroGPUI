@@ -264,7 +264,8 @@ impl RenderOnce for DatePicker {
             )
             .child(
                 gpui::svg()
-                    .size(px(15.))
+                    // `.date-picker__trigger-indicator` is `size-4`.
+                    .size(px(16.))
                     .path(icons::ELLIPSIS)
                     .text_color(colors.muted),
             );
@@ -722,7 +723,8 @@ impl RenderOnce for DateRangePicker {
             )
             .child(
                 gpui::svg()
-                    .size(px(15.))
+                    // `.date-range-picker__trigger-indicator` is `size-4`.
+                    .size(px(16.))
                     .path(icons::ARROW_RIGHT)
                     .text_color(colors.default.color),
             );
@@ -1667,9 +1669,10 @@ impl RenderOnce for DateField {
                 .id(gpui::ElementId::Name(
                     format!("date-{entity_id}-seg-{index}").into(),
                 ))
-                .px(px(4.))
+                // `.date-input-group__segment` is `rounded-md px-0.5`.
+                .px(px(2.))
                 .py(px(1.))
-                .rounded(px(4.))
+                .rounded(cx.layout().radius_md())
                 // `segment` is v3's render prop on `DateField.Segment`: the
                 // closure is handed which segment it is drawing.
                 .child(match (&self.segment, segment) {

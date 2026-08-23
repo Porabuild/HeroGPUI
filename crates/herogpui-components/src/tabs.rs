@@ -33,6 +33,10 @@ pub struct TabItem {
     pub key: SharedString,
     pub label: SharedString,
     pub content: Option<AnyElement>,
+    /// `<Tabs.Separator />` inside this tab. v3 made the hairline between
+    /// segments opt-in per tab in 3.0.0-beta.12, replacing the automatic
+    /// pseudo-element and the `hideSeparator` prop it deleted.
+    pub separator: bool,
 }
 
 impl TabItem {
@@ -41,11 +45,18 @@ impl TabItem {
             key: key.into(),
             label: label.into(),
             content: None,
+            separator: false,
         }
     }
 
     pub fn content(mut self, el: impl IntoElement) -> Self {
         self.content = Some(el.into_any_element());
+        self
+    }
+
+    /// Composes a `Tabs.Separator` into this tab: a hairline before it.
+    pub fn separator(mut self) -> Self {
+        self.separator = true;
         self
     }
 }
@@ -187,7 +198,7 @@ impl RenderOnce for Tabs {
                     // hairline between segments, hidden on either side of the
                     // selected one (`&[data-selected] .tabs__separator` and
                     // `& + .tabs__tab .tabs__separator` are `opacity-0`).
-                    if index > 0 {
+                    if index > 0 && item.separator {
                         let touches_selected =
                             selected_index == Some(index) || selected_index == Some(index - 1);
                         list = list.child(

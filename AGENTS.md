@@ -69,10 +69,10 @@ Read the diff.
 - The gallery is a GUI app and renders lazily, so a page can compile and still
   panic at runtime (gpui asserts on e.g. a second `.hover()` call on one
   element). After touching components, walk every route:
-  `.shots/smoke.ps1` — it launches each of the 73 pages and reports any that
+  `.shots/smoke.ps1` — it launches each of the 75 pages and reports any that
   exit early, with the panic message. Run it in the current shell, not through
   `powershell -File`. A page is only reported as failed if it dies **twice**:
-  launching 73 gpui windows back to back intermittently kills one during
+  launching 75 gpui windows back to back intermittently kills one during
   startup — exit -1, empty stderr, a different page each run — and reporting
   those made the gate unheedable. A real panic reproduces on the retry and
   prints; a line reading `retry rendered` is the transient kind.
@@ -113,7 +113,7 @@ Read the diff.
     back blank for anything presenting through DirectComposition, as gpui does.
     Check the result is not a uniform frame before saving.
   - `gallery.exe` is a **console-subsystem** binary, so every launch pops a
-    console window and takes focus — 73 times in a smoke run. Launch it through
+    console window and takes focus — 75 times in a smoke run. Launch it through
     `ProcessStartInfo` with `CreateNoWindow = $true` (the CREATE_NO_WINDOW
     creation flag), which suppresses that console and nothing else.
     `Start-Process -WindowStyle Hidden` hides the gpui window too, and then
@@ -138,8 +138,8 @@ Read the diff.
       @{ page='Table'; section='Sorting'; do='click:353,387 key:enter' }
       @{ page='Switch'; section='Usage'; out='...\~sw.png' }
   )
-  .shots/refresh.ps1              # all 73 reference shots, one process
-  .shots/smoke.ps1                # all 73 routes, one process
+  .shots/refresh.ps1              # all 75 reference shots, one process
+  .shots/smoke.ps1                # all 75 routes, one process
   ```
 
   This is not a small saving. Startup is about four seconds and a render is about
@@ -166,7 +166,7 @@ Read the diff.
 
   `capture2.ps1` injects *real* input, which Windows only delivers to the
   foreground window, so every interactive capture raises the gallery and
-  interrupts whatever the user is doing — 73 times in a smoke run. `drive.ps1`
+  interrupts whatever the user is doing — 75 times in a smoke run. `drive.ps1`
   posts the input messages to the window instead (`PostMessage`), so the window
   stays parked off-screen and unfocused throughout, and `PrintWindow` never
   needed it on screen anyway. Steps are `click:X,Y`, `dblclick:`, `drag:X,Y>X,Y`,
@@ -325,6 +325,32 @@ skipped. Three things it got wrong first, all worth remembering:
 - **Absent is not unreadable.** `.button` declares no `min-w-*` because a v3
   button hugs its label. That is an expectation of zero, recorded in
   `ABSENT_IS_ZERO`, not a broken pattern.
+
+`--coverage` answers the question the pass rate cannot: how much of what v3
+declares any row actually reads. It said 143 of 392, and closing that gap found
+more than the checks did -- along with three ways the *reader* was wrong:
+
+- **A border width is not always a utility.** The colour-area thumb is
+  `border: 3px solid white` in plain CSS, and every field applies Tailwind's bare
+  `border` and then overrides the width with `var(--border-width-field)`, which
+  chains through `--field-border-width: 0px` to nothing at all. Reading the
+  utility alone claims a 1px border on ten components that draw none -- v3's
+  field states are rings for exactly that reason. `resolve_width` follows the
+  variable, and an arbitrary utility (`[border-width:var(--x)]`) no longer parses
+  as a `state:` variant.
+- **`size-*` and `h-*`/`w-*` set the same properties**, so a rule that applies
+  both keeps whichever comes last: the autocomplete clear button is `h-6 w-6` and
+  then `size-5`, which makes it 20px, not a box that is two sizes at once.
+- **`p-[3px]` cancelled by `-m-[3px]`** is a focus-ring allowance, not padding.
+  The three dialog bodies have no inset.
+
+Coverage is zero unchecked now, and the metrics no row can name are recorded in
+`COVERED_ELSEWHERE` with the reason, which is the same discipline `WONT_PORT`
+keeps: `drives-the-height` for a field whose `py-2` this port spells as a 36px
+height, `restated-by-dropdown-menu` for the two `.menu` values a dropdown
+overrides, `trigger-is-the-field` for a picker that draws one field instead of a
+padded box around a nested one, `accordion-body` for what a Disclosure borrows,
+and `no-such-part` for four parts this port does not render.
 
 What it found on its first run: **v3 has no single "control" radius.** Each
 component names its own step — button and avatar `rounded-3xl` (24px), chip and

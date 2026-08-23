@@ -239,6 +239,7 @@ PROSE_WONT_DO = {
     # them: `slider.css` styles no hover, `tag.css` no press. Following the CSS
     # rather than the prose is the same choice `design_audit.py` makes.
     ('Slider', 'hover'): 'not-in-the-stylesheet',
+    ('ColorSlider', 'hover'): 'not-in-the-stylesheet',
     ('TagGroup', 'pressed'): 'not-in-the-stylesheet',
     # v3 rings the panel itself when the focus lands on it rather than on
     # something inside; here the panel takes the focus on open, so a ring would

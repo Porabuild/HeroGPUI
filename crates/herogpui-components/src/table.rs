@@ -269,6 +269,7 @@ pub struct Table {
     show_indicator: bool,
     is_pending: bool,
     empty_state: Option<AnyElement>,
+    footer: Option<AnyElement>,
     on_row_click: Option<OnRowClick>,
     on_selection_change: Option<OnSelectionChange>,
     on_sort_change: Option<OnSortChange>,
@@ -297,6 +298,7 @@ impl Table {
             show_indicator: true,
             is_pending: false,
             empty_state: None,
+            footer: None,
             on_row_click: None,
             on_selection_change: None,
             on_sort_change: None,
@@ -487,6 +489,13 @@ impl Table {
         self
     }
 
+    /// `Table.Footer` — a row under the body, which is where v3 puts a table's
+    /// pagination.
+    pub fn footer(mut self, content: impl IntoElement) -> Self {
+        self.footer = Some(content.into_any_element());
+        self
+    }
+
     /// `renderEmptyState` — shown in place of rows when there are none.
     pub fn empty_state(mut self, content: impl IntoElement) -> Self {
         self.empty_state = Some(content.into_any_element());
@@ -592,12 +601,17 @@ impl RenderOnce for Table {
             .rounded(crate::util::container_radius(cx))
             .text_color(colors.foreground);
 
-        // `primary` sits in a surface container; `secondary` is flat.
+        // `.table-root--primary` is a `bg-surface-secondary px-1 pb-1` tray with
+        // `border-radius: min(32px, --radius * 2.5)`, and the rows sit in a
+        // `bg-surface` block inside it; `secondary` is flat. This used to draw
+        // one white card with a border, which is the block without its tray.
         if !secondary {
+            let radius = cx.layout().radius_lg() * 2.5;
             wrapper = wrapper
-                .bg(colors.surface.background)
-                .border(cx.layout().border_width)
-                .border_color(colors.border);
+                .bg(colors.surface_secondary)
+                .rounded(radius.min(px(32.)))
+                .px(px(4.))
+                .pb(px(4.));
         }
 
         let mut table = gpui::div()
@@ -787,6 +801,16 @@ impl RenderOnce for Table {
         }
         table = table.child(header);
 
+        // `.table__body` rounds to `min(32px, --radius-2xl)` and its cells are
+        // `bg-surface`: the white block inside the tray.
+        let mut body = gpui::div().flex().flex_col().w_full();
+        if !secondary {
+            body = body
+                .bg(colors.surface.background)
+                .rounded(cx.layout().radius_2xl().min(px(32.)))
+                .overflow_hidden();
+        }
+
         // The drag itself: the pointer can leave the handle, so the table
         // watches the move and the release.
         if resizable {
@@ -948,8 +972,8 @@ impl RenderOnce for Table {
             // The body scrolls inside `uniform_list`, which asks for the rows the
             // viewport shows and no others.
             let height = self.max_h.unwrap_or(px(400.));
-            let body = ctx.clone();
-            table = table.child(
+            let rows = ctx.clone();
+            body = body.child(
                 gpui::uniform_list(
                     gpui::ElementId::Name(format!("{table_id}-virtual-rows").into()),
                     count,
@@ -958,7 +982,7 @@ impl RenderOnce for Table {
                             .map(|i| {
                                 let row_data = factory(i);
                                 let key = row_data.selection_key(i);
-                                body.row(i, row_data, 0, false, &key, Some(row_height), cx)
+                                rows.row(i, row_data, 0, false, &key, Some(row_height), cx)
                             })
                             .collect::<Vec<_>>()
                     },
@@ -968,14 +992,14 @@ impl RenderOnce for Table {
             );
         } else {
             for (i, (row_data, depth, has_children, tree_key)) in flat.into_iter().enumerate() {
-                table = table.child(ctx.row(i, row_data, depth, has_children, &tree_key, None, cx));
+                body = body.child(ctx.row(i, row_data, depth, has_children, &tree_key, None, cx));
             }
         }
 
         // ---- empty state -------------------------------------------------
         if row_count == 0 {
             if let Some(content) = self.empty_state {
-                table = table.child(
+                body = body.child(
                     gpui::div()
                         .flex()
                         .items_center()
@@ -987,6 +1011,8 @@ impl RenderOnce for Table {
                 );
             }
         }
+
+        table = table.child(body);
 
         // ---- load-more sentinel ------------------------------------------
         if self.is_pending || self.on_load_more.is_some() {
@@ -1023,6 +1049,19 @@ impl RenderOnce for Table {
             }
             let _ = column_count;
             table = table.child(sentinel);
+        }
+
+        if let Some(footer) = self.footer {
+            // `.table__footer` is `flex items-center px-4 py-2.5`.
+            table = table.child(
+                gpui::div()
+                    .flex()
+                    .items_center()
+                    .w_full()
+                    .px(px(16.))
+                    .py(px(10.))
+                    .child(footer),
+            );
         }
 
         wrapper.child(table)

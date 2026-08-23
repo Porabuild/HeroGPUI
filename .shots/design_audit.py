@@ -69,6 +69,25 @@ COVERED_ELSEWHERE = {
     # which is what the two `.dropdown__menu` rows compare.
     ('menu', '.menu', 'gap'): 'restated-by-dropdown-menu',
     ('menu', '.menu', 'p'): 'restated-by-dropdown-menu',
+    # A v3 date picker pads a box (`p-1`) around a nested date input group and
+    # its button; this port draws one field, so the trigger *is* the field and
+    # its padding is the field's (compared as `.input`'s `px`).
+    ('date-picker', '.date-picker__trigger', 'p'): 'trigger-is-the-field',
+    ('date-range-picker', '.date-range-picker__trigger', 'p'): 'trigger-is-the-field',
+    # A range trigger here shows one formatted string ("Jan 1 - Jan 5"), so
+    # there is no separator element between two fields to pad.
+    ('date-range-picker', '.date-range-picker__range-separator', 'px'): 'no-such-part',
+    # A radio option takes a label, not a description, so nothing sits below the
+    # control for `.radio`'s `gap-1` to space.
+    ('radio', '.radio', 'gap'): 'no-such-part',
+    # This port has no labelled separator (v3's `.separator__container` is the
+    # line-text-line layout), and no cell indicator on a range calendar.
+    ('separator', '.separator__container', 'gap'): 'no-such-part',
+    ('range-calendar', '.range-calendar__cell-indicator', 'radius'): 'no-such-part',
+    ('range-calendar', '.range-calendar__cell-indicator', 'size'): 'no-such-part',
+    # A Disclosure renders as a one-item Accordion, whose body padding is
+    # `.accordion__body-inner`'s and compared there.
+    ('disclosure', '.disclosure__body', 'p'): 'accordion-body',
     ('input', '.input', 'py'): 'drives-the-height',
     ('textarea', '.textarea', 'py'): 'drives-the-height',
     ('select', '.select__trigger', 'py'): 'drives-the-height',
@@ -988,6 +1007,229 @@ CHECKS = [
      'Autocomplete clear radius -> small_radius', SRC + 'autocomplete.rs',
      r'and then `size-5`, so 20px[\s\S]{0,320}?'
      r'\.rounded\((?:crate::)?util::(\w+_radius)\(cx\)\)', helper_px),
+    # --- the shared field radius and type size, per sheet ---------------------
+    ('input-group', '.input-group', 'radius', 'input-group radius -> field_radius',
+     SRC + 'util.rs', r'pub fn (field_radius)', helper_px),
+    ('textarea', '.textarea', 'radius', 'textarea radius -> field_radius',
+     SRC + 'util.rs', r'pub fn (field_radius)', helper_px),
+    ('number-field', '.number-field__group', 'radius', 'number-field radius -> field_radius',
+     SRC + 'util.rs', r'pub fn (field_radius)', helper_px),
+    ('date-picker', '.date-picker__trigger', 'radius', 'date-picker radius -> field_radius',
+     SRC + 'util.rs', r'pub fn (field_radius)', helper_px),
+    ('date-range-picker', '.date-range-picker__trigger', 'radius',
+     'date-range-picker radius -> field_radius', SRC + 'util.rs',
+     r'pub fn (field_radius)', helper_px),
+    ('input-group', '.input-group__input', 'text', 'input-group text -> FIELD_TEXT',
+     SRC + 'input_group.rs', r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('number-field', '.number-field__input', 'text', 'number-field text -> FIELD_TEXT',
+     SRC + 'number_field.rs',
+     r'\.text_size\(crate::util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('combo-box', '.combo-box__value', 'text', 'combo-box value text -> FIELD_TEXT',
+     SRC + 'combo_box.rs', r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('color-input-group', '.color-input-group__input', 'text',
+     'color-input-group text -> FIELD_TEXT', SRC + 'color_picker.rs',
+     r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('date-input-group', '.date-input-group__input', 'text',
+     'date-input-group text -> FIELD_TEXT', SRC + 'time_field.rs',
+     r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('search-field', '.search-field__group', 'text', 'search-field text -> FIELD_TEXT',
+     SRC + 'input.rs',
+     r'let \(h, text\) = \(crate::util::FIELD_HEIGHT, crate::util::(FIELD_TEXT)\)',
+     lambda _: 14.0),
+    ('search-field', '.search-field__input', 'text', 'search-field input -> FIELD_TEXT',
+     SRC + 'input.rs',
+     r'let \(h, text\) = \(crate::util::FIELD_HEIGHT, crate::util::(FIELD_TEXT)\)',
+     lambda _: 14.0),
+    ('textarea', '.textarea', 'text', 'textarea text -> FIELD_TEXT', SRC + 'input.rs',
+     r'let \(h, text\) = \(crate::util::FIELD_HEIGHT, crate::util::(FIELD_TEXT)\)',
+     lambda _: 14.0),
+    ('input', '.input', 'px', 'Input padding_x', SRC + 'input.rs',
+     r'`\.input-group__input` keeps `px-3`[\s\S]{0,200}?None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
+    ('input-group', '.input-group__suffix', 'px', 'InputGroup addon px', SRC + 'input_group.rs',
+     r'`__suffix`: `px-3`[\s\S]{0,200}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+
+    # --- a popover type size, wherever the rows set it ------------------------
+    ('popover', '.popover', 'text', 'Popover text', SRC + 'popover.rs',
+     r'`\.popover` is `text-sm`\.\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('select', '.select__popover', 'text', 'Select popover row text -> FIELD_TEXT',
+     SRC + 'select.rs', r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('combo-box', '.combo-box__popover', 'text', 'ComboBox popover row text -> FIELD_TEXT',
+     SRC + 'combo_box.rs', r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('autocomplete', '.autocomplete__popover', 'text',
+     'Autocomplete popover row text -> FIELD_TEXT', SRC + 'autocomplete.rs',
+     r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
+    ('dropdown', '.dropdown__popover', 'text', 'Dropdown row text', SRC + 'dropdown.rs',
+     r'let mut row = gpui::div\(\)[\s\S]{0,420}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('alert-dialog', '.alert-dialog__body', 'text', 'AlertDialog body text',
+     SRC + 'alert_dialog.rs',
+     r'`\.alert-dialog__body` is `text-sm[\s\S]{0,240}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
+
+    # --- the odds and ends ----------------------------------------------------
+    ('kbd', '.kbd', 'radius', 'Kbd radius -> key_radius', SRC + 'util.rs',
+     r'pub fn (key_radius)', helper_px),
+    ('avatar', '.avatar--lg', 'radius', 'Avatar Lg -> control_radius', SRC + 'avatar.rs',
+     r'\} else \{\s*crate::util::(\w+_radius)\(cx\)', helper_px),
+    ('switch', '.switch__control', 'radius', 'Switch track radius Md', SRC + 'switch.rs',
+     r'Size::Md => \(px\(40\.\), px\(20\.\), px\(22\.\), px\(16\.\), '
+     r'px\((\d+(?:\.\d*)?)\.\)', None),
+    ('switch', '.switch__thumb', 'radius', 'Switch thumb radius Md', SRC + 'switch.rs',
+     r'Size::Md => \(px\(40\.\), px\(20\.\), px\(22\.\), px\(16\.\), px\(12\.\), '
+     r'px\((\d+(?:\.\d*)?)\.\)', None),
+    ('radio', '.radio__content', 'text', 'Radio content text', SRC + 'radio_group.rs',
+     r'let \(circle, dot, text, gap\) = \(px\(16\.\), px\(6\.\), px\((\d+(?:\.\d*)?)\.\)',
+     None),
+    ('list-box-item', '.list-box-item__indicator', 'size', 'ListBox check size',
+     SRC + 'list_box.rs',
+     r'`\.list-box-item__indicator` is `size-4`\.\s*\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('toggle-button', '.toggle-button--lg', 'text', 'Size::text_size Lg', CORE,
+     r'Label size[\s\S]*?Size::Lg => gpui::px\((\d+(?:\.\d*)?)\)', None),
+    ('toggle-button-group', '.toggle-button-group__separator', 'radius',
+     'ToggleButtonGroup separator -> hairline_radius', SRC + 'toggle_button.rs',
+     r'let separator_radius = crate::util::(\w+_radius)\(cx\)', helper_px),
+    ('tabs', '.tabs__separator', 'radius', 'Tabs separator -> hairline_radius', SRC + 'tabs.rs',
+     r'`\.tabs__separator` is a `w-px h-1/2 rounded-sm[\s\S]{0,900}?'
+     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('tabs', '.tabs__indicator', 'radius', 'Tabs selected segment -> control_radius',
+     SRC + 'tabs.rs',
+     r'`\.tabs__tab` is `h-8 px-4 rounded-3xl text-sm[\s\S]{0,300}?'
+     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('pagination', '.pagination__summary', 'gap', 'Pagination summary gap', SRC + 'pagination.rs',
+     r'`\.pagination__summary` is `gap-2 text-sm text-muted`\.\s*'
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('pagination', '.pagination__summary', 'text', 'Pagination summary text',
+     SRC + 'pagination.rs',
+     r'`\.pagination__summary` is `gap-2 text-sm text-muted`\.[\s\S]{0,120}?'
+     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('pagination', '.pagination__link', 'radius', 'Pagination link -> control_radius',
+     SRC + 'pagination.rs',
+     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('pagination', '.pagination__ellipsis', 'size', 'Pagination ellipsis cell',
+     SRC + 'pagination.rs',
+     r'`\.pagination__ellipsis` is the same `size-8[\s\S]{0,160}?\.size\((cell)\)',
+     lambda _: 32.0),
+    ('pagination', '.pagination__ellipsis', 'text', 'Pagination ellipsis text',
+     SRC + 'pagination.rs',
+     r'`\.pagination__ellipsis` is the same `size-8[\s\S]{0,200}?\.text_size\((cell_text)\)',
+     lambda _: 14.0),
+    ('calendar', '.calendar__cell-indicator', 'radius', 'Calendar cell indicator radius',
+     SRC + 'calendar.rs',
+     r'`\.calendar__cell-indicator` is `size-\[3px\]`[\s\S]{0,300}?'
+     r'\.rounded\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('range-calendar', '.range-calendar__header', 'px', 'RangeCalendar header px',
+     SRC + 'range_calendar.rs',
+     r'`\.range-calendar__header` is `px-0\.5`\.\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('range-calendar', '.range-calendar__cell', 'radius',
+     'RangeCalendar cell -> control_radius', SRC + 'range_calendar.rs',
+     r'\.rounded\(util::(control_radius)\(cx\)\)', helper_px),
+
+    # --- colour: the swatch shapes, the picker item and its trigger -----------
+    ('color-swatch', '.color-swatch--circle', 'radius', 'ColorSwatch circle is edge/2',
+     SRC + 'color_picker.rs',
+     r'SwatchShape::Circle => px\(f32::from\(edge\) / (\d+)\.\)',
+     # The base rule is the `md` swatch, 32px across.
+     lambda half: 32.0 / float(half)),
+    ('color-swatch', '.color-swatch--square', 'radius', 'ColorSwatch square -> radius_md',
+     SRC + 'color_picker.rs',
+     r'SwatchShape::Square => cx\.layout\(\)\.radius_(\w+)\(\)', lambda step: RADIUS[step]),
+    ('color-swatch-picker', '.color-swatch-picker__item', 'size', 'Swatch picker item box',
+     SRC + 'color_picker.rs',
+     r'`\.color-swatch-picker__item` is `size-8 rounded-2xl border-2`\.\s*'
+     r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('color-swatch-picker', '.color-swatch-picker__item', 'radius',
+     'Swatch picker item -> soft_radius', SRC + 'color_picker.rs',
+     r'`\.color-swatch-picker__item` is `size-8 rounded-2xl border-2`\.[\s\S]{0,120}?'
+     r'\.rounded\(util::(\w+_radius)\(cx\)\)', helper_px),
+    ('color-swatch-picker', '.color-swatch-picker__item', 'border', 'Swatch picker item border',
+     SRC + 'color_picker.rs',
+     r'`\.color-swatch-picker__item` is `size-8 rounded-2xl border-2`\.[\s\S]{0,200}?'
+     r'\.border_(\d)\(\)', None),
+    ('color-picker', '.color-picker__trigger', 'gap', 'ColorPicker trigger gap',
+     SRC + 'color_picker.rs',
+     r'`\.color-picker__trigger` is `inline-flex items-center gap-3[\s\S]{0,240}?'
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('color-picker', '.color-picker__trigger', 'radius',
+     'ColorPicker trigger -> hairline_radius', SRC + 'color_picker.rs',
+     r'`\.color-picker__trigger` is `inline-flex items-center gap-3[\s\S]{0,300}?'
+     r'\.rounded\(util::(\w+_radius)\(cx\)\)', helper_px),
+    ('color-picker', '.color-picker__trigger', 'text', 'ColorPicker trigger text',
+     SRC + 'color_picker.rs',
+     r'`\.color-picker__trigger` is `inline-flex items-center gap-3[\s\S]{0,340}?'
+     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('color-area', '.color-area__thumb', 'radius', 'ColorArea thumb radius',
+     SRC + 'color_picker.rs',
+     r'`\.color-area__thumb` is `rounded-xl`[\s\S]{0,200}?'
+     r'\.rounded\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+
+    # --- date and time --------------------------------------------------------
+    ('date-picker', '.date-picker__trigger', 'text', 'DatePicker trigger text',
+     SRC + 'date_picker.rs',
+     r'\.px\(px\(12\.\)\)\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('date-range-picker', '.date-range-picker__trigger', 'text',
+     'DateRangePicker trigger text', SRC + 'date_picker.rs',
+     r'\.px\(px\(12\.\)\)\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('date-picker', '.date-picker__trigger-indicator', 'size', 'DatePicker trigger glyph',
+     SRC + 'date_picker.rs',
+     r'`\.date-picker__trigger-indicator` is `size-4`\.\s*\.size\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
+    ('date-range-picker', '.date-range-picker__trigger-indicator', 'size',
+     'DateRangePicker trigger glyph', SRC + 'date_picker.rs',
+     r'`\.date-range-picker__trigger-indicator` is `size-4`\.\s*'
+     r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('date-input-group', '.date-input-group__segment', 'px', 'Date segment px',
+     SRC + 'time_field.rs',
+     r'`\.date-input-group__segment` is `rounded-md px-0\.5`\.\s*'
+     r'\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('date-input-group', '.date-input-group__segment', 'radius',
+     'Date segment -> radius_md', SRC + 'time_field.rs',
+     r'`\.date-input-group__segment` is `rounded-md px-0\.5`\.[\s\S]{0,160}?'
+     r'\.rounded\(cx\.layout\(\)\.radius_(\w+)\(\)\)', lambda step: RADIUS[step]),
+    ('calendar-year-picker', '.calendar-year-picker__year-cell', 'radius',
+     'Year cell -> control_radius', SRC + 'calendar.rs',
+     r'`h-8 px-2\.5[\s\S]{0,400}?\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('calendar-year-picker', '.calendar-year-picker__trigger-indicator', 'text',
+     'Year trigger chevron (v3 sizes it with text-xs)', SRC + 'calendar.rs',
+     r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.path\(if open \{\s*icons::CHEVRON_UP', None),
+
+    # --- what a Disclosure borrows from the Accordion -------------------------
+    ('disclosure', '.disclosure__indicator', 'size', 'Disclosure -> Accordion indicator',
+     SRC + 'accordion.rs',
+     r'`\.accordion__indicator` is `size-4`\.[\s\S]{0,40}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
+
+    # --- the rest -------------------------------------------------------------
+    ('switch-group', '.switch-group__items', 'gap', 'SwitchGroup items gap', SRC + 'switch.rs',
+     r'impl RenderOnce for SwitchGroup[\s\S]{0,700}?'
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.children\(self\.items\)', None),
+    ('table', '.table__sortable-column-indicator', 'size', 'Table sort chevron',
+     SRC + 'table.rs',
+     r'None => gpui::svg\(\)\s*\.size\(px\((\d+(?:\.\d*)?)\.\)\)\s*'
+     r'\.path\(descriptor\.direction\.indicator\(\)\)', None),
+    ('pagination', '.pagination__link', 'text', 'Pagination link -> Size::text_size Md', CORE,
+     r'Label size[\s\S]{0,200}?Size::Md => gpui::px\((\d+(?:\.\d*)?)\)', None),
+
+    ('select', '.select__trigger', 'px', 'Select trigger px', SRC + 'select.rs',
+     r'\.min_h\(h\)\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # An Autocomplete composes an Input, so the trigger is the field.
+    ('autocomplete', '.autocomplete__trigger', 'px', 'Autocomplete trigger px -> Input',
+     SRC + 'input.rs',
+     r'`\.input-group__input` keeps `px-3`[\s\S]{0,200}?None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
+    ('toast', '.toast__indicator', 'p', 'Toast indicator padding', SRC + 'toast.rs',
+     r'`\.toast__indicator` — `flex shrink-0 items-center justify-center p-1`'
+     r'[\s\S]{0,400}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('table', '.table__footer', 'px', 'Table footer px', SRC + 'table.rs',
+     r'`\.table__footer` is `flex items-center px-4 py-2\.5`\.[\s\S]{0,200}?'
+     r'\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('table', '.table__footer', 'py', 'Table footer py', SRC + 'table.rs',
+     r'`\.table__footer` is `flex items-center px-4 py-2\.5`\.[\s\S]{0,240}?'
+     r'\.py\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+
+    ('table', '.table-root--primary', 'px', 'Table tray px', SRC + 'table.rs',
+     r'`\.table-root--primary` is a `bg-surface-secondary px-1 pb-1` tray'
+     r'[\s\S]{0,600}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+
     ('toast', '.toast__close-button', 'border', 'Toast close button border', SRC + 'toast.rs',
      r'`sm:border\s*//\s*border-border sm:bg-overlay`[\s\S]{0,200}?'
      r'\.border\(cx\.layout\(\)\.(border_width)\)', lambda _: 1.0),
