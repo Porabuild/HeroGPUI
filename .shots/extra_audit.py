@@ -168,6 +168,9 @@ EXTRA_OK_SCOPED = {
     # v3 changes the spin rate with an animation utility class
     # (`animate-[spin_1.5s_linear_infinite]`), which is its "Speed" example.
     'Spinner.duration_ms': 'no-classname',
+    # `SearchField.SearchIcon` is a composed part; replacing it is v3's
+    # "Custom Icons" example.
+    'SearchField.search_icon': 'composition',
 }
 
 

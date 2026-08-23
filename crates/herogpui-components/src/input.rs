@@ -1179,6 +1179,14 @@ impl RenderOnce for Input {
             }
         });
 
+        // Inside a group the surrounding component owns the label, the
+        // description and the error slot -- v3's `InputGroup.Input` is the input
+        // and nothing else. Returning the wrapper here would drop a whole
+        // labelled column into the group's row.
+        if self.in_group.is_some() {
+            return field.into_any_element();
+        }
+
         // -- wrapper with label / description / error --------------------------
         let mut el = gpui::div().flex().flex_col().gap(px(4.));
         if self.full_width {
@@ -1221,7 +1229,7 @@ impl RenderOnce for Input {
             );
         }
 
-        el
+        el.into_any_element()
     }
 }
 
@@ -1244,6 +1252,13 @@ impl TextField {
         Self {
             inner: Input::new(state),
         }
+    }
+
+    /// `type` — the HTML input type, which v3 sets on the field and this port
+    /// forwards to the inner [`Input`].
+    pub fn input_type(mut self, input_type: InputType) -> Self {
+        self.inner = self.inner.input_type(input_type);
+        self
     }
 
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
@@ -1384,6 +1399,11 @@ pub struct SearchField {
     on_change: Option<TextCallback>,
     on_submit: Option<TextCallback>,
     on_clear: Option<std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>>,
+    /// `SearchField.SearchIcon` — the leading glyph. `None` draws the magnifier.
+    search_icon: Option<gpui::AnyElement>,
+    /// Trailing content inside the field, before the clear button. v3 composes
+    /// it (a `Kbd` with the shortcut, in its "With Keyboard Shortcut" example).
+    end_content: Option<gpui::AnyElement>,
 }
 
 impl SearchField {
@@ -1408,6 +1428,8 @@ impl SearchField {
             on_change: None,
             on_submit: None,
             on_clear: None,
+            search_icon: None,
+            end_content: None,
         }
     }
 
@@ -1460,6 +1482,18 @@ impl SearchField {
     /// `defaultValue` — see [`Input::default_value`].
     pub fn default_value(mut self, text: impl Into<SharedString>) -> Self {
         self.default_value = Some(text.into());
+        self
+    }
+
+    /// `SearchField.SearchIcon` — replaces the leading magnifier.
+    pub fn search_icon(mut self, el: impl IntoElement) -> Self {
+        self.search_icon = Some(el.into_any_element());
+        self
+    }
+
+    /// Trailing content inside the field — v3 composes a `Kbd` here.
+    pub fn end_content(mut self, el: impl IntoElement) -> Self {
+        self.end_content = Some(el.into_any_element());
         self
     }
 
@@ -1533,13 +1567,18 @@ impl RenderOnce for SearchField {
             .auto_focus(self.auto_focus)
             .when_some(validate, |i, f| i.validate(move |v| f(v)))
             .is_clearable(true)
-            .start_content(
-                gpui::svg()
+            .start_content(match self.search_icon {
+                Some(icon) => icon,
+                None => gpui::svg()
                     .size(crate::util::FIELD_ICON)
                     .path(crate::icons::SEARCH)
                     .flex_shrink_0()
-                    .text_color(colors.muted),
-            );
+                    .text_color(colors.muted)
+                    .into_any_element(),
+            });
+        if let Some(end) = self.end_content {
+            input = input.end_content(end);
+        }
 
         if self.full_width {
             input = input.full_width();

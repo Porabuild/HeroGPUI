@@ -2904,6 +2904,11 @@ impl Gallery {
     }
 
     pub fn page_input(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let input_controlled = self
+            .demo_text("in-controlled", "", cx)
+            .read(cx)
+            .value()
+            .to_owned();
         doc_page(
             "Input",
             crate::pages::Page::Input.description(),
@@ -2920,6 +2925,73 @@ impl Gallery {
                                 .variant(*v)
                         })
                         .els()),
+                ),
+                (
+                    "Usage",
+                    col(vec![h::Input::new(self.demo_text("in-usage", "", cx))
+                        .label("Name")
+                        .placeholder("Ada Lovelace")
+                        .into_any_element()]),
+                ),
+                (
+                    "In Surface",
+                    col(vec![h::Surface::new()
+                        .padding(px(24.))
+                        .gap(px(16.))
+                        .child(
+                            h::Input::new(self.demo_text("in-surface", "", cx))
+                                .label("Name")
+                                .variant(FieldVariant::Secondary)
+                                .description("The lower-emphasis variant, for use on a surface"),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Full Width",
+                    col(vec![h::Input::new(self.demo_text("in-full", "", cx))
+                        .label("Name")
+                        .full_width()
+                        .into_any_element()]),
+                ),
+                (
+                    "Input Types",
+                    col(vec![
+                        h::Input::new(self.demo_text("in-pw", "", cx))
+                            .label("Password")
+                            .input_type(h::InputType::Password)
+                            .placeholder("Secret")
+                            .into_any_element(),
+                        h::Input::new(self.demo_text("in-num", "", cx))
+                            .label("Age")
+                            .input_type(h::InputType::Number)
+                            .placeholder("21")
+                            .into_any_element(),
+                        h::Input::new(self.demo_text("in-email", "", cx))
+                            .label("Email")
+                            .input_type(h::InputType::Email)
+                            .placeholder("user@example.com")
+                            .into_any_element(),
+                        h::Input::new(self.demo_text("in-url", "", cx))
+                            .label("Website")
+                            .input_type(h::InputType::Url)
+                            .placeholder("https://example.com")
+                            .into_any_element(),
+                        h::Input::new(self.demo_text("in-tel", "", cx))
+                            .label("Phone")
+                            .input_type(h::InputType::Tel)
+                            .placeholder("+1 (555) 000-0000")
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::Input::new(self.demo_text("in-controlled", "", cx))
+                            .label("Name")
+                            .on_change(|_, _, _| {})
+                            .into_any_element(),
+                        para(&format!("Value: {input_controlled}"), cx),
+                    ]),
                 ),
                 (
                     "States",
@@ -3011,6 +3083,10 @@ impl Gallery {
     }
 
     pub fn page_number_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let nf_controlled = self
+            .demo_number("nf-ctl", 5., 0., 20., 1., cx)
+            .read(cx)
+            .value();
         doc_page(
             "Number Field",
             crate::pages::Page::NumberField.description(),
@@ -3036,6 +3112,183 @@ impl Gallery {
                         .label("Price")
                         .format_options(h::NumberFormat::currency("USD"))
                         .into_any_element()]),
+                ),
+                (
+                    "Variants",
+                    col(vec![
+                        h::NumberField::new(self.demo_number("nf-primary", 5., 0., 20., 1., cx))
+                            .label("Primary")
+                            .into_any_element(),
+                        h::NumberField::new(self.demo_number("nf-secondary", 5., 0., 20., 1., cx))
+                            .label("Secondary")
+                            .variant(FieldVariant::Secondary)
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "In Surface",
+                    col(vec![h::Surface::new()
+                        .padding(px(24.))
+                        .gap(px(16.))
+                        .child(
+                            h::NumberField::new(self.demo_number(
+                                "nf-surface",
+                                2.,
+                                0.,
+                                10.,
+                                1.,
+                                cx,
+                            ))
+                            .label("Seats")
+                            .variant(FieldVariant::Secondary)
+                            .description("The secondary variant, for use on a surface"),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "With Description",
+                    col(vec![h::NumberField::new(
+                        self.demo_number("nf-desc", 1., 0., 99., 1., cx),
+                    )
+                    .label("Quantity")
+                    .description("How many licences to buy")
+                    .into_any_element()]),
+                ),
+                (
+                    "Required Field",
+                    col(vec![h::NumberField::new(
+                        self.demo_number("nf-req", 1., 0., 99., 1., cx),
+                    )
+                    .label("Quantity")
+                    .is_required(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Disabled State",
+                    col(vec![h::NumberField::new(
+                        self.demo_number("nf-dis", 8., 0., 99., 1., cx),
+                    )
+                    .label("Quantity")
+                    .is_disabled(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Full Width",
+                    col(vec![h::NumberField::new(
+                        self.demo_number("nf-full", 3., 0., 99., 1., cx),
+                    )
+                    .label("Quantity")
+                    .full_width(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Validation",
+                    col(vec![h::NumberField::new(self.demo_number(
+                        "nf-invalid",
+                        0.,
+                        0.,
+                        99.,
+                        1.,
+                        cx,
+                    ))
+                    .label("Quantity")
+                    .is_required(true)
+                    .is_invalid(true)
+                    .validation_errors(["Order at least one"])
+                    .into_any_element()]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::NumberField::new(self.demo_number("nf-ctl", 5., 0., 20., 1., cx))
+                            .label("Quantity")
+                            .on_change(f64_cb(cx.listener(|_, _v: &f64, _, cx| cx.notify())))
+                            .into_any_element(),
+                        para(&format!("Value: {nf_controlled}"), cx),
+                    ]),
+                ),
+                (
+                    "Step Values",
+                    col(vec![
+                        h::NumberField::new(self.demo_number("nf-step-5", 10., 0., 100., 5., cx))
+                            .label("Step 5")
+                            .into_any_element(),
+                        h::NumberField::new(self.demo_number(
+                            "nf-step-tenth",
+                            1.5,
+                            0.,
+                            10.,
+                            0.1,
+                            cx,
+                        ))
+                        .label("Step 0.1")
+                        .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Form Example",
+                    col(vec![{
+                        let seats = self.demo_number("nf-form", 1., 1., 99., 1., cx);
+                        h::Form::new()
+                            .field(h::FormField::number(seats.clone()).name("seats"))
+                            .child(
+                                h::NumberField::new(seats)
+                                    .label("Seats")
+                                    .name("seats")
+                                    .is_required(true),
+                            )
+                            .child(h::Button::new("nf-form-submit").label("Buy"))
+                            .into_any_element()
+                    }]),
+                ),
+                (
+                    "With Validation",
+                    col(vec![h::NumberField::new(self.demo_number(
+                        "nf-validate",
+                        200.,
+                        0.,
+                        1000.,
+                        10.,
+                        cx,
+                    ))
+                    .label("Budget")
+                    .description("At least 100")
+                    .validate(|value| (*value < 100.).then(|| "Budget must be at least 100".into()))
+                    .into_any_element()]),
+                ),
+                (
+                    "Custom Icons",
+                    col(vec![
+                        para(
+                            "v3 replaces the glyphs inside `NumberField.IncrementButton` and \
+                             `DecrementButton`. Ours draws v3's own minus and plus; the pair below \
+                             shows them with and without the steppers.",
+                            cx,
+                        ),
+                        h::NumberField::new(self.demo_number("nf-icons", 1024., 0., 4096., 1., cx))
+                            .label("Width")
+                            .into_any_element(),
+                        h::NumberField::new(self.demo_number(
+                            "nf-noicons",
+                            512.,
+                            0.,
+                            4096.,
+                            1.,
+                            cx,
+                        ))
+                        .label("Width (no steppers)")
+                        .hide_steppers(true)
+                        .into_any_element(),
+                    ]),
+                ),
+                (
+                    "With Chevrons",
+                    col(vec![h::NumberField::new(
+                        self.demo_number("nf-chev", 99., 0., 999., 1., cx),
+                    )
+                    .label("Amount")
+                    .format_options(h::NumberFormat::currency("EUR"))
+                    .into_any_element()]),
                 ),
             ],
             cx,
@@ -3091,36 +3344,188 @@ impl Gallery {
 
     pub fn page_search_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let query = self.search_query.clone();
+        // Each demo owns its state, the way v3's examples do.
+        let surface = self.demo_text("sf-surface", "", cx);
+        let described = self.demo_text("sf-desc", "", cx);
+        let required = self.demo_text("sf-required", "", cx);
+        let disabled = self.demo_text("sf-disabled", "Read-only query", cx);
+        let full = self.demo_text("sf-full", "", cx);
+        let invalid = self.demo_text("sf-invalid", "ab", cx);
+        let controlled = self.demo_text("sf-controlled", "", cx);
+        let validated = self.demo_text("sf-validated", "", cx);
+        let form_field = self.demo_text("sf-form", "", cx);
+        let icons = self.demo_text("sf-icons", "", cx);
+        let shortcut = self.demo_text("sf-shortcut", "", cx);
+        let controlled_text = controlled.read(cx).value().to_owned();
+
         doc_page(
             "Search Field",
             crate::pages::Page::SearchField.description(),
             crate::pages::Page::SearchField.import_line(),
-            vec![(
-                "Usage",
-                col(vec![
-                    h::SearchField::new(self.search_state.clone())
-                        .label("Search docs")
-                        .placeholder("Search components")
-                        .on_change(cx.listener(|this, text: &str, _, cx| {
-                            this.search_query = text.to_owned();
-                            cx.notify();
-                        }))
-                        .into_any_element(),
-                    para(
-                        &if query.is_empty() {
-                            "Type to search".to_owned()
-                        } else {
-                            format!("Query: {query}")
-                        },
-                        cx,
-                    ),
-                ]),
-            )],
+            vec![
+                (
+                    "Usage",
+                    col(vec![
+                        h::SearchField::new(self.search_state.clone())
+                            .label("Search docs")
+                            .placeholder("Search components")
+                            .on_change(cx.listener(|this, text: &str, _, cx| {
+                                this.search_query = text.to_owned();
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                        para(
+                            &if query.is_empty() {
+                                "Type to search".to_owned()
+                            } else {
+                                format!("Query: {query}")
+                            },
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Variants",
+                    col(vec![
+                        h::SearchField::new(self.demo_text("sf-v-primary", "", cx))
+                            .label("Primary")
+                            .into_any_element(),
+                        h::SearchField::new(self.demo_text("sf-v-secondary", "", cx))
+                            .label("Secondary")
+                            .variant(FieldVariant::Secondary)
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "In Surface",
+                    col(vec![h::Surface::new()
+                        .padding(px(24.))
+                        .gap(px(16.))
+                        .child(
+                            h::SearchField::new(surface)
+                                .label("Search")
+                                .variant(FieldVariant::Secondary)
+                                .description("Enter keywords to search"),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "With Description",
+                    col(vec![h::SearchField::new(described)
+                        .label("Search")
+                        .description("Searches titles and body text")
+                        .into_any_element()]),
+                ),
+                (
+                    "Required Field",
+                    col(vec![h::SearchField::new(required)
+                        .label("Search")
+                        .is_required(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Disabled State",
+                    col(vec![h::SearchField::new(disabled)
+                        .label("Search")
+                        .is_disabled(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Full Width",
+                    col(vec![h::SearchField::new(full)
+                        .label("Search")
+                        .full_width()
+                        .into_any_element()]),
+                ),
+                (
+                    "Validation",
+                    col(vec![h::SearchField::new(invalid)
+                        .label("Search")
+                        .is_required(true)
+                        .is_invalid(true)
+                        .validation_errors(["Search query must be at least 3 characters"])
+                        .into_any_element()]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::SearchField::new(controlled)
+                            .label("Search")
+                            .on_change(|_, _, _| {})
+                            .into_any_element(),
+                        para(
+                            &if controlled_text.is_empty() {
+                                "Empty".to_owned()
+                            } else {
+                                format!("Value: {controlled_text}")
+                            },
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "With Validation",
+                    col(vec![
+                        para(
+                            "`validate` is run by the component: it returns the message, and the \
+                             field shows it. Type one or two characters.",
+                            cx,
+                        ),
+                        h::SearchField::new(validated)
+                            .label("Search")
+                            .is_required(true)
+                            .description("Enter at least 3 characters to search")
+                            .validate(|value| {
+                                (!value.is_empty() && value.chars().count() < 3)
+                                    .then(|| "Search query must be at least 3 characters".into())
+                            })
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Form Example",
+                    col(vec![{
+                        let field = h::SearchField::new(form_field)
+                            .label("Search")
+                            .name("query")
+                            .is_required(true)
+                            .validate(|value| {
+                                (value.chars().count() < 3)
+                                    .then(|| "Enter at least 3 characters".into())
+                            });
+                        h::Form::new()
+                            .field(h::FormField::text(self.demo_text("sf-form", "", cx)))
+                            .child(field)
+                            .child(h::Button::new("sf-form-submit").label("Search"))
+                            .into_any_element()
+                    }]),
+                ),
+                (
+                    "Custom Icons",
+                    col(vec![h::SearchField::new(icons)
+                        .label("Search")
+                        .search_icon(icon(h::icons::GLOBE, cx))
+                        .into_any_element()]),
+                ),
+                (
+                    "With Keyboard Shortcut",
+                    col(vec![h::SearchField::new(shortcut)
+                        .label("Search")
+                        .end_content(h::Kbd::new().child("Shift S"))
+                        .description("Press Shift+S to focus")
+                        .into_any_element()]),
+                ),
+            ],
             cx,
         )
     }
 
     pub fn page_text_area(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let ta_controlled = self
+            .demo_text("ta-controlled", "", cx)
+            .read(cx)
+            .value()
+            .to_owned();
         doc_page(
             "Text Area",
             crate::pages::Page::TextArea.description(),
@@ -3135,6 +3540,52 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "Variants",
+                    col(vec![
+                        h::TextArea::new(self.demo_text("ta-primary", "", cx))
+                            .label("Primary")
+                            .rows(3)
+                            .into_any_element(),
+                        h::TextArea::new(self.demo_text("ta-secondary", "", cx))
+                            .label("Secondary")
+                            .variant(FieldVariant::Secondary)
+                            .rows(3)
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "In Surface",
+                    col(vec![h::Surface::new()
+                        .padding(px(24.))
+                        .gap(px(16.))
+                        .child(
+                            h::TextArea::new(self.demo_text("ta-surface", "", cx))
+                                .label("Notes")
+                                .variant(FieldVariant::Secondary)
+                                .rows(3),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Full Width",
+                    col(vec![h::TextArea::new(self.demo_text("ta-full", "", cx))
+                        .label("Notes")
+                        .rows(3)
+                        .full_width()
+                        .into_any_element()]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::TextArea::new(self.demo_text("ta-controlled", "", cx))
+                            .label("Notes")
+                            .rows(3)
+                            .on_change(|_, _, _| {})
+                            .into_any_element(),
+                        para(&format!("{} characters", ta_controlled.chars().count()), cx),
+                    ]),
+                ),
+                (
                     "Rows",
                     col(vec![h::TextArea::new(self.input_bio.clone())
                         .label("Six rows")
@@ -3147,6 +3598,11 @@ impl Gallery {
     }
 
     pub fn page_text_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let tf_controlled = self
+            .demo_text("tf-controlled", "", cx)
+            .read(cx)
+            .value()
+            .to_owned();
         doc_page(
             "Text Field",
             crate::pages::Page::TextField.description(),
@@ -3161,12 +3617,100 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "In Surface",
+                    col(vec![h::Surface::new()
+                        .padding(px(24.))
+                        .gap(px(16.))
+                        .child(
+                            h::TextField::new(self.demo_text("tf-surface", "", cx))
+                                .label("Full name")
+                                .variant(FieldVariant::Secondary)
+                                .description("Use the secondary variant on a surface"),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "With Description",
+                    col(vec![h::TextField::new(self.demo_text("tf-desc", "", cx))
+                        .label("Full name")
+                        .description("As it appears on your ID.")
+                        .into_any_element()]),
+                ),
+                (
+                    "Required Field",
+                    col(vec![h::TextField::new(self.demo_text("tf-req", "", cx))
+                        .label("Full name")
+                        .is_required(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Disabled State",
+                    col(vec![h::TextField::new(self.demo_text(
+                        "tf-dis",
+                        "Ada Lovelace",
+                        cx,
+                    ))
+                    .label("Full name")
+                    .is_disabled(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Full Width",
+                    col(vec![h::TextField::new(self.demo_text("tf-full", "", cx))
+                        .label("Full name")
+                        .full_width()
+                        .into_any_element()]),
+                ),
+                (
                     "Validation",
+                    col(vec![h::TextField::new(self.demo_text(
+                        "tf-validate",
+                        "",
+                        cx,
+                    ))
+                    .label("Full name")
+                    .is_required(true)
+                    .validate(|value| value.trim().is_empty().then(|| "Name is required".into()))
+                    .into_any_element()]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::TextField::new(self.demo_text("tf-controlled", "", cx))
+                            .label("Full name")
+                            .on_change(|_, _, _| {})
+                            .into_any_element(),
+                        para(&format!("Value: {tf_controlled}"), cx),
+                    ]),
+                ),
+                (
+                    "Error Message",
                     col(vec![h::TextField::new(self.text_field_state.clone())
                         .label("Full name")
                         .is_required(true)
                         .error_message("This field is required.")
                         .into_any_element()]),
+                ),
+                (
+                    "TextArea",
+                    col(vec![h::TextArea::new(self.demo_text("tf-area", "", cx))
+                        .label("Bio")
+                        .rows(4)
+                        .description("A `TextField` whose input is multi-line")
+                        .into_any_element()]),
+                ),
+                (
+                    "Input Types",
+                    col(vec![
+                        h::TextField::new(self.demo_text("tf-pw", "", cx))
+                            .label("Password")
+                            .input_type(h::InputType::Password)
+                            .into_any_element(),
+                        h::TextField::new(self.demo_text("tf-email", "", cx))
+                            .label("Email")
+                            .input_type(h::InputType::Email)
+                            .into_any_element(),
+                    ]),
                 ),
             ],
             cx,

@@ -1,4 +1,4 @@
-"""Table: Secondary Variant, Async Loading, Pagination, Custom Cells."""
+"""NumberField page: the thirteen v3 examples it was missing."""
 import io
 
 P = 'gallery/src/pages/components.rs'
@@ -12,144 +12,193 @@ def rep(old, new):
 
 
 rep("""                (
-                    "Empty and loading",
-                    col(vec![
-                        h::Table::new(vec!["Name".into(), "Role".into()])
-                            .empty_state("Nobody here yet")
-                            .into_any_element(),
-                        build().is_pending(true).into_any_element(),
-                    ]),
+                    "Format options",
+                    col(vec![h::NumberField::new(self.price.clone())
+                        .label("Price")
+                        .format_options(h::NumberFormat::currency("USD"))
+                        .into_any_element()]),
                 ),
             ],""",
     """                (
-                    "Secondary Variant",
-                    col(vec![build()
-                        .variant(h::TableVariant::Secondary)
+                    "Format options",
+                    col(vec![h::NumberField::new(self.price.clone())
+                        .label("Price")
+                        .format_options(h::NumberFormat::currency("USD"))
                         .into_any_element()]),
                 ),
                 (
-                    "Async Loading",
+                    "Variants",
                     col(vec![
-                        para(
-                            "`isPending` covers the table while a request is in flight; \\
-                             `onLoadMore` fires when the last row scrolls into view.",
-                            cx,
-                        ),
-                        build()
-                            .is_pending(true)
-                            .on_load_more(|_, _| {})
+                        h::NumberField::new(self.demo_number("nf-primary", 5., 0., 20., 1., cx))
+                            .label("Primary")
+                            .into_any_element(),
+                        h::NumberField::new(self.demo_number("nf-secondary", 5., 0., 20., 1., cx))
+                            .label("Secondary")
+                            .variant(FieldVariant::Secondary)
                             .into_any_element(),
                     ]),
                 ),
                 (
-                    "Pagination",
-                    col(vec![
-                        {
-                            let start = table_page.saturating_sub(1) * 2;
-                            let people = [
-                                ("Tony Reichert", "CEO"),
-                                ("Zoey Lang", "Tech Lead"),
-                                ("Jane Fisher", "Designer"),
-                                ("William Howard", "Support"),
-                                ("Kristen Copper", "Sales Manager"),
-                                ("Emily Collins", "Marketing"),
-                            ];
-                            let mut paged =
-                                h::Table::new(vec!["Name".into(), "Role".into()]);
-                            for (name, role) in people.iter().skip(start).take(2) {
-                                paged = paged.row(vec![
-                                    gpui::div().child(*name).into_any_element(),
-                                    gpui::div().child(*role).into_any_element(),
-                                ]);
-                            }
-                            paged.into_any_element()
-                        },
-                        h::Pagination::new("tbl-pages", 3)
-                            .page(table_page)
-                            .on_change(usize_cb(cx.listener(|this, p: &usize, _, cx| {
-                                this.set_demo_value("tbl-page", *p as f32);
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                    ]),
+                    "In Surface",
+                    col(vec![h::Surface::new()
+                        .padding(px(24.))
+                        .gap(px(16.))
+                        .child(
+                            h::NumberField::new(self.demo_number(
+                                "nf-surface",
+                                2.,
+                                0.,
+                                10.,
+                                1.,
+                                cx,
+                            ))
+                            .label("Seats")
+                            .variant(FieldVariant::Secondary)
+                            .description("The secondary variant, for use on a surface"),
+                        )
+                        .into_any_element()]),
                 ),
                 (
-                    "Custom Cells",
-                    col(vec![h::Table::new(vec![
-                        "Member".into(),
-                        "Role".into(),
-                        "Status".into(),
-                    ])
-                    .row(vec![
-                        gpui::div()
-                            .flex()
-                            .items_center()
-                            .gap(px(10.))
-                            .child(h::Avatar::new().name("Tony Reichert").size(Size::Sm))
-                            .child(
-                                gpui::div()
-                                    .flex()
-                                    .flex_col()
-                                    .child(gpui::div().child("Tony Reichert"))
-                                    .child(
-                                        gpui::div()
-                                            .text_size(px(11.5))
-                                            .text_color(cx.colors().muted)
-                                            .child("tony@example.com"),
-                                    ),
-                            )
-                            .into_any_element(),
-                        gpui::div().child("CEO").into_any_element(),
-                        h::Chip::new("Active")
-                            .color(Color::Success)
-                            .variant(h::ChipVariant::Soft)
-                            .size(Size::Sm)
-                            .into_any_element(),
-                    ])
-                    .row(vec![
-                        gpui::div()
-                            .flex()
-                            .items_center()
-                            .gap(px(10.))
-                            .child(h::Avatar::new().name("Zoey Lang").size(Size::Sm))
-                            .child(
-                                gpui::div()
-                                    .flex()
-                                    .flex_col()
-                                    .child(gpui::div().child("Zoey Lang"))
-                                    .child(
-                                        gpui::div()
-                                            .text_size(px(11.5))
-                                            .text_color(cx.colors().muted)
-                                            .child("zoey@example.com"),
-                                    ),
-                            )
-                            .into_any_element(),
-                        gpui::div().child("Tech Lead").into_any_element(),
-                        h::Chip::new("Paused")
-                            .color(Color::Warning)
-                            .variant(h::ChipVariant::Soft)
-                            .size(Size::Sm)
-                            .into_any_element(),
-                    ])
+                    "With Description",
+                    col(vec![h::NumberField::new(self.demo_number(
+                        "nf-desc", 1., 0., 99., 1., cx,
+                    ))
+                    .label("Quantity")
+                    .description("How many licences to buy")
                     .into_any_element()]),
                 ),
                 (
-                    "Empty and loading",
+                    "Required Field",
+                    col(vec![h::NumberField::new(self.demo_number(
+                        "nf-req", 1., 0., 99., 1., cx,
+                    ))
+                    .label("Quantity")
+                    .is_required(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Disabled State",
+                    col(vec![h::NumberField::new(self.demo_number(
+                        "nf-dis", 8., 0., 99., 1., cx,
+                    ))
+                    .label("Quantity")
+                    .is_disabled(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Full Width",
+                    col(vec![h::NumberField::new(self.demo_number(
+                        "nf-full", 3., 0., 99., 1., cx,
+                    ))
+                    .label("Quantity")
+                    .full_width(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Validation",
+                    col(vec![h::NumberField::new(self.demo_number(
+                        "nf-invalid", 0., 0., 99., 1., cx,
+                    ))
+                    .label("Quantity")
+                    .is_required(true)
+                    .is_invalid(true)
+                    .validation_errors(["Order at least one"])
+                    .into_any_element()]),
+                ),
+                (
+                    "Controlled",
                     col(vec![
-                        h::Table::new(vec!["Name".into(), "Role".into()])
-                            .empty_state("Nobody here yet")
+                        h::NumberField::new(self.demo_number("nf-ctl", 5., 0., 20., 1., cx))
+                            .label("Quantity")
+                            .on_change(f64_cb(cx.listener(|_, _v: &f64, _, cx| cx.notify())))
                             .into_any_element(),
-                        build().is_pending(true).into_any_element(),
+                        para(&format!("Value: {nf_controlled}"), cx),
                     ]),
+                ),
+                (
+                    "Step Values",
+                    col(vec![
+                        h::NumberField::new(self.demo_number("nf-step-5", 10., 0., 100., 5., cx))
+                            .label("Step 5")
+                            .into_any_element(),
+                        h::NumberField::new(self.demo_number(
+                            "nf-step-tenth",
+                            1.5,
+                            0.,
+                            10.,
+                            0.1,
+                            cx,
+                        ))
+                        .label("Step 0.1")
+                        .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Form Example",
+                    col(vec![{
+                        let seats = self.demo_number("nf-form", 1., 1., 99., 1., cx);
+                        h::Form::new()
+                            .field(h::FormField::number(seats.clone()).name("seats"))
+                            .child(
+                                h::NumberField::new(seats)
+                                    .label("Seats")
+                                    .name("seats")
+                                    .is_required(true),
+                            )
+                            .child(h::Button::new("nf-form-submit").label("Buy"))
+                            .into_any_element()
+                    }]),
+                ),
+                (
+                    "With Validation",
+                    col(vec![h::NumberField::new(self.demo_number(
+                        "nf-validate",
+                        200.,
+                        0.,
+                        1000.,
+                        10.,
+                        cx,
+                    ))
+                    .label("Budget")
+                    .description("At least 100")
+                    .validate(|value| (*value < 100.).then(|| "Budget must be at least 100".into()))
+                    .into_any_element()]),
+                ),
+                (
+                    "Custom Icons",
+                    col(vec![
+                        para(
+                            "v3 replaces the glyphs inside `NumberField.IncrementButton` and \\
+                             `DecrementButton`. Ours draws v3's own minus and plus; the pair below \\
+                             shows them with and without the steppers.",
+                            cx,
+                        ),
+                        h::NumberField::new(self.demo_number("nf-icons", 1024., 0., 4096., 1., cx))
+                            .label("Width")
+                            .into_any_element(),
+                        h::NumberField::new(self.demo_number("nf-noicons", 512., 0., 4096., 1., cx))
+                            .label("Width (no steppers)")
+                            .hide_steppers(true)
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "With Chevrons",
+                    col(vec![h::NumberField::new(self.demo_number(
+                        "nf-chev", 99., 0., 999., 1., cx,
+                    ))
+                    .label("Amount")
+                    .format_options(h::NumberFormat::currency("EUR"))
+                    .into_any_element()]),
                 ),
             ],""")
 
-rep("""    pub fn page_table(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        let build = || {""",
-    """    pub fn page_table(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        let table_page = self.demo_value("tbl-page", 1.) as usize;
-        let build = || {""")
+rep("""    pub fn page_number_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {""",
+    """    pub fn page_number_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let nf_controlled = self
+            .demo_number("nf-ctl", 5., 0., 20., 1., cx)
+            .read(cx)
+            .value();""")
 
 io.open(P, 'w', encoding='utf-8', newline='').write(s)
-print('patched table page')
+print('patched number field page')

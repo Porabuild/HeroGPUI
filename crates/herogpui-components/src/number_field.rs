@@ -153,6 +153,8 @@ type OnChange = Arc<dyn Fn(f64, &mut Window, &mut App) + 'static>;
 #[derive(IntoElement)]
 pub struct NumberField {
     state: Entity<NumberState>,
+    /// `Description` — v3 composes it as a sibling of `NumberField.Group`.
+    description: Option<SharedString>,
     label: Option<SharedString>,
     hide_steppers: bool,
     is_disabled: bool,
@@ -278,6 +280,7 @@ impl NumberField {
     pub fn new(state: Entity<NumberState>) -> Self {
         Self {
             state,
+            description: None,
             label: None,
             hide_steppers: false,
             is_disabled: false,
@@ -297,6 +300,12 @@ impl NumberField {
             is_read_only: false,
             on_change: None,
         }
+    }
+
+    /// `Description` — help text under the field.
+    pub fn description(mut self, text: impl Into<SharedString>) -> Self {
+        self.description = Some(text.into());
+        self
     }
 
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
@@ -410,29 +419,34 @@ impl RenderOnce for NumberField {
                 }
             });
 
-        // The resolved message has to reach the field's error slot, or
-        // `validate` would mark the field invalid without saying why.
-        if let Some(message) = validity.first() {
-            field = field.error_message(message);
-        }
+        // `.number-field__group` is one box -- `grid h-9 rounded-field bg-field
+        // shadow-field overflow-hidden` -- with a 40px decrement button, the
+        // input, and a 40px increment button inside it, each separated by a
+        // hairline. The steppers used to sit *outside* the field as two loose
+        // buttons, which is not a shape v3 has.
+        let steppers = !self.hide_steppers;
+        field = field.in_group(steppers, steppers);
 
-        if let Some(label) = &self.label {
-            field = field.label(label.clone());
-        }
-
+        let mut group = gpui::div()
+            .flex()
+            .items_center()
+            .h(h)
+            .overflow_hidden()
+            .text_size(crate::util::FIELD_TEXT);
+        group =
+            crate::util::apply_field_chrome(group, self.variant, validity.is_invalid, false, cx);
         if self.full_width {
-            field = field.full_width();
+            group = group.w_full();
+        } else {
+            group = group.w(px(220.));
         }
 
-        let mut el = gpui::div().flex().items_center().gap(px(6.));
-        if self.full_width {
-            el = el.w_full();
-        }
-        el = el.child(field);
-
-        if !self.hide_steppers && !self.is_disabled {
-            el = el
-                .child(stepper_btn(
+        // `border-field-placeholder/15` is the seam between a stepper and the
+        // input; the buttons themselves are transparent.
+        let seam = colors.field.placeholder.alpha(0.15);
+        if steppers {
+            group = group.child(
+                stepper_btn(
                     &self.state,
                     &self.on_change,
                     &colors,
@@ -440,8 +454,16 @@ impl RenderOnce for NumberField {
                     btn_px,
                     icons::MINUS,
                     -1.0,
-                ))
-                .child(stepper_btn(
+                    self.is_disabled,
+                )
+                .border_r_1()
+                .border_color(seam),
+            );
+        }
+        group = group.child(gpui::div().flex_1().min_w_0().child(field));
+        if steppers {
+            group = group.child(
+                stepper_btn(
                     &self.state,
                     &self.on_change,
                     &colors,
@@ -449,15 +471,42 @@ impl RenderOnce for NumberField {
                     btn_px,
                     icons::PLUS,
                     1.0,
-                ));
-        } else if self.is_disabled {
-            el = el.opacity(layout.disabled_opacity);
+                    self.is_disabled,
+                )
+                .border_l_1()
+                .border_color(seam),
+            );
+        }
+        if self.is_disabled {
+            group = group.opacity(layout.disabled_opacity);
         }
 
+        // The label, description and error slot belong to the field, not to the
+        // group: v3 composes them as siblings of `NumberField.Group`.
+        let mut el = gpui::div().flex().flex_col().gap(px(4.));
+        if self.full_width {
+            el = el.w_full();
+        }
+        if let Some(label) = &self.label {
+            el = el.child(
+                crate::field::Label::new(label.clone())
+                    .is_required(self.is_required)
+                    .is_invalid(validity.is_invalid)
+                    .is_disabled(self.is_disabled),
+            );
+        }
+        el = el.child(group);
+        if let Some(message) = validity.first() {
+            el = el.child(crate::field::ErrorMessage::new(message));
+        } else if let Some(description) = self.description.clone() {
+            el = el.child(crate::field::Description::new(description));
+        }
         el
     }
 }
 
+/// One stepper cell: `flex h-full w-10 items-center justify-center
+/// rounded-none bg-transparent`, pressed at `bg-field-foreground/10`.
 #[allow(clippy::too_many_arguments)]
 fn stepper_btn(
     state: &Entity<NumberState>,
@@ -467,7 +516,8 @@ fn stepper_btn(
     btn_px: gpui::Pixels,
     icon: &'static str,
     dir: f64,
-) -> gpui::AnyElement {
+    is_disabled: bool,
+) -> gpui::Stateful<gpui::Div> {
     let st = state.clone();
     let on_change = on_change.clone();
     let id = gpui::ElementId::Name(format!("num-{}-{dir}", state.entity_id().as_u64()).into());
@@ -476,26 +526,28 @@ fn stepper_btn(
         .flex()
         .items_center()
         .justify_center()
+        .flex_shrink_0()
         .w(btn_px)
-        .h(h - px(8.))
-        .rounded(px(6.))
-        .cursor_pointer();
-    let hover_bg = colors.default.soft_hover();
-    b = b.hover(move |s| s.bg(hover_bg));
-    b = b.on_click(move |_, window, cx| {
-        st.update(cx, |s, sc| {
-            s.bump(dir, sc);
-            sc.notify();
-        });
-        if let Some(cb) = &on_change {
-            cb(st.read(cx).value(), window, cx);
-        }
-    });
+        .h(h);
+    if !is_disabled {
+        let pressed_bg = colors.field.foreground.alpha(0.1);
+        b = b
+            .cursor_pointer()
+            .hover(move |s| s.bg(pressed_bg))
+            .on_click(move |_, window, cx| {
+                st.update(cx, |s, sc| {
+                    s.bump(dir, sc);
+                    sc.notify();
+                });
+                if let Some(cb) = &on_change {
+                    cb(st.read(cx).value(), window, cx);
+                }
+            });
+    }
     b.child(
         gpui::svg()
-            .size(px(11.))
+            .size(crate::util::FIELD_ICON)
             .path(icon)
-            .text_color(colors.foreground),
+            .text_color(colors.field.foreground),
     )
-    .into_any_element()
 }
