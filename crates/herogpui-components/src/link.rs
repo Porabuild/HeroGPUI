@@ -46,7 +46,7 @@ impl Link {
         }
     }
 
-    /// `Link.Icon` — the glyph beside the label. Pass
+    /// `Link.Icon` (`.link__icon`) — the glyph beside the label. Pass
     /// `icons::EXTERNAL_LINK` for the one v3 draws by default.
     pub fn icon(mut self, el: impl IntoElement) -> Self {
         self.icon = Some(el.into_any_element());

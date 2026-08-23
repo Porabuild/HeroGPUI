@@ -593,6 +593,7 @@ impl RenderOnce for Select {
             gpui::svg()
                 .size(px(16.))
                 .path(if is_open {
+                    // `.select__indicator` turns with the panel.
                     icons::CHEVRON_UP
                 } else {
                     icons::CHEVRON_DOWN

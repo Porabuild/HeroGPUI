@@ -327,6 +327,9 @@ impl RenderOnce for Accordion {
                 Vec::new(),
                 cx,
             );
+            // `.accordion__heading` wraps the trigger and `.accordion__panel`
+            // the body; both are plain flex boxes with the metrics on the parts
+            // inside them.
             let mut section = gpui::div().flex().flex_col().child(header);
             if is_open {
                 section = section.child(

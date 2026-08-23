@@ -99,6 +99,8 @@ impl RenderOnce for Alert {
             ),
         );
 
+        // `.alert__content` is the column that holds the title and the
+        // description, beside the indicator.
         let mut text_col = gpui::div().flex().flex_col().gap(px(2.)).flex_1();
         text_col = text_col.child(
             gpui::div()

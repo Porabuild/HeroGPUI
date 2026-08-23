@@ -474,6 +474,8 @@ impl RenderOnce for Modal {
                 ));
             }
             _ => {
+                // `.modal__backdrop`, whose `--opaque`/`--blur`/`--transparent`
+                // variants are the `Backdrop` enum above.
                 let scrim = gpui::div().absolute().inset_0().bg(backdrop_bg);
                 overlay = overlay.child(if exiting {
                     crate::anim::exiting(

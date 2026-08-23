@@ -608,6 +608,8 @@ impl RenderOnce for ToastCardEl {
             );
         }
 
+        // `.toast__content` -- the title and description column, beside the
+        // indicator and inside the card.
         let mut text_col = gpui::div().flex().flex_col().gap(px(2.)).flex_1().min_w_0();
         text_col = text_col.child(
             gpui::div()

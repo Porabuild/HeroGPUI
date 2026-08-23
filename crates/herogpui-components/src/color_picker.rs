@@ -1672,6 +1672,30 @@ impl RenderOnce for ColorSwatchPicker {
                         .child(div().size_full().rounded(radius).bg(swatch.to_hsla()))
                 });
 
+            // `.color-swatch-picker__indicator` spans the *item* (`absolute
+            // inset-0`) and centres a checkmark at `size-1/3` of it -- white by
+            // default, black over a light colour (`data-light-color`).
+            if selected {
+                cell = cell.child(
+                    div()
+                        .absolute()
+                        .inset_0()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(
+                            gpui::svg()
+                                .size(px(32. / 3.))
+                                .path(crate::icons::CHECK)
+                                .text_color(if swatch.brightness > 0.7 {
+                                    gpui::black()
+                                } else {
+                                    gpui::white()
+                                }),
+                        ),
+                );
+            }
+
             // Selected: `border-color: var(--color-swatch-current)` -- the
             // border takes the swatch's own colour, and the gap the shrunk
             // swatch leaves is what reads as a ring.

@@ -408,7 +408,7 @@ impl RangeCalendar {
         cell.into_any_element()
     }
 
-    /// The seven column headers.
+    /// The seven column headers -- `.range-calendar__grid-header`.
     fn weekday_header(&self, cx: &App) -> gpui::Div {
         let muted = cx.colors().muted;
         let mut row = div().flex().flex_row().w_full();
@@ -915,6 +915,9 @@ impl RenderOnce for RangeCalendar {
                         .child(Weekday::ALL[weekday_index(*d)].short_label().to_owned())
                 })));
             }
+            // `.range-calendar__grid` wraps the header and
+            // `.range-calendar__grid-body`; each line is a
+            // `.range-calendar__grid-row` of `.range-calendar__cell-button`s.
             let mut grid = div().flex().flex_col().gap(px(2.));
             for chunk in linear.chunks(per_row) {
                 let mut line = div().flex().flex_row();

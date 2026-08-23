@@ -154,6 +154,7 @@ impl RenderOnce for Avatar {
 
         match &self.src {
             Some(path) => {
+                // `.avatar__image` is `absolute inset-0 aspect-square size-full`.
                 el = el.child(gpui::img(path.clone()).size_full());
             }
             None => {

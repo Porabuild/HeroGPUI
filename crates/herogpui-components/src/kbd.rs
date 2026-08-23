@@ -91,6 +91,8 @@ impl RenderOnce for Kbd {
             KbdVariant::Light => el.bg(colors.default.soft()).text_color(colors.muted),
         };
 
+        // `.kbd__content` is the key text itself; `.kbd__abbr` is the `<abbr>`
+        // v3 wraps it in for screen readers, which has no analogue here.
         el.children(self.children)
     }
 }

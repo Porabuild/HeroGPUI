@@ -102,6 +102,9 @@ impl RenderOnce for Breadcrumbs {
             .into_iter()
             .enumerate()
             .map(|(i, crumb)| {
+                // `.breadcrumbs__item` is the row, `.breadcrumbs__link` the
+                // label inside it, and `.breadcrumbs__separator` the glyph
+                // after every item but the last.
                 let is_last = i == item_count - 1;
                 let row = gpui::div().flex().items_center().gap(px(8.));
 

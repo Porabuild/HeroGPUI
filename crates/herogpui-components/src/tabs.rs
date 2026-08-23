@@ -176,6 +176,8 @@ impl RenderOnce for Tabs {
         let layout = cx.layout();
 
         let vertical = self.orientation == Orientation::Vertical;
+        // `.tabs__list-container` is the scroll box around `.tabs__list`; with
+        // no overflow to scroll they are one element here.
         let mut list = gpui::div().flex();
         if vertical {
             list = list.flex_col().items_start();

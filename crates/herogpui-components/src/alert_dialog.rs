@@ -83,6 +83,7 @@ pub struct AlertDialog {
     /// dialog that does not compose one.
     status: Option<Color>,
     is_dismissible: bool,
+    hide_close_button: bool,
     is_keyboard_dismiss_disabled: bool,
     on_open_change: Option<OnOpenChange>,
     confirm_label: SharedString,
@@ -121,6 +122,7 @@ impl AlertDialog {
             // v3 defaults an alert dialog to non-dismissible: the user has to
             // pick one of the two actions.
             is_dismissible: false,
+            hide_close_button: false,
             // v3 defaults this to true for an alert dialog.
             is_keyboard_dismiss_disabled: true,
             on_open_change: None,
@@ -169,6 +171,13 @@ impl AlertDialog {
     }
 
     /// `isDismissable` — allows dismissal by clicking the backdrop.
+    /// `AlertDialog.CloseTrigger` is composed in v3; this renders the built-in
+    /// one unless it is turned off.
+    pub fn hide_close_button(mut self, v: bool) -> Self {
+        self.hide_close_button = v;
+        self
+    }
+
     pub fn is_dismissible(mut self, v: bool) -> Self {
         self.is_dismissible = v;
         self
@@ -395,6 +404,20 @@ impl RenderOnce for AlertDialog {
             )),
         };
 
+        // `.alert-dialog__close-trigger` is `absolute end-4 top-4`. Only a
+        // dismissible dialog gets one: v3's confirmation dialogs ask for a
+        // choice, and `isDismissible` is what says the choice can be skipped.
+        if !self.hide_close_button {
+            if let Some(on_close) = dismiss.clone() {
+                panel = panel.child(
+                    div().absolute().top(px(16.)).right(px(16.)).child(
+                        crate::close_button::CloseButton::new("alert-dialog-close")
+                            .on_press(move |ev, window, cx| on_close(ev, window, cx)),
+                    ),
+                );
+            }
+        }
+
         let keyboard_dismiss: Option<OnAction> = if self.is_keyboard_dismiss_disabled {
             None
         } else {
@@ -413,6 +436,7 @@ impl RenderOnce for AlertDialog {
             }
         };
 
+        // `.alert-dialog__backdrop`, whose variants are the `Backdrop` enum.
         let mut backdrop = div()
             .id("alert-dialog-backdrop")
             .absolute()

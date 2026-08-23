@@ -177,6 +177,7 @@ impl RenderOnce for Popover {
         }
 
         // Panel
+        // `.popover__heading` is the title beside the close button.
         let mut header_row = gpui::div().flex().items_center().justify_between();
         if let Some(title) = &self.title {
             header_row = header_row.child(

@@ -275,6 +275,8 @@ impl RenderOnce for Slider {
             .gap(px(4.))
             .when(self.orientation.is_horizontal(), |e| e.w_full());
 
+        // `.slider__output` is `text-sm font-medium tabular-nums` beside the
+        // label; the two share the row above the track.
         if self.label.is_some() || self.show_value {
             el = el.child(
                 gpui::div()
@@ -332,7 +334,8 @@ impl RenderOnce for Slider {
             .inset_0(),
         );
 
-        // rail
+        // `.slider__track` is `relative rounded-xl bg-default` -- the rail the
+        // fill and the thumbs sit on.
         track = track.child(
             gpui::div()
                 .absolute()
@@ -342,7 +345,7 @@ impl RenderOnce for Slider {
                 .bg(colors.default.soft_hover()),
         );
 
-        // fill
+        // `.slider__fill` is `pointer-events-none absolute bg-accent`.
         let fill_span = (fill_to - fill_from).max(0.0);
         track = track.child(
             gpui::div()

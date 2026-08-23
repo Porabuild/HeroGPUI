@@ -614,7 +614,13 @@ impl RenderOnce for Table {
                 .pb(px(4.));
         }
 
+        // `.table__scroll-container` is `overflow-x-auto` around the content, so
+        // a table wider than its box scrolls instead of being clipped.
         let mut table = gpui::div()
+            .id(gpui::ElementId::Name(
+                format!("{}-scroll-x", self.id).into(),
+            ))
+            .overflow_x_scroll()
             .flex()
             .flex_col()
             .w_full()
@@ -623,6 +629,8 @@ impl RenderOnce for Table {
             .when_some(self.padding, |el, p| el.p(p));
 
         // ---- header ------------------------------------------------------
+        // `.table__header`, whose cells are `.table__column`s and whose
+        // sortable ones wrap in `.table__sortable-column-header`.
         let mut header = gpui::div()
             .flex()
             .border_b_1()
@@ -1097,6 +1105,8 @@ impl RowCtx {
     /// `rowHeight` tall because that is the number the scroll geometry comes
     /// from.
     #[allow(clippy::too_many_arguments)]
+    /// One `.table__row`: `relative h-full` with a `border-separator/50`
+    /// bottom edge, and `.table__cell`s inside it.
     fn row(
         &self,
         i: usize,

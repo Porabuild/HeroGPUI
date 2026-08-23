@@ -69,6 +69,8 @@ impl RenderOnce for Disclosure {
         // has no rule for.
         let expanded = self.is_expanded;
         let cb = self.on_toggle.clone();
+        // `.disclosure__trigger` is `inline-block` with the focus ring on it;
+        // v3 passes a Button, which is what this builds.
         let trigger = crate::button::Button::new(gpui::ElementId::Name(
             format!("{}-disclosure-trigger", self.title).into(),
         ))

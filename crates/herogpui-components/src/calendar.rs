@@ -656,6 +656,7 @@ impl Calendar {
     }
 
     /// The seven column headers.
+    /// `.calendar__grid-header` — the seven `.calendar__header-cell` columns.
     fn weekday_header(&self, cx: &App) -> gpui::Div {
         let muted = cx.colors().muted;
         gpui::div()
@@ -679,6 +680,8 @@ impl Calendar {
         let dim = days_in_month(y, m) as usize;
         let rows = self.constraints.rows(y, m);
 
+        // `.calendar__grid` holds the header and `.calendar__grid-body`, whose
+        // children are `.calendar__grid-row`s of cells.
         let mut grid = gpui::div().flex().flex_col().gap(px(2.));
         for r in 0..rows {
             let mut line = gpui::div().flex().gap(px(2.));

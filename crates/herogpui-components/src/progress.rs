@@ -113,6 +113,8 @@ impl RenderOnce for ProgressBar {
 
         let mut el = gpui::div().flex().flex_col().gap(px(4.)).w_full();
 
+        // `.progress-bar__output` / `.meter__output` is the value beside the
+        // label, in the row above the track.
         if self.label.is_some() || self.show_value {
             let value_text = self.value_label.clone().unwrap_or_else(|| {
                 if self.is_indeterminate {
@@ -143,6 +145,8 @@ impl RenderOnce for ProgressBar {
             );
         }
 
+        // `.progress-bar__track` / `.meter__track`, with
+        // `.progress-bar__fill` / `.meter__fill` inside it.
         let track = gpui::div()
             .w_full()
             .h(h)
@@ -305,7 +309,9 @@ impl RenderOnce for ProgressCircle {
             .items_center()
             .justify_center()
             .size(self.size_px)
-            // Track ring
+            // `.progress-circle__track` and `.progress-circle__track-circle`:
+            // v3 draws two
+            // SVG circles, one full ring and one dashed to the value.
             .child(
                 gpui::div()
                     .absolute()
@@ -314,7 +320,8 @@ impl RenderOnce for ProgressCircle {
                     .border(stroke_w)
                     .border_color(colors.default.soft_hover()),
             )
-            // Value arc
+            // `.progress-circle__fill-circle` -- the arc, stroked to the same
+            // weight as the track it sits on.
             .child(
                 gpui::canvas(
                     move |bounds, _, _| bounds,

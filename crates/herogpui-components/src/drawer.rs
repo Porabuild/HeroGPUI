@@ -236,6 +236,22 @@ impl RenderOnce for Drawer {
             .text_color(colors.foreground)
             .shadow(cx.layout().overlay_shadow.clone())
             .overflow_hidden()
+            // `.drawer__handle` is `flex items-center justify-center pb-2` with
+            // an `h-1 w-9 rounded-xs bg-separator` bar: the affordance that says
+            // the sheet can be dragged shut. `--top` moves it to the bottom
+            // edge, which is the edge that moves.
+            .child({
+                let bar = gpui::div()
+                    .h(px(4.))
+                    .w(px(36.))
+                    .rounded(crate::util::hairline_radius(cx))
+                    .bg(colors.separator);
+                let handle = gpui::div().flex().items_center().justify_center().child(bar);
+                match self.placement {
+                    DrawerPlacement::Top => handle.pt(px(8.)),
+                    _ => handle.pb(px(8.)),
+                }
+            })
             .when(has_header, |p| p.child(header))
             .when(has_body, |p| {
                 p.child(
@@ -282,6 +298,8 @@ impl RenderOnce for Drawer {
         // anchor to the requested edge, pulled out by however far the drag has
         // come: a div cannot be translated in this gpui, so the inset moves.
         let pulled = px(-drag_offset);
+        // `.drawer__content` is the positioned box the dialog slides in, and its
+        // `--top`/`--bottom`/`--left`/`--right` variants are this match.
         let anchored = match self.placement {
             DrawerPlacement::Left => panel
                 .w(PANEL_EXTENT)
@@ -409,6 +427,7 @@ impl RenderOnce for Drawer {
                 ));
             }
             _ => {
+                // `.drawer__backdrop`, whose variants are the `Backdrop` enum.
                 let scrim = gpui::div().absolute().inset_0().bg(backdrop_bg);
                 overlay = overlay.child(if exiting {
                     crate::anim::exiting(

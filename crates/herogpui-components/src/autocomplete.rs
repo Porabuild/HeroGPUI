@@ -508,6 +508,7 @@ impl RenderOnce for Autocomplete {
                     }
                 }
 
+                // `.autocomplete__indicator` -- the chevron at the field's end.
                 let mut chevron = gpui::div()
                     .id(el_name("autocomplete-trigger".to_owned()))
                     .flex()
