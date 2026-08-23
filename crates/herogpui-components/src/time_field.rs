@@ -235,6 +235,8 @@ pub struct TimeField {
     /// `TimeField.Prefix` — content before the segments, drawn in the
     /// placeholder colour and inert.
     prefix: Option<gpui::AnyElement>,
+    /// See [`TimeField::content`].
+    content: Option<Arc<dyn Fn(util::FieldFocus) -> gpui::AnyElement + 'static>>,
     /// `TimeField.Suffix` — content after the segments
     /// (`.date-input-group__suffix`: `shrink-0 me-3` in the placeholder colour).
     suffix: Option<gpui::AnyElement>,
@@ -276,6 +278,7 @@ impl TimeField {
             label: None,
             description: None,
             error_message: None,
+            content: None,
             prefix: None,
             suffix: None,
             variant: FieldVariant::Primary,
@@ -373,6 +376,16 @@ impl TimeField {
     }
 
     /// `TimeField.Suffix` — content after the segments.
+    /// v3's field `children`-as-a-function, handed `{isFocused, isFocusWithin,
+    /// isFocusVisible}`; see [`crate::input::Input::content`].
+    pub fn content(
+        mut self,
+        render: impl Fn(util::FieldFocus) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.content = Some(Arc::new(render));
+        self
+    }
+
     pub fn suffix(mut self, el: impl IntoElement) -> Self {
         self.suffix = Some(el.into_any_element());
         self
@@ -519,6 +532,16 @@ impl RenderOnce for TimeField {
             |_, cx| cx.focus_handle().tab_stop(true),
         );
         let focus_handle = focus_handle.read(cx).clone();
+        if let Some(render) = self.content.clone() {
+            // v3's field children-as-a-function: the caller builds the parts.
+            let focused = focus_handle.is_focused(window);
+            return render(util::FieldFocus {
+                is_focused: focused,
+                is_focus_within: focus_handle.contains_focused(window, cx),
+                is_focus_visible: focused && util::focus_visible(cx),
+            })
+            .into_any_element();
+        }
         if self.auto_focus {
             util::focus_once(
                 window,
@@ -859,7 +882,7 @@ impl RenderOnce for TimeField {
             root = root.child(crate::field::Description::new(description));
         }
 
-        root
+        root.into_any_element()
     }
 }
 

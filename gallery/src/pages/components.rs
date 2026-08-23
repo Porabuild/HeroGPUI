@@ -241,6 +241,12 @@ fn date_cb(
     move |v, w, cx| l(&v, w, cx)
 }
 
+fn shadow_vis_cb(
+    l: impl Fn(&h::ScrollShadowVisibility, &mut gpui::Window, &mut gpui::App) + 'static,
+) -> impl Fn(h::ScrollShadowVisibility, &mut gpui::Window, &mut gpui::App) + 'static {
+    move |v, w, cx| l(&v, w, cx)
+}
+
 fn opt_date_cb(
     l: impl Fn(&Option<h::Date>, &mut gpui::Window, &mut gpui::App) + 'static,
 ) -> impl Fn(Option<h::Date>, &mut gpui::Window, &mut gpui::App) + 'static {
@@ -10807,6 +10813,17 @@ impl Gallery {
                             "Auto (follows the scroll position)",
                             h::ScrollShadow::new("ss-vis-auto")
                                 .visibility(h::ScrollShadowVisibility::Auto)
+                                // `onVisibilityChange` fires when the shaded
+                                // edges change, which `Auto` does as it scrolls.
+                                .on_visibility_change(shadow_vis_cb(cx.listener(
+                                    |this, visibility: &h::ScrollShadowVisibility, _, cx| {
+                                        this.set_demo_text_value(
+                                            "ss-visibility",
+                                            format!("{visibility:?}"),
+                                        );
+                                        cx.notify();
+                                    },
+                                )))
                                 .max_h(px(120.))
                                 .children(
                                     (1..=10)

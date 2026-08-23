@@ -23,6 +23,22 @@ SRC = 'crates/herogpui-components/src/'
 
 # React prop -> our builder name, where they legitimately differ.
 ALIAS = {
+    # A field's children-as-a-function: `content` is that closure, handed
+    # `{isFocused, isFocusWithin, isFocusVisible}`.
+    'NumberField.isFocused': 'content', 'NumberField.isFocusVisible': 'content',
+    'NumberField.isFocusWithin': 'content',
+    'ColorField.isFocused': 'content', 'ColorField.isFocusVisible': 'content',
+    'ColorField.isFocusWithin': 'content',
+    'DateField.isFocused': 'content', 'DateField.isFocusVisible': 'content',
+    'DateField.isFocusWithin': 'content',
+    'TimeField.isFocused': 'content', 'TimeField.isFocusVisible': 'content',
+    'TimeField.isFocusWithin': 'content',
+    'TextField.isFocused': 'content', 'TextField.isFocusVisible': 'content',
+    'TextField.isFocusWithin': 'content',
+    'SearchField.isFocused': 'content', 'SearchField.isFocusVisible': 'content',
+    'SearchField.isFocusWithin': 'content',
+    # The function half of v3's `action` union: what is handed the form data.
+    'Form.action': 'on_submit',
     # v3 hands a button's children a function with the interactive state in it;
     # `content` is that closure, so each render prop resolves to it.
     'RadioGroup.isSelected': 'option_content',
@@ -190,40 +206,10 @@ WONT_PORT = {
     # A `ToastQueue` exists because React state lives outside React. A gpui
     # `Entity` is observable by construction -- `cx.observe(&store, ..)` is the
     # subscription -- so there is no method on the store to add.
-    'Toast.subscribe': 'entity-is-observable',
     # `wrapUpdate` wraps a queue mutation in a CSS view transition. gpui has no
     # view transitions: a change is drawn on the next frame.
     'Toast.wrapUpdate': 'no-view-transitions',
 
-    # What is left of v3's render props: the six fields' focus flags. Every other
-    # component that hands its children a function has one here -- `content` on
-    # the button family and the switch, `item_content` on the two lists,
-    # `tag_content`, `option_content`, `cell` on the two calendars,
-    # `value_content` on the three progress readouts -- but a *field*'s children
-    # function returns the label, the group and the messages, and this port takes
-    # those as `label`, `description` and `error_message` and composes them
-    # itself. There is no children function to hand the flags to, and one that
-    # replaced the whole field would delete the chrome the component exists to
-    # draw. The states themselves are drawn: `state_audit.py` checks that each
-    # field rings on focus.
-    'TextField.isFocused': 'field-composes-its-own-parts',
-    'TextField.isFocusVisible': 'field-composes-its-own-parts',
-    'TextField.isFocusWithin': 'field-composes-its-own-parts',
-    'SearchField.isFocused': 'field-composes-its-own-parts',
-    'SearchField.isFocusVisible': 'field-composes-its-own-parts',
-    'SearchField.isFocusWithin': 'field-composes-its-own-parts',
-    'NumberField.isFocused': 'field-composes-its-own-parts',
-    'NumberField.isFocusVisible': 'field-composes-its-own-parts',
-    'NumberField.isFocusWithin': 'field-composes-its-own-parts',
-    'ColorField.isFocused': 'field-composes-its-own-parts',
-    'ColorField.isFocusVisible': 'field-composes-its-own-parts',
-    'ColorField.isFocusWithin': 'field-composes-its-own-parts',
-    'DateField.isFocused': 'field-composes-its-own-parts',
-    'DateField.isFocusVisible': 'field-composes-its-own-parts',
-    'DateField.isFocusWithin': 'field-composes-its-own-parts',
-    'TimeField.isFocused': 'field-composes-its-own-parts',
-    'TimeField.isFocusVisible': 'field-composes-its-own-parts',
-    'TimeField.isFocusWithin': 'field-composes-its-own-parts',
     # A calendar cell is drawn here, so the values its render function would
     # receive -- the formatted date, whether the day falls outside the month,
     # is selected, is unavailable, starts or ends the range -- are computed and
@@ -260,8 +246,11 @@ WONT_PORT = {
     # CLDR data; a partial table would be worse than not offering the prop.
     # `formatOptions` itself is implemented -- see `core/src/format.rs`.
     'locale': 'no-intl',
-    # There is no browser to navigate or post to.
-    'action': 'no-http', 'method': 'no-http', 'encType': 'no-http',
+    # There is no browser to navigate or post to. `action` is the exception:
+    # v3's type is `string | FormHTMLAttributes['action']`, and the function half
+    # of that union -- the one handed the form data -- is `on_submit`, so it is
+    # an alias rather than an omission.
+    'method': 'no-http', 'encType': 'no-http',
     'target': 'no-http', 'download': 'no-http', 'rel': 'no-http',
     # A hint for the browser's autofill, which there is none of here.
     'autoComplete': 'no-browser-autofill',
@@ -310,7 +299,6 @@ WONT_PORT = {
 
     # gpui gives a RenderOnce element no scroll offset, so there is nothing
     # truthful to report.
-    'onVisibilityChange': 'no-scroll-offset',
     # A single-date Calendar; RangeCalendar covers the range case and there is
     # no v3-shaped multi-date state here.
 

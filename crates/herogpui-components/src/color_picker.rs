@@ -1116,6 +1116,8 @@ impl RenderOnce for ColorSlider {
 /// numeric value.
 #[derive(IntoElement)]
 pub struct ColorField {
+    /// See [`ColorField::content`].
+    content: Option<Arc<dyn Fn(util::FieldFocus) -> gpui::AnyElement + 'static>>,
     /// `ColorField.Suffix` — the `me-3` slot after the value, in the
     /// placeholder colour. v3's own example fills the *prefix* with a swatch and
     /// leaves this to the caller (a channel unit, a lock icon).
@@ -1166,6 +1168,16 @@ impl ColorField {
         self
     }
 
+    /// v3's field `children`-as-a-function, handed `{isFocused, isFocusWithin,
+    /// isFocusVisible}`; see [`crate::input::Input::content`].
+    pub fn content(
+        mut self,
+        render: impl Fn(util::FieldFocus) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.content = Some(Arc::new(render));
+        self
+    }
+
     /// `ColorField.Suffix` — the slot after the value.
     pub fn suffix(mut self, el: impl IntoElement) -> Self {
         self.suffix = Some(el.into_any_element());
@@ -1174,6 +1186,7 @@ impl ColorField {
 
     pub fn new(id: impl Into<ElementId>, value: PickerColor) -> Self {
         Self {
+            content: None,
             suffix: None,
             validation_behavior: crate::form::ValidationBehavior::Native,
             name: None,
@@ -1379,6 +1392,23 @@ impl RenderOnce for ColorField {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `defaultValue` opts into the component holding its own colour;
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
+        if let Some(render) = self.content.clone() {
+            // v3's field children-as-a-function: the caller builds the parts.
+            let focused = self
+                .state
+                .as_ref()
+                .is_some_and(|s| s.read(cx).focus_handle.is_focused(window));
+            let within = self
+                .state
+                .as_ref()
+                .is_some_and(|s| s.read(cx).focus_handle.contains_focused(window, cx));
+            return render(util::FieldFocus {
+                is_focused: focused,
+                is_focus_within: within,
+                is_focus_visible: focused && util::focus_visible(cx),
+            })
+            .into_any_element();
+        }
         let (resolved, own) = util::controlled(
             window,
             cx,

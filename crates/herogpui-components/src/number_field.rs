@@ -153,6 +153,8 @@ type OnChange = Arc<dyn Fn(f64, &mut Window, &mut App) + 'static>;
 #[derive(IntoElement)]
 pub struct NumberField {
     state: Entity<NumberState>,
+    /// See [`NumberField::content`].
+    content: Option<Arc<dyn Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static>>,
     /// `Description` — v3 composes it as a sibling of `NumberField.Group`.
     description: Option<SharedString>,
     label: Option<SharedString>,
@@ -285,8 +287,19 @@ impl NumberField {
         self
     }
 
+    /// v3's field `children`-as-a-function, handed `{isFocused, isFocusWithin,
+    /// isFocusVisible}`; see [`crate::input::Input::content`].
+    pub fn content(
+        mut self,
+        render: impl Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.content = Some(Arc::new(render));
+        self
+    }
+
     pub fn new(state: Entity<NumberState>) -> Self {
         Self {
+            content: None,
             state,
             description: None,
             label: None,
@@ -341,6 +354,17 @@ impl NumberField {
 
 impl RenderOnce for NumberField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // v3's field children-as-a-function: the caller builds the parts from the
+        // focus state, so the field's own stack is skipped entirely.
+        if let Some(render) = self.content.clone() {
+            let handle = self.state.read(cx).input.read(cx).focus_handle.clone();
+            let focused = handle.is_focused(window);
+            return render(crate::util::FieldFocus {
+                is_focused: focused,
+                is_focus_within: handle.contains_focused(window, cx),
+                is_focus_visible: focused && crate::util::focus_visible(cx),
+            });
+        }
         let colors = cx.colors().clone();
         let layout = cx.layout().clone();
 
@@ -558,7 +582,7 @@ impl RenderOnce for NumberField {
         } else if let Some(description) = self.description.clone() {
             el = el.child(crate::field::Description::new(description));
         }
-        el
+        el.into_any_element()
     }
 }
 

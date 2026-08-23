@@ -602,6 +602,8 @@ fn multiline_body(b: MultilineBody<'_>, cx: &App) -> gpui::AnyElement {
 /// HeroUI Input.
 #[derive(IntoElement)]
 pub struct Input {
+    /// See [`Input::content`]: v3's field children-as-a-function.
+    content: Option<std::sync::Arc<dyn Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static>>,
     /// `validationBehavior` — written into the state on render.
     validation_behavior: Option<crate::form::ValidationBehavior>,
     state: Entity<InputState>,
@@ -658,6 +660,21 @@ impl Input {
         &self.state
     }
 
+    /// v3's field `children`-as-a-function, handed `{isFocused, isFocusWithin,
+    /// isFocusVisible}`.
+    ///
+    /// v3's caller writes the parts themselves inside that function -- a
+    /// `Label`, the group, a `Description` -- and this port exposes the same
+    /// three as components, so a closure here replaces the field's own stack
+    /// with whatever the caller builds from the state.
+    pub fn content(
+        mut self,
+        render: impl Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.content = Some(std::sync::Arc::new(render));
+        self
+    }
+
     /// `value` — writes through to the bound [`InputState`].
     pub fn value(self, value: impl Into<String>, cx: &mut App) -> Self {
         self.state.update(cx, |s, _| s.set_value(value));
@@ -666,6 +683,7 @@ impl Input {
 
     pub fn new(state: Entity<InputState>) -> Self {
         Self {
+            content: None,
             validation_behavior: None,
             state,
             label: None,
@@ -988,6 +1006,16 @@ impl RenderOnce for Input {
         let colors = cx.colors();
         let accent = colors.accent;
         let focused = focus_handle.is_focused(window);
+
+        // v3's field children-as-a-function: the caller builds the parts from the
+        // focus state, so the field's own stack is skipped entirely.
+        if let Some(render) = self.content.clone() {
+            return render(crate::util::FieldFocus {
+                is_focused: focused,
+                is_focus_within: focus_handle.contains_focused(window, cx),
+                is_focus_visible: focused && crate::util::focus_visible(cx),
+            });
+        }
 
         // Every v3 field is one box: `.input` is `px-3 py-2 text-sm`, which is
         // 36px tall, and its siblings say so outright (`.input-group` and
@@ -1578,6 +1606,21 @@ impl TextField {
         self
     }
 
+    /// v3's field `children`-as-a-function, handed `{isFocused, isFocusWithin,
+    /// isFocusVisible}`.
+    ///
+    /// v3's caller writes the parts themselves inside that function -- a
+    /// `Label`, the group, a `Description` -- and this port exposes the same
+    /// three as components, so a closure here replaces the field's own stack
+    /// with whatever the caller builds from the state.
+    pub fn content(
+        mut self,
+        render: impl Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.inner = self.inner.content(render);
+        self
+    }
+
     pub fn placeholder(mut self, text: impl Into<SharedString>) -> Self {
         self.inner = self.inner.placeholder(text);
         self
@@ -1687,6 +1730,8 @@ impl RenderOnce for TextField {
 #[derive(IntoElement)]
 pub struct SearchField {
     state: Entity<InputState>,
+    /// See [`SearchField::content`]: v3's field children-as-a-function.
+    content: Option<std::sync::Arc<dyn Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static>>,
     /// `name` — the submission name, forwarded to the inner `Input`.
     name: Option<SharedString>,
     /// `defaultValue` — forwarded to the inner `Input`.
@@ -1719,8 +1764,19 @@ pub struct SearchField {
 }
 
 impl SearchField {
+    /// v3's field `children`-as-a-function, handed `{isFocused, isFocusWithin,
+    /// isFocusVisible}`; see [`Input::content`].
+    pub fn content(
+        mut self,
+        render: impl Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.content = Some(std::sync::Arc::new(render));
+        self
+    }
+
     pub fn new(state: Entity<InputState>) -> Self {
         Self {
+            content: None,
             state,
             name: None,
             default_value: None,
@@ -1866,6 +1922,9 @@ impl RenderOnce for SearchField {
         let colors = cx.colors();
         let validate = self.validate.clone();
         let mut input = Input::new(self.state)
+            .when_some(self.content, |i, render| {
+                i.content(move |state| render(state))
+            })
             .placeholder(self.placeholder)
             .when_some(self.name, |i, n| i.name(n))
             .when_some(self.default_value, |i, v| i.default_value(v))

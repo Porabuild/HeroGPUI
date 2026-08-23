@@ -5,8 +5,8 @@
 //! and `visibility`.
 
 use gpui::{
-    div, prelude::*, px, AnyElement, App, ElementId, IntoElement, ParentElement, Pixels,
-    RenderOnce, Styled, Window,
+    canvas, div, prelude::*, px, AnyElement, App, ElementId, IntoElement, ParentElement, Pixels,
+    RenderOnce, ScrollHandle, Styled, Window,
 };
 use herogpui_core::Orientation;
 use herogpui_theme::ActiveTheme;
@@ -20,10 +20,12 @@ pub enum ScrollShadowVariant {
 
 /// Which edges show a shadow (`visibility`).
 ///
-/// v3 also has `onVisibilityChange`, which fires when the scroll position
-/// crosses a shadow threshold. gpui 0.2.2 does not expose a scroll offset to a
-/// `RenderOnce` element, so there is nothing truthful to report and the prop is
-/// deliberately absent rather than stubbed.
+/// `Auto` is derived from the live scroll offset: a tracked `ScrollHandle`
+/// reports where the content sits, so the leading fade appears once it has been
+/// scrolled away from the start and the trailing one goes when the end is
+/// reached. The offset is a frame behind -- gpui fills the handle during
+/// prepaint -- which `onVisibilityChange` reports from a canvas in the same
+/// frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ScrollShadowVisibility {
     /// Derived from the scroll position.
@@ -42,9 +44,7 @@ impl ScrollShadowVisibility {
     /// Whether the leading edge (top / left) should be shaded.
     fn shows_start(self, orientation: Orientation) -> bool {
         match self {
-            // gpui does not expose the live scroll offset to a `RenderOnce`
-            // element, so `Auto` shades both edges — the fade is decorative and
-            // reads correctly at rest as well as mid-scroll.
+            // `Auto` is resolved before this is asked; `Both` is unconditional.
             Self::Auto | Self::Both => true,
             Self::Top => !orientation.is_horizontal(),
             Self::Left => orientation.is_horizontal(),
@@ -74,6 +74,10 @@ pub struct ScrollShadow {
     offset: Pixels,
     is_enabled: bool,
     visibility: ScrollShadowVisibility,
+    /// `onVisibilityChange` — reports the edges that are shaded, whenever that
+    /// changes.
+    on_visibility_change:
+        Option<std::sync::Arc<dyn Fn(ScrollShadowVisibility, &mut Window, &mut App) + 'static>>,
     max_h: Option<Pixels>,
     max_w: Option<Pixels>,
     gap: Pixels,
@@ -89,6 +93,7 @@ impl ScrollShadow {
             offset: px(0.),
             is_enabled: true,
             visibility: ScrollShadowVisibility::Auto,
+            on_visibility_change: None,
             max_h: Some(px(240.)),
             max_w: None,
             gap: px(8.),
@@ -115,6 +120,16 @@ impl ScrollShadow {
     /// Turns shadow rendering off while keeping the scroll behaviour.
     pub fn is_enabled(mut self, v: bool) -> Self {
         self.is_enabled = v;
+        self
+    }
+
+    /// `onVisibilityChange` — fires when the shaded edges change, with the
+    /// resolved visibility (never `Auto`: the resolved value is what changed).
+    pub fn on_visibility_change(
+        mut self,
+        handler: impl Fn(ScrollShadowVisibility, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_visibility_change = Some(std::sync::Arc::new(handler));
         self
     }
 
@@ -147,11 +162,31 @@ impl ParentElement for ScrollShadow {
 }
 
 impl RenderOnce for ScrollShadow {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // Where the content sits, as of the last frame: `use_keyed_state` takes
+        // `cx` mutably, so both slots precede the theme borrow.
+        let scroll = window
+            .use_keyed_state(
+                ElementId::Name(format!("{:?}-scroll", self.id).into()),
+                cx,
+                |_, _| ScrollHandle::new(),
+            )
+            .read(cx)
+            .clone();
+        let reported = window.use_keyed_state(
+            ElementId::Name(format!("{:?}-shadow-visibility", self.id).into()),
+            cx,
+            |_, _| ScrollShadowVisibility::None,
+        );
         let bg = cx.colors().background;
         let horizontal = self.orientation.is_horizontal();
 
-        let mut scroller = div().id(self.id).overflow_hidden().flex().gap(self.gap);
+        let mut scroller = div()
+            .id(self.id.clone())
+            .track_scroll(&scroll)
+            .overflow_hidden()
+            .flex()
+            .gap(self.gap);
 
         scroller = if horizontal {
             scroller.flex_row().overflow_x_scroll()
@@ -169,8 +204,37 @@ impl RenderOnce for ScrollShadow {
         scroller = scroller.children(self.children);
 
         if !self.is_enabled || self.visibility == ScrollShadowVisibility::None {
-            return div().child(scroller);
+            return div().child(scroller).into_any_element();
         }
+
+        // `Auto`: the leading fade once the content has been scrolled away from
+        // the start, the trailing one until the end is reached. `offset` counts
+        // *backwards* from zero, and `max_offset` is how far it can go.
+        let offset = scroll.offset();
+        let max = scroll.max_offset();
+        let (past_start, before_end) = if horizontal {
+            (
+                f32::from(offset.x) < -f32::from(self.offset),
+                f32::from(offset.x) - f32::from(self.offset) > -f32::from(max.width),
+            )
+        } else {
+            (
+                f32::from(offset.y) < -f32::from(self.offset),
+                f32::from(offset.y) - f32::from(self.offset) > -f32::from(max.height),
+            )
+        };
+        let resolved = if self.visibility == ScrollShadowVisibility::Auto {
+            match (past_start, before_end) {
+                (true, true) => ScrollShadowVisibility::Both,
+                (true, false) if horizontal => ScrollShadowVisibility::Left,
+                (true, false) => ScrollShadowVisibility::Top,
+                (false, true) if horizontal => ScrollShadowVisibility::Right,
+                (false, true) => ScrollShadowVisibility::Bottom,
+                (false, false) => ScrollShadowVisibility::None,
+            }
+        } else {
+            self.visibility
+        };
 
         // The fades are absolutely positioned siblings so they do not scroll
         // with the content.
@@ -201,11 +265,33 @@ impl RenderOnce for ScrollShadow {
         div()
             .relative()
             .child(scroller)
-            .when(self.visibility.shows_start(self.orientation), |el| {
+            .when(resolved.shows_start(self.orientation), |el| {
                 el.child(fade(true))
             })
-            .when(self.visibility.shows_end(self.orientation), |el| {
+            .when(resolved.shows_end(self.orientation), |el| {
                 el.child(fade(false))
             })
+            .child({
+                // The offset is written during prepaint, so what changed is
+                // known here and reported from here.
+                let handler = self.on_visibility_change.clone();
+                canvas(
+                    move |_, window, cx| {
+                        if *reported.read(cx) != resolved {
+                            reported.update(cx, |value, cx| {
+                                *value = resolved;
+                                cx.notify();
+                            });
+                            if let Some(f) = &handler {
+                                f(resolved, window, cx);
+                            }
+                        }
+                    },
+                    |_, _, _, _| {},
+                )
+                .absolute()
+                .size(px(0.))
+            })
+            .into_any_element()
     }
 }

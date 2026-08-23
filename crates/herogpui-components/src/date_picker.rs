@@ -967,6 +967,8 @@ type DateSegmentRender =
 /// plain date string.
 #[derive(IntoElement)]
 pub struct DateField {
+    /// See [`DateField::content`].
+    content: Option<std::sync::Arc<dyn Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static>>,
     /// `segment` — v3's render prop for one editable segment,
     /// handed which segment it is and the text the field would show.
     segment: Option<DateSegmentRender>,
@@ -1165,8 +1167,19 @@ impl DateField {
         self
     }
 
+    /// v3's field `children`-as-a-function, handed `{isFocused, isFocusWithin,
+    /// isFocusVisible}`; see [`crate::input::Input::content`].
+    pub fn content(
+        mut self,
+        render: impl Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.content = Some(std::sync::Arc::new(render));
+        self
+    }
+
     pub fn new(state: Entity<crate::input::InputState>) -> Self {
         Self {
+            content: None,
             segment: None,
             granularity: Granularity::Day,
             hour_cycle: crate::time_field::HourCycle::H24,
@@ -1317,6 +1330,17 @@ fn format_value(
 
 impl RenderOnce for DateField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        if let Some(render) = self.content.clone() {
+            // v3's field children-as-a-function: the caller builds the parts.
+            let handle = self.state.read(cx).focus_handle.clone();
+            let focused = handle.is_focused(window);
+            return render(crate::util::FieldFocus {
+                is_focused: focused,
+                is_focus_within: handle.contains_focused(window, cx),
+                is_focus_visible: focused && crate::util::focus_visible(cx),
+            })
+            .into_any_element();
+        }
         // `validationBehavior` travels with the name, on the text state.
         if let Some(behavior) = self.validation_behavior {
             if self.state.read(cx).validation_behavior() != behavior {

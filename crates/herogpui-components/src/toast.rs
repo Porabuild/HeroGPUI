@@ -10,7 +10,8 @@
 use std::time::Duration;
 
 use gpui::{
-    prelude::*, px, App, Entity, Global, IntoElement, RenderOnce, SharedString, Styled, Window,
+    prelude::*, px, App, Entity, Global, IntoElement, RenderOnce, SharedString, Styled,
+    Subscription, Window,
 };
 use herogpui_core::Color;
 use herogpui_theme::ActiveTheme;
@@ -101,6 +102,19 @@ impl ToastStore {
             next_id: 1,
             paused: false,
         }
+    }
+
+    /// `ToastQueue.subscribe` — run `f` whenever the queue changes.
+    ///
+    /// v3 returns an unsubscribe function; gpui returns a `Subscription` whose
+    /// drop does the same, so the caller keeps it for as long as it wants the
+    /// callback.
+    pub fn subscribe(
+        store: &Entity<Self>,
+        cx: &mut App,
+        mut f: impl FnMut(&mut App) + 'static,
+    ) -> Subscription {
+        cx.observe(store, move |_, cx| f(cx))
     }
 
     pub fn toasts(&self) -> &[ToastData] {

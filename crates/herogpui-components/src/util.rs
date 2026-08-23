@@ -476,6 +476,22 @@ impl gpui::Global for FocusVisible {}
 /// v3's stylesheets style that state. gpui reports *that* an element has focus
 /// but not how the focus arrived, so the app root records which kind of input
 /// was last seen and every ring in the tree reads it.
+/// v3's *field* render props, as one value.
+///
+/// Every field in v3 hands its children a function and passes these in:
+/// `{isFocused, isFocusWithin, isFocusVisible}`. A field draws its own focus
+/// chrome from the same three, so a component that also takes a content closure
+/// hands them over rather than leaving a caller to re-derive them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FieldFocus {
+    /// `isFocused` — this control holds the keyboard.
+    pub is_focused: bool,
+    /// `isFocusWithin` — it or something inside it does.
+    pub is_focus_within: bool,
+    /// `isFocusVisible` — focused, and the last input was a key.
+    pub is_focus_visible: bool,
+}
+
 /// v3's interactive render props, as one value.
 ///
 /// Every pressable control in v3 hands its children a function and passes these
