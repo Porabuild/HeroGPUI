@@ -374,6 +374,24 @@ share a field name cover for each other — that hid an unwired
 `SearchField::validate` next to `Input::validate`. It now lists shared names at
 the end; check those by hand.
 
+v3's theming story *is* its variables: override the custom properties and every
+component follows. The port's equivalent is `ThemeColors` and `LayoutTokens`, so
+a variable v3 declares and this port does not expose is a hole in the theming
+surface -- nothing can read it and no caller can set it.
+
+```bash
+python .shots/token_audit.py
+```
+
+89 variables, and it found four real holes: `--border-secondary`,
+`--border-tertiary` and the two surface foregrounds, the last of which is why a
+`Surface`'s secondary and tertiary variants were painting a fill and leaving the
+text colour alone. Most of v3's variables are `color-mix`es, and this port
+*computes* those rather than storing them -- which is what keeps a derived colour
+from drifting out of step with what it mixes -- so the audit accepts an accessor
+as readily as a field. What it does not check is the value: `design_audit.py`'s
+fill checks and `semantic.rs`'s own tests cover that.
+
 The design audit measures the *resting* look. What a control does when it is
 hovered, pressed, focused or disabled is a different list, and v3 states it in
 the stylesheets: every component sheet reaches for the same handful of

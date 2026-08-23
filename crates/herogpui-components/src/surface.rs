@@ -87,9 +87,18 @@ impl RenderOnce for Surface {
             SurfaceVariant::Transparent => el
                 .border(cx.layout().border_width)
                 .border_color(colors.border),
-            SurfaceVariant::Default => el.bg(colors.surface.background),
-            SurfaceVariant::Secondary => el.bg(colors.surface_secondary),
-            SurfaceVariant::Tertiary => el.bg(colors.surface_tertiary),
+            // Each fill brings its own foreground: `.surface--secondary` is
+            // `bg-surface-secondary text-surface-secondary-foreground`, and the
+            // text colour was going unset.
+            SurfaceVariant::Default => el
+                .bg(colors.surface.background)
+                .text_color(colors.surface.foreground),
+            SurfaceVariant::Secondary => el
+                .bg(colors.surface_secondary)
+                .text_color(colors.surface_secondary_foreground()),
+            SurfaceVariant::Tertiary => el
+                .bg(colors.surface_tertiary)
+                .text_color(colors.surface_tertiary_foreground()),
         };
 
         el.children(self.children)

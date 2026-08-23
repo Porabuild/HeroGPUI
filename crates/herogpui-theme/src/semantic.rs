@@ -119,6 +119,20 @@ impl FieldColors {
     pub fn focus(&self) -> Hsla {
         self.background
     }
+
+    /// `--field-border-hover: color-mix(in oklab, var(--field-border) 88%, var(--field-foreground) 10%)`
+    ///
+    /// The weights sum to 98, which CSS normalises, so the foreground
+    /// contributes 10/98. Invisible while `--field-border-width` is 0, and the
+    /// token exists for a caller who gives their fields a border.
+    pub fn border_hover(&self) -> Hsla {
+        mix_oklab(self.border, self.foreground, 10.0 / 98.0)
+    }
+
+    /// `--field-border-focus: color-mix(in oklab, var(--field-border) 74%, var(--field-foreground) 22%)`
+    pub fn border_focus(&self) -> Hsla {
+        mix_oklab(self.border, self.foreground, 22.0 / 96.0)
+    }
 }
 
 /// All semantic tokens of one appearance.
@@ -205,6 +219,32 @@ impl ThemeColors {
     /// `color-mix(in oklab, var(--surface) 81%, var(--surface-foreground) 19%)`
     pub fn separator_tertiary(&self) -> Hsla {
         mix_oklab(self.surface.background, self.surface.foreground, 0.19)
+    }
+
+    // -- derived borders ----------------------------------------------------
+
+    /// `--border-secondary: color-mix(in oklab, var(--surface) 78%, var(--surface-foreground) 22%)`
+    pub fn border_secondary(&self) -> Hsla {
+        mix_oklab(self.surface.background, self.surface.foreground, 0.22)
+    }
+
+    /// `--border-tertiary: color-mix(in oklab, var(--surface) 66%, var(--surface-foreground) 34%)`
+    pub fn border_tertiary(&self) -> Hsla {
+        mix_oklab(self.surface.background, self.surface.foreground, 0.34)
+    }
+
+    /// `--surface-secondary-foreground: var(--foreground)`
+    ///
+    /// v3 gives the secondary and tertiary surfaces their own foreground
+    /// variables, both defaulting to the page's, so a caller who repaints one of
+    /// those surfaces has somewhere to put the matching text colour.
+    pub fn surface_secondary_foreground(&self) -> Hsla {
+        self.foreground
+    }
+
+    /// `--surface-tertiary-foreground: var(--foreground)`
+    pub fn surface_tertiary_foreground(&self) -> Hsla {
+        self.foreground
     }
 
     /// Resolves a role by its v3 token name, defaulting to `accent`.
@@ -327,6 +367,42 @@ mod tests {
         let c = ThemeColors::light();
         assert!((c.accent.soft().a - 0.15).abs() < 1e-4);
         assert!((c.accent.soft_hover().a - 0.20).abs() < 1e-4);
+    }
+
+    #[test]
+    fn the_derived_borders_step_away_from_the_surface() {
+        let c = ThemeColors::light();
+        // `--border-secondary` and `--border-tertiary` mix further from the
+        // surface than `--separator-secondary` does, so a border reads stronger
+        // than a rule at the same step.
+        let steps = [
+            c.separator_secondary(),
+            c.border_secondary(),
+            c.border_tertiary(),
+        ];
+        for pair in steps.windows(2) {
+            assert!(
+                pair[1].l < pair[0].l,
+                "each step is darker than the last on a light surface"
+            );
+        }
+    }
+
+    #[test]
+    fn a_secondary_surface_keeps_the_page_foreground() {
+        let c = ThemeColors::light();
+        assert_eq!(c.surface_secondary_foreground(), c.foreground);
+        assert_eq!(c.surface_tertiary_foreground(), c.foreground);
+    }
+
+    #[test]
+    fn a_field_border_mixes_toward_its_own_foreground() {
+        let c = ThemeColors::light();
+        // Both are mixes of `--field-border` toward `--field-foreground`, and
+        // focus mixes further than hover.
+        let border = c.field.border;
+        assert_ne!(c.field.border_hover(), border);
+        assert_ne!(c.field.border_focus(), c.field.border_hover());
     }
 
     #[test]
