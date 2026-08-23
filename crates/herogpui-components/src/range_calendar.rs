@@ -633,10 +633,11 @@ impl RenderOnce for RangeCalendar {
                         .id(ElementId::Name(key.into()))
                         .flex()
                         .items_center()
-                        .gap(px(3.))
+                        // `.calendar-year-picker__trigger` is `gap-1 rounded-lg`.
+                        .gap(px(4.))
                         .px(px(6.))
                         .py(px(2.))
-                        .rounded(util::control_radius(cx))
+                        .rounded(util::key_radius(cx))
                         .cursor_pointer()
                         .hover(move |s| s.bg(hover_bg))
                         .on_click(move |_, _, cx| {
@@ -669,10 +670,11 @@ impl RenderOnce for RangeCalendar {
                         .id(ElementId::Name(key.into()))
                         .flex()
                         .items_center()
-                        .gap(px(3.))
+                        // `.calendar-year-picker__trigger` is `gap-1 rounded-lg`.
+                        .gap(px(4.))
                         .px(px(6.))
                         .py(px(2.))
-                        .rounded(util::control_radius(cx))
+                        .rounded(util::key_radius(cx))
                         .cursor_pointer()
                         .hover(move |s| s.bg(hover_bg))
                         .on_click(move |_, window, cx| {

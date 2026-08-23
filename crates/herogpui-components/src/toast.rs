@@ -611,16 +611,19 @@ impl RenderOnce for ToastCardEl {
         let mut text_col = gpui::div().flex().flex_col().gap(px(2.)).flex_1().min_w_0();
         text_col = text_col.child(
             gpui::div()
-                .text_size(px(13.5))
-                .font_weight(gpui::FontWeight::SEMIBOLD)
+                // `.toast__title` is `text-sm leading-5 font-medium`.
+                .text_size(px(14.))
+                .line_height(px(20.))
+                .font_weight(gpui::FontWeight::MEDIUM)
                 .truncate()
                 .child(self.t.title.to_string()),
         );
         if let Some(desc) = &self.t.description {
             text_col = text_col.child(
                 gpui::div()
-                    .text_size(px(12.5))
-                    .line_height(px(18.))
+                    // `.toast__description` is `text-sm text-muted`.
+                    .text_size(px(14.))
+                    .line_height(px(20.))
                     .text_color(colors.muted)
                     .child(desc.to_string()),
             );
@@ -652,8 +655,10 @@ impl RenderOnce for ToastCardEl {
                 .flex()
                 .items_center()
                 .justify_center()
-                .size(px(22.))
-                .rounded_full()
+                // `.toast__close-button` is `size-5`, and its icon follows the
+                // close button's own `size-3`.
+                .size(px(20.))
+                .rounded(crate::util::small_radius(cx))
                 .cursor_pointer();
             let hover_bg = colors.default.soft_hover();
             close_btn = close_btn.hover(move |s| s.bg(hover_bg));
@@ -661,7 +666,7 @@ impl RenderOnce for ToastCardEl {
             card = card.child(
                 close_btn.child(
                     gpui::svg()
-                        .size(px(11.))
+                        .size(px(12.))
                         .path(icons::CLOSE)
                         .text_color(colors.muted),
                 ),

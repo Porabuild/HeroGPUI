@@ -359,7 +359,8 @@ fn picker_panel(cx: &App) -> gpui::Div {
     let colors = cx.colors();
     let layout = cx.layout();
     gpui::div()
-        .p(px(8.))
+        // `.date-picker__popover` and `.date-range-picker__popover` are `p-3`.
+        .p(px(12.))
         .rounded(crate::util::container_radius(cx))
         .bg(colors.overlay.background)
         .text_color(colors.overlay.foreground)

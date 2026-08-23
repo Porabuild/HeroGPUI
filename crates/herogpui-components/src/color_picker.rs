@@ -1850,12 +1850,15 @@ impl RenderOnce for ColorPicker {
             dismiss_outside = Some(cb);
         }
 
+        // `.color-picker__popover` is `gap-3 min-w-62 px-2`: a minimum width,
+        // not the fixed 264 this used to force.
         let mut panel = div()
             .flex()
             .flex_col()
             .gap(px(12.))
-            .p(px(12.))
-            .w(px(264.))
+            .py(px(12.))
+            .px(px(8.))
+            .min_w(px(248.))
             .rounded(util::container_radius(cx))
             .bg(colors.overlay.background)
             // v3 gives a floating panel no border: it is `bg-overlay

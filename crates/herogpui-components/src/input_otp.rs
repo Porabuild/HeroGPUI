@@ -4,7 +4,7 @@ use gpui::{
     prelude::*, px, App, Entity, FocusHandle, Focusable, IntoElement, KeyDownEvent, RenderOnce,
     SharedString, Styled, Window,
 };
-use herogpui_core::{Color, FieldVariant};
+use herogpui_core::FieldVariant;
 use herogpui_theme::ActiveTheme;
 
 /// Editable state for an OTP field: one char per cell.
@@ -322,7 +322,6 @@ impl RenderOnce for InputOTP {
             );
         }
 
-        let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
 
@@ -412,11 +411,6 @@ impl RenderOnce for InputOTP {
                 FieldVariant::Primary => colors.field.background,
                 FieldVariant::Secondary => colors.default.color,
             };
-            let ring = if invalid {
-                colors.danger.color
-            } else {
-                sem.color
-            };
             cell = cell.bg(slot_bg).text_color(colors.foreground);
             // `--input-otp-slot-bg-hover` is `--default-hover`.
             if !self.is_disabled {
@@ -447,11 +441,24 @@ impl RenderOnce for InputOTP {
             if let Some(render) = &self.slot {
                 cell = cell.child(render(i, if ch == ' ' { None } else { Some(ch) }));
             } else if ch != ' ' {
-                cell = cell.child(ch.to_string());
+                // `.input-otp__slot-value` is `text-lg leading-6`: the digit is
+                // a step larger than the slot's own `text-sm`.
+                cell = cell.child(
+                    gpui::div()
+                        .text_size(px(18.))
+                        .line_height(px(24.))
+                        .child(ch.to_string()),
+                );
             } else if is_cursor_cell {
                 // v3's `@keyframes caret-blink`.
                 cell = cell.child(crate::anim::caret_blink(
-                    gpui::div().w(px(1.5)).h(text).bg(ring),
+                    // `.input-otp__caret` is `h-4 w-[2px] rounded-sm
+                    // bg-field-placeholder`.
+                    gpui::div()
+                        .w(px(2.))
+                        .h(px(16.))
+                        .rounded(crate::util::hairline_radius(cx))
+                        .bg(colors.field.placeholder),
                     gpui::ElementId::Name(
                         format!("otp-caret-{}-{i}", self.state.entity_id().as_u64()).into(),
                     ),
