@@ -119,6 +119,8 @@ pub struct Gallery {
     pub demo_number: HashMap<&'static str, Entity<h::NumberState>>,
     pub demo_time: HashMap<&'static str, Entity<h::TimeState>>,
     pub demo_otp: HashMap<&'static str, Entity<h::OtpState>>,
+    pub demo_calendar: HashMap<&'static str, Entity<h::CalendarState>>,
+    pub demo_range: HashMap<&'static str, Entity<h::DateRangeState>>,
     pub demo_flags: HashMap<&'static str, bool>,
     /// `HEROGPUI_OPEN_OVERLAYS=1`: every overlay demo starts open, so a smoke
     /// run and a screenshot both see the panel rather than just its trigger.
@@ -193,6 +195,26 @@ impl Gallery {
         }
         let state = cx.new(|cx| h::OtpState::with_length(cx, length));
         self.demo_otp.insert(key, state.clone());
+        state
+    }
+
+    /// The calendar state for one demo, created on first use.
+    pub fn demo_calendar(&mut self, key: &'static str, cx: &mut App) -> Entity<h::CalendarState> {
+        if let Some(state) = self.demo_calendar.get(key) {
+            return state.clone();
+        }
+        let state = cx.new(|cx| h::CalendarState::new(cx));
+        self.demo_calendar.insert(key, state.clone());
+        state
+    }
+
+    /// The date-range state for one demo, created on first use.
+    pub fn demo_range(&mut self, key: &'static str, cx: &mut App) -> Entity<h::DateRangeState> {
+        if let Some(state) = self.demo_range.get(key) {
+            return state.clone();
+        }
+        let state = cx.new(|cx| h::DateRangeState::new(cx));
+        self.demo_range.insert(key, state.clone());
         state
     }
 
@@ -364,6 +386,8 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             demo_number: HashMap::new(),
             demo_time: HashMap::new(),
             demo_otp: HashMap::new(),
+            demo_calendar: HashMap::new(),
+            demo_range: HashMap::new(),
             demo_flags: HashMap::new(),
             overlays_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
             demo_values: HashMap::new(),

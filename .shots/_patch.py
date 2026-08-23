@@ -1,4 +1,4 @@
-"""ComboBox page: the twenty-one v3 examples it was missing."""
+"""Calendar and RangeCalendar pages: the examples they were missing."""
 import io
 
 P = 'gallery/src/pages/components.rs'
@@ -11,316 +11,251 @@ def rep(old, new):
     s = s.replace(old, new)
 
 
-rep("""            crate::pages::Page::ComboBox.import_line(),
-            vec![
-                (
-                    "Usage",""",
-    """            crate::pages::Page::ComboBox.import_line(),
-            vec![
-                (
-                    "Full Width",
-                    col(vec![h::ComboBox::new(
-                        self.demo_text("cb-full", "", cx),
-                        languages(),
-                    )
-                    .label("Language")
-                    .full_width(true)
-                    .into_any_element()]),
-                ),
-                (
-                    "With Description",
-                    col(vec![h::ComboBox::new(
-                        self.demo_text("cb-desc", "", cx),
-                        languages(),
-                    )
-                    .label("Language")
-                    .description("Pick from the list or type your own")
-                    .into_any_element()]),
-                ),
-                (
-                    "Required",
-                    col(vec![h::ComboBox::new(
-                        self.demo_text("cb-required", "", cx),
-                        languages(),
-                    )
-                    .label("Language")
-                    .is_required(true)
-                    .into_any_element()]),
-                ),
-                (
-                    "Disabled",
-                    col(vec![h::ComboBox::new(
-                        self.demo_text("cb-disabled", "Rust", cx),
-                        languages(),
-                    )
-                    .label("Language")
-                    .is_disabled(true)
-                    .into_any_element()]),
-                ),
-                (
-                    "Read Only",
-                    col(vec![h::ComboBox::new(
-                        self.demo_text("cb-readonly", "Rust", cx),
-                        languages(),
-                    )
-                    .label("Language")
-                    .is_read_only(true)
-                    .into_any_element()]),
-                ),
-                (
-                    "In Surface",
-                    col(vec![h::Surface::new()
-                        .padding(px(24.))
-                        .child(
-                            h::ComboBox::new(self.demo_text("cb-surface", "", cx), languages())
-                                .label("Language")
-                                .variant(FieldVariant::Secondary),
-                        )
+# ---------------------------------------------------------------- Calendar
+rep("""                (
+                    "Constraints",""",
+    """                (
+                    "Default Value",
+                    col(vec![h::Calendar::new(self.demo_calendar("cal-default", cx))
+                        .default_value(h::Date::new(2025, 12, 25))
                         .into_any_element()]),
-                ),
-                (
-                    "With Disabled Options",
-                    col(vec![h::ComboBox::new(
-                        self.demo_text("cb-disabled-opts", "", cx),
-                        languages(),
-                    )
-                    .label("Language")
-                    .disabled_keys([SharedString::from("Go")])
-                    .default_open(true)
-                    .into_any_element()]),
-                ),
-                (
-                    "With Sections",
-                    col(vec![h::ComboBox::new(
-                        self.demo_text("cb-sections", "", cx),
-                        vec![
-                            "Rust".into(),
-                            "Go".into(),
-                            "TypeScript".into(),
-                            "Python".into(),
-                        ],
-                    )
-                    .label("Language")
-                    .section_before("Rust", "Systems")
-                    .section_before("TypeScript", "Scripting")
-                    .default_open(true)
-                    .into_any_element()]),
                 ),
                 (
                     "Controlled",
                     col(vec![
-                        h::ComboBox::new(self.demo_text("cb-controlled", "", cx), languages())
-                            .label("Language")
-                            .on_selection_change(cx.listener(
-                                |this, key: &SharedString, _, cx| {
-                                    this.set_demo_text_value("cb-picked", key.to_string());
+                        h::Calendar::new(self.demo_calendar("cal-controlled", cx))
+                            .on_change(opt_date_cb(cx.listener(
+                                |this, d: &Option<h::Date>, _, cx| {
+                                    this.cal_picked = *d;
                                     cx.notify();
                                 },
-                            ))
+                            )))
                             .into_any_element(),
                         para(
-                            &if cb_picked.is_empty() {
-                                "Nothing picked yet".to_owned()
-                            } else {
-                                format!("Picked: {cb_picked}")
+                            &match picked {
+                                Some(d) => format!("Value: {}", d.format_iso()),
+                                None => "No value".to_owned(),
                             },
                             cx,
                         ),
                     ]),
                 ),
                 (
-                    "Controlled Input Value",
-                    col(vec![
-                        h::ComboBox::new(self.demo_text("cb-input", "", cx), languages())
-                            .label("Language")
-                            .on_input_change(cx.listener(|this, text: &str, _, cx| {
-                                this.set_demo_text_value("cb-typed", text.to_owned());
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                        para(&format!("Typed: {cb_typed}"), cx),
-                    ]),
+                    "Min and Max Dates",
+                    col(vec![h::Calendar::new(self.demo_calendar("cal-minmax", cx))
+                        .min_value(h::Date::new(today.year, today.month, 5))
+                        .max_value(h::Date::new(today.year, today.month, 20))
+                        .into_any_element()]),
                 ),
                 (
-                    "Controlled Selection",
-                    col(vec![h::ComboBox::new(
-                        self.demo_text("cb-ctl-sel", "", cx),
-                        languages(),
-                    )
-                    .label("Languages")
-                    .selection_mode(SelectionMode::Multiple)
-                    .selected_keys(cb_multi.iter().cloned())
-                    .on_selection_change_all(cx.listener(|this, keys: &[SharedString], _, cx| {
-                        this.set_demo_selection("cb-multi", keys.to_vec());
-                        cx.notify();
-                    }))
-                    .into_any_element()]),
+                    "Unavailable Dates",
+                    col(vec![h::Calendar::new(self.demo_calendar("cal-unavailable", cx))
+                        // Weekends are struck through, which is v3's own example.
+                        .is_date_unavailable(|date| {
+                            let weekday = h::weekday_index(date);
+                            weekday == 0 || weekday == 6
+                        })
+                        .into_any_element()]),
+                ),
+                (
+                    "Weeks in Month",
+                    col(vec![h::Calendar::new(self.demo_calendar("cal-weeks", cx))
+                        .weeks_in_month(6)
+                        .into_any_element()]),
                 ),
                 (
                     "Multiple Selection",
-                    col(vec![h::ComboBox::new(
-                        self.demo_text("cb-multi-sel", "", cx),
-                        languages(),
-                    )
-                    .label("Languages")
-                    .selection_mode(SelectionMode::Multiple)
-                    .default_open(true)
-                    .into_any_element()]),
+                    col(vec![h::Calendar::new(self.demo_calendar("cal-multiple", cx))
+                        .selection_mode(SelectionMode::Multiple)
+                        .into_any_element()]),
                 ),
                 (
-                    "Default Selected Key",
-                    col(vec![h::ComboBox::new(
-                        self.demo_text("cb-default-key", "TypeScript", cx),
-                        languages(),
-                    )
-                    .label("Language")
-                    .into_any_element()]),
+                    "Focused Value",
+                    col(vec![h::Calendar::new(self.demo_calendar("cal-focused", cx))
+                        .focused_value(h::Date::new(today.year, today.month, 15))
+                        .into_any_element()]),
                 ),
                 (
-                    "Allows Custom Value",
-                    col(vec![h::ComboBox::new(
-                        self.demo_text("cb-custom", "Zig", cx),
-                        languages(),
-                    )
-                    .label("Language")
-                    .allows_custom_value(true)
-                    .into_any_element()]),
-                ),
-                (
-                    "Asynchronous Loading",
+                    "Cell Indicators",
                     col(vec![
-                        para(
-                            "v3 fills the list from a request. The spinner beside the field is \\
-                             what says one is in flight; the options are the caller's own data.",
-                            cx,
-                        ),
-                        row(vec![
-                            h::ComboBox::new(self.demo_text("cb-async", "", cx), languages())
-                                .label("Language")
-                                .into_any_element(),
-                            h::Spinner::new("cb-async-spinner")
-                                .size(h::SpinnerSize::Sm)
-                                .into_any_element(),
-                        ]),
-                    ]),
-                ),
-                (
-                    "Custom Indicator",
-                    col(vec![h::ComboBox::new(
-                        self.demo_text("cb-indicator", "", cx),
-                        languages(),
-                    )
-                    .label("Languages")
-                    .selection_mode(SelectionMode::Multiple)
-                    .default_open(true)
-                    .indicator(|is_selected| {
-                        gpui::div()
-                            .text_size(px(12.))
-                            .child(if is_selected { "\\u{2714}" } else { "" })
-                            .into_any_element()
-                    })
-                    .into_any_element()]),
-                ),
-                (
-                    "Custom Filtering",
-                    col(vec![
-                        para("`defaultFilter` here matches on the start of the name only.", cx),
-                        h::ComboBox::new(self.demo_text("cb-filter", "", cx), languages())
-                            .label("Language")
-                            .filter(|query, item| {
-                                item.to_lowercase().starts_with(&query.to_lowercase())
+                        para("The marked days are the ones with events.", cx),
+                        h::Calendar::new(self.demo_calendar("cal-indicators", cx))
+                            .cell_indicator(|date| {
+                                [3, 7, 12, 15, 21, 28].contains(&date.day)
                             })
-                            .default_open(true)
                             .into_any_element(),
                     ]),
                 ),
                 (
-                    "Menu Trigger",
+                    "Custom Navigation Icons",
+                    col(vec![h::Calendar::new(self.demo_calendar("cal-nav", cx))
+                        .nav_icons(h::icons::ARROW_LEFT, h::icons::ARROW_RIGHT)
+                        .into_any_element()]),
+                ),
+                (
+                    "Real-World Example",
+                    col(vec![h::Surface::new()
+                        .padding(px(20.))
+                        .gap(px(12.))
+                        .child(gpui::div().child("Pick an appointment"))
+                        .child(
+                            h::Calendar::new(self.demo_calendar("cal-real", cx))
+                                .min_value(today)
+                                .is_date_unavailable(|date| {
+                                    let weekday = h::weekday_index(date);
+                                    weekday == 0 || weekday == 6
+                                })
+                                .cell_indicator(|date| date.day % 5 == 0),
+                        )
+                        .child(h::Description::new(
+                            "Weekends are unavailable; a dot marks a day with slots left.",
+                        ))
+                        .into_any_element()]),
+                ),
+                (
+                    "Constraints",""")
+
+# ----------------------------------------------------------- RangeCalendar
+rep("""            crate::pages::Page::RangeCalendar.import_line(),
+            vec![(
+                "Usage",""",
+    """            crate::pages::Page::RangeCalendar.import_line(),
+            vec![
+                (
+                    "Disabled",
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-disabled", cx))
+                        .is_disabled(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Year Picker",
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-year", cx))
+                        .default_year_picker_open(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Default Value",
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-default", cx))
+                        .default_value((h::Date::new(2025, 12, 8), h::Date::new(2025, 12, 14)))
+                        .into_any_element()]),
+                ),
+                (
+                    "Controlled",
                     col(vec![
-                        spec(
-                            "Input (opens as you type)",
-                            h::ComboBox::new(self.demo_text("cb-mt-input", "", cx), languages())
-                                .label("Language")
-                                .menu_trigger(h::MenuTrigger::Input),
-                            cx,
-                        ),
-                        spec(
-                            "Manual (only the chevron opens it)",
-                            h::ComboBox::new(self.demo_text("cb-mt-manual", "", cx), languages())
-                                .label("Language")
-                                .menu_trigger(h::MenuTrigger::Manual),
-                            cx,
-                        ),
+                        para("The range lives in the state entity the caller owns.", cx),
+                        h::RangeCalendar::new(self.date_range.clone()).into_any_element(),
                     ]),
                 ),
                 (
-                    "Form Value",
+                    "Min and Max Dates",
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-minmax", cx))
+                        .min_value(h::Date::new(today.year, today.month, 5))
+                        .max_value(h::Date::new(today.year, today.month, 24))
+                        .into_any_element()]),
+                ),
+                (
+                    "Unavailable Dates",
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-unavailable", cx))
+                        .is_date_unavailable(|date| {
+                            let weekday = h::weekday_index(date);
+                            weekday == 0 || weekday == 6
+                        })
+                        .into_any_element()]),
+                ),
+                (
+                    "Anchor-Based Unavailable Dates",
                     col(vec![
                         para(
-                            "A ComboBox item *is* its text here -- the list is a `Vec<SharedString>` \\
-                             -- so the key and the label are the same value and there is nothing \\
-                             for v3's `formValue` to choose between. The field submits the text.",
+                            "A range cannot cross an unavailable day unless \\
+                             `allowsNonContiguousRanges` says it may, so the anchor decides how \\
+                             far the selection reaches.",
                             cx,
                         ),
-                        {
-                            let state = self.demo_text("cb-form", "", cx);
-                            let field = h::ComboBox::new(state.clone(), languages())
-                                .label("Language")
-                                .name("language")
-                                .is_required(true);
-                            h::Form::new()
-                                .field(h::FormField::text(state).name("language").is_required(true))
-                                .child(field)
-                                .child(h::Button::new("cb-form-submit").label("Save"))
-                                .into_any_element()
-                        },
+                        h::RangeCalendar::new(self.demo_range("rc-anchor", cx))
+                            .is_date_unavailable(|date| date.day == 15)
+                            .into_any_element(),
                     ]),
                 ),
                 (
-                    "Validation Behavior",
+                    "Allows Non-Contiguous Ranges",
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-noncontig", cx))
+                        .is_date_unavailable(|date| date.day == 15)
+                        .allows_non_contiguous_ranges(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Weeks in Month",
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-weeks", cx))
+                        .weeks_in_month(6)
+                        .into_any_element()]),
+                ),
+                (
+                    "Week View",
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-week-view", cx))
+                        .visible_duration(h::VisibleDuration::Weeks(2))
+                        .into_any_element()]),
+                ),
+                (
+                    "Day View",
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-day-view", cx))
+                        .visible_duration(h::VisibleDuration::Days(5))
+                        .into_any_element()]),
+                ),
+                (
+                    "Multiple Months",
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-months", cx))
+                        .visible_duration(h::VisibleDuration::Months(2))
+                        .into_any_element()]),
+                ),
+                (
+                    "Read Only",
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-readonly", cx))
+                        .default_value((h::Date::new(2025, 12, 8), h::Date::new(2025, 12, 14)))
+                        .is_read_only(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Invalid",
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-invalid", cx))
+                        .default_value((h::Date::new(2025, 12, 8), h::Date::new(2025, 12, 14)))
+                        .is_invalid(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Focused Value",
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-focused", cx))
+                        .focused_value(h::Date::new(today.year, today.month, 15))
+                        .into_any_element()]),
+                ),
+                (
+                    "Cell Indicators",
                     col(vec![
-                        spec(
-                            "Native (blocks the submit)",
-                            h::ComboBox::new(self.demo_text("cb-vb-native", "", cx), languages())
-                                .label("Language")
-                                .is_required(true)
-                                .validation_behavior(h::ValidationBehavior::Native),
+                        para(
+                            "A `RangeCalendar` marks its own days: the range's ends and every \\
+                             day between them.",
                             cx,
                         ),
-                        spec(
-                            "Allow (shows the message, submits anyway)",
-                            h::ComboBox::new(self.demo_text("cb-vb-allow", "", cx), languages())
-                                .label("Language")
-                                .is_required(true)
-                                .validation_behavior(h::ValidationBehavior::Allow),
-                            cx,
-                        ),
+                        h::RangeCalendar::new(self.demo_range("rc-indicators", cx))
+                            .default_value((h::Date::new(2025, 12, 8), h::Date::new(2025, 12, 14)))
+                            .into_any_element(),
                     ]),
                 ),
                 (
-                    "Custom Validation",
-                    col(vec![h::ComboBox::new(
-                        self.demo_text("cb-validate", "Zig", cx),
-                        languages(),
-                    )
-                    .label("Language")
-                    .allows_custom_value(true)
-                    .validate(|value| {
-                        (!value.is_empty() && !languages().iter().any(|l| l == value))
-                            .then(|| "Pick one of the listed languages".into())
-                    })
-                    .into_any_element()]),
+                    "Real-World Example",
+                    col(vec![h::Surface::new()
+                        .padding(px(20.))
+                        .gap(px(12.))
+                        .child(gpui::div().child("Choose your stay"))
+                        .child(
+                            h::RangeCalendar::new(self.demo_range("rc-real", cx))
+                                .min_value(today)
+                                .is_date_unavailable(|date| date.day == 20),
+                        )
+                        .child(h::Description::new("The 20th is fully booked."))
+                        .into_any_element()]),
                 ),
                 (
                     "Usage",""")
 
-rep("""    pub fn page_combo_box(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        let is_open = self.combo_open;""",
-    """    pub fn page_combo_box(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        let is_open = self.combo_open;
-        let cb_picked = self.demo_text_value("cb-picked");
-        let cb_typed = self.demo_text_value("cb-typed");
-        let cb_multi = self.demo_selection("cb-multi");""")
-
 io.open(P, 'w', encoding='utf-8', newline='').write(s)
-print('patched combo box page')
+print('patched calendar + range calendar pages')

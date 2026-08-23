@@ -267,6 +267,11 @@ pub struct Calendar {
     constraints: DateConstraints,
     is_disabled: bool,
     is_read_only: bool,
+    /// `Calendar.CellIndicator` — whether a day carries a mark. v3 uses it for
+    /// event dots; the closure is handed the date.
+    cell_indicator: Option<Box<dyn Fn(Date) -> bool + 'static>>,
+    /// `Calendar.NavButton` children — the paging glyphs, previous then next.
+    nav_icons: Option<(&'static str, &'static str)>,
     is_invalid: bool,
     focused_value: Option<Date>,
     selection_mode: herogpui_core::SelectionMode,
@@ -314,6 +319,8 @@ impl Calendar {
             constraints: DateConstraints::new(),
             is_disabled: false,
             is_read_only: false,
+            cell_indicator: None,
+            nav_icons: None,
             is_invalid: false,
             focused_value: None,
             selection_mode: herogpui_core::SelectionMode::Single,
@@ -369,6 +376,18 @@ impl Calendar {
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
+        self
+    }
+
+    /// `Calendar.CellIndicator` — mark the days this returns `true` for.
+    pub fn cell_indicator(mut self, f: impl Fn(Date) -> bool + 'static) -> Self {
+        self.cell_indicator = Some(Box::new(f));
+        self
+    }
+
+    /// `Calendar.NavButton` children — the previous and next glyphs.
+    pub fn nav_icons(mut self, previous: &'static str, next: &'static str) -> Self {
+        self.nav_icons = Some((previous, next));
         self
     }
 
@@ -546,13 +565,27 @@ impl Calendar {
             });
         }
 
+        // `Calendar.CellIndicator` — a dot under the day, which is what v3's
+        // event calendar draws.
+        let marked = self.cell_indicator.as_ref().is_some_and(|f| f(date));
         gpui::div()
             .flex_1()
-            .h(px(34.))
+            .h(px(36.))
+            .relative()
             .flex()
             .items_center()
             .justify_center()
             .child(circle.child(date.day.to_string()))
+            .when(marked, |cell| {
+                cell.child(
+                    gpui::div()
+                        .absolute()
+                        .bottom(px(2.))
+                        .size(px(4.))
+                        .rounded_full()
+                        .bg(if is_sel { accent.foreground } else { marker }),
+                )
+            })
             .into_any_element()
     }
 
@@ -747,6 +780,10 @@ impl RenderOnce for Calendar {
         let nav_target =
             |dir: i32| calendar_view::page(self.duration, self.page_behavior, anchor, dir);
         let state_for_nav = self.state.clone();
+        // `Calendar.NavButton` children, defaulting to v3's chevrons.
+        let (prev_icon, next_icon) = self
+            .nav_icons
+            .unwrap_or((icons::CHEVRON_LEFT, icons::CHEVRON_RIGHT));
         let nav_btn = |icon_path: &'static str, target: Date, key: String| {
             let state = state_for_nav.clone();
             let hover_bg = colors.default.soft_hover();
@@ -912,7 +949,7 @@ impl RenderOnce for Calendar {
                         .items_center()
                         .justify_between()
                         .child(if first {
-                            nav_btn(icons::CHEVRON_LEFT, nav_target(-1), format!("{base}-prev"))
+                            nav_btn(prev_icon, nav_target(-1), format!("{base}-prev"))
                                 .into_any_element()
                         } else {
                             spacer()
@@ -922,7 +959,7 @@ impl RenderOnce for Calendar {
                             format!("{base}-heading{i}"),
                         ))
                         .child(if last {
-                            nav_btn(icons::CHEVRON_RIGHT, nav_target(1), format!("{base}-next"))
+                            nav_btn(next_icon, nav_target(1), format!("{base}-next"))
                                 .into_any_element()
                         } else {
                             spacer()

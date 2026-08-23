@@ -144,7 +144,7 @@ CHECKS = [
      r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
     # The menu row has no `rounded` call at all, so its radius is 0.
     ('menu-item', '.menu-item', 'radius', 'Menu row -> util::_radius', SRC + 'dropdown.rs',
-     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)\s+\.h\(px\(32\.\)\)', helper_px),
+     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)[\s\S]{0,400}?px\(32\.\)', helper_px),
     ('menu-item', '.menu-item', 'px', 'Menu row padding_x', SRC + 'dropdown.rs',
      r'\.px\(px\((\d+(?:\.\d*)?)\)\)\s+\.rounded\(crate::util::\w+_radius\(cx\)\)',
      None),

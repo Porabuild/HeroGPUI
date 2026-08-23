@@ -180,6 +180,12 @@ EXTRA_OK_SCOPED = {
     # v3 builds a Select's list out of `ListBox` parts and its trigger out of
     # `Select.Value`; a monolithic Select takes each as a slot.
     'Select.section_before': 'composition',
+    'ComboBox.section_before': 'composition',
+    'Autocomplete.section_before': 'composition',
+    # `Calendar.CellIndicator` marks a day (v3's event dots) and
+    # `Calendar.NavButton` takes children for the paging glyphs.
+    'Calendar.cell_indicator': 'composition',
+    'Calendar.nav_icons': 'composition',
     'Select.indicator': 'composition',
     'Select.value_content': 'composition',
     'Checkbox.is_round': 'no-classname',
