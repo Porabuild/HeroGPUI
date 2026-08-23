@@ -795,6 +795,129 @@ impl Gallery {
             crate::pages::Page::ListBox.import_line(),
             vec![
                 (
+                    "Usage",
+                    col(vec![gpui::div()
+                        .w(px(280.))
+                        .child(h::ListBox::new(
+                            "lb-usage",
+                            vec![
+                                h::ListBoxItem::new("inbox", "Inbox"),
+                                h::ListBoxItem::new("sent", "Sent"),
+                                h::ListBoxItem::new("drafts", "Drafts"),
+                            ],
+                        ))
+                        .into_any_element()]),
+                ),
+                (
+                    "With Disabled Items",
+                    col(vec![gpui::div()
+                        .w(px(280.))
+                        .child(
+                            h::ListBox::new(
+                                "lb-disabled",
+                                vec![
+                                    h::ListBoxItem::new("inbox", "Inbox"),
+                                    h::ListBoxItem::new("sent", "Sent"),
+                                    h::ListBoxItem::new("drafts", "Drafts"),
+                                ],
+                            )
+                            .disabled_keys([SharedString::from("drafts")]),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "With Sections",
+                    col(vec![gpui::div()
+                        .w(px(280.))
+                        .child(h::ListBox::new(
+                            "lb-sections",
+                            vec![
+                                h::ListBoxItem::section("Mail"),
+                                h::ListBoxItem::new("inbox", "Inbox"),
+                                h::ListBoxItem::new("sent", "Sent"),
+                                h::ListBoxItem::separator(),
+                                h::ListBoxItem::section("Archive"),
+                                h::ListBoxItem::new("2024", "2024"),
+                                h::ListBoxItem::new("2025", "2025"),
+                            ],
+                        ))
+                        .into_any_element()]),
+                ),
+                (
+                    "Multi Select",
+                    col(vec![gpui::div()
+                        .w(px(280.))
+                        .child(
+                            h::ListBox::new(
+                                "lb-multi-select",
+                                vec![
+                                    h::ListBoxItem::new("inbox", "Inbox"),
+                                    h::ListBoxItem::new("sent", "Sent"),
+                                    h::ListBoxItem::new("spam", "Spam"),
+                                ],
+                            )
+                            .selection_mode(SelectionMode::Multiple)
+                            .selected_keys(selection.iter().cloned())
+                            .on_selection_change(cx.listener(
+                                |this, keys: &HashSet<SharedString>, _, cx| {
+                                    this.list_selection = keys.clone();
+                                    cx.notify();
+                                },
+                            )),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        gpui::div()
+                            .w(px(280.))
+                            .child(
+                                h::ListBox::new(
+                                    "lb-controlled",
+                                    vec![
+                                        h::ListBoxItem::new("inbox", "Inbox"),
+                                        h::ListBoxItem::new("sent", "Sent"),
+                                        h::ListBoxItem::new("spam", "Spam"),
+                                    ],
+                                )
+                                .selected_keys(selection.iter().cloned())
+                                .on_selection_change(cx.listener(
+                                    |this, keys: &HashSet<SharedString>, _, cx| {
+                                        this.list_selection = keys.clone();
+                                        cx.notify();
+                                    },
+                                )),
+                            )
+                            .into_any_element(),
+                        para(&format!("{} selected", selection.len()), cx),
+                    ]),
+                ),
+                (
+                    "Custom Check Icon",
+                    col(vec![
+                        para(
+                            "v3 replaces `ListBox.ItemIndicator`. A row's `variant` is what \
+                             carries the indicator style here, so the danger row below shows the \
+                             same tick in its own colour.",
+                            cx,
+                        ),
+                        gpui::div()
+                            .w(px(280.))
+                            .child(
+                                h::ListBox::new(
+                                    "lb-check",
+                                    vec![
+                                        h::ListBoxItem::new("keep", "Keep"),
+                                        h::ListBoxItem::new("delete", "Delete").danger(),
+                                    ],
+                                )
+                                .selected_key("keep"),
+                            )
+                            .into_any_element(),
+                    ]),
+                ),
+                (
                     "Single selection",
                     col(vec![gpui::div()
                         .w(px(280.))
@@ -833,20 +956,109 @@ impl Gallery {
     }
 
     pub fn page_tag_group(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        let tags: Vec<h::Tag> = self
-            .tags
-            .iter()
-            .map(|k| h::Tag::new(k.clone(), title_case(k)))
-            .collect();
+        let tag_keys = self.tags.clone();
+        // Each demo needs its own list, so this is a factory rather than one
+        // vector: a `Tag` is moved into the group that shows it.
+        let tags = move || -> Vec<h::Tag> {
+            tag_keys
+                .iter()
+                .map(|k| h::Tag::new(k.clone(), title_case(k)))
+                .collect()
+        };
         let selection = self.tag_selection.clone();
+        let tag_selection = selection.clone();
         doc_page(
             "Tag Group",
             crate::pages::Page::TagGroup.description(),
             crate::pages::Page::TagGroup.import_line(),
             vec![
                 (
+                    "Usage",
+                    col(vec![h::TagGroup::new("tg-usage", tags())
+                        .label("Skills")
+                        .into_any_element()]),
+                ),
+                (
+                    "Disabled",
+                    col(vec![h::TagGroup::new("tg-disabled", tags())
+                        .label("Skills")
+                        .is_disabled(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Selection Modes",
+                    col(vec![
+                        spec(
+                            "Single",
+                            h::TagGroup::new("tg-single", tags())
+                                .selection_mode(SelectionMode::Single),
+                            cx,
+                        ),
+                        spec(
+                            "Multiple",
+                            h::TagGroup::new("tg-multiple", tags())
+                                .selection_mode(SelectionMode::Multiple),
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::TagGroup::new("tg-controlled", tags())
+                            .selection_mode(SelectionMode::Multiple)
+                            .selected_keys(tag_selection.iter().cloned())
+                            .on_selection_change(cx.listener(
+                                |this, keys: &HashSet<SharedString>, _, cx| {
+                                    this.tag_selection = keys.clone();
+                                    cx.notify();
+                                },
+                            ))
+                            .into_any_element(),
+                        para(&format!("{} selected", tag_selection.len()), cx),
+                    ]),
+                ),
+                (
+                    "With Error Message",
+                    col(vec![h::TagGroup::new("tg-error", tags())
+                        .label("Skills")
+                        .description("Pick at least one")
+                        .into_any_element()]),
+                ),
+                (
+                    "With List Data",
+                    col(vec![h::TagGroup::new(
+                        "tg-list",
+                        ["Design", "Research", "Writing", "Support", "Ops"]
+                            .into_iter()
+                            .map(|name| h::Tag::new(name.to_lowercase(), name))
+                            .collect(),
+                    )
+                    .label("Teams")
+                    .into_any_element()]),
+                ),
+                (
+                    "With Prefix",
+                    col(vec![h::TagGroup::new(
+                        "tg-prefix",
+                        vec![
+                            h::Tag::new("rust", "Rust").icon(h::icons::CHECK),
+                            h::Tag::new("gpui", "GPUI").icon(h::icons::CHECK),
+                        ],
+                    )
+                    .label("Verified")
+                    .into_any_element()]),
+                ),
+                (
+                    "With Remove Button",
+                    col(vec![h::TagGroup::new("tg-remove", tags())
+                        .label("Skills")
+                        .on_remove(cx.listener(|_, _key: &SharedString, _, cx| cx.notify()))
+                        .into_any_element()]),
+                ),
+                (
                     "Removable",
-                    col(vec![h::TagGroup::new("tg-remove", tags.clone())
+                    col(vec![h::TagGroup::new("tg-remove", tags())
                         .label("Team")
                         .description("Remove a tag to see the group update.")
                         .empty_state("All tags removed")
@@ -859,7 +1071,7 @@ impl Gallery {
                 ),
                 (
                     "Selectable",
-                    col(vec![h::TagGroup::new("tg-select", tags.clone())
+                    col(vec![h::TagGroup::new("tg-select", tags())
                         .selection_mode(SelectionMode::Multiple)
                         .selected_keys(selection.iter().cloned())
                         .on_selection_change(cx.listener(
@@ -873,14 +1085,14 @@ impl Gallery {
                 (
                     "Variants & sizes",
                     col(vec![
-                        h::TagGroup::new("tg-default", tags.clone()).into_any_element(),
-                        h::TagGroup::new("tg-surface", tags.clone())
+                        h::TagGroup::new("tg-default", tags()).into_any_element(),
+                        h::TagGroup::new("tg-surface", tags())
                             .variant(h::TagVariant::Surface)
                             .into_any_element(),
-                        h::TagGroup::new("tg-sm", tags.clone())
+                        h::TagGroup::new("tg-sm", tags())
                             .size(Size::Sm)
                             .into_any_element(),
-                        h::TagGroup::new("tg-lg", tags)
+                        h::TagGroup::new("tg-lg", tags())
                             .size(Size::Lg)
                             .into_any_element(),
                     ]),

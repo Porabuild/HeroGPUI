@@ -50,7 +50,12 @@ NOT_A_COMPONENT = ('MCP Server',)
 
 # v3 example name -> the gallery section that covers it, where the titles are
 # genuinely different words for the same demo.
-ALIAS = {}
+ALIAS = {
+    # v3 names the same demo two ways across a page pair: `ListBox` documents
+    # "Custom Check Icon" on its own page and "Custom Indicator" in the
+    # `ListBox` section of another, and both replace `ListBox.ItemIndicator`.
+    'ListBox.Custom Indicator': 'Custom Check Icon',
+}
 
 # Examples that cannot be demonstrated in this port, with the reason.
 #

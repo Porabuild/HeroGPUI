@@ -1,4 +1,4 @@
-"""Select page: the eleven v3 examples it was missing."""
+"""ListBox and TagGroup pages: every v3 example."""
 import io
 
 P = 'gallery/src/pages/components.rs'
@@ -11,193 +11,232 @@ def rep(old, new):
     s = s.replace(old, new)
 
 
-rep("""            crate::pages::Page::Select.import_line(),
+# ----------------------------------------------------------------- ListBox
+rep("""            crate::pages::Page::ListBox.import_line(),
             vec![
                 (
-                    "Usage",""",
-    """            crate::pages::Page::Select.import_line(),
+                    "Single selection",""",
+    """            crate::pages::Page::ListBox.import_line(),
             vec![
                 (
-                    "With Description",
-                    col(vec![h::Select::new("sel-desc", languages())
-                        .label("Language")
-                        .placeholder("Choose one")
-                        .description("Used for spell-checking")
+                    "Usage",
+                    col(vec![gpui::div()
+                        .w(px(280.))
+                        .child(h::ListBox::new(
+                            "lb-usage",
+                            vec![
+                                h::ListBoxItem::new("inbox", "Inbox"),
+                                h::ListBoxItem::new("sent", "Sent"),
+                                h::ListBoxItem::new("drafts", "Drafts"),
+                            ],
+                        ))
                         .into_any_element()]),
                 ),
                 (
-                    "Required",
-                    col(vec![h::Select::new("sel-required", languages())
-                        .label("Language")
-                        .placeholder("Choose one")
-                        .is_required(true)
-                        .into_any_element()]),
-                ),
-                (
-                    "Disabled",
-                    col(vec![h::Select::new("sel-disabled", languages())
-                        .label("Language")
-                        .placeholder("Choose one")
-                        .is_disabled(true)
-                        .into_any_element()]),
-                ),
-                (
-                    "With Disabled Options",
-                    col(vec![h::Select::new("sel-disabled-opts", languages())
-                        .label("Language")
-                        .placeholder("Choose one")
-                        .disabled_keys([1, 3])
-                        .default_open(true)
-                        .into_any_element()]),
-                ),
-                (
-                    "With Sections",
-                    col(vec![h::Select::new(
-                        "sel-sections",
-                        vec![
-                            "United States".into(),
-                            "Canada".into(),
-                            "Mexico".into(),
-                            "France".into(),
-                            "Germany".into(),
-                        ],
-                    )
-                    .label("Country")
-                    .placeholder("Select a country")
-                    .section_before(0, "North America")
-                    .section_before(3, "Europe")
-                    .default_open(true)
-                    .into_any_element()]),
-                ),
-                (
-                    "In Surface",
-                    col(vec![h::Surface::new()
-                        .padding(px(24.))
+                    "With Disabled Items",
+                    col(vec![gpui::div()
+                        .w(px(280.))
                         .child(
-                            h::Select::new("sel-surface", languages())
-                                .label("Language")
-                                .placeholder("Choose one")
-                                .variant(FieldVariant::Secondary),
+                            h::ListBox::new(
+                                "lb-disabled",
+                                vec![
+                                    h::ListBoxItem::new("inbox", "Inbox"),
+                                    h::ListBoxItem::new("sent", "Sent"),
+                                    h::ListBoxItem::new("drafts", "Drafts"),
+                                ],
+                            )
+                            .disabled_keys([SharedString::from("drafts")]),
                         )
                         .into_any_element()]),
                 ),
                 (
-                    "Controlled Multiple",
-                    col(vec![
-                        h::Select::new("sel-ctl-multi", languages())
-                            .label("Languages")
-                            .placeholder("Choose any")
+                    "With Sections",
+                    col(vec![gpui::div()
+                        .w(px(280.))
+                        .child(h::ListBox::new(
+                            "lb-sections",
+                            vec![
+                                h::ListBoxItem::section("Mail"),
+                                h::ListBoxItem::new("inbox", "Inbox"),
+                                h::ListBoxItem::new("sent", "Sent"),
+                                h::ListBoxItem::separator(),
+                                h::ListBoxItem::section("Archive"),
+                                h::ListBoxItem::new("2024", "2024"),
+                                h::ListBoxItem::new("2025", "2025"),
+                            ],
+                        ))
+                        .into_any_element()]),
+                ),
+                (
+                    "Multi Select",
+                    col(vec![gpui::div()
+                        .w(px(280.))
+                        .child(
+                            h::ListBox::new(
+                                "lb-multi-select",
+                                vec![
+                                    h::ListBoxItem::new("inbox", "Inbox"),
+                                    h::ListBoxItem::new("sent", "Sent"),
+                                    h::ListBoxItem::new("spam", "Spam"),
+                                ],
+                            )
                             .selection_mode(SelectionMode::Multiple)
-                            .selected_indices(sel_multi.iter().copied())
-                            .on_selection_change_all(cx.listener(
-                                |this, indices: &[usize], _, cx| {
-                                    this.select_multi = indices.to_vec();
+                            .selected_keys(selection.iter().cloned())
+                            .on_selection_change(cx.listener(
+                                |this, keys: &HashSet<SharedString>, _, cx| {
+                                    this.list_selection = keys.clone();
+                                    cx.notify();
+                                },
+                            )),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        gpui::div()
+                            .w(px(280.))
+                            .child(
+                                h::ListBox::new(
+                                    "lb-controlled",
+                                    vec![
+                                        h::ListBoxItem::new("inbox", "Inbox"),
+                                        h::ListBoxItem::new("sent", "Sent"),
+                                        h::ListBoxItem::new("spam", "Spam"),
+                                    ],
+                                )
+                                .selected_keys(selection.iter().cloned())
+                                .on_selection_change(cx.listener(
+                                    |this, keys: &HashSet<SharedString>, _, cx| {
+                                        this.list_selection = keys.clone();
+                                        cx.notify();
+                                    },
+                                )),
+                            )
+                            .into_any_element(),
+                        para(&format!("{} selected", selection.len()), cx),
+                    ]),
+                ),
+                (
+                    "Custom Check Icon",
+                    col(vec![
+                        para(
+                            "v3 replaces `ListBox.ItemIndicator`. A row's `variant` is what \\
+                             carries the indicator style here, so the danger row below shows the \\
+                             same tick in its own colour.",
+                            cx,
+                        ),
+                        gpui::div()
+                            .w(px(280.))
+                            .child(
+                                h::ListBox::new(
+                                    "lb-check",
+                                    vec![
+                                        h::ListBoxItem::new("keep", "Keep"),
+                                        h::ListBoxItem::new("delete", "Delete").danger(),
+                                    ],
+                                )
+                                .selected_key("keep"),
+                            )
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Single selection",""")
+
+# ---------------------------------------------------------------- TagGroup
+rep("""            crate::pages::Page::TagGroup.import_line(),
+            vec![
+                (
+                    "Removable",""",
+    """            crate::pages::Page::TagGroup.import_line(),
+            vec![
+                (
+                    "Usage",
+                    col(vec![h::TagGroup::new("tg-usage", tags())
+                        .label("Skills")
+                        .into_any_element()]),
+                ),
+                (
+                    "Disabled",
+                    col(vec![h::TagGroup::new("tg-disabled", tags())
+                        .label("Skills")
+                        .is_disabled(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Selection Modes",
+                    col(vec![
+                        spec(
+                            "Single",
+                            h::TagGroup::new("tg-single", tags())
+                                .selection_mode(SelectionMode::Single),
+                            cx,
+                        ),
+                        spec(
+                            "Multiple",
+                            h::TagGroup::new("tg-multiple", tags())
+                                .selection_mode(SelectionMode::Multiple),
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::TagGroup::new("tg-controlled", tags())
+                            .selection_mode(SelectionMode::Multiple)
+                            .selected_keys(tag_selection.iter().cloned())
+                            .on_selection_change(cx.listener(
+                                |this, keys: &HashSet<SharedString>, _, cx| {
+                                    this.tag_selection = keys.clone();
                                     cx.notify();
                                 },
                             ))
                             .into_any_element(),
-                        para(&format!("{} selected", sel_multi.len()), cx),
+                        para(&format!("{} selected", tag_selection.len()), cx),
                     ]),
                 ),
                 (
-                    "Controlled Open State",
-                    col(vec![
-                        row(vec![
-                            h::Button::new("sel-open-btn")
-                                .label(if is_open { "Close" } else { "Open" })
-                                .variant(Variant::Secondary)
-                                .size(Size::Sm)
-                                .on_press(cx.listener(move |this, _, _, cx| {
-                                    this.select_open = !this.select_open;
-                                    cx.notify();
-                                }))
-                                .into_any_element(),
-                            para(if is_open { "Open" } else { "Closed" }, cx),
-                        ]),
-                        h::Select::new("sel-open", languages())
-                            .label("Language")
-                            .placeholder("Choose one")
-                            .is_open(is_open)
-                            .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-                                this.select_open = *open;
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                    ]),
-                ),
-                (
-                    "Asynchronous Loading",
-                    col(vec![
-                        para(
-                            "v3 fills the list from a request and shows a spinner while it is in \\
-                             flight. The spinner is composed beside the label, since the options \\
-                             are the caller's own data.",
-                            cx,
-                        ),
-                        row(vec![
-                            h::Select::new("sel-async", languages())
-                                .label("Language")
-                                .placeholder("Loading\\u{2026}")
-                                .into_any_element(),
-                            h::Spinner::new("sel-async-spinner")
-                                .size(h::SpinnerSize::Sm)
-                                .into_any_element(),
-                        ]),
-                    ]),
-                ),
-                (
-                    "Custom Indicator",
-                    col(vec![h::Select::new("sel-indicator", languages())
-                        .label("Language")
-                        .placeholder("Choose one")
-                        .value(selected)
-                        .default_open(true)
-                        .indicator(|is_selected| {
-                            gpui::div()
-                                .text_size(px(12.))
-                                .child(if is_selected { "\\u{2714}" } else { "" })
-                                .into_any_element()
-                        })
+                    "With Error Message",
+                    col(vec![h::TagGroup::new("tg-error", tags())
+                        .label("Skills")
+                        .description("Pick at least one")
                         .into_any_element()]),
                 ),
                 (
-                    "Custom Value",
-                    col(vec![h::Select::new("sel-value", languages())
-                        .label("Language")
-                        .placeholder("Choose one")
-                        .value(selected)
-                        .value_content(move |index| match index {
-                            Some(i) => gpui::div()
-                                .flex()
-                                .items_center()
-                                .gap(px(8.))
-                                .child(
-                                    h::Chip::new(format!("#{}", i + 1))
-                                        .size(Size::Sm)
-                                        .variant(h::ChipVariant::Soft),
-                                )
-                                .child(
-                                    languages()
-                                        .get(i)
-                                        .cloned()
-                                        .unwrap_or_default()
-                                        .to_string(),
-                                )
-                                .into_any_element(),
-                            None => gpui::div().child("Choose one").into_any_element(),
-                        })
+                    "With List Data",
+                    col(vec![h::TagGroup::new(
+                        "tg-list",
+                        ["Design", "Research", "Writing", "Support", "Ops"]
+                            .into_iter()
+                            .map(|name| h::Tag::new(name.to_lowercase(), name))
+                            .collect(),
+                    )
+                    .label("Teams")
+                    .into_any_element()]),
+                ),
+                (
+                    "With Prefix",
+                    col(vec![h::TagGroup::new(
+                        "tg-prefix",
+                        vec![
+                            h::Tag::new("rust", "Rust").icon(h::icons::CHECK),
+                            h::Tag::new("gpui", "GPUI").icon(h::icons::CHECK),
+                        ],
+                    )
+                    .label("Verified")
+                    .into_any_element()]),
+                ),
+                (
+                    "With Remove Button",
+                    col(vec![h::TagGroup::new("tg-remove", tags())
+                        .label("Skills")
+                        .on_remove(cx.listener(|_, _key: &SharedString, _, cx| cx.notify()))
                         .into_any_element()]),
                 ),
                 (
-                    "Usage",""")
-
-rep("""    pub fn page_select(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        let selected = self.select_lang;
-        let is_open = self.select_open;""",
-    """    pub fn page_select(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        let selected = self.select_lang;
-        let is_open = self.select_open;
-        let sel_multi = self.select_multi.clone();""")
+                    "Removable",""")
 
 io.open(P, 'w', encoding='utf-8', newline='').write(s)
-print('patched select page')
+print('patched list box + tag group')
