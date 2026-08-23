@@ -220,6 +220,15 @@ impl TableRow {
 
 type OnExpandedChange = std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
 
+/// A column with a `defaultWidth` takes it; the rest split what is left.
+///
+/// `flex_basis(0)` is the part that matters: a bare `flex_1` sizes a cell by its
+/// content, so the tree column's indent shifted every column after it, and a
+/// fraction of the *whole* row cannot account for the fixed columns.
+fn flex_cell(el: gpui::Div) -> gpui::Div {
+    el.flex_basis(px(0.)).flex_1()
+}
+
 /// HeroUI Table.
 #[derive(IntoElement)]
 pub struct Table {
@@ -233,6 +242,16 @@ pub struct Table {
     /// `expandedKeys` — the parent rows showing their children.
     expanded_keys: Vec<SharedString>,
     on_expanded_change: Option<OnExpandedChange>,
+    /// `TableLayout`'s `rowHeight`. Together with [`Table::virtual_rows`] it
+    /// virtualizes the body: a fixed row height is what lets the scroll geometry
+    /// be computed rather than laid out.
+    row_height: Option<Pixels>,
+    /// How tall the virtual body is. v3 sets it with a `className`.
+    max_h: Option<Pixels>,
+    /// The row factory a virtual table needs. Cells are `AnyElement`, which
+    /// cannot be built up front and then handed out again on the next scroll,
+    /// so a virtual table asks for its rows one at a time.
+    virtual_rows: Option<(usize, std::sync::Arc<dyn Fn(usize) -> TableRow + 'static>)>,
     variant: TableVariant,
     selection_mode: SelectionMode,
     selected_keys: Vec<SharedString>,
@@ -255,6 +274,9 @@ impl Table {
             tree_column: 0,
             expanded_keys: Vec::new(),
             on_expanded_change: None,
+            row_height: None,
+            max_h: None,
+            virtual_rows: None,
             variant: TableVariant::Primary,
             selection_mode: SelectionMode::None,
             selected_keys: Vec::new(),
@@ -293,6 +315,38 @@ impl Table {
 
     pub fn variant(mut self, variant: TableVariant) -> Self {
         self.variant = variant;
+        self
+    }
+
+    /// `TableLayout`'s `rowHeight` — and, with [`Table::virtual_rows`], what
+    /// virtualizes the body.
+    ///
+    /// v3 wraps the table in `<Virtualizer layout={TableLayout}
+    /// layoutOptions={{rowHeight: 40}}>`; the wrapper has no separate identity
+    /// here, so the option that defines the layout carries it. gpui's
+    /// `uniform_list` builds only the rows the viewport shows, and it can do
+    /// that because every row is this tall.
+    pub fn row_height(mut self, height: impl Into<Pixels>) -> Self {
+        self.row_height = Some(height.into());
+        self
+    }
+
+    /// How tall the scrolling body is. v3's example sets it with `h-[400px]` on
+    /// the table itself.
+    pub fn max_h(mut self, height: impl Into<Pixels>) -> Self {
+        self.max_h = Some(height.into());
+        self
+    }
+
+    /// The rows of a virtualized table, built on demand.
+    ///
+    /// v3 writes `<Table items={users}>{(user) => <Table.Row>…}</Table>` and the
+    /// Virtualizer calls that function for the rows in view. Cells here are
+    /// `AnyElement`, which is built once and consumed once, so a virtual table
+    /// cannot be handed its rows up front -- it has to be able to ask again
+    /// every time the viewport moves.
+    pub fn virtual_rows(mut self, count: usize, row: impl Fn(usize) -> TableRow + 'static) -> Self {
+        self.virtual_rows = Some((count, std::sync::Arc::new(row)));
         self
     }
 
@@ -439,7 +493,10 @@ impl RenderOnce for Table {
         let drag_now = *dragging.read(cx);
         let resizable = self.columns.iter().any(|c| c.allows_resizing);
         let colors = cx.colors();
-        let accent = colors.accent;
+        // Copies of the tokens the tail needs: the row builder borrows `cx`
+        // mutably, which ends the borrow `cx.colors()` holds.
+        let muted = colors.muted;
+        let default_soft = colors.default.soft();
         let secondary = self.variant == TableVariant::Secondary;
         let selectable = self.selection_mode != SelectionMode::None;
         let row_keys = self.row_keys();
@@ -502,13 +559,6 @@ impl RenderOnce for Table {
             }
             header = header.child(cell);
         }
-
-        // A column with a `defaultWidth` takes it; the rest split what is left.
-        // `flex_basis(0)` is the part that matters: a bare `flex_1` sizes a cell
-        // by its content, so the tree column's indent shifted every column
-        // after it, and a fraction of the *whole* row cannot account for the
-        // fixed columns.
-        let flex_cell = |el: gpui::Div| el.flex_basis(px(0.)).flex_1();
 
         for (column_index, column) in self.columns.iter().enumerate() {
             let sorted = self
@@ -618,8 +668,8 @@ impl RenderOnce for Table {
         // watches the move and the release.
         if resizable {
             let held = dragging.clone();
-            let held_up = dragging.clone();
-            let widths = resized.clone();
+            let held_up = dragging;
+            let widths = resized;
             table = table
                 .on_mouse_move(move |ev, _window, cx| {
                     let Some((column, from_x, from_w)) = *held.read(cx) else {
@@ -666,7 +716,7 @@ impl RenderOnce for Table {
                 };
                 let children = std::mem::take(&mut row.children);
                 let has_children = !children.is_empty();
-                let is_open = expanded.iter().any(|k| *k == key);
+                let is_open = expanded.contains(&key);
                 out.push((row, depth, has_children, key.clone()));
                 if has_children && is_open {
                     flatten(children, depth + 1, key.as_ref(), expanded, out);
@@ -680,143 +730,72 @@ impl RenderOnce for Table {
             &self.expanded_keys,
             &mut flat,
         );
-        let row_count = flat.len();
-        let tree_column = self.tree_column;
         // Whether any row in this table is expandable at all: a flat table
         // keeps its cells flush, rather than reserving a chevron's width.
         let tree_column_has_children = flat.iter().any(|(_, _, has, _)| *has);
-        let expanded_now = self.expanded_keys.clone();
-        let on_expanded_change = self.on_expanded_change.clone();
 
-        for (i, (row_data, depth, has_children, tree_key)) in flat.into_iter().enumerate() {
-            let key = row_keys.get(i).cloned().unwrap_or_else(|| tree_key.clone());
-            let is_selected = self.selected_keys.contains(&key);
-            let row_header_columns: Vec<bool> =
-                self.columns.iter().map(|c| c.is_row_header).collect();
-
-            let mut row = gpui::div()
-                .id(gpui::ElementId::Name(format!("table-row-{i}").into()))
-                .flex()
-                .border_b_1()
-                .border_color(colors.separator);
-
-            if selectable {
-                let mut cell = gpui::div()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .w(px(44.))
-                    .py(px(10.));
-                let mut box_el =
-                    Checkbox::new(gpui::ElementId::Name(format!("table-select-{i}").into()))
-                        .is_selected(is_selected);
-                if let Some(cb) = self.on_selection_change.clone() {
-                    let current = self.selected_keys.clone();
-                    let key2 = key.clone();
-                    let mode = self.selection_mode;
-                    box_el = box_el.on_change(move |_next, window, cx| {
-                        let next = crate::selection::next_selection(&current, &key2, mode, false);
-                        cb(&next, window, cx);
-                    });
-                }
-                cell = cell.child(box_el);
-                row = row.child(cell);
-            }
-
-            // Cells are flex rows so inline children (chips, buttons) size to
-            // their content instead of stretching to the column width.
-            let widths: Vec<(Option<Pixels>, Option<Pixels>)> = self
+        // Everything a row needs, held once. The virtual path builds its rows
+        // inside a `'static` closure, so it cannot borrow `self` -- and having
+        // one row builder for both paths is what keeps a virtual table drawing
+        // the same row as a short one.
+        let ctx = std::rc::Rc::new(RowCtx {
+            widths: self
                 .columns
                 .iter()
                 .enumerate()
-                .map(|(i, c)| {
-                    let w = resized_now.get(i).copied().flatten().or(c.width);
-                    (w, c.min_width)
+                .map(|(c, col)| {
+                    (
+                        resized_now.get(c).copied().flatten().or(col.width),
+                        col.min_width,
+                    )
                 })
-                .collect();
-            let is_expanded = expanded_now.iter().any(|k| *k == tree_key);
-            let toggle_key = tree_key.clone();
-            let expanded_before = expanded_now.clone();
-            let on_expanded = on_expanded_change.clone();
-            row = row.children(row_data.cells.into_iter().enumerate().map(|(c, cell)| {
-                let (width, min_width) = widths.get(c).copied().unwrap_or((None, None));
-                let mut cell_el = gpui::div()
-                    .when(width.is_none(), flex_cell)
-                    .when_some(width, |e, w| e.w(w))
-                    .when_some(min_width, |e, w| e.min_w(w))
-                    .flex()
-                    .items_center()
-                    .gap(px(6.))
-                    .px(px(12.))
-                    .py(px(10.))
-                    .when(row_header_columns.get(c).copied().unwrap_or(false), |e| {
-                        e.font_weight(gpui::FontWeight::MEDIUM)
-                    });
-                // The tree column carries the indent and the chevron; a row with
-                // no children still indents, so siblings line up.
-                if c == tree_column {
-                    if depth > 0 {
-                        cell_el = cell_el.pl(px(12. + 20. * depth as f32));
-                    }
-                    if has_children {
-                        let mut chevron = gpui::div()
-                            .id(gpui::ElementId::Name(
-                                format!("table-expand-{toggle_key}").into(),
-                            ))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .size(px(18.))
-                            .flex_shrink_0()
-                            .cursor_pointer()
-                            .child(
-                                gpui::svg()
-                                    .size(px(12.))
-                                    .path(if is_expanded {
-                                        icons::CHEVRON_DOWN
-                                    } else {
-                                        icons::CHEVRON_RIGHT
-                                    })
-                                    .text_color(colors.muted),
-                            );
-                        if let Some(cb) = on_expanded.clone() {
-                            let key = toggle_key.clone();
-                            let before = expanded_before.clone();
-                            chevron = chevron.on_click(move |_, window, cx| {
-                                let mut next = before.clone();
-                                if let Some(at) = next.iter().position(|k| *k == key) {
-                                    next.remove(at);
-                                } else {
-                                    next.push(key.clone());
-                                }
-                                cb(&next, window, cx);
-                            });
-                        }
-                        cell_el = cell_el.child(chevron);
-                    } else if depth > 0 || tree_column_has_children {
-                        // A leaf keeps the chevron's width so its text lines up
-                        // with its expandable siblings'.
-                        cell_el = cell_el.child(gpui::div().size(px(18.)).flex_shrink_0());
-                    }
-                }
-                cell_el.child(cell)
-            }));
+                .collect(),
+            row_header_columns: self.columns.iter().map(|c| c.is_row_header).collect(),
+            tree_column: self.tree_column,
+            tree_column_has_children,
+            selectable,
+            selection_mode: self.selection_mode,
+            selected_keys: self.selected_keys.clone(),
+            row_keys,
+            expanded: self.expanded_keys.clone(),
+            on_expanded_change: self.on_expanded_change.clone(),
+            on_selection_change: self.on_selection_change.clone(),
+            on_row_click: self.on_row_click.clone(),
+        });
 
-            // A selected row reads as selected even where the checkbox is off
-            // screen, and outranks striping.
-            if is_selected {
-                row = row.bg(accent.soft());
+        let row_count = match &self.virtual_rows {
+            Some((count, _)) if self.row_height.is_some() => *count,
+            _ => flat.len(),
+        };
+
+        if let (Some(row_height), Some((count, factory))) =
+            (self.row_height, self.virtual_rows.clone())
+        {
+            // The body scrolls inside `uniform_list`, which asks for the rows the
+            // viewport shows and no others.
+            let height = self.max_h.unwrap_or(px(400.));
+            let body = ctx.clone();
+            table = table.child(
+                gpui::uniform_list(
+                    gpui::ElementId::Name("table-virtual-rows".into()),
+                    count,
+                    move |range, _window, cx| {
+                        range
+                            .map(|i| {
+                                let row_data = factory(i);
+                                let key = row_data.selection_key(i);
+                                body.row(i, row_data, 0, false, &key, Some(row_height), cx)
+                            })
+                            .collect::<Vec<_>>()
+                    },
+                )
+                .h(height)
+                .w_full(),
+            );
+        } else {
+            for (i, (row_data, depth, has_children, tree_key)) in flat.into_iter().enumerate() {
+                table = table.child(ctx.row(i, row_data, depth, has_children, &tree_key, None, cx));
             }
-
-            if let Some(on_click) = &self.on_row_click {
-                let cb = on_click.clone();
-                row = row
-                    .cursor_pointer()
-                    .hover(move |s| s.bg(colors.default.soft()))
-                    .on_click(move |ev, w, cx| cb(i, ev, w, cx));
-            }
-
-            table = table.child(row);
         }
 
         // ---- empty state -------------------------------------------------
@@ -829,7 +808,7 @@ impl RenderOnce for Table {
                         .justify_center()
                         .w_full()
                         .py(px(28.))
-                        .text_color(colors.muted)
+                        .text_color(muted)
                         .child(content),
                 );
             }
@@ -846,7 +825,7 @@ impl RenderOnce for Table {
                 .w_full()
                 .py(px(12.))
                 .text_size(px(13.))
-                .text_color(colors.muted);
+                .text_color(muted);
 
             if self.is_pending {
                 sentinel = sentinel
@@ -856,7 +835,7 @@ impl RenderOnce for Table {
                     )
                     .child("Loading\u{2026}");
             } else if let Some(cb) = self.on_load_more.clone() {
-                let hover = colors.default.soft();
+                let hover = default_soft;
                 sentinel = sentinel
                     .cursor_pointer()
                     .hover(move |s| s.bg(hover))
@@ -868,6 +847,172 @@ impl RenderOnce for Table {
         }
 
         wrapper.child(table)
+    }
+}
+
+/// Everything one body row needs, so both the plain and the virtualized path can
+/// draw it from the same code.
+struct RowCtx {
+    /// `(defaultWidth or the resize, minWidth)` per column.
+    widths: Vec<(Option<Pixels>, Option<Pixels>)>,
+    row_header_columns: Vec<bool>,
+    tree_column: usize,
+    tree_column_has_children: bool,
+    selectable: bool,
+    selection_mode: SelectionMode,
+    selected_keys: Vec<SharedString>,
+    row_keys: Vec<SharedString>,
+    expanded: Vec<SharedString>,
+    on_expanded_change: Option<OnExpandedChange>,
+    on_selection_change: Option<OnSelectionChange>,
+    on_row_click: Option<OnRowClick>,
+}
+
+impl RowCtx {
+    /// One body row.
+    ///
+    /// `fixed_h` is `Some` only on the virtual path, where every row is one
+    /// `rowHeight` tall because that is the number the scroll geometry comes
+    /// from.
+    #[allow(clippy::too_many_arguments)]
+    fn row(
+        &self,
+        i: usize,
+        row_data: TableRow,
+        depth: usize,
+        has_children: bool,
+        tree_key: &SharedString,
+        fixed_h: Option<Pixels>,
+        cx: &mut App,
+    ) -> AnyElement {
+        let colors = cx.colors();
+        let accent = colors.accent;
+        let tree_column = self.tree_column;
+        let tree_column_has_children = self.tree_column_has_children;
+        let key = self
+            .row_keys
+            .get(i)
+            .cloned()
+            .unwrap_or_else(|| tree_key.clone());
+        let is_selected = self.selected_keys.contains(&key);
+        let row_header_columns = &self.row_header_columns;
+
+        let mut row = gpui::div()
+            .id(gpui::ElementId::Name(format!("table-row-{i}").into()))
+            .flex()
+            .when_some(fixed_h, |e, h| e.h(h).w_full())
+            .border_b_1()
+            .border_color(colors.separator);
+
+        if self.selectable {
+            let mut cell = gpui::div()
+                .flex()
+                .items_center()
+                .justify_center()
+                .w(px(44.))
+                .py(px(10.));
+            let mut box_el =
+                Checkbox::new(gpui::ElementId::Name(format!("table-select-{i}").into()))
+                    .is_selected(is_selected);
+            if let Some(cb) = self.on_selection_change.clone() {
+                let current = self.selected_keys.clone();
+                let key2 = key;
+                let mode = self.selection_mode;
+                box_el = box_el.on_change(move |_next, window, cx| {
+                    let next = crate::selection::next_selection(&current, &key2, mode, false);
+                    cb(&next, window, cx);
+                });
+            }
+            cell = cell.child(box_el);
+            row = row.child(cell);
+        }
+
+        // Cells are flex rows so inline children (chips, buttons) size to
+        // their content instead of stretching to the column width.
+        let widths = &self.widths;
+        let is_expanded = self.expanded.iter().any(|k| k == tree_key);
+        let toggle_key = tree_key.clone();
+        let expanded_before = self.expanded.clone();
+        let on_expanded = self.on_expanded_change.clone();
+        row = row.children(row_data.cells.into_iter().enumerate().map(|(c, cell)| {
+            let (width, min_width) = widths.get(c).copied().unwrap_or((None, None));
+            let mut cell_el = gpui::div()
+                .when(width.is_none(), flex_cell)
+                .when_some(width, |e, w| e.w(w))
+                .when_some(min_width, |e, w| e.min_w(w))
+                .flex()
+                .items_center()
+                .gap(px(6.))
+                .px(px(12.))
+                .py(px(10.))
+                .when(row_header_columns.get(c).copied().unwrap_or(false), |e| {
+                    e.font_weight(gpui::FontWeight::MEDIUM)
+                });
+            // The tree column carries the indent and the chevron; a row with
+            // no children still indents, so siblings line up.
+            if c == tree_column {
+                if depth > 0 {
+                    cell_el = cell_el.pl(px(12. + 20. * depth as f32));
+                }
+                if has_children {
+                    let mut chevron = gpui::div()
+                        .id(gpui::ElementId::Name(
+                            format!("table-expand-{toggle_key}").into(),
+                        ))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .size(px(18.))
+                        .flex_shrink_0()
+                        .cursor_pointer()
+                        .child(
+                            gpui::svg()
+                                .size(px(12.))
+                                .path(if is_expanded {
+                                    icons::CHEVRON_DOWN
+                                } else {
+                                    icons::CHEVRON_RIGHT
+                                })
+                                .text_color(colors.muted),
+                        );
+                    if let Some(cb) = on_expanded.clone() {
+                        let key = toggle_key.clone();
+                        let before = expanded_before.clone();
+                        chevron = chevron.on_click(move |_, window, cx| {
+                            let mut next = before.clone();
+                            if let Some(at) = next.iter().position(|k| *k == key) {
+                                next.remove(at);
+                            } else {
+                                next.push(key.clone());
+                            }
+                            cb(&next, window, cx);
+                        });
+                    }
+                    cell_el = cell_el.child(chevron);
+                } else if depth > 0 || tree_column_has_children {
+                    // A leaf keeps the chevron's width so its text lines up
+                    // with its expandable siblings'.
+                    cell_el = cell_el.child(gpui::div().size(px(18.)).flex_shrink_0());
+                }
+            }
+            cell_el.child(cell)
+        }));
+
+        // A selected row reads as selected even where the checkbox is off
+        // screen, and outranks striping.
+        if is_selected {
+            row = row.bg(accent.soft());
+        }
+
+        if let Some(on_click) = &self.on_row_click {
+            let cb = on_click.clone();
+            row = row
+                .cursor_pointer()
+                .hover(move |s| s.bg(colors.default.soft()))
+                .on_click(move |ev, w, cx| cb(i, ev, w, cx));
+        }
+
+        row.into_any_element()
     }
 }
 

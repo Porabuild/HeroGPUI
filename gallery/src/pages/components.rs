@@ -94,6 +94,71 @@ fn el_id(s: String) -> gpui::ElementId {
     gpui::ElementId::Name(s.into())
 }
 
+/// The nth of the thousand users v3's virtualization examples list, as
+/// `(name, email)`. Same two twenty-name lists, so the rows read the same.
+fn virtual_user(i: usize) -> (String, String) {
+    const FIRST: [&str; 20] = [
+        "Emma",
+        "Liam",
+        "Olivia",
+        "Noah",
+        "Ava",
+        "James",
+        "Sophia",
+        "Oliver",
+        "Isabella",
+        "Lucas",
+        "Mia",
+        "Ethan",
+        "Charlotte",
+        "Mason",
+        "Amelia",
+        "Logan",
+        "Harper",
+        "Alexander",
+        "Ella",
+        "Benjamin",
+    ];
+    const LAST: [&str; 20] = [
+        "Smith",
+        "Johnson",
+        "Williams",
+        "Brown",
+        "Jones",
+        "Garcia",
+        "Miller",
+        "Davis",
+        "Rodriguez",
+        "Martinez",
+        "Anderson",
+        "Taylor",
+        "Thomas",
+        "Jackson",
+        "White",
+        "Harris",
+        "Clark",
+        "Lewis",
+        "Robinson",
+        "Walker",
+    ];
+    let first = FIRST[i % FIRST.len()];
+    let last = LAST[(i / FIRST.len()) % LAST.len()];
+    (
+        format!("{first} {last}"),
+        format!("{}.{}@acme.com", first.to_lowercase(), last.to_lowercase()),
+    )
+}
+
+/// A thousand list rows, for the virtualization demos.
+fn virtual_users() -> Vec<h::ListBoxItem> {
+    (0..1000)
+        .map(|i| {
+            let (name, email) = virtual_user(i);
+            h::ListBoxItem::new(format!("user-{i}"), name).description(email)
+        })
+        .collect()
+}
+
 /// Adapter: turn a `cx.listener` over `&bool` into a `Fn(bool, ..)` callback.
 fn bool_cb(
     l: impl Fn(&bool, &mut gpui::Window, &mut gpui::App) + 'static,
@@ -1215,6 +1280,28 @@ impl Gallery {
                             )
                             .into_any_element(),
                         para(&format!("{} selected", selection.len()), cx),
+                    ]),
+                ),
+                (
+                    "Virtualization",
+                    col(vec![
+                        para(
+                            "v3 wraps the list in React Aria's `Virtualizer` with `ListLayout`; \
+                             `row_height` carries that here, because a fixed row height is what \
+                             lets the geometry be computed instead of laid out. gpui's \
+                             `uniform_list` then builds only the rows in view — one thousand \
+                             users, fifty pixels each.",
+                            cx,
+                        ),
+                        gpui::div()
+                            .w(px(300.))
+                            .child(
+                                h::ListBox::new("lb-virtual", virtual_users())
+                                    .selection_mode(SelectionMode::None)
+                                    .row_height(px(50.))
+                                    .max_h(px(400.)),
+                            )
+                            .into_any_element(),
                     ]),
                 ),
                 (
@@ -2878,6 +2965,31 @@ impl Gallery {
                             },
                             cx,
                         ),
+                    ]),
+                ),
+                (
+                    "Virtualization",
+                    col(vec![
+                        para(
+                            "v3 wraps the table in `Virtualizer` with `TableLayout`. Cells here \
+                             are built elements, which cannot be handed out twice, so a virtual \
+                             table takes a row factory and asks for the rows the viewport shows \
+                             — one thousand of them, forty pixels each.",
+                            cx,
+                        ),
+                        h::Table::new(vec![])
+                            .column(h::TableColumn::new("Name").is_row_header(true))
+                            .column("Email")
+                            .row_height(px(40.))
+                            .max_h(px(320.))
+                            .virtual_rows(1000, |i| {
+                                let (name, email) = virtual_user(i);
+                                h::TableRow::new(vec![
+                                    gpui::div().child(name).into_any_element(),
+                                    gpui::div().child(email).into_any_element(),
+                                ])
+                            })
+                            .into_any_element(),
                     ]),
                 ),
                 (

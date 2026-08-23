@@ -581,12 +581,12 @@ impl RenderOnce for ComboBox {
                         .is_some_and(|item| !self.disabled_keys.contains(item))
                 })
                 .collect();
-            let held = cursor.clone();
+            let held = cursor;
             let wrap = self.should_focus_wrap;
             let rows = matches.clone();
             let state = self.state.clone();
             let on_selection_change = self.on_selection_change.clone();
-            let open_own_keys = open_own.clone();
+            let open_own_keys = open_own;
             let on_open_change = self.on_open_change.clone();
             root = root.on_key_down(move |event, window, cx| {
                 let key = event.keystroke.key.as_str();

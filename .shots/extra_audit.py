@@ -152,6 +152,10 @@ EXTRA_OK_SCOPED = {
     # slot is a builder. `InputGroup.input` takes an `Input` rather than an
     # element on purpose: the group has to strip the field's chrome, and a
     # plain child leaves a second field drawn inside the group.
+    # v3 writes `<Table items={users}>{(user) => <Table.Row>}</Table>`: the rows
+    # of a virtual table come from a function, because the Virtualizer calls it
+    # again every time the viewport moves.
+    'Table.virtual_rows': 'composition',
     'InputGroup.prefix': 'composition',
     'InputGroup.suffix': 'composition',
     'InputGroup.input': 'composition',

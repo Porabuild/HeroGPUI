@@ -134,6 +134,12 @@ pub struct ListBox {
     max_h: Option<gpui::Pixels>,
     /// `shouldFocusWrap` — whether arrow keys wrap at the ends.
     should_focus_wrap: bool,
+    /// `ListLayout`'s `rowHeight`. Setting it virtualizes the list: a fixed row
+    /// height is what lets the geometry be computed instead of laid out.
+    row_height: Option<gpui::Pixels>,
+    /// `ListLayout`'s `gap` and `padding`, which override the stylesheet's.
+    gap: gpui::Pixels,
+    padding: gpui::Pixels,
     on_selection_change: Option<OnSelectionChange>,
     on_action: Option<OnAction>,
 }
@@ -148,6 +154,10 @@ impl ListBox {
             disabled_keys: HashSet::new(),
             variant: ListBoxItemVariant::Default,
             should_focus_wrap: false,
+            row_height: None,
+            // `.list-box` is `p-1` with `mt-1` between children.
+            gap: px(4.),
+            padding: px(4.),
             max_h: None,
             on_selection_change: None,
             on_action: None,
@@ -192,6 +202,30 @@ impl ListBox {
         self
     }
 
+    /// `ListLayout`'s `rowHeight` — **and** what virtualizes the list.
+    ///
+    /// v3 wraps the list in `<Virtualizer layout={ListLayout}
+    /// layoutOptions={{rowHeight: 50}}>`; the wrapper has no separate identity
+    /// here, so the option that defines the layout carries it. gpui's
+    /// `uniform_list` builds only the rows the viewport shows, and it can do
+    /// that because every row is this tall.
+    pub fn row_height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.row_height = Some(h.into());
+        self
+    }
+
+    /// `ListLayout`'s `gap`, overriding the stylesheet's `mt-1`.
+    pub fn gap(mut self, gap: impl Into<gpui::Pixels>) -> Self {
+        self.gap = gap.into();
+        self
+    }
+
+    /// `ListLayout`'s `padding`, overriding the stylesheet's `p-1`.
+    pub fn padding(mut self, padding: impl Into<gpui::Pixels>) -> Self {
+        self.padding = padding.into();
+        self
+    }
+
     /// Called with the full selection after a toggle.
     pub fn on_selection_change(
         mut self,
@@ -230,8 +264,6 @@ impl RenderOnce for ListBox {
         let cursor_at = *cursor.read(cx);
 
         let colors = cx.colors();
-        let row_h = px(34.);
-        let text_size = util::FIELD_TEXT;
 
         // `.list-box` is `relative w-full overflow-clip p-1` with `mt-1` between
         // children, and nothing else: the popover around it paints the panel.
@@ -243,8 +275,8 @@ impl RenderOnce for ListBox {
             .w_full()
             .flex()
             .flex_col()
-            .gap(px(4.))
-            .p(px(4.))
+            .gap(self.gap)
+            .p(self.padding)
             .overflow_hidden()
             .text_color(colors.foreground)
             .track_focus(&focus_handle)
@@ -256,7 +288,10 @@ impl RenderOnce for ListBox {
                 move |_, window, _| window.focus(&fh)
             });
 
-        if let Some(max_h) = self.max_h {
+        // A virtualized list scrolls inside `uniform_list`, which owns the
+        // scroll offset it computes the visible range from; a second scroller
+        // around it would move the rows without telling it.
+        if let (Some(max_h), None) = (self.max_h, self.row_height) {
             list = list.max_h(max_h).overflow_y_scroll();
         }
 
@@ -277,8 +312,8 @@ impl RenderOnce for ListBox {
             .collect();
 
         if !stops.is_empty() {
-            let held = cursor.clone();
-            let stops_for_keys = stops.clone();
+            let held = cursor;
+            let stops_for_keys = stops;
             let wrap = self.should_focus_wrap;
             let keys: Vec<SharedString> = self
                 .items
@@ -315,7 +350,7 @@ impl RenderOnce for ListBox {
                             // to this key, `Multiple` toggles it.
                             let next = match mode {
                                 SelectionMode::None => selected_now.clone(),
-                                SelectionMode::Single => HashSet::from([item_key.clone()]),
+                                SelectionMode::Single => HashSet::from([item_key]),
                                 SelectionMode::Multiple => {
                                     let mut set = selected_now.clone();
                                     if !set.remove(&item_key) {
@@ -332,162 +367,217 @@ impl RenderOnce for ListBox {
             });
         }
 
-        for (index, item) in self.items.iter().enumerate() {
-            match item {
-                ListBoxItem::Separator => {
-                    list = list.child(
-                        div()
-                            .my(px(4.))
-                            .mx(px(4.))
-                            .h(cx.layout().border_width)
-                            .bg(colors.separator),
-                    );
-                }
-                ListBoxItem::Section(label) => {
-                    list = list.child(
-                        div()
-                            .px(px(8.))
-                            .pt(px(8.))
-                            .pb(px(4.))
-                            .text_size(px(11.))
-                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                            .text_color(colors.muted)
-                            .child(label.to_string()),
-                    );
-                }
-                ListBoxItem::Option {
-                    key,
-                    label,
-                    description,
-                    icon,
-                    shortcut,
-                    variant,
-                    is_disabled,
-                } => {
-                    let variant = if *variant == ListBoxItemVariant::Default {
-                        self.variant
-                    } else {
-                        *variant
-                    };
-                    let disabled = *is_disabled || self.disabled_keys.contains(key);
-                    let selected = self.selected_keys.contains(key);
-
-                    let (fg, hover_bg) = match variant {
-                        ListBoxItemVariant::Default => (colors.foreground, colors.default.color),
-                        ListBoxItemVariant::Danger => {
-                            (colors.danger.soft_foreground(), colors.danger.soft())
-                        }
-                    };
-
-                    let mut row = div()
-                        .id(ElementId::Name(
-                            format!("{:?}-item-{index}", self.id).into(),
-                        ))
-                        .flex()
-                        .flex_row()
-                        .items_center()
-                        .gap(px(12.))
-                        .px(px(8.))
-                        .min_h(row_h)
-                        .py(px(6.))
-                        .rounded(util::soft_radius(cx))
-                        .text_size(text_size)
-                        .text_color(fg);
-
-                    if disabled {
-                        row = row.opacity(cx.layout().disabled_opacity);
-                    } else {
-                        row = row.cursor_pointer().hover(move |s| s.bg(hover_bg));
-                    }
-
-                    if selected {
-                        row = row.bg(match variant {
-                            ListBoxItemVariant::Default => colors.accent.soft(),
-                            ListBoxItemVariant::Danger => colors.danger.soft(),
-                        });
-                    }
-
-                    // `status-focused` on the row the keyboard is on.
-                    if cursor_at == Some(index) {
-                        row = row.border_2().border_color(colors.focus);
-                    }
-
-                    if let Some(path) = icon {
-                        row = row.child(
-                            gpui::svg()
-                                .size(util::FIELD_ICON)
-                                .path(path.clone())
-                                .flex_shrink_0()
-                                .text_color(fg),
-                        );
-                    }
-
-                    // Label plus optional description stack.
-                    row = row.child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .flex_1()
-                            .child(div().child(label.to_string()))
-                            .when_some(description.clone(), |el, d| {
-                                el.child(
-                                    div()
-                                        .text_size(px(11.))
-                                        .text_color(colors.muted)
-                                        .child(d.to_string()),
-                                )
-                            }),
-                    );
-
-                    if selected && self.selection_mode != SelectionMode::None {
-                        row = row.child(
-                            gpui::svg()
-                                .size(px(14.))
-                                .path(icons::CHECK)
-                                .flex_shrink_0()
-                                .text_color(colors.accent.color),
-                        );
-                    } else if let Some(sc) = shortcut {
-                        row = row.child(
-                            div()
-                                .text_size(px(11.))
-                                .text_color(colors.muted)
-                                .child(sc.to_string()),
-                        );
-                    }
-
-                    if !disabled {
-                        let key = key.clone();
-                        let mode = self.selection_mode;
-                        let current = self.selected_keys.clone();
-                        let on_selection_change = self.on_selection_change.clone();
-                        let on_action = self.on_action.clone();
-                        row = row.on_click(move |_, window, cx| {
-                            if let Some(action) = &on_action {
-                                action(&key, window, cx);
-                            }
-                            if let Some(change) = &on_selection_change {
-                                let next = match mode {
-                                    SelectionMode::None => current.clone(),
-                                    SelectionMode::Single => HashSet::from([key.clone()]),
-                                    SelectionMode::Multiple => {
-                                        let mut set = current.clone();
-                                        if !set.remove(&key) {
-                                            set.insert(key.clone());
-                                        }
-                                        set
-                                    }
-                                };
-                                change(&next, window, cx);
-                            }
-                        });
-                    }
-
-                    list = list.child(row);
-                }
-            }
+        // With `rowHeight` set the list is virtual: only the rows the viewport
+        // shows are built, which is what makes a thousand of them affordable.
+        // `uniform_list` measures row 0 and multiplies, so the row builder is
+        // told the height rather than left to size itself.
+        if let Some(row_height) = self.row_height {
+            let height = self.max_h.unwrap_or(px(400.));
+            let list_id = self.id.clone();
+            let count = self.items.len();
+            let rows = std::rc::Rc::new(self);
+            return list
+                .child(
+                    gpui::uniform_list(
+                        ElementId::Name(format!("{base}-rows").into()),
+                        count,
+                        move |range, _window, cx| {
+                            range
+                                .map(|i| rows.row(i, cursor_at, Some(row_height), cx))
+                                .collect::<Vec<_>>()
+                        },
+                    )
+                    .id(list_id)
+                    .h(height)
+                    .w_full(),
+                )
+                .into_any_element();
         }
 
-        list
+        let mut items = Vec::with_capacity(self.items.len());
+        for index in 0..self.items.len() {
+            items.push(self.row(index, cursor_at, None, cx));
+        }
+        list.children(items).into_any_element()
+    }
+}
+
+impl ListBox {
+    /// One row, by index.
+    ///
+    /// Shared by the plain and the virtualized paths so the two cannot drift:
+    /// `fixed_h` is `Some` only for the virtual one, where every row -- a
+    /// heading and a separator included -- is one `rowHeight` tall because that
+    /// is the number the scroll geometry is computed from.
+    fn row(
+        &self,
+        index: usize,
+        cursor_at: Option<usize>,
+        fixed_h: Option<gpui::Pixels>,
+        cx: &mut App,
+    ) -> gpui::AnyElement {
+        let colors = cx.colors();
+        let row_h = fixed_h.unwrap_or(px(34.));
+        let text_size = util::FIELD_TEXT;
+        let sized = |el: gpui::Div| match fixed_h {
+            Some(h) => el.h(h),
+            None => el,
+        };
+        match &self.items[index] {
+            ListBoxItem::Separator => sized(
+                div()
+                    .my(px(4.))
+                    .mx(px(4.))
+                    .h(cx.layout().border_width)
+                    .bg(colors.separator),
+            )
+            .into_any_element(),
+            ListBoxItem::Section(label) => sized(
+                div()
+                    .px(px(8.))
+                    .pt(px(8.))
+                    .pb(px(4.))
+                    .text_size(px(11.))
+                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .text_color(colors.muted)
+                    .child(label.to_string()),
+            )
+            .into_any_element(),
+            ListBoxItem::Option {
+                key,
+                label,
+                description,
+                icon,
+                shortcut,
+                variant,
+                is_disabled,
+            } => {
+                let variant = if *variant == ListBoxItemVariant::Default {
+                    self.variant
+                } else {
+                    *variant
+                };
+                let disabled = *is_disabled || self.disabled_keys.contains(key);
+                let selected = self.selected_keys.contains(key);
+
+                let (fg, hover_bg) = match variant {
+                    ListBoxItemVariant::Default => (colors.foreground, colors.default.color),
+                    ListBoxItemVariant::Danger => {
+                        (colors.danger.soft_foreground(), colors.danger.soft())
+                    }
+                };
+
+                let mut row = div()
+                    .id(ElementId::Name(
+                        format!("{:?}-item-{index}", self.id).into(),
+                    ))
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .gap(px(12.))
+                    .px(px(8.))
+                    // A virtual row is laid out on its own, so it takes the width
+                    // it is given rather than inheriting a stretch.
+                    .map(|el| match fixed_h {
+                        Some(h) => el.h(h).w_full(),
+                        None => el.min_h(row_h),
+                    })
+                    .py(px(6.))
+                    .rounded(util::soft_radius(cx))
+                    .text_size(text_size)
+                    .text_color(fg);
+
+                if disabled {
+                    row = row.opacity(cx.layout().disabled_opacity);
+                } else {
+                    row = row.cursor_pointer().hover(move |s| s.bg(hover_bg));
+                }
+
+                if selected {
+                    row = row.bg(match variant {
+                        ListBoxItemVariant::Default => colors.accent.soft(),
+                        ListBoxItemVariant::Danger => colors.danger.soft(),
+                    });
+                }
+
+                // `status-focused` on the row the keyboard is on.
+                if cursor_at == Some(index) {
+                    row = row.border_2().border_color(colors.focus);
+                }
+
+                if let Some(path) = icon {
+                    row = row.child(
+                        gpui::svg()
+                            .size(util::FIELD_ICON)
+                            .path(path.clone())
+                            .flex_shrink_0()
+                            .text_color(fg),
+                    );
+                }
+
+                // Label plus optional description stack.
+                row = row.child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .flex_1()
+                        .child(div().child(label.to_string()))
+                        .when_some(description.clone(), |el, d| {
+                            el.child(
+                                div()
+                                    .text_size(px(11.))
+                                    .text_color(colors.muted)
+                                    .child(d.to_string()),
+                            )
+                        }),
+                );
+
+                if selected && self.selection_mode != SelectionMode::None {
+                    row = row.child(
+                        gpui::svg()
+                            .size(px(14.))
+                            .path(icons::CHECK)
+                            .flex_shrink_0()
+                            .text_color(colors.accent.color),
+                    );
+                } else if let Some(sc) = shortcut {
+                    row = row.child(
+                        div()
+                            .text_size(px(11.))
+                            .text_color(colors.muted)
+                            .child(sc.to_string()),
+                    );
+                }
+
+                if !disabled {
+                    let key = key.clone();
+                    let mode = self.selection_mode;
+                    let current = self.selected_keys.clone();
+                    let on_selection_change = self.on_selection_change.clone();
+                    let on_action = self.on_action.clone();
+                    row = row.on_click(move |_, window, cx| {
+                        if let Some(action) = &on_action {
+                            action(&key, window, cx);
+                        }
+                        if let Some(change) = &on_selection_change {
+                            let next = match mode {
+                                SelectionMode::None => current.clone(),
+                                SelectionMode::Single => HashSet::from([key.clone()]),
+                                SelectionMode::Multiple => {
+                                    let mut set = current.clone();
+                                    if !set.remove(&key) {
+                                        set.insert(key.clone());
+                                    }
+                                    set
+                                }
+                            };
+                            change(&next, window, cx);
+                        }
+                    });
+                }
+
+                row.into_any_element()
+            }
+        }
     }
 }

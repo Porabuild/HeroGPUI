@@ -301,28 +301,74 @@ for path in glob.glob(SRC + '*.rs'):
                     constructor_args.setdefault(struct_name, set()).add(name)
 
 
+API_SECTIONS = None
+
+
+def api_sections():
+    """Each component page's `## API Reference` section, verbatim.
+
+    One per page, 71 of them, and the section is the boundary that matters: the
+    v2 migration guides on the same page carry tables of their own
+    (`### 2. Prop Changes`) whose rows are props v3 *removed*.
+    """
+    global API_SECTIONS
+    if API_SECTIONS is None:
+        API_SECTIONS = []
+        for m in re.finditer(r'^[ 	]*## API Reference[ 	]*$', bundle, re.M):
+            chunk = bundle[m.end():]
+            nxt = re.search(r'^[ 	]*## ', chunk, re.M)
+            API_SECTIONS.append(chunk[:nxt.start()] if nxt else chunk)
+    return API_SECTIONS
+
+
 def props_for(component):
     """Prop names documented for a component.
 
-    v3 splits its API across the root table and one table per composed part
-    (`### Tooltip.Content`, `### Select.Trigger`, ...). This port is monolithic
-    -- those props land on the parent builder -- so both forms are folded
-    together here. Reading only the root table hid whole prop tables.
+    Read the page's whole API Reference section, because **not every table there
+    is named after the component**. Matching `### <Comp>` and `### <Comp>.<Part>`
+    -- which is what this did -- missed `### ListLayout` and `### TableLayout`
+    (the virtualization props), `### Tag` and `### Tag.RemoveButton` on the
+    TagGroup page, `### SwitchGroup`, `### Radio.*`, `### Disclosure{Trigger,
+    Content}`, `### Composition Components` on the three field pages,
+    `### ToastQueue` and `### toast Function`, and `### useFilter Hook`: 139
+    documented rows that were never checked against anything.
+
+    The section is the unit rather than the heading because a heading pattern
+    cannot tell `### ListLayout` from `### 2. Prop Changes`. Every component
+    resolves to exactly one section, which is asserted rather than assumed.
+    """
+    anchor = r'^[ 	]*### %s(?:\.[A-Za-z]+)?[ 	]*$' % re.escape(component)
+    owners = [s for s in api_sections() if re.search(anchor, s, re.M)]
+    if len(owners) != 1:
+        # Two pages documenting one name would silently merge their tables and
+        # invent gaps in both; no page at all means the anchor stopped matching.
+        print('API SECTION AMBIGUOUS: %s matched %d sections' % (component, len(owners)))
+        return set()
+    return prop_rows(owners[0])
+
+
+# The first header cell of a v3 prop table. Anything else is a table of
+# *values*: `### Kbd.Content Type` lists the key names `keyValue` accepts under
+# `| Modifier Keys | Special Keys | ...`, and reading its first column reported
+# `command`, `ctrl`, `option`, `shift` and `win` as five missing Kbd props.
+PROP_HEADERS = ('prop', 'name', 'option', 'function', 'method', 'prop name', 'event')
+
+
+def prop_rows(text):
+    """Every prop named in the prop tables of `text`.
+
+    A markdown table is header row, divider row, then body; splitting on the
+    divider is what tells the two apart, and the header is what says whether the
+    first column holds prop names at all.
     """
     found = set()
-    pattern = r'^### %s(?:\.[A-Za-z]+)?\s*$' % re.escape(component)
-    for m in re.finditer(pattern, bundle, re.M):
-        # To the next heading of *any* level, with no character cap. A fixed
-        # 4000-char window silently truncated the widest tables: ComboBox's type
-        # column is long enough that `validate`, `validationBehavior`, `name`,
-        # `form`, `formValue` and `autoComplete` all fell outside it and were
-        # never checked at all.
-        chunk = bundle[m.end():]
-        nxt = re.search(r'^#{1,3} ', chunk, re.M)
-        if nxt:
-            chunk = chunk[:nxt.start()]
-        for row in re.findall(r'^\|\s*`([a-zA-Z-]+)`\s*\|', chunk, re.M):
-            found.add(row)
+    for tbl in re.finditer(
+            r'^\|(?P<head>.+)\|[ \t]*\n\|[ \t:|-]+\|[ \t]*\n(?P<body>(?:\|.*\n?)*)',
+            text, re.M):
+        first = tbl.group('head').split('|')[0].strip().strip('`').lower()
+        if first not in PROP_HEADERS:
+            continue
+        found |= set(re.findall(r'^\|\s*`([a-zA-Z-]+)`\s*\|', tbl.group('body'), re.M))
     return found
 
 

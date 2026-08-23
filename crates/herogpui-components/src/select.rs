@@ -356,7 +356,7 @@ impl RenderOnce for Select {
             let stops: Vec<usize> = (0..self.options.len())
                 .filter(|i| !self.disabled_keys.contains(i))
                 .collect();
-            let held = cursor.clone();
+            let held = cursor;
             let wrap = self.should_focus_wrap;
             let open_own_keys = open_own.clone();
             let value_own_keys = value_own.clone();

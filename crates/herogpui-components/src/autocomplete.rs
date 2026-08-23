@@ -510,7 +510,7 @@ impl RenderOnce for Autocomplete {
                         .is_some_and(|item| !self.disabled_keys.contains(item))
                 })
                 .collect();
-            let held = cursor.clone();
+            let held = cursor;
             let wrap = self.should_focus_wrap;
             let rows = matches.clone();
             let state = self.state.clone();
