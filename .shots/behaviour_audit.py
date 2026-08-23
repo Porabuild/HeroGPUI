@@ -98,6 +98,10 @@ TEXT_KEYS = ('Input', 'TextArea', 'TextField')
 # with the mouse.
 POINTER_CARET = ('Input', 'TextField', 'TextArea')
 
+# A sortable column header is a control: it had a click listener and no focus, so
+# sorting was mouse-only.
+SORT_KEYS = ('Table',)
+
 OVERLAY_DISMISS = (
     'Popover', 'Dropdown', 'Select', 'ComboBox', 'Autocomplete',
     'DatePicker', 'DateRangePicker', 'ColorPicker', 'Tooltip',
@@ -168,6 +172,7 @@ EVIDENCE = {
     ('Input', 'text-keys'): ('input.rs', r'fn word_target'),
     ('TextArea', 'text-keys'): ('input.rs', r'fn vertical_target'),
     ('TextField', 'text-keys'): ('input.rs', r'key_char'),
+    ('Table', 'sort-keys'): ('table.rs', r'sort_focus'),
     ('Input', 'pointer-caret'): ('input.rs', r'fn char_at_x'),
     ('TextField', 'pointer-caret'): ('input.rs', r'closest_index_for_x'),
     ('Accordion', 'activation'): ('accordion.rs', r'tab_stop_handle'),
@@ -230,11 +235,11 @@ def main():
     # every total.
     derived = dict.fromkeys(
         ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + FOCUS_OPEN
-        + TEXT_KEYS + POINTER_CARET
+        + TEXT_KEYS + POINTER_CARET + SORT_KEYS
     )
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'focus-open',
-                      'text-keys', 'pointer-caret'):
+                      'text-keys', 'pointer-caret', 'sort-keys'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach
             # the breakdown: reading only EVIDENCE skipped `TextArea`'s

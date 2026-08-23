@@ -586,6 +586,29 @@ pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
     shadows
 }
 
+/// v3's *inset* focus ring, as an overlay to hang inside the focused element.
+///
+/// A table is the exception to `status-focused`: `.table__cell` and
+/// `.table__column` are `shadow-[inset_0_0_0_2px_var(--focus)]` with
+/// `rounded-lg`, and a focused row draws the same ring split across its cells so
+/// it reads as one continuous outline *inside* the row. An outset ring cannot
+/// work there -- the next cell is flush against it, so a ring drawn outside is
+/// either clipped or, on a transparent cell, bleeds through and fills it (a
+/// focused column header came out solid accent).
+///
+/// gpui has no inset shadow and a border would move the content, so the ring is
+/// an absolutely positioned child: it paints over the element and costs no
+/// layout. The parent needs `.relative()`.
+pub fn inset_focus_ring(cx: &App) -> Div {
+    let colors = cx.colors();
+    gpui::div()
+        .absolute()
+        .inset_0()
+        .border_2()
+        .border_color(colors.focus)
+        .rounded(key_radius(cx))
+}
+
 /// Applies the focus ring on top of whatever the element already casts.
 ///
 /// `base` is the element's own shadow list, because `shadow()` replaces rather

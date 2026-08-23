@@ -542,6 +542,35 @@ impl RenderOnce for Table {
             .read(cx)
             .filter(|_| table_focus.is_focused(window) && crate::util::focus_visible(cx));
 
+        // A sortable header had a click listener and no focus, so sorting was
+        // mouse-only. v3's grid roves one tab stop across its cells; this port
+        // gives each sortable header its own stop, which is the part that
+        // matters. Created before the theme: `use_keyed_state` takes `cx`
+        // mutably and `cx.colors()` holds a borrow.
+        let sortable = self.on_sort_change.is_some();
+        let sort_focus: Vec<Option<gpui::FocusHandle>> = self
+            .columns
+            .iter()
+            .map(|c| c.allows_sorting && sortable)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .enumerate()
+            .map(|(i, is_sortable)| {
+                is_sortable.then(|| {
+                    crate::util::tab_stop_handle(
+                        gpui::ElementId::Name(format!("{}-sort-{i}-focus", self.id).into()),
+                        window,
+                        cx,
+                    )
+                })
+            })
+            .collect();
+        let ring_visible = crate::util::focus_visible(cx);
+        let sort_focused: Vec<bool> = sort_focus
+            .iter()
+            .map(|h| h.as_ref().is_some_and(|h| h.is_focused(window)) && ring_visible)
+            .collect();
+
         let resizable = self.columns.iter().any(|c| c.allows_resizing);
         let colors = cx.colors();
         // Copies of the tokens the tail needs: the row builder borrows `cx`
@@ -673,7 +702,7 @@ impl RenderOnce for Table {
                     let next =
                         SortDescriptor::next(self.sort_descriptor.as_ref(), column.label.clone());
                     let hover = colors.default.soft();
-                    gpui::div()
+                    let header_cell = gpui::div()
                         .id(gpui::ElementId::Name(
                             format!("table-sort-{}", column.label).into(),
                         ))
@@ -681,8 +710,21 @@ impl RenderOnce for Table {
                         .flex()
                         .cursor_pointer()
                         .hover(move |s| s.bg(hover))
+                        // The focus is what makes Enter and Space sort: gpui
+                        // fires a *focused* element's click listeners for them.
+                        .when_some(sort_focus[column_index].as_ref(), |c, handle| {
+                            c.track_focus(handle)
+                        })
                         .on_click(move |_, window, cx| cb(next.clone(), window, cx))
-                        .child(cell)
+                        .child(cell);
+                    // `.table__column` rings *inside* itself: the next column
+                    // is flush against this one, and a ring drawn outside bled
+                    // through the transparent cell and filled it.
+                    header_cell
+                        .relative()
+                        .when(sort_focused[column_index], |c| {
+                            c.child(crate::util::inset_focus_ring(cx))
+                        })
                         .into_any_element()
                 }
                 _ => cell.into_any_element(),
@@ -1132,9 +1174,14 @@ impl RowCtx {
                 .on_click(move |ev, w, cx| cb(i, ev, w, cx));
         }
 
-        // `.table__row` takes `status-focused` on the row the keyboard is on -- a
-        // ring, since a border would move every cell in it.
-        crate::util::with_focus_ring(row, self.cursor == Some(i), true, Vec::new(), cx)
+        // v3 rings the focused row *inside* itself: the cells each carry an
+        // inset shadow, with the first and last three-sided, so the row reads as
+        // one continuous outline. One overlay across the row is the same picture
+        // and needs no per-cell cases.
+        row.relative()
+            .when(self.cursor == Some(i), |r| {
+                r.child(crate::util::inset_focus_ring(cx))
+            })
             .into_any_element()
     }
 }

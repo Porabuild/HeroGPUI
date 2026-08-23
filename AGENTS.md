@@ -655,6 +655,16 @@ v2 concepts that must **not** come back:
     bites the other way too: an element that has *both* a click listener and its
     own Enter handling does the thing twice, which is why the Select trigger
     keeps only the arrows and lets the click own the open and close.
+  - **A table rings *inside* itself.** `status-focused` is an outset ring, and a
+    table is v3's exception: `.table__cell` and `.table__column` are
+    `shadow-[inset_0_0_0_2px_var(--focus)]` with `rounded-lg`, and a focused row
+    draws the same ring split across its cells (three-sided on the first and
+    last) so it reads as one continuous outline. That is not a style choice — the
+    next cell is flush, so a ring drawn outside is either clipped or, on a cell
+    with no background of its own, bleeds *through* and fills it: a focused
+    sortable header came out solid accent. `util::inset_focus_ring` is an
+    absolutely-positioned 2px border to hang inside the element (gpui has no
+    inset shadow, and a real border would move the content).
   - **A disabled control must leave the tab order.** `track_focus` is what puts
     it in, so gate it: v3 gives a disabled control `pointer-events-none` and
     nothing to move, and a Tab that lands on a disabled calendar looks like the
