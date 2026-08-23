@@ -190,6 +190,9 @@ impl RenderOnce for RadioGroup {
             // selected it fills with `bg-accent` and the indicator shrinks to a
             // 6px `bg-accent-foreground` dot (`scale: 0.4286` of 16px).
             let mut circle_el = gpui::div()
+                .id(gpui::ElementId::Name(
+                    format!("{}-opt-{i}-control", element_id_name(&self.id)).into(),
+                ))
                 .flex()
                 .items_center()
                 .justify_center()
@@ -197,7 +200,7 @@ impl RenderOnce for RadioGroup {
                 .rounded(crate::util::key_radius(cx))
                 .flex_shrink_0()
                 .bg(if is_selected { sem.color } else { control_bg })
-                .when_some(control_shadow.clone(), gpui::Div::shadow);
+                .when_some(control_shadow.clone(), |el, shadows| el.shadow(shadows));
 
             if is_selected {
                 circle_el = circle_el.child(
@@ -226,6 +229,35 @@ impl RenderOnce for RadioGroup {
                 control_shadow.clone().unwrap_or_default(),
                 cx,
             );
+
+            // `.radio__control[data-pressed]` is `scale-95`, and a checked one
+            // also fills with `bg-accent-hover`.
+            let circle_el = if self.is_disabled || self.is_read_only {
+                circle_el
+            } else {
+                let pressed_fill = sem.hover();
+                let circle_el = crate::anim::pressed(
+                    circle_el,
+                    crate::anim::PressBox {
+                        height: circle,
+                        padding_x: None,
+                        width: Some(circle),
+                        min_width: None,
+                        text_size: text,
+                        line_height: text,
+                        gap: px(0.),
+                        radius: crate::util::key_radius(cx),
+                        shrink_x: true,
+                        scale: crate::anim::PRESSED_SCALE_DEEP,
+                    },
+                    cx,
+                );
+                if is_selected {
+                    circle_el.active(move |s| s.bg(pressed_fill))
+                } else {
+                    circle_el
+                }
+            };
 
             let mut row = gpui::div()
                 .id(gpui::ElementId::Name(

@@ -287,7 +287,10 @@ impl RenderOnce for Checkbox {
         // secondary one; selected, the `::before` overlay covers it in
         // `bg-accent` (or `bg-danger` when invalid, which `sem` already is).
         if active {
-            boxel = boxel.bg(sem.color);
+            // `.checkbox__control::before` -- the fill -- goes to
+            // `bg-accent-hover` while the box is hovered or pressed.
+            let hovered = sem.hover();
+            boxel = boxel.bg(sem.color).hover(move |s| s.bg(hovered));
         } else {
             boxel = boxel.bg(match self.variant {
                 herogpui_core::FieldVariant::Primary => colors.field.background,

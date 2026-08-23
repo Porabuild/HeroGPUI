@@ -294,7 +294,12 @@ impl RenderOnce for Switch {
             } else {
                 colors.default.hover()
             };
-            track = track.hover(move |s| s.bg(hover_bg));
+            // `--switch-control-bg-pressed` *is* `--switch-control-bg-hover`, and
+            // a checked switch presses to `--accent-hover`, which is what its
+            // hover already resolves to.
+            track = track
+                .hover(move |s| s.bg(hover_bg))
+                .active(move |s| s.bg(hover_bg));
         }
 
         // Thumb sits at the end when checked, start when unchecked. v3 moves it

@@ -232,6 +232,12 @@ fn flex_cell(el: gpui::Div) -> gpui::Div {
 /// HeroUI Table.
 #[derive(IntoElement)]
 pub struct Table {
+    /// Distinguishes one table's keyed state from another's: the resized column
+    /// widths, the drag in progress, the focus handle and the row cursor all
+    /// hang off it. v3 needs no such prop -- React keys by position in the tree
+    /// -- so the default is a name shared by every table, which only goes wrong
+    /// when a page shows two of them.
+    id: SharedString,
     /// `indicator` — v3's render prop for the sort chevron, handed the
     /// `sortDirection` the column is sorted in.
     indicator: Option<Indicator>,
@@ -272,6 +278,7 @@ pub struct Table {
 impl Table {
     pub fn new(columns: Vec<SharedString>) -> Self {
         Self {
+            id: SharedString::from("table"),
             indicator: None,
             columns: columns.into_iter().map(TableColumn::new).collect(),
             rows: Vec::new(),
@@ -295,6 +302,16 @@ impl Table {
             on_sort_change: None,
             on_load_more: None,
         }
+    }
+
+    /// The id this table's own state is keyed by.
+    ///
+    /// Two tables on one page share their resized widths, their row cursor and
+    /// their focus without it, because `use_keyed_state` keys by the id it is
+    /// given and nothing else.
+    pub fn id(mut self, id: impl Into<SharedString>) -> Self {
+        self.id = id.into();
+        self
     }
 
     /// `indicator` — replaces the sort chevron.
@@ -498,17 +515,33 @@ impl RenderOnce for Table {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // Column widths a resize handle has moved, and the drag in progress.
         // `use_keyed_state` takes `cx` mutably, so both precede the tokens.
-        let resized =
-            window.use_keyed_state(gpui::ElementId::Name("table-resized".into()), cx, |_, _| {
-                Vec::<Option<Pixels>>::new()
-            });
+        let resized = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{}-resized", self.id).into()),
+            cx,
+            |_, _| Vec::<Option<Pixels>>::new(),
+        );
         let resized_now = resized.read(cx).clone();
         let dragging = window.use_keyed_state(
-            gpui::ElementId::Name("table-resizing".into()),
+            gpui::ElementId::Name(format!("{}-resizing", self.id).into()),
             cx,
             |_, _| None::<(usize, f32, f32)>,
         );
         let drag_now = *dragging.read(cx);
+        // The body is one tab stop with a cursor inside it, the way a list is.
+        let table_focus = crate::util::tab_stop_handle(
+            gpui::ElementId::Name(format!("{}-focus", self.id).into()),
+            window,
+            cx,
+        );
+        let row_cursor = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{}-cursor", self.id).into()),
+            cx,
+            |_, _| None::<usize>,
+        );
+        let cursor_at = row_cursor
+            .read(cx)
+            .filter(|_| table_focus.is_focused(window) && crate::util::focus_visible(cx));
+
         let resizable = self.columns.iter().any(|c| c.allows_resizing);
         let colors = cx.colors();
         // Copies of the tokens the tail needs: the row builder borrows `cx`
@@ -525,6 +558,7 @@ impl RenderOnce for Table {
 
         let mut wrapper = gpui::div()
             .w_full()
+            .track_focus(&table_focus)
             .overflow_hidden()
             .rounded(crate::util::container_radius(cx))
             .text_color(colors.foreground);
@@ -565,9 +599,11 @@ impl RenderOnce for Table {
                 let all = row_keys.clone();
                 let none_selected = selected_count == 0;
                 let all_selected = !all.is_empty() && selected_count == all.len();
-                let mut box_el = Checkbox::new("table-select-all")
-                    .is_selected(all_selected)
-                    .is_indeterminate(!all_selected && !none_selected);
+                let mut box_el = Checkbox::new(gpui::ElementId::Name(
+                    format!("{}-select-all", self.id).into(),
+                ))
+                .is_selected(all_selected)
+                .is_indeterminate(!all_selected && !none_selected);
                 if let Some(cb) = self.on_selection_change.clone() {
                     box_el = box_el.on_change(move |_next, window, cx| {
                         // Anything short of everything selects everything.
@@ -762,7 +798,9 @@ impl RenderOnce for Table {
         // inside a `'static` closure, so it cannot borrow `self` -- and having
         // one row builder for both paths is what keeps a virtual table drawing
         // the same row as a short one.
+        let table_id = self.id.clone();
         let ctx = std::rc::Rc::new(RowCtx {
+            id: self.id.clone(),
             widths: self
                 .columns
                 .iter()
@@ -785,7 +823,56 @@ impl RenderOnce for Table {
             on_expanded_change: self.on_expanded_change.clone(),
             on_selection_change: self.on_selection_change.clone(),
             on_row_click: self.on_row_click.clone(),
+            cursor: cursor_at,
         });
+
+        // v3 gives a table a roving row focus: the arrows walk it, Home and End
+        // jump, and Enter activates the row -- the same resolver every list here
+        // uses, over the rows that exist.
+        {
+            let stops: Vec<usize> = (0..flat.len()).collect();
+            let held = row_cursor;
+            let on_row_click = self.on_row_click.clone();
+            let keys = ctx.row_keys.clone();
+            let selection = self.on_selection_change.clone();
+            let selected_now = self.selected_keys.clone();
+            let mode = self.selection_mode;
+            if !stops.is_empty() {
+                wrapper = wrapper.on_key_down(move |event, window, cx| {
+                    let from = *held.read(cx);
+                    match crate::list_nav::resolve(
+                        &stops,
+                        from,
+                        event.keystroke.key.as_str(),
+                        false,
+                    ) {
+                        crate::list_nav::Move::To(next) => {
+                            held.update(cx, |v, cx| {
+                                *v = Some(next);
+                                cx.notify();
+                            });
+                        }
+                        crate::list_nav::Move::Activate => {
+                            let Some(index) = from else { return };
+                            // The same two callbacks a click fires.
+                            if let Some(cb) = &on_row_click {
+                                cb(index, &ClickEvent::default(), window, cx);
+                            }
+                            if let (Some(cb), Some(key)) = (&selection, keys.get(index)) {
+                                let next = crate::selection::next_selection(
+                                    &selected_now,
+                                    key,
+                                    mode,
+                                    false,
+                                );
+                                cb(&next, window, cx);
+                            }
+                        }
+                        crate::list_nav::Move::Ignore => {}
+                    }
+                });
+            }
+        }
 
         let row_count = match &self.virtual_rows {
             Some((count, _)) if self.row_height.is_some() => *count,
@@ -801,7 +888,7 @@ impl RenderOnce for Table {
             let body = ctx.clone();
             table = table.child(
                 gpui::uniform_list(
-                    gpui::ElementId::Name("table-virtual-rows".into()),
+                    gpui::ElementId::Name(format!("{table_id}-virtual-rows").into()),
                     count,
                     move |range, _window, cx| {
                         range
@@ -841,7 +928,9 @@ impl RenderOnce for Table {
         // ---- load-more sentinel ------------------------------------------
         if self.is_pending || self.on_load_more.is_some() {
             let mut sentinel = gpui::div()
-                .id("table-load-more")
+                .id(gpui::ElementId::Name(
+                    format!("{}-load-more", self.id).into(),
+                ))
                 .flex()
                 .items_center()
                 .justify_center()
@@ -854,8 +943,10 @@ impl RenderOnce for Table {
             if self.is_pending {
                 sentinel = sentinel
                     .child(
-                        crate::spinner::Spinner::new("table-load-spinner")
-                            .size(herogpui_core::Size::Sm),
+                        crate::spinner::Spinner::new(gpui::ElementId::Name(
+                            format!("{}-load-spinner", self.id).into(),
+                        ))
+                        .size(herogpui_core::Size::Sm),
                     )
                     .child("Loading\u{2026}");
             } else if let Some(cb) = self.on_load_more.clone() {
@@ -877,6 +968,8 @@ impl RenderOnce for Table {
 /// Everything one body row needs, so both the plain and the virtualized path can
 /// draw it from the same code.
 struct RowCtx {
+    /// The table's id, so one table's row ids cannot collide with another's.
+    id: SharedString,
     /// `(defaultWidth or the resize, minWidth)` per column.
     widths: Vec<(Option<Pixels>, Option<Pixels>)>,
     row_header_columns: Vec<bool>,
@@ -890,6 +983,8 @@ struct RowCtx {
     on_expanded_change: Option<OnExpandedChange>,
     on_selection_change: Option<OnSelectionChange>,
     on_row_click: Option<OnRowClick>,
+    /// The row the keyboard is on, which wears `status-focused`.
+    cursor: Option<usize>,
 }
 
 impl RowCtx {
@@ -922,7 +1017,7 @@ impl RowCtx {
         let row_header_columns = &self.row_header_columns;
 
         let mut row = gpui::div()
-            .id(gpui::ElementId::Name(format!("table-row-{i}").into()))
+            .id(gpui::ElementId::Name(format!("{}-row-{i}", self.id).into()))
             .flex()
             .when_some(fixed_h, |e, h| e.h(h).w_full())
             .border_b_1()
@@ -935,9 +1030,10 @@ impl RowCtx {
                 .justify_center()
                 .w(px(44.))
                 .py(px(10.));
-            let mut box_el =
-                Checkbox::new(gpui::ElementId::Name(format!("table-select-{i}").into()))
-                    .is_selected(is_selected);
+            let mut box_el = Checkbox::new(gpui::ElementId::Name(
+                format!("{}-select-{i}", self.id).into(),
+            ))
+            .is_selected(is_selected);
             if let Some(cb) = self.on_selection_change.clone() {
                 let current = self.selected_keys.clone();
                 let key2 = key;
@@ -981,7 +1077,7 @@ impl RowCtx {
                 if has_children {
                     let mut chevron = gpui::div()
                         .id(gpui::ElementId::Name(
-                            format!("table-expand-{toggle_key}").into(),
+                            format!("{}-expand-{toggle_key}", self.id).into(),
                         ))
                         .flex()
                         .items_center()
@@ -1036,7 +1132,10 @@ impl RowCtx {
                 .on_click(move |ev, w, cx| cb(i, ev, w, cx));
         }
 
-        row.into_any_element()
+        // `.table__row` takes `status-focused` on the row the keyboard is on -- a
+        // ring, since a border would move every cell in it.
+        crate::util::with_focus_ring(row, self.cursor == Some(i), true, Vec::new(), cx)
+            .into_any_element()
     }
 }
 

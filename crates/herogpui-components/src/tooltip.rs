@@ -304,18 +304,36 @@ impl RenderOnce for Tooltip {
                 .detach();
             });
 
-        if open {
+        // A tooltip leaves the way every other overlay does: `overlay_phase`
+        // keeps it for its exit run, which is what `[data-exiting]` needs to
+        // have something to play.
+        let phase = util::overlay_phase(
+            window,
+            cx,
+            ElementId::Name(format!("{key:?}-tip-phase").into()),
+            open,
+        );
+        if phase != util::OverlayPhase::Closed {
             // `absolute` does not lift the tip above later siblings in the page,
             // so it has to paint last.
+            let zoom = anim::ZoomBox::panel(px(8.), util::small_radius(cx)).padding_x(px(8.));
             let animated = if self.should_skip_animation {
                 tip.into_any_element()
+            } else if phase == util::OverlayPhase::Exiting {
+                anim::exiting(
+                    tip,
+                    ElementId::Name(format!("{key:?}-tip-out").into()),
+                    zoom,
+                    anim::Motion::LIST_OUT,
+                    cx,
+                )
             } else {
                 // `tooltip.css` is `duration-150 ease-smooth zoom-in-90` — the
                 // same zoom as a popover, not a slide.
                 anim::entering_zoom(
                     tip,
                     ElementId::Name(format!("{key:?}-tip").into()),
-                    anim::ZoomBox::panel(px(8.), util::small_radius(cx)).padding_x(px(8.)),
+                    zoom,
                     anim::Motion::POPOVER_IN,
                     cx,
                 )

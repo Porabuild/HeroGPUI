@@ -138,11 +138,21 @@ impl RenderOnce for Link {
             // gpui panics on a second `hover` call, so the underline and the
             // colour shift have to share one closure.
             let hover_color = colors.accent.color;
-            el = el.cursor_pointer().hover(move |s| {
-                s.text_color(hover_color)
-                    .border_color(hover_color)
-                    .border_b_1()
-            });
+            el = el
+                .cursor_pointer()
+                .hover(move |s| {
+                    s.text_color(hover_color)
+                        .border_color(hover_color)
+                        .border_b_1()
+                })
+                // `.link[data-pressed]` keeps the underline and takes the muted
+                // decoration to full strength.
+                .active(move |s| {
+                    s.text_color(hover_color)
+                        .border_color(hover_color)
+                        .border_b_1()
+                        .opacity(0.85)
+                });
         }
 
         // v3 orders `Link.Icon` among the children, so the icon can lead or

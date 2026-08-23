@@ -413,6 +413,11 @@ impl RenderOnce for InputOTP {
                 sem.color
             };
             cell = cell.bg(slot_bg).text_color(colors.foreground);
+            // `--input-otp-slot-bg-hover` is `--default-hover`.
+            if !self.is_disabled {
+                let hover_bg = colors.default.hover();
+                cell = cell.hover(move |s| s.bg(hover_bg));
+            }
             if self.variant == FieldVariant::Primary && !layout.field_shadow.is_empty() {
                 cell = cell.shadow(layout.field_shadow.clone());
             }

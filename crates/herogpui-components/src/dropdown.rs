@@ -430,6 +430,23 @@ impl RenderOnce for Menu {
                     } else {
                         row = row.cursor_pointer();
                         row = row.hover(move |s| s.bg(colors.default.soft()));
+                        // `.menu-item[data-pressed]` is `scale(0.98)`.
+                        row = crate::anim::pressed(
+                            row,
+                            crate::anim::PressBox {
+                                height: px(32.),
+                                padding_x: Some(px(8.)),
+                                width: None,
+                                min_width: None,
+                                text_size: px(13.5),
+                                line_height: px(20.),
+                                gap: px(8.),
+                                radius: crate::util::soft_radius(cx),
+                                shrink_x: true,
+                                scale: crate::anim::PRESSED_SCALE_SUBTLE,
+                            },
+                            cx,
+                        );
                     }
                     row = when_selected(row, is_selected, sem_primary(cx));
                     // `.menu-item` takes `status-focused` on the row the keyboard

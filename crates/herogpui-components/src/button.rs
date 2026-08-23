@@ -425,6 +425,7 @@ impl RenderOnce for Button {
                     gap: self.size.gap(),
                     radius: util::control_radius(cx),
                     shrink_x: !self.full_width,
+                    scale: crate::anim::PRESSED_SCALE,
                 },
                 cx,
             );

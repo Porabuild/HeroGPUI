@@ -197,19 +197,30 @@ pub fn ease_smooth() -> impl Fn(f32) -> f32 {
 /// The scale v3 applies to a pressed control (`transform: scale(0.97)`).
 pub const PRESSED_SCALE: f32 = 0.97;
 
-/// The inset that shrinks a control of `height` by [`PRESSED_SCALE`] about its
+/// The other scales v3 presses with: a menu row and a pagination link squeeze
+/// less than a button, a calendar cell and a radio control more.
+pub const PRESSED_SCALE_SUBTLE: f32 = 0.98;
+pub const PRESSED_SCALE_FIRM: f32 = 0.96;
+pub const PRESSED_SCALE_DEEP: f32 = 0.95;
+
+/// The inset that shrinks a control of `height` by a scale about its
 /// centre.
 pub fn pressed_inset(height: gpui::Pixels) -> gpui::Pixels {
-    gpui::px(f32::from(height) * (1.0 - PRESSED_SCALE) / 2.0)
+    inset_for(height, PRESSED_SCALE)
+}
+
+/// The inset that shrinks `height` by `scale`, centred.
+fn inset_for(height: gpui::Pixels, scale: f32) -> gpui::Pixels {
+    gpui::px(f32::from(height) * (1.0 - scale) / 2.0)
 }
 
 fn shrink(value: gpui::Pixels, by: gpui::Pixels) -> gpui::Pixels {
     gpui::px((f32::from(value) - f32::from(by)).max(0.0))
 }
 
-/// `value` scaled by [`PRESSED_SCALE`].
-fn scaled(value: gpui::Pixels) -> gpui::Pixels {
-    gpui::px(f32::from(value) * PRESSED_SCALE)
+/// `value` scaled by `scale`.
+fn scaled_by(value: gpui::Pixels, scale: f32) -> gpui::Pixels {
+    gpui::px(f32::from(value) * scale)
 }
 
 /// Everything a pressed control scales down.
@@ -227,6 +238,10 @@ pub struct PressBox {
     pub line_height: gpui::Pixels,
     pub gap: gpui::Pixels,
     pub radius: gpui::Pixels,
+    /// How far the press scales. v3 uses 0.97 for a button, 0.98 for a menu row,
+    /// 0.96 and 0.95 for the smaller controls, so it is per control rather than
+    /// one constant.
+    pub scale: f32,
     /// False for a full-width control, whose width is its parent's: a
     /// horizontal margin there would overflow rather than inset.
     pub shrink_x: bool,
@@ -258,16 +273,16 @@ pub fn pressed(el: gpui::Stateful<gpui::Div>, b: PressBox, cx: &App) -> gpui::St
     if cx.reduce_motion() {
         return el;
     }
-    let inset = pressed_inset(b.height);
+    let inset = inset_for(b.height, b.scale);
     el.active(move |s: StyleRefinement| {
         let s = s
             .h(shrink(b.height, inset + inset))
             .mt(inset)
             .mb(inset)
-            .text_size(scaled(b.text_size))
-            .line_height(scaled(b.line_height))
-            .gap(scaled(b.gap))
-            .rounded(scaled(b.radius));
+            .text_size(scaled_by(b.text_size, b.scale))
+            .line_height(scaled_by(b.line_height, b.scale))
+            .gap(scaled_by(b.gap, b.scale))
+            .rounded(scaled_by(b.radius, b.scale));
         match (b.width, b.shrink_x) {
             // Fixed width: shrink it directly.
             (Some(w), _) => s.w(shrink(w, inset + inset)).ml(inset).mr(inset),

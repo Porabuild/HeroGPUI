@@ -290,6 +290,31 @@ impl RangeCalendar {
             }
         }
 
+        // `.range-calendar__cell[data-pressed]` fills with `bg-default` and
+        // scales to 0.95, the same press a calendar cell takes.
+        let cell = if selectable {
+            let pressed_bg = colors.default.color;
+            crate::anim::pressed(
+                cell,
+                crate::anim::PressBox {
+                    height: px(38.),
+                    padding_x: None,
+                    width: Some(px(38.)),
+                    min_width: None,
+                    text_size: px(13.),
+                    line_height: px(18.),
+                    gap: px(0.),
+                    radius: px(19.),
+                    shrink_x: true,
+                    scale: crate::anim::PRESSED_SCALE_DEEP,
+                },
+                cx,
+            )
+            .active(move |st| st.bg(pressed_bg))
+        } else {
+            cell
+        };
+
         // `.range-calendar__cell` takes `status-focused` -- a ring, not a border,
         // which would shrink the cell as the cursor arrived.
         let mut cell =

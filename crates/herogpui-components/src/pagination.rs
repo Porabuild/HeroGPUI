@@ -163,7 +163,27 @@ impl RenderOnce for Pagination {
                             .border_color(colors.default.soft_hover());
                         if !self.is_disabled {
                             let hover_bg = colors.default.color;
+                            let pressed_bg = colors.default.hover();
                             btn = btn.hover(move |s| s.bg(hover_bg));
+                            // `.pagination__link[data-pressed]` deepens the fill
+                            // and scales to 0.97.
+                            btn = crate::anim::pressed(
+                                btn,
+                                crate::anim::PressBox {
+                                    height: cell,
+                                    padding_x: Some(px(6.)),
+                                    width: None,
+                                    min_width: Some(cell),
+                                    text_size: cell_text,
+                                    line_height: cell_text,
+                                    gap: px(0.),
+                                    radius: crate::util::control_radius(cx),
+                                    shrink_x: true,
+                                    scale: crate::anim::PRESSED_SCALE,
+                                },
+                                cx,
+                            )
+                            .active(move |s| s.bg(pressed_bg));
                         }
                         if let Some(cb) = self_on_change.clone() {
                             btn = btn.on_click(move |_, w, cx| cb(n, w, cx));

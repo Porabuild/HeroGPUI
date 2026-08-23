@@ -542,7 +542,27 @@ impl Calendar {
         } else {
             circle = circle.text_color(colors.foreground);
             let hover_bg = colors.default.soft_hover();
+            let pressed_bg = colors.default.color;
             circle = circle.cursor_pointer().hover(move |s| s.bg(hover_bg));
+            // `.calendar__cell[data-pressed]` fills with `bg-default` and scales
+            // to 0.95.
+            circle = crate::anim::pressed(
+                circle,
+                crate::anim::PressBox {
+                    height: px(36.),
+                    padding_x: None,
+                    width: Some(px(36.)),
+                    min_width: None,
+                    text_size: px(14.),
+                    line_height: px(20.),
+                    gap: px(0.),
+                    radius: px(18.),
+                    shrink_x: true,
+                    scale: crate::anim::PRESSED_SCALE_DEEP,
+                },
+                cx,
+            )
+            .active(move |s| s.bg(pressed_bg));
             if is_today {
                 circle = circle.border_1().border_color(marker);
             }

@@ -2846,8 +2846,9 @@ impl Gallery {
     pub fn page_table(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let table_page = self.demo_value("tbl-page", 1.) as usize;
         let tbl_expanded = self.demo_selection("tbl-expanded");
-        let build = || {
+        let build = |id: &'static str| {
             h::Table::new(vec!["Name".into(), "Role".into(), "Status".into()])
+                .id(id)
                 .row(vec![
                     gpui::div().child("Tony Reichert").into_any_element(),
                     gpui::div().child("CEO").into_any_element(),
@@ -2878,12 +2879,18 @@ impl Gallery {
             crate::pages::Page::Table.description(),
             crate::pages::Page::Table.import_line(),
             vec![
-                ("Usage", col(vec![build().into_any_element()])),
+                ("Usage", col(vec![build("tbl-usage").into_any_element()])),
                 (
                     "Variants",
                     col(h::TableVariant::ALL
                         .iter()
-                        .map(|v| build().variant(*v))
+                        .map(|v| {
+                            build(match v {
+                                h::TableVariant::Primary => "tbl-variant-primary",
+                                h::TableVariant::Secondary => "tbl-variant-secondary",
+                            })
+                            .variant(*v)
+                        })
                         .els()),
                 ),
                 (
@@ -2891,6 +2898,7 @@ impl Gallery {
                     // Sorted on load, so the custom indicator is actually
                     // visible: `indicator` only renders for the sorted column.
                     col(vec![h::Table::new(vec![])
+                        .id("tbl-custom-sort-indicator")
                         .column(h::TableColumn::new("Name").allows_sorting(true))
                         .column("Role")
                         .row(vec![
@@ -2919,7 +2927,7 @@ impl Gallery {
                 (
                     "Selection",
                     col(vec![
-                        build()
+                        build("tbl-selection")
                             .selection_mode(SelectionMode::Multiple)
                             .selected_keys(self.table_selection.clone())
                             .on_selection_change(cx.listener(
@@ -2937,6 +2945,7 @@ impl Gallery {
                     col(vec![
                         {
                             let mut sortable = h::Table::new(vec![])
+                                .id("tbl-sorting")
                                 .column(
                                     h::TableColumn::new("Name")
                                         .allows_sorting(true)
@@ -2985,6 +2994,7 @@ impl Gallery {
                             cx,
                         ),
                         h::Table::new(vec![])
+                            .id("tbl-virtualization")
                             .column(h::TableColumn::new("Name").is_row_header(true))
                             .column("Email")
                             .row_height(px(40.))
@@ -3008,6 +3018,7 @@ impl Gallery {
                             cx,
                         ),
                         h::Table::new(vec![])
+                            .id("tbl-column-resizing")
                             .column(
                                 h::TableColumn::new("Name")
                                     .allows_resizing(true)
@@ -3044,6 +3055,7 @@ impl Gallery {
                         {
                             let cell = |text: &str| gpui::div().child(text.to_owned());
                             h::Table::new(vec!["Title".into(), "Type".into(), "Modified".into()])
+                                .id("tbl-expandable-rows")
                                 .tree_column(0)
                                 .expanded_keys(tbl_expanded.iter().cloned())
                                 .on_expanded_change(cx.listener(
@@ -3110,7 +3122,7 @@ impl Gallery {
                 ),
                 (
                     "Secondary Variant",
-                    col(vec![build()
+                    col(vec![build("tbl-secondary-variant")
                         .variant(h::TableVariant::Secondary)
                         .into_any_element()]),
                 ),
@@ -3122,7 +3134,7 @@ impl Gallery {
                              `onLoadMore` fires when the last row scrolls into view.",
                             cx,
                         ),
-                        build()
+                        build("tbl-async-loading")
                             .is_pending(true)
                             .on_load_more(|_, _| {})
                             .into_any_element(),
@@ -3141,7 +3153,8 @@ impl Gallery {
                                 ("Kristen Copper", "Sales Manager"),
                                 ("Emily Collins", "Marketing"),
                             ];
-                            let mut paged = h::Table::new(vec!["Name".into(), "Role".into()]);
+                            let mut paged = h::Table::new(vec!["Name".into(), "Role".into()])
+                                .id("tbl-pagination");
                             for (name, role) in people.iter().skip(start).take(2) {
                                 paged = paged.row(vec![
                                     gpui::div().child(*name).into_any_element(),
@@ -3165,6 +3178,7 @@ impl Gallery {
                         "Role".into(),
                         "Status".into(),
                     ])
+                    .id("tbl-custom-cells")
                     .row(vec![
                         gpui::div()
                             .flex()
@@ -3223,9 +3237,12 @@ impl Gallery {
                     "Empty and loading",
                     col(vec![
                         h::Table::new(vec!["Name".into(), "Role".into()])
+                            .id("tbl-empty-and-loading")
                             .empty_state("Nobody here yet")
                             .into_any_element(),
-                        build().is_pending(true).into_any_element(),
+                        build("tbl-empty-and-loading-2")
+                            .is_pending(true)
+                            .into_any_element(),
                     ]),
                 ),
             ],

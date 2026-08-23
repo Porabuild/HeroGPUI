@@ -404,6 +404,16 @@ was invisible everywhere. Four things worth keeping:
   could set either, so `no-disabled-prop` / `no-pending-prop` are reasons rather
   than gaps -- inventing the builder would fail `extra_audit.py`.
 
+The stylesheets are only half of it. Each page also lists its states in prose
+under `### Interactive States`, and that half covers what the utilities do not:
+selected, open, dragging, today, outside-month, frontmost. The same script reads
+those 208 claims across 46 pages, which is how the presses were found -- v3
+scales four different amounts (`0.97` a button, `0.98` a menu row, `0.96` a
+pagination arrow, `0.95` a calendar cell and a radio control) and this port had
+one. Two of the prose claims contradict the CSS: `slider.css` styles no hover
+and `tag.css` no press, and following the sheet rather than the sentence is the
+same choice `design_audit.py` makes.
+
 None of those audits asks whether a control answers a key. v3 says what each
 one does under `## Accessibility`, in prose:
 

@@ -237,6 +237,7 @@ impl RenderOnce for ToggleButton {
                     gap,
                     radius,
                     shrink_x: true,
+                    scale: crate::anim::PRESSED_SCALE,
                 },
                 cx,
             );
