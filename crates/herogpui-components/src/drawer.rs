@@ -291,6 +291,7 @@ impl RenderOnce for Drawer {
                         .bg(backdrop_bg)
                         .on_click(move |ev, window, cx| on_close(ev, window, cx)),
                     "drawer-backdrop-anim",
+                    crate::anim::Motion::BACKDROP_IN,
                     cx,
                 ));
             }
@@ -301,10 +302,12 @@ impl RenderOnce for Drawer {
                         scrim,
                         "drawer-backdrop-out",
                         crate::anim::ZoomBox::default(),
+                        crate::anim::Motion::BACKDROP_OUT,
                         cx,
                     )
                 } else {
-                    crate::anim::entering(scrim, "drawer-backdrop-anim", cx)
+                    crate::anim::entering(scrim, "drawer-backdrop-anim", crate::anim::Motion::BACKDROP_IN,
+                cx)
                 });
             }
         }
@@ -316,9 +319,23 @@ impl RenderOnce for Drawer {
             DrawerPlacement::Bottom => crate::anim::Edge::Bottom,
         };
         overlay = overlay.child(if exiting {
-            crate::anim::exiting_to(anchored, "drawer-panel-out", edge, PANEL_EXTENT, cx)
+            crate::anim::exiting_to(
+                anchored,
+                "drawer-panel-out",
+                edge,
+                PANEL_EXTENT,
+                crate::anim::Motion::DRAWER_OUT,
+                cx,
+            )
         } else {
-            crate::anim::entering_from(anchored, "drawer-panel", edge, PANEL_EXTENT, cx)
+            crate::anim::entering_from(
+                anchored,
+                "drawer-panel",
+                edge,
+                PANEL_EXTENT,
+                crate::anim::Motion::DRAWER_IN,
+                cx,
+            )
         });
 
         overlay.into_any_element()

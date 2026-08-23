@@ -24,6 +24,9 @@ BUNDLE = os.environ.get(
 )
 SRC = 'crates/herogpui-components/src/'
 THEME = 'crates/herogpui-theme/src/'
+# The v3 stylesheets `design_audit.py --fetch` caches. Motion lives in the CSS,
+# not the docs bundle, so the per-overlay checks read from here.
+CACHE = os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-css')
 
 # v3 animation -> the symbol implementing it. The symbol must exist in the
 # source, or this entry is stale.
@@ -40,8 +43,14 @@ IMPLEMENTS = {
     '@keyframes caret-blink': 'pub fn caret_blink',
     '@keyframes skeleton': 'SkeletonAnimation',
     'animate-pulse': 'SkeletonAnimation',
-    'duration-200': 'pub const ENTERING_MS',
-    'duration-150': 'pub const EXITING_MS',
+    'duration-150': 'pub const ENTERING_MS',
+    'duration-100': 'pub const EXITING_MS',
+    'duration-250': 'PANEL_IN',
+    'ease-smooth': 'Curve::Smooth',
+    'ease-out-quad': 'Curve::OutQuad',
+    'ease-out-fluid': 'Curve::OutFluid',
+    'zoom-in-105': 'PANEL_IN',
+    'zoom-in-95': 'LIST_IN',
     'motion-reduce': 'reduce_motion',
     '--tooltip-delay': 'tooltip_delay',
     '--tooltip-close-delay': 'tooltip_close_delay',
@@ -90,8 +99,91 @@ def source():
     return '\n'.join(text)
 
 
+# v3 declares a duration, easing and zoom *per overlay* -- reading the guide
+# instead of the stylesheets had suggested one global 200ms/zoom-in-90. Each
+# entry maps a component's CSS to the `Motion` constant that must match it.
+MOTIONS = {
+    # (css file, which `@apply animate-*` block) -> Motion constant
+    ('modal', 1): 'PANEL_IN', ('modal', 0): 'BACKDROP_IN',
+    ('alert-dialog', 1): 'PANEL_IN', ('alert-dialog', 0): 'BACKDROP_IN',
+    ('popover', 0): 'POPOVER_IN',
+    ('dropdown', 0): 'POPOVER_IN',
+    ('tooltip', 0): 'POPOVER_IN',
+    ('select', 0): 'LIST_IN',
+    ('combo-box', 0): 'LIST_IN',
+    ('date-picker', 0): 'LIST_IN',
+    ('color-picker', 0): 'LIST_IN',
+    ('autocomplete', 0): 'FLUID_IN',
+}
+CURVES = {'out': 'Out', 'smooth': 'Smooth', 'out-quad': 'OutQuad',
+          'out-fluid': 'OutFluid', 'linear': 'Linear'}
+
+
+def declared_motions(css):
+    """The `animate-in` blocks in one stylesheet, in file order."""
+    out = []
+    for m in re.finditer(r'@apply ([^;]*animate-in[^;]*);', css):
+        toks = m.group(1).split()
+        dur = next((int(t[9:]) for t in toks if t.startswith('duration-')), None)
+        curve = next((CURVES.get(t[5:]) for t in toks if t.startswith('ease-')), None)
+        zoom = next((int(t[8:]) / 100.0 for t in toks if t.startswith('zoom-in-')), 1.0)
+        out.append({'ms': dur, 'curve': curve, 'scale': zoom})
+    return out
+
+
+def check_motions():
+    """Each `Motion` constant against the CSS it transcribes."""
+    src = io.open('crates/herogpui-components/src/anim.rs', encoding='utf-8').read()
+    ours = {}
+    for m in re.finditer(
+            r'pub const (\w+): Motion = Motion \{ ms: (\d+), scale: ([\d.]+), '
+            r'curve: Curve::(\w+) \}', src):
+        ours[m.group(1)] = {'ms': int(m.group(2)), 'scale': float(m.group(3)),
+                            'curve': m.group(4)}
+    rows, bad = [], 0
+    for (comp, index), name in sorted(MOTIONS.items()):
+        path = os.path.join(CACHE, comp + '.css')
+        if not os.path.exists(path):
+            rows.append(('?', comp, name, 'no stylesheet', ''))
+            bad += 1
+            continue
+        blocks = declared_motions(io.open(path, encoding='utf-8', errors='replace').read())
+        if index >= len(blocks) or name not in ours:
+            rows.append(('?', comp, name, 'not found', ''))
+            bad += 1
+            continue
+        want, got = blocks[index], ours[name]
+        same = (want['ms'] == got['ms']
+                and abs(want['scale'] - got['scale']) < 1e-6
+                and want['curve'] == got['curve'])
+        if not same:
+            bad += 1
+        rows.append((' ' if same else '!', comp, name,
+                     '%sms %s %g' % (want['ms'], want['curve'], want['scale']),
+                     '%sms %s %g' % (got['ms'], got['curve'], got['scale'])))
+    print('per-overlay motion (v3 CSS vs our Motion constants):')
+    for mark, comp, name, want, got in rows:
+        print('%s %-14s %-12s %-22s %s' % (mark, comp, name, want, got))
+    print('MOTION MISMATCHES : %d' % bad)
+    print()
+    return bad
+
+
+def corpus():
+    """Everything v3 ships that could name an animation.
+
+    The docs bundle alone is not enough: `duration-250` and `zoom-in-105` appear
+    only in the component stylesheets, so checking presence against the bundle
+    reported them as stale when they are exactly what the modal declares.
+    """
+    text = [io.open(BUNDLE, encoding='utf-8', errors='replace').read()]
+    for path in glob.glob(os.path.join(CACHE, '*.css')):
+        text.append(io.open(path, encoding='utf-8', errors='replace').read())
+    return '\n'.join(text)
+
+
 def main():
-    bundle = io.open(BUNDLE, encoding='utf-8', errors='replace').read()
+    bundle = corpus()
     src = source()
 
     # Which of v3's animations actually appear in its docs, so a mapping for
@@ -133,7 +225,10 @@ def main():
     if stale_docs:
         print('no longer in the v3 docs (stale entry?): %s'
               % ', '.join(sorted(stale_docs)))
+    print()
+    motion_bad = check_motions()
     print('UNIMPLEMENTED : %d' % len(missing_impl))
+    print('MOTION BAD    : %d' % motion_bad)
 
 
 if __name__ == '__main__':

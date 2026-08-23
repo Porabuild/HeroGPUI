@@ -601,7 +601,8 @@ impl RenderOnce for ComboBox {
                         gpui::ElementId::Name(format!("combobox-{entity_id}-anim").into()),
                         crate::anim::ZoomBox::panel(px(4.), container_radius)
                             .padding_x(px(4.)),
-                        cx,
+                        crate::anim::Motion::LIST_IN,
+                cx,
                     ),
                 ),
             ));

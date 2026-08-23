@@ -335,9 +335,11 @@ impl RenderOnce for Menu {
 
         let zoom = crate::anim::ZoomBox::panel(px(6.), crate::util::container_radius(cx));
         crate::util::floating(if self.exiting {
-            crate::anim::exiting(panel, "dropdown-panel-out", zoom, cx)
+            crate::anim::exiting(panel, "dropdown-panel-out", zoom, crate::anim::Motion::LIST_OUT,
+                cx)
         } else {
-            crate::anim::entering_zoom(panel, "dropdown-panel", zoom, cx)
+            crate::anim::entering_zoom(panel, "dropdown-panel", zoom, crate::anim::Motion::POPOVER_IN,
+                cx)
         })
     }
 }

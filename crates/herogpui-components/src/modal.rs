@@ -392,6 +392,7 @@ impl RenderOnce for Modal {
                         .bg(backdrop_bg)
                         .on_click(move |ev, window, cx| on_close(ev, window, cx)),
                     "modal-backdrop-anim",
+                    crate::anim::Motion::BACKDROP_IN,
                     cx,
                 ));
             }
@@ -402,10 +403,12 @@ impl RenderOnce for Modal {
                         scrim,
                         "modal-backdrop-out",
                         crate::anim::ZoomBox::default(),
-                        cx,
+                        crate::anim::Motion::BACKDROP_OUT,
+                cx,
                     )
                 } else {
-                    crate::anim::entering(scrim, "modal-backdrop-anim", cx)
+                    crate::anim::entering(scrim, "modal-backdrop-anim", crate::anim::Motion::BACKDROP_IN,
+                cx)
                 });
             }
         }
@@ -415,9 +418,11 @@ impl RenderOnce for Modal {
             ..Default::default()
         };
         overlay = overlay.child(if exiting {
-            crate::anim::exiting(panel, "modal-panel-out", zoom, cx)
+            crate::anim::exiting(panel, "modal-panel-out", zoom, crate::anim::Motion::PANEL_OUT,
+                cx)
         } else {
-            crate::anim::entering_zoom(panel, "modal-panel", zoom, cx)
+            crate::anim::entering_zoom(panel, "modal-panel", zoom, crate::anim::Motion::PANEL_IN,
+                cx)
         });
 
         overlay.into_any_element()

@@ -54,15 +54,6 @@ impl TooltipPlacement {
         }
     }
 
-    /// The edge the animation travels in from.
-    fn entering_edge(self) -> anim::Edge {
-        match self {
-            TooltipPlacement::Top => anim::Edge::Bottom,
-            TooltipPlacement::Bottom => anim::Edge::Top,
-            TooltipPlacement::Left => anim::Edge::Right,
-            TooltipPlacement::Right => anim::Edge::Left,
-        }
-    }
 }
 
 /// Hover state for one tooltip.
@@ -301,11 +292,13 @@ impl RenderOnce for Tooltip {
             let animated = if self.should_skip_animation {
                 tip.into_any_element()
             } else {
-                anim::entering_from(
+                // `tooltip.css` is `duration-150 ease-smooth zoom-in-90` — the
+                // same zoom as a popover, not a slide.
+                anim::entering_zoom(
                     tip,
                     ElementId::Name(format!("{key:?}-tip").into()),
-                    self.placement.entering_edge(),
-                    px(4.),
+                    anim::ZoomBox::panel(px(8.), util::small_radius(cx)).padding_x(px(8.)),
+                    anim::Motion::POPOVER_IN,
                     cx,
                 )
             };

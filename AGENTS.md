@@ -177,6 +177,30 @@ fails when a mapped symbol is missing. That is how `transition-colors` was caugh
 pointing at a `TRANSITION_MS` constant nothing read; the fix was
 `anim::hover_fade`, not a softer claim.
 
+It also checks the **per-overlay motion**, which is where reading the guide
+instead of the stylesheets did the most damage. The guide says
+`zoom-in-90 fade-in-0 duration-200`, so this port animated every overlay that
+way. The component CSS says otherwise, and each surface names its own:
+
+| surface | enter | exit |
+|---|---|---|
+| Modal / AlertDialog panel | 250ms `ease-out-quad` **zoom-in-105** | 100ms `ease-out-quad` zoom-out-95 |
+| their backdrops | 150ms `ease-out`, fade only | 100ms `ease-out` |
+| Popover, Dropdown, Tooltip | 150ms `ease-smooth` zoom-in-90 | 100ms `ease-smooth` zoom-out-95 |
+| Select, ComboBox, date & colour pickers | 150ms `ease-smooth` zoom-in-95 | same |
+| Autocomplete | 250ms `ease-out-fluid` zoom-in-95 | 100ms `ease-out-quad` |
+| Drawer | `translate` 250ms `ease-out-fluid` | 200ms, same curve |
+
+A modal panel *shrinks* onto the page from 105%; it does not grow from 90%. Every
+exit is 100ms, not 150. `Motion` holds one constant per group and `anim_audit.py`
+diffs all twelve against the CSS, so adding an overlay means adding its row
+rather than reusing whichever constant is nearest.
+
+The `--ease-*` tokens are real cubic-beziers, and gpui's `with_easing` takes any
+function, so use `Curve` rather than reaching for whichever of gpui's two
+built-ins looks closest. `ease_out_quint` was standing in for four different
+curves.
+
 Before recording an omission, check which kind it is. Four categories that
 looked structural were not:
 

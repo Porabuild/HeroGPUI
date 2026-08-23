@@ -440,8 +440,16 @@ is the gpui equivalent and the single place the timings live.
   own hover flag and generation counter and each change eases the fill in OKLab.
 - `anim::caret_blink(el, id, cx)` — v3's `@keyframes caret-blink`, on the text
   and OTP carets.
-- `anim::ENTERING_MS`, `EXITING_MS`, `TRANSITION_MS`, `PRESSED_SCALE`,
-  `ZOOM_FROM`, `ZOOM_TO`, `anim::pressed_inset`.
+- `anim::Motion` — the duration, scale and `Curve` v3 declares per overlay:
+  `PANEL_IN` (250ms `ease-out-quad`, from **1.05** — a modal settles *down* onto
+  the page), `BACKDROP_IN` (150ms `ease-out`, fade only), `POPOVER_IN` (150ms
+  `ease-smooth`, 0.90), `LIST_IN` (150ms, 0.95), `FLUID_IN` (250ms
+  `ease-out-fluid`, 0.95), `DRAWER_IN`/`DRAWER_OUT` (250/200ms `ease-out-fluid`),
+  and a `*_OUT` for each at 100ms. `anim::Curve` evaluates v3's `--ease-*`
+  cubic-beziers exactly, rather than substituting one of gpui's two built-ins.
+- `anim::ENTERING_MS` (150), `EXITING_MS` (100), `TRANSITION_MS` (100),
+  `PRESS_MS` (250 — recorded, since gpui's `active` has no timeline to ramp
+  along), `PRESSED_SCALE`, `anim::pressed_inset`.
 - **Reduced motion:** `cx.reduce_motion()` gates every animation with no opt-in
   from the caller. Set it with `theme::set_reduce_motion(bool, cx)` or
   `theme::toggle_reduce_motion(cx)`; `HEROGPUI_REDUCE_MOTION=1` seeds it at

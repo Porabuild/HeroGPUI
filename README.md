@@ -81,8 +81,11 @@ prop-by-prop diff cannot see:
   pairs, the `@keyframes`, the timing tokens, the reduced-motion rule — and maps
   each to the symbol implementing it. A mapping whose symbol no longer exists
   fails, which is how `transition-colors` was caught pointing at a `TRANSITION_MS`
-  constant nothing read. **21 implemented, 19 recorded with a reason, 0
-  unimplemented.**
+  constant nothing read. It also diffs the **per-overlay** duration, easing and
+  zoom against each component's CSS — v3 does not animate every surface the same
+  way, and a modal panel *shrinks* onto the page from 105% rather than growing
+  from 90%. **27 implemented, 12 per-overlay motions verified, 19 recorded with a
+  reason, 0 unimplemented.**
 - `python .shots/write_only.py` checks that no builder stores a value nothing
   ever reads — a prop that is accepted and ignored is worse than one that is
   missing.

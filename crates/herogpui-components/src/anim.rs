@@ -12,17 +12,143 @@
 use std::time::Duration;
 
 use gpui::{
-    ease_out_quint, AnimationExt, AnyElement, App, ElementId, InteractiveElement, IntoElement,
+    AnimationExt, AnyElement, App, ElementId, InteractiveElement, IntoElement,
     StatefulInteractiveElement, StyleRefinement, Styled,
 };
 use herogpui_theme::ActiveTheme;
 
-/// `[data-entering]` duration — `duration-200` in the v3 stylesheet.
-pub const ENTERING_MS: u64 = 200;
+/// `[data-entering]` duration for the common case — most overlays are
+/// `duration-150`. Panels and `Autocomplete` are 250; see [`Motion`].
+pub const ENTERING_MS: u64 = 150;
 
-/// Duration of a hover colour transition — `transition-colors` in the v3
-/// stylesheet, which Tailwind runs at 150ms.
-pub const TRANSITION_MS: u64 = 150;
+/// How long `.button`'s fill takes to change, read from its own declaration:
+/// `background-color 100ms var(--ease-out)`.
+///
+/// 150ms is the commonest duration across v3's sheets (88 declarations to
+/// 100ms's 33), but the button states its own, and this is the button's.
+pub const TRANSITION_MS: u64 = 100;
+
+/// How long a press takes: `transform 250ms var(--ease-smooth)`.
+///
+/// Recorded rather than used — gpui's `active` is a style swap with no
+/// timeline, so [`pressed`] arrives in one frame. See the note there.
+pub const PRESS_MS: u64 = 250;
+
+/// Evaluates a CSS `cubic-bezier(x1, y1, x2, y2)` at `t`.
+///
+/// v3 names its curves in `--ease-*` tokens and gpui takes an arbitrary easing
+/// function, so the real curves can be used rather than approximated by
+/// whichever of gpui's two built-ins looks closest.
+fn cubic_bezier(x1: f32, y1: f32, x2: f32, y2: f32, t: f32) -> f32 {
+    // A cubic Bezier from (0,0) to (1,1); `t` is the x we want a y for, so the
+    // curve parameter has to be solved for first.
+    let bez = |a: f32, b: f32, u: f32| {
+        let v = 1.0 - u;
+        3.0 * v * v * u * a + 3.0 * v * u * u * b + u * u * u
+    };
+    let mut lo = 0.0f32;
+    let mut hi = 1.0f32;
+    let mut u = t;
+    // Bisection: monotonic in x, and 24 halvings is well under a pixel.
+    for _ in 0..24 {
+        let x = bez(x1, x2, u);
+        if x < t {
+            lo = u;
+        } else {
+            hi = u;
+        }
+        u = (lo + hi) * 0.5;
+    }
+    bez(y1, y2, u)
+}
+
+/// v3's `--ease-out` — Tailwind's default, `cubic-bezier(0, 0, 0.2, 1)`.
+pub fn ease_out() -> impl Fn(f32) -> f32 {
+    |t| cubic_bezier(0.0, 0.0, 0.2, 1.0, t)
+}
+
+/// One of v3's `--ease-*` curves.
+///
+/// Named rather than passed as a closure so a [`Motion`] stays `Copy` and can be
+/// a `const`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Curve {
+    /// `--ease-out`, Tailwind's default: `cubic-bezier(0, 0, 0.2, 1)`.
+    Out,
+    /// `--ease-smooth`, CSS `ease`: `cubic-bezier(0.25, 0.1, 0.25, 1)`.
+    Smooth,
+    /// `--ease-out-quad`: `cubic-bezier(0.25, 0.46, 0.45, 0.94)`.
+    OutQuad,
+    /// `--ease-out-fluid`: `cubic-bezier(0.32, 0.72, 0, 1)`.
+    OutFluid,
+    Linear,
+}
+
+impl Curve {
+    pub fn at(self, t: f32) -> f32 {
+        match self {
+            Curve::Out => cubic_bezier(0.0, 0.0, 0.2, 1.0, t),
+            Curve::Smooth => cubic_bezier(0.25, 0.1, 0.25, 1.0, t),
+            Curve::OutQuad => cubic_bezier(0.25, 0.46, 0.45, 0.94, t),
+            Curve::OutFluid => cubic_bezier(0.32, 0.72, 0.0, 1.0, t),
+            Curve::Linear => t,
+        }
+    }
+}
+
+/// The duration, scale and curve v3 declares for one overlay's transition.
+///
+/// v3 does **not** animate every overlay the same way, which is what reading the
+/// guide rather than the stylesheets had suggested. Each surface names its own
+/// `duration-*`, `ease-*` and `zoom-*`, and a modal panel even *shrinks* in from
+/// 105% rather than growing from 90%. The constants below are transcribed one
+/// per group, and `anim_audit.py` checks them against the CSS.
+#[derive(Clone, Copy, Debug)]
+pub struct Motion {
+    pub ms: u64,
+    /// The scale the animation starts at (entering) or ends at (exiting).
+    /// `1.0` means no scaling — a fade alone.
+    pub scale: f32,
+    pub curve: Curve,
+}
+
+impl Motion {
+    /// `duration-250 ease-out-quad zoom-in-105` — `Modal` and `AlertDialog`
+    /// panels, which settle *down* onto the page.
+    pub const PANEL_IN: Motion = Motion { ms: 250, scale: 1.05, curve: Curve::OutQuad };
+    /// `duration-100 ease-out-quad zoom-out-95`.
+    pub const PANEL_OUT: Motion = Motion { ms: 100, scale: 0.95, curve: Curve::OutQuad };
+
+    /// `duration-150 ease-out fade-in-0` — the backdrop behind a panel, which
+    /// only fades.
+    pub const BACKDROP_IN: Motion = Motion { ms: 150, scale: 1.0, curve: Curve::Out };
+    /// `duration-100 ease-out fade-out-0`.
+    pub const BACKDROP_OUT: Motion = Motion { ms: 100, scale: 1.0, curve: Curve::Out };
+
+    /// `duration-150 ease-smooth zoom-in-90` — `Popover`, `Dropdown`, `Tooltip`.
+    pub const POPOVER_IN: Motion = Motion { ms: 150, scale: 0.90, curve: Curve::Smooth };
+    /// `duration-150 ease-smooth zoom-in-95` — `Select`, `ComboBox`, the date
+    /// and colour pickers, which start closer to full size.
+    pub const LIST_IN: Motion = Motion { ms: 150, scale: 0.95, curve: Curve::Smooth };
+    /// `duration-100 ease-smooth zoom-out-95` — the exit both share.
+    pub const LIST_OUT: Motion = Motion { ms: 100, scale: 0.95, curve: Curve::Smooth };
+
+    /// `translate 250ms cubic-bezier(0.32, 0.72, 0, 1)` — the drawer's slide,
+    /// which `drawer.css` gives its own `--drawer-enter-*` tokens.
+    pub const DRAWER_IN: Motion = Motion { ms: 250, scale: 1.0, curve: Curve::OutFluid };
+    /// `--drawer-exit-duration: 200ms`, same curve.
+    pub const DRAWER_OUT: Motion = Motion { ms: 200, scale: 1.0, curve: Curve::OutFluid };
+
+    /// `duration-250 ease-out-fluid zoom-in-95` — `Autocomplete` alone.
+    pub const FLUID_IN: Motion = Motion { ms: 250, scale: 0.95, curve: Curve::OutFluid };
+    /// `duration-100 ease-out-quad zoom-out-95`.
+    pub const FLUID_OUT: Motion = Motion { ms: 100, scale: 0.95, curve: Curve::OutQuad };
+}
+
+/// v3's `--ease-smooth`, which is CSS `ease`: `cubic-bezier(0.25, 0.1, 0.25, 1)`.
+pub fn ease_smooth() -> impl Fn(f32) -> f32 {
+    |t| cubic_bezier(0.25, 0.1, 0.25, 1.0, t)
+}
 
 /// The scale v3 applies to a pressed control (`transform: scale(0.97)`).
 pub const PRESSED_SCALE: f32 = 0.97;
@@ -77,6 +203,12 @@ pub struct PressBox {
 /// shrink text without affecting layout; and an icon child keeps its size,
 /// since its dimensions belong to the caller.
 ///
+/// **The press arrives in one frame.** v3 declares
+/// `transform 250ms var(--ease-smooth)` ([`PRESS_MS`]), but gpui's `active` is a
+/// style swap with no timeline to animate along, so the scale lands instantly
+/// and springs back instantly. Everything about the geometry matches; only the
+/// quarter-second ramp is missing.
+///
 /// Returns `el` untouched under reduced motion.
 pub fn pressed(
     el: gpui::Stateful<gpui::Div>,
@@ -117,14 +249,8 @@ pub fn pressed(
     })
 }
 
-/// `[data-exiting]` duration — `duration-150` in the v3 stylesheet.
-pub const EXITING_MS: u64 = 150;
-
-/// The scale v3's `zoom-out-95` takes a leaving overlay to.
-pub const ZOOM_TO: f32 = 0.95;
-
-/// The scale v3's `zoom-in-90` starts an entering overlay at.
-pub const ZOOM_FROM: f32 = 0.90;
+/// `[data-exiting]` duration. Every overlay in v3 leaves in `duration-100`.
+pub const EXITING_MS: u64 = 100;
 
 /// Everything an entering overlay grows from [`ZOOM_FROM`] to full size.
 ///
@@ -187,7 +313,13 @@ fn lerp(value: gpui::Pixels, factor: f32) -> gpui::Pixels {
 /// while the chrome around it grows.
 ///
 /// Returns `el` untouched under reduced motion.
-pub fn entering_zoom<E>(el: E, id: impl Into<ElementId>, b: ZoomBox, cx: &App) -> AnyElement
+pub fn entering_zoom<E>(
+    el: E,
+    id: impl Into<ElementId>,
+    b: ZoomBox,
+    m: Motion,
+    cx: &App,
+) -> AnyElement
 where
     E: IntoElement + Styled + 'static,
 {
@@ -197,9 +329,11 @@ where
 
     el.with_animation(
         id.into(),
-        gpui::Animation::new(Duration::from_millis(ENTERING_MS)).with_easing(ease_out_quint()),
+        gpui::Animation::new(Duration::from_millis(m.ms))
+            .with_easing(move |t| m.curve.at(t)),
         move |el, delta| {
-            let f = ZOOM_FROM + (1.0 - ZOOM_FROM) * delta;
+            // `scale` may be above 1.0: a modal panel settles down from 105%.
+            let f = m.scale + (1.0 - m.scale) * delta;
             let mut el = el.opacity(delta);
             if let Some(w) = b.width {
                 el = el.w(lerp(w, f));
@@ -241,7 +375,13 @@ where
 /// Returns `el` untouched under reduced motion, which is also what makes the
 /// panel disappear immediately: with nothing to animate, the extra frames are
 /// invisible.
-pub fn exiting<E>(el: E, id: impl Into<ElementId>, b: ZoomBox, cx: &App) -> AnyElement
+pub fn exiting<E>(
+    el: E,
+    id: impl Into<ElementId>,
+    b: ZoomBox,
+    m: Motion,
+    cx: &App,
+) -> AnyElement
 where
     E: IntoElement + Styled + 'static,
 {
@@ -251,10 +391,11 @@ where
 
     el.with_animation(
         id.into(),
-        gpui::Animation::new(Duration::from_millis(EXITING_MS)),
+        gpui::Animation::new(Duration::from_millis(m.ms))
+            .with_easing(move |t| m.curve.at(t)),
         move |el, delta| {
-            // `delta` runs 0 -> 1 over the exit, so the scale runs 1 -> ZOOM_TO.
-            let f = 1.0 - (1.0 - ZOOM_TO) * delta;
+            // `delta` runs 0 -> 1 over the exit, so the scale runs 1 -> m.scale.
+            let f = 1.0 - (1.0 - m.scale) * delta;
             let mut el = el.opacity(1.0 - delta);
             if let Some(w) = b.width {
                 el = el.w(lerp(w, f));
@@ -341,7 +482,8 @@ pub fn hover_fade(
     }
     el.with_animation(
         ElementId::Name(format!("{id:?}-fade-{}", current.generation).into()),
-        gpui::Animation::new(Duration::from_millis(TRANSITION_MS)),
+        gpui::Animation::new(Duration::from_millis(TRANSITION_MS))
+            .with_easing(ease_out()),
         move |el, delta| el.bg(herogpui_core::mix_oklab(from, to, delta)),
     )
     .into_any_element()
@@ -389,7 +531,7 @@ fn caret_opacity(delta: f32) -> f32 {
 /// The fade alone, for a panel with no metrics worth growing. Prefer
 /// [`entering_zoom`], which adds v3's `zoom-in-90`. Returns `el` untouched when
 /// the app has reduced motion enabled.
-pub fn entering<E>(el: E, id: impl Into<ElementId>, cx: &App) -> AnyElement
+pub fn entering<E>(el: E, id: impl Into<ElementId>, m: Motion, cx: &App) -> AnyElement
 where
     E: IntoElement + Styled + 'static,
 {
@@ -399,7 +541,8 @@ where
 
     el.with_animation(
         id.into(),
-        gpui::Animation::new(Duration::from_millis(ENTERING_MS)).with_easing(ease_out_quint()),
+        gpui::Animation::new(Duration::from_millis(m.ms))
+            .with_easing(move |t| m.curve.at(t)),
         |el, delta| el.opacity(delta),
     )
     .into_any_element()
@@ -415,6 +558,7 @@ pub fn entering_from<E>(
     id: impl Into<ElementId>,
     edge: Edge,
     travel: gpui::Pixels,
+    m: Motion,
     cx: &App,
 ) -> AnyElement
 where
@@ -426,7 +570,8 @@ where
 
     el.with_animation(
         id.into(),
-        gpui::Animation::new(Duration::from_millis(ENTERING_MS)).with_easing(ease_out_quint()),
+        gpui::Animation::new(Duration::from_millis(m.ms))
+            .with_easing(move |t| m.curve.at(t)),
         move |el, delta| {
             let remaining = travel * (1.0 - delta);
             let el = el.opacity(delta);
@@ -449,6 +594,7 @@ pub fn exiting_to<E>(
     id: impl Into<ElementId>,
     edge: Edge,
     travel: gpui::Pixels,
+    m: Motion,
     cx: &App,
 ) -> AnyElement
 where
@@ -460,7 +606,8 @@ where
 
     el.with_animation(
         id.into(),
-        gpui::Animation::new(Duration::from_millis(EXITING_MS)),
+        gpui::Animation::new(Duration::from_millis(m.ms))
+            .with_easing(move |t| m.curve.at(t)),
         move |el, delta| {
             let gone = travel * delta;
             let el = el.opacity(1.0 - delta);
@@ -506,6 +653,25 @@ mod tests {
             let shrunk = f32::from(shrink(px(h), pressed_inset(px(h)) + pressed_inset(px(h))));
             assert!((shrunk + inset * 2.0 - h).abs() < 1e-4, "footprint changed at {h}");
         }
+    }
+
+    #[test]
+    fn cubic_bezier_pins_its_endpoints_and_rises() {
+        let out = ease_out();
+        assert!(out(0.0).abs() < 1e-3);
+        assert!((out(1.0) - 1.0).abs() < 1e-3);
+        // ease-out leads: it is ahead of linear through the middle.
+        assert!(out(0.5) > 0.5, "ease-out should lead at the midpoint");
+        // and it never goes backwards
+        let mut prev = 0.0;
+        for i in 0..=20 {
+            let v = out(i as f32 / 20.0);
+            assert!(v >= prev - 1e-4, "ease-out dipped at {i}");
+            prev = v;
+        }
+        let smooth = ease_smooth();
+        assert!(smooth(0.0).abs() < 1e-3);
+        assert!((smooth(1.0) - 1.0).abs() < 1e-3);
     }
 
     #[test]

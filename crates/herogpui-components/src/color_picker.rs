@@ -1824,6 +1824,7 @@ impl RenderOnce for ColorPicker {
                 crate::anim::ZoomBox::panel(px(12.), util::container_radius(cx))
                     .padding_x(px(12.))
                     .sized(px(264.)),
+                crate::anim::Motion::LIST_IN,
                 cx,
             )),
         ))

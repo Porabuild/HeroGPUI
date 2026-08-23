@@ -251,9 +251,11 @@ impl RenderOnce for Popover {
             .padding_x(px(14.))
             .sized(px(260.));
         let panel = if exiting {
-            crate::anim::exiting(panel, "popover-panel-out", zoom, cx)
+            crate::anim::exiting(panel, "popover-panel-out", zoom, crate::anim::Motion::LIST_OUT,
+                cx)
         } else {
-            crate::anim::entering_zoom(panel, "popover-panel", zoom, cx)
+            crate::anim::entering_zoom(panel, "popover-panel", zoom, crate::anim::Motion::POPOVER_IN,
+                cx)
         };
 
         // `shouldFlip` lets the panel move to stay on screen. gpui's `anchored`

@@ -381,10 +381,12 @@ impl RenderOnce for AlertDialog {
                 backdrop,
                 "alert-dialog-backdrop-out",
                 crate::anim::ZoomBox::default(),
+                crate::anim::Motion::BACKDROP_OUT,
                 cx,
             )
         } else {
-            crate::anim::entering(backdrop, "alert-dialog-backdrop-anim", cx)
+            crate::anim::entering(backdrop, "alert-dialog-backdrop-anim", crate::anim::Motion::BACKDROP_IN,
+                cx)
         };
 
         div()
@@ -419,9 +421,11 @@ impl RenderOnce for AlertDialog {
                     .padding_x(px(24.))
                     .sized(self.size.width());
                 if exiting {
-                    crate::anim::exiting(panel, "alert-dialog-panel-out", zoom, cx)
+                    crate::anim::exiting(panel, "alert-dialog-panel-out", zoom, crate::anim::Motion::PANEL_OUT,
+                cx)
                 } else {
-                    crate::anim::entering_zoom(panel, "alert-dialog-panel", zoom, cx)
+                    crate::anim::entering_zoom(panel, "alert-dialog-panel", zoom, crate::anim::Motion::PANEL_IN,
+                cx)
                 }
             })
             .into_any_element()

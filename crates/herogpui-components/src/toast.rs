@@ -424,8 +424,9 @@ impl RenderOnce for ToastCardEl {
             card,
             gpui::ElementId::Name(format!("toast-anim-{}", self.t.id).into()),
             crate::anim::ZoomBox::panel(px(10.), crate::util::container_radius(cx))
-                .padding_x(px(12.))
+                .padding_x(px(16.))
                 .sized(self.width),
+            crate::anim::Motion::LIST_IN,
             cx,
         )
     }

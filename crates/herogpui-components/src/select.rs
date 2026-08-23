@@ -501,6 +501,7 @@ impl RenderOnce for Select {
                             px(6.),
                             crate::util::container_radius(cx),
                         ),
+                        crate::anim::Motion::LIST_IN,
                         cx,
                     ),
                 ),

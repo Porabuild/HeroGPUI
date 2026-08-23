@@ -579,6 +579,7 @@ impl RenderOnce for Autocomplete {
                             px(6.),
                             crate::util::control_radius(cx),
                         ),
+                        crate::anim::Motion::FLUID_IN,
                         cx,
                     ),
                 ),
