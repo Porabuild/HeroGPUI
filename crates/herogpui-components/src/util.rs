@@ -4,30 +4,63 @@ use gpui::{App, Div, Hsla, Pixels, Styled};
 use herogpui_core::{FieldVariant, Prominence};
 use herogpui_theme::ActiveTheme;
 
-/// The one height every v3 form field has. v3 removed `size` from the field
+/// The one height every v3 form field has: `.date-input-group` and
+/// `.color-input-group` are `h-9`, and `.input`'s `py-2` plus its line box comes
+/// to the same 36px. v3 removed `size` from the field
 /// components (Input, Select, ComboBox, DateField, ...), keeping it only on the
 /// nineteen where a scale is documented, so a field's metrics are constants
 /// rather than a [`herogpui_core::Size`] lookup.
-pub const FIELD_HEIGHT: Pixels = gpui::px(40.);
+pub const FIELD_HEIGHT: Pixels = gpui::px(36.);
 /// Type size inside a form field.
 pub const FIELD_TEXT: Pixels = gpui::px(14.);
 /// Glyph size for an icon inside a form field.
 pub const FIELD_ICON: Pixels = gpui::px(16.);
 
-/// Corner radius of a standard control (buttons, chips, menu items) —
-/// `--radius-lg`.
+// v3 does not have one "control" radius: each component names its own step, and
+// they span the whole scale. `design_audit.py` diffs these against the real
+// stylesheets, so the mapping here is checked rather than asserted.
+
+/// `rounded-3xl` — buttons, toggle buttons and avatars.
 pub fn control_radius(cx: &App) -> Pixels {
-    cx.layout().radius_lg()
+    let layout = cx.layout();
+    layout.capped(layout.radius_3xl())
+}
+
+/// `rounded-2xl` — chips, menu and list rows, the colour area.
+pub fn soft_radius(cx: &App) -> Pixels {
+    let layout = cx.layout();
+    layout.capped(layout.radius_2xl())
+}
+
+/// `rounded-xl` — close buttons, tags, links, tooltips.
+pub fn small_radius(cx: &App) -> Pixels {
+    let layout = cx.layout();
+    layout.capped(layout.radius_xl())
+}
+
+/// `rounded-lg` — the keyboard key, and nothing else in v3.
+pub fn key_radius(cx: &App) -> Pixels {
+    let layout = cx.layout();
+    layout.capped(layout.radius_lg())
+}
+
+/// `rounded-sm` — separators and skeletons, which are nearly square.
+pub fn hairline_radius(cx: &App) -> Pixels {
+    let layout = cx.layout();
+    layout.capped(layout.radius_sm())
 }
 
 /// Corner radius of a form field — `--field-radius`.
 pub fn field_radius(cx: &App) -> Pixels {
-    cx.layout().field_radius
+    let layout = cx.layout();
+    layout.capped(layout.field_radius)
 }
 
-/// Corner radius of a container (cards, surfaces, panels) — `--radius-xl`.
+/// `min(32px, --radius-3xl)` — cards, surfaces, and every floating panel
+/// (modal, popover, toast, alert, dropdown).
 pub fn container_radius(cx: &App) -> Pixels {
-    cx.layout().radius_xl()
+    let layout = cx.layout();
+    layout.capped(layout.radius_3xl())
 }
 
 /// Background for a [`Prominence`] level. `Transparent` yields `None`.

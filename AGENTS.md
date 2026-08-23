@@ -129,7 +129,43 @@ Aria X"*):
   `ProgressBar.ValueLabel` as child parts, and a monolithic builder takes them
   as a prop or as a flag that renders the built-in part.
 
-Motion needs its own audit, because a prop diff says nothing about it — a
+Neither prop audit says anything about whether a control is the right *size*.
+`api_audit.py` was perfectly happy with a button whose corner radius was a third
+of v3's, so design has its own audit — and it reads the **React repo**, not the
+docs bundle:
+
+```bash
+python .shots/design_audit.py --fetch   # caches the v3 stylesheets under $TEMP
+python .shots/design_audit.py
+```
+
+It pulls `packages/styles/components/*.css` from the `v3` branch, resolves the
+Tailwind utilities through v3's own token scales (`--spacing: 0.25rem`,
+`--radius: 0.5rem` with `radius-3xl = radius * 3`), and diffs the result against
+the Rust that defines each metric. Both sides are mechanical, so neither can go
+stale; a check whose pattern stops matching is reported as unreadable, never
+skipped. Three things it got wrong first, all worth remembering:
+
+- **Scope each rule.** Reading every `@apply` in a file mixes the base rule with
+  the size modifiers, which made a medium button measure 32px because
+  `.button--sm` lives in the same file.
+- **Prefer the largest breakpoint.** v3's sheet is mobile-first: `.button` is
+  `h-10 md:h-9`, so 40px on a phone and **36px** from `md` up. A desktop app is
+  past every breakpoint, so the `md` value is the one to match — reading the base
+  value made every control a step too tall.
+- **Absent is not unreadable.** `.button` declares no `min-w-*` because a v3
+  button hugs its label. That is an expectation of zero, recorded in
+  `ABSENT_IS_ZERO`, not a broken pattern.
+
+What it found on its first run: **v3 has no single "control" radius.** Each
+component names its own step — button and avatar `rounded-3xl` (24px), chip and
+menu rows `2xl` (16), close button, tag, link and tooltip `xl` (12), the keyboard
+key `lg` (8), separator and skeleton `sm` (4), fields `--field-radius` (12), and
+every floating panel `min(32px, --radius-3xl)`. This port had collapsed all of
+that into two helpers at 8px and 12px. `util` now has one helper per step, and
+the audit checks the mapping rather than trusting it.
+
+Motion needs its own audit too, because a prop diff says nothing about it — a
 component can expose every prop and still not move:
 
 ```bash

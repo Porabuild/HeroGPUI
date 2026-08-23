@@ -98,6 +98,7 @@ impl RenderOnce for Separator {
             .my(self.inset_y)
             .mx(self.inset_x)
             .flex_shrink_0()
+            .rounded(crate::util::hairline_radius(cx))
             .bg(color);
 
         match self.orientation {

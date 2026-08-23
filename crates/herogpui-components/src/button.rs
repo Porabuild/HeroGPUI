@@ -5,7 +5,7 @@
 //! There is no `color` or `radius` prop, and `isLoading` became `isPending`.
 
 use gpui::{
-    div, prelude::*, px, AnyElement, App, ClickEvent, Div, ElementId, InteractiveElement,
+    div, prelude::*, AnyElement, App, ClickEvent, Div, ElementId, InteractiveElement,
     IntoElement, ParentElement, RenderOnce, SharedString, Stateful, Styled, Window,
 };
 use herogpui_core::{Size, Variant};
@@ -242,15 +242,6 @@ fn apply_variant(
     }
 }
 
-/// The minimum width a labelled button holds, so a short label still reads as a
-/// button. Shared with the press geometry, which has to scale it.
-fn min_width(size: Size) -> gpui::Pixels {
-    match size {
-        Size::Sm => px(64.),
-        Size::Md => px(80.),
-        Size::Lg => px(96.),
-    }
-}
 
 /// The text colour `variant` paints. Needed because gpui svgs never inherit
 /// `text_color`, so a pending spinner has to be told what "current" means.
@@ -295,9 +286,7 @@ impl RenderOnce for Button {
         el = if self.is_icon_only {
             el.w(self.size.icon_control_size())
         } else {
-            el.px(self.size.padding_x())
-                .gap(self.size.gap())
-                .min_w(min_width(self.size))
+            el.px(self.size.padding_x()).gap(self.size.gap())
         };
 
         if self.full_width {
@@ -340,7 +329,9 @@ impl RenderOnce for Button {
                     height: self.size.control_height(),
                     padding_x: (!self.is_icon_only).then(|| self.size.padding_x()),
                     width: self.is_icon_only.then(|| self.size.icon_control_size()),
-                    min_width: (!self.is_icon_only).then(|| min_width(self.size)),
+                    // v3's `.button` is `w-fit` with no minimum, so a press has
+                    // no floor to scale.
+                    min_width: None,
                     text_size: self.size.text_size(),
                     line_height: self.size.line_height(),
                     gap: self.size.gap(),

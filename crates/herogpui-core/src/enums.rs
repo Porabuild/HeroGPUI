@@ -197,12 +197,18 @@ pub enum Size {
 impl Size {
     pub const ALL: [Size; 3] = [Size::Sm, Size::Md, Size::Lg];
 
-    /// Control height: sm 32px, md 40px, lg 48px.
+    /// Control height: sm 32px, md 36px, lg 40px.
+    ///
+    /// These are v3's *desktop* heights. Its sheet is mobile-first — `.button`
+    /// is `h-10 md:h-9`, `.button--sm` is `h-9 md:h-8`, `.button--lg` is
+    /// `h-11 md:h-10` — and a desktop app is past every breakpoint, so the `md`
+    /// value is the one to match. Reading the base value made every control a
+    /// step too tall.
     pub fn control_height(self) -> gpui::Pixels {
         match self {
             Size::Sm => gpui::px(32.0),
-            Size::Md => gpui::px(40.0),
-            Size::Lg => gpui::px(48.0),
+            Size::Md => gpui::px(36.0),
+            Size::Lg => gpui::px(40.0),
         }
     }
 

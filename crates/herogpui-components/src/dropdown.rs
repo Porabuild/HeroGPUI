@@ -251,7 +251,8 @@ impl RenderOnce for Menu {
                         .flex()
                         .items_center()
                         .gap(px(8.))
-                        .px(px(12.))
+                        .px(px(8.))
+                        .rounded(crate::util::soft_radius(cx))
                         .h(px(32.))
                         .text_size(px(13.5))
                         .text_color(text_color);

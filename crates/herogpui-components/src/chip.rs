@@ -103,7 +103,7 @@ impl RenderOnce for Chip {
             .px(pad_x)
             .text_size(text)
             .line_height(px(16.))
-            .rounded(crate::util::control_radius(cx))
+            .rounded(crate::util::soft_radius(cx))
             .whitespace_nowrap()
             .overflow_hidden()
             .flex_shrink_0();

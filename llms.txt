@@ -82,7 +82,7 @@ the same `color-mix(in oklab, …)` weights the stylesheet uses.
 `background_inverse()`, `separator_secondary()`, `separator_tertiary()`,
 `role(name)`.
 
-**Layout:** `radius` (8px) with `radius_xs()`…`radius_xl()`, `field_radius`,
+**Layout:** `radius` (8px) with `radius_xs()`…`radius_4xl()` and `capped(r)` for v3's `min(32px, ..)` ceiling, `field_radius`,
 `border_width`, `field_border_width`, `disabled_opacity`, `ring_offset_width`,
 `spacing`, `surface_shadow` / `overlay_shadow` / `field_shadow` (all empty in
 dark mode), `skeleton_animation`, `tooltip_delay_ms`, `tooltip_close_delay_ms`.
@@ -110,6 +110,20 @@ Color math (`herogpui-core`): `oklch(l, c, h)`, `oklcha(..)`,
 `mix_oklab(a, b, t)`, `soft_mix(color, pct)`, `with_alpha`, `readable_color`.
 
 ## Prop vocabularies
+
+**Corner radii.** v3 names a different step per component, so `util` has one
+helper each rather than a single "control" radius: `control_radius` (3xl, 24px —
+button, toggle button, avatar), `soft_radius` (2xl, 16 — chip, menu and list
+rows, colour area), `small_radius` (xl, 12 — close button, tag, link, tooltip),
+`key_radius` (lg, 8 — `Kbd`), `hairline_radius` (sm, 4 — separator, skeleton),
+`field_radius` (12 — every form field) and `container_radius` (`min(32px, 3xl)` —
+cards, surfaces and every floating panel). `.shots/design_audit.py` diffs these
+against the real stylesheets.
+
+**Control heights** are v3's desktop values, 32 / 36 / 40 for sm / md / lg. Its
+sheet is mobile-first (`.button` is `h-10 md:h-9`), and a desktop app is past
+every breakpoint. A labelled button has no minimum width: it hugs its content, as
+`.button`'s `w-fit` does.
 
 **Number formatting.** `formatOptions` is v3's `Intl.NumberFormatOptions`;
 `herogpui_core::NumberFormat` implements the subset the components use —

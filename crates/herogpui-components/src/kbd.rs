@@ -75,7 +75,7 @@ impl RenderOnce for Kbd {
             .px(px(4.))
             .min_w(min_w)
             .h(h)
-            .rounded(crate::util::control_radius(cx))
+            .rounded(crate::util::key_radius(cx))
             .text_size(text)
             .font_family(MONO_FONT);
 

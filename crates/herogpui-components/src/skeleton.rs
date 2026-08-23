@@ -82,7 +82,7 @@ impl RenderOnce for Skeleton {
 
         let base = div()
             .bg(base_color)
-            .rounded(crate::util::control_radius(cx))
+            .rounded(crate::util::hairline_radius(cx))
             .overflow_hidden()
             .when_some(self.w, |el, w| el.w(w))
             .when_some(self.h, |el, h| el.h(h))

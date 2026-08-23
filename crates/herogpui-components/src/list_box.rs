@@ -281,7 +281,7 @@ impl RenderOnce for ListBox {
                         .px(px(8.))
                         .min_h(row_h)
                         .py(px(4.))
-                        .rounded(util::control_radius(cx))
+                        .rounded(util::soft_radius(cx))
                         .text_size(text_size)
                         .text_color(fg);
 

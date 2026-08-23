@@ -68,7 +68,8 @@ impl RenderOnce for CloseButton {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
         let layout = cx.layout();
-        let (box_size, icon_size) = (px(28.), px(16.));
+        // `.close-button` is `h-6 p-1` with a `size-4` glyph.
+        let (box_size, icon_size) = (px(24.), px(16.));
         let hover_bg = colors.default.with_alpha(0.15);
 
         let mut el = div()
@@ -78,7 +79,7 @@ impl RenderOnce for CloseButton {
             .justify_center()
             .flex_shrink_0()
             .size(box_size)
-            .rounded(px(8.))
+            .rounded(crate::util::small_radius(cx))
             .text_color(colors.muted);
 
         if self.is_disabled {

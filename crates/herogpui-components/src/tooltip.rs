@@ -213,7 +213,7 @@ impl RenderOnce for Tooltip {
             .absolute()
             .px(px(8.))
             .py(px(4.))
-            .rounded(px(6.))
+            .rounded(crate::util::small_radius(cx))
             .bg(colors.foreground)
             .text_color(colors.background)
             .text_size(px(12.))

@@ -130,6 +130,27 @@ impl LayoutTheme {
     pub fn radius_xl(&self) -> Pixels {
         self.radius * 1.5
     }
+    /// `--radius-2xl: calc(var(--radius) * 2)`
+    pub fn radius_2xl(&self) -> Pixels {
+        self.radius * 2.0
+    }
+    /// `--radius-3xl: calc(var(--radius) * 3)`
+    pub fn radius_3xl(&self) -> Pixels {
+        self.radius * 3.0
+    }
+    /// `--radius-4xl: calc(var(--radius) * 4)`
+    pub fn radius_4xl(&self) -> Pixels {
+        self.radius * 4.0
+    }
+
+    /// A radius capped the way v3 caps its own: `min(32px, ..)`.
+    ///
+    /// v3 wraps every `rounded-*` and `rounded-full` in `min()` so a theme with
+    /// an oversized `--radius` cannot distort a component — the corner stops
+    /// growing before it swallows the box.
+    pub fn capped(&self, radius: Pixels) -> Pixels {
+        radius.min(px(32.0))
+    }
 }
 
 fn shadow(x: f32, y: f32, blur: f32, alpha: f32) -> BoxShadow {

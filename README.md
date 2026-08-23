@@ -65,6 +65,16 @@ prop-by-prop diff cannot see:
   `isInvalid` though every sibling field does) from names v3 documents nowhere,
   and every one of the latter is either deleted or recorded in `EXTRA_OK` with a
   reason.
+- `python .shots/design_audit.py` is the only one that reads the **React repo**
+  rather than the docs: it pulls `packages/styles/components/*.css` from the `v3`
+  branch, resolves the Tailwind utilities through v3's own token scales, and
+  diffs 27 metrics — heights, paddings, gaps, type sizes and corner radii —
+  against the Rust that defines them. It found that v3 has no single "control"
+  radius (button and avatar are `rounded-3xl`, chips and menu rows `2xl`, fields
+  `--field-radius`, panels `min(32px, --radius-3xl)`) where this port had
+  collapsed everything into two values, that v3's desktop control heights are
+  32/36/40 rather than 32/40/48 because its sheet is mobile-first, and that a v3
+  button has no minimum width at all. **27 compared, 0 mismatched.**
 - `python .shots/anim_audit.py` covers what a prop diff cannot see at all:
   motion. A component can expose every prop and still not move, so this lists
   every animation v3's stylesheet defines — the `animate-in`/`animate-out`
