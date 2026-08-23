@@ -15,6 +15,15 @@ A CSS name maps to Rust by the obvious spelling (`--surface-foreground` ->
 `surface.foreground`, `--accent-soft-hover` -> `accent.soft_hover()`), and
 `ALIAS` records the ones where the shapes differ -- a role's six variables are
 one `RoleColor` here, so `--danger-soft` is `danger.soft()`.
+
+The second pass compares the **values**, per appearance. Every `oklch(..)`
+literal v3 declares is read off both sides and diffed, which is how four
+transcription errors were found -- a light border a step too pale, a dark border
+and separator both too dark, a dark field painted in `--default` instead of the
+surface colour -- plus one deliberate deviation (a dark overlay lightened "so
+floating panels read"), which the no-improvements rule says to undo rather than
+keep. A value that is a `color-mix` is not compared here: those are computed in
+`semantic.rs` and checked by its own tests.
 """
 import io
 import os
@@ -132,6 +141,179 @@ WONT_EXPOSE = {
 }
 
 
+# A variable -> where its value lives in `ThemeColors`, for the value pass. A
+# flat name map cannot do this: `background` is a field of the theme, of every
+# surface and of the field colours.
+VALUE_PATH = {
+    '--background': 'background',
+    '--foreground': 'foreground',
+    '--muted': 'muted',
+    '--scrollbar': 'scrollbar',
+    '--surface': 'surface.background',
+    '--surface-foreground': 'surface.foreground',
+    '--surface-secondary': 'surface_secondary',
+    '--surface-tertiary': 'surface_tertiary',
+    '--overlay': 'overlay.background',
+    '--overlay-foreground': 'overlay.foreground',
+    '--segment': 'segment.background',
+    '--segment-foreground': 'segment.foreground',
+    '--field-background': 'field.background',
+    '--field-foreground': 'field.foreground',
+    '--field-placeholder': 'field.placeholder',
+    '--border': 'border',
+    '--separator': 'separator',
+    '--accent': 'accent',
+    '--default': 'default',
+    '--success': 'success',
+    '--warning': 'warning',
+    '--danger': 'danger',
+    '--link': 'link',
+}
+
+
+def css_blocks():
+    """`{appearance: text}` for the default theme's two blocks."""
+    lines = io.open(CSS, encoding='utf-8', errors='replace').read().split('\n')
+    dark = next(i for i, l in enumerate(lines) if l.strip().startswith('.dark,'))
+    # The vibrant palette is an opt-in variant, not the default theme.
+    vibrant = next(i for i, l in enumerate(lines) if 'data-vibrant-palette' in l)
+    return {
+        'light': '\n'.join(lines[:dark]),
+        'dark': '\n'.join(lines[dark:vibrant]),
+    }
+
+
+def css_value(var, block, light, depth=0):
+    """`var`'s value in `block`, following `var(--x)` and the light fallback."""
+    if depth > 4:
+        return None
+    for text in (block, light):
+        m = re.search(r'^\s*%s\s*:\s*([^;]+);' % re.escape(var), text, re.M)
+        if not m:
+            continue
+        value = ' '.join(m.group(1).split())
+        inner = re.fullmatch(r'var\((--[a-z0-9-]+)\)', value)
+        if inner:
+            return css_value(inner.group(1), block, light, depth + 1)
+        return value
+    return None
+
+
+def oklch(value):
+    """The three numbers of an `oklch(..)` literal, or `None`."""
+    if value is None:
+        return None
+    m = re.fullmatch(r'oklch\(([^)]*)\)', value.strip())
+    if not m:
+        return None
+    parts = [p.strip().rstrip('%') for p in m.group(1).replace(',', ' ').split()]
+    try:
+        nums = [float(p) for p in parts[:3]]
+    except ValueError:
+        return None
+    if len(nums) < 3:
+        return None
+    # v3 writes lightness as a percentage in some rules and a fraction in others.
+    return (nums[0] / 100 if nums[0] > 1.5 else nums[0], nums[1], nums[2])
+
+
+def rust_body(fn):
+    """The body of `ThemeColors::light()` or `::dark()`."""
+    src = io.open(THEME + 'semantic.rs', encoding='utf-8', errors='replace').read()
+    start = src.index('    pub fn %s() -> Self {' % fn)
+    nxt = src.find('\n    pub fn ', start + 30)
+    return src[start:nxt if nxt != -1 else len(src)], src
+
+
+def fields(text):
+    """The `name: value` pairs of one struct literal, depth-aware.
+
+    A flat regex cannot do this: `background` is a field of the theme *and* of
+    every surface inside it, and the first match is whichever nested one comes
+    first in the file.
+    """
+    out, name, start, depth = {}, None, 0, 0
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch in '({[':
+            depth += 1
+        elif ch in ')}]':
+            depth -= 1
+            if depth < 0:
+                break
+        elif (
+            depth == 0
+            and ch == ':'
+            and name is None
+            # `::` is a path, not a field: `RoleColor::new(..)` would otherwise
+            # read as a field called `RoleColor`.
+            and text[i + 1:i + 2] != ':'
+            and text[i - 1:i] != ':'
+        ):
+            back = re.search(r'([A-Za-z_][A-Za-z_0-9]*)\s*$', text[start:i])
+            if back:
+                name = back.group(1)
+                value_start = i + 1
+        elif depth == 0 and ch == ',':
+            if name is not None:
+                out[name] = text[value_start:i].strip()
+            else:
+                # Rust's field-init shorthand: `foreground,` is a field whose
+                # value is the local of the same name. Three of the theme's
+                # colours are written that way.
+                short = re.search(r'([A-Za-z_][A-Za-z_0-9]*)\s*$', text[start:i])
+                if short and 'let ' not in text[start:i]:
+                    out.setdefault(short.group(1), short.group(1))
+            name, start = None, i + 1
+        i += 1
+    if name is not None:
+        out.setdefault(name, text[value_start:].strip())
+    return out
+
+
+def literal(value, body, src, depth=0):
+    """`value` reduced to an `oklch(..)`, following locals and helpers."""
+    if value is None or depth > 3:
+        return None
+    value = value.strip()
+    m = re.match(r'oklch\(([^)]*)\)', value)
+    if m:
+        return 'oklch(%s)' % m.group(1)
+    # A role's first argument is its base colour.
+    m = re.match(r'RoleColor::new\(\s*(.+)', value, re.S)
+    if m:
+        return literal(fields('x: ' + m.group(1)).get('x', m.group(1).split(',')[0]),
+                       body, src, depth + 1)
+    name = value.rstrip('()')
+    m = re.search(r'let %s = (.+?);' % re.escape(name), body, re.S)
+    if m:
+        return literal(m.group(1), body, src, depth + 1)
+    m = re.search(r'(?:pub )?fn %s\(\) -> Hsla \{\s*(.+?)\s*\}' % re.escape(name), src, re.S)
+    if m:
+        return literal(m.group(1), body, src, depth + 1)
+    return None
+
+
+def rust_value(path, fn):
+    """The `oklch(..)` a dotted path resolves to."""
+    body, src = rust_body(fn)
+    # The *literal*, not the signature: `pub fn light() -> Self {` contains the
+    # same two words.
+    anchor = '\n        Self {'
+    start = body.index(anchor) + len(anchor)
+    text = body[start:]
+    value = None
+    for part in path.split('.'):
+        table = fields(text)
+        if part not in table:
+            return None
+        value = table[part]
+        inner = re.match(r'[A-Za-z_][A-Za-z_0-9]*\s*\{(.*)\}\s*$', value, re.S)
+        text = inner.group(1) if inner else value
+    return literal(value, body, src)
+
+
 def declared():
     """Every `--name` v3's default theme declares."""
     text = io.open(CSS, encoding='utf-8', errors='replace').read()
@@ -177,6 +359,28 @@ def main():
                 var, rust,
                 '' if var not in ALIAS else ' or `%s`' % ALIAS[var]))
 
+    # --- second pass: the values ------------------------------------------
+    blocks = css_blocks()
+    compared = derived = 0
+    wrong = []
+    for appearance, block in blocks.items():
+        for var, path in sorted(VALUE_PATH.items()):
+            theirs = oklch(css_value(var, block, blocks['light']))
+            if theirs is None:
+                derived += 1
+                continue
+            ours_value = oklch(rust_value(path, appearance))
+            if ours_value is None:
+                wrong.append('%-6s %-24s %s does not resolve to a literal'
+                             % (appearance, var, path))
+                continue
+            compared += 1
+            if any(abs(a - b) > 0.0006 for a, b in zip(theirs, ours_value)):
+                wrong.append('%-6s %-24s v3=%s ours=%s' % (appearance, var, theirs, ours_value))
+
+    for line in wrong:
+        print('WRONG    ' + line)
+
     for line in missing:
         print('MISSING  ' + line)
     print()
@@ -186,6 +390,9 @@ def main():
     for reason, n in sorted(by_reason.items(), key=lambda kv: (-kv[1], kv[0])):
         print('    %-24s %d' % (reason, n))
     print('MISSING            : %d' % len(missing))
+    print('values compared    : %d  (%d derived, checked by semantic.rs tests)'
+          % (compared, derived))
+    print('WRONG VALUES       : %d' % len(wrong))
 
 
 if __name__ == '__main__':

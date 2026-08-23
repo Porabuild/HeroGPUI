@@ -389,8 +389,25 @@ python .shots/token_audit.py
 text colour alone. Most of v3's variables are `color-mix`es, and this port
 *computes* those rather than storing them -- which is what keeps a derived colour
 from drifting out of step with what it mixes -- so the audit accepts an accessor
-as readily as a field. What it does not check is the value: `design_audit.py`'s
-fill checks and `semantic.rs`'s own tests cover that.
+as readily as a field.
+
+A second pass compares the **values**, per appearance, and found four more:
+
+- `--border` is a step darker than `--separator` (90% against 92%); both had
+  been transcribed as the separator's value, in light *and* dark.
+- dark `--separator` is 25%, not 22%.
+- dark `--field-background` is the surface colour; it had `--default`, two steps
+  lighter.
+- dark `--overlay` **is** `--surface`. This port had lightened it "so floating
+  panels read in dark mode" -- exactly the improvement the no-improvements rule
+  forbids. A v3 dark popover is the colour of a v3 dark card and the shadow is
+  what separates them, which a screenshot confirms it still does.
+
+Reading the Rust side needs a small parser rather than a regex, and two things
+make that so: `background` is a field of the theme, of every surface *and* of the
+field colours, so a flat name map resolves the wrong one; and three of the
+theme's colours are written with Rust's field-init shorthand (`foreground,`),
+which has no `:` to match on.
 
 The design audit measures the *resting* look. What a control does when it is
 hovered, pressed, focused or disabled is a different list, and v3 states it in

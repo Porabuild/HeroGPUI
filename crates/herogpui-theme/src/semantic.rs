@@ -298,7 +298,9 @@ impl ThemeColors {
                 border: with_alpha(black(), 0.0),
             },
 
-            border: oklch(0.92, 0.004, 286.32),
+            // `--border` is a step darker than `--separator`: 90% against 92%.
+            // Both had been transcribed as the separator's value.
+            border: oklch(0.9, 0.004, 286.32),
             separator: oklch(0.92, 0.004, 286.32),
             focus: accent.color,
             link: foreground,
@@ -325,9 +327,12 @@ impl ThemeColors {
             },
             surface_secondary: oklch(0.257, 0.0037, 286.14),
             surface_tertiary: oklch(0.2721, 0.0024, 247.91),
-            // Slightly lighter than surface so floating panels read in dark mode.
+            // `--overlay` *is* `--surface` in dark mode. This used to lighten it
+            // "so floating panels read", which is the kind of improvement the
+            // token values are not allowed to make: a v3 dark popover is the
+            // colour of a v3 dark card, and the shadow is what separates them.
             overlay: SurfaceColor {
-                background: oklch(0.22, 0.0059, 285.89),
+                background: oklch(0.2103, 0.0059, 285.89),
                 foreground,
             },
             segment: SurfaceColor {
@@ -343,14 +348,18 @@ impl ThemeColors {
             danger: RoleColor::new(oklch(0.594, 0.1967, 24.63), snow()),
 
             field: FieldColors {
-                background: default.color,
+                // `--field-background: oklch(0.2103 0.0059 285.89)` -- the
+                // surface colour, not `--default`, which is two steps lighter.
+                background: oklch(0.2103, 0.0059, 285.89),
                 foreground,
                 placeholder: muted,
                 border: with_alpha(black(), 0.0),
             },
 
-            border: oklch(0.22, 0.006, 286.033),
-            separator: oklch(0.22, 0.006, 286.033),
+            // `--border: oklch(28% ..)`, `--separator: oklch(25% ..)`. Both were
+            // one value here, and both too dark.
+            border: oklch(0.28, 0.006, 286.033),
+            separator: oklch(0.25, 0.006, 286.033),
             focus: accent.color,
             link: foreground,
             backdrop: with_alpha(black(), 0.6),
@@ -412,6 +421,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "v3 gives dark mode one colour for both; the shadow separates them"]
     fn dark_surface_is_darker_than_overlay() {
         let c = ThemeColors::dark();
         assert!(c.surface.background.l < c.overlay.background.l);
