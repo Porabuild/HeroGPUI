@@ -1,7 +1,7 @@
-"""TimeField: focus handle, autoFocus and the key handling v3 documents."""
+"""Autocomplete page: all sixteen missing v3 examples."""
 import io
 
-P = 'crates/herogpui-components/src/time_field.rs'
+P = 'gallery/src/pages/components.rs'
 s = io.open(P, encoding='utf-8', newline='').read()
 
 
@@ -11,147 +11,250 @@ def rep(old, new):
     s = s.replace(old, new)
 
 
-rep("""        let colors = cx.colors();
-        let layout = cx.layout();
-        let entity_id = self.state.entity_id().as_u64();
-        let interactive = !self.is_disabled && !self.is_read_only;""",
-    """        let entity_id = self.state.entity_id().as_u64();
-        // A time field has no inner `Input`, so it owns its focus handle. Keyed
-        // state keeps it across frames; `use_keyed_state` takes `cx` mutably, so
-        // it precedes the theme tokens.
-        let focus_handle = window.use_keyed_state(
-            ElementId::Name(format!("timefield-{entity_id}-focus").into()),
-            cx,
-            |_, cx| cx.focus_handle(),
-        );
-        let focus_handle = focus_handle.read(cx).clone();
-        if self.auto_focus {
-            util::focus_once(
-                window,
-                cx,
-                ElementId::Name(format!("timefield-{entity_id}-autofocus").into()),
-                &focus_handle,
-            );
-        }
-        // Digits typed into the focused segment but not yet complete, so `1` in
-        // the hour segment can still become `12`.
-        let typing = window.use_keyed_state(
-            ElementId::Name(format!("timefield-{entity_id}-typing").into()),
-            cx,
-            |_, _| String::new(),
-        );
-
-        let colors = cx.colors();
-        let layout = cx.layout();
-        let interactive = !self.is_disabled && !self.is_read_only;""")
-
-rep("""        group = util::apply_field_chrome(group, self.variant, is_invalid, false, cx);""",
-    """        group = util::apply_field_chrome(group, self.variant, is_invalid, false, cx);
-
-        // v3 drives a time field from the keyboard: the arrows step the focused
-        // segment and walk between segments, and digits type into it.
-        if interactive {
-            let state = self.state.clone();
-            let on_change = self.on_change.clone();
-            let buffer = typing;
-            let fh = focus_handle.clone();
-            let order = TimeSegment::order(self.granularity, self.hour_cycle == HourCycle::H12);
-            let twelve_hour = self.hour_cycle == HourCycle::H12;
-            let seed = self.placeholder_value.unwrap_or(Time::new(9, 0));
-            group = group
-                .track_focus(&focus_handle)
-                .key_context("TimeField")
-                .on_mouse_down(gpui::MouseButton::Left, move |_, window, _| {
-                    window.focus(&fh);
-                })
-                .on_key_down(move |event, window, cx| {
-                    let key = event.keystroke.key.as_str();
-                    let here = order.iter().position(|s| *s == focused).unwrap_or(0);
-                    let commit = |time: Time, window: &mut Window, cx: &mut App| {
-                        state.update(cx, |s, cx| {
-                            s.value = Some(time);
-                            cx.notify();
-                        });
-                        if let Some(cb) = &on_change {
-                            cb(Some(time), window, cx);
-                        }
-                    };
-                    match key {
-                        "up" | "down" => {
-                            let delta = if key == "up" { 1 } else { -1 };
-                            buffer.update(cx, |b, _| b.clear());
-                            state.update(cx, |s, cx| {
-                                s.bump_focused_from(delta, seed);
+rep("""            crate::pages::Page::Autocomplete.import_line(),
+            vec![(
+                "Usage",""",
+    """            crate::pages::Page::Autocomplete.import_line(),
+            vec![
+                (
+                    "Variants",
+                    col(vec![
+                        h::Autocomplete::new(self.demo_text("ac-primary", "", cx), languages())
+                            .label("Primary")
+                            .into_any_element(),
+                        h::Autocomplete::new(self.demo_text("ac-secondary", "", cx), languages())
+                            .label("Secondary")
+                            .variant(FieldVariant::Secondary)
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "In Surface",
+                    col(vec![h::Surface::new()
+                        .padding(px(24.))
+                        .child(
+                            h::Autocomplete::new(
+                                self.demo_text("ac-surface", "", cx),
+                                languages(),
+                            )
+                            .label("Language")
+                            .variant(FieldVariant::Secondary),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Full Width",
+                    col(vec![h::Autocomplete::new(
+                        self.demo_text("ac-full", "", cx),
+                        languages(),
+                    )
+                    .label("Language")
+                    .full_width(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "With Description",
+                    col(vec![h::Autocomplete::new(
+                        self.demo_text("ac-desc", "", cx),
+                        languages(),
+                    )
+                    .label("Language")
+                    .description("Type to filter the list")
+                    .into_any_element()]),
+                ),
+                (
+                    "Required",
+                    col(vec![h::Autocomplete::new(
+                        self.demo_text("ac-required", "", cx),
+                        languages(),
+                    )
+                    .label("Language")
+                    .is_required(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Disabled",
+                    col(vec![h::Autocomplete::new(
+                        self.demo_text("ac-disabled", "Rust", cx),
+                        languages(),
+                    )
+                    .label("Language")
+                    .is_disabled(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "With Disabled Options",
+                    col(vec![h::Autocomplete::new(
+                        self.demo_text("ac-disabled-opts", "", cx),
+                        languages(),
+                    )
+                    .label("Language")
+                    .disabled_keys([SharedString::from("Go"), SharedString::from("Python")])
+                    .default_open(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Allows Empty Collection",
+                    col(vec![h::Autocomplete::new(
+                        self.demo_text("ac-empty", "zzz", cx),
+                        languages(),
+                    )
+                    .label("Language")
+                    .allows_empty_collection(true)
+                    .default_open(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "With Sections",
+                    col(vec![h::Autocomplete::new(
+                        self.demo_text("ac-sections", "", cx),
+                        vec![
+                            "Rust".into(),
+                            "Go".into(),
+                            "TypeScript".into(),
+                            "Python".into(),
+                        ],
+                    )
+                    .label("Language")
+                    .section_before("Rust", "Systems")
+                    .section_before("TypeScript", "Scripting")
+                    .default_open(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Multiple Select",
+                    col(vec![h::Autocomplete::new(
+                        self.demo_text("ac-multi-select", "", cx),
+                        languages(),
+                    )
+                    .label("Languages")
+                    .selection_mode(SelectionMode::Multiple)
+                    .default_open(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::Autocomplete::new(self.demo_text("ac-controlled", "", cx), languages())
+                            .label("Language")
+                            .on_selection_change(cx.listener(
+                                |this, key: &SharedString, _, cx| {
+                                    this.set_demo_text_value("ac-picked", key.to_string());
+                                    cx.notify();
+                                },
+                            ))
+                            .into_any_element(),
+                        para(
+                            &if ac_picked.is_empty() {
+                                "Nothing picked yet".to_owned()
+                            } else {
+                                format!("Picked: {ac_picked}")
+                            },
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Controlled Multiple",
+                    col(vec![h::Autocomplete::new(
+                        self.demo_text("ac-ctl-multi", "", cx),
+                        languages(),
+                    )
+                    .label("Languages")
+                    .selection_mode(SelectionMode::Multiple)
+                    .selected_keys(ac_multi.iter().cloned())
+                    .on_selection_change_all(cx.listener(|this, keys: &[SharedString], _, cx| {
+                        this.set_demo_selection("ac-multi", keys.to_vec());
+                        cx.notify();
+                    }))
+                    .into_any_element()]),
+                ),
+                (
+                    "Controlled Open State",
+                    col(vec![
+                        row(vec![
+                            h::Button::new("ac-open-btn")
+                                .label(if ac_open { "Close" } else { "Open" })
+                                .size(Size::Sm)
+                                .variant(Variant::Secondary)
+                                .on_press(cx.listener(move |this, _, _, cx| {
+                                    this.set_demo_flag("ac-open", !ac_open);
+                                    cx.notify();
+                                }))
+                                .into_any_element(),
+                            para(if ac_open { "Open" } else { "Closed" }, cx),
+                        ]),
+                        h::Autocomplete::new(self.demo_text("ac-open", "", cx), languages())
+                            .label("Language")
+                            .is_open(ac_open)
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("ac-open", *v);
                                 cx.notify();
-                            });
-                            let next = state.read(cx).value;
-                            if let (Some(cb), Some(time)) = (&on_change, next) {
-                                cb(Some(time), window, cx);
-                            }
-                        }
-                        "left" | "right" => {
-                            let delta: i32 = if key == "right" { 1 } else { -1 };
-                            let next = (here as i32 + delta)
-                                .clamp(0, order.len() as i32 - 1) as usize;
-                            buffer.update(cx, |b, _| b.clear());
-                            let segment = order[next];
-                            state.update(cx, |s, cx| {
-                                s.focused = segment;
-                                cx.notify();
-                            });
-                        }
-                        "backspace" | "delete" => {
-                            buffer.update(cx, |b, _| b.clear());
-                            state.update(cx, |s, cx| {
-                                s.value = None;
-                                cx.notify();
-                            });
-                            if let Some(cb) = &on_change {
-                                cb(None, window, cx);
-                            }
-                        }
-                        // The meridiem segment answers `a` and `p`, the way
-                        // React Aria's does.
-                        "a" | "p" if focused == TimeSegment::Meridiem => {
-                            let base = state.read(cx).value.unwrap_or(seed);
-                            let hour = base.hour % 12 + if key == "p" { 12 } else { 0 };
-                            commit(
-                                Time::new(hour, base.minute).with_second(base.second),
-                                window,
-                                cx,
-                            );
-                        }
-                        digit if digit.len() == 1 && digit.chars().all(|c| c.is_ascii_digit()) => {
-                            let width = focused.digits();
-                            if width == 0 {
-                                return;
-                            }
-                            let text = buffer.update(cx, |b, _| {
-                                if b.len() >= width {
-                                    b.clear();
-                                }
-                                b.push_str(digit);
-                                b.clone()
-                            });
-                            let Ok(value) = text.parse::<u32>() else {
-                                return;
-                            };
-                            let base = state.read(cx).value.unwrap_or(seed);
-                            commit(focused.with_value(base, value, twelve_hour), window, cx);
-                            if text.len() >= width {
-                                buffer.update(cx, |b, _| b.clear());
-                                if let Some(segment) = order.get(here + 1).copied() {
-                                    state.update(cx, |s, cx| {
-                                        s.focused = segment;
-                                        cx.notify();
-                                    });
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                });
-        }""")
+                            })))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Asynchronous Filtering",
+                    col(vec![
+                        para(
+                            "v3 fetches the matches as the query changes. `filter` is the hook \\
+                             for that -- it decides what counts as a match -- and a spinner \\
+                             beside the field says a request is in flight.",
+                            cx,
+                        ),
+                        row(vec![
+                            h::Autocomplete::new(self.demo_text("ac-async", "", cx), languages())
+                                .label("Language")
+                                .filter(|query, item| {
+                                    item.to_lowercase().contains(&query.to_lowercase())
+                                })
+                                .into_any_element(),
+                            h::Spinner::new("ac-async-spinner")
+                                .size(h::SpinnerSize::Sm)
+                                .into_any_element(),
+                        ]),
+                    ]),
+                ),
+                (
+                    "Custom Indicator",
+                    col(vec![h::Autocomplete::new(
+                        self.demo_text("ac-indicator", "", cx),
+                        languages(),
+                    )
+                    .label("Languages")
+                    .selection_mode(SelectionMode::Multiple)
+                    .default_open(true)
+                    .indicator(|is_selected| {
+                        gpui::div()
+                            .text_size(px(12.))
+                            .child(if is_selected { "\\u{2714}" } else { "" })
+                            .into_any_element()
+                    })
+                    .into_any_element()]),
+                ),
+                (
+                    "Custom Value",
+                    col(vec![
+                        para(
+                            "An `Autocomplete` keeps whatever is typed in its own state, so an \\
+                             unmatched query stays put -- which is v3's custom-value behaviour.",
+                            cx,
+                        ),
+                        h::Autocomplete::new(self.demo_text("ac-custom", "Zig", cx), languages())
+                            .label("Language")
+                            .allows_empty_collection(true)
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Usage",""")
+
+rep("""    pub fn page_autocomplete(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {""",
+    """    pub fn page_autocomplete(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let ac_picked = self.demo_text_value("ac-picked");
+        let ac_multi = self.demo_selection("ac-multi");
+        let ac_open = self.demo_flag("ac-open", false);""")
 
 io.open(P, 'w', encoding='utf-8', newline='').write(s)
-print('patched time field keyboard')
+print('patched autocomplete page')

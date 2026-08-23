@@ -39,6 +39,11 @@ pub struct Autocomplete {
     is_required: bool,
     /// `disabledKeys` — suggestions that render but cannot be chosen.
     disabled_keys: std::collections::HashSet<SharedString>,
+    /// `ListBox.Section` — a heading above the item with this label.
+    sections: Vec<(SharedString, SharedString)>,
+    /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
+    /// the row is selected.
+    indicator: Option<Box<dyn Fn(bool) -> gpui::AnyElement + 'static>>,
     /// `allowsEmptyCollection` — keep the panel open with an empty state
     /// instead of hiding it when nothing matches.
     allows_empty_collection: bool,
@@ -187,6 +192,8 @@ impl Autocomplete {
             is_invalid: false,
             is_required: false,
             disabled_keys: std::collections::HashSet::new(),
+            sections: Vec::new(),
+            indicator: None,
             allows_empty_collection: false,
             selection_mode: SelectionMode::Single,
             selected_keys: std::collections::BTreeSet::new(),
@@ -290,6 +297,22 @@ impl Autocomplete {
     }
 
     /// `allowsEmptyCollection`
+    /// `ListBox.Section` — a heading rendered above `item`.
+    pub fn section_before(
+        mut self,
+        item: impl Into<SharedString>,
+        label: impl Into<SharedString>,
+    ) -> Self {
+        self.sections.push((item.into(), label.into()));
+        self
+    }
+
+    /// `ListBox.ItemIndicator` — draw the selected tick yourself.
+    pub fn indicator(mut self, render: impl Fn(bool) -> gpui::AnyElement + 'static) -> Self {
+        self.indicator = Some(Box::new(render));
+        self
+    }
+
     pub fn allows_empty_collection(mut self, v: bool) -> Self {
         self.allows_empty_collection = v;
         self
@@ -482,6 +505,18 @@ impl RenderOnce for Autocomplete {
                 .overflow_hidden();
 
             for item in &matches {
+                // `ListBox.Section`'s `Header`, above the item it introduces.
+                if let Some((_, label)) = self.sections.iter().find(|(at, _)| at == item) {
+                    panel = panel.child(
+                        gpui::div()
+                            .px(px(8.))
+                            .pt(px(6.))
+                            .pb(px(2.))
+                            .text_size(px(12.))
+                            .text_color(colors.muted)
+                            .child(label.to_string()),
+                    );
+                }
                 let item_disabled = self.disabled_keys.contains(item);
                 let mut row = gpui::div()
                     .id(el_name(format!("{base}-{item}")))
@@ -507,14 +542,20 @@ impl RenderOnce for Autocomplete {
                         .hover(move |s| s.bg(colors.default.soft()));
                 }
 
-                // A multiple selection check-marks every chosen item.
-                if multiple && self.selected_keys.contains(item) {
-                    row = row.child(
-                        gpui::svg()
-                            .size(px(13.))
-                            .path(icons::CHECK)
-                            .text_color(colors.accent.color),
-                    );
+                // A multiple selection check-marks every chosen item, unless
+                // `ListBox.ItemIndicator` is drawn by the caller.
+                let row_selected = self.selected_keys.contains(item);
+                match &self.indicator {
+                    Some(render) => row = row.child(render(row_selected)),
+                    None if multiple && row_selected => {
+                        row = row.child(
+                            gpui::svg()
+                                .size(px(13.))
+                                .path(icons::CHECK)
+                                .text_color(colors.accent.color),
+                        );
+                    }
+                    None => {}
                 }
 
                 if multiple && !item_disabled {

@@ -71,6 +71,11 @@ pub struct ComboBox {
     allows_empty_collection: bool,
     /// `name` — the name this field submits under.
     name: Option<SharedString>,
+    /// `ListBox.Section` — a heading above the item with this label.
+    sections: Vec<(SharedString, SharedString)>,
+    /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
+    /// the row is the selected one.
+    indicator: Option<Box<dyn Fn(bool) -> gpui::AnyElement + 'static>>,
     disabled_keys: std::collections::HashSet<SharedString>,
     selection_mode: SelectionMode,
     selected_keys: std::collections::BTreeSet<SharedString>,
@@ -170,6 +175,22 @@ impl ComboBox {
         self
     }
 
+    /// `ListBox.Section` — a heading rendered above `item`.
+    pub fn section_before(
+        mut self,
+        item: impl Into<SharedString>,
+        label: impl Into<SharedString>,
+    ) -> Self {
+        self.sections.push((item.into(), label.into()));
+        self
+    }
+
+    /// `ListBox.ItemIndicator` — draw the selected tick yourself.
+    pub fn indicator(mut self, render: impl Fn(bool) -> gpui::AnyElement + 'static) -> Self {
+        self.indicator = Some(Box::new(render));
+        self
+    }
+
     /// `name` — the name this field submits under.
     pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = Some(name.into());
@@ -244,6 +265,8 @@ impl ComboBox {
             validation_behavior: None,
             allows_empty_collection: false,
             name: None,
+            sections: Vec::new(),
+            indicator: None,
             disabled_keys: std::collections::HashSet::new(),
             selection_mode: SelectionMode::Single,
             selected_keys: std::collections::BTreeSet::new(),
@@ -575,6 +598,18 @@ impl RenderOnce for ComboBox {
             }
 
             for (index, item) in matches.iter().enumerate() {
+                // `ListBox.Section`'s `Header`, above the item it introduces.
+                if let Some((_, label)) = self.sections.iter().find(|(at, _)| at == item) {
+                    panel = panel.child(
+                        div()
+                            .px(px(8.))
+                            .pt(px(6.))
+                            .pb(px(2.))
+                            .text_size(px(12.))
+                            .text_color(colors.muted)
+                            .child(label.to_string()),
+                    );
+                }
                 let item_disabled = self.disabled_keys.contains(item);
                 let hover_bg = colors.default.color;
                 let mut row = div()
@@ -599,13 +634,21 @@ impl RenderOnce for ComboBox {
                     row = row.cursor_pointer().hover(move |s| s.bg(hover_bg));
                 }
 
-                if multiple && self.selected_keys.contains(item) {
-                    row = row.child(
-                        gpui::svg()
-                            .size(px(13.))
-                            .path(icons::CHECK)
-                            .text_color(colors.accent.color),
-                    );
+                // `ListBox.ItemIndicator`: a caller-drawn tick replaces the
+                // check glyph, and is asked for on every row so it can draw the
+                // unselected state too.
+                let row_selected = self.selected_keys.contains(item);
+                match &self.indicator {
+                    Some(render) => row = row.child(render(row_selected)),
+                    None if multiple && row_selected => {
+                        row = row.child(
+                            gpui::svg()
+                                .size(px(13.))
+                                .path(icons::CHECK)
+                                .text_color(colors.accent.color),
+                        );
+                    }
+                    None => {}
                 }
 
                 if item_disabled {
