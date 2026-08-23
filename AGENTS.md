@@ -374,6 +374,35 @@ share a field name cover for each other — that hid an unwired
 `SearchField::validate` next to `Input::validate`. It now lists shared names at
 the end; check those by hand.
 
+A demo that cannot change is the same failure one level up, and it is invisible
+in a screenshot:
+
+```bash
+python .shots/inert_audit.py
+```
+
+reports every gallery instance that sets a **controlled** prop with no `on_*`
+callback. `Tabs::new`'s positional key filled `selectedKey`, so
+`util::controlled` handed the value straight back with no state entity and the
+component skipped its whole interactive block — every Tabs demo that passed a
+literal was inert, and nine green audits said nothing. It also found four
+selects that dropped the choice on the floor, six swatch pickers that could not
+be pressed, a dead "select all" checkbox and eight `is_selected(true)` demos that
+should have said `default_selected(true)` (same look, still toggles).
+
+Which builders count is read two ways, because our own code only names half of
+them: a component with a fallback calls `util::controlled`, and the field is in
+the call; a fully controlled one (`Select`, `ColorSwatchPicker`) has no such
+call, so v3's tables decide — a prop `P` documented next to `defaultP` or
+`onPChange` is state by definition. `.value(None)` is the uncontrolled path, not
+a frozen demo, and `ALLOW` holds the instances that are frozen on purpose
+(a disabled control cannot change whatever it is passed).
+
+Two lessons that belong with it. A constructor must never seed the controlled
+prop — a positional seed is `defaultX`. And two components on one page sharing an
+id share their keyed state silently: two `TagGroup`s both called `tg-remove`
+shared one focus cursor.
+
 v3's theming story *is* its variables: override the custom properties and every
 component follows. The port's equivalent is `ThemeColors` and `LayoutTokens`, so
 a variable v3 declares and this port does not expose is a hole in the theming

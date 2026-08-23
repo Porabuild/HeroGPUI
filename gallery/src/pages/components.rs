@@ -638,7 +638,7 @@ impl Gallery {
                             h::ToggleButton::new(el_id(format!("tb-sz-{sz:?}")))
                                 .label(sz.label())
                                 .size(*sz)
-                                .is_selected(true)
+                                .default_selected(true)
                         })
                         .els()),
                 ),
@@ -647,7 +647,7 @@ impl Gallery {
                     row(vec![
                         h::ToggleButton::new("tb-io-1")
                             .is_icon_only(true)
-                            .is_selected(true)
+                            .default_selected(true)
                             .child(icon(h::icons::EYE, cx))
                             .into_any_element(),
                         h::ToggleButton::new("tb-io-2")
@@ -748,12 +748,12 @@ impl Gallery {
                     row(vec![
                         h::ToggleButton::new("tb-v-default")
                             .label("Default")
-                            .is_selected(true)
+                            .default_selected(true)
                             .into_any_element(),
                         h::ToggleButton::new("tb-v-ghost")
                             .label("Ghost")
                             .variant(h::ToggleVariant::Ghost)
-                            .is_selected(true)
+                            .default_selected(true)
                             .into_any_element(),
                     ]),
                 ),
@@ -2165,13 +2165,26 @@ impl Gallery {
                     col(vec![
                         spec(
                             "Circle (default)",
-                            h::ColorSwatchPicker::new("csp-circle", palette()).value(selected),
+                            h::ColorSwatchPicker::new("csp-circle", palette())
+                                .value(selected)
+                                .on_change(color_cb(cx.listener(
+                                    |this, c: &h::PickerColor, _, cx| {
+                                        this.swatch_selected = *c;
+                                        cx.notify();
+                                    },
+                                ))),
                             cx,
                         ),
                         spec(
                             "Square",
                             h::ColorSwatchPicker::new("csp-sq", palette())
                                 .value(selected)
+                                .on_change(color_cb(cx.listener(
+                                    |this, c: &h::PickerColor, _, cx| {
+                                        this.swatch_selected = *c;
+                                        cx.notify();
+                                    },
+                                )))
                                 .shape(h::SwatchShape::Square),
                             cx,
                         ),
@@ -2184,6 +2197,12 @@ impl Gallery {
                         .map(|sz| {
                             h::ColorSwatchPicker::new(el_id(format!("csp-{sz:?}")), palette())
                                 .value(selected)
+                                .on_change(color_cb(cx.listener(
+                                    |this, c: &h::PickerColor, _, cx| {
+                                        this.swatch_selected = *c;
+                                        cx.notify();
+                                    },
+                                )))
                                 .size(*sz)
                         })
                         .els()),
@@ -2199,6 +2218,10 @@ impl Gallery {
                     "Stack Layout",
                     col(vec![h::ColorSwatchPicker::new("csp-stack", palette())
                         .value(selected)
+                        .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
+                            this.swatch_selected = *c;
+                            cx.notify();
+                        })))
                         .layout(h::SwatchLayout::Stack)
                         .into_any_element()]),
                 ),
@@ -2231,6 +2254,10 @@ impl Gallery {
                         ),
                         h::ColorSwatchPicker::new("csp-indicator", palette())
                             .value(selected)
+                            .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
+                                this.swatch_selected = *c;
+                                cx.notify();
+                            })))
                             .shape(h::SwatchShape::Square)
                             .size(SizeXl::Lg)
                             .into_any_element(),
@@ -2477,7 +2504,7 @@ impl Gallery {
                             spec(
                                 s.label(),
                                 h::Switch::new(el_id(format!("sw-{s:?}")))
-                                    .is_selected(true)
+                                    .default_selected(true)
                                     .size(*s),
                                 cx,
                             )
@@ -2488,7 +2515,7 @@ impl Gallery {
                     "With Icons",
                     row(vec![
                         h::Switch::new("sw-icon-1")
-                            .is_selected(true)
+                            .default_selected(true)
                             .thumb_icons(icon(h::icons::MOON, cx), icon(h::icons::SUN, cx))
                             .label(gpui::div().child("Appearance"))
                             .into_any_element(),
@@ -2502,7 +2529,7 @@ impl Gallery {
                     "Without Label",
                     row(vec![
                         h::Switch::new("sw-nolabel-1")
-                            .is_selected(true)
+                            .default_selected(true)
                             .into_any_element(),
                         h::Switch::new("sw-nolabel-2").into_any_element(),
                     ]),
@@ -4859,6 +4886,17 @@ impl Gallery {
                             .is_selected(selected.len() == 3)
                             .is_indeterminate(!selected.is_empty() && selected.len() < 3)
                             .label(gpui::div().child("All notifications"))
+                            .on_change(bool_cb(cx.listener(|this, all: &bool, _, cx| {
+                                this.checkbox_group = if *all {
+                                    ["email", "sms", "push"]
+                                        .into_iter()
+                                        .map(SharedString::from)
+                                        .collect()
+                                } else {
+                                    HashSet::new()
+                                };
+                                cx.notify();
+                            })))
                             .into_any_element(),
                         h::CheckboxGroup::new("cbg-ind", group_options())
                             .value(selected.iter().cloned())
@@ -9961,6 +9999,12 @@ impl Gallery {
                         .label("Language")
                         .placeholder("Choose one")
                         .value(selected)
+                        .on_selection_change(opt_usize_cb(cx.listener(
+                            |this, i: &Option<usize>, _, cx| {
+                                this.select_lang = *i;
+                                cx.notify();
+                            },
+                        )))
                         .default_open(true)
                         .indicator(|is_selected| {
                             gpui::div()
@@ -9976,6 +10020,12 @@ impl Gallery {
                         .label("Language")
                         .placeholder("Choose one")
                         .value(selected)
+                        .on_selection_change(opt_usize_cb(cx.listener(
+                            |this, i: &Option<usize>, _, cx| {
+                                this.select_lang = *i;
+                                cx.notify();
+                            },
+                        )))
                         .value_content(move |chosen| match chosen.first() {
                             Some(i) => gpui::div()
                                 .flex()
@@ -10028,6 +10078,12 @@ impl Gallery {
                             h::Select::new(el_id(format!("sel-{v:?}")), languages())
                                 .label(v.label())
                                 .value(selected)
+                                .on_selection_change(opt_usize_cb(cx.listener(
+                                    |this, i: &Option<usize>, _, cx| {
+                                        this.select_lang = *i;
+                                        cx.notify();
+                                    },
+                                )))
                                 .variant(*v)
                         })
                         .els()),
@@ -10037,6 +10093,12 @@ impl Gallery {
                     col(vec![h::Select::new("sel-full", languages())
                         .label("Language")
                         .value(selected)
+                        .on_selection_change(opt_usize_cb(cx.listener(
+                            |this, i: &Option<usize>, _, cx| {
+                                this.select_lang = *i;
+                                cx.notify();
+                            },
+                        )))
                         .full_width(true)
                         .into_any_element()]),
                 ),
