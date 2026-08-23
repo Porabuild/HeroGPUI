@@ -178,6 +178,8 @@ pub struct NumberField {
     is_invalid: bool,
     is_required: bool,
     is_read_only: bool,
+    /// `autoFocus` — take focus on the first render.
+    auto_focus: bool,
     on_change: Option<OnChange>,
 }
 
@@ -272,6 +274,12 @@ impl NumberField {
         self
     }
 
+    /// `autoFocus` — take focus on the first render.
+    pub fn auto_focus(mut self, v: bool) -> Self {
+        self.auto_focus = v;
+        self
+    }
+
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
@@ -298,6 +306,7 @@ impl NumberField {
             is_invalid: false,
             is_required: false,
             is_read_only: false,
+            auto_focus: false,
             on_change: None,
         }
     }
@@ -407,6 +416,7 @@ impl RenderOnce for NumberField {
             .is_disabled(self.is_disabled)
             .is_read_only(self.is_read_only)
             .is_required(self.is_required)
+            .auto_focus(self.auto_focus)
             .is_invalid(validity.is_invalid)
             .on_change(move |_text: &str, w, cx| {
                 // The Input already wrote its own text; re-parse here.

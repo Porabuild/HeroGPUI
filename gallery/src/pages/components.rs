@@ -160,7 +160,6 @@ Toast::new("Saved")
 fn overlay_demo(
     key: &'static str,
     label: &str,
-    open: bool,
     panel: AnyElement,
     cx: &mut Context<'_, Gallery>,
 ) -> AnyElement {
@@ -937,7 +936,7 @@ impl Gallery {
                         ],
                     )
                     .selection_mode(SelectionMode::Multiple)
-                    .selected_keys(dd_multi.clone())
+                    .selected_keys(dd_multi)
                     .on_selection_change(cx.listener(|this, keys: &[SharedString], _, cx| {
                         this.dropdown_multi = keys.to_vec();
                         cx.notify();
@@ -3432,7 +3431,7 @@ impl Gallery {
                     "Form Example",
                     col(vec![{
                         let state = self.demo_time("tmf-form", cx);
-                        let field = h::TimeField::new(state.clone())
+                        let field = h::TimeField::new(state)
                             .label("Start time")
                             .name("start_time")
                             .is_required(true);
@@ -6635,7 +6634,6 @@ impl Gallery {
                         overlay_demo(
                             key,
                             label,
-                            open,
                             h::AlertDialog::new(format!("Size: {label}"))
                                 .description("Every size shares one panel style.")
                                 .is_open(open)
@@ -6667,7 +6665,6 @@ impl Gallery {
                         overlay_demo(
                             key,
                             label,
-                            open,
                             h::AlertDialog::new(format!("{label} status"))
                                 .description("The status colours the icon and the confirm action.")
                                 .is_open(open)
@@ -6698,7 +6695,6 @@ impl Gallery {
                         overlay_demo(
                             key,
                             label,
-                            open,
                             h::AlertDialog::new(format!("Placement: {label}"))
                                 .description("The panel keeps its own size.")
                                 .is_open(open)
@@ -6729,7 +6725,6 @@ impl Gallery {
                             overlay_demo(
                                 key,
                                 backdrop.label(),
-                                open,
                                 h::AlertDialog::new(format!("Backdrop: {}", backdrop.label()))
                                     .description("The scrim behind the panel.")
                                     .is_open(open)
@@ -6751,7 +6746,6 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "ad-controlled",
                         "Open (controlled)",
-                        self.demo_overlay("ad-controlled"),
                         h::AlertDialog::new("Controlled")
                             .description("The flag lives with the caller; closing reports through onOpenChange.")
                             .is_open(self.demo_overlay("ad-controlled"))
@@ -6768,7 +6762,6 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "ad-icon",
                         "Open with a status icon",
-                        self.demo_overlay("ad-icon"),
                         h::AlertDialog::new("Heads up")
                             .description("The status picks the icon, so a warning dialog shows the warning glyph.")
                             .is_open(self.demo_overlay("ad-icon"))
@@ -6786,7 +6779,6 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "ad-custom-bd",
                         "Open with a blurred backdrop",
-                        self.demo_overlay("ad-custom-bd"),
                         h::AlertDialog::new("Blurred")
                             .description("The page behind the panel is blurred.")
                             .is_open(self.demo_overlay("ad-custom-bd"))
@@ -6804,7 +6796,6 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "ad-dismiss",
                         "Open a non-dismissable dialog",
-                        self.demo_overlay("ad-dismiss"),
                         h::AlertDialog::new("Confirm first")
                             .description("The backdrop and Escape are both inert; answer with an action.")
                             .is_open(self.demo_overlay("ad-dismiss"))
@@ -6823,7 +6814,6 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "ad-close",
                         "Open (destructive confirm)",
-                        self.demo_overlay("ad-close"),
                         h::AlertDialog::new("Delete for ever?")
                             .description("Confirm, cancel, Escape or the backdrop -- four ways out.")
                             .is_open(self.demo_overlay("ad-close"))
@@ -6843,7 +6833,6 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "ad-anim",
                         "Open and watch the panel",
-                        self.demo_overlay("ad-anim"),
                         h::AlertDialog::new("Animated")
                             .description("The panel shrinks in from 105% over 250ms and leaves at 95% over 100ms.")
                             .is_open(self.demo_overlay("ad-anim"))
@@ -6953,7 +6942,6 @@ impl Gallery {
                         overlay_demo(
                             key,
                             label,
-                            open,
                             h::Drawer::new()
                                 .is_open(open)
                                 .placement(placement)
@@ -6977,7 +6965,6 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "dr-no-dismiss",
                         "Open a non-dismissable drawer",
-                        self.demo_overlay("dr-no-dismiss"),
                         h::Drawer::new()
                             .is_open(self.demo_overlay("dr-no-dismiss"))
                             .title("Finish first")
@@ -7005,7 +6992,6 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "dr-scroll",
                         "Open a long drawer",
-                        self.demo_overlay("dr-scroll"),
                         h::Drawer::new()
                             .is_open(self.demo_overlay("dr-scroll"))
                             .title("Release notes")
@@ -7042,7 +7028,6 @@ impl Gallery {
                         overlay_demo(
                             "dr-controlled",
                             "Open (controlled)",
-                            self.demo_overlay("dr-controlled"),
                             h::Drawer::new()
                                 .is_open(self.demo_overlay("dr-controlled"))
                                 .title("Controlled")
@@ -7062,7 +7047,6 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "dr-form",
                         "Open a form drawer",
-                        self.demo_overlay("dr-form"),
                         h::Drawer::new()
                             .is_open(self.demo_overlay("dr-form"))
                             .title("New issue")
@@ -7101,7 +7085,6 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "dr-nav",
                         "Open the navigation",
-                        self.demo_overlay("dr-nav"),
                         h::Drawer::new()
                             .is_open(self.demo_overlay("dr-nav"))
                             .placement(h::DrawerPlacement::Left)
@@ -7139,7 +7122,6 @@ impl Gallery {
                             overlay_demo(
                                 key,
                                 backdrop.label(),
-                                open,
                                 h::Drawer::new()
                                     .is_open(open)
                                     .backdrop(*backdrop)
@@ -7227,7 +7209,6 @@ impl Gallery {
                         overlay_demo(
                             key,
                             label,
-                            open,
                             h::Modal::new()
                                 .is_open(open)
                                 .size(size)
@@ -7260,7 +7241,6 @@ impl Gallery {
                         overlay_demo(
                             key,
                             label,
-                            open,
                             h::Modal::new()
                                 .is_open(open)
                                 .placement(placement)
@@ -7291,7 +7271,6 @@ impl Gallery {
                         overlay_demo(
                             key,
                             label,
-                            open,
                             h::Modal::new()
                                 .is_open(open)
                                 .scroll(scroll)
@@ -7327,7 +7306,6 @@ impl Gallery {
                         overlay_demo(
                             "md-controlled",
                             "Open (controlled)",
-                            md_controlled,
                             h::Modal::new()
                                 .is_open(md_controlled)
                                 .title("Controlled")
@@ -7347,7 +7325,6 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "md-form",
                         "Open form modal",
-                        md_form,
                         h::Modal::new()
                             .is_open(md_form)
                             .title("Invite a teammate")
@@ -7429,7 +7406,6 @@ impl Gallery {
                             overlay_demo(
                                 key,
                                 backdrop.label(),
-                                open,
                                 h::Modal::new()
                                     .is_open(open)
                                     .backdrop(*backdrop)
@@ -7460,7 +7436,6 @@ impl Gallery {
                         overlay_demo(
                             "md-bd-custom",
                             "Open with a blurred backdrop",
-                            md_bd_custom,
                             h::Modal::new()
                                 .is_open(md_bd_custom)
                                 .backdrop(h::Backdrop::Blur)
@@ -7487,7 +7462,6 @@ impl Gallery {
                         overlay_demo(
                             "md-no-dismiss",
                             "Open a non-dismissable modal",
-                            md_no_dismiss,
                             h::Modal::new()
                                 .is_open(md_no_dismiss)
                                 .title("Confirm first")
@@ -7524,7 +7498,6 @@ impl Gallery {
                         overlay_demo(
                             "md-close",
                             "Open (no close button)",
-                            md_close,
                             h::Modal::new()
                                 .is_open(md_close)
                                 .title("Close me")
@@ -7562,7 +7535,6 @@ impl Gallery {
                         overlay_demo(
                             "md-anim",
                             "Open and watch the panel",
-                            md_anim,
                             h::Modal::new()
                                 .is_open(md_anim)
                                 .title("Animated")

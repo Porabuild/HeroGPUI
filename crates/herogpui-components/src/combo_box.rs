@@ -61,6 +61,16 @@ pub struct ComboBox {
     is_invalid: bool,
     is_required: bool,
     is_read_only: bool,
+    /// `autoFocus` — take focus on the first render.
+    auto_focus: bool,
+    /// `validate` — run by the component, not the caller.
+    validate: Option<crate::validation::Validator<str>>,
+    /// `validationBehavior` — carried on the inner field.
+    validation_behavior: Option<crate::form::ValidationBehavior>,
+    /// `allowsEmptyCollection` — keeps the panel up with no matches.
+    allows_empty_collection: bool,
+    /// `name` — the name this field submits under.
+    name: Option<SharedString>,
     disabled_keys: std::collections::HashSet<SharedString>,
     selection_mode: SelectionMode,
     selected_keys: std::collections::BTreeSet<SharedString>,
@@ -134,6 +144,51 @@ impl ComboBox {
         self
     }
 
+    /// `autoFocus` — take focus on the first render.
+    pub fn auto_focus(mut self, v: bool) -> Self {
+        self.auto_focus = v;
+        self
+    }
+
+    /// `validate` — returns the message to show, or `None` when the text is
+    /// fine. The component runs it and surfaces the result.
+    pub fn validate(mut self, f: impl Fn(&str) -> Option<SharedString> + 'static) -> Self {
+        self.validate = Some(Arc::new(f));
+        self
+    }
+
+    /// `validationBehavior` — `Allow` shows the message without blocking a
+    /// form submission.
+    pub fn validation_behavior(mut self, behavior: crate::form::ValidationBehavior) -> Self {
+        self.validation_behavior = Some(behavior);
+        self
+    }
+
+    /// `allowsEmptyCollection` — keeps the panel open when nothing matches.
+    pub fn allows_empty_collection(mut self, v: bool) -> Self {
+        self.allows_empty_collection = v;
+        self
+    }
+
+    /// `name` — the name this field submits under.
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// The `Form` field this control submits, when it has a `name`.
+    ///
+    /// v3 discovers a field through the DOM; gpui gives a child no way to reach
+    /// its ancestor, so the control hands the pair over instead.
+    pub fn form_field(&self) -> Option<crate::form::FormField> {
+        let name = self.name.clone()?;
+        Some(
+            crate::form::FormField::text(self.state.clone())
+                .name(name)
+                .is_required(self.is_required),
+        )
+    }
+
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
@@ -184,6 +239,11 @@ impl ComboBox {
             is_invalid: false,
             is_required: false,
             is_read_only: false,
+            auto_focus: false,
+            validate: None,
+            validation_behavior: None,
+            allows_empty_collection: false,
+            name: None,
             disabled_keys: std::collections::HashSet::new(),
             selection_mode: SelectionMode::Single,
             selected_keys: std::collections::BTreeSet::new(),
@@ -424,12 +484,16 @@ impl RenderOnce for ComboBox {
             }
         }
 
+        let validate = self.validate.clone();
         let mut input = Input::new(self.state.clone())
             .variant(self.variant)
             .is_disabled(self.is_disabled)
             .is_invalid(is_invalid)
             .is_required(self.is_required)
             .is_read_only(self.is_read_only)
+            .auto_focus(self.auto_focus)
+            .when_some(self.validation_behavior, |i, b| i.validation_behavior(b))
+            .when_some(validate, |i, f| i.validate(move |v| f(v)))
             .end_content(trigger);
         if let Some(cb) = self.on_input_change.clone() {
             input = input.on_change(move |text, window, cx| cb(text, window, cx));
@@ -464,7 +528,12 @@ impl RenderOnce for ComboBox {
             .gap(px(4.))
             .child(input.render(window, cx));
 
-        let show_list = open_state && !self.is_disabled;
+        // `allowsEmptyCollection` keeps the panel up with no matches. Without
+        // it an empty result closes the list -- except when a custom value is
+        // allowed, since then the empty state is the "press Enter" hint.
+        let show_list = open_state
+            && !self.is_disabled
+            && (!matches.is_empty() || self.allows_empty_collection || self.allows_custom_value);
         if show_list {
             let mut panel = div()
                 .id(gpui::ElementId::Name(

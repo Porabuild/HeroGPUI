@@ -876,6 +876,12 @@ pub struct DateField {
     label: Option<SharedString>,
     /// `Description` — composed inside the field in v3's own example.
     description: Option<SharedString>,
+    /// `name` — the name this field submits under.
+    name: Option<SharedString>,
+    /// `autoFocus` — take focus on the first render.
+    auto_focus: bool,
+    /// `shouldForceLeadingZeros` — pad the month and day to two digits.
+    should_force_leading_zeros: bool,
     is_disabled: bool,
     is_read_only: bool,
     on_change: Option<OnChange>,
@@ -892,6 +898,35 @@ impl DateField {
     /// `Description` — help text under the field.
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.description = Some(text.into());
+        self
+    }
+
+    /// `name` — the name this field submits under.
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// The `Form` field this control submits, when it has a `name`.
+    pub fn form_field(&self) -> Option<crate::form::FormField> {
+        let name = self.name.clone()?;
+        Some(
+            crate::form::FormField::text(self.state.clone())
+                .name(name)
+                .is_required(self.is_required),
+        )
+    }
+
+    /// `autoFocus` — take focus on the first render.
+    pub fn auto_focus(mut self, v: bool) -> Self {
+        self.auto_focus = v;
+        self
+    }
+
+    /// `shouldForceLeadingZeros` — whether the month and day are padded to two
+    /// digits. On by default, which is what the `MM/DD/YYYY` hint promises.
+    pub fn should_force_leading_zeros(mut self, v: bool) -> Self {
+        self.should_force_leading_zeros = v;
         self
     }
 
@@ -1009,6 +1044,10 @@ impl DateField {
             state,
             label: None,
             description: None,
+            name: None,
+            auto_focus: false,
+            // v3 defaults this on for the en-US order this port formats in.
+            should_force_leading_zeros: true,
             is_disabled: false,
             is_read_only: false,
             on_change: None,
@@ -1156,13 +1195,16 @@ impl RenderOnce for DateField {
         );
         let is_invalid = validity.is_invalid;
 
+        let pad = self.should_force_leading_zeros;
         let segment_text = move |segment: DateSegment| -> String {
             let Some(d) = parsed else {
                 return segment.hint().to_owned();
             };
             match segment {
-                DateSegment::Month => format!("{:02}", d.month),
-                DateSegment::Day => format!("{:02}", d.day),
+                DateSegment::Month if pad => format!("{:02}", d.month),
+                DateSegment::Day if pad => format!("{:02}", d.day),
+                DateSegment::Month => d.month.to_string(),
+                DateSegment::Day => d.day.to_string(),
                 DateSegment::Year => format!("{:04}", d.year),
             }
         };
@@ -1172,6 +1214,14 @@ impl RenderOnce for DateField {
         // from nothing.
         let seed = self.placeholder_value.unwrap_or_else(Date::today);
         let focus_handle = self.state.read(cx).focus_handle.clone();
+        if self.auto_focus {
+            crate::util::focus_once(
+                window,
+                cx,
+                gpui::ElementId::Name(format!("datefield-{entity_id}-autofocus").into()),
+                &focus_handle,
+            );
+        }
 
         let mut group = gpui::div()
             .flex()

@@ -1,7 +1,7 @@
-"""Toast page: the ten v3 examples."""
+"""TimeField: focus handle, autoFocus and the key handling v3 documents."""
 import io
 
-P = 'gallery/src/pages/components.rs'
+P = 'crates/herogpui-components/src/time_field.rs'
 s = io.open(P, encoding='utf-8', newline='').read()
 
 
@@ -11,270 +11,147 @@ def rep(old, new):
     s = s.replace(old, new)
 
 
-rep("""            crate::pages::Page::Toast.import_line(),
-            vec![(
-                "Push a toast",""",
-    """            crate::pages::Page::Toast.import_line(),
-            vec![
-                (
-                    "Usage",
-                    row(vec![h::Button::new("toast-usage")
-                        .label("Show a toast")
-                        .variant(Variant::Secondary)
-                        .on_press(|_, _, cx| {
-                            h::Toast::new("Saved")
-                                .description("Your changes are live.")
-                                .closable(true)
-                                .push(Some(std::time::Duration::from_secs(4)), cx);
-                        })
-                        .into_any_element()]),
-                ),
-                (
-                    "Variants",
-                    row(Color::ALL
-                        .iter()
-                        .map(|c| {
-                            let color = *c;
-                            h::Button::new(el_id(format!("toast-v-{c:?}")))
-                                .label(c.label())
-                                .variant(Variant::Secondary)
-                                .size(Size::Sm)
-                                .on_press(move |_, _, cx| {
-                                    h::Toast::new(format!("{} toast", color.label()))
-                                        .description("One variant per status colour.")
-                                        .variant(color)
-                                        .closable(true)
-                                        .push(Some(std::time::Duration::from_secs(4)), cx);
-                                })
-                        })
-                        .els()),
-                ),
-                (
-                    "Placements",
-                    col(vec![
-                        para(
-                            "The viewport decides where the stack sits. This gallery mounts one \\
-                             `ToastViewport` in its shell; the buttons below push into it.",
-                            cx,
-                        ),
-                        row([
-                            ("TopStart", h::ToastPlacement::TopStart),
-                            ("Top", h::ToastPlacement::Top),
-                            ("TopEnd", h::ToastPlacement::TopEnd),
-                            ("BottomStart", h::ToastPlacement::BottomStart),
-                            ("Bottom", h::ToastPlacement::Bottom),
-                            ("BottomEnd", h::ToastPlacement::BottomEnd),
-                        ]
-                        .into_iter()
-                        .map(|(label, _placement)| {
-                            h::Button::new(el_id(format!("toast-pl-{label}")))
-                                .label(label)
-                                .variant(Variant::Tertiary)
-                                .size(Size::Sm)
-                                .on_press(move |_, _, cx| {
-                                    h::Toast::new(label)
-                                        .description("Pushed into the shell's viewport.")
-                                        .closable(true)
-                                        .push(Some(std::time::Duration::from_secs(3)), cx);
-                                })
-                                .into_any_element()
-                        })
-                        .collect()),
-                    ]),
-                ),
-                (
-                    "Simple Toasts",
-                    row(vec![h::Button::new("toast-simple")
-                        .label("Title only")
-                        .variant(Variant::Secondary)
-                        .size(Size::Sm)
-                        .on_press(|_, _, cx| {
-                            h::Toast::new("Copied to the clipboard")
-                                .push(Some(std::time::Duration::from_secs(3)), cx);
-                        })
-                        .into_any_element()]),
-                ),
-                (
-                    "Custom Indicators",
-                    col(vec![
-                        para(
-                            "The status picks the indicator, so a success toast shows the \\
-                             success glyph and a danger one shows the alert.",
-                            cx,
-                        ),
-                        row(vec![
-                            h::Button::new("toast-ind-success")
-                                .label("Success")
-                                .variant(Variant::Secondary)
-                                .size(Size::Sm)
-                                .on_press(|_, _, cx| {
-                                    h::Toast::new("Deployed")
-                                        .description("Build 412 is live.")
-                                        .variant(Color::Success)
-                                        .closable(true)
-                                        .push(Some(std::time::Duration::from_secs(4)), cx);
-                                })
-                                .into_any_element(),
-                            h::Button::new("toast-ind-danger")
-                                .label("Danger")
-                                .variant(Variant::Secondary)
-                                .size(Size::Sm)
-                                .on_press(|_, _, cx| {
-                                    h::Toast::new("Deploy failed")
-                                        .description("Two tests did not pass.")
-                                        .variant(Color::Danger)
-                                        .closable(true)
-                                        .push(Some(std::time::Duration::from_secs(4)), cx);
-                                })
-                                .into_any_element(),
-                        ]),
-                    ]),
-                ),
-                (
-                    "Custom Toast Rendering",
-                    col(vec![
-                        para(
-                            "A toast is a title, a description and a status. Anything richer is \\
-                             the caller's own panel: v3's example renders its own body inside \\
-                             the queue's slot.",
-                            cx,
-                        ),
-                        row(vec![h::Button::new("toast-custom")
-                            .label("Push a two-line toast")
-                            .variant(Variant::Secondary)
-                            .size(Size::Sm)
-                            .on_press(|_, _, cx| {
-                                h::Toast::new("Jane invited you")
-                                    .description("Acme workspace \\u{2014} Owner")
-                                    .variant(Color::Accent)
-                                    .closable(true)
-                                    .push(Some(std::time::Duration::from_secs(5)), cx);
-                            })
-                            .into_any_element()]),
-                    ]),
-                ),
-                (
-                    "Promise & Loading",
-                    col(vec![
-                        para(
-                            "v3 swaps one toast through pending, resolved and rejected. The same \\
-                             three pushes, driven by a background timer.",
-                            cx,
-                        ),
-                        row(vec![h::Button::new("toast-promise")
-                            .label("Upload a file")
-                            .variant(Variant::Secondary)
-                            .size(Size::Sm)
-                            .on_press(|_, window, cx| {
-                                let id = h::Toast::new("Uploading\\u{2026}")
-                                    .description("document.pdf")
-                                    .variant(Color::Accent)
-                                    .push(None, cx);
-                                // The resolution replaces the pending toast,
-                                // which is what v3's promise helper does.
-                                window
-                                    .spawn(cx, async move |cx| {
-                                        cx.background_executor()
-                                            .timer(std::time::Duration::from_millis(1500))
-                                            .await;
-                                        cx.update(|_window, cx| {
-                                            h::dismiss_toast(id, cx);
-                                            h::Toast::new("Uploaded")
-                                                .description("document.pdf \\u{2014} 1 KB")
-                                                .variant(Color::Success)
-                                                .closable(true)
-                                                .push(
-                                                    Some(std::time::Duration::from_secs(4)),
-                                                    cx,
-                                                );
-                                        })
-                                        .ok();
-                                    })
-                                    .detach();
-                            })
-                            .into_any_element()]),
-                    ]),
-                ),
-                (
-                    "Callbacks",
-                    col(vec![
-                        para(&format!("Toasts dismissed so far: {toast_closed}"), cx),
-                        row(vec![h::Button::new("toast-callback")
-                            .label("Push a closable toast")
-                            .variant(Variant::Secondary)
-                            .size(Size::Sm)
-                            .on_press(cx.listener(|this, _, _, cx| {
-                                this.set_demo_value(
-                                    "toast-closed",
-                                    this.demo_value("toast-closed", 0.) + 1.,
-                                );
-                                h::Toast::new("Dismiss me")
-                                    .description("The counter above tracks the pushes.")
-                                    .closable(true)
-                                    .push(Some(std::time::Duration::from_secs(4)), cx);
+rep("""        let colors = cx.colors();
+        let layout = cx.layout();
+        let entity_id = self.state.entity_id().as_u64();
+        let interactive = !self.is_disabled && !self.is_read_only;""",
+    """        let entity_id = self.state.entity_id().as_u64();
+        // A time field has no inner `Input`, so it owns its focus handle. Keyed
+        // state keeps it across frames; `use_keyed_state` takes `cx` mutably, so
+        // it precedes the theme tokens.
+        let focus_handle = window.use_keyed_state(
+            ElementId::Name(format!("timefield-{entity_id}-focus").into()),
+            cx,
+            |_, cx| cx.focus_handle(),
+        );
+        let focus_handle = focus_handle.read(cx).clone();
+        if self.auto_focus {
+            util::focus_once(
+                window,
+                cx,
+                ElementId::Name(format!("timefield-{entity_id}-autofocus").into()),
+                &focus_handle,
+            );
+        }
+        // Digits typed into the focused segment but not yet complete, so `1` in
+        // the hour segment can still become `12`.
+        let typing = window.use_keyed_state(
+            ElementId::Name(format!("timefield-{entity_id}-typing").into()),
+            cx,
+            |_, _| String::new(),
+        );
+
+        let colors = cx.colors();
+        let layout = cx.layout();
+        let interactive = !self.is_disabled && !self.is_read_only;""")
+
+rep("""        group = util::apply_field_chrome(group, self.variant, is_invalid, false, cx);""",
+    """        group = util::apply_field_chrome(group, self.variant, is_invalid, false, cx);
+
+        // v3 drives a time field from the keyboard: the arrows step the focused
+        // segment and walk between segments, and digits type into it.
+        if interactive {
+            let state = self.state.clone();
+            let on_change = self.on_change.clone();
+            let buffer = typing;
+            let fh = focus_handle.clone();
+            let order = TimeSegment::order(self.granularity, self.hour_cycle == HourCycle::H12);
+            let twelve_hour = self.hour_cycle == HourCycle::H12;
+            let seed = self.placeholder_value.unwrap_or(Time::new(9, 0));
+            group = group
+                .track_focus(&focus_handle)
+                .key_context("TimeField")
+                .on_mouse_down(gpui::MouseButton::Left, move |_, window, _| {
+                    window.focus(&fh);
+                })
+                .on_key_down(move |event, window, cx| {
+                    let key = event.keystroke.key.as_str();
+                    let here = order.iter().position(|s| *s == focused).unwrap_or(0);
+                    let commit = |time: Time, window: &mut Window, cx: &mut App| {
+                        state.update(cx, |s, cx| {
+                            s.value = Some(time);
+                            cx.notify();
+                        });
+                        if let Some(cb) = &on_change {
+                            cb(Some(time), window, cx);
+                        }
+                    };
+                    match key {
+                        "up" | "down" => {
+                            let delta = if key == "up" { 1 } else { -1 };
+                            buffer.update(cx, |b, _| b.clear());
+                            state.update(cx, |s, cx| {
+                                s.bump_focused_from(delta, seed);
                                 cx.notify();
-                            }))
-                            .into_any_element()]),
-                    ]),
-                ),
-                (
-                    "Custom Queues",
-                    col(vec![
-                        para(
-                            "`maxVisibleToasts` caps a queue: the ones past the cap wait their \\
-                             turn. Push four and watch two of them queue.",
-                            cx,
-                        ),
-                        row(vec![h::Button::new("toast-queue")
-                            .label("Push four")
-                            .variant(Variant::Secondary)
-                            .size(Size::Sm)
-                            .on_press(|_, _, cx| {
-                                for n in 1..=4 {
-                                    h::Toast::new(format!("Message {n}"))
-                                        .description("Two are visible at a time.")
-                                        .push(Some(std::time::Duration::from_secs(3)), cx);
+                            });
+                            let next = state.read(cx).value;
+                            if let (Some(cb), Some(time)) = (&on_change, next) {
+                                cb(Some(time), window, cx);
+                            }
+                        }
+                        "left" | "right" => {
+                            let delta: i32 = if key == "right" { 1 } else { -1 };
+                            let next = (here as i32 + delta)
+                                .clamp(0, order.len() as i32 - 1) as usize;
+                            buffer.update(cx, |b, _| b.clear());
+                            let segment = order[next];
+                            state.update(cx, |s, cx| {
+                                s.focused = segment;
+                                cx.notify();
+                            });
+                        }
+                        "backspace" | "delete" => {
+                            buffer.update(cx, |b, _| b.clear());
+                            state.update(cx, |s, cx| {
+                                s.value = None;
+                                cx.notify();
+                            });
+                            if let Some(cb) = &on_change {
+                                cb(None, window, cx);
+                            }
+                        }
+                        // The meridiem segment answers `a` and `p`, the way
+                        // React Aria's does.
+                        "a" | "p" if focused == TimeSegment::Meridiem => {
+                            let base = state.read(cx).value.unwrap_or(seed);
+                            let hour = base.hour % 12 + if key == "p" { 12 } else { 0 };
+                            commit(
+                                Time::new(hour, base.minute).with_second(base.second),
+                                window,
+                                cx,
+                            );
+                        }
+                        digit if digit.len() == 1 && digit.chars().all(|c| c.is_ascii_digit()) => {
+                            let width = focused.digits();
+                            if width == 0 {
+                                return;
+                            }
+                            let text = buffer.update(cx, |b, _| {
+                                if b.len() >= width {
+                                    b.clear();
                                 }
-                            })
-                            .into_any_element()]),
-                    ]),
-                ),
-                (
-                    "Setup",
-                    col(vec![
-                        para(
-                            "A toast needs a viewport somewhere in the tree. This gallery mounts \\
-                             one in its shell, which is why every page can push.",
-                            cx,
-                        ),
-                        crate::pages::code_block(TOAST_SETUP, cx),
-                    ]),
-                ),
-                (
-                    "Push a toast",""")
-
-rep("""    pub fn page_toast(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {""",
-    """    pub fn page_toast(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
-        let toast_closed = self.demo_value("toast-closed", 0.) as u32;""")
-
-# The setup snippet, next to the other page constants.
-rep("""/// One overlay demo: the trigger, and the panel it opens.""",
-    """/// The `ToastViewport` mount every application needs once.
-const TOAST_SETUP: &str = r#"// Once, in the shell:
-div()
-    .child(page)
-    .child(ToastViewport::new()
-        .placement(ToastPlacement::BottomEnd)
-        .max_visible_toasts(2))
-
-// Anywhere, afterwards:
-Toast::new("Saved")
-    .description("Your changes are live.")
-    .variant(Color::Success)
-    .closable(true)
-    .push(Some(Duration::from_secs(4)), cx);"#;
-
-/// One overlay demo: the trigger, and the panel it opens.""")
+                                b.push_str(digit);
+                                b.clone()
+                            });
+                            let Ok(value) = text.parse::<u32>() else {
+                                return;
+                            };
+                            let base = state.read(cx).value.unwrap_or(seed);
+                            commit(focused.with_value(base, value, twelve_hour), window, cx);
+                            if text.len() >= width {
+                                buffer.update(cx, |b, _| b.clear());
+                                if let Some(segment) = order.get(here + 1).copied() {
+                                    state.update(cx, |s, cx| {
+                                        s.focused = segment;
+                                        cx.notify();
+                                    });
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                });
+        }""")
 
 io.open(P, 'w', encoding='utf-8', newline='').write(s)
-print('patched toast page')
+print('patched time field keyboard')

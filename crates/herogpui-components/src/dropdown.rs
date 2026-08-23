@@ -673,7 +673,7 @@ impl RenderOnce for Dropdown {
                     let up_holding = holding.clone();
                     trigger_wrap = trigger_wrap
                         .on_mouse_down(gpui::MouseButton::Left, {
-                            let holding = holding.clone();
+                            let holding = holding;
                             move |_, window, cx| {
                                 holding.update(cx, |v, _| *v = true);
                                 let holding = holding.clone();

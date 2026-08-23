@@ -123,8 +123,6 @@ pub struct Gallery {
     /// `HEROGPUI_OPEN_OVERLAYS=1`: every overlay demo starts open, so a smoke
     /// run and a screenshot both see the panel rather than just its trigger.
     pub overlays_open: bool,
-    pub demo_choice: HashMap<&'static str, Option<usize>>,
-    pub demo_keys: HashMap<&'static str, Vec<SharedString>>,
     pub demo_values: HashMap<&'static str, f32>,
 }
 
@@ -212,24 +210,6 @@ impl Gallery {
             .get(key)
             .copied()
             .unwrap_or(self.overlays_open)
-    }
-
-    /// A single-selection index a demo owns.
-    pub fn demo_choice(&self, key: &str, default: Option<usize>) -> Option<usize> {
-        self.demo_choice.get(key).copied().unwrap_or(default)
-    }
-
-    pub fn set_demo_choice(&mut self, key: &'static str, v: Option<usize>) {
-        self.demo_choice.insert(key, v);
-    }
-
-    /// A multi-selection a demo owns.
-    pub fn demo_keys(&self, key: &str) -> Vec<SharedString> {
-        self.demo_keys.get(key).cloned().unwrap_or_default()
-    }
-
-    pub fn set_demo_keys(&mut self, key: &'static str, v: Vec<SharedString>) {
-        self.demo_keys.insert(key, v);
     }
 
     /// A numeric value a demo owns (slider, progress).
@@ -366,8 +346,6 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             demo_otp: HashMap::new(),
             demo_flags: HashMap::new(),
             overlays_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
-            demo_choice: HashMap::new(),
-            demo_keys: HashMap::new(),
             demo_values: HashMap::new(),
         }
     }

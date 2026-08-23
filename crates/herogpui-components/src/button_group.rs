@@ -8,7 +8,6 @@ use gpui::{
     div, prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Styled, Window,
 };
 use herogpui_core::{Orientation, Size, Variant};
-use herogpui_theme::ActiveTheme;
 
 use crate::{button::Button, util};
 

@@ -31,8 +31,11 @@ for comp in FILES:
     pattern = r'^### (%s(?:\.[A-Za-z]+)?)\s*$' % re.escape(comp)
     for m in re.finditer(pattern, bundle, re.M):
         heading = m.group(1)
-        chunk = bundle[m.end():m.end() + 8000]
-        nxt = re.search(r'^### ', chunk, re.M)
+        # To the next heading of level 3 or shallower, with no character cap: a
+        # fixed window truncates the widest tables, and the rows past it then
+        # read as "not documented" (the same fix `api_audit.py` needed).
+        chunk = bundle[m.end():]
+        nxt = re.search(r'^#{1,3} ', chunk, re.M)
         if nxt:
             chunk = chunk[:nxt.start()]
         for row in re.finditer(r'^\|\s*`([a-zA-Z-]+)`\s*\|([^\n]*)$', chunk, re.M):

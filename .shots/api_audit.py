@@ -124,6 +124,23 @@ WONT_PORT = {
    
     # An HTML5 ValidityState object.
     'validationDetails': 'no-html-forms',
+    # The `form` attribute names the HTML form a control submits to. A `Form` is
+    # told its fields here (`Form::field`), so there is no id to point at.
+    'form': 'no-html-forms',
+    # A ComboBox item *is* its text: the list is `Vec<SharedString>`, so an
+    # item's key and its label are the same value and there is nothing for
+    # `formValue` to choose between.
+    'ComboBox.formValue': 'keys-are-the-text',
+    # Wrapping applies to keyboard navigation *of the list*, and this port's
+    # ComboBox list is pointer-driven -- a missing mode, named as one.
+    'ComboBox.shouldFocusWrap': 'no-list-keyboard-nav',
+    # There are no time zones in this port: `Time` is a wall clock, so there is
+    # no abbreviation to hide.
+    'hideTimeZone': 'no-time-zones',
+    # A date field shows no time, so it has neither a granularity below a day
+    # nor an hour cycle. `TimeField` implements both.
+    'DateField.granularity': 'date-only-field',
+    'DateField.hourCycle': 'date-only-field',
 
     # Choosing separators, digit systems and currency placement per locale needs
     # CLDR data; a partial table would be worse than not offering the prop.
@@ -141,8 +158,7 @@ WONT_PORT = {
    
 
     # Sub-component/table-parsing artefacts, not real props of ours.
-    'state': 'not-a-prop', 'toast': 'not-a-prop', 'trigger': 'not-a-prop',
-'ErrorMessage': 'not-a-prop', 'FieldError': 'not-a-prop',
+    'state': 'not-a-prop', 'toast': 'not-a-prop',
     # Tooltip's `trigger` is a real prop, unlike the sub-component rows
     # above: 'focus' needs a child that takes keyboard focus, and nothing
     # in this library is focusable yet, so it would be a dead builder.
@@ -299,9 +315,13 @@ def props_for(component):
     found = set()
     pattern = r'^### %s(?:\.[A-Za-z]+)?\s*$' % re.escape(component)
     for m in re.finditer(pattern, bundle, re.M):
-        chunk = bundle[m.end():m.end() + 4000]
-        # stop at the next component heading
-        nxt = re.search(r'^### ', chunk, re.M)
+        # To the next heading of *any* level, with no character cap. A fixed
+        # 4000-char window silently truncated the widest tables: ComboBox's type
+        # column is long enough that `validate`, `validationBehavior`, `name`,
+        # `form`, `formValue` and `autoComplete` all fell outside it and were
+        # never checked at all.
+        chunk = bundle[m.end():]
+        nxt = re.search(r'^#{1,3} ', chunk, re.M)
         if nxt:
             chunk = chunk[:nxt.start()]
         for row in re.findall(r'^\|\s*`([a-zA-Z-]+)`\s*\|', chunk, re.M):
