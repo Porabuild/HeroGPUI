@@ -5,7 +5,10 @@
 //! assemble internally, exposed here so applications can build custom fields
 //! with the same typography and states.
 
-use gpui::{div, px, AnyElement, App, IntoElement, ParentElement, Pixels, RenderOnce, SharedString, Styled, Window};
+use gpui::{
+    div, px, AnyElement, App, InteractiveElement, IntoElement, ParentElement, Pixels, RenderOnce,
+    SharedString, StatefulInteractiveElement, Styled, Window,
+};
 use herogpui_theme::ActiveTheme;
 
 /// HeroUI Label — `slot="label"`.
@@ -19,6 +22,8 @@ pub struct Label {
     is_required: bool,
     is_disabled: bool,
     is_invalid: bool,
+    /// `htmlFor` — the field this label names.
+    label_for: Option<(gpui::ElementId, gpui::FocusHandle)>,
 }
 
 impl Label {
@@ -28,7 +33,23 @@ impl Label {
             is_required: false,
             is_disabled: false,
             is_invalid: false,
+            label_for: None,
         }
+    }
+
+    /// `htmlFor` — associates the label with a field.
+    ///
+    /// In HTML this is an id reference; here it is the field's focus handle,
+    /// which is what makes the association do the one thing it does visibly:
+    /// clicking the label focuses the field. Pass a distinct `id` per label so
+    /// the click target has one.
+    pub fn label_for(
+        mut self,
+        id: impl Into<gpui::ElementId>,
+        handle: gpui::FocusHandle,
+    ) -> Self {
+        self.label_for = Some((id.into(), handle));
+        self
     }
 
     pub fn is_required(mut self, v: bool) -> Self {
@@ -76,7 +97,17 @@ impl RenderOnce for Label {
             el = el.opacity(cx.layout().disabled_opacity);
         }
 
-        el
+        // `htmlFor`: clicking the label focuses the field it names.
+        match self.label_for {
+            Some((id, handle)) if !self.is_disabled => el
+                .id(id)
+                .cursor_pointer()
+                .on_click(move |_: &gpui::ClickEvent, window: &mut Window, _| {
+                    window.focus(&handle)
+                })
+                .into_any_element(),
+            _ => el.into_any_element(),
+        }
     }
 }
 

@@ -97,11 +97,25 @@ Aria X"*):
   `ProgressBar.ValueLabel` as child parts, and a monolithic builder takes them
   as a prop or as a flag that renders the built-in part.
 
-Some omissions are structural rather than unfinished, and no amount of work
-closes them: ARIA attributes with no accessibility tree to expose them to,
+Before recording an omission, check which kind it is. Three categories that
+looked structural were not:
+
+- **A prop the constructor takes positionally** is implemented, not missing.
+  `constructor_args` now reads `pub fn new(..)` per struct; fourteen entries had
+  been filed under `constructor-arg` for a prop that was already there.
+- **A render-prop argument** (`Table.sortDirection`, `Pagination.isActive`,
+  `InputOTP.index`, `Dropdown.isSelected`, `Slider.index`) is implementable by
+  inverting it: the builder takes a closure and *hands over* the value it
+  computes anyway. `ALIAS` then points the prop at that builder.
+- **"gpui cannot do X"** deserves a second look. The overlay `zoom-in-90` was
+  recorded as impossible because transforms only reach `paint_svg`; the press
+  animation had already shown that a scale can be reproduced geometrically.
+
+What is genuinely out of reach: ARIA attributes with no accessibility tree,
 `locale` without CLDR data, browser image and soft-keyboard hints, the HTTP half
-of a `<form>`, and the values v3 passes *into* a child render function. Say so
-plainly rather than reporting a number as if it were still shrinking.
+of a `<form>`, and single-valued enums. Two more are missing *features*, and are
+named that way (`not-segmented`, `no-multiline-layout`) rather than dressed up as
+unportable props. Say which is which rather than reporting one number.
 
 A prop that is stored but never read is worse than a missing one: the API
 promises behaviour it does not have. After adding fields, run

@@ -64,6 +64,10 @@ pub struct ComboBox {
     disabled_keys: std::collections::HashSet<SharedString>,
     selection_mode: SelectionMode,
     selected_keys: std::collections::BTreeSet<SharedString>,
+    /// `defaultValue` — set it to hand this component its own selection.
+    default_value: Option<std::collections::BTreeSet<SharedString>>,
+    /// `defaultInputValue` — seeds the text state on the first render only.
+    default_input_value: Option<SharedString>,
     on_selection_change_all:
         Option<std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>>,
     on_input_change: Option<Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>>,
@@ -79,6 +83,27 @@ impl ComboBox {
     }
 
     /// The chosen item labels under `selectionMode="multiple"`.
+    /// `defaultValue` — the uncontrolled initial selection.
+    ///
+    /// Supplying it hands the component its own selection set, seeded once;
+    /// `selected_keys` is the controlled spelling.
+    /// `defaultInputValue` — the uncontrolled initial text.
+    ///
+    /// Written into the state on the first render only; `input_value` is the
+    /// controlled spelling.
+    pub fn default_input_value(mut self, text: impl Into<SharedString>) -> Self {
+        self.default_input_value = Some(text.into());
+        self
+    }
+
+    pub fn default_value(
+        mut self,
+        keys: impl IntoIterator<Item = impl Into<SharedString>>,
+    ) -> Self {
+        self.default_value = Some(keys.into_iter().map(Into::into).collect());
+        self
+    }
+
     pub fn selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.selected_keys = keys.into_iter().collect();
         self
@@ -163,6 +188,8 @@ impl ComboBox {
             disabled_keys: std::collections::HashSet::new(),
             selection_mode: SelectionMode::Single,
             selected_keys: std::collections::BTreeSet::new(),
+            default_value: None,
+            default_input_value: None,
             on_selection_change_all: None,
             on_input_change: None,
             on_selection_change: None,
@@ -279,7 +306,41 @@ impl ComboBox {
 }
 
 impl RenderOnce for ComboBox {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `defaultInputValue` seeds the text once, before anything reads it.
+        if let Some(text) = self.default_input_value.clone() {
+            let state = self.state.clone();
+            crate::util::seed_once(
+                window,
+                cx,
+                gpui::ElementId::Name(
+                    format!("combobox-{}-default-text", self.state.entity_id().as_u64()).into(),
+                ),
+                move |cx| {
+                    state.update(cx, |s, cx| {
+                        s.set_value(text.to_string());
+                        cx.notify();
+                    });
+                },
+            );
+        }
+
+        // `defaultValue` opts into the component holding its own selection;
+        // `controlled` takes `cx` mutably, so it precedes the theme tokens.
+        let (selection, selection_own) = crate::util::controlled(
+            window,
+            cx,
+            gpui::ElementId::Name(
+                format!("combobox-{}-selection", self.state.entity_id().as_u64()).into(),
+            ),
+            match self.default_value {
+                Some(_) => None,
+                None => Some(self.selected_keys.clone()),
+            },
+            self.default_value.clone().unwrap_or_default(),
+        );
+        self.selected_keys = selection;
+
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
         let (open_state, open_own) = crate::util::controlled(
             window,
@@ -484,7 +545,9 @@ impl RenderOnce for ComboBox {
 
                 // Multiple mode toggles membership and leaves the panel open.
                 if multiple {
-                    if let Some(cb) = self.on_selection_change_all.clone() {
+                    if self.on_selection_change_all.is_some() || selection_own.is_some() {
+                        let cb = self.on_selection_change_all.clone();
+                        let own = selection_own.clone();
                         let current = self.selected_keys.clone();
                         let value = item.clone();
                         row = row.on_click(move |_, window, cx| {
@@ -492,8 +555,19 @@ impl RenderOnce for ComboBox {
                             if !next.remove(&value) {
                                 next.insert(value.clone());
                             }
-                            let next: Vec<SharedString> = next.into_iter().collect();
-                            cb(&next, window, cx);
+                            // Uncontrolled: keep the new set, or picking an
+                            // item would do nothing.
+                            if let Some(held) = &own {
+                                let set = next.clone();
+                                held.update(cx, |v, cx| {
+                                    *v = set;
+                                    cx.notify();
+                                });
+                            }
+                            if let Some(cb) = &cb {
+                                let next: Vec<SharedString> = next.into_iter().collect();
+                                cb(&next, window, cx);
+                            }
                         });
                     }
                     panel = panel.child(row);

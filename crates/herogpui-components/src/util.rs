@@ -184,6 +184,25 @@ pub fn focus_once(
     }
 }
 
+/// Runs `apply` on the first render only.
+///
+/// This is how a `default*` prop seeds a caller-owned state entity: the entity
+/// outlives any one render, so writing the default unconditionally would fight
+/// the user on every frame. Keyed on `key`, so two components of the same kind
+/// seed independently.
+pub fn seed_once(
+    window: &mut gpui::Window,
+    cx: &mut gpui::App,
+    key: impl Into<gpui::ElementId>,
+    apply: impl FnOnce(&mut gpui::App),
+) {
+    let done = window.use_keyed_state(key.into(), cx, |_, _| false);
+    if !*done.read(cx) {
+        done.update(cx, |d, _| *d = true);
+        apply(cx);
+    }
+}
+
 /// Resolves a controlled prop against an uncontrolled default.
 ///
 /// This is v3's `value` / `defaultValue` pair. When the caller supplies the

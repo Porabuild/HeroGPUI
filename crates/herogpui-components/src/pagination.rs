@@ -8,9 +8,13 @@ use crate::icons;
 
 type OnChange = std::sync::Arc<dyn Fn(usize, &mut Window, &mut App) + 'static>;
 
+type Link = std::sync::Arc<dyn Fn(usize, bool) -> gpui::AnyElement + 'static>;
+
 /// HeroUI Pagination (controlled).
 #[derive(IntoElement)]
 pub struct Pagination {
+    /// `link` — v3's render prop for a page link, handed `isActive`.
+    link: Option<Link>,
     id: gpui::ElementId,
     page: usize,
     total: usize,
@@ -28,6 +32,7 @@ impl Pagination {
 
     pub fn new(id: impl Into<gpui::ElementId>, page: usize, total: usize) -> Self {
         Self {
+            link: None,
             id: id.into(),
             page: page.max(1),
             total: total.max(1),
@@ -36,6 +41,18 @@ impl Pagination {
             size: Size::Md,
             on_change: None,
         }
+    }
+
+    /// `children` on `Pagination.Link` — replaces a page's label.
+    ///
+    /// The closure receives the page number and `isActive`, the values v3
+    /// passes into the same render prop.
+    pub fn link(
+        mut self,
+        render: impl Fn(usize, bool) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.link = Some(std::sync::Arc::new(render));
+        self
     }
 
 
@@ -128,7 +145,13 @@ impl RenderOnce for Pagination {
                             btn = btn.on_click(move |_, w, cx| cb(n, w, cx));
                         }
                     }
-                    row = row.child(btn.child(n.to_string()));
+                    // `link` is v3's render prop on `Pagination.Link`: it
+                    // receives `isActive`, so a caller can style the current
+                    // page without re-deriving which one it is.
+                    row = row.child(match &self.link {
+                        Some(render) => btn.child(render(n, active)),
+                        None => btn.child(n.to_string()),
+                    });
                 }
                 PageRef::Ellipsis => {
                     row = row.child(

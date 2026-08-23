@@ -94,6 +94,8 @@ impl Focusable for OtpState {
 
 type OnComplete = std::sync::Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>;
 
+type Slot = std::sync::Arc<dyn Fn(usize, Option<char>) -> gpui::AnyElement + 'static>;
+
 /// `textAlign` — where a digit sits inside its slot.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum OtpTextAlign {
@@ -119,6 +121,12 @@ impl OtpTextAlign {
 /// HeroUI InputOTP.
 #[derive(IntoElement)]
 pub struct InputOTP {
+    /// `children` on `InputOTP.Slot` — v3's render prop, handed the slot's
+    /// `index` and its character.
+    slot: Option<Slot>,
+    /// `name` — the name this control submits under; read back by
+    /// [`Self::form_field`].
+    name: Option<gpui::SharedString>,
     variant: FieldVariant,
     /// `validate` — run by the component, not the caller.
     validate: Option<crate::validation::Validator<str>>,
@@ -150,6 +158,8 @@ impl InputOTP {
 
     pub fn new(state: Entity<OtpState>) -> Self {
         Self {
+            slot: None,
+            name: None,
             variant: FieldVariant::Primary,
             validate: None,
             validation_errors: Vec::new(),
@@ -165,6 +175,42 @@ impl InputOTP {
             separator: None,
             on_complete: None,
         }
+    }
+
+    /// `children` on `InputOTP.Slot` — replaces a slot's contents.
+    ///
+    /// The closure receives the slot's `index` and its character (`None` when
+    /// empty), the values v3 passes into the same render prop.
+    pub fn slot(
+        mut self,
+        render: impl Fn(usize, Option<char>) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.slot = Some(std::sync::Arc::new(render));
+        self
+    }
+
+    /// `name` — the name this control submits under.
+    pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// The `Form` field this control submits, when it has a `name`.
+    ///
+    /// v3 discovers a field through the DOM; gpui gives a child no way to reach
+    /// its ancestor, so the control hands the pair over instead. Borrows, so the
+    /// control is still yours to place:
+    ///
+    /// ```ignore
+    /// let field = control.form_field();
+    /// form.field(field.unwrap()).child(control)
+    /// ```
+    pub fn form_field(&self) -> Option<crate::form::FormField> {
+        let name = self.name.clone()?;
+        let state = self.state.clone();
+        Some(
+            crate::form::FormField::code(name, state).is_required(false),
+        )
     }
 
 
@@ -386,7 +432,12 @@ impl RenderOnce for InputOTP {
                     .text_color(colors.foreground);
             }
 
-            if ch != ' ' {
+            // `slot` is v3's render prop on `InputOTP.Slot`: it receives the
+            // slot's `index` and its character, so a caller can draw the cell's
+            // contents without re-deriving either.
+            if let Some(render) = &self.slot {
+                cell = cell.child(render(i, if ch == ' ' { None } else { Some(ch) }));
+            } else if ch != ' ' {
                 cell = cell.child(ch.to_string());
             } else if is_cursor_cell {
                 cell = cell.child(gpui::div().w(px(1.5)).h(text).bg(ring));

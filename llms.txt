@@ -145,6 +145,22 @@ a panel with `util::placed_panel(placement, offset)` — or
 to `util::floating`, since gpui paints in tree order and `absolute` alone does
 not lift a panel above later siblings.
 
+
+## Render props
+
+v3 passes values *into* a child render function. Where a monolithic builder
+computes those values anyway, it hands them to a closure instead of asking the
+caller to supply them — so the prop is real, just inverted:
+
+- `Table::indicator(|SortDirection| ..)` — v3's `Table.SortableColumnHeader`
+  `indicator`, handed `sortDirection`
+- `Pagination::link(|page, is_active| ..)` — `Pagination.Link`, handed `isActive`
+- `InputOTP::slot(|index, Option<char>| ..)` — `InputOTP.Slot`, handed `index`
+- `Dropdown/Menu::item_content(|key, is_selected, is_indeterminate| ..)` —
+  `Dropdown.Item`, handed `isSelected` / `isIndeterminate`
+- `Slider::thumb(|index, value| ..)` — `Slider.Thumb`, handed `index`
+- `TimeField::segment(|TimeSegment, text| ..)` — `TimeField.Segment`
+
 ## Controlled and uncontrolled
 
 Every component takes the controlled prop as an `Option`, so leaving it unset
@@ -167,7 +183,11 @@ tell instances apart. Pairs available: `is_selected`/`default_selected`
 Autocomplete, Dropdown, DatePicker, DateRangePicker), `selected_key`/`default_selected_key`
 (Tabs), `expanded_keys`/`default_expanded_keys` (Accordion),
 `is_year_picker_open`/`default_year_picker_open` (Calendar, RangeCalendar),
-`value`/`default_value` (RadioGroup, Select, CheckboxGroup). Where the
+`value`/`default_value` (RadioGroup, Select, CheckboxGroup, Slider, ColorArea,
+ColorField, ColorPicker, ColorSlider, ColorSwatchPicker, Autocomplete, ComboBox,
+Calendar, RangeCalendar, DatePicker, DateRangePicker, DateField, TimeField,
+Input, TextField, SearchField, TextArea, NumberField),
+`input_value`/`default_input_value` (ComboBox). Where the
 controlled prop is itself an `Option` — `RadioGroup::value(None)` — supplying it
 at all is what makes the component controlled.
 
@@ -254,7 +274,7 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 - **ColorSwatchPicker** — `value`, `size`, `shape`, `layout(SwatchLayout::{Grid,Stack})`, `on_change`
 
 ### Controls
-- **Slider** — `Slider::new(id, value).value().min_value().max_value().step().size().orientation().label().show_value().on_change(f32).on_change_end(f32)`
+- **Slider** — `Slider::new(id, value).value().default_value().min_value().max_value().step().orientation().label().show_value().format_options().on_change(f32).on_change_end(f32)`. The multi-thumb form is `values(Vec<f32>)` + `on_change_all(&[f32])`; dragging moves whichever thumb is nearest, and `thumb(|index, value|)` is v3's `Slider.Thumb` render prop.
 - **Switch** — `is_selected`, `size`, `is_disabled`, `is_read_only`, `is_invalid`, `is_required`, `label(el)`, `on_change(bool)` / `on_press`. v3's `value` is the form-submission value, not the state, so there is no builder for it.
 
 ### Data Display
@@ -317,7 +337,7 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
 - **Checkbox** — `is_selected`, `is_indeterminate`, `is_disabled`, `is_read_only`, `is_required`, `is_invalid`, `variant(FieldVariant)`, `label(el)`, `on_change(bool)`
 - **CheckboxGroup** — `CheckboxGroup::new(id, options).label().value(keys).orientation().variant().is_read_only().error_message().on_change(HashSet)`, `CheckboxOption::new(key,label).description()`
 - **RadioGroup** — `RadioGroup::new(id, options).selected(Option<usize>).orientation().on_change(usize)`
-- **Form** — `Form::new().field(FormField::text(state).is_required(true)).on_submit(&FormData).on_invalid(&FormData).on_reset()`, plus `submit_handler()` / `reset_handler()` to wire to buttons. v3's `name` rides on the field (`Input::name`, stored on the `InputState`), because gpui gives a child no way to reach its form; `FormField::text`/`number` read it back out. `FormData::text(name)` reads a submission. The HTTP half — `action`/`method`/`encType`/`target` — has no browser to post to.
+- **Form** — `Form::new().field(FormField::text(state).is_required(true)).on_submit(&FormData).on_invalid(&FormData).on_reset()`, plus `submit_handler()` / `reset_handler()` to wire to buttons. v3's `name` rides on the field: the entity-backed ones (`Input`, `TextField`, `SearchField`, `TextArea`, `NumberField`) store it on their state and `FormField::text`/`number` read it back; the prop-based ones (`Checkbox`, `Switch`, `CheckboxGroup`, `RadioGroup`, `Select`, `Slider`, `ColorSlider`, `ColorField`, `InputOTP`, `Autocomplete`, `DatePicker`, `TimeField`) expose `form_field()`, which borrows, so the control is still yours to place. `DateRangePicker` has `start_name`/`end_name` and `form_fields()`. `validationBehavior` travels the same way: `Allow` shows a field's message without blocking submission. `FormData::text(name)` reads a submission. The HTTP half — `action`/`method`/`encType`/`target` — has no browser to post to.
 - **Label / Description / ErrorMessage / FieldError / Fieldset** — the composition slots; `Label::new(t).is_required().is_disabled().is_invalid()`, `FieldError::new().message(t)`, `Fieldset` + `FieldsetLegend` / `FieldsetGroup` / `FieldsetActions`
 
 ### Layout

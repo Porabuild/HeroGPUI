@@ -62,6 +62,18 @@ impl TextArea {
         self
     }
 
+    /// `defaultValue` — see [`crate::input::Input::default_value`].
+    pub fn default_value(mut self, text: impl Into<gpui::SharedString>) -> Self {
+        self.inner = self.inner.default_value(text);
+        self
+    }
+
+    /// `validationBehavior` — see [`crate::input::Input::validation_behavior`].
+    pub fn validation_behavior(mut self, behavior: crate::form::ValidationBehavior) -> Self {
+        self.inner = self.inner.validation_behavior(behavior);
+        self
+    }
+
     pub fn variant(mut self, variant: herogpui_core::FieldVariant) -> Self {
         self.inner = self.inner.variant(variant);
         self

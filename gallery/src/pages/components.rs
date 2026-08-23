@@ -922,6 +922,17 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "Range (multi-thumb)",
+                    col(vec![h::Slider::new("sl-range", value)
+                        .label("Price range")
+                        .values(self.slider_range.clone())
+                        .on_change_all(cx.listener(|this, vs: &[f32], _, cx| {
+                            this.slider_range = vs.to_vec();
+                            cx.notify();
+                        }))
+                        .into_any_element()]),
+                ),
+                (
                     "Vertical",
                     row(vec![h::Slider::new("sl-vert", value)
                         .orientation(Orientation::Vertical)
@@ -1156,6 +1167,20 @@ impl Gallery {
                         .iter()
                         .map(|v| build().variant(*v))
                         .els()),
+                ),
+                (
+                    "Custom sort indicator",
+                    col(vec![build()
+                        .indicator(|dir| {
+                            gpui::div()
+                                .text_size(px(11.))
+                                .child(match dir {
+                                    h::SortDirection::Ascending => "▲",
+                                    h::SortDirection::Descending => "▼",
+                                })
+                                .into_any_element()
+                        })
+                        .into_any_element()]),
                 ),
                 (
                     "Selection",

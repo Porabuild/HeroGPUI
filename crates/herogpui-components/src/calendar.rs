@@ -247,6 +247,8 @@ type OnChange = std::sync::Arc<dyn Fn(Option<Date>, &mut Window, &mut App) + 'st
 /// HeroUI Calendar (single date, controlled selection through the entity).
 #[derive(IntoElement)]
 pub struct Calendar {
+    /// `defaultValue` — seeds the state on the first render only.
+    default_value: Option<Date>,
     id: gpui::ElementId,
     state: Entity<CalendarState>,
     constraints: DateConstraints,
@@ -292,6 +294,7 @@ impl Calendar {
 
     pub fn new(state: Entity<CalendarState>) -> Self {
         Self {
+            default_value: None,
             id: gpui::ElementId::Name(format!("cal-{}", state.entity_id().as_u64()).into()),
             state,
             constraints: DateConstraints::new(),
@@ -309,6 +312,15 @@ impl Calendar {
             on_focus_change: None,
             on_change: None,
         }
+    }
+
+    /// `defaultValue` — the uncontrolled initial selection.
+    ///
+    /// Written into the state on the first render only, so it seeds the
+    /// component without fighting the user afterwards.
+    pub fn default_value(mut self, value: Date) -> Self {
+        self.default_value = Some(value);
+        self
     }
 
 
@@ -655,6 +667,28 @@ impl Calendar {
 
 impl RenderOnce for Calendar {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `defaultValue` seeds the state once, before anything reads it.
+        if let Some(value) = self.default_value {
+            let state = self.state.clone();
+            crate::util::seed_once(
+                window,
+                cx,
+                gpui::ElementId::Name(
+                    format!("calendar-default-{}", self.state.entity_id().as_u64()).into(),
+                ),
+                move |cx| {
+                    state.update(cx, |s, cx| {
+                        s.selected = Some(value);
+                        s.selected_dates = vec![value];
+                        s.view_year = value.year;
+                        s.view_month = value.month;
+                        s.view_day = value.day;
+                        cx.notify();
+                    });
+                },
+            );
+        }
+
         let base = format!("{:?}", self.id);
 
         // `isYearPickerOpen` wins; without it the component holds the flag and

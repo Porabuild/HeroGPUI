@@ -43,8 +43,8 @@ the builders this crate exposes:
 | | |
 |---|---|
 | documented props considered | 592 |
-| implemented | 493 |
-| deliberately not ported | 99 |
+| implemented | 559 |
+| deliberately not ported | 33 |
 | real gaps | 0 |
 
 Every omission carries a reason (`no-a11y-attrs`, `no-http`, `render-prop-arg`,
@@ -77,11 +77,17 @@ Components work **controlled or uncontrolled**, as they do in v3: pass
 `default_selected` / `default_open` / `default_selected_key` / `default_value`
 and let the component keep it.
 
-What is left is what a desktop toolkit structurally cannot have: ARIA
-attributes with no accessibility tree to expose them to, `locale` without CLDR
-data, browser image and soft-keyboard hints, the HTTP half of a `<form>`
-(`action` / `method` / `encType` / `target`), and the values v3 passes *into* a
-child render function, which a monolithic builder computes internally.
+The audit counts a prop the constructor takes positionally
+(`ColorArea::new(id, value)`) as implemented; reading only the builders had
+filed fourteen of those as omissions.
+
+What is left is what a desktop toolkit does not have: ARIA attributes with no
+accessibility tree to expose them to, `locale` without CLDR data, browser image
+and soft-keyboard hints, the HTTP half of a `<form>` (`action` / `method` /
+`encType` / `target`), and a handful of single-valued enums. Two are missing
+*features* rather than unportable props, and are named as such in `WONT_PORT`:
+`DateField` is a text field here, not v3's segmented one, and `TextArea` renders
+one tall line because gpui 0.2.2 has no multi-line text layout.
 
 This library tracks **v3 only**. Removed with the v2 token names
 (`content1..4`, numbered 50–900 scales, `primary`/`secondary` as colors) and the

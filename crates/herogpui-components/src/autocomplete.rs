@@ -20,6 +20,9 @@ type OnSelectionChange = std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut 
 /// HeroUI Autocomplete.
 #[derive(IntoElement)]
 pub struct Autocomplete {
+    /// `name` — the name this control submits under; read back by
+    /// [`Self::form_field`].
+    name: Option<gpui::SharedString>,
     state: Entity<InputState>,
     items: Vec<SharedString>,
     max_items: usize,
@@ -40,6 +43,8 @@ pub struct Autocomplete {
     allows_empty_collection: bool,
     selection_mode: SelectionMode,
     selected_keys: std::collections::BTreeSet<SharedString>,
+    /// `defaultValue` — set it to hand this component its own selection.
+    default_value: Option<std::collections::BTreeSet<SharedString>>,
     on_selection_change_all:
         Option<std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>>,
     /// `isOpen`. `None` follows focus, which is the v3 default behaviour.
@@ -64,6 +69,18 @@ impl Autocomplete {
     }
 
     /// The chosen item labels under `selectionMode="multiple"`.
+    /// `defaultValue` — the uncontrolled initial selection.
+    ///
+    /// Supplying it hands the component its own selection set, seeded once;
+    /// `selected_keys` is the controlled spelling.
+    pub fn default_value(
+        mut self,
+        keys: impl IntoIterator<Item = impl Into<SharedString>>,
+    ) -> Self {
+        self.default_value = Some(keys.into_iter().map(Into::into).collect());
+        self
+    }
+
     pub fn selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.selected_keys = keys.into_iter().collect();
         self
@@ -157,6 +174,7 @@ impl Autocomplete {
 
     pub fn new(state: Entity<InputState>, items: Vec<SharedString>) -> Self {
         Self {
+            name: None,
             state,
             items,
             max_items: 8,
@@ -174,6 +192,7 @@ impl Autocomplete {
             allows_empty_collection: false,
             selection_mode: SelectionMode::Single,
             selected_keys: std::collections::BTreeSet::new(),
+            default_value: None,
             on_selection_change_all: None,
             filter: None,
             input_value: None,
@@ -185,6 +204,27 @@ impl Autocomplete {
             on_open_change: None,
             on_selection_change: None,
         }
+    }
+
+    /// `name` — the name this control submits under.
+    pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// The `Form` field this control submits, when it has a `name`.
+    ///
+    /// v3 discovers a field through the DOM; gpui gives a child no way to reach
+    /// its ancestor, so the control hands the pair over instead. Borrows, so the
+    /// control is still yours to place:
+    ///
+    /// ```ignore
+    /// let field = control.form_field();
+    /// form.field(field.unwrap()).child(control)
+    /// ```
+    pub fn form_field(&self) -> Option<crate::form::FormField> {
+        let name = self.name.clone()?;
+        Some(crate::form::FormField::keys(name, self.selected_keys.clone()).is_required(self.is_required))
     }
 
     pub fn max_items(mut self, n: usize) -> Self {
@@ -270,7 +310,23 @@ fn el_name(s: String) -> gpui::ElementId {
 }
 
 impl RenderOnce for Autocomplete {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `defaultValue` opts into the component holding its own selection;
+        // `controlled` takes `cx` mutably, so it precedes the theme tokens.
+        let (selection, selection_own) = crate::util::controlled(
+            window,
+            cx,
+            gpui::ElementId::Name(
+                format!("autocomplete-{}-selection", self.state.entity_id().as_u64()).into(),
+            ),
+            match self.default_value {
+                Some(_) => None,
+                None => Some(self.selected_keys.clone()),
+            },
+            self.default_value.clone().unwrap_or_default(),
+        );
+        self.selected_keys = selection;
+
         // The `defaultOpen` seed: `isOpen` wins over it, then focus, and the
         // first focus spends the seed so a later blur closes the popover
         // instead of leaving it pinned open. `use_keyed_state` takes `cx`
@@ -459,7 +515,9 @@ impl RenderOnce for Autocomplete {
                 }
 
                 if multiple && !item_disabled {
-                    if let Some(cb) = self.on_selection_change_all.clone() {
+                    if self.on_selection_change_all.is_some() || selection_own.is_some() {
+                        let cb = self.on_selection_change_all.clone();
+                        let own = selection_own.clone();
                         let current = self.selected_keys.clone();
                         let value = item.clone();
                         row = row.on_click(move |_, window, cx| {
@@ -467,8 +525,19 @@ impl RenderOnce for Autocomplete {
                             if !next.remove(&value) {
                                 next.insert(value.clone());
                             }
-                            let next: Vec<SharedString> = next.into_iter().collect();
-                            cb(&next, window, cx);
+                            // Uncontrolled: keep the new set, or picking an
+                            // item would do nothing.
+                            if let Some(held) = &own {
+                                let set = next.clone();
+                                held.update(cx, |v, cx| {
+                                    *v = set;
+                                    cx.notify();
+                                });
+                            }
+                            if let Some(cb) = &cb {
+                                let next: Vec<SharedString> = next.into_iter().collect();
+                                cb(&next, window, cx);
+                            }
                         });
                     }
                     panel = panel.child(row);

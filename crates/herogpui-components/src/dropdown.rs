@@ -80,8 +80,14 @@ impl IndicatorKind {
 pub type OnSelectionChange =
     std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
 
+type ItemContent =
+    std::sync::Arc<dyn Fn(&SharedString, bool, bool) -> gpui::AnyElement + 'static>;
+
 #[derive(IntoElement)]
 pub struct Menu {
+    /// `children` on `Dropdown.Item` — v3's render prop, handed the item's
+    /// key, `isSelected` and `isIndeterminate`.
+    item_content: Option<ItemContent>,
     id: gpui::ElementId,
     items: Vec<MenuItem>,
     selected_key: Option<SharedString>,
@@ -96,6 +102,7 @@ pub struct Menu {
 impl Menu {
     pub fn new(items: Vec<MenuItem>) -> Self {
         Self {
+            item_content: None,
             id: gpui::ElementId::Name("menu".into()),
             items,
             selected_key: None,
@@ -106,6 +113,18 @@ impl Menu {
             on_selection_change: None,
             on_action: None,
         }
+    }
+
+    /// `children` on `Dropdown.Item` — replaces an item's label.
+    ///
+    /// The closure receives the item's key, `isSelected` and
+    /// `isIndeterminate`, the values v3 passes into the same render prop.
+    pub fn item_content(
+        mut self,
+        render: impl Fn(&SharedString, bool, bool) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.item_content = Some(std::sync::Arc::new(render));
+        self
     }
 
     /// `type` on `Dropdown.ItemIndicator` — a check mark or a dot.
@@ -235,7 +254,18 @@ impl RenderOnce for Menu {
                             gpui::svg().size(px(15.)).path(icon_path).text_color(text_color),
                         );
                     }
-                    row = row.child(gpui::div().flex_1().child(label.to_string()));
+                    // `children` on `Dropdown.Item` is a render function in
+                    // v3, handed `isSelected` and `isIndeterminate`. A
+                    // multi-selection item is indeterminate when some but not
+                    // all of the menu's keys are chosen.
+                    let is_indeterminate = self.selection_mode
+                        == SelectionMode::Multiple
+                        && !self.selected_keys.is_empty()
+                        && !is_selected;
+                    row = row.child(gpui::div().flex_1().child(match &self.item_content {
+                        Some(render) => render(&key, is_selected, is_indeterminate),
+                        None => label.to_string().into_any_element(),
+                    }));
                     if let Some(sc) = shortcut {
                         row = row.child(
                             gpui::div()

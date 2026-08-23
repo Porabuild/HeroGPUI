@@ -117,10 +117,18 @@ EXTRA_OK = {
     # `Form` is told which fields it owns, because gpui gives a child no way to
     # reach its ancestor; `data` is the collected submission.
     'field': 'no-context-propagation',
+    # A control whose value is a plain prop hands the form the (name, value)
+    # pair itself, because gpui gives it no way to reach its ancestor `Form`.
+    'form_field': 'no-context-propagation',
+    'form_fields': 'no-context-propagation',
     'data': 'accessor',
     'on_navigate': 'composition',
     'on_row_click': 'composition',
     'on_selection_change_all': 'composition',
+    # v3 spells the multi-thumb slider `value: number[]` / `onChange`; Rust has
+    # no untagged union, so the array form gets its own pair.
+    'values': 'no-union-types',
+    'on_change_all': 'no-union-types',
     'selected_indices': 'composition',
     'on_year_picker_open_change': 'composition',
     'is_year_picker_open': 'composition',

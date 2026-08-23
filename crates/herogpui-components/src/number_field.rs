@@ -167,6 +167,10 @@ pub struct NumberField {
     format: Option<NumberFormat>,
     /// `name` — forwarded to the inner field's state.
     name: Option<SharedString>,
+    /// `defaultValue` — seeds the state on the first render only.
+    default_value: Option<f64>,
+    /// `validationBehavior` — written into the inner field's state on render.
+    validation_behavior: Option<crate::form::ValidationBehavior>,
     /// `validate` — run by the component, not the caller.
     validate: Option<crate::validation::Validator<f64>>,
     /// `validationErrors` — messages from a server round-trip.
@@ -202,6 +206,21 @@ impl NumberField {
     /// `FormField::number` looks for it.
     pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// `defaultValue` — the uncontrolled initial number.
+    ///
+    /// Written into the state on the first render only. `NumberState::with_value`
+    /// does the same at construction; this is the prop spelling.
+    pub fn default_value(mut self, value: f64) -> Self {
+        self.default_value = Some(value);
+        self
+    }
+
+    /// `validationBehavior` — see [`crate::input::Input::validation_behavior`].
+    pub fn validation_behavior(mut self, behavior: crate::form::ValidationBehavior) -> Self {
+        self.validation_behavior = Some(behavior);
         self
     }
 
@@ -274,6 +293,8 @@ impl NumberField {
             step: None,
             format: None,
             name: None,
+            default_value: None,
+            validation_behavior: None,
             validate: None,
             validation_errors: Vec::new(),
             is_invalid: false,
@@ -311,7 +332,6 @@ impl NumberField {
 impl RenderOnce for NumberField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors().clone();
-        let _ = window;
         let layout = cx.layout().clone();
 
         let h = px(40.);
@@ -346,6 +366,24 @@ impl RenderOnce for NumberField {
             }
         }
 
+        // `defaultValue` seeds the state once, before anything reads it.
+        if let Some(value) = self.default_value {
+            let state = self.state.clone();
+            crate::util::seed_once(
+                window,
+                cx,
+                gpui::ElementId::Name(
+                    format!("number-default-{}", self.state.entity_id().as_u64()).into(),
+                ),
+                move |cx| {
+                    state.update(cx, |s, cx| {
+                        s.set_value(value, cx);
+                        cx.notify();
+                    });
+                },
+            );
+        }
+
         // `formatOptions` lives in the state, which owns the text. `set_format`
         // is a no-op when it already matches, so this does not loop.
         if let Some(format) = self.format.clone() {
@@ -357,6 +395,7 @@ impl RenderOnce for NumberField {
         let on_text_change = self.on_change.clone();
         let mut field = crate::input::Input::new(self.state.read(cx).input.clone())
             .when_some(self.name.clone(), |f, n| f.name(n))
+            .when_some(self.validation_behavior, |f, b| f.validation_behavior(b))
             .variant(self.variant)
             .is_disabled(self.is_disabled)
             .is_read_only(self.is_read_only)

@@ -134,11 +134,22 @@ impl TimeState {
     }
 }
 
+type Segment = Arc<dyn Fn(TimeSegment, SharedString) -> gpui::AnyElement + 'static>;
+
 type OnTimeChange = Arc<dyn Fn(Option<Time>, &mut Window, &mut App) + 'static>;
 
 /// HeroUI TimeField.
 #[derive(IntoElement)]
 pub struct TimeField {
+    /// `segment` — v3's render prop for one editable segment, handed which
+    /// segment it is and the text the field would have shown.
+    segment: Option<Segment>,
+    /// `name` — read back by [`TimeField::form_field`].
+    name: Option<SharedString>,
+    /// `validationBehavior` — carried on this field's form field.
+    validation_behavior: crate::form::ValidationBehavior,
+    /// `defaultValue` — seeds the state on the first render only.
+    default_value: Option<Time>,
     state: Entity<TimeState>,
     label: Option<SharedString>,
     description: Option<SharedString>,
@@ -172,6 +183,10 @@ impl TimeField {
 
     pub fn new(state: Entity<TimeState>) -> Self {
         Self {
+            segment: None,
+            name: None,
+            validation_behavior: crate::form::ValidationBehavior::Native,
+            default_value: None,
             state,
             label: None,
             description: None,
@@ -191,6 +206,60 @@ impl TimeField {
             placeholder_value: None,
             on_change: None,
         }
+    }
+
+    /// `segment` — replaces the contents of each editable segment.
+    ///
+    /// The closure receives which [`TimeSegment`] it is drawing and the text
+    /// the field would have shown, the values v3 passes into the same render
+    /// prop.
+    pub fn segment(
+        mut self,
+        render: impl Fn(TimeSegment, SharedString) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.segment = Some(Arc::new(render));
+        self
+    }
+
+    /// `name` — the name this field submits under.
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// `validationBehavior` — `Allow` shows the message without blocking form
+    /// submission.
+    pub fn validation_behavior(mut self, behavior: crate::form::ValidationBehavior) -> Self {
+        self.validation_behavior = behavior;
+        self
+    }
+
+    /// The `Form` field this control submits, when it has a `name`.
+    ///
+    /// The time is written `HH:MM`, which is what an HTML `<input type="time">`
+    /// submits. Needs `cx` because the value lives in the state entity.
+    pub fn form_field(&self, cx: &App) -> Option<crate::form::FormField> {
+        let name = self.name.clone()?;
+        let text = self
+            .state
+            .read(cx)
+            .value
+            .map(|t| format!("{:02}:{:02}", t.hour, t.minute))
+            .unwrap_or_default();
+        Some(
+            crate::form::FormField::text_value(name, text)
+                .is_required(self.is_required)
+                .validation_behavior(self.validation_behavior),
+        )
+    }
+
+    /// `defaultValue` — the uncontrolled initial time.
+    ///
+    /// Written into the state on the first render only, so it seeds the
+    /// component without fighting the user afterwards.
+    pub fn default_value(mut self, value: Time) -> Self {
+        self.default_value = Some(value);
+        self
     }
 
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
@@ -299,7 +368,25 @@ impl TimeField {
 }
 
 impl RenderOnce for TimeField {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `defaultValue` seeds the state once, before anything reads it.
+        if let Some(value) = self.default_value {
+            let state = self.state.clone();
+            crate::util::seed_once(
+                window,
+                cx,
+                gpui::ElementId::Name(
+                    format!("timefield-default-{}", self.state.entity_id().as_u64()).into(),
+                ),
+                move |cx| {
+                    state.update(cx, |s, cx| {
+                        s.value = Some(value);
+                        cx.notify();
+                    });
+                },
+            );
+        }
+
         let colors = cx.colors();
         let layout = cx.layout();
         let entity_id = self.state.entity_id().as_u64();
@@ -395,7 +482,12 @@ impl RenderOnce for TimeField {
                 .px(px(4.))
                 .py(px(1.))
                 .rounded(px(4.))
-                .child(segment_text(segment));
+                // `segment` is v3's render prop on `TimeField.Segment`: the
+                // closure is handed which segment it is drawing.
+                .child(match &self.segment {
+                    Some(render) => render(segment, segment_text(segment).into()),
+                    None => segment_text(segment).into_any_element(),
+                });
 
             if focused == segment && interactive {
                 seg = seg

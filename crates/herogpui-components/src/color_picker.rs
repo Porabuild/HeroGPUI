@@ -442,6 +442,8 @@ impl RenderOnce for ColorSwatch {
 /// ColorArea — a two-dimensional gradient for picking two channels at once.
 #[derive(IntoElement)]
 pub struct ColorArea {
+    /// `defaultValue` — set it to hand this component its own state.
+    default_value: Option<PickerColor>,
     id: ElementId,
     value: PickerColor,
     /// `colorSpace` — set explicitly, it selects the channel pair; an explicit
@@ -460,6 +462,7 @@ pub struct ColorArea {
 impl ColorArea {
     pub fn new(id: impl Into<ElementId>, value: PickerColor) -> Self {
         Self {
+            default_value: None,
             id: id.into(),
             value,
             color_space: None,
@@ -472,6 +475,15 @@ impl ColorArea {
             on_change: None,
             on_change_end: None,
         }
+    }
+
+    /// `defaultValue` — the uncontrolled initial colour.
+    ///
+    /// Supplying it hands the component its own state: the constructor's
+    /// `value` becomes the seed, and a change moves the component's copy.
+    pub fn default_value(mut self, value: PickerColor) -> Self {
+        self.default_value = Some(value);
+        self
     }
 
     /// `colorSpace` — the space whose channels the area edits.
@@ -532,7 +544,20 @@ impl ColorArea {
 }
 
 impl RenderOnce for ColorArea {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `defaultValue` opts into the component holding its own colour;
+        // `controlled` takes `cx` mutably, so it precedes the theme tokens.
+        let (resolved, own) = crate::util::controlled(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("{:?}-area-value", self.id).into()),
+            match self.default_value {
+                Some(_) => None,
+                None => Some(self.value),
+            },
+            self.default_value.unwrap_or(self.value),
+        );
+        self.value = resolved;
         let colors = cx.colors();
         let radius = cx.layout().radius_lg();
         let hue_color = PickerColor::hsb(self.value.hue, 1.0, 1.0).to_hsla();
@@ -632,7 +657,8 @@ impl RenderOnce for ColorArea {
             );
         }
 
-        if let Some(on_change) = self.on_change {
+        if self.on_change.is_some() || own.is_some() {
+            let on_change = self.on_change.clone();
             let value = self.value;
             let (x_channel, y_channel) = (self.x_channel, self.y_channel);
             let (w, h) = (self.width, self.height);
@@ -650,7 +676,17 @@ impl RenderOnce for ColorArea {
                     let next = value
                         .with_channel(x_channel, x_min + fx * (x_max - x_min))
                         .with_channel(y_channel, y_min + (1.0 - fy) * (y_max - y_min));
-                    on_change(next, window, cx);
+                    // Uncontrolled: move our own copy, or the press would do
+                    // nothing.
+                    if let Some(held) = &own {
+                        held.update(cx, |v, cx| {
+                            *v = next;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &on_change {
+                        cb(next, window, cx);
+                    }
                 },
             );
         }
@@ -666,6 +702,11 @@ impl RenderOnce for ColorArea {
 /// ColorSlider — adjusts a single channel along a gradient track.
 #[derive(IntoElement)]
 pub struct ColorSlider {
+    /// `name` — the name this control submits under; read back by
+    /// [`Self::form_field`].
+    name: Option<gpui::SharedString>,
+    /// `defaultValue` — set it to hand this component its own state.
+    default_value: Option<PickerColor>,
     id: ElementId,
     value: PickerColor,
     channel: ColorChannel,
@@ -683,6 +724,8 @@ pub struct ColorSlider {
 impl ColorSlider {
     pub fn new(id: impl Into<ElementId>, value: PickerColor, channel: ColorChannel) -> Self {
         Self {
+            name: None,
+            default_value: None,
             id: id.into(),
             value,
             channel,
@@ -694,6 +737,39 @@ impl ColorSlider {
             on_change: None,
             on_change_end: None,
         }
+    }
+
+    /// `name` — the name this control submits under.
+    pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// The `Form` field this control submits, when it has a `name`.
+    ///
+    /// v3 discovers a field through the DOM; gpui gives a child no way to reach
+    /// its ancestor, so the control hands the pair over instead. Borrows, so the
+    /// control is still yours to place:
+    ///
+    /// ```ignore
+    /// let field = control.form_field();
+    /// form.field(field.unwrap()).child(control)
+    /// ```
+    pub fn form_field(&self) -> Option<crate::form::FormField> {
+        let name = self.name.clone()?;
+        Some(crate::form::FormField::number_value(
+                name,
+                self.value.channel_in(self.channel, self.color_space) as f64,
+            ).is_required(false))
+    }
+
+    /// `defaultValue` — the uncontrolled initial colour.
+    ///
+    /// Supplying it hands the component its own state: the constructor's
+    /// `value` becomes the seed, and a change moves the component's copy.
+    pub fn default_value(mut self, value: PickerColor) -> Self {
+        self.default_value = Some(value);
+        self
     }
 
     /// `orientation` — a vertical slider runs bottom to top.
@@ -752,7 +828,20 @@ impl ColorSlider {
 }
 
 impl RenderOnce for ColorSlider {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `defaultValue` opts into the component holding its own colour;
+        // `controlled` takes `cx` mutably, so it precedes the theme tokens.
+        let (resolved, own) = crate::util::controlled(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("{:?}-slider-value", self.id).into()),
+            match self.default_value {
+                Some(_) => None,
+                None => Some(self.value),
+            },
+            self.default_value.unwrap_or(self.value),
+        );
+        self.value = resolved;
         let colors = cx.colors();
         let (min, max) = self.channel.range();
         // Read in the requested space: HSL and HSB saturation are different
@@ -841,11 +930,23 @@ impl RenderOnce for ColorSlider {
             };
             let resolve_up = resolve;
             track = track.cursor_pointer();
-            if let Some(cb) = on_change {
+            if on_change.is_some() || own.is_some() {
+                let own = own.clone();
                 track = track.on_mouse_down(
                     gpui::MouseButton::Left,
                     move |event: &MouseDownEvent, window, cx| {
-                        cb(resolve(event.position), window, cx);
+                        let next = resolve(event.position);
+                        // Uncontrolled: move our own copy, or dragging the
+                        // track would do nothing.
+                        if let Some(held) = &own {
+                            held.update(cx, |v, cx| {
+                                *v = next;
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &on_change {
+                            cb(next, window, cx);
+                        }
                     },
                 );
             }
@@ -904,6 +1005,13 @@ impl RenderOnce for ColorSlider {
 /// numeric value.
 #[derive(IntoElement)]
 pub struct ColorField {
+    /// `validationBehavior` — carried on this control's form field.
+    validation_behavior: crate::form::ValidationBehavior,
+    /// `name` — the name this control submits under; read back by
+    /// [`Self::form_field`].
+    name: Option<gpui::SharedString>,
+    /// `defaultValue` — set it to hand this component its own state.
+    default_value: Option<PickerColor>,
     id: ElementId,
     value: PickerColor,
     channel: Option<ColorChannel>,
@@ -945,6 +1053,9 @@ impl ColorField {
 
     pub fn new(id: impl Into<ElementId>, value: PickerColor) -> Self {
         Self {
+            validation_behavior: crate::form::ValidationBehavior::Native,
+            name: None,
+            default_value: None,
             id: id.into(),
             value,
             channel: None,
@@ -965,6 +1076,44 @@ impl ColorField {
             is_read_only: false,
             is_required: false,
         }
+    }
+
+    /// `validationBehavior` — `Allow` shows the message without blocking form
+    /// submission. Carried on the [`Self::form_field`] this control produces.
+    pub fn validation_behavior(mut self, behavior: crate::form::ValidationBehavior) -> Self {
+        self.validation_behavior = behavior;
+        self
+    }
+
+    /// `name` — the name this control submits under.
+    pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// The `Form` field this control submits, when it has a `name`.
+    ///
+    /// v3 discovers a field through the DOM; gpui gives a child no way to reach
+    /// its ancestor, so the control hands the pair over instead. Borrows, so the
+    /// control is still yours to place:
+    ///
+    /// ```ignore
+    /// let field = control.form_field();
+    /// form.field(field.unwrap()).child(control)
+    /// ```
+    pub fn form_field(&self) -> Option<crate::form::FormField> {
+        let name = self.name.clone()?;
+        Some(crate::form::FormField::text_value(name, self.value.to_hex()).is_required(self.is_required)
+            .validation_behavior(self.validation_behavior))
+    }
+
+    /// `defaultValue` — the uncontrolled initial colour.
+    ///
+    /// Supplying it hands the component its own state: the constructor's
+    /// `value` becomes the seed, and a change moves the component's copy.
+    pub fn default_value(mut self, value: PickerColor) -> Self {
+        self.default_value = Some(value);
+        self
     }
 
     /// `colorSpace` — the space a `channel` value is read in.
@@ -1105,7 +1254,20 @@ impl ColorField {
 }
 
 impl RenderOnce for ColorField {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `defaultValue` opts into the component holding its own colour;
+        // `controlled` takes `cx` mutably, so it precedes the theme tokens.
+        let (resolved, own) = crate::util::controlled(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("{:?}-field-value", self.id).into()),
+            match self.default_value {
+                Some(_) => None,
+                None => Some(self.value),
+            },
+            self.default_value.unwrap_or(self.value),
+        );
+        self.value = resolved;
         let colors = cx.colors();
         let layout = cx.layout();
         let text = self.display_text();
@@ -1147,10 +1309,23 @@ impl RenderOnce for ColorField {
             if self.full_width {
                 input = input.full_width();
             }
-            if let Some(cb) = self.on_change.clone() {
+            if self.on_change.is_some() || own.is_some() {
+                let cb = self.on_change.clone();
+                let own = own.clone();
                 let parser = self;
                 input = input.on_change(move |text, window, cx| {
-                    cb(parser.parse(text), window, cx);
+                    let next = parser.parse(text);
+                    // Uncontrolled: keep what was typed, or the swatch would
+                    // never follow the text.
+                    if let (Some(held), Some(c)) = (&own, next) {
+                        held.update(cx, |v, cx| {
+                            *v = c;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &cb {
+                        cb(next, window, cx);
+                    }
                 });
             }
             return input.render(window, cx).into_any_element();
@@ -1254,6 +1429,8 @@ pub enum SwatchLayout {
 /// ColorSwatchPicker — chooses from a predefined palette.
 #[derive(IntoElement)]
 pub struct ColorSwatchPicker {
+    /// `defaultValue` — set it to hand this component its own state.
+    default_value: Option<PickerColor>,
     id: ElementId,
     swatches: Vec<PickerColor>,
     value: Option<PickerColor>,
@@ -1267,6 +1444,7 @@ pub struct ColorSwatchPicker {
 impl ColorSwatchPicker {
     pub fn new(id: impl Into<ElementId>, swatches: Vec<PickerColor>) -> Self {
         Self {
+            default_value: None,
             id: id.into(),
             swatches,
             value: None,
@@ -1276,6 +1454,15 @@ impl ColorSwatchPicker {
             is_disabled: false,
             on_change: None,
         }
+    }
+
+    /// `defaultValue` — the uncontrolled initial colour.
+    ///
+    /// Supplying it hands the component its own state: the constructor's
+    /// `value` becomes the seed, and a change moves the component's copy.
+    pub fn default_value(mut self, value: PickerColor) -> Self {
+        self.default_value = Some(value);
+        self
     }
 
     pub fn value(mut self, value: PickerColor) -> Self {
@@ -1313,7 +1500,21 @@ impl ColorSwatchPicker {
 }
 
 impl RenderOnce for ColorSwatchPicker {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `defaultValue` opts into the component holding its own selection;
+        // `controlled` takes `cx` mutably, so it precedes the theme tokens.
+        let (resolved, own) = crate::util::controlled(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("{:?}-swatches-value", self.id).into()),
+            match self.default_value {
+                Some(_) => None,
+                None => Some(self.value),
+            },
+            self.default_value.or(self.value),
+        );
+        self.value = resolved;
+
         let colors = cx.colors();
         let mut row = div().flex().flex_row().items_center().gap(px(8.));
         if self.layout == SwatchLayout::Grid {
@@ -1349,11 +1550,23 @@ impl RenderOnce for ColorSwatchPicker {
 
             if self.is_disabled {
                 cell = cell.opacity(cx.layout().disabled_opacity);
-            } else if let Some(on_change) = self.on_change.clone() {
+            } else if self.on_change.is_some() || own.is_some() {
+                let on_change = self.on_change.clone();
+                let own = own.clone();
                 let value = *swatch;
-                cell = cell
-                    .cursor_pointer()
-                    .on_click(move |_, window, cx| on_change(value, window, cx));
+                cell = cell.cursor_pointer().on_click(move |_, window, cx| {
+                    // Uncontrolled: take the selection, or the press would do
+                    // nothing.
+                    if let Some(held) = &own {
+                        held.update(cx, |v, cx| {
+                            *v = Some(value);
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &on_change {
+                        cb(value, window, cx);
+                    }
+                });
             }
 
             row = row.child(cell);
@@ -1372,6 +1585,8 @@ impl RenderOnce for ColorSwatchPicker {
 /// Open state is controlled, matching the other overlay components.
 #[derive(IntoElement)]
 pub struct ColorPicker {
+    /// `defaultValue` — set it to hand this component its own state.
+    default_value: Option<PickerColor>,
     id: ElementId,
     value: PickerColor,
     label: Option<SharedString>,
@@ -1387,6 +1602,7 @@ pub struct ColorPicker {
 impl ColorPicker {
     pub fn new(id: impl Into<ElementId>, value: PickerColor) -> Self {
         Self {
+            default_value: None,
             id: id.into(),
             value,
             label: None,
@@ -1397,6 +1613,15 @@ impl ColorPicker {
             on_change: None,
             on_open_change: None,
         }
+    }
+
+    /// `defaultValue` — the uncontrolled initial colour.
+    ///
+    /// Supplying it hands the component its own state: the constructor's
+    /// `value` becomes the seed, and a change moves the component's copy.
+    pub fn default_value(mut self, value: PickerColor) -> Self {
+        self.default_value = Some(value);
+        self
     }
 
     pub fn label(mut self, text: impl Into<SharedString>) -> Self {
@@ -1443,7 +1668,20 @@ impl ColorPicker {
 }
 
 impl RenderOnce for ColorPicker {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `defaultValue` opts into the component holding its own colour;
+        // `controlled` takes `cx` mutably, so it precedes the theme tokens.
+        let (resolved, own) = crate::util::controlled(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("{:?}-picker-value", self.id).into()),
+            match self.default_value {
+                Some(_) => None,
+                None => Some(self.value),
+            },
+            self.default_value.unwrap_or(self.value),
+        );
+        self.value = resolved;
         let colors = cx.colors();
         let layout = cx.layout();
         let base = format!("{:?}", self.id);
@@ -1504,8 +1742,20 @@ impl RenderOnce for ColorPicker {
 
         let mut area = ColorArea::new(ElementId::Name(format!("{base}-area").into()), self.value)
             .size(px(240.), px(160.));
-        if let Some(cb) = self.on_change.clone() {
-            area = area.on_change(move |c, window, cx| cb(c, window, cx));
+        {
+            let cb = self.on_change.clone();
+            let own = own.clone();
+            area = area.on_change(move |c, window, cx| {
+                if let Some(held) = &own {
+                    held.update(cx, |v, cx| {
+                        *v = c;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &cb {
+                    cb(c, window, cx);
+                }
+            });
         }
         panel = panel.child(area);
 
@@ -1516,8 +1766,20 @@ impl RenderOnce for ColorPicker {
         )
         .length(px(240.))
         .show_label(false);
-        if let Some(cb) = self.on_change.clone() {
-            hue = hue.on_change(move |c, window, cx| cb(c, window, cx));
+        {
+            let cb = self.on_change.clone();
+            let own = own.clone();
+            hue = hue.on_change(move |c, window, cx| {
+                if let Some(held) = &own {
+                    held.update(cx, |v, cx| {
+                        *v = c;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &cb {
+                    cb(c, window, cx);
+                }
+            });
         }
         panel = panel.child(hue);
 
@@ -1529,8 +1791,20 @@ impl RenderOnce for ColorPicker {
             )
             .length(px(240.))
             .show_label(false);
-            if let Some(cb) = self.on_change.clone() {
-                alpha = alpha.on_change(move |c, window, cx| cb(c, window, cx));
+            {
+                let cb = self.on_change.clone();
+                let own = own.clone();
+                alpha = alpha.on_change(move |c, window, cx| {
+                    if let Some(held) = &own {
+                        held.update(cx, |v, cx| {
+                            *v = c;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &cb {
+                        cb(c, window, cx);
+                    }
+                });
             }
             panel = panel.child(alpha);
         }

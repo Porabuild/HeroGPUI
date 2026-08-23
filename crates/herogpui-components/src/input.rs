@@ -23,6 +23,8 @@ pub struct InputState {
     /// `name` builder. The state carries it because gpui gives a child no way
     /// to reach its `Form`; `FormField::text` reads it back out.
     name: Option<SharedString>,
+    /// `validationBehavior` — travels with the name, for the same reason.
+    validation_behavior: crate::form::ValidationBehavior,
 }
 
 impl InputState {
@@ -33,6 +35,7 @@ impl InputState {
             anchor: None,
             focus_handle: cx.focus_handle(),
             name: None,
+            validation_behavior: crate::form::ValidationBehavior::Native,
         }
     }
 
@@ -60,6 +63,16 @@ impl InputState {
     /// usually by hand.
     pub fn set_name(&mut self, name: Option<SharedString>) {
         self.name = name;
+    }
+
+    /// Whether this field's invalidity blocks form submission.
+    pub fn validation_behavior(&self) -> crate::form::ValidationBehavior {
+        self.validation_behavior
+    }
+
+    /// Set by the component's `validation_behavior` builder.
+    pub fn set_validation_behavior(&mut self, behavior: crate::form::ValidationBehavior) {
+        self.validation_behavior = behavior;
     }
 
     pub fn set_value(&mut self, value: impl Into<String>) {
@@ -360,6 +373,8 @@ type TextCallback = std::sync::Arc<dyn Fn(&str, &mut Window, &mut App) + 'static
 /// HeroUI Input.
 #[derive(IntoElement)]
 pub struct Input {
+    /// `validationBehavior` — written into the state on render.
+    validation_behavior: Option<crate::form::ValidationBehavior>,
     state: Entity<InputState>,
     label: Option<SharedString>,
     placeholder: Option<SharedString>,
@@ -391,6 +406,8 @@ pub struct Input {
     auto_focus: bool,
     /// `name` — the submission name, written into the state on render.
     name: Option<SharedString>,
+    /// `defaultValue` — seeds the state on the first render only.
+    default_value: Option<SharedString>,
     is_clearable: bool,
     on_change: Option<TextCallback>,
     on_submit: Option<TextCallback>,
@@ -410,6 +427,7 @@ impl Input {
 
     pub fn new(state: Entity<InputState>) -> Self {
         Self {
+            validation_behavior: None,
             state,
             label: None,
             placeholder: None,
@@ -434,10 +452,21 @@ impl Input {
             is_invalid: false,
             auto_focus: false,
             name: None,
+            default_value: None,
             is_clearable: false,
             on_change: None,
             on_submit: None,
         }
+    }
+
+    /// `validationBehavior` — `Allow` shows the message without blocking form
+    /// submission.
+    ///
+    /// Stored on the state beside `name`, because the form reads both from
+    /// there.
+    pub fn validation_behavior(mut self, behavior: crate::form::ValidationBehavior) -> Self {
+        self.validation_behavior = Some(behavior);
+        self
     }
 
     /// `name` — the name this field submits under.
@@ -447,6 +476,17 @@ impl Input {
     /// written once here and not repeated at the form.
     pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// `defaultValue` — the uncontrolled initial text.
+    ///
+    /// Written into the state on the first render only, so it seeds the field
+    /// without overwriting what the user types. `InputState::with_value` does
+    /// the same at construction; this is the prop spelling, for a state the
+    /// caller made without one.
+    pub fn default_value(mut self, text: impl Into<SharedString>) -> Self {
+        self.default_value = Some(text.into());
         self
     }
 
@@ -625,8 +665,32 @@ impl Input {
 
 impl RenderOnce for Input {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `validationBehavior` travels with the name, on the state.
+        if let Some(behavior) = self.validation_behavior {
+            let state = self.state.clone();
+            if state.read(cx).validation_behavior() != behavior {
+                state.update(cx, |s, _| s.set_validation_behavior(behavior));
+            }
+        }
         // `focus_once` takes `cx` mutably, so it has to run before the theme
         // tokens are borrowed.
+        // `defaultValue` seeds the state once, before anything reads it.
+        if let Some(text) = self.default_value.clone() {
+            let state = self.state.clone();
+            crate::util::seed_once(
+                window,
+                cx,
+                gpui::ElementId::Name(
+                    format!("input-default-{}", self.state.entity_id().as_u64()).into(),
+                ),
+                move |cx| {
+                    state.update(cx, |s, cx| {
+                        s.set_value(text.to_string());
+                        cx.notify();
+                    });
+                },
+            );
+        }
         // `name` lives on the state so the form can find it. Only write when
         // it differs, so this does not loop through `notify`.
         if self.state.read(cx).name() != self.name {
@@ -1035,6 +1099,18 @@ impl TextField {
         self
     }
 
+    /// `defaultValue` — see [`Input::default_value`].
+    pub fn default_value(mut self, text: impl Into<SharedString>) -> Self {
+        self.inner = self.inner.default_value(text);
+        self
+    }
+
+    /// `validationBehavior` — see [`crate::input::Input::validation_behavior`].
+    pub fn validation_behavior(mut self, behavior: crate::form::ValidationBehavior) -> Self {
+        self.inner = self.inner.validation_behavior(behavior);
+        self
+    }
+
     /// `validate` — see [`Input::validate`].
     pub fn validate(
         mut self,
@@ -1121,6 +1197,10 @@ pub struct SearchField {
     state: Entity<InputState>,
     /// `name` — the submission name, forwarded to the inner `Input`.
     name: Option<SharedString>,
+    /// `defaultValue` — forwarded to the inner `Input`.
+    default_value: Option<SharedString>,
+    /// `validationBehavior` — forwarded to the inner `Input`.
+    validation_behavior: Option<crate::form::ValidationBehavior>,
     label: Option<SharedString>,
     placeholder: SharedString,
     description: Option<SharedString>,
@@ -1146,6 +1226,8 @@ impl SearchField {
         Self {
             state,
             name: None,
+            default_value: None,
+            validation_behavior: None,
             label: None,
             placeholder: "Search".into(),
             description: None,
@@ -1217,6 +1299,18 @@ impl SearchField {
         self
     }
 
+    /// `defaultValue` — see [`Input::default_value`].
+    pub fn default_value(mut self, text: impl Into<SharedString>) -> Self {
+        self.default_value = Some(text.into());
+        self
+    }
+
+    /// `validationBehavior` — see [`Input::validation_behavior`].
+    pub fn validation_behavior(mut self, behavior: crate::form::ValidationBehavior) -> Self {
+        self.validation_behavior = Some(behavior);
+        self
+    }
+
     /// `validate` — see [`Input::validate`].
     pub fn validate(
         mut self,
@@ -1273,6 +1367,8 @@ impl RenderOnce for SearchField {
         let mut input = Input::new(self.state)
             .placeholder(self.placeholder)
             .when_some(self.name, |i, n| i.name(n))
+            .when_some(self.default_value, |i, v| i.default_value(v))
+            .when_some(self.validation_behavior, |i, b| i.validation_behavior(b))
             .variant(self.variant)
             .is_disabled(self.is_disabled)
             .is_read_only(self.is_read_only)

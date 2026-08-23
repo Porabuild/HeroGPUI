@@ -79,6 +79,23 @@ ALIAS = {
     # Autocomplete.ClearButton's click handler.
     'Autocomplete.onClick': 'on_clear',
     'ColorSwatchPicker.variant': 'shape',
+    # v3 hands these *into* a child render function. The builder that takes the
+    # closure is what implements the prop, so the alias points at it: a caller
+    # receives the value rather than supplying it.
+    'Dropdown.isSelected': 'item_content',
+    'Dropdown.isIndeterminate': 'item_content',
+    'InputOTP.index': 'slot',
+    'Pagination.isActive': 'link',
+    'Table.sortDirection': 'indicator',
+    'Slider.index': 'thumb',
+    # Taken positionally or by the state's constructor, so the prop exists --
+    # it is just not spelled as a builder.
+    'TagGroup.items': 'tags',
+    'Table.items': 'row',
+    'InputOTP.maxLength': 'with_length',
+    # v3 calls these `type`; `type` is a Rust keyword.
+    'Input.type': 'input_type',
+    'Typography.type': 'kind',
 }
 
 # Props with no meaningful gpui analogue at all.
@@ -98,29 +115,12 @@ WONT_PORT = {
     # the collection-valued seed: `Vec`/`Selection` state that the caller owns
     # as an entity, where a one-shot initial value has nothing to seed.
     'defaultSelectedKeys': 'caller-owns-collection',
-    # The value lives in a caller-owned entity (`InputState::with_value`,
-    # `CalendarState::with_selected`, `NumberState::with_value`), which *is* the
-    # uncontrolled seed: there is nothing for a one-shot prop to initialise that
-    # the entity has not already set.
-    'defaultValue': 'state-entity-seeds-it',
-    # These take the value as a constructor argument -- `ColorArea::new(id,
-    # value)` -- so the caller re-supplies it each render and owns it outright;
-    # `value` itself is recorded as `constructor-arg` below.
-    'ColorArea.defaultValue': 'constructor-arg',
-    'ColorField.defaultValue': 'constructor-arg',
-    'ColorPicker.defaultValue': 'constructor-arg',
-    'ColorSlider.defaultValue': 'constructor-arg',
-    'ColorSwatchPicker.defaultValue': 'constructor-arg',
-    'Slider.defaultValue': 'constructor-arg',
-    'defaultInputValue': 'caller-owns-collection',
     # Tabs has a real `default_selected_key`; ComboBox's selection lives in the
     # caller's `InputState`, so there is nothing separate to seed.
+    # ComboBox's single selection lives in the caller's `InputState`, which is
+    # its own uncontrolled seed (`InputState::with_value`).
     'ComboBox.defaultSelectedKey': 'state-entity-seeds-it',
    
-    # React Aria validation plumbing; callers validate and pass `is_invalid`.
-    # 'native' blocks HTML form submission, which does not exist here, so
-    # only the 'aria' behaviour is meaningful.
-    'validationBehavior': 'aria-behaviour-only',
     # An HTML5 ValidityState object.
     'validationDetails': 'no-html-forms',
 
@@ -128,13 +128,6 @@ WONT_PORT = {
     # CLDR data; a partial table would be worse than not offering the prop.
     # `formatOptions` itself is implemented -- see `core/src/format.rs`.
     'locale': 'no-intl',
-    # `Form` collects a named submission (`components/src/form.rs`), and the
-    # fields whose value lives in an entity carry their own `name`. The ones left
-    # here hold their value as a plain prop the caller re-supplies each render,
-    # and gpui gives a child no way to reach its `Form`, so the name would be
-    # stored and never read -- it goes on `FormField` at the form instead.
-    'name': 'form-names-the-field',
-    'startName': 'form-names-the-field', 'endName': 'form-names-the-field',
     # There is no browser to navigate or post to.
     'action': 'no-http', 'method': 'no-http', 'encType': 'no-http',
     'target': 'no-http', 'download': 'no-http', 'rel': 'no-http',
@@ -148,7 +141,7 @@ WONT_PORT = {
 
     # Sub-component/table-parsing artefacts, not real props of ours.
     'state': 'not-a-prop', 'toast': 'not-a-prop', 'trigger': 'not-a-prop',
-    'items': 'not-a-prop', 'ErrorMessage': 'not-a-prop', 'FieldError': 'not-a-prop',
+'ErrorMessage': 'not-a-prop', 'FieldError': 'not-a-prop',
     # Tooltip's `trigger` is a real prop, unlike the sub-component rows
     # above: 'focus' needs a child that takes keyboard focus, and nothing
     # in this library is focusable yet, so it would be a dead builder.
@@ -176,17 +169,10 @@ WONT_PORT = {
     'ColorSlider.channel': 'constructor-arg',
     # Values v3 passes *into* a child render function. A monolithic builder
     # computes them internally, so there is no prop to accept.
-    'Slider.index': 'render-prop-arg',
-    'InputOTP.index': 'render-prop-arg',
-    'DateField.segment': 'render-prop-arg',
-    'TimeField.segment': 'render-prop-arg',
-    'Dropdown.isSelected': 'render-prop-arg',
-    'Dropdown.isIndeterminate': 'render-prop-arg',
-    'Table.sortDirection': 'render-prop-arg',
-    'Pagination.isActive': 'render-prop-arg',
-    # Custom element slots: our builders take strings/elements positionally
-    # rather than an override hook.
-    'Table.indicator': 'composition-instead',
+    # v3's DateField is segmented (day/month/year cells); this one is a text
+    # field, so there are no segments for a render prop to be handed. The
+    # segmented form is a missing feature, not an unportable prop.
+    'DateField.segment': 'not-segmented',
     # gpui exposes no accessibility title attribute.
     'Kbd.title': 'no-a11y-attrs',
     # Browser image-loading attributes with no gpui analogue.
@@ -195,20 +181,10 @@ WONT_PORT = {
     # gpui's img() reports no load or error events, so a fallback delay has
     # nothing to key off.
     'Avatar.delayMs': 'no-image-load-events',
-    # A checkbox's or switch's `value` is its form-submission value, not its
-    # state -- `isSelected` is the state.
-    'Checkbox.value': 'no-html-forms',
-    'Switch.value': 'no-html-forms',
-    # Column resizing does not exist here, so its width hints have no meaning.
-    'Table.defaultWidth': 'no-column-resize',
-    'Table.minWidth': 'no-column-resize',
-    'Input.type': 'renamed-kind', 'Typography.type': 'renamed-kind', 'htmlFor': 'composition-instead',
 
     # gpui gives a RenderOnce element no scroll offset, so there is nothing
     # truthful to report.
     'onVisibilityChange': 'no-scroll-offset',
-    # OtpState::with_length owns the cell count.
-    'InputOTP.maxLength': 'state-owns-length',
     # A single-date Calendar; RangeCalendar covers the range case and there is
     # no v3-shaped multi-date state here.
 
@@ -284,6 +260,8 @@ bundle = io.open(BUNDLE, encoding='utf-8').read()
 # another's.
 methods = {}
 impl_methods = {}
+# Props each struct's constructor takes positionally.
+constructor_args = {}
 for path in glob.glob(SRC + '*.rs'):
     name = path.replace('\\', '/').split('/')[-1]
     src = io.open(path, encoding='utf-8').read()
@@ -297,9 +275,19 @@ for path in glob.glob(SRC + '*.rs'):
         m = re.match(r'\s*(?:<[^>]*>\s*)?([A-Za-z_][A-Za-z0-9_]*)', head)
         if not m:
             continue
-        impl_methods.setdefault(m.group(1), set()).update(
+        struct_name = m.group(1)
+        impl_methods.setdefault(struct_name, set()).update(
             re.findall(r'pub fn ([a-z_0-9]+)\s*\(', body)
         )
+        # A prop the constructor takes positionally is implemented, not missing:
+        # `ColorArea::new(id, value)` *is* `value`, and `Table::new(columns)` is
+        # `columns`. Reading only the builders counted fourteen of these as
+        # omissions and filed them under `constructor-arg`.
+        for ctor in re.finditer(r'pub fn new\s*\(([^)]*)\)', body):
+            for param in ctor.group(1).split(','):
+                name = param.split(':')[0].strip().lstrip('&').strip()
+                if re.fullmatch(r'[a-z_][a-z_0-9]*', name or ''):
+                    constructor_args.setdefault(struct_name, set()).add(name)
 
 
 def props_for(component):
@@ -337,8 +325,10 @@ def main():
         else:
             have = set(methods.get(f, set()))
             unattributed.append(comp)
+        have |= constructor_args.get(comp, set())
         for part in COMPANIONS.get(comp, ()):
             have |= impl_methods.get(part, set())
+            have |= constructor_args.get(part, set())
         props = props_for(comp)
         if not props:
             continue

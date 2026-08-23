@@ -7,6 +7,9 @@ use herogpui_theme::ActiveTheme;
 /// HeroUI RadioGroup.
 #[derive(IntoElement)]
 pub struct RadioGroup {
+    /// `name` — the name this control submits under; read back by
+    /// [`Self::form_field`].
+    name: Option<gpui::SharedString>,
     id: gpui::ElementId,
     options: Vec<SharedString>,
     selected: Option<usize>,
@@ -48,6 +51,7 @@ impl RadioGroup {
 
     pub fn new(id: impl Into<gpui::ElementId>, options: Vec<SharedString>) -> Self {
         Self {
+            name: None,
             id: id.into(),
             options,
             selected: None,
@@ -61,6 +65,33 @@ impl RadioGroup {
             is_read_only: false,
             on_change: None,
         }
+    }
+
+    /// `name` — the name this control submits under.
+    pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// The `Form` field this control submits, when it has a `name`.
+    ///
+    /// v3 discovers a field through the DOM; gpui gives a child no way to reach
+    /// its ancestor, so the control hands the pair over instead. Borrows, so the
+    /// control is still yours to place:
+    ///
+    /// ```ignore
+    /// let field = control.form_field();
+    /// form.field(field.unwrap()).child(control)
+    /// ```
+    pub fn form_field(&self) -> Option<crate::form::FormField> {
+        let name = self.name.clone()?;
+        Some(crate::form::FormField::text_value(
+                name,
+                self.selected
+                    .or(self.default_value)
+                    .and_then(|i| self.options.get(i).cloned())
+                    .unwrap_or_default(),
+            ).is_required(self.is_required))
     }
 
     /// `value` — the selected option, by index. Supplying it makes the group

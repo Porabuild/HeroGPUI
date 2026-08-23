@@ -12,6 +12,14 @@ use crate::icons;
 /// HeroUI Checkbox.
 #[derive(IntoElement)]
 pub struct Checkbox {
+    /// `value` — what this control submits when checked. HTML's default is
+    /// `"on"`.
+    value: Option<gpui::SharedString>,
+    /// `validationBehavior` — carried on this control's form field.
+    validation_behavior: crate::form::ValidationBehavior,
+    /// `name` — the name this control submits under; read back by
+    /// [`Self::form_field`].
+    name: Option<gpui::SharedString>,
     id: gpui::ElementId,
     /// `isSelected` — `None` leaves the component holding the state, seeded
     /// from `defaultSelected`.
@@ -80,6 +88,9 @@ impl Checkbox {
 
     pub fn new(id: impl Into<gpui::ElementId>) -> Self {
         Self {
+            value: None,
+            validation_behavior: crate::form::ValidationBehavior::Native,
+            name: None,
             id: id.into(),
             checked: None,
             default_checked: false,
@@ -94,6 +105,53 @@ impl Checkbox {
             children: Vec::new(),
             on_change: None,
         }
+    }
+
+    /// `value` — what this control submits when checked.
+    ///
+    /// An HTML checkbox submits `"on"` unless told otherwise; this is that
+    /// override, and it is read by [`Self::form_field`].
+    pub fn value(mut self, value: impl Into<gpui::SharedString>) -> Self {
+        self.value = Some(value.into());
+        self
+    }
+
+    /// `validationBehavior` — `Allow` shows the message without blocking form
+    /// submission. Carried on the [`Self::form_field`] this control produces.
+    pub fn validation_behavior(mut self, behavior: crate::form::ValidationBehavior) -> Self {
+        self.validation_behavior = behavior;
+        self
+    }
+
+    /// `name` — the name this control submits under.
+    pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// The `Form` field this control submits, when it has a `name`.
+    ///
+    /// v3 discovers a field through the DOM; gpui gives a child no way to reach
+    /// its ancestor, so the control hands the pair over instead. Borrows, so the
+    /// control is still yours to place:
+    ///
+    /// ```ignore
+    /// let field = control.form_field();
+    /// form.field(field.unwrap()).child(control)
+    /// ```
+    pub fn form_field(&self) -> Option<crate::form::FormField> {
+        let name = self.name.clone()?;
+        let checked = self.checked.unwrap_or(self.default_checked);
+        let field = match (&self.value, checked) {
+            // A checked box with an explicit `value` submits that text.
+            (Some(v), true) => crate::form::FormField::text_value(name, v.clone()),
+            _ => crate::form::FormField::flag(name, checked),
+        };
+        Some(
+            field
+                .is_required(self.is_required)
+                .validation_behavior(self.validation_behavior),
+        )
     }
 
     /// `isSelected` — the controlled state; `None` leaves the component
@@ -307,6 +365,9 @@ type OnGroupChange =
 /// selected-value set.
 #[derive(IntoElement)]
 pub struct CheckboxGroup {
+    /// `name` — the name this control submits under; read back by
+    /// [`Self::form_field`].
+    name: Option<gpui::SharedString>,
     id: gpui::ElementId,
     options: Vec<CheckboxOption>,
     label: Option<gpui::SharedString>,
@@ -326,6 +387,7 @@ pub struct CheckboxGroup {
 impl CheckboxGroup {
     pub fn new(id: impl Into<gpui::ElementId>, options: Vec<CheckboxOption>) -> Self {
         Self {
+            name: None,
             id: id.into(),
             options,
             label: None,
@@ -341,6 +403,32 @@ impl CheckboxGroup {
             is_required: false,
             on_change: None,
         }
+    }
+
+    /// `name` — the name this control submits under.
+    pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// The `Form` field this control submits, when it has a `name`.
+    ///
+    /// v3 discovers a field through the DOM; gpui gives a child no way to reach
+    /// its ancestor, so the control hands the pair over instead. Borrows, so the
+    /// control is still yours to place:
+    ///
+    /// ```ignore
+    /// let field = control.form_field();
+    /// form.field(field.unwrap()).child(control)
+    /// ```
+    pub fn form_field(&self) -> Option<crate::form::FormField> {
+        let name = self.name.clone()?;
+        Some(crate::form::FormField::keys(
+                name,
+                self.value
+                    .clone()
+                    .unwrap_or_else(|| self.default_value.clone()),
+            ).is_required(self.is_required))
     }
 
     pub fn label(mut self, text: impl Into<gpui::SharedString>) -> Self {

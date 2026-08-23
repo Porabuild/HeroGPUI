@@ -21,6 +21,10 @@ type OnChange = std::sync::Arc<dyn Fn(Option<Date>, &mut Window, &mut App) + 'st
 /// HeroUI DatePicker (controlled open state; selection lives in the entity).
 #[derive(IntoElement)]
 pub struct DatePicker {
+    /// `name` — read back by [`DatePicker::form_field`].
+    name: Option<SharedString>,
+    /// `defaultValue` — seeds the state on the first render only.
+    default_value: Option<Date>,
     constraints: DateConstraints,
     is_disabled: bool,
     is_invalid: bool,
@@ -93,6 +97,8 @@ impl DatePicker {
 
     pub fn new(state: Entity<CalendarState>) -> Self {
         Self {
+            name: None,
+            default_value: None,
             constraints: DateConstraints::new(),
             is_disabled: false,
             is_invalid: false,
@@ -104,6 +110,36 @@ impl DatePicker {
             placeholder: "Select a date".into(),
             on_change: None,
         }
+    }
+
+    /// `name` — the name this picker submits under.
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// The `Form` field this picker submits, when it has a `name`.
+    ///
+    /// The date is written ISO-8601, which is what an HTML `<input type="date">`
+    /// submits. Needs `cx` because the selection lives in the state entity.
+    pub fn form_field(&self, cx: &App) -> Option<crate::form::FormField> {
+        let name = self.name.clone()?;
+        let text = self
+            .state
+            .read(cx)
+            .selected()
+            .map(|d| d.format_iso())
+            .unwrap_or_default();
+        Some(crate::form::FormField::text_value(name, text))
+    }
+
+    /// `defaultValue` — the uncontrolled initial selection.
+    ///
+    /// Written into the state on the first render only, so it seeds the
+    /// component without fighting the user afterwards.
+    pub fn default_value(mut self, value: Date) -> Self {
+        self.default_value = Some(value);
+        self
     }
 
     pub fn is_open(mut self, v: bool) -> Self {
@@ -140,6 +176,28 @@ impl DatePicker {
 
 impl RenderOnce for DatePicker {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `defaultValue` seeds the state once, before anything reads it.
+        if let Some(value) = self.default_value {
+            let state = self.state.clone();
+            crate::util::seed_once(
+                window,
+                cx,
+                gpui::ElementId::Name(
+                    format!("datepicker-default-{}", self.state.entity_id().as_u64()).into(),
+                ),
+                move |cx| {
+                    state.update(cx, |s, cx| {
+                        s.selected = Some(value);
+                        s.selected_dates = vec![value];
+                        s.view_year = value.year;
+                        s.view_month = value.month;
+                        s.view_day = value.day;
+                        cx.notify();
+                    });
+                },
+            );
+        }
+
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
         let (is_open, open_own) = crate::util::controlled(
             window,
@@ -336,6 +394,12 @@ impl DateRangeState {
 /// HeroUI DateRangePicker.
 #[derive(IntoElement)]
 pub struct DateRangePicker {
+    /// `startName` / `endName` — read back by
+    /// [`DateRangePicker::form_fields`].
+    start_name: Option<SharedString>,
+    end_name: Option<SharedString>,
+    /// `defaultValue` — seeds the state on the first render only.
+    default_value: Option<(Date, Date)>,
     state: Entity<DateRangeState>,
     /// `isOpen` — `None` leaves the picker holding the flag, seeded from
     /// `defaultOpen`.
@@ -353,6 +417,9 @@ pub struct DateRangePicker {
 impl DateRangePicker {
     pub fn new(state: Entity<DateRangeState>) -> Self {
         Self {
+            start_name: None,
+            end_name: None,
+            default_value: None,
             state,
             is_open: None,
             default_open: false,
@@ -364,6 +431,43 @@ impl DateRangePicker {
             on_open_change: None,
             on_change: None,
         }
+    }
+
+    /// `startName` — the name the range's start submits under.
+    pub fn start_name(mut self, name: impl Into<SharedString>) -> Self {
+        self.start_name = Some(name.into());
+        self
+    }
+
+    /// `endName` — the name the range's end submits under.
+    pub fn end_name(mut self, name: impl Into<SharedString>) -> Self {
+        self.end_name = Some(name.into());
+        self
+    }
+
+    /// The `Form` fields this picker submits: one per named end of the range,
+    /// each written ISO-8601.
+    pub fn form_fields(&self, cx: &App) -> Vec<crate::form::FormField> {
+        let state = self.state.read(cx);
+        let mut out = Vec::new();
+        if let Some(name) = self.start_name.clone() {
+            let text = state.start.map(|d| d.format_iso()).unwrap_or_default();
+            out.push(crate::form::FormField::text_value(name, text));
+        }
+        if let Some(name) = self.end_name.clone() {
+            let text = state.end.map(|d| d.format_iso()).unwrap_or_default();
+            out.push(crate::form::FormField::text_value(name, text));
+        }
+        out
+    }
+
+    /// `defaultValue` — the uncontrolled initial range.
+    ///
+    /// Written into the state on the first render only, so it seeds the
+    /// component without fighting the user afterwards.
+    pub fn default_value(mut self, value: (Date, Date)) -> Self {
+        self.default_value = Some(value);
+        self
     }
 
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
@@ -453,6 +557,28 @@ impl DateRangePicker {
 
 impl RenderOnce for DateRangePicker {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `defaultValue` seeds the state once, before anything reads it.
+        if let Some(value) = self.default_value {
+            let state = self.state.clone();
+            crate::util::seed_once(
+                window,
+                cx,
+                gpui::ElementId::Name(
+                    format!("daterangepicker-default-{}", self.state.entity_id().as_u64()).into(),
+                ),
+                move |cx| {
+                    state.update(cx, |s, cx| {
+                        s.start = Some(value.0);
+                        s.end = Some(value.1);
+                        s.view_year = value.0.year;
+                        s.view_month = value.0.month;
+                        s.view_day = value.0.day;
+                        cx.notify();
+                    });
+                },
+            );
+        }
+
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
         let (is_open, open_own) = crate::util::controlled(
             window,
@@ -591,6 +717,10 @@ impl RenderOnce for DateRangePicker {
 /// Simple ISO date text field bound to an `InputState`; emits parsed dates.
 #[derive(IntoElement)]
 pub struct DateField {
+    /// `validationBehavior` — written into the text state on render.
+    validation_behavior: Option<crate::form::ValidationBehavior>,
+    /// `defaultValue` — seeds the text state on the first render only.
+    default_value: Option<Date>,
     full_width: bool,
     is_required: bool,
     /// `validate` — run by the component, not the caller.
@@ -691,6 +821,8 @@ impl DateField {
 
     pub fn new(state: Entity<crate::input::InputState>) -> Self {
         Self {
+            validation_behavior: None,
+            default_value: None,
             full_width: false,
             is_required: false,
             validate: None,
@@ -703,6 +835,21 @@ impl DateField {
             label: None,
             on_change: None,
         }
+    }
+
+    /// `validationBehavior` — see [`crate::input::Input::validation_behavior`].
+    pub fn validation_behavior(mut self, behavior: crate::form::ValidationBehavior) -> Self {
+        self.validation_behavior = Some(behavior);
+        self
+    }
+
+    /// `defaultValue` — the uncontrolled initial date.
+    ///
+    /// Written into the state on the first render only, so it seeds the
+    /// component without fighting the user afterwards.
+    pub fn default_value(mut self, value: Date) -> Self {
+        self.default_value = Some(value);
+        self
     }
 
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
@@ -732,7 +879,31 @@ fn parse_iso(text: &str) -> Option<Date> {
 }
 
 impl RenderOnce for DateField {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `validationBehavior` travels with the name, on the text state.
+        if let Some(behavior) = self.validation_behavior {
+            if self.state.read(cx).validation_behavior() != behavior {
+                self.state.update(cx, |s, _| s.set_validation_behavior(behavior));
+            }
+        }
+        // `defaultValue` seeds the state once, before anything reads it.
+        if let Some(value) = self.default_value {
+            let state = self.state.clone();
+            crate::util::seed_once(
+                window,
+                cx,
+                gpui::ElementId::Name(
+                    format!("datefield-default-{}", self.state.entity_id().as_u64()).into(),
+                ),
+                move |cx| {
+                    state.update(cx, |s, cx| {
+                        s.set_value(value.format_iso());
+                        cx.notify();
+                    });
+                },
+            );
+        }
+
         let value = self.state.read(cx).value().to_string();
         let parsed = parse_iso(&value);
         let non_empty = !value.trim().is_empty();

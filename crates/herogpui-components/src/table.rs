@@ -10,7 +10,7 @@
 
 use gpui::{
     prelude::*, px, AnyElement, App, ClickEvent, InteractiveElement, IntoElement, ParentElement,
-    RenderOnce, SharedString, Styled, Window,
+    Pixels, RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::SelectionMode;
 use herogpui_theme::ActiveTheme;
@@ -68,6 +68,8 @@ impl SortDirection {
     }
 }
 
+type Indicator = std::sync::Arc<dyn Fn(SortDirection) -> AnyElement + 'static>;
+
 /// `sortDescriptor` — which column is sorted, and which way.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SortDescriptor {
@@ -108,6 +110,11 @@ pub struct TableColumn {
     label: SharedString,
     allows_sorting: bool,
     is_row_header: bool,
+    /// `defaultWidth` — a fixed column width. Without one the column shares the
+    /// row evenly, which is what `flex-1` does.
+    width: Option<Pixels>,
+    /// `minWidth` — the column's floor.
+    min_width: Option<Pixels>,
 }
 
 impl TableColumn {
@@ -116,7 +123,24 @@ impl TableColumn {
             label: label.into(),
             allows_sorting: false,
             is_row_header: false,
+            width: None,
+            min_width: None,
         }
+    }
+
+    /// `defaultWidth` — a fixed width for this column.
+    ///
+    /// v3 pairs this with a resizer, which does not exist here; the width
+    /// itself is just layout and does apply.
+    pub fn default_width(mut self, width: impl Into<Pixels>) -> Self {
+        self.width = Some(width.into());
+        self
+    }
+
+    /// `minWidth` — the width this column will not go below.
+    pub fn min_width(mut self, width: impl Into<Pixels>) -> Self {
+        self.min_width = Some(width.into());
+        self
     }
 
     /// `allowsSorting` — makes the header a sort control.
@@ -177,6 +201,9 @@ impl TableRow {
 /// HeroUI Table.
 #[derive(IntoElement)]
 pub struct Table {
+    /// `indicator` — v3's render prop for the sort chevron, handed the
+    /// `sortDirection` the column is sorted in.
+    indicator: Option<Indicator>,
     columns: Vec<TableColumn>,
     rows: Vec<TableRow>,
     variant: TableVariant,
@@ -195,6 +222,7 @@ pub struct Table {
 impl Table {
     pub fn new(columns: Vec<SharedString>) -> Self {
         Self {
+            indicator: None,
             columns: columns.into_iter().map(TableColumn::new).collect(),
             rows: Vec::new(),
             variant: TableVariant::Primary,
@@ -209,6 +237,19 @@ impl Table {
             on_sort_change: None,
             on_load_more: None,
         }
+    }
+
+    /// `indicator` — replaces the sort chevron.
+    ///
+    /// The closure receives `sortDirection`, the value v3 passes into the same
+    /// render prop, so a caller can draw an arrow, a caret or a label without
+    /// re-deriving which way the column is sorted.
+    pub fn indicator(
+        mut self,
+        render: impl Fn(SortDirection) -> AnyElement + 'static,
+    ) -> Self {
+        self.indicator = Some(std::sync::Arc::new(render));
+        self
     }
 
     /// Replaces the columns with fully configured ones.
@@ -398,8 +439,11 @@ impl RenderOnce for Table {
                 .sort_descriptor
                 .as_ref()
                 .filter(|d| d.column == column.label);
+            // A column with a `defaultWidth` takes it; the rest share the row.
             let mut cell = gpui::div()
-                .flex_1()
+                .when(column.width.is_none(), |c| c.flex_1())
+                .when_some(column.width, |c, w| c.w(w))
+                .when_some(column.min_width, |c, w| c.min_w(w))
                 .flex()
                 .items_center()
                 .gap(px(4.))
@@ -416,13 +460,18 @@ impl RenderOnce for Table {
 
             if let Some(descriptor) = sorted {
                 if self.show_indicator {
-                    cell = cell.child(
-                        gpui::svg()
+                    // `indicator` is v3's render prop on
+                    // `Table.SortableColumnHeader`: it receives the direction
+                    // the column is sorted in and replaces the chevron.
+                    cell = cell.child(match &self.indicator {
+                        Some(render) => render(descriptor.direction),
+                        None => gpui::svg()
                             .size(px(12.))
                             .path(descriptor.direction.indicator())
                             // svg() never inherits text colour.
-                            .text_color(colors.foreground),
-                    );
+                            .text_color(colors.foreground)
+                            .into_any_element(),
+                    });
                 }
             }
 
@@ -493,9 +542,14 @@ impl RenderOnce for Table {
 
             // Cells are flex rows so inline children (chips, buttons) size to
             // their content instead of stretching to the column width.
+            let widths: Vec<(Option<Pixels>, Option<Pixels>)> =
+                self.columns.iter().map(|c| (c.width, c.min_width)).collect();
             row = row.children(row_data.cells.into_iter().enumerate().map(|(c, cell)| {
+                let (width, min_width) = widths.get(c).copied().unwrap_or((None, None));
                 gpui::div()
-                    .flex_1()
+                    .when(width.is_none(), |e| e.flex_1())
+                    .when_some(width, |e, w| e.w(w))
+                    .when_some(min_width, |e, w| e.min_w(w))
                     .flex()
                     .items_center()
                     .px(px(12.))

@@ -97,6 +97,7 @@ impl FormData {
 type Read = Arc<dyn Fn(&App) -> FormValue + 'static>;
 type Restore = Arc<dyn Fn(&mut App) + 'static>;
 type ReadName = Arc<dyn Fn(&App) -> Option<SharedString> + 'static>;
+type ReadBehavior = Arc<dyn Fn(&App) -> ValidationBehavior + 'static>;
 
 /// A named field a [`Form`] reads on submit.
 ///
@@ -112,6 +113,11 @@ pub struct FormField {
     read: Read,
     restore: Option<Restore>,
     is_required: bool,
+    /// `validationBehavior` on the field: `Allow` shows its message without
+    /// blocking submission.
+    validation_behavior: ValidationBehavior,
+    /// Reads `validationBehavior` off the field's own state entity.
+    behavior_of: Option<ReadBehavior>,
 }
 
 impl FormField {
@@ -119,30 +125,89 @@ impl FormField {
     pub fn text(state: Entity<InputState>) -> Self {
         let read_state = state.clone();
         let name_state = state.clone();
+        let behavior_state = state.clone();
         Self {
             name: None,
             name_of: Some(Arc::new(move |cx: &App| name_state.read(cx).name())),
+            behavior_of: Some(Arc::new(move |cx: &App| {
+                behavior_state.read(cx).validation_behavior()
+            })),
             read: Arc::new(move |cx: &App| {
                 FormValue::Text(SharedString::from(read_state.read(cx).value().to_string()))
             }),
             restore: None,
             is_required: false,
-        }
+            validation_behavior: ValidationBehavior::Native,
+                    }
     }
 
     /// A numeric field, read from its [`NumberState`].
     pub fn number(state: Entity<NumberState>) -> Self {
         let read_state = state.clone();
         let name_state = state.clone();
+        let behavior_state = state.clone();
         Self {
             name: None,
             name_of: Some(Arc::new(move |cx: &App| {
                 let st = name_state.read(cx);
                 st.input.read(cx).name()
             })),
+            behavior_of: Some(Arc::new(move |cx: &App| {
+                behavior_state.read(cx).input.read(cx).validation_behavior()
+            })),
             read: Arc::new(move |cx: &App| FormValue::Number(read_state.read(cx).value())),
             restore: None,
             is_required: false,
+            validation_behavior: ValidationBehavior::Native,
+                    }
+    }
+
+    /// An OTP field, read from its [`crate::input_otp::OtpState`].
+    pub fn code(
+        name: impl Into<SharedString>,
+        state: Entity<crate::input_otp::OtpState>,
+    ) -> Self {
+        Self {
+            name: Some(name.into()),
+            name_of: None,
+            read: Arc::new(move |cx: &App| {
+                FormValue::Text(SharedString::from(state.read(cx).code()))
+            }),
+            restore: None,
+            is_required: false,
+            validation_behavior: ValidationBehavior::Native,
+            behavior_of: None,
+        }
+    }
+
+    /// A plain text value the caller holds — a formatted date, a colour hex,
+    /// an OTP code.
+    pub fn text_value(
+        name: impl Into<SharedString>,
+        value: impl Into<SharedString>,
+    ) -> Self {
+        let value = value.into();
+        Self {
+            name: Some(name.into()),
+            name_of: None,
+            read: Arc::new(move |_| FormValue::Text(value.clone())),
+            restore: None,
+            is_required: false,
+            validation_behavior: ValidationBehavior::Native,
+            behavior_of: None,
+        }
+    }
+
+    /// A plain number the caller holds — a slider or colour channel.
+    pub fn number_value(name: impl Into<SharedString>, value: f64) -> Self {
+        Self {
+            name: Some(name.into()),
+            name_of: None,
+            read: Arc::new(move |_| FormValue::Number(value)),
+            restore: None,
+            is_required: false,
+            validation_behavior: ValidationBehavior::Native,
+            behavior_of: None,
         }
     }
 
@@ -154,6 +219,8 @@ impl FormField {
             read: Arc::new(move |_| FormValue::Flag(value)),
             restore: None,
             is_required: false,
+            validation_behavior: ValidationBehavior::Native,
+            behavior_of: None,
         }
     }
 
@@ -169,6 +236,8 @@ impl FormField {
             read: Arc::new(move |_| FormValue::Keys(values.clone())),
             restore: None,
             is_required: false,
+            validation_behavior: ValidationBehavior::Native,
+            behavior_of: None,
         }
     }
 
@@ -205,6 +274,23 @@ impl FormField {
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
+    }
+
+    /// `validationBehavior` — `Allow` shows the field's message without
+    /// blocking submission.
+    pub fn validation_behavior(mut self, behavior: ValidationBehavior) -> Self {
+        self.validation_behavior = behavior;
+        self
+    }
+
+    /// Whether this field's invalidity blocks submission.
+    pub fn blocks_submission(&self, cx: &App) -> bool {
+        let behavior = self
+            .behavior_of
+            .as_ref()
+            .map(|f| f(cx))
+            .unwrap_or(self.validation_behavior);
+        behavior == ValidationBehavior::Native
     }
 
     /// The name this field submits under: an explicit [`FormField::name`],
@@ -323,11 +409,12 @@ impl Form {
         FormData { entries }
     }
 
-    /// The names of the required fields, for the invalid check.
+    /// The names of the fields whose emptiness blocks submission: required, and
+    /// not opted out with `validationBehavior: "aria"`.
     fn required_names(&self, cx: &App) -> Vec<SharedString> {
         self.fields
             .iter()
-            .filter(|f| f.is_required)
+            .filter(|f| f.is_required && f.blocks_submission(cx))
             .filter_map(|f| f.field_name(cx))
             .collect()
     }
