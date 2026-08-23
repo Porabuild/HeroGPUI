@@ -40,6 +40,9 @@ pub enum GroupEdge {
 pub struct Button {
     id: ElementId,
     label: Option<SharedString>,
+    /// v3's `children`-as-a-function: handed `{isHovered, isPressed, isFocused,
+    /// isFocusVisible}` and drawn in place of the label.
+    content: Option<std::sync::Arc<dyn Fn(util::InteractiveState) -> AnyElement + 'static>>,
     variant: Variant,
     size: Size,
     full_width: bool,
@@ -62,6 +65,7 @@ impl Button {
         Self {
             id: id.into(),
             label: None,
+            content: None,
             variant: Variant::Primary,
             size: Size::Md,
             full_width: false,
@@ -74,6 +78,21 @@ impl Button {
             children: Vec::new(),
             on_press: None,
         }
+    }
+
+    /// v3's render function for a button's children, handed `isHovered`,
+    /// `isPressed`, `isFocused` and `isFocusVisible`.
+    ///
+    /// The hover and the press are a frame behind the pointer: gpui reports both
+    /// to a handler, so the render that draws them can only read what the last
+    /// frame recorded. The button's own hover and press styling does not go
+    /// through this -- it is applied by gpui in the same frame.
+    pub fn content(
+        mut self,
+        render: impl Fn(util::InteractiveState) -> AnyElement + 'static,
+    ) -> Self {
+        self.content = Some(std::sync::Arc::new(render));
+        self
     }
 
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
@@ -337,6 +356,15 @@ impl RenderOnce for Button {
             window,
             cx,
         );
+        // The hover and press this button will report to a `content` closure.
+        // Only tracked when one is set: the handlers cost a frame of state.
+        let interaction = self.content.as_ref().map(|_| {
+            util::interaction(
+                ElementId::Name(format!("{:?}-interaction", self.id).into()),
+                window,
+                cx,
+            )
+        });
         let layout = cx.layout();
         let interactive = !self.is_disabled && !self.is_pending;
         // v3's `transition-colors`: the fill eases rather than switching on the
@@ -401,8 +429,26 @@ impl RenderOnce for Button {
             el = el.child(start);
         }
 
-        if let Some(label) = self.label {
+        if let Some(render) = self.content.clone() {
+            let (is_hovered, is_pressed) = interaction
+                .as_ref()
+                .map(|slot| *slot.read(cx))
+                .unwrap_or_default();
+            let focused = focus_handle.is_focused(window);
+            el = el.child(render(util::InteractiveState {
+                is_hovered,
+                is_pressed,
+                is_focused: focused,
+                is_focus_visible: focused && util::focus_visible(cx),
+                is_selected: false,
+                is_disabled: self.is_disabled,
+                is_indeterminate: false,
+            }));
+        } else if let Some(label) = self.label {
             el = el.child(label.to_string());
+        }
+        if let Some(slot) = &interaction {
+            el = util::track_interaction(el, slot);
         }
         el = el.children(self.children);
 

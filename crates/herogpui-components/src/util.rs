@@ -476,6 +476,80 @@ impl gpui::Global for FocusVisible {}
 /// v3's stylesheets style that state. gpui reports *that* an element has focus
 /// but not how the focus arrived, so the app root records which kind of input
 /// was last seen and every ring in the tree reads it.
+/// v3's interactive render props, as one value.
+///
+/// Every pressable control in v3 hands its children a function and passes these
+/// in: `{isHovered, isPressed, isFocused, isFocusVisible, isSelected,
+/// isDisabled}`. This port draws each of those states itself, and a component
+/// that also takes a content closure hands the same values over rather than
+/// leaving a caller to re-derive them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct InteractiveState {
+    /// `isHovered` — the pointer is over the control. Known one frame late: gpui
+    /// reports a hover to a *handler*, not to the render that draws it.
+    pub is_hovered: bool,
+    /// `isPressed` — the pointer is down on it, likewise one frame late.
+    pub is_pressed: bool,
+    /// `isFocused`
+    pub is_focused: bool,
+    /// `isFocusVisible` — focused *and* the last input was a key.
+    pub is_focus_visible: bool,
+    /// `isSelected` — for the controls where selection is a state.
+    pub is_selected: bool,
+    /// `isDisabled`
+    pub is_disabled: bool,
+    /// `isIndeterminate` — a multi-selection row where some but not all of the
+    /// group's keys are chosen.
+    pub is_indeterminate: bool,
+}
+
+/// Where a control keeps the hover and press it will report next frame.
+pub type Interaction = gpui::Entity<(bool, bool)>;
+
+/// The keyed `(hovered, pressed)` slot for one control.
+///
+/// gpui tells a *handler* about a hover and a press; a render can only read what
+/// the last frame recorded, which is why this is a piece of state rather than a
+/// question asked during layout.
+pub fn interaction(id: gpui::ElementId, window: &mut gpui::Window, cx: &mut App) -> Interaction {
+    window.use_keyed_state(id, cx, |_, _| (false, false))
+}
+
+/// Wires the hover and press handlers that keep an [`Interaction`] current.
+pub fn track_interaction<T>(el: T, slot: &Interaction) -> T
+where
+    T: gpui::StatefulInteractiveElement,
+{
+    let hover = slot.clone();
+    let down = slot.clone();
+    let up = slot.clone();
+    el.on_hover(move |over, _, cx| {
+        let over = *over;
+        hover.update(cx, |state, cx| {
+            if state.0 != over {
+                state.0 = over;
+                cx.notify();
+            }
+        });
+    })
+    .on_mouse_down(gpui::MouseButton::Left, move |_, _, cx| {
+        down.update(cx, |state, cx| {
+            if !state.1 {
+                state.1 = true;
+                cx.notify();
+            }
+        });
+    })
+    .on_mouse_up(gpui::MouseButton::Left, move |_, _, cx| {
+        up.update(cx, |state, cx| {
+            if state.1 {
+                state.1 = false;
+                cx.notify();
+            }
+        });
+    })
+}
+
 pub fn focus_visible(cx: &App) -> bool {
     cx.try_global::<FocusVisible>().is_some_and(|v| v.0)
 }

@@ -8,8 +8,8 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use gpui::{
-    div, prelude::*, px, App, ElementId, InteractiveElement, IntoElement, RenderOnce, SharedString,
-    Styled, Window,
+    div, prelude::*, px, AnyElement, App, ElementId, InteractiveElement, IntoElement, RenderOnce,
+    SharedString, Styled, Window,
 };
 use herogpui_core::{SelectionMode, Size};
 use herogpui_theme::ActiveTheme;
@@ -87,6 +87,9 @@ pub struct TagGroup {
     is_disabled: bool,
     size: Size,
     variant: TagVariant,
+    /// `Tag`'s `children`-as-a-function: handed the interactive state and drawn
+    /// in place of the label.
+    tag_content: Option<Arc<dyn Fn(&Tag, crate::util::InteractiveState) -> AnyElement + 'static>>,
     /// Shown in place of the list when `tags` is empty.
     empty_state: Option<SharedString>,
     on_selection_change: Option<OnSelectionChange>,
@@ -98,6 +101,7 @@ impl TagGroup {
         Self {
             id: id.into(),
             tags,
+            tag_content: None,
             label: None,
             description: None,
             selection_mode: SelectionMode::None,
@@ -144,6 +148,20 @@ impl TagGroup {
 
     pub fn size(mut self, size: Size) -> Self {
         self.size = size;
+        self
+    }
+
+    /// v3's render function for a tag's children, handed `isHovered`,
+    /// `isPressed`, `isFocused`, `isFocusVisible` and `isSelected` -- and the tag
+    /// itself, which the closure needs to know what it is drawing.
+    ///
+    /// The hover and the press are a frame behind the pointer: gpui reports both
+    /// to a handler, not to the render that draws them.
+    pub fn tag_content(
+        mut self,
+        render: impl Fn(&Tag, crate::util::InteractiveState) -> AnyElement + 'static,
+    ) -> Self {
+        self.tag_content = Some(Arc::new(render));
         self
     }
 
@@ -230,6 +248,20 @@ impl RenderOnce for TagGroup {
             .copied()
             .find(|i| *i >= at)
             .or_else(|| enabled.first().copied());
+        // One hover/press slot per tag, for a `tag_content` closure.
+        let interaction: Vec<crate::util::Interaction> = if self.tag_content.is_some() {
+            (0..self.tags.len())
+                .map(|index| {
+                    crate::util::interaction(
+                        ElementId::Name(format!("{:?}-tag-{index}-interaction", self.id).into()),
+                        window,
+                        cx,
+                    )
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
         let ring_visible = crate::util::focus_visible(cx);
         let colors = cx.colors();
         let layout = cx.layout();
@@ -325,7 +357,31 @@ impl RenderOnce for TagGroup {
                 );
             }
 
-            chip = chip.child(tag.label.to_string());
+            chip = match &self.tag_content {
+                Some(render) => {
+                    let (is_hovered, is_pressed) = interaction
+                        .get(index)
+                        .map(|slot| *slot.read(cx))
+                        .unwrap_or_default();
+                    let focused = !disabled && cursor_index == Some(index);
+                    chip.child(render(
+                        tag,
+                        crate::util::InteractiveState {
+                            is_hovered,
+                            is_pressed,
+                            is_focused: focused,
+                            is_focus_visible: focused && ring_visible,
+                            is_selected: selected,
+                            is_disabled: disabled,
+                            is_indeterminate: false,
+                        },
+                    ))
+                }
+                None => chip.child(tag.label.to_string()),
+            };
+            if let Some(slot) = interaction.get(index) {
+                chip = crate::util::track_interaction(chip, slot);
+            }
 
             if let Some(on_remove) = self.on_remove.clone() {
                 let key = tag.key.clone();

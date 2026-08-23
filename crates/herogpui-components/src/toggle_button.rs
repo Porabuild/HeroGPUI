@@ -28,6 +28,9 @@ pub struct ToggleButton {
     /// namespace its ids without breaking selection.
     key: Option<SharedString>,
     label: Option<SharedString>,
+    /// v3's `children`-as-a-function: handed the interactive state, `isSelected`
+    /// included, and drawn in place of the label.
+    content: Option<std::sync::Arc<dyn Fn(crate::util::InteractiveState) -> AnyElement + 'static>>,
     variant: ToggleVariant,
     size: Size,
     /// `isSelected` — `None` leaves the button holding the state, seeded from
@@ -66,6 +69,7 @@ impl ToggleButton {
 
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
+            content: None,
             id: id.into(),
             key: None,
             label: None,
@@ -80,6 +84,18 @@ impl ToggleButton {
             on_press: None,
             on_change: None,
         }
+    }
+
+    /// v3's render function for the button's children, handed `isHovered`,
+    /// `isPressed`, `isFocused`, `isFocusVisible` and `isSelected`. The hover and
+    /// the press are a frame behind the pointer -- gpui reports both to a
+    /// handler, not to the render that draws them.
+    pub fn content(
+        mut self,
+        render: impl Fn(crate::util::InteractiveState) -> AnyElement + 'static,
+    ) -> Self {
+        self.content = Some(std::sync::Arc::new(render));
+        self
     }
 
     pub fn label(mut self, l: impl Into<SharedString>) -> Self {
@@ -171,6 +187,14 @@ impl RenderOnce for ToggleButton {
             window,
             cx,
         );
+        // Where the hover and press a `content` closure is handed come from.
+        let interaction = self.content.as_ref().map(|_| {
+            crate::util::interaction(
+                ElementId::Name(format!("{:?}-interaction", self.id).into()),
+                window,
+                cx,
+            )
+        });
         let sem = cx.colors().accent;
         let colors = cx.colors();
         let layout = cx.layout();
@@ -247,8 +271,26 @@ impl RenderOnce for ToggleButton {
             );
         }
 
-        if let Some(label) = self.label {
+        if let Some(render) = self.content.clone() {
+            let (is_hovered, is_pressed) = interaction
+                .as_ref()
+                .map(|slot| *slot.read(cx))
+                .unwrap_or_default();
+            let focused = focus_handle.is_focused(window);
+            el = el.child(render(crate::util::InteractiveState {
+                is_hovered,
+                is_pressed,
+                is_focused: focused,
+                is_focus_visible: focused && crate::util::focus_visible(cx),
+                is_selected,
+                is_disabled: self.is_disabled,
+                is_indeterminate: false,
+            }));
+        } else if let Some(label) = self.label {
             el = el.child(label.to_string());
+        }
+        if let Some(slot) = &interaction {
+            el = crate::util::track_interaction(el, slot);
         }
         el = el.children(self.children);
 

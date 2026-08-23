@@ -12,6 +12,10 @@ pub struct RadioGroup {
     name: Option<SharedString>,
     id: gpui::ElementId,
     options: Vec<SharedString>,
+    /// `Radio`'s `children`-as-a-function: handed the option and its state.
+    option_content: Option<
+        std::sync::Arc<dyn Fn(&SharedString, crate::util::InteractiveState) -> gpui::AnyElement>,
+    >,
     /// The `<Description>` v3 composes inside a `<Radio>`, per option and in the
     /// same order. `.radio` is `flex flex-col gap-1` around its content and this
     /// text, indented under the label by `ps-7`.
@@ -52,6 +56,19 @@ impl RadioGroup {
         self
     }
 
+    /// `Radio`'s render function — handed the option's label and the state v3
+    /// passes into the same render prop, `isSelected` included.
+    ///
+    /// The press is a frame behind the pointer, because gpui reports it to a
+    /// handler rather than to the render that draws it.
+    pub fn option_content(
+        mut self,
+        render: impl Fn(&SharedString, crate::util::InteractiveState) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.option_content = Some(std::sync::Arc::new(render));
+        self
+    }
+
     /// The per-option descriptions, in the order the options were given. v3
     /// writes one `<Description>` inside each `<Radio>`; a monolithic group
     /// takes the column instead.
@@ -68,6 +85,7 @@ impl RadioGroup {
             name: None,
             id: id.into(),
             options,
+            option_content: None,
             descriptions: Vec::new(),
             selected: None,
             is_controlled: false,
@@ -295,7 +313,24 @@ impl RenderOnce for RadioGroup {
                 })
                 .when(self.is_disabled, |r| r.opacity(layout.disabled_opacity))
                 .child(circle_el)
-                .child(label.to_string());
+                .child(match &self.option_content {
+                    Some(render) => {
+                        let focused = !self.is_disabled && i == tab_stop_index;
+                        render(
+                            &label,
+                            crate::util::InteractiveState {
+                                is_hovered: false,
+                                is_pressed: false,
+                                is_focused: focused,
+                                is_focus_visible: focused && crate::util::focus_visible(cx),
+                                is_selected: Some(i) == selected,
+                                is_disabled: self.is_disabled,
+                                is_indeterminate: false,
+                            },
+                        )
+                    }
+                    None => label.to_string().into_any_element(),
+                });
 
             if !self.is_disabled
                 && !self.is_read_only

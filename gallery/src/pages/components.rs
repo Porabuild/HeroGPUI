@@ -2107,12 +2107,29 @@ impl Gallery {
                     col(channels
                         .iter()
                         .map(|ch| {
-                            h::ColorSlider::new(el_id(format!("cs-{ch:?}")), value, *ch).on_change(
-                                color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
-                                    this.picker_color = *c;
-                                    cx.notify();
-                                })),
-                            )
+                            h::ColorSlider::new(el_id(format!("cs-{ch:?}")), value, *ch)
+                                .on_change(color_cb(cx.listener(
+                                    |this, c: &h::PickerColor, _, cx| {
+                                        this.picker_color = *c;
+                                        cx.notify();
+                                    },
+                                )))
+                                // `ColorSlider.Output`'s render function is
+                                // handed the colour: a swatch beside the value.
+                                .output(|color, text| {
+                                    gpui::div()
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(6.))
+                                        .child(
+                                            gpui::div()
+                                                .size(px(10.))
+                                                .rounded_full()
+                                                .bg(color.to_hsla()),
+                                        )
+                                        .child(text.to_owned())
+                                        .into_any_element()
+                                })
                         })
                         .els()),
                 ),
@@ -2762,11 +2779,35 @@ impl Gallery {
                     "Render Props",
                     col(vec![h::Switch::new("sw-render")
                         .is_selected(controlled)
-                        .label(gpui::div().child(if controlled { "Enabled" } else { "Disabled" }))
                         .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                             this.set_demo_flag("sw-controlled", *v);
                             cx.notify();
                         })))
+                        // v3's children-as-a-function: the closure is handed
+                        // `isSelected`, `isHovered`, `isPressed`, `isFocused` and
+                        // `isFocusVisible` and draws the label from them.
+                        .content(|state| {
+                            let mut parts = Vec::new();
+                            if state.is_selected {
+                                parts.push("selected");
+                            }
+                            if state.is_hovered {
+                                parts.push("hovered");
+                            }
+                            if state.is_pressed {
+                                parts.push("pressed");
+                            }
+                            if state.is_focus_visible {
+                                parts.push("focus-visible");
+                            }
+                            gpui::div()
+                                .child(if parts.is_empty() {
+                                    "idle".to_owned()
+                                } else {
+                                    parts.join(" + ")
+                                })
+                                .into_any_element()
+                        })
                         .into_any_element()]),
                 ),
                 (

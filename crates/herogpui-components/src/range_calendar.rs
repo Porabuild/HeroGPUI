@@ -53,7 +53,34 @@ pub struct RangeCalendar {
     /// `RangeCalendar.CellIndicator` — the dot under a marked day, the same part
     /// a [`Calendar`](crate::calendar::Calendar) draws.
     cell_indicator: Option<Box<dyn Fn(Date) -> bool + 'static>>,
+    /// `RangeCalendar.Cell`'s render props: the closure replaces the day label
+    /// and is handed the state v3 passes it, the two range ends included.
+    cell: Option<Box<dyn Fn(RangeCalendarCellState) -> gpui::AnyElement + 'static>>,
     on_change: Option<OnRangeChange>,
+}
+
+/// What `RangeCalendar.Cell`'s render function is handed -- v3's render props
+/// for the cell, one field each.
+#[derive(Clone, Debug)]
+pub struct RangeCalendarCellState {
+    /// The date this cell draws.
+    pub date: Date,
+    /// `formattedDate` — the day label, as this port writes it.
+    pub formatted_date: gpui::SharedString,
+    /// `isSelected` — an end of the range or inside it.
+    pub is_selected: bool,
+    /// `isSelectionStart`
+    pub is_selection_start: bool,
+    /// `isSelectionEnd`
+    pub is_selection_end: bool,
+    /// `isUnavailable`
+    pub is_unavailable: bool,
+    /// `isOutsideMonth`
+    pub is_outside_month: bool,
+    /// Today, which v3 marks with `data-today`.
+    pub is_today: bool,
+    /// Outside the min/max range, or the calendar is disabled.
+    pub is_disabled: bool,
 }
 
 impl RangeCalendar {
@@ -102,6 +129,7 @@ impl RangeCalendar {
             on_focus_change: None,
             allows_non_contiguous_ranges: false,
             cell_indicator: None,
+            cell: None,
             on_change: None,
         }
     }
@@ -178,6 +206,19 @@ impl RangeCalendar {
     }
 
     /// `firstDayOfWeek`
+    /// `RangeCalendar.Cell`'s render function — draw the day yourself.
+    ///
+    /// v3 hands it `{formattedDate, isSelected, isUnavailable, isOutsideMonth,
+    /// isSelectionStart, isSelectionEnd}`; this port computes every one of those
+    /// to draw the cell, so the closure is handed the same state.
+    pub fn cell(
+        mut self,
+        render: impl Fn(RangeCalendarCellState) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.cell = Some(Box::new(render));
+        self
+    }
+
     /// `RangeCalendar.CellIndicator` — mark the days this returns `true` for.
     pub fn cell_indicator(mut self, f: impl Fn(Date) -> bool + 'static) -> Self {
         self.cell_indicator = Some(Box::new(f));
@@ -297,7 +338,22 @@ impl RangeCalendar {
             .justify_center()
             .size(px(38.))
             .text_size(px(13.))
-            .child(date.day.to_string());
+            .child(match &self.cell {
+                Some(render) => render(RangeCalendarCellState {
+                    date,
+                    formatted_date: date.day.to_string().into(),
+                    is_selected: is_start || is_end || in_range,
+                    is_selection_start: is_start,
+                    is_selection_end: is_end,
+                    is_unavailable: self.constraints.is_unavailable(date),
+                    // Every cell this draws belongs to the month it is in; the
+                    // adjacent months are drawn as inert slots.
+                    is_outside_month: false,
+                    is_today,
+                    is_disabled: !selectable,
+                }),
+                None => date.day.to_string().into_any_element(),
+            });
 
         if is_start || is_end {
             cell = cell

@@ -19,6 +19,9 @@ pub struct Switch {
     /// [`Self::form_field`].
     name: Option<gpui::SharedString>,
     id: gpui::ElementId,
+    /// v3's `children`-as-a-function: handed the interactive state and drawn in
+    /// place of the label.
+    content: Option<std::sync::Arc<dyn Fn(crate::util::InteractiveState) -> AnyElement + 'static>>,
     /// `isSelected` — `None` leaves the component holding the state, seeded
     /// from `defaultSelected`.
     checked: Option<bool>,
@@ -91,6 +94,7 @@ impl Switch {
 
     pub fn new(id: impl Into<gpui::ElementId>) -> Self {
         Self {
+            content: None,
             value: None,
             validation_behavior: crate::form::ValidationBehavior::Native,
             name: None,
@@ -188,6 +192,17 @@ impl Switch {
     }
 
     /// Text shown next to the track (children slot in React).
+    /// v3's render function for a switch's children, handed `isHovered`,
+    /// `isPressed`, `isFocused`, `isFocusVisible` and `isSelected`. The hover and
+    /// the press are a frame behind the pointer: gpui reports both to a handler.
+    pub fn content(
+        mut self,
+        render: impl Fn(crate::util::InteractiveState) -> AnyElement + 'static,
+    ) -> Self {
+        self.content = Some(std::sync::Arc::new(render));
+        self
+    }
+
     pub fn label(mut self, el: impl IntoElement) -> Self {
         self.label = Some(el.into_any_element());
         self
@@ -240,6 +255,15 @@ impl RenderOnce for Switch {
             window,
             cx,
         );
+        // The hover and press a `content` closure is handed; only tracked when
+        // one is set.
+        let interaction = self.content.as_ref().map(|_| {
+            crate::util::interaction(
+                gpui::ElementId::Name(format!("{:?}-interaction", self.id).into()),
+                window,
+                cx,
+            )
+        });
         let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
@@ -286,6 +310,9 @@ impl RenderOnce for Switch {
             .px(thumb_inset)
             .when(self.is_disabled, |t| t.opacity(layout.disabled_opacity))
             .when(!self.is_disabled, |t| t.cursor_pointer());
+        if let Some(slot) = &interaction {
+            track = crate::util::track_interaction(track, slot);
+        }
         // v3's switch stylesheet has no invalid rule at all -- the state shows
         // in the field error below, not as a danger ring on the track, so the
         // ring this used to draw was an invention.
@@ -387,6 +414,22 @@ impl RenderOnce for Switch {
             .items_center()
             .gap(px(12.))
             .text_size(px(14.));
+        let content_row = self.content.clone().map(|render| {
+            let (is_hovered, is_pressed) = interaction
+                .as_ref()
+                .map(|slot| *slot.read(cx))
+                .unwrap_or_default();
+            let focused = focus_handle.is_focused(window);
+            render(crate::util::InteractiveState {
+                is_hovered,
+                is_pressed,
+                is_focused: focused,
+                is_focus_visible: focused && crate::util::focus_visible(cx),
+                is_selected: checked,
+                is_disabled: self.is_disabled,
+                is_indeterminate: false,
+            })
+        });
         let label_row = self.label.map(|label| {
             gpui::div()
                 .flex()
@@ -400,10 +443,14 @@ impl RenderOnce for Switch {
                     r.child(gpui::div().text_color(colors.danger.color).child("*"))
                 })
         });
-        match (self.label_first, label_row) {
-            (true, Some(label)) => el = el.child(label).child(track),
-            (false, Some(label)) => el = el.child(track).child(label),
-            (_, None) => el = el.child(track),
+        match (self.label_first, label_row, content_row) {
+            // A `content` closure stands in for the label wherever the label
+            // would have gone.
+            (true, _, Some(content)) => el = el.child(content).child(track),
+            (false, _, Some(content)) => el = el.child(track).child(content),
+            (true, Some(label), None) => el = el.child(label).child(track),
+            (false, Some(label), None) => el = el.child(track).child(label),
+            (_, None, None) => el = el.child(track),
         }
 
         // `& > [data-slot="description"]` is indented by the track width plus

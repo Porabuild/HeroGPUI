@@ -151,6 +151,10 @@ pub struct ListBox {
     /// `ListBox.ItemIndicator` — draw the tick yourself. v3 hands its render
     /// function `isSelected`, so this closure receives it.
     indicator: Option<Indicator>,
+    /// `children` on `ListBox.Item` — a render function handed the row's key and
+    /// its state.
+    item_content:
+        Option<Arc<dyn Fn(&SharedString, util::InteractiveState) -> gpui::AnyElement + 'static>>,
     on_selection_change: Option<OnSelectionChange>,
     on_action: Option<OnAction>,
 }
@@ -173,6 +177,7 @@ impl ListBox {
             padding: px(4.),
             max_h: None,
             indicator: None,
+            item_content: None,
             on_selection_change: None,
             on_action: None,
         }
@@ -264,6 +269,19 @@ impl ListBox {
     ///
     /// The closure is handed `isSelected`, the value v3 passes into the same
     /// render function, so a caller can return its own glyph, or nothing.
+    /// `children` on `ListBox.Item` — replaces a row's label.
+    ///
+    /// The closure is handed the row's key and the state v3 passes into the same
+    /// render prop: `isSelected`, `isFocused`, `isPressed` and `isDisabled`. The
+    /// press is a frame behind the pointer, because gpui reports it to a handler.
+    pub fn item_content(
+        mut self,
+        render: impl Fn(&SharedString, util::InteractiveState) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.item_content = Some(Arc::new(render));
+        self
+    }
+
     pub fn indicator(mut self, render: impl Fn(bool) -> gpui::AnyElement + 'static) -> Self {
         self.indicator = Some(Arc::new(render));
         self
@@ -666,7 +684,25 @@ impl ListBox {
                     );
                 }
 
-                // Label plus optional description stack.
+                // Label plus optional description stack -- or the render
+                // function, which v3 hands the row's state.
+                if let Some(render) = &self.item_content {
+                    let focused = cursor_at == Some(index);
+                    return row
+                        .child(render(
+                            key,
+                            util::InteractiveState {
+                                is_hovered: false,
+                                is_pressed: false,
+                                is_focused: focused,
+                                is_focus_visible: focused && util::focus_visible(cx),
+                                is_selected: selected,
+                                is_disabled: disabled,
+                                is_indeterminate: false,
+                            },
+                        ))
+                        .into_any_element();
+                }
                 row = row.child(
                     div()
                         .flex()

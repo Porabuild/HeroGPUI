@@ -30,6 +30,10 @@ pub struct CloseButton {
     is_disabled: bool,
     /// Replaces the default close glyph (`children` in React).
     icon: Option<AnyElement>,
+    /// v3's `children`-as-a-function: handed the interactive state and drawn in
+    /// place of the default content.
+    content: Option<std::sync::Arc<dyn Fn(crate::util::InteractiveState) -> AnyElement + 'static>>,
+
     on_press: Option<OnPress>,
 }
 
@@ -39,6 +43,7 @@ impl CloseButton {
             id: id.into(),
             is_disabled: false,
             icon: None,
+            content: None,
             on_press: None,
         }
     }
@@ -49,6 +54,17 @@ impl CloseButton {
     }
 
     /// Supplies a custom icon in place of the default close glyph.
+    /// v3's render function for the button's children, handed `isHovered`,
+    /// `isPressed` and `isFocused`. The hover and press are a frame behind the
+    /// pointer, because gpui reports both to a handler.
+    pub fn content(
+        mut self,
+        render: impl Fn(crate::util::InteractiveState) -> AnyElement + 'static,
+    ) -> Self {
+        self.content = Some(std::sync::Arc::new(render));
+        self
+    }
+
     pub fn icon(mut self, icon: impl IntoElement) -> Self {
         self.icon = Some(icon.into_any_element());
         self
@@ -72,6 +88,14 @@ impl RenderOnce for CloseButton {
             window,
             cx,
         );
+        let interaction = self.content.as_ref().map(|_| {
+            crate::util::interaction(
+                ElementId::Name(format!("{:?}-interaction", self.id).into()),
+                window,
+                cx,
+            )
+        });
+
         let colors = cx.colors();
         let layout = cx.layout();
         // `.close-button` is `h-6 p-1` with a `size-4` glyph.
@@ -79,7 +103,7 @@ impl RenderOnce for CloseButton {
         let hover_bg = colors.default.with_alpha(0.15);
 
         let mut el = div()
-            .id(self.id)
+            .id(self.id.clone())
             .flex()
             .items_center()
             .justify_center()
@@ -97,15 +121,34 @@ impl RenderOnce for CloseButton {
                 .active(|s| s.opacity(0.7));
         }
 
-        el = match self.icon {
-            Some(icon) => el.child(icon),
-            None => el.child(
+        el = match (self.content.clone(), self.icon) {
+            (Some(render), _) => {
+                let (is_hovered, is_pressed) = interaction
+                    .as_ref()
+                    .map(|slot| *slot.read(cx))
+                    .unwrap_or_default();
+                el.child(render(crate::util::InteractiveState {
+                    is_hovered,
+                    is_pressed,
+                    is_focused: focus_handle.is_focused(window),
+                    is_focus_visible: focus_handle.is_focused(window)
+                        && crate::util::focus_visible(cx),
+                    is_selected: false,
+                    is_disabled: self.is_disabled,
+                    is_indeterminate: false,
+                }))
+            }
+            (None, Some(icon)) => el.child(icon),
+            (None, None) => el.child(
                 gpui::svg()
                     .size(icon_size)
                     .path(icons::CLOSE)
                     .text_color(colors.muted),
             ),
         };
+        if let Some(slot) = &interaction {
+            el = crate::util::track_interaction(el, slot);
+        }
 
         if let Some(on_press) = self.on_press {
             if !self.is_disabled {

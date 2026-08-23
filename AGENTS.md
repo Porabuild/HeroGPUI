@@ -296,6 +296,36 @@ reaches `thumb`. A blanket reason is only honest if the thing it claims is true
 of every row it covers, which is what `reason_audit.py` prints them for: it
 caught four `isFocusWithin` entries on components that never document it.
 
+**A render-prop argument is not an unportable prop.** v3 hands a component's
+children a function and passes the state in: `{isHovered, isPressed, isSelected,
+percentage, formattedDate}`. This port computes every one of those in order to
+draw the control, so the honest port is the inversion the audit's own notes
+describe -- the builder takes a closure and hands the values over:
+
+| v3 render props | builder |
+|---|---|
+| Button / CloseButton / ToggleButton / Switch children | `content(\|state\|)` |
+| ListBox.Item / Dropdown.Item children | `item_content(\|key, state\|)` |
+| Tag children | `tag_content(\|tag, state\|)` |
+| Radio children | `option_content(\|label, state\|)` |
+| Calendar.Cell / RangeCalendar.Cell | `cell(\|state\|)` |
+| ProgressBar / Meter / ProgressCircle ValueLabel | `value_content(\|percentage, text\|)` |
+| ColorSlider.Output | `output(\|color, text\|)` |
+
+`util::InteractiveState` is the state struct, and two of its fields cost a frame:
+gpui reports a hover and a press to a *handler*, so a render can only read what
+the last frame recorded. `util::interaction` is that keyed slot and
+`util::track_interaction` wires the handlers -- both are only attached when a
+closure is set, because they cost a frame of state.
+
+Two audits pushed back on the first attempt, which is what they are for:
+`inert_audit.py` reads an instance from `new(` to its first
+`.into_any_element()`, so a render closure that ends with one hides the callback
+that follows it -- put the callback first. And `demo_audit.py` then wanted the
+new closure exercised, which is how the Switch's "Render Props" demo came to
+print `selected + hovered + focus-visible` instead of deriving a label from the
+value.
+
 The diff also only ever ran in one direction. `api_audit.py` asks "is every
 documented prop implemented?", which cannot see a prop held over from v2:
 

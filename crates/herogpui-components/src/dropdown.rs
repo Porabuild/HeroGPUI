@@ -106,7 +106,8 @@ impl IndicatorKind {
 pub type OnSelectionChange =
     std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
 
-type ItemContent = std::sync::Arc<dyn Fn(&SharedString, bool, bool) -> AnyElement + 'static>;
+type ItemContent =
+    std::sync::Arc<dyn Fn(&SharedString, crate::util::InteractiveState) -> AnyElement + 'static>;
 
 #[derive(IntoElement)]
 pub struct Menu {
@@ -178,11 +179,13 @@ impl Menu {
 
     /// `children` on `Dropdown.Item` — replaces an item's label.
     ///
-    /// The closure receives the item's key, `isSelected` and
-    /// `isIndeterminate`, the values v3 passes into the same render prop.
+    /// The closure receives the item's key and the row's state: `isSelected`,
+    /// `isIndeterminate`, `isFocused`, `isPressed` and `isDisabled`, which are
+    /// the values v3 passes into the same render prop. The press is a frame
+    /// behind the pointer, because gpui reports it to a handler.
     pub fn item_content(
         mut self,
-        render: impl Fn(&SharedString, bool, bool) -> AnyElement + 'static,
+        render: impl Fn(&SharedString, crate::util::InteractiveState) -> AnyElement + 'static,
     ) -> Self {
         self.item_content = Some(std::sync::Arc::new(render));
         self
@@ -520,15 +523,31 @@ impl RenderOnce for Menu {
                         );
                     }
                     // `children` on `Dropdown.Item` is a render function in
-                    // v3, handed `isSelected` and `isIndeterminate`. A
-                    // multi-selection item is indeterminate when some but not
-                    // all of the menu's keys are chosen.
+                    // v3, handed the row's state. A multi-selection item is
+                    // indeterminate when some but not all of the menu's keys are
+                    // chosen.
                     let is_indeterminate = self.selection_mode == SelectionMode::Multiple
                         && !self.selected_keys.is_empty()
                         && !is_selected;
                     row = row.child(
                         gpui::div().flex_1().child(match &self.item_content {
-                            Some(render) => render(&key, is_selected, is_indeterminate),
+                            Some(render) => render(
+                                &key,
+                                crate::util::InteractiveState {
+                                    // The pointer state a menu row reports comes
+                                    // from the same slot the press animation
+                                    // uses; a row is focused when the keyboard
+                                    // cursor is on it.
+                                    is_hovered: false,
+                                    is_pressed: false,
+                                    is_focused: cursor_at == Some(i),
+                                    is_focus_visible: cursor_at == Some(i)
+                                        && crate::util::focus_visible(cx),
+                                    is_selected,
+                                    is_disabled: is_item_disabled,
+                                    is_indeterminate,
+                                },
+                            ),
                             None => match &description {
                                 // `Label` over `Description`, which is how v3
                                 // composes a described item.

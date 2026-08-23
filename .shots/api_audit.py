@@ -23,6 +23,39 @@ SRC = 'crates/herogpui-components/src/'
 
 # React prop -> our builder name, where they legitimately differ.
 ALIAS = {
+    # v3 hands a button's children a function with the interactive state in it;
+    # `content` is that closure, so each render prop resolves to it.
+    'RadioGroup.isSelected': 'option_content',
+    'ListBox.isFocused': 'item_content', 'ListBox.isPressed': 'item_content',
+    'Dropdown.isDisabled': 'item_content', 'Dropdown.isFocused': 'item_content',
+    'Dropdown.isPressed': 'item_content',
+    'TagGroup.isHovered': 'tag_content', 'TagGroup.isPressed': 'tag_content',
+    'TagGroup.isFocused': 'tag_content', 'TagGroup.isFocusVisible': 'tag_content',
+    'TagGroup.isSelected': 'tag_content',
+    'Switch.isHovered': 'content', 'Switch.isPressed': 'content',
+    'Switch.isFocused': 'content', 'Switch.isFocusVisible': 'content',
+    'ToggleButton.isHovered': 'content', 'ToggleButton.isPressed': 'content',
+    'ToggleButton.isFocused': 'content', 'ToggleButton.isFocusVisible': 'content',
+    'CloseButton.isHovered': 'content', 'CloseButton.isPressed': 'content',
+    'CloseButton.isFocused': 'content',
+    'Button.isHovered': 'content', 'Button.isPressed': 'content',
+    'Button.isFocused': 'content', 'Button.isFocusVisible': 'content',
+    # `Calendar.Cell`'s render function is handed `formattedDate` and the flags;
+    # `cell` is that closure, so each of its render props resolves to it.
+    'RangeCalendar.formattedDate': 'cell', 'RangeCalendar.isSelected': 'cell',
+    'RangeCalendar.isUnavailable': 'cell', 'RangeCalendar.isOutsideMonth': 'cell',
+    'RangeCalendar.isSelectionStart': 'cell', 'RangeCalendar.isSelectionEnd': 'cell',
+    'Calendar.formattedDate': 'cell', 'Calendar.isSelected': 'cell',
+    'Calendar.isUnavailable': 'cell', 'Calendar.isOutsideMonth': 'cell',
+    # `ColorSlider.Output`'s render function is handed the `color`.
+    'ColorSlider.color': 'output',
+    # `ProgressBar.ValueLabel` (and the Meter's and the circle's) is a render
+    # function handed `percentage` and `valueText`; `value_content` is that
+    # closure, so both props resolve to it.
+    'Meter.percentage': 'value_content', 'Meter.valueText': 'value_content',
+    'ProgressBar.percentage': 'value_content', 'ProgressBar.valueText': 'value_content',
+    'ProgressCircle.percentage': 'value_content',
+    'ProgressCircle.valueText': 'value_content',
     'onPress': 'on_press', 'onChange': 'on_change', 'onSelectionChange': 'on_selection_change',
     'onOpenChange': 'on_open_change', 'onAction': 'on_action', 'onRemove': 'on_remove',
     'onSubmit': 'on_submit', 'onClose': 'on_close', 'onConfirm': 'on_confirm',
@@ -162,81 +195,42 @@ WONT_PORT = {
     # view transitions: a change is drawn on the next frame.
     'Toast.wrapUpdate': 'no-view-transitions',
 
-    # v3's `render` prop hands a component its own interaction state so the
-    # caller can draw the part itself. This port draws it -- the hover, press,
-    # focus and selected treatments are what `design_audit.py` measures -- and
-    # exposes no whole-part render override, so there is no closure to hand
-    # them to. Where a part *is* overridable the value is an alias instead:
-    # `ListBox.isSelected` reaches `indicator`, `Select.selectedItems` reaches
-    # `value_content`.
-    'Button.isHovered': 'drawn-not-delegated',
-    'Button.isPressed': 'drawn-not-delegated',
-    'Button.isFocused': 'drawn-not-delegated',
-    'Button.isFocusVisible': 'drawn-not-delegated',
-    'CloseButton.isHovered': 'drawn-not-delegated',
-    'CloseButton.isPressed': 'drawn-not-delegated',
-    'CloseButton.isFocused': 'drawn-not-delegated',
-    'ToggleButton.isHovered': 'drawn-not-delegated',
-    'ToggleButton.isPressed': 'drawn-not-delegated',
-    'ToggleButton.isFocused': 'drawn-not-delegated',
-    'ToggleButton.isFocusVisible': 'drawn-not-delegated',
-    'Switch.isHovered': 'drawn-not-delegated',
-    'Switch.isPressed': 'drawn-not-delegated',
-    'Switch.isFocused': 'drawn-not-delegated',
-    'Switch.isFocusVisible': 'drawn-not-delegated',
-    'TagGroup.isHovered': 'drawn-not-delegated',
-    'TagGroup.isPressed': 'drawn-not-delegated',
-    'TagGroup.isFocused': 'drawn-not-delegated',
-    'TagGroup.isFocusVisible': 'drawn-not-delegated',
-    'TagGroup.isSelected': 'drawn-not-delegated',
-    'Dropdown.isPressed': 'drawn-not-delegated',
-    'Dropdown.isFocused': 'drawn-not-delegated',
-    'Dropdown.isDisabled': 'drawn-not-delegated',
-    'ListBox.isPressed': 'drawn-not-delegated',
-    'ListBox.isFocused': 'drawn-not-delegated',
-    'RadioGroup.isSelected': 'drawn-not-delegated',
-    'TextField.isFocused': 'drawn-not-delegated',
-    'TextField.isFocusVisible': 'drawn-not-delegated',
-    'TextField.isFocusWithin': 'drawn-not-delegated',
-    'SearchField.isFocused': 'drawn-not-delegated',
-    'SearchField.isFocusVisible': 'drawn-not-delegated',
-    'SearchField.isFocusWithin': 'drawn-not-delegated',
-    'NumberField.isFocused': 'drawn-not-delegated',
-    'NumberField.isFocusVisible': 'drawn-not-delegated',
-    'NumberField.isFocusWithin': 'drawn-not-delegated',
-    'ColorField.isFocused': 'drawn-not-delegated',
-    'ColorField.isFocusVisible': 'drawn-not-delegated',
-    'ColorField.isFocusWithin': 'drawn-not-delegated',
-    'DateField.isFocused': 'drawn-not-delegated',
-    'DateField.isFocusVisible': 'drawn-not-delegated',
-    'DateField.isFocusWithin': 'drawn-not-delegated',
-    'TimeField.isFocused': 'drawn-not-delegated',
-    'TimeField.isFocusVisible': 'drawn-not-delegated',
-    'TimeField.isFocusWithin': 'drawn-not-delegated',
+    # What is left of v3's render props: the six fields' focus flags. Every other
+    # component that hands its children a function has one here -- `content` on
+    # the button family and the switch, `item_content` on the two lists,
+    # `tag_content`, `option_content`, `cell` on the two calendars,
+    # `value_content` on the three progress readouts -- but a *field*'s children
+    # function returns the label, the group and the messages, and this port takes
+    # those as `label`, `description` and `error_message` and composes them
+    # itself. There is no children function to hand the flags to, and one that
+    # replaced the whole field would delete the chrome the component exists to
+    # draw. The states themselves are drawn: `state_audit.py` checks that each
+    # field rings on focus.
+    'TextField.isFocused': 'field-composes-its-own-parts',
+    'TextField.isFocusVisible': 'field-composes-its-own-parts',
+    'TextField.isFocusWithin': 'field-composes-its-own-parts',
+    'SearchField.isFocused': 'field-composes-its-own-parts',
+    'SearchField.isFocusVisible': 'field-composes-its-own-parts',
+    'SearchField.isFocusWithin': 'field-composes-its-own-parts',
+    'NumberField.isFocused': 'field-composes-its-own-parts',
+    'NumberField.isFocusVisible': 'field-composes-its-own-parts',
+    'NumberField.isFocusWithin': 'field-composes-its-own-parts',
+    'ColorField.isFocused': 'field-composes-its-own-parts',
+    'ColorField.isFocusVisible': 'field-composes-its-own-parts',
+    'ColorField.isFocusWithin': 'field-composes-its-own-parts',
+    'DateField.isFocused': 'field-composes-its-own-parts',
+    'DateField.isFocusVisible': 'field-composes-its-own-parts',
+    'DateField.isFocusWithin': 'field-composes-its-own-parts',
+    'TimeField.isFocused': 'field-composes-its-own-parts',
+    'TimeField.isFocusVisible': 'field-composes-its-own-parts',
+    'TimeField.isFocusWithin': 'field-composes-its-own-parts',
     # A calendar cell is drawn here, so the values its render function would
     # receive -- the formatted date, whether the day falls outside the month,
     # is selected, is unavailable, starts or ends the range -- are computed and
     # used rather than handed over.
-    'Calendar.formattedDate': 'drawn-not-delegated',
-    'Calendar.isOutsideMonth': 'drawn-not-delegated',
-    'Calendar.isSelected': 'drawn-not-delegated',
-    'Calendar.isUnavailable': 'drawn-not-delegated',
-    'RangeCalendar.formattedDate': 'drawn-not-delegated',
-    'RangeCalendar.isOutsideMonth': 'drawn-not-delegated',
-    'RangeCalendar.isSelected': 'drawn-not-delegated',
-    'RangeCalendar.isUnavailable': 'drawn-not-delegated',
-    'RangeCalendar.isSelectionStart': 'drawn-not-delegated',
-    'RangeCalendar.isSelectionEnd': 'drawn-not-delegated',
     # Likewise the value label: the component computes the percentage and
     # formats the value (`format_options` chooses how), and `value_label`
     # replaces the text outright.
-    'Meter.percentage': 'drawn-not-delegated',
-    'Meter.valueText': 'drawn-not-delegated',
-    'ProgressBar.percentage': 'drawn-not-delegated',
-    'ProgressBar.valueText': 'drawn-not-delegated',
-    'ProgressCircle.percentage': 'drawn-not-delegated',
-    'ProgressCircle.valueText': 'drawn-not-delegated',
-    'ColorSlider.color': 'drawn-not-delegated',
     # React Aria passes the rendering the component *would* have done, so a
     # render function can fall back to it. A builder that replaces the slot has
     # nothing to hand over: the default is the thing being replaced.

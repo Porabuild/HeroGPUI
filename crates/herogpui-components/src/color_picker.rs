@@ -737,6 +737,9 @@ pub struct ColorSlider {
     orientation: herogpui_core::Orientation,
     length: Pixels,
     show_label: bool,
+    /// `ColorSlider.Output`'s render props: the closure is handed the current
+    /// `color` and the formatted channel value.
+    output: Option<Arc<dyn Fn(PickerColor, &str) -> gpui::AnyElement + 'static>>,
     is_disabled: bool,
     on_change: Option<OnColorChange>,
     on_change_end: Option<OnColorChange>,
@@ -754,6 +757,7 @@ impl ColorSlider {
             orientation: herogpui_core::Orientation::Horizontal,
             length: px(240.),
             show_label: true,
+            output: None,
             is_disabled: false,
             on_change: None,
             on_change_end: None,
@@ -820,6 +824,16 @@ impl ColorSlider {
 
     pub fn length(mut self, length: impl Into<Pixels>) -> Self {
         self.length = length.into();
+        self
+    }
+
+    /// `ColorSlider.Output`'s render function — v3 hands it the `color`, which
+    /// is what this closure takes along with the value as v3 formats it.
+    pub fn output(
+        mut self,
+        render: impl Fn(PickerColor, &str) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.output = Some(Arc::new(render));
         self
     }
 
@@ -1077,7 +1091,16 @@ impl RenderOnce for ColorSlider {
                             .text_color(colors.foreground)
                             .child(self.channel.label()),
                     )
-                    .child(div().text_color(colors.muted).child(display)),
+                    .child(match &self.output {
+                        // `.color-slider__output`: v3's render prop is handed
+                        // the colour, which is what a caller needs to draw a
+                        // swatch or a different unit.
+                        Some(render) => render(self.value, &display),
+                        None => div()
+                            .text_color(colors.muted)
+                            .child(display)
+                            .into_any_element(),
+                    }),
             )
             .child(track)
     }

@@ -18,6 +18,9 @@ pub struct ProgressBar {
     label: Option<String>,
     show_value: bool,
     value_label: Option<SharedString>,
+    /// `ProgressBar.ValueLabel`'s render props: the closure is handed
+    /// `percentage` and `valueText`.
+    value_content: Option<std::sync::Arc<dyn Fn(f32, &str) -> gpui::AnyElement + 'static>>,
     /// `formatOptions` — how the generated value label is written.
     format: Option<herogpui_core::NumberFormat>,
 }
@@ -34,6 +37,7 @@ impl ProgressBar {
             label: None,
             show_value: false,
             value_label: None,
+            value_content: None,
             format: None,
         }
     }
@@ -57,6 +61,17 @@ impl ProgressBar {
     /// filling to a fraction.
     pub fn is_indeterminate(mut self, v: bool) -> Self {
         self.is_indeterminate = v;
+        self
+    }
+
+    /// `ProgressBar.ValueLabel`'s render function — handed the `percentage`
+    /// (0-100) and the `valueText` v3 passes it, so a caller can draw the
+    /// read-out instead of taking the generated one.
+    pub fn value_content(
+        mut self,
+        render: impl Fn(f32, &str) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.value_content = Some(std::sync::Arc::new(render));
         self
     }
 
@@ -141,7 +156,11 @@ impl RenderOnce for ProgressBar {
                     .text_size(px(12.))
                     .text_color(colors.foreground)
                     .child(self.label.clone().unwrap_or_default())
-                    .when(self.show_value, |l| l.child(value_text.to_string())),
+                    .when(self.show_value, |l| match &self.value_content {
+                        // `percentage` is 0-100, as v3 passes it.
+                        Some(render) => l.child(render(fraction * 100., &value_text)),
+                        None => l.child(value_text.to_string()),
+                    }),
             );
         }
 
@@ -216,6 +235,8 @@ pub struct ProgressCircle {
     size_px: gpui::Pixels,
     is_indeterminate: bool,
     show_value: bool,
+    /// `ProgressCircle.ValueLabel`'s render props: `percentage` and `valueText`.
+    value_content: Option<std::sync::Arc<dyn Fn(f32, &str) -> gpui::AnyElement + 'static>>,
     /// `formatOptions` — how the generated value label is written.
     format: Option<herogpui_core::NumberFormat>,
 }
@@ -230,8 +251,19 @@ impl ProgressCircle {
             size_px: px(48.),
             is_indeterminate: false,
             show_value: false,
+            value_content: None,
             format: None,
         }
+    }
+
+    /// `ProgressCircle.ValueLabel`'s render function — handed `percentage`
+    /// (0-100) and `valueText`.
+    pub fn value_content(
+        mut self,
+        render: impl Fn(f32, &str) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.value_content = Some(std::sync::Arc::new(render));
+        self
     }
 
     pub fn value(mut self, v: f32) -> Self {
@@ -357,26 +389,26 @@ impl RenderOnce for ProgressCircle {
                 .inset_0(),
             )
             .when(self.show_value, |el| {
-                el.child(
-                    gpui::div()
-                        .text_size(px(12.))
-                        .font_weight(gpui::FontWeight::SEMIBOLD)
-                        .text_color(colors.foreground)
-                        .child({
-                            let format = self
-                                .format
-                                .clone()
-                                .unwrap_or_else(herogpui_core::NumberFormat::percent);
-                            let n = if format.style
-                                == herogpui_core::NumberStyle::Percent
-                            {
-                                fraction as f64
-                            } else {
-                                self.value as f64
-                            };
-                            format.format(n)
-                        }),
-                )
+                let format = self
+                    .format
+                    .clone()
+                    .unwrap_or_else(herogpui_core::NumberFormat::percent);
+                let n = if format.style == herogpui_core::NumberStyle::Percent {
+                    fraction as f64
+                } else {
+                    self.value as f64
+                };
+                let value_text = format.format(n);
+                match &self.value_content {
+                    Some(render) => el.child(render(fraction * 100., &value_text)),
+                    None => el.child(
+                        gpui::div()
+                            .text_size(px(12.))
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .text_color(colors.foreground)
+                            .child(value_text),
+                    ),
+                }
             })
     }
 }

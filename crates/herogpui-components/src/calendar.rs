@@ -2,8 +2,8 @@
 //! `@heroui/date-picker`'s range grid (std-only date math).
 
 use gpui::{
-    prelude::*, px, App, Entity, IntoElement, RenderOnce, StatefulInteractiveElement, Styled,
-    Window,
+    prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, StatefulInteractiveElement,
+    Styled, Window,
 };
 use herogpui_theme::ActiveTheme;
 
@@ -272,6 +272,28 @@ impl CalendarState {
 
 type OnChange = std::sync::Arc<dyn Fn(Option<Date>, &mut Window, &mut App) + 'static>;
 
+/// What `Calendar.Cell`'s render function is handed.
+///
+/// v3's render props for the cell, one field each: `formattedDate` is the
+/// localized day label, and the four flags say what the cell is.
+#[derive(Clone, Debug)]
+pub struct CalendarCellState {
+    /// The date this cell draws.
+    pub date: Date,
+    /// `formattedDate` — the day label, as this port writes it.
+    pub formatted_date: SharedString,
+    /// `isSelected`
+    pub is_selected: bool,
+    /// `isUnavailable`
+    pub is_unavailable: bool,
+    /// `isOutsideMonth`
+    pub is_outside_month: bool,
+    /// Today, which v3 marks with `data-today`.
+    pub is_today: bool,
+    /// Outside the min/max range, or the calendar is disabled.
+    pub is_disabled: bool,
+}
+
 /// HeroUI Calendar (single date, controlled selection through the entity).
 #[derive(IntoElement)]
 pub struct Calendar {
@@ -288,6 +310,9 @@ pub struct Calendar {
     /// `Calendar.CellIndicator` — whether a day carries a mark. v3 uses it for
     /// event dots; the closure is handed the date.
     cell_indicator: Option<Box<dyn Fn(Date) -> bool + 'static>>,
+    /// `Calendar.Cell`'s render props: the closure replaces the day label and is
+    /// handed the state v3 passes it.
+    cell: Option<Box<dyn Fn(CalendarCellState) -> gpui::AnyElement + 'static>>,
     /// `Calendar.NavButton` children — the paging glyphs, previous then next.
     nav_icons: Option<(&'static str, &'static str)>,
     is_invalid: bool,
@@ -339,6 +364,7 @@ impl Calendar {
             is_read_only: false,
             autofocus_grid: false,
             cell_indicator: None,
+            cell: None,
             nav_icons: None,
             is_invalid: false,
             focused_value: None,
@@ -399,6 +425,20 @@ impl Calendar {
     }
 
     /// `Calendar.CellIndicator` — mark the days this returns `true` for.
+    /// `Calendar.Cell`'s render function — draw the day yourself.
+    ///
+    /// v3 hands it `{formattedDate, isSelected, isUnavailable, isOutsideMonth}`;
+    /// this port computes each of those to draw the cell, so the closure is
+    /// handed the same [`CalendarCellState`] rather than the values being
+    /// unavailable.
+    pub fn cell(
+        mut self,
+        render: impl Fn(CalendarCellState) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.cell = Some(Box::new(render));
+        self
+    }
+
     pub fn cell_indicator(mut self, f: impl Fn(Date) -> bool + 'static) -> Self {
         self.cell_indicator = Some(Box::new(f));
         self
@@ -638,7 +678,18 @@ impl Calendar {
             .flex()
             .items_center()
             .justify_center()
-            .child(circle.child(date.day.to_string()))
+            .child(match &self.cell {
+                Some(render) => circle.child(render(CalendarCellState {
+                    date,
+                    formatted_date: date.day.to_string().into(),
+                    is_selected: is_sel,
+                    is_unavailable: unavailable,
+                    is_outside_month: false,
+                    is_today,
+                    is_disabled: !selectable,
+                })),
+                None => circle.child(date.day.to_string()),
+            })
             .when(marked, |cell| {
                 cell.child(
                     gpui::div()
@@ -692,18 +743,32 @@ impl Calendar {
                 } else {
                     let day_num = idx - lead + 1;
                     if day_num > dim {
-                        // muted leading days of the next month
+                        // The next month's leading days: v3 draws them as cells
+                        // with `isOutsideMonth`, so the render prop sees them
+                        // too -- muted and inert either way.
                         let nd = day_num - dim;
-                        gpui::div()
+                        let slot = gpui::div()
                             .flex_1()
                             .h(px(34.))
                             .flex()
                             .items_center()
                             .justify_center()
                             .text_size(px(12.5))
-                            .text_color(muted)
-                            .child(nd.to_string())
-                            .into_any_element()
+                            .text_color(muted);
+                        match &self.cell {
+                            Some(render) => slot
+                                .child(render(CalendarCellState {
+                                    date: Date::new(y, m, 1),
+                                    formatted_date: nd.to_string().into(),
+                                    is_selected: false,
+                                    is_unavailable: false,
+                                    is_outside_month: true,
+                                    is_today: false,
+                                    is_disabled: true,
+                                }))
+                                .into_any_element(),
+                            None => slot.child(nd.to_string()).into_any_element(),
+                        }
                     } else {
                         self.day_cell(
                             Date::new(y, m, day_num as u32),
