@@ -38,6 +38,8 @@ pub struct Select {
     variant: FieldVariant,
     is_disabled: bool,
     is_invalid: bool,
+    /// `shouldFocusWrap` — whether the arrow keys wrap at the ends of the list.
+    should_focus_wrap: bool,
     /// `ListBox.Section` — the heading that precedes an option, by index.
     sections: Vec<(usize, SharedString)>,
     /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
@@ -67,6 +69,12 @@ impl Select {
     /// `disabledKeys` — indices that cannot be chosen.
     pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = usize>) -> Self {
         self.disabled_keys = keys.into_iter().collect();
+        self
+    }
+
+    /// `shouldFocusWrap` — whether the arrow keys wrap at the ends of the list.
+    pub fn should_focus_wrap(mut self, v: bool) -> Self {
+        self.should_focus_wrap = v;
         self
     }
 
@@ -126,6 +134,7 @@ impl Select {
             variant: FieldVariant::Primary,
             is_disabled: false,
             is_invalid: false,
+            should_focus_wrap: false,
             sections: Vec::new(),
             indicator: None,
             value_content: None,
@@ -290,6 +299,21 @@ impl RenderOnce for Select {
             self.default_value,
         );
 
+        // The trigger is what holds focus, so the open list can be walked with
+        // the arrows the way v3's is.
+        let focus_handle = window.use_keyed_state(
+            el_name(format!("select-{}-focus", id_debug(&self.id))),
+            cx,
+            |_, cx| cx.focus_handle(),
+        );
+        let focus_handle = focus_handle.read(cx).clone();
+        let cursor = window.use_keyed_state(
+            el_name(format!("select-{}-cursor", id_debug(&self.id))),
+            cx,
+            |_, _| None::<usize>,
+        );
+        let cursor_at = *cursor.read(cx);
+
         let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
@@ -324,6 +348,90 @@ impl RenderOnce for Select {
 
         if self.full_width {
             field = field.w_full();
+        }
+
+        // Down or Enter on a closed Select opens it, and the arrows then walk
+        // the options -- the same keys React Aria binds.
+        if !self.is_disabled {
+            let stops: Vec<usize> = (0..self.options.len())
+                .filter(|i| !self.disabled_keys.contains(i))
+                .collect();
+            let held = cursor.clone();
+            let wrap = self.should_focus_wrap;
+            let open_own_keys = open_own.clone();
+            let value_own_keys = value_own.clone();
+            let on_open_change = self.on_open_change.clone();
+            let on_select = self.on_selection_change.clone();
+            let was_open = is_open;
+            let fh = focus_handle.clone();
+            field = field
+                .track_focus(&focus_handle)
+                .key_context("Select")
+                .on_mouse_down(gpui::MouseButton::Left, move |_, window, _| {
+                    window.focus(&fh);
+                })
+                .on_key_down(move |event, window, cx| {
+                    let key = event.keystroke.key.as_str();
+                    if !was_open {
+                        // Closed: Down, Up and Enter all open the list.
+                        if matches!(key, "down" | "up" | "enter" | "space") {
+                            if let Some(held) = &open_own_keys {
+                                held.update(cx, |v, cx| {
+                                    *v = true;
+                                    cx.notify();
+                                });
+                            }
+                            if let Some(cb) = &on_open_change {
+                                cb(true, window, cx);
+                            }
+                        }
+                        return;
+                    }
+                    let from = *held.read(cx);
+                    match crate::list_nav::resolve(&stops, from, key, wrap) {
+                        crate::list_nav::Move::To(next) => {
+                            held.update(cx, |v, cx| {
+                                *v = Some(next);
+                                cx.notify();
+                            });
+                        }
+                        crate::list_nav::Move::Activate => {
+                            let Some(index) = from else { return };
+                            if let Some(held) = &value_own_keys {
+                                held.update(cx, |v, cx| {
+                                    *v = Some(index);
+                                    cx.notify();
+                                });
+                            }
+                            if let Some(held) = &open_own_keys {
+                                held.update(cx, |v, cx| {
+                                    *v = false;
+                                    cx.notify();
+                                });
+                            }
+                            if let Some(cb) = &on_select {
+                                cb(Some(index), window, cx);
+                            }
+                            if let Some(cb) = &on_open_change {
+                                cb(false, window, cx);
+                            }
+                        }
+                        crate::list_nav::Move::Ignore => {
+                            // Escape closes, which every overlay does.
+                            if key == "escape" {
+                                if let Some(held) = &open_own_keys {
+                                    held.update(cx, |v, cx| {
+                                        *v = false;
+                                        cx.notify();
+                                    });
+                                }
+                                if let Some(cb) = &on_open_change {
+                                    cb(false, window, cx);
+                                }
+                            }
+                        }
+                    }
+                });
         }
 
         let multiple = self.selection_mode == SelectionMode::Multiple;
@@ -485,6 +593,11 @@ impl RenderOnce for Select {
                         .font_weight(gpui::FontWeight::MEDIUM);
                 } else {
                     item = item.text_color(colors.foreground);
+                }
+
+                // `status-focused` on the row the keyboard is on.
+                if cursor_at == Some(i) {
+                    item = item.border_2().border_color(colors.focus);
                 }
 
                 item = item.child(gpui::div().truncate().child(opt.to_string()));

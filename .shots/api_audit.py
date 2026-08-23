@@ -131,9 +131,6 @@ WONT_PORT = {
     # item's key and its label are the same value and there is nothing for
     # `formValue` to choose between.
     'ComboBox.formValue': 'keys-are-the-text',
-    # Wrapping applies to keyboard navigation *of the list*, and this port's
-    # ComboBox list is pointer-driven -- a missing mode, named as one.
-    'ComboBox.shouldFocusWrap': 'no-list-keyboard-nav',
     # There are no time zones in this port: `Time` is a wall clock, so there is
     # no abbreviation to hide.
     'hideTimeZone': 'no-time-zones',

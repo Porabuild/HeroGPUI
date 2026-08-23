@@ -71,6 +71,8 @@ pub struct ComboBox {
     allows_empty_collection: bool,
     /// `name` — the name this field submits under.
     name: Option<SharedString>,
+    /// `shouldFocusWrap` — whether the arrow keys wrap at the ends of the list.
+    should_focus_wrap: bool,
     /// `ListBox.Section` — a heading above the item with this label.
     sections: Vec<(SharedString, SharedString)>,
     /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
@@ -175,6 +177,12 @@ impl ComboBox {
         self
     }
 
+    /// `shouldFocusWrap` — whether the arrow keys wrap at the ends of the list.
+    pub fn should_focus_wrap(mut self, v: bool) -> Self {
+        self.should_focus_wrap = v;
+        self
+    }
+
     /// `ListBox.Section` — a heading rendered above `item`.
     pub fn section_before(
         mut self,
@@ -265,6 +273,7 @@ impl ComboBox {
             validation_behavior: None,
             allows_empty_collection: false,
             name: None,
+            should_focus_wrap: false,
             sections: Vec::new(),
             indicator: None,
             disabled_keys: std::collections::HashSet::new(),
@@ -490,7 +499,7 @@ impl RenderOnce for ComboBox {
             let hover_bg = colors.default.hover();
             trigger = trigger.cursor_pointer().hover(move |s| s.bg(hover_bg));
             if on_open_change.is_some() || open_own.is_some() {
-                let own = open_own;
+                let own = open_own.clone();
                 trigger = trigger.on_click(move |_, window, cx| {
                     // Uncontrolled: flip our own copy, or the chevron would be
                     // inert without a caller handler.
@@ -539,6 +548,14 @@ impl RenderOnce for ComboBox {
             input = input.description(description);
         }
 
+        // Which suggestion the keyboard is on.
+        let cursor = window.use_keyed_state(
+            gpui::ElementId::Name(format!("combobox-{entity_id}-cursor").into()),
+            cx,
+            |_, _| None::<usize>,
+        );
+        let cursor_at = *cursor.read(cx);
+
         let mut root = div()
             // The panel overlays the page rather than pushing it down, so the
             // root has to be its positioning context.
@@ -554,6 +571,82 @@ impl RenderOnce for ComboBox {
         // `allowsEmptyCollection` keeps the panel up with no matches. Without
         // it an empty result closes the list -- except when a custom value is
         // allowed, since then the empty state is the "press Enter" hint.
+        // Up, down, Home, End and Enter walk the suggestions; the inner input
+        // keeps left and right for the caret.
+        if !self.is_disabled && !self.is_read_only {
+            let stops: Vec<usize> = (0..matches.len())
+                .filter(|i| {
+                    matches
+                        .get(*i)
+                        .is_some_and(|item| !self.disabled_keys.contains(item))
+                })
+                .collect();
+            let held = cursor.clone();
+            let wrap = self.should_focus_wrap;
+            let rows = matches.clone();
+            let state = self.state.clone();
+            let on_selection_change = self.on_selection_change.clone();
+            let open_own_keys = open_own.clone();
+            let on_open_change = self.on_open_change.clone();
+            root = root.on_key_down(move |event, window, cx| {
+                let key = event.keystroke.key.as_str();
+                let from = *held.read(cx);
+                match crate::list_nav::resolve(&stops, from, key, wrap) {
+                    crate::list_nav::Move::To(next) => {
+                        held.update(cx, |v, cx| {
+                            *v = Some(next);
+                            cx.notify();
+                        });
+                        // Walking the list opens it, which is what typing does.
+                        if let Some(held) = &open_own_keys {
+                            held.update(cx, |v, cx| {
+                                *v = true;
+                                cx.notify();
+                            });
+                        }
+                    }
+                    crate::list_nav::Move::Activate => {
+                        let Some(item) = from.and_then(|i| rows.get(i).cloned()) else {
+                            return;
+                        };
+                        // Taking a suggestion fills the field and closes the
+                        // list, the way a click does.
+                        state.update(cx, |st, cx| {
+                            st.set_value(item.to_string());
+                            cx.notify();
+                        });
+                        held.update(cx, |v, _| *v = None);
+                        if let Some(held) = &open_own_keys {
+                            held.update(cx, |v, cx| {
+                                *v = false;
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &on_selection_change {
+                            cb(&item, window, cx);
+                        }
+                        if let Some(cb) = &on_open_change {
+                            cb(false, window, cx);
+                        }
+                    }
+                    crate::list_nav::Move::Ignore => {
+                        if key == "escape" {
+                            held.update(cx, |v, _| *v = None);
+                            if let Some(held) = &open_own_keys {
+                                held.update(cx, |v, cx| {
+                                    *v = false;
+                                    cx.notify();
+                                });
+                            }
+                            if let Some(cb) = &on_open_change {
+                                cb(false, window, cx);
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
         let show_list = open_state
             && !self.is_disabled
             && (!matches.is_empty() || self.allows_empty_collection || self.allows_custom_value);
@@ -632,6 +725,11 @@ impl RenderOnce for ComboBox {
                     row = row.opacity(layout.disabled_opacity);
                 } else {
                     row = row.cursor_pointer().hover(move |s| s.bg(hover_bg));
+                }
+
+                // `status-focused` on the row the keyboard is on.
+                if cursor_at == Some(index) {
+                    row = row.border_2().border_color(colors.focus);
                 }
 
                 // `ListBox.ItemIndicator`: a caller-drawn tick replaces the
