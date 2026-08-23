@@ -124,6 +124,9 @@ pub struct Menu {
     indicator: IndicatorKind,
     on_selection_change: Option<OnSelectionChange>,
     on_action: Option<OnSelect>,
+    /// Set by `Dropdown`: the menu panel is where Escape and an outside press
+    /// land, and the open state belongs to the wrapper.
+    on_dismiss: Option<std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>>,
 }
 
 impl Menu {
@@ -140,7 +143,28 @@ impl Menu {
             indicator: IndicatorKind::default(),
             on_selection_change: None,
             on_action: None,
+            on_dismiss: None,
         }
+    }
+
+    /// What to run when Escape or a press outside the panel dismisses the menu.
+    ///
+    /// Not a v3 prop: v3's `Dropdown.Menu` is inside the `Dropdown` that owns
+    /// `isOpen`, and React Aria's `useOverlay` closes it from there. Crate-only,
+    /// because only `Dropdown` can supply it.
+    pub(crate) fn on_dismiss(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.on_dismiss = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// The element id every piece of this menu's state is keyed by.
+    ///
+    /// Not a v3 prop -- gpui needs an explicit id on a stateful element, and
+    /// two menus that share one key share their focus, their cursor and their
+    /// typeahead.
+    pub fn id(mut self, id: impl Into<gpui::ElementId>) -> Self {
+        self.id = id.into();
+        self
     }
 
     /// Plays the menu's exit instead of its entry.
@@ -607,11 +631,17 @@ impl RenderOnce for Menu {
             }
         }
 
+        // React Aria dismisses the menu on Escape and on a press outside it.
+        let panel = match self.on_dismiss.clone() {
+            Some(cb) => crate::util::dismissable(panel, move |window, cx| cb(window, cx)),
+            None => panel,
+        };
+
         let zoom = crate::anim::ZoomBox::panel(px(6.), crate::util::container_radius(cx));
         crate::util::floating(if self.exiting {
             crate::anim::exiting(
                 panel,
-                "dropdown-panel-out",
+                gpui::ElementId::Name(format!("{base}-panel-out").into()),
                 zoom,
                 crate::anim::Motion::LIST_OUT,
                 cx,
@@ -619,7 +649,7 @@ impl RenderOnce for Menu {
         } else {
             crate::anim::entering_zoom(
                 panel,
-                "dropdown-panel",
+                gpui::ElementId::Name(format!("{base}-panel").into()),
                 zoom,
                 crate::anim::Motion::POPOVER_IN,
                 cx,
@@ -661,6 +691,8 @@ const LONG_PRESS_MS: u64 = 500;
 /// DropdownMenu` composition).
 #[derive(IntoElement)]
 pub struct Dropdown {
+    /// Keys this dropdown's own state; see [`Dropdown::id`].
+    id: gpui::ElementId,
     trigger: AnyElement,
     /// `trigger` — press (the default) or long press.
     trigger_kind: DropdownTrigger,
@@ -686,6 +718,16 @@ pub struct Dropdown {
 pub use herogpui_core::Placement as DropdownPlacement;
 
 impl Dropdown {
+    /// The element id this dropdown's state is keyed by.
+    ///
+    /// Not a v3 prop. It matters more here than it looks: with one shared key,
+    /// pressing any trigger on a page opened *every* menu on it, because they
+    /// were all reading the same uncontrolled open flag.
+    pub fn id(mut self, id: impl Into<gpui::ElementId>) -> Self {
+        self.id = id.into();
+        self
+    }
+
     /// `onOpenChange` — reports the open state the trigger moves to.
     pub fn on_open_change(
         mut self,
@@ -725,6 +767,7 @@ impl Dropdown {
 
     pub fn new(trigger: impl IntoElement, items: Vec<MenuItem>, is_open: bool) -> Self {
         Self {
+            id: gpui::ElementId::Name("dropdown".into()),
             trigger: trigger.into_any_element(),
             trigger_kind: DropdownTrigger::default(),
             is_open: Some(is_open),
@@ -795,20 +838,38 @@ impl Dropdown {
 impl RenderOnce for Dropdown {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let _ = icons::CHEVRON_DOWN;
+        let wrap_base = format!("{:?}", self.id);
 
         // `isOpen` wins; without it the menu holds the flag itself, which is
         // what `defaultOpen` promises. See `Dropdown::uncontrolled`.
-        let (is_open, open_own) =
-            crate::util::controlled(window, cx, "dropdown-open", self.is_open, self.default_open);
+        let (is_open, open_own) = crate::util::controlled(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("{wrap_base}-open").into()),
+            self.is_open,
+            self.default_open,
+        );
         // `overlay_phase` takes `cx` mutably too, so it goes here.
-        let phase = crate::util::overlay_phase(window, cx, "dropdown-phase", is_open);
+        let phase = crate::util::overlay_phase(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("{wrap_base}-phase").into()),
+            is_open,
+        );
 
         // `trigger="longPress"` needs to know whether the button is still down
         // when the timer fires, so the press is a piece of state rather than a
         // local.
-        let holding = window.use_keyed_state("dropdown-holding", cx, |_, _| false);
+        let holding = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{wrap_base}-holding").into()),
+            cx,
+            |_, _| false,
+        );
 
-        let mut trigger_wrap = gpui::div().id("dropdown-trigger").cursor_pointer();
+        let mut trigger_wrap = gpui::div()
+            .id(gpui::ElementId::Name(format!("{wrap_base}-trigger").into()))
+            .cursor_pointer();
+        let dismiss_own = open_own.clone();
         let on_open_change = self.on_open_change.clone();
         if on_open_change.is_some() || open_own.is_some() {
             let next_open = !is_open;
@@ -888,6 +949,7 @@ impl RenderOnce for Dropdown {
         // v3 keeps a closing menu on screen for its `[data-exiting]` run.
         if phase != crate::util::OverlayPhase::Closed {
             let mut menu = Menu::new(self.items)
+                .id(gpui::ElementId::Name(format!("{wrap_base}-menu").into()))
                 .exiting(phase == crate::util::OverlayPhase::Exiting)
                 .selection_mode(self.selection_mode)
                 .selected_keys(self.selected_keys.clone())
@@ -898,6 +960,20 @@ impl RenderOnce for Dropdown {
             }
             if let Some(cb) = self.on_selection_change.clone() {
                 menu = menu.on_selection_change(move |keys, w, cx| cb(keys, w, cx));
+            }
+            let dismiss_cb = self.on_open_change.clone();
+            if dismiss_cb.is_some() || dismiss_own.is_some() {
+                menu = menu.on_dismiss(move |window, cx| {
+                    if let Some(held) = &dismiss_own {
+                        held.update(cx, |v, cx| {
+                            *v = false;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &dismiss_cb {
+                        cb(false, window, cx);
+                    }
+                });
             }
             let anchor = crate::util::placed_panel(self.placement, px(6.));
             root = root.child(anchor.child(menu));

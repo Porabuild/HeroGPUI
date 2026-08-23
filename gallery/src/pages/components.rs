@@ -879,6 +879,7 @@ impl Gallery {
                                 .danger(),
                         ],
                     )
+                    .id("dd-icons-dd")
                     .into_any_element()]),
                 ),
                 (
@@ -897,6 +898,7 @@ impl Gallery {
                                 .description("The commits are rebased onto the base branch"),
                         ],
                     )
+                    .id("dd-desc-dd")
                     .into_any_element()]),
                 ),
                 (
@@ -907,6 +909,7 @@ impl Gallery {
                             .variant(Variant::Secondary),
                         plain(),
                     )
+                    .id("dd-disabled-dd")
                     .disabled_keys([SharedString::from("save")])
                     .into_any_element()]),
                 ),
@@ -925,6 +928,7 @@ impl Gallery {
                             h::MenuItem::new("delete", "Delete").danger(),
                         ],
                     )
+                    .id("dd-sections-dd")
                     .into_any_element()]),
                 ),
                 (
@@ -937,6 +941,7 @@ impl Gallery {
                             plain(),
                             is_open,
                         )
+                        .id("dd-controlled-dd")
                         .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
                             this.dropdown_open = *open;
                             cx.notify();
@@ -971,6 +976,7 @@ impl Gallery {
                             plain(),
                             is_open,
                         )
+                        .id("dd-open-dd")
                         .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
                             this.dropdown_open = *open;
                             cx.notify();
@@ -990,6 +996,7 @@ impl Gallery {
                             h::MenuItem::new("size", "Size"),
                         ],
                     )
+                    .id("dd-single-dd")
                     .selection_mode(SelectionMode::Single)
                     .selected_keys([SharedString::from("date")])
                     .into_any_element()]),
@@ -1005,6 +1012,7 @@ impl Gallery {
                             h::MenuItem::new("date", "Date"),
                         ],
                     )
+                    .id("dd-single-ind-dd")
                     .selection_mode(SelectionMode::Single)
                     .selected_keys([SharedString::from("name")])
                     .indicator(h::IndicatorKind::Dot)
@@ -1025,6 +1033,7 @@ impl Gallery {
                             h::MenuItem::new("hidden", "Hidden files"),
                         ],
                     )
+                    .id("dd-section-sel-dd")
                     .selection_mode(SelectionMode::Multiple)
                     .selected_keys(dd_multi)
                     .on_selection_change(cx.listener(|this, keys: &[SharedString], _, cx| {
@@ -1045,6 +1054,7 @@ impl Gallery {
                             h::MenuItem::new("paste", "Paste").shortcut("Ctrl V"),
                         ],
                     )
+                    .id("dd-shortcuts-dd")
                     .into_any_element()]),
                 ),
                 (
@@ -1063,6 +1073,7 @@ impl Gallery {
                             ]),
                         ],
                     )
+                    .id("dd-submenu-dd")
                     .into_any_element()]),
                 ),
                 (
@@ -1085,6 +1096,7 @@ impl Gallery {
                                 ]),
                             ],
                         )
+                        .id("dd-submenu-ind-dd")
                         .into_any_element(),
                     ]),
                 ),
@@ -1099,6 +1111,7 @@ impl Gallery {
                             h::MenuItem::new("logout", "Log out").danger(),
                         ],
                     )
+                    .id("Jane Doe-dd")
                     .into_any_element()]),
                 ),
                 (
@@ -1111,6 +1124,7 @@ impl Gallery {
                                 .variant(Variant::Secondary),
                             plain(),
                         )
+                        .id("dd-long-dd")
                         .trigger(h::DropdownTrigger::LongPress)
                         .into_any_element(),
                     ]),
@@ -1125,6 +1139,7 @@ impl Gallery {
                             items,
                             is_open,
                         )
+                        .id("dd-trigger-dd")
                         .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
                             this.dropdown_open = *open;
                             cx.notify();
@@ -1152,6 +1167,7 @@ impl Gallery {
                             ],
                             self.dropdown_open,
                         )
+                        .id("dd-multi-trigger-dd")
                         .selection_mode(SelectionMode::Multiple)
                         .selected_keys(self.dropdown_multi.clone())
                         .disabled_keys(vec!["status"])
@@ -7704,7 +7720,7 @@ impl Gallery {
                         overlay_demo(
                             key,
                             label,
-                            h::AlertDialog::new(format!("Size: {label}"))
+                            h::AlertDialog::new(format!("Size: {label}")).id(key)
                                 .description("Every size shares one panel style.")
                                 .is_open(open)
                                 .size(size)
@@ -7735,7 +7751,7 @@ impl Gallery {
                         overlay_demo(
                             key,
                             label,
-                            h::AlertDialog::new(format!("{label} status"))
+                            h::AlertDialog::new(format!("{label} status")).id(key)
                                 .description("The status colours the icon and the confirm action.")
                                 .is_open(open)
                                 .status(status)
@@ -7765,7 +7781,7 @@ impl Gallery {
                         overlay_demo(
                             key,
                             label,
-                            h::AlertDialog::new(format!("Placement: {label}"))
+                            h::AlertDialog::new(format!("Placement: {label}")).id(key)
                                 .description("The panel keeps its own size.")
                                 .is_open(open)
                                 .placement(placement)
@@ -7795,7 +7811,7 @@ impl Gallery {
                             overlay_demo(
                                 key,
                                 backdrop.label(),
-                                h::AlertDialog::new(format!("Backdrop: {}", backdrop.label()))
+                                h::AlertDialog::new(format!("Backdrop: {}", backdrop.label())).id(key)
                                     .description("The scrim behind the panel.")
                                     .is_open(open)
                                     .backdrop(*backdrop)
@@ -7816,7 +7832,7 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "ad-controlled",
                         "Open (controlled)",
-                        h::AlertDialog::new("Controlled")
+                        h::AlertDialog::new("Controlled").id("ad-controlled")
                             .description("The flag lives with the caller; closing reports through onOpenChange.")
                             .is_open(self.demo_overlay("ad-controlled"))
                             .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
@@ -7832,7 +7848,7 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "ad-icon",
                         "Open with a status icon",
-                        h::AlertDialog::new("Heads up")
+                        h::AlertDialog::new("Heads up").id("ad-icon")
                             .description("The status picks the icon, so a warning dialog shows the warning glyph.")
                             .is_open(self.demo_overlay("ad-icon"))
                             .status(Color::Warning)
@@ -7849,7 +7865,7 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "ad-custom-bd",
                         "Open with a blurred backdrop",
-                        h::AlertDialog::new("Blurred")
+                        h::AlertDialog::new("Blurred").id("ad-custom-bd")
                             .description("The page behind the panel is blurred.")
                             .is_open(self.demo_overlay("ad-custom-bd"))
                             .backdrop(herogpui_core::Backdrop::Blur)
@@ -7866,7 +7882,7 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "ad-dismiss",
                         "Open a non-dismissable dialog",
-                        h::AlertDialog::new("Confirm first")
+                        h::AlertDialog::new("Confirm first").id("ad-dismiss")
                             .description("The backdrop and Escape are both inert; answer with an action.")
                             .is_open(self.demo_overlay("ad-dismiss"))
                             .is_dismissible(false)
@@ -7884,7 +7900,7 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "ad-close",
                         "Open (destructive confirm)",
-                        h::AlertDialog::new("Delete for ever?")
+                        h::AlertDialog::new("Delete for ever?").id("ad-close")
                             .description("Confirm, cancel, Escape or the backdrop -- four ways out.")
                             .is_open(self.demo_overlay("ad-close"))
                             .is_destructive(true)
@@ -7903,7 +7919,7 @@ impl Gallery {
                     col(vec![overlay_demo(
                         "ad-anim",
                         "Open and watch the panel",
-                        h::AlertDialog::new("Animated")
+                        h::AlertDialog::new("Animated").id("ad-anim")
                             .description("The panel shrinks in from 105% over 250ms and leaves at 95% over 100ms.")
                             .is_open(self.demo_overlay("ad-anim"))
                             .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
@@ -7938,7 +7954,7 @@ impl Gallery {
                                 })),
                         )
                         .child(
-                            h::AlertDialog::new("Delete this account?")
+                            h::AlertDialog::new("Delete this account?").id("ad-custom")
                                 .description("Any element can open an alert dialog.")
                                 .is_open(self.demo_overlay("ad-custom"))
                                 .is_destructive(true)
@@ -7968,7 +7984,7 @@ impl Gallery {
                             })),
                     )
                     .child(
-                        h::AlertDialog::new("Delete this project?")
+                        h::AlertDialog::new("Delete this project?").id("ad-usage")
                             .description(
                                 "This removes the project and every deployment. \
                                  This action cannot be undone.",
@@ -8013,6 +8029,7 @@ impl Gallery {
                             key,
                             label,
                             h::Drawer::new()
+                                .id(key)
                                 .is_open(open)
                                 .placement(placement)
                                 .title(format!("From the {label}"))
@@ -8036,6 +8053,7 @@ impl Gallery {
                         "dr-no-dismiss",
                         "Open a non-dismissable drawer",
                         h::Drawer::new()
+                            .id("dr-no-dismiss")
                             .is_open(self.demo_overlay("dr-no-dismiss"))
                             .title("Finish first")
                             .is_dismissible(false)
@@ -8063,6 +8081,7 @@ impl Gallery {
                         "dr-scroll",
                         "Open a long drawer",
                         h::Drawer::new()
+                            .id("dr-scroll")
                             .is_open(self.demo_overlay("dr-scroll"))
                             .title("Release notes")
                             .is_dismissible(true)
@@ -8099,6 +8118,7 @@ impl Gallery {
                             "dr-controlled",
                             "Open (controlled)",
                             h::Drawer::new()
+                                .id("dr-controlled")
                                 .is_open(self.demo_overlay("dr-controlled"))
                                 .title("Controlled")
                                 .is_dismissible(true)
@@ -8118,6 +8138,7 @@ impl Gallery {
                         "dr-form",
                         "Open a form drawer",
                         h::Drawer::new()
+                            .id("dr-form")
                             .is_open(self.demo_overlay("dr-form"))
                             .title("New issue")
                             .is_dismissible(true)
@@ -8156,6 +8177,7 @@ impl Gallery {
                         "dr-nav",
                         "Open the navigation",
                         h::Drawer::new()
+                            .id("dr-nav")
                             .is_open(self.demo_overlay("dr-nav"))
                             .placement(h::DrawerPlacement::Left)
                             .title("Menu")
@@ -8193,6 +8215,7 @@ impl Gallery {
                                 key,
                                 backdrop.label(),
                                 h::Drawer::new()
+                                    .id(key)
                                     .is_open(open)
                                     .backdrop(*backdrop)
                                     .title(format!("Backdrop: {}", backdrop.label()))
@@ -8227,6 +8250,7 @@ impl Gallery {
                         ))
                         .child(
                             h::Drawer::new()
+                                .id("dr-usage")
                                 .is_open(is_open)
                                 .title("Settings")
                                 .placement(h::DrawerPlacement::Right)
@@ -8280,6 +8304,7 @@ impl Gallery {
                             key,
                             label,
                             h::Modal::new()
+                                .id(key)
                                 .is_open(open)
                                 .size(size)
                                 .title(format!("Size: {label}"))
@@ -8312,6 +8337,7 @@ impl Gallery {
                             key,
                             label,
                             h::Modal::new()
+                                .id(key)
                                 .is_open(open)
                                 .placement(placement)
                                 .title(format!("Placement: {label}"))
@@ -8342,6 +8368,7 @@ impl Gallery {
                             key,
                             label,
                             h::Modal::new()
+                                .id(key)
                                 .is_open(open)
                                 .scroll(scroll)
                                 .title(format!("Scroll: {label}"))
@@ -8377,6 +8404,7 @@ impl Gallery {
                             "md-controlled",
                             "Open (controlled)",
                             h::Modal::new()
+                                .id("md-controlled")
                                 .is_open(md_controlled)
                                 .title("Controlled")
                                 .is_dismissible(true)
@@ -8396,6 +8424,7 @@ impl Gallery {
                         "md-form",
                         "Open form modal",
                         h::Modal::new()
+                            .id("md-form")
                             .is_open(md_form)
                             .title("Invite a teammate")
                             .is_dismissible(true)
@@ -8451,6 +8480,7 @@ impl Gallery {
                         )
                         .child(
                             h::Modal::new()
+                                .id("md-custom")
                                 .is_open(md_custom)
                                 .title("Jane Doe")
                                 .is_dismissible(true)
@@ -8477,6 +8507,7 @@ impl Gallery {
                                 key,
                                 backdrop.label(),
                                 h::Modal::new()
+                                    .id(key)
                                     .is_open(open)
                                     .backdrop(*backdrop)
                                     .title(format!("Backdrop: {}", backdrop.label()))
@@ -8507,6 +8538,7 @@ impl Gallery {
                             "md-bd-custom",
                             "Open with a blurred backdrop",
                             h::Modal::new()
+                                .id("md-bd-custom")
                                 .is_open(md_bd_custom)
                                 .backdrop(h::Backdrop::Blur)
                                 .title("Blurred")
@@ -8533,6 +8565,7 @@ impl Gallery {
                             "md-no-dismiss",
                             "Open a non-dismissable modal",
                             h::Modal::new()
+                                .id("md-no-dismiss")
                                 .is_open(md_no_dismiss)
                                 .title("Confirm first")
                                 .is_dismissible(false)
@@ -8569,6 +8602,7 @@ impl Gallery {
                             "md-close",
                             "Open (no close button)",
                             h::Modal::new()
+                                .id("md-close")
                                 .is_open(md_close)
                                 .title("Close me")
                                 .hide_close_button(true)
@@ -8606,6 +8640,7 @@ impl Gallery {
                             "md-anim",
                             "Open and watch the panel",
                             h::Modal::new()
+                                .id("md-anim")
                                 .is_open(md_anim)
                                 .title("Animated")
                                 .is_dismissible(true)
@@ -8638,6 +8673,7 @@ impl Gallery {
                         )
                         .child(
                             h::Modal::new()
+                                .id("md-usage")
                                 .is_open(is_open)
                                 .title("Create account")
                                 .is_dismissible(true)

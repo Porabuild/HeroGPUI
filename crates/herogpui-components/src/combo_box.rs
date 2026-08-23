@@ -599,7 +599,7 @@ impl RenderOnce for ComboBox {
             let rows = matches.clone();
             let state = self.state.clone();
             let on_selection_change = self.on_selection_change.clone();
-            let open_own_keys = open_own;
+            let open_own_keys = open_own.clone();
             let on_open_change = self.on_open_change.clone();
             root = root.on_key_down(move |event, window, cx| {
                 let key = event.keystroke.key.as_str();
@@ -664,7 +664,7 @@ impl RenderOnce for ComboBox {
             && !self.is_disabled
             && (!matches.is_empty() || self.allows_empty_collection || self.allows_custom_value);
         if show_list {
-            let mut panel = div()
+            let panel = div()
                 .id(gpui::ElementId::Name(
                     format!("combobox-{entity_id}-panel").into(),
                 ))
@@ -688,6 +688,22 @@ impl RenderOnce for ComboBox {
                     !layout.overlay_shadow.is_empty(),
                     |e: gpui::Stateful<gpui::Div>| e.shadow(layout.overlay_shadow.clone()),
                 );
+
+            // React Aria dismisses the list on a press outside it; Escape is
+            // read in the field's own key handler above.
+            let dismiss_own = open_own;
+            let dismiss_cb = self.on_open_change.clone();
+            let mut panel = util::dismiss_on_press_outside(panel, move |window, cx| {
+                if let Some(held) = &dismiss_own {
+                    held.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &dismiss_cb {
+                    cb(false, window, cx);
+                }
+            });
 
             if matches.is_empty() {
                 // `allowsCustomValue` means an unmatched query is still valid,

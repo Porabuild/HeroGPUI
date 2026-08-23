@@ -390,6 +390,16 @@ impl RenderOnce for Autocomplete {
         if focused && seeded {
             seed.update(cx, |v, _| *v = false);
         }
+        // Escape closes this popover while the field keeps the focus, and the
+        // popover is open *because* the field has the focus -- so the dismissal
+        // is a flag, cleared by the next key.
+        let dismissed = window.use_keyed_state(
+            gpui::ElementId::Name(
+                format!("autocomplete-{:?}-dismissed", self.state.entity_id()).into(),
+            ),
+            cx,
+            |_, _| false,
+        );
 
         // Which suggestion the keyboard is on. The inner input keeps left and
         // right for the caret, so up, down, Home, End and Enter bubble to here.
@@ -413,7 +423,9 @@ impl RenderOnce for Autocomplete {
         };
         let query = raw_query.to_lowercase();
 
-        let open = self.is_open.unwrap_or(focused || seeded);
+        let open = self
+            .is_open
+            .unwrap_or((focused || seeded) && !*dismissed.read(cx));
         let multiple = self.selection_mode == SelectionMode::Multiple;
         let matches: Vec<SharedString> = if open {
             let custom = self.filter.clone();
@@ -528,7 +540,26 @@ impl RenderOnce for Autocomplete {
             let rows = matches.clone();
             let state = self.state.clone();
             let on_selection_change = self.on_selection_change.clone();
+            let key_dismissed = dismissed.clone();
+            let key_open_change = self.on_open_change.clone();
             root = root.on_key_down(move |event, window, cx| {
+                if event.keystroke.key == "escape" {
+                    key_dismissed.update(cx, |v, cx| {
+                        *v = true;
+                        cx.notify();
+                    });
+                    if let Some(cb) = &key_open_change {
+                        cb(false, window, cx);
+                    }
+                    return;
+                }
+                // Any other key is the user carrying on: the list comes back.
+                if *key_dismissed.read(cx) {
+                    key_dismissed.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
                 let from = *held.read(cx);
                 match crate::list_nav::resolve(&stops, from, event.keystroke.key.as_str(), wrap) {
                     crate::list_nav::Move::To(next) => {
@@ -566,7 +597,7 @@ impl RenderOnce for Autocomplete {
             !self.is_disabled && open && (!matches.is_empty() || self.allows_empty_collection);
         if show_panel {
             let base = "autocomplete-list";
-            let mut panel = gpui::div()
+            let panel = gpui::div()
                 .w_full()
                 .flex()
                 .flex_col()
@@ -581,6 +612,20 @@ impl RenderOnce for Autocomplete {
                 })
                 .shadow(layout.overlay_shadow.clone())
                 .overflow_hidden();
+
+            // React Aria dismisses the popover on a press outside it; Escape is
+            // read above, where the flag lives.
+            let out_dismissed = dismissed;
+            let out_open_change = self.on_open_change.clone();
+            let mut panel = util::dismiss_on_press_outside(panel, move |window, cx| {
+                out_dismissed.update(cx, |v, cx| {
+                    *v = true;
+                    cx.notify();
+                });
+                if let Some(cb) = &out_open_change {
+                    cb(false, window, cx);
+                }
+            });
 
             // Everything a row reads, owned: `uniform_list`'s callback is
             // `'static` and runs again on every scroll, so it cannot borrow

@@ -263,7 +263,8 @@ impl RenderOnce for Tooltip {
             tip = tip.child(arrow);
         }
 
-        let hover_state = state;
+        let hover_state = state.clone();
+        let escape_state = state;
         let mut wrapper = gpui::div()
             // `on_hover` needs a stateful element, so the wrapper carries the id.
             .id(key.clone())
@@ -303,6 +304,17 @@ impl RenderOnce for Tooltip {
                 })
                 .detach();
             });
+
+        // React Aria hides a tooltip on Escape, which reaches here from the
+        // focused trigger inside the wrapper.
+        wrapper = util::dismiss_on_escape(wrapper, move |_window, cx| {
+            escape_state.update(cx, |s, cx| {
+                if s.open {
+                    s.open = false;
+                    cx.notify();
+                }
+            });
+        });
 
         // A tooltip leaves the way every other overlay does: `overlay_phase`
         // keeps it for its exit run, which is what `[data-exiting]` needs to

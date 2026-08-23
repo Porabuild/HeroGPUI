@@ -32,6 +32,8 @@ const PANEL_EXTENT: gpui::Pixels = px(320.);
 /// HeroUI Drawer (controlled).
 #[derive(IntoElement)]
 pub struct Drawer {
+    /// Keys this dialog's own state; see [`Drawer::id`].
+    id: gpui::ElementId,
     is_open: bool,
     placement: DrawerPlacement,
     is_dismissible: bool,
@@ -46,8 +48,20 @@ pub struct Drawer {
 }
 
 impl Drawer {
+    /// The element id this dialog's state is keyed by.
+    ///
+    /// Not a v3 prop: gpui needs an explicit id, and the exit phase, the focus
+    /// handle and the drag offset are all keyed by it. Two dialogs on screen
+    /// with the same key share all three -- which is what
+    /// `HEROGPUI_OPEN_OVERLAYS=1` puts on screen.
+    pub fn id(mut self, id: impl Into<gpui::ElementId>) -> Self {
+        self.id = id.into();
+        self
+    }
+
     pub fn new() -> Self {
         Self {
+            id: gpui::ElementId::Name("drawer".into()),
             is_open: false,
             placement: DrawerPlacement::Right,
             is_dismissible: true,
@@ -132,7 +146,12 @@ impl ParentElement for Drawer {
 impl RenderOnce for Drawer {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // v3 keeps a closing panel on screen for its `slide-out-to-*` run.
-        let phase = crate::util::overlay_phase(window, cx, "drawer-phase", self.is_open);
+        let phase = crate::util::overlay_phase(
+            window,
+            cx,
+            crate::modal::dialog_key(&self.id, "phase"),
+            self.is_open,
+        );
         if phase == crate::util::OverlayPhase::Closed {
             return gpui::div().into_any_element();
         }
@@ -142,7 +161,10 @@ impl RenderOnce for Drawer {
         // focused element and its ancestors. Claiming focus while nothing
         // inside holds it makes Escape work immediately; once a field inside
         // takes focus the event still bubbles up to here.
-        let focus = window.use_keyed_state("drawer-focus", cx, |_, cx| cx.focus_handle());
+        let focus =
+            window.use_keyed_state(crate::modal::dialog_key(&self.id, "focus"), cx, |_, cx| {
+                cx.focus_handle()
+            });
         let focus_handle = focus.read(cx).clone();
         if !focus_handle.contains_focused(window, cx) {
             window.focus(&focus_handle);
@@ -151,7 +173,10 @@ impl RenderOnce for Drawer {
         // A drag in progress: where it started along the dismissal axis, and how
         // far it has come. `use_keyed_state` takes `cx` mutably, so it precedes
         // the theme tokens.
-        let drag = window.use_keyed_state("drawer-drag", cx, |_, _| None::<(f32, f32)>);
+        let drag =
+            window.use_keyed_state(crate::modal::dialog_key(&self.id, "drag"), cx, |_, _| {
+                None::<(f32, f32)>
+            });
         let drag_now = *drag.read(cx);
         // How far the panel has been pulled toward its edge, which is what the
         // panel is offset by while the pointer is down.

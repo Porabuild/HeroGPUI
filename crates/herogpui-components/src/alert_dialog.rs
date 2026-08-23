@@ -69,6 +69,8 @@ type OnAction = Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 /// HeroUI AlertDialog (controlled).
 #[derive(IntoElement)]
 pub struct AlertDialog {
+    /// Keys this dialog's own state; see [`AlertDialog::id`].
+    id: gpui::ElementId,
     is_open: bool,
     title: SharedString,
     description: Option<SharedString>,
@@ -93,8 +95,20 @@ pub struct AlertDialog {
 }
 
 impl AlertDialog {
+    /// The element id this dialog's state is keyed by.
+    ///
+    /// Not a v3 prop: gpui needs an explicit id, and the exit phase, the focus
+    /// handle and the drag offset are all keyed by it. Two dialogs on screen
+    /// with the same key share all three -- which is what
+    /// `HEROGPUI_OPEN_OVERLAYS=1` puts on screen.
+    pub fn id(mut self, id: impl Into<gpui::ElementId>) -> Self {
+        self.id = id.into();
+        self
+    }
+
     pub fn new(title: impl Into<SharedString>) -> Self {
         Self {
+            id: gpui::ElementId::Name("alert-dialog".into()),
             is_open: false,
             title: title.into(),
             description: None,
@@ -215,7 +229,12 @@ impl ParentElement for AlertDialog {
 impl RenderOnce for AlertDialog {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // v3 keeps a closing panel on screen for its `[data-exiting]` run.
-        let phase = util::overlay_phase(window, cx, "alert-dialog-phase", self.is_open);
+        let phase = util::overlay_phase(
+            window,
+            cx,
+            crate::modal::dialog_key(&self.id, "phase"),
+            self.is_open,
+        );
         if phase == util::OverlayPhase::Closed {
             return div().into_any_element();
         }
@@ -225,7 +244,10 @@ impl RenderOnce for AlertDialog {
         // focused element and its ancestors. Claiming focus while nothing
         // inside holds it makes Escape work immediately; once a field inside
         // takes focus the event still bubbles up to here.
-        let focus = window.use_keyed_state("alert-dialog-focus", cx, |_, cx| cx.focus_handle());
+        let focus =
+            window.use_keyed_state(crate::modal::dialog_key(&self.id, "focus"), cx, |_, cx| {
+                cx.focus_handle()
+            });
         let focus_handle = focus.read(cx).clone();
         if !focus_handle.contains_focused(window, cx) {
             window.focus(&focus_handle);

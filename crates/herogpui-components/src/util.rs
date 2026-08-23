@@ -157,6 +157,97 @@ pub fn floating(el: impl gpui::IntoElement) -> gpui::Deferred {
     gpui::deferred(el)
 }
 
+/// Closes a floating panel on Escape and on a press outside it.
+///
+/// No prop table asks for this: React Aria gives every popover-like surface
+/// `useOverlay`, so v3 only documents dismissal where it is *configurable*
+/// (`isDismissable` on a dialog backdrop). A panel that closes only through its
+/// own trigger is the difference between a port that looks right and one that
+/// works -- an open menu followed the page as it scrolled and stayed open
+/// forever.
+///
+/// Attach this to the panel itself, not to a wrapper: `on_mouse_down_out` reads
+/// the element's own bounds, and the wrapper an absolute panel sits in has none,
+/// which would make every press inside the panel count as outside. Escape is a
+/// key event, so it needs the focus to be inside the panel -- pair it with
+/// [`panel_focus`] where nothing else there is focused.
+pub fn dismissable<E: gpui::InteractiveElement>(
+    el: E,
+    close: impl Fn(&mut gpui::Window, &mut App) + 'static,
+) -> E {
+    let close = shared(close);
+    let on_escape = close.clone();
+    let el = el.on_key_down(move |event: &gpui::KeyDownEvent, window, cx| {
+        if event.keystroke.key == "escape" {
+            on_escape(window, cx);
+        }
+    });
+    dismiss_on_press_outside(el, move |window, cx| close(window, cx))
+}
+
+/// The Escape half of [`dismissable`], for a surface whose panel must *not*
+/// hold the focus.
+///
+/// A key event goes to the focused element and bubbles to its ancestors, so a
+/// panel that claims the focus silences the keyboard of everything inside it --
+/// focusing a date picker's panel would have taken the arrows away from the
+/// calendar grid. Attaching this to the component root instead lets the key
+/// bubble up from whatever inside it does have the focus.
+pub fn dismiss_on_escape<E: gpui::InteractiveElement>(
+    el: E,
+    close: impl Fn(&mut gpui::Window, &mut App) + 'static,
+) -> E {
+    el.on_key_down(move |event: &gpui::KeyDownEvent, window, cx| {
+        if event.keystroke.key == "escape" {
+            close(window, cx);
+        }
+    })
+}
+
+/// The outside-press half of [`dismissable`], for a surface whose Escape is
+/// already part of a keyboard it owns -- a select and a combo box read Escape in
+/// the same handler that reads the arrows, and binding it twice would close
+/// twice.
+pub fn dismiss_on_press_outside<E: gpui::InteractiveElement>(
+    el: E,
+    close: impl Fn(&mut gpui::Window, &mut App) + 'static,
+) -> E {
+    el.on_mouse_down_out(move |_, window, cx| close(window, cx))
+}
+
+/// A focus handle for a floating panel, focused as the panel opens.
+///
+/// A panel nothing focuses never sees a key, so this is what makes Escape and
+/// the arrows work at all. It is not a tab stop: the panel is transient, and Tab
+/// inside it should reach the controls it contains.
+///
+/// `open` is not optional. Claiming the focus while the panel is closed spends
+/// the one-shot on a frame that draws nothing -- the popover's Escape did
+/// nothing at all until this was gated, because the handle had already been
+/// "focused" on the first closed render and the flag was set.
+pub fn panel_focus(
+    window: &mut gpui::Window,
+    cx: &mut App,
+    base: &str,
+    open: bool,
+) -> gpui::FocusHandle {
+    let held = window.use_keyed_state(
+        gpui::ElementId::Name(format!("{base}-panel-focus").into()),
+        cx,
+        |_, cx| cx.focus_handle(),
+    );
+    let handle = held.read(cx).clone();
+    if open {
+        focus_once(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("{base}-panel-autofocus").into()),
+            &handle,
+        );
+    }
+    handle
+}
+
 /// Wraps a callback for sharing between closures.
 ///
 /// gpui callbacks take `&mut App` and therefore never leave the main thread;

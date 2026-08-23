@@ -70,6 +70,17 @@ def activation_claims():
 ARROW_NAV = ('RadioGroup', 'Tabs', 'Toolbar', 'TagGroup')
 REMOVE_KEY = ('TagGroup',)
 
+# Every popover-like surface closes on Escape and on a press outside it. v3's
+# tables only mention dismissal where it is configurable (`isDismissable` on a
+# dialog backdrop), because React Aria's `useOverlay` gives the rest of them both
+# for free -- which is exactly why this port shipped panels that closed only
+# through their own trigger. Derived, like the arrow keys, from what the
+# component *is*.
+OVERLAY_DISMISS = (
+    'Popover', 'Dropdown', 'Select', 'ComboBox', 'Autocomplete',
+    'DatePicker', 'DateRangePicker', 'ColorPicker', 'Tooltip',
+)
+
 
 # (component, claim) -> (module, a pattern that must appear in it).
 #
@@ -118,6 +129,18 @@ EVIDENCE = {
     ('Toolbar', 'arrow-nav'): ('toolbar.rs', r'focus_next'),
     ('TagGroup', 'arrow-nav'): ('tag_group.rs', r'list_nav::resolve'),
     ('TagGroup', 'remove-key'): ('tag_group.rs', r'"delete" \| "backspace"'),
+    # Dismissal: the panel reads the press, and Escape reads wherever the focus
+    # is -- on the panel when it holds it, on the component root otherwise (a
+    # panel that claims the focus silences the calendar grid inside it).
+    ('Popover', 'dismiss'): ('popover.rs', r'util::dismissable'),
+    ('Dropdown', 'dismiss'): ('dropdown.rs', r'util::dismissable'),
+    ('Select', 'dismiss'): ('select.rs', r'dismiss_on_press_outside'),
+    ('ComboBox', 'dismiss'): ('combo_box.rs', r'dismiss_on_press_outside'),
+    ('Autocomplete', 'dismiss'): ('autocomplete.rs', r'dismiss_on_press_outside'),
+    ('DatePicker', 'dismiss'): ('date_picker.rs', r'dismiss_on_press_outside'),
+    ('DateRangePicker', 'dismiss'): ('date_picker.rs', r'dismiss_on_escape'),
+    ('ColorPicker', 'dismiss'): ('color_picker.rs', r'dismiss_on_press_outside'),
+    ('Tooltip', 'dismiss'): ('tooltip.rs', r'dismiss_on_escape'),
     ('Accordion', 'activation'): ('accordion.rs', r'tab_stop_handle'),
     ('Button', 'activation'): ('button.rs', r'tab_stop_handle'),
     ('CloseButton', 'activation'): ('close_button.rs', r'tab_stop_handle'),
@@ -169,8 +192,8 @@ def main():
     by_reason = {}
 
     # The derived claims first, so their numbers land in the same totals.
-    for page in ARROW_NAV + REMOVE_KEY:
-        for claim in ('arrow-nav', 'remove-key'):
+    for page in ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS:
+        for claim in ('arrow-nav', 'remove-key', 'dismiss'):
             key = (page, claim)
             if key not in EVIDENCE:
                 continue

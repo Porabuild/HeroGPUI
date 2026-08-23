@@ -278,7 +278,7 @@ impl RenderOnce for DatePicker {
             field = field.opacity(layout.disabled_opacity);
         } else if self.on_open_change.is_some() || open_own.is_some() {
             let cb = self.on_open_change.clone();
-            let own = open_own;
+            let own = open_own.clone();
             let next = !is_open;
             field = field.on_click(move |_, window, cx| {
                 // Uncontrolled: flip our own copy, or the trigger would be
@@ -315,9 +315,31 @@ impl RenderOnce for DatePicker {
             if let Some(on_change) = self.on_change.clone() {
                 cal = cal.on_change(move |d, window, cx| on_change(d, window, cx));
             }
+            // React Aria dismisses the panel on Escape and on a press outside
+            // it. Escape rides on the root, not the panel: focusing the panel
+            // would take the arrows away from the calendar grid inside it.
+            let close_own = open_own;
+            let close_cb = self.on_open_change.clone();
+            let close = crate::util::shared(move |window: &mut Window, cx: &mut App| {
+                if let Some(held) = &close_own {
+                    held.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &close_cb {
+                    cb(false, window, cx);
+                }
+            });
+            let esc = close.clone();
+            root = crate::util::dismiss_on_escape(root, move |window, cx| esc(window, cx));
             root = root.child(crate::util::floating(
-                crate::util::placed_panel(herogpui_core::Placement::BottomStart, px(6.))
-                    .child(picker_panel(cx).child(cal)),
+                crate::util::placed_panel(herogpui_core::Placement::BottomStart, px(6.)).child(
+                    crate::util::dismiss_on_press_outside(picker_panel(cx), move |window, cx| {
+                        close(window, cx);
+                    })
+                    .child(cal),
+                ),
             ));
         }
 
@@ -666,7 +688,7 @@ impl RenderOnce for DateRangePicker {
             // could open the popover.
             if self.on_open_change.is_some() || open_own.is_some() {
                 let cb = self.on_open_change.clone();
-                let own = open_own;
+                let own = open_own.clone();
                 let next = !is_open;
                 field = field.on_click(move |_, window, cx| {
                     // Uncontrolled: flip our own copy too.
@@ -726,9 +748,30 @@ impl RenderOnce for DateRangePicker {
             // A calendar has its own intrinsic width, so the panel must be
             // content-sized; `placed_field_panel` would clamp it to the
             // trigger and the grid would spill outside the surface.
+            // Escape on the root, the outside press on the panel: see
+            // `DatePicker` above.
+            let close_own = open_own;
+            let close_cb = self.on_open_change.clone();
+            let close = crate::util::shared(move |window: &mut Window, cx: &mut App| {
+                if let Some(held) = &close_own {
+                    held.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &close_cb {
+                    cb(false, window, cx);
+                }
+            });
+            let esc = close.clone();
+            root = crate::util::dismiss_on_escape(root, move |window, cx| esc(window, cx));
             root = root.child(crate::util::floating(
-                crate::util::placed_panel(herogpui_core::Placement::BottomStart, px(6.))
-                    .child(picker_panel(cx).child(calendar)),
+                crate::util::placed_panel(herogpui_core::Placement::BottomStart, px(6.)).child(
+                    crate::util::dismiss_on_press_outside(picker_panel(cx), move |window, cx| {
+                        close(window, cx);
+                    })
+                    .child(calendar),
+                ),
             ));
         }
 

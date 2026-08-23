@@ -619,7 +619,7 @@ impl RenderOnce for Select {
         if is_open && !self.options.is_empty() {
             let base = format!("select-list-{}", id_debug(&self.id));
             let options_len = self.options.len();
-            let mut panel = gpui::div()
+            let panel = gpui::div()
                 .w_full()
                 .flex()
                 .flex_col()
@@ -635,6 +635,23 @@ impl RenderOnce for Select {
                 .shadow(layout.overlay_shadow.clone())
                 .overflow_hidden()
                 .max_h(px(280.));
+
+            // React Aria dismisses the list on a press outside it. Escape is
+            // already read by the trigger's key handler, so only the press half
+            // is added here.
+            let dismiss_own = open_own.clone();
+            let dismiss_cb = self.on_open_change.clone();
+            let mut panel = util::dismiss_on_press_outside(panel, move |window, cx| {
+                if let Some(held) = &dismiss_own {
+                    held.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &dismiss_cb {
+                    cb(false, window, cx);
+                }
+            });
 
             // The theme tokens the row draws with, copied out: `cx.colors()`
             // hands back a borrow of the app, which a `'static` closure cannot

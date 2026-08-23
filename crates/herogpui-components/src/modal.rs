@@ -89,6 +89,8 @@ pub type OnOpenChange = std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'st
 /// HeroUI Modal (controlled).
 #[derive(IntoElement)]
 pub struct Modal {
+    /// Keys this dialog's own state; see [`Modal::id`].
+    id: gpui::ElementId,
     is_open: bool,
     title: Option<SharedString>,
     size: ModalSize,
@@ -104,9 +106,27 @@ pub struct Modal {
     on_close: Option<OnClose>,
 }
 
+/// `"<dialog id>-<part>"`, the key one dialog's piece of state lives under.
+///
+/// Shared by the three dialogs so they cannot spell it differently.
+pub(crate) fn dialog_key(id: &gpui::ElementId, part: &str) -> gpui::ElementId {
+    gpui::ElementId::Name(format!("{id:?}-{part}").into())
+}
+
 impl Modal {
+    /// The element id this dialog's state is keyed by.
+    ///
+    /// Not a v3 prop: gpui needs an explicit id, and the phase, the focus handle
+    /// and the drag offset are all keyed by it. Two dialogs on screen with the
+    /// same key share all three.
+    pub fn id(mut self, id: impl Into<gpui::ElementId>) -> Self {
+        self.id = id.into();
+        self
+    }
+
     pub fn new() -> Self {
         Self {
+            id: gpui::ElementId::Name("modal".into()),
             is_open: false,
             title: None,
             size: ModalSize::Md,
@@ -207,7 +227,8 @@ impl ParentElement for Modal {
 impl RenderOnce for Modal {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // v3 keeps a closing panel on screen for its `[data-exiting]` run.
-        let phase = crate::util::overlay_phase(window, cx, "modal-phase", self.is_open);
+        let phase =
+            crate::util::overlay_phase(window, cx, dialog_key(&self.id, "phase"), self.is_open);
         if phase == crate::util::OverlayPhase::Closed {
             return gpui::div().into_any_element();
         }
@@ -217,7 +238,8 @@ impl RenderOnce for Modal {
         // focused element and its ancestors. Claiming focus while nothing
         // inside holds it makes Escape work immediately; once a field inside
         // takes focus the event still bubbles up to here.
-        let focus = window.use_keyed_state("modal-focus", cx, |_, cx| cx.focus_handle());
+        let focus =
+            window.use_keyed_state(dialog_key(&self.id, "focus"), cx, |_, cx| cx.focus_handle());
         let focus_handle = focus.read(cx).clone();
         if !focus_handle.contains_focused(window, cx) {
             window.focus(&focus_handle);

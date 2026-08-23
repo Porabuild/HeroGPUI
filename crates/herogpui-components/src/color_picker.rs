@@ -1826,6 +1826,8 @@ impl RenderOnce for ColorPicker {
 
         // The popover overlays the page rather than pushing it down.
         let mut root = div().relative().flex().flex_col().gap(px(8.));
+        // Set below, once the panel is known to be on screen.
+        let mut dismiss_outside: Option<Arc<dyn Fn(bool, &mut Window, &mut App)>> = None;
         if let Some(label) = self.label {
             root = root.child(crate::field::Label::new(label));
         }
@@ -1834,6 +1836,16 @@ impl RenderOnce for ColorPicker {
 
         if !self.is_open || self.is_disabled {
             return root;
+        }
+
+        // React Aria dismisses the panel on Escape and on a press outside it.
+        // Escape rides on the root: the panel holding the focus would take the
+        // arrows away from the area and the sliders inside it.
+        let dismiss = self.on_open_change.clone();
+        if let Some(cb) = dismiss {
+            let esc = cb.clone();
+            root = util::dismiss_on_escape(root, move |window, cx| esc(false, window, cx));
+            dismiss_outside = Some(cb);
         }
 
         let mut panel = div()
@@ -1930,6 +1942,13 @@ impl RenderOnce for ColorPicker {
                 .text_color(colors.muted)
                 .child(self.value.to_hex()),
         );
+
+        let panel = match dismiss_outside {
+            Some(cb) => util::dismiss_on_press_outside(panel, move |window, cx| {
+                cb(false, window, cx);
+            }),
+            None => panel,
+        };
 
         root.child(util::floating(
             util::placed_panel(self.placement, px(6.)).child(crate::anim::entering_zoom(
