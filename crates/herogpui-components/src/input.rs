@@ -1075,6 +1075,17 @@ impl RenderOnce for Input {
                             st.update(cx, |s, cx| {
                                 s.cursor = at;
                                 s.anchor = None;
+                                // A double click takes the word under the
+                                // pointer and a triple click the lot, the way
+                                // every other text field does.
+                                match ev.click_count {
+                                    2 => {
+                                        s.anchor = Some(word_target(&s.value, at, false));
+                                        s.cursor = word_target(&s.value, at, true);
+                                    }
+                                    n if n >= 3 => select_all(s),
+                                    _ => {}
+                                }
                                 cx.notify();
                             });
                         }

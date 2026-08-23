@@ -19,6 +19,11 @@ param(
     # leaves the button down (to photograph a pressed state); this is the
     # ordinary press-and-release, which is what focusing a field takes.
     [switch]$Click,
+    # How many presses that click is: 2 for a double click, 3 for a triple. The
+    # gap between them has to stay under the system double-click time, or the
+    # app sees two separate clicks -- which is what a word-select or
+    # select-all shortcut is distinguished by.
+    [int]$Clicks = 1,
     # Drag from -HoverX/-HoverY to -DragX/-DragY: press, move, release. This is
     # the only way to check a drag -- a resize handle, a slider thumb -- since a
     # click and a drag are different gestures.
@@ -199,9 +204,12 @@ foreach ($pg in $Pages) {
                 } elseif ($Click -or ($Keys -ne "")) {
                     # A press and a release. Typing needs this first: nothing
                     # takes the keys until something has focus.
-                    [Win2]::mouse_event(0x0002, 0, 0, 0, 0)
-                    Start-Sleep -Milliseconds 80
-                    [Win2]::mouse_event(0x0004, 0, 0, 0, 0)
+                    for ($ci = 0; $ci -lt [Math]::Max(1, $Clicks); $ci++) {
+                        [Win2]::mouse_event(0x0002, 0, 0, 0, 0)
+                        Start-Sleep -Milliseconds 40
+                        [Win2]::mouse_event(0x0004, 0, 0, 0, 0)
+                        if ($ci -lt $Clicks - 1) { Start-Sleep -Milliseconds 60 }
+                    }
                     Start-Sleep -Milliseconds 500
                 }
             }
