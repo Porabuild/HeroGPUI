@@ -1764,6 +1764,8 @@ impl Gallery {
                                 // picks one of them.
                                 .color_space(h::ColorSpace::Hsl)
                                 .channel(h::ColorChannel::Hue)
+                                // `ColorField.Suffix` -- the unit after the value.
+                                .suffix(gpui::div().child("\u{00b0}"))
                                 .label("Hue")
                                 .into_any_element(),
                             h::ColorField::new("cf-ch-sat", value)

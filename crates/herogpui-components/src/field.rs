@@ -304,6 +304,7 @@ impl ParentElement for FieldsetGroup {
     }
 }
 
+/// `.fieldset__field_group` is `w-full space-y-4`: the stack of fields.
 impl RenderOnce for FieldsetGroup {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
         div()

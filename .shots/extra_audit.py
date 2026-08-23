@@ -155,6 +155,9 @@ EXTRA_OK_SCOPED = {
     # v3's stylesheet declares `.range-calendar__cell-indicator`; only the
     # Calendar's prop table names the part.
     'RangeCalendar.cell_indicator': 'composition',
+    # v3 documents `ColorField.Suffix` as a sub-component
+    # (`.color-input-group__suffix`), which a monolithic builder takes as a slot.
+    'ColorField.suffix': 'composition',
     # v3 composes `<Tabs.Separator />` inside the tab it precedes.
     'TabItem.separator': 'composition',
     # v3 composes `<Table.Footer>` under the body, where a table's pagination

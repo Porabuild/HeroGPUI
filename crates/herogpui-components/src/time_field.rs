@@ -235,7 +235,8 @@ pub struct TimeField {
     /// `TimeField.Prefix` — content before the segments, drawn in the
     /// placeholder colour and inert.
     prefix: Option<gpui::AnyElement>,
-    /// `TimeField.Suffix` — content after the segments.
+    /// `TimeField.Suffix` — content after the segments
+    /// (`.date-input-group__suffix`: `shrink-0 me-3` in the placeholder colour).
     suffix: Option<gpui::AnyElement>,
     variant: FieldVariant,
     hour_cycle: HourCycle,
@@ -586,6 +587,9 @@ impl RenderOnce for TimeField {
             }
         };
 
+        // `.date-input-group__input-container` is `flex flex-1 items-center` with
+        // its own horizontal scroll, so a long value stays reachable without
+        // widening the field.
         let mut group = div()
             .flex()
             .flex_row()

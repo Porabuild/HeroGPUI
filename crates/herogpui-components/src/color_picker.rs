@@ -880,6 +880,8 @@ impl RenderOnce for ColorSlider {
         // numbers for the same colour.
         let raw = self.value.channel_in(self.channel, self.color_space);
         let norm = ((raw - min) / (max - min)).clamp(0.0, 1.0);
+        // `.color-slider__track` is `relative rounded-2xl` with the gradient
+        // inside it; `.color-slider__output` is the value read-out above.
         let track_h = px(16.);
 
         let vertical = !self.orientation.is_horizontal();
@@ -1091,6 +1093,10 @@ impl RenderOnce for ColorSlider {
 /// numeric value.
 #[derive(IntoElement)]
 pub struct ColorField {
+    /// `ColorField.Suffix` — the `me-3` slot after the value, in the
+    /// placeholder colour. v3's own example fills the *prefix* with a swatch and
+    /// leaves this to the caller (a channel unit, a lock icon).
+    suffix: Option<gpui::AnyElement>,
     /// `validationBehavior` — carried on this control's form field.
     validation_behavior: crate::form::ValidationBehavior,
     /// `name` — the name this control submits under; read back by
@@ -1137,8 +1143,15 @@ impl ColorField {
         self
     }
 
+    /// `ColorField.Suffix` — the slot after the value.
+    pub fn suffix(mut self, el: impl IntoElement) -> Self {
+        self.suffix = Some(el.into_any_element());
+        self
+    }
+
     pub fn new(id: impl Into<ElementId>, value: PickerColor) -> Self {
         Self {
+            suffix: None,
             validation_behavior: crate::form::ValidationBehavior::Native,
             name: None,
             default_value: None,
@@ -1428,8 +1441,19 @@ impl RenderOnce for ColorField {
             .rounded(util::field_radius(cx))
             .text_size(util::FIELD_TEXT)
             .text_color(colors.field.foreground)
+            // `.color-input-group__prefix` is `shrink-0 ms-3` in the
+            // placeholder colour, and v3's example puts the swatch in it;
+            // `.color-input-group__suffix` is its `me-3` twin.
             .child(ColorSwatch::new(self.value).size(SizeXl::Xs))
-            .child(div().flex_1().child(text));
+            .child(div().flex_1().child(text))
+            .children(self.suffix.map(|el| {
+                div()
+                    .flex()
+                    .items_center()
+                    .flex_shrink_0()
+                    .text_color(colors.field.placeholder)
+                    .child(el)
+            }));
 
         field = util::apply_field_chrome(
             field,

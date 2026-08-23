@@ -468,6 +468,9 @@ impl RenderOnce for Tabs {
         // on the cross axis).
         let (before, after) = *arrows.read(cx);
         let step = px(120.);
+        // `.tabs__list-container__scroll-prev` and
+        // `.tabs__list-container__scroll-next` are `size-4` circles at the
+        // edges, shown only when there is something that way to scroll to.
         let arrow =
             |id: &str, icon: &'static str, delta: gpui::Pixels, handle: gpui::ScrollHandle| {
                 gpui::div()

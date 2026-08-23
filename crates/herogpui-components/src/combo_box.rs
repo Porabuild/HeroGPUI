@@ -593,6 +593,8 @@ impl RenderOnce for ComboBox {
             .flex()
             .flex_col()
             .gap(px(4.))
+            // `.combo-box__input-group` is the field itself, and
+            // `--full-width` is the `full_width` flag above.
             .child(input.render(window, cx));
 
         // `allowsEmptyCollection` keeps the panel up with no matches. Without

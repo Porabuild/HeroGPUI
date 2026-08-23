@@ -755,6 +755,8 @@ impl RenderOnce for Table {
 
             // `allowsResizing` puts a handle on the column's trailing edge. The
             // wrapper is what keeps the handle inside the column's box.
+            // `.table__resizable-container` is the box that keeps the handle
+            // inside the column, which is what this wrapper is.
             let cell = if column.allows_resizing {
                 let held = dragging.clone();
                 let start_width = effective.unwrap_or(px(160.));
