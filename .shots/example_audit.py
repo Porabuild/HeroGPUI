@@ -97,7 +97,6 @@ NEEDS_FEATURE = {
     # needs a combined date-and-time value; this port's `DateField` is
     # date-only and `TimeField` is time-only.
     'DateField.Granularity': 'datetime-granularity',
-    'Table.Expandable Rows': 'tree-rows',
     'Table.Column Resizing': 'column-resize',
     'Table.Virtualization': 'virtual-list',
     'ListBox.Virtualization': 'virtual-list',

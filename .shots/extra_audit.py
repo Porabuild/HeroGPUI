@@ -186,6 +186,12 @@ EXTRA_OK_SCOPED = {
     # `Calendar.NavButton` takes children for the paging glyphs.
     'Calendar.cell_indicator': 'composition',
     'Calendar.nav_icons': 'composition',
+    # v3 documents expandable rows in prose rather than in its prop table:
+    # `treeColumn` picks the column that carries the chevron, and a row's
+    # `children` are the rows it nests. `tree_row` is the constructor that
+    # takes a `TableRow` rather than a cell vector, so a row can carry them.
+    'Table.tree_column': 'composition',
+    'Table.tree_row': 'composition',
     'Select.indicator': 'composition',
     'Select.value_content': 'composition',
     'Checkbox.is_round': 'no-classname',

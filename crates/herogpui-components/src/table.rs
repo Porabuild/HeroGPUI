@@ -175,11 +175,24 @@ impl From<&str> for TableColumn {
 pub struct TableRow {
     key: Option<SharedString>,
     cells: Vec<AnyElement>,
+    /// The rows nested under this one. v3 calls them the row's `children`, and
+    /// `expandedKeys` decides which parents show theirs.
+    children: Vec<TableRow>,
 }
 
 impl TableRow {
     pub fn new(cells: Vec<AnyElement>) -> Self {
-        Self { key: None, cells }
+        Self {
+            key: None,
+            cells,
+            children: Vec::new(),
+        }
+    }
+
+    /// The rows nested under this one.
+    pub fn children(mut self, rows: Vec<TableRow>) -> Self {
+        self.children = rows;
+        self
     }
 
     /// The selection key. Defaults to the row's index.
@@ -197,6 +210,8 @@ impl TableRow {
     }
 }
 
+type OnExpandedChange = std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
+
 /// HeroUI Table.
 #[derive(IntoElement)]
 pub struct Table {
@@ -205,6 +220,11 @@ pub struct Table {
     indicator: Option<Indicator>,
     columns: Vec<TableColumn>,
     rows: Vec<TableRow>,
+    /// `treeColumn` — which column carries the expand chevron.
+    tree_column: usize,
+    /// `expandedKeys` — the parent rows showing their children.
+    expanded_keys: Vec<SharedString>,
+    on_expanded_change: Option<OnExpandedChange>,
     variant: TableVariant,
     selection_mode: SelectionMode,
     selected_keys: Vec<SharedString>,
@@ -224,6 +244,9 @@ impl Table {
             indicator: None,
             columns: columns.into_iter().map(TableColumn::new).collect(),
             rows: Vec::new(),
+            tree_column: 0,
+            expanded_keys: Vec::new(),
+            on_expanded_change: None,
             variant: TableVariant::Primary,
             selection_mode: SelectionMode::None,
             selected_keys: Vec::new(),
@@ -266,6 +289,33 @@ impl Table {
     }
 
     /// Adds one row of cells (`Table.Row` cells).
+    /// `treeColumn` — the column whose cells carry the expand chevron.
+    pub fn tree_column(mut self, index: usize) -> Self {
+        self.tree_column = index;
+        self
+    }
+
+    /// `expandedKeys` — the parent rows showing their children.
+    pub fn expanded_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
+        self.expanded_keys = keys.into_iter().collect();
+        self
+    }
+
+    /// Reports the expanded set after a chevron is pressed.
+    pub fn on_expanded_change(
+        mut self,
+        f: impl Fn(&[SharedString], &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_expanded_change = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// Adds a row, with any nested rows it carries.
+    pub fn tree_row(mut self, row: TableRow) -> Self {
+        self.rows.push(row);
+        self
+    }
+
     pub fn row(mut self, cells: Vec<AnyElement>) -> Self {
         self.rows.push(TableRow::new(cells));
         self
@@ -365,7 +415,7 @@ impl Table {
 }
 
 impl RenderOnce for Table {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
         let accent = colors.accent;
         let secondary = self.variant == TableVariant::Secondary;
@@ -431,14 +481,25 @@ impl RenderOnce for Table {
             header = header.child(cell);
         }
 
+        // A column with a `defaultWidth` takes it; the rest share the row in
+        // equal fractions. A bare `flex_1` sizes a cell by its content, so the
+        // tree column's indent used to shift every column after it.
+        let flexible = self.columns.iter().filter(|c| c.width.is_none()).count();
+        let share = if flexible == 0 {
+            1.0
+        } else {
+            1.0 / flexible as f32
+        };
+
         for column in &self.columns {
             let sorted = self
                 .sort_descriptor
                 .as_ref()
                 .filter(|d| d.column == column.label);
-            // A column with a `defaultWidth` takes it; the rest share the row.
             let mut cell = gpui::div()
-                .when(column.width.is_none(), |c| c.flex_1())
+                .when(column.width.is_none(), |c| {
+                    c.w(gpui::relative(share)).flex_shrink_0()
+                })
                 .when_some(column.width, |c, w| c.w(w))
                 .when_some(column.min_width, |c, w| c.min_w(w))
                 .flex()
@@ -499,9 +560,48 @@ impl RenderOnce for Table {
 
         // ---- rows --------------------------------------------------------
         let column_count = self.columns.len();
-        let row_count = self.rows.len();
-        for (i, row_data) in self.rows.into_iter().enumerate() {
-            let key = row_keys[i].clone();
+        // Depth-first, and only through the parents that are open: a nested row
+        // is not rendered at all until its parent is expanded.
+        let mut flat: Vec<(TableRow, usize, bool, SharedString)> = Vec::new();
+        fn flatten(
+            rows: Vec<TableRow>,
+            depth: usize,
+            path: &str,
+            expanded: &[SharedString],
+            out: &mut Vec<(TableRow, usize, bool, SharedString)>,
+        ) {
+            for (index, mut row) in rows.into_iter().enumerate() {
+                let key = match &row.key {
+                    Some(k) => k.clone(),
+                    None if path.is_empty() => SharedString::from(index.to_string()),
+                    None => SharedString::from(format!("{path}-{index}")),
+                };
+                let children = std::mem::take(&mut row.children);
+                let has_children = !children.is_empty();
+                let is_open = expanded.iter().any(|k| *k == key);
+                out.push((row, depth, has_children, key.clone()));
+                if has_children && is_open {
+                    flatten(children, depth + 1, key.as_ref(), expanded, out);
+                }
+            }
+        }
+        flatten(
+            std::mem::take(&mut self.rows),
+            0,
+            "",
+            &self.expanded_keys,
+            &mut flat,
+        );
+        let row_count = flat.len();
+        let tree_column = self.tree_column;
+        // Whether any row in this table is expandable at all: a flat table
+        // keeps its cells flush, rather than reserving a chevron's width.
+        let tree_column_has_children = flat.iter().any(|(_, _, has, _)| *has);
+        let expanded_now = self.expanded_keys.clone();
+        let on_expanded_change = self.on_expanded_change.clone();
+
+        for (i, (row_data, depth, has_children, tree_key)) in flat.into_iter().enumerate() {
+            let key = row_keys.get(i).cloned().unwrap_or_else(|| tree_key.clone());
             let is_selected = self.selected_keys.contains(&key);
             let row_header_columns: Vec<bool> =
                 self.columns.iter().map(|c| c.is_row_header).collect();
@@ -542,20 +642,74 @@ impl RenderOnce for Table {
                 .iter()
                 .map(|c| (c.width, c.min_width))
                 .collect();
+            let is_expanded = expanded_now.iter().any(|k| *k == tree_key);
+            let toggle_key = tree_key.clone();
+            let expanded_before = expanded_now.clone();
+            let on_expanded = on_expanded_change.clone();
             row = row.children(row_data.cells.into_iter().enumerate().map(|(c, cell)| {
                 let (width, min_width) = widths.get(c).copied().unwrap_or((None, None));
-                gpui::div()
-                    .when(width.is_none(), |e| e.flex_1())
+                let mut cell_el = gpui::div()
+                    .when(width.is_none(), |e| {
+                        e.w(gpui::relative(share)).flex_shrink_0()
+                    })
                     .when_some(width, |e, w| e.w(w))
                     .when_some(min_width, |e, w| e.min_w(w))
                     .flex()
                     .items_center()
+                    .gap(px(6.))
                     .px(px(12.))
                     .py(px(10.))
                     .when(row_header_columns.get(c).copied().unwrap_or(false), |e| {
                         e.font_weight(gpui::FontWeight::MEDIUM)
-                    })
-                    .child(cell)
+                    });
+                // The tree column carries the indent and the chevron; a row with
+                // no children still indents, so siblings line up.
+                if c == tree_column {
+                    if depth > 0 {
+                        cell_el = cell_el.pl(px(12. + 20. * depth as f32));
+                    }
+                    if has_children {
+                        let mut chevron = gpui::div()
+                            .id(gpui::ElementId::Name(
+                                format!("table-expand-{toggle_key}").into(),
+                            ))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .size(px(18.))
+                            .flex_shrink_0()
+                            .cursor_pointer()
+                            .child(
+                                gpui::svg()
+                                    .size(px(12.))
+                                    .path(if is_expanded {
+                                        icons::CHEVRON_DOWN
+                                    } else {
+                                        icons::CHEVRON_RIGHT
+                                    })
+                                    .text_color(colors.muted),
+                            );
+                        if let Some(cb) = on_expanded.clone() {
+                            let key = toggle_key.clone();
+                            let before = expanded_before.clone();
+                            chevron = chevron.on_click(move |_, window, cx| {
+                                let mut next = before.clone();
+                                if let Some(at) = next.iter().position(|k| *k == key) {
+                                    next.remove(at);
+                                } else {
+                                    next.push(key.clone());
+                                }
+                                cb(&next, window, cx);
+                            });
+                        }
+                        cell_el = cell_el.child(chevron);
+                    } else if depth > 0 || tree_column_has_children {
+                        // A leaf keeps the chevron's width so its text lines up
+                        // with its expandable siblings'.
+                        cell_el = cell_el.child(gpui::div().size(px(18.)).flex_shrink_0());
+                    }
+                }
+                cell_el.child(cell)
             }));
 
             // A selected row reads as selected even where the checkbox is off
