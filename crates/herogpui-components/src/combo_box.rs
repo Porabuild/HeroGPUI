@@ -63,6 +63,8 @@ pub struct ComboBox {
     is_read_only: bool,
     /// `autoFocus` — take focus on the first render.
     auto_focus: bool,
+    /// `ListLayout`'s `rowHeight`, which virtualizes the popover list.
+    row_height: Option<gpui::Pixels>,
     /// `validate` — run by the component, not the caller.
     validate: Option<crate::validation::Validator<str>>,
     /// `validationBehavior` — carried on the inner field.
@@ -152,6 +154,16 @@ impl ComboBox {
     }
 
     /// `autoFocus` — take focus on the first render.
+    /// `ListLayout`'s `rowHeight` -- and what virtualizes the popover list.
+    ///
+    /// v3 wraps the list in `<Virtualizer layout={ListLayout}>` inside the
+    /// popover; gpui's `uniform_list` builds only the rows in view, and it can do
+    /// that because every row is this tall.
+    pub fn row_height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.row_height = Some(h.into());
+        self
+    }
+
     pub fn auto_focus(mut self, v: bool) -> Self {
         self.auto_focus = v;
         self
@@ -269,6 +281,7 @@ impl ComboBox {
             is_required: false,
             is_read_only: false,
             auto_focus: false,
+            row_height: None,
             validate: None,
             validation_behavior: None,
             allows_empty_collection: false,
@@ -690,76 +703,110 @@ impl RenderOnce for ComboBox {
                 );
             }
 
-            for (index, item) in matches.iter().enumerate() {
+            // Everything a row reads, owned: `uniform_list`'s callback is
+            // `'static` and runs again on every scroll, so it cannot borrow
+            // `self` or the theme -- and one row builder for both paths is what
+            // keeps a virtual list drawing the same row as a short one.
+            let matches_len = matches.len();
+            let rows = matches;
+            let sections = self.sections.clone();
+            let row_disabled_keys = self.disabled_keys.clone();
+            let row_selected_keys = self.selected_keys.clone();
+            let indicator: Option<std::rc::Rc<dyn Fn(bool) -> gpui::AnyElement>> =
+                self.indicator.take().map(std::rc::Rc::from);
+            let on_change_all = self.on_selection_change_all.clone();
+            let on_change_one = self.on_selection_change.clone();
+            let on_open = self.on_open_change.clone();
+            let row_state = self.state.clone();
+            let selection_own = selection_own;
+            let row_muted = colors.muted;
+            let row_hover_bg = colors.default.color;
+            let row_focus = colors.focus;
+            let row_accent = colors.accent.color;
+            let row_disabled_opacity = layout.disabled_opacity;
+            let row_of = move |index: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
+                let item = &rows[index];
+                // A section header rides above the row it introduces, so the two
+                // are one element -- a virtual row is one slot tall.
+                let mut head: Vec<gpui::AnyElement> = Vec::new();
+                let done = |head: Vec<gpui::AnyElement>, row: gpui::AnyElement| {
+                    div()
+                        .flex()
+                        .flex_col()
+                        .when_some(fixed_h, |el, h| el.h(h).w_full())
+                        .children(head)
+                        .child(row)
+                        .into_any_element()
+                };
                 // `ListBox.Section`'s `Header`, above the item it introduces.
-                if let Some((_, label)) = self.sections.iter().find(|(at, _)| at == item) {
-                    panel = panel.child(
+                if let Some((_, label)) = sections.iter().find(|(at, _)| at == item) {
+                    head.push(
                         div()
                             .px(px(8.))
                             .pt(px(6.))
                             .pb(px(2.))
                             .text_size(px(12.))
-                            .text_color(colors.muted)
-                            .child(label.to_string()),
+                            .text_color(row_muted)
+                            .child(label.to_string())
+                            .into_any_element(),
                     );
                 }
-                let item_disabled = self.disabled_keys.contains(item);
-                let hover_bg = colors.default.color;
+                let item_disabled = row_disabled_keys.contains(item);
+                let hover_bg = row_hover_bg;
                 let mut row = div()
-                    .id(gpui::ElementId::Name(
-                        format!("combobox-{entity_id}-item-{index}").into(),
-                    ))
-                    // `.list-box-item`: `min-h-9 rounded-2xl px-2 py-1.5 gap-3`.
-                    .min_h(util::FIELD_HEIGHT)
-                    .px(px(8.))
-                    .py(px(6.))
-                    .gap(px(12.))
-                    .rounded(util::soft_radius(cx))
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .text_size(util::FIELD_TEXT)
-                    .child(item.to_string());
+                        .id(gpui::ElementId::Name(
+                            format!("combobox-{entity_id}-item-{index}").into(),
+                        ))
+                        // `.list-box-item`: `min-h-9 rounded-2xl px-2 py-1.5 gap-3`.
+                        .min_h(util::FIELD_HEIGHT)
+                        .px(px(8.))
+                        .py(px(6.))
+                        .gap(px(12.))
+                        .rounded(util::soft_radius(cx))
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .text_size(util::FIELD_TEXT)
+                        .child(item.to_string());
 
                 if item_disabled {
-                    row = row.opacity(layout.disabled_opacity);
+                    row = row.opacity(row_disabled_opacity);
                 } else {
                     row = row.cursor_pointer().hover(move |s| s.bg(hover_bg));
                 }
 
                 // `status-focused` on the row the keyboard is on.
                 if cursor_at == Some(index) {
-                    row = row.border_2().border_color(colors.focus);
+                    row = row.border_2().border_color(row_focus);
                 }
 
                 // `ListBox.ItemIndicator`: a caller-drawn tick replaces the
                 // check glyph, and is asked for on every row so it can draw the
                 // unselected state too.
-                let row_selected = self.selected_keys.contains(item);
-                match &self.indicator {
+                let row_selected = row_selected_keys.contains(item);
+                match &indicator {
                     Some(render) => row = row.child(render(row_selected)),
                     None if multiple && row_selected => {
                         row = row.child(
                             gpui::svg()
                                 .size(px(13.))
                                 .path(icons::CHECK)
-                                .text_color(colors.accent.color),
+                                .text_color(row_accent),
                         );
                     }
                     None => {}
                 }
 
                 if item_disabled {
-                    panel = panel.child(row);
-                    continue;
+                    return done(head, row.into_any_element());
                 }
 
                 // Multiple mode toggles membership and leaves the panel open.
                 if multiple {
-                    if self.on_selection_change_all.is_some() || selection_own.is_some() {
-                        let cb = self.on_selection_change_all.clone();
+                    if on_change_all.is_some() || selection_own.is_some() {
+                        let cb = on_change_all.clone();
                         let own = selection_own.clone();
-                        let current = self.selected_keys.clone();
+                        let current = row_selected_keys.clone();
                         let value = item.clone();
                         row = row.on_click(move |_, window, cx| {
                             let mut next = current.clone();
@@ -781,14 +828,13 @@ impl RenderOnce for ComboBox {
                             }
                         });
                     }
-                    panel = panel.child(row);
-                    continue;
+                    return done(head, row.into_any_element());
                 }
 
                 let value = item.clone();
-                let state = self.state.clone();
-                let on_selection_change = self.on_selection_change.clone();
-                let on_open_change = self.on_open_change.clone();
+                let state = row_state.clone();
+                let on_selection_change = on_change_one.clone();
+                let on_open_change = on_open.clone();
                 row = row.on_click(move |_, window, cx| {
                     state.update(cx, |s, cx| {
                         s.set_value(value.to_string());
@@ -802,7 +848,32 @@ impl RenderOnce for ComboBox {
                     }
                 });
 
-                panel = panel.child(row);
+                done(head, row.into_any_element())
+            };
+
+            match self.row_height {
+                // Virtual: only the rows in view are built, which is what makes
+                // a thousand options affordable.
+                Some(row_height) => {
+                    panel = panel.child(
+                        gpui::uniform_list(
+                            gpui::ElementId::Name(format!("combobox-{entity_id}-rows").into()),
+                            matches_len,
+                            move |range, _window, cx| {
+                                range
+                                    .map(|i| row_of(i, Some(row_height), cx))
+                                    .collect::<Vec<_>>()
+                            },
+                        )
+                        .h(px(240.))
+                        .w_full(),
+                    );
+                }
+                None => {
+                    for index in 0..matches_len {
+                        panel = panel.child(row_of(index, None, cx));
+                    }
+                }
             }
 
             root = root.child(util::floating(

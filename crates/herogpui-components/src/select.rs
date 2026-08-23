@@ -40,6 +40,8 @@ pub struct Select {
     is_invalid: bool,
     /// `shouldFocusWrap` — whether the arrow keys wrap at the ends of the list.
     should_focus_wrap: bool,
+    /// `ListLayout`'s `rowHeight`, which virtualizes the popover list.
+    row_height: Option<gpui::Pixels>,
     /// `ListBox.Section` — the heading that precedes an option, by index.
     sections: Vec<(usize, SharedString)>,
     /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
@@ -73,6 +75,16 @@ impl Select {
     }
 
     /// `shouldFocusWrap` — whether the arrow keys wrap at the ends of the list.
+    /// `ListLayout`'s `rowHeight` -- and what virtualizes the popover list.
+    ///
+    /// v3 wraps the list in `<Virtualizer layout={ListLayout}>` inside
+    /// `Select.Popover`; gpui's `uniform_list` builds only the rows in view, and
+    /// it can do that because every row is this tall.
+    pub fn row_height(mut self, h: impl Into<gpui::Pixels>) -> Self {
+        self.row_height = Some(h.into());
+        self
+    }
+
     pub fn should_focus_wrap(mut self, v: bool) -> Self {
         self.should_focus_wrap = v;
         self
@@ -138,6 +150,7 @@ impl Select {
             is_disabled: false,
             is_invalid: false,
             should_focus_wrap: false,
+            row_height: None,
             sections: Vec::new(),
             indicator: None,
             value_content: None,
@@ -285,7 +298,7 @@ impl Select {
 }
 
 impl RenderOnce for Select {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
         let (is_open, open_own) = util::controlled(
             window,
@@ -546,6 +559,7 @@ impl RenderOnce for Select {
 
         if is_open && !self.options.is_empty() {
             let base = format!("select-list-{}", id_debug(&self.id));
+            let options_len = self.options.len();
             let mut panel = gpui::div()
                 .w_full()
                 .flex()
@@ -559,71 +573,97 @@ impl RenderOnce for Select {
                 .overflow_hidden()
                 .max_h(px(280.));
 
-            for (i, opt) in self.options.iter().enumerate() {
+            // The theme tokens the row draws with, copied out: `cx.colors()`
+            // hands back a borrow of the app, which a `'static` closure cannot
+            // hold.
+            let row_muted = colors.muted;
+            let row_fg = colors.foreground;
+            let row_focus = colors.focus;
+            let row_hover_bg = colors.default.soft();
+            let row_accent = sem.color;
+            let row_disabled_opacity = layout.disabled_opacity;
+            // Everything a row reads, owned: `uniform_list`'s callback is
+            // `'static` and is called again on every scroll, so it cannot
+            // borrow `self` -- and one row builder for both paths is what keeps
+            // a virtual list drawing the same row as a short one.
+            let options = self.options.clone();
+            let sections = self.sections.clone();
+            let selected_indices = self.selected_indices.clone();
+            let opt_disabled_keys = self.disabled_keys.clone();
+            let indicator: Option<std::rc::Rc<dyn Fn(bool) -> gpui::AnyElement>> =
+                self.indicator.take().map(std::rc::Rc::from);
+            let on_change_all = self.on_selection_change_all.clone();
+            let on_change_one = self.on_selection_change.clone();
+            let value_own = value_own;
+            let open_own = open_own;
+            let base_row = base.clone();
+            let row = move |i: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
+                let base = &base_row;
+                let opt = &options[i];
+                let mut rows = Vec::new();
                 // `ListBox.Section`'s `Header`: `text-xs` in the muted colour,
                 // above the option it introduces.
-                if let Some((_, label)) = self.sections.iter().find(|(at, _)| *at == i) {
-                    panel = panel.child(
+                if let Some((_, label)) = sections.iter().find(|(at, _)| *at == i) {
+                    rows.push(
                         gpui::div()
                             .px(px(8.))
                             .pt(px(6.))
                             .pb(px(2.))
                             .text_size(px(12.))
-                            .text_color(colors.muted)
-                            .child(label.to_string()),
+                            .text_color(row_muted)
+                            .child(label.to_string())
+                            .into_any_element(),
                     );
                 }
                 let is_sel = if multiple {
-                    self.selected_indices.contains(&i)
+                    selected_indices.contains(&i)
                 } else {
                     selected == Some(i)
                 };
-                let opt_disabled = self.disabled_keys.contains(&i);
+                let opt_disabled = opt_disabled_keys.contains(&i);
                 let mut item = gpui::div()
-                    .id(el_name(format!("{base}-opt-{i}")))
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    // Every menu row in v3 is a `.list-box-item`: `min-h-9
-                    // rounded-2xl px-2 py-1.5 gap-3` at `text-sm`.
-                    .min_h(util::FIELD_HEIGHT)
-                    .rounded(util::soft_radius(cx))
-                    .px(px(8.))
-                    .py(px(6.))
-                    .gap(px(12.))
-                    .text_size(util::FIELD_TEXT);
+                        .id(el_name(format!("{base}-opt-{i}")))
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        // Every menu row in v3 is a `.list-box-item`: `min-h-9
+                        // rounded-2xl px-2 py-1.5 gap-3` at `text-sm`.
+                        .min_h(util::FIELD_HEIGHT)
+                        .rounded(util::soft_radius(cx))
+                        .px(px(8.))
+                        .py(px(6.))
+                        .gap(px(12.))
+                        .text_size(util::FIELD_TEXT);
 
                 if opt_disabled {
-                    item = item.opacity(layout.disabled_opacity);
+                    item = item.opacity(row_disabled_opacity);
                 } else {
-                    item = item
-                        .cursor_pointer()
-                        .hover(move |s| s.bg(colors.default.soft()));
+                    item = item.cursor_pointer().hover(move |s| s.bg(row_hover_bg));
                 }
 
                 if is_sel {
                     item = item
-                        .text_color(sem.color)
+                        .text_color(row_accent)
                         .font_weight(gpui::FontWeight::MEDIUM);
                 } else {
-                    item = item.text_color(colors.foreground);
+                    item = item.text_color(row_fg);
                 }
 
                 // `status-focused` on the row the keyboard is on.
                 if cursor_at == Some(i) {
-                    item = item.border_2().border_color(colors.focus);
+                    item = item.border_2().border_color(row_focus);
                 }
 
                 item = item.child(gpui::div().truncate().child(opt.to_string()));
 
-                match &self.indicator {
+                match &indicator {
                     Some(render) => item = item.child(render(is_sel)),
                     None if is_sel => {
                         item = item.child(
                             gpui::svg()
                                 .size(px(13.))
                                 .path(icons::CHECK)
-                                .text_color(sem.color),
+                                .text_color(row_accent),
                         );
                     }
                     None => {}
@@ -631,8 +671,8 @@ impl RenderOnce for Select {
 
                 if !opt_disabled {
                     if multiple {
-                        if let Some(cb) = self.on_selection_change_all.clone() {
-                            let current = self.selected_indices.clone();
+                        if let Some(cb) = on_change_all.clone() {
+                            let current = selected_indices.clone();
                             item = item.on_click(move |_, window, cx| {
                                 let mut next = current.clone();
                                 if !next.remove(&i) {
@@ -642,11 +682,8 @@ impl RenderOnce for Select {
                                 cb(&next, window, cx);
                             });
                         }
-                    } else if self.on_selection_change.is_some()
-                        || value_own.is_some()
-                        || open_own.is_some()
-                    {
-                        let on_select = self.on_selection_change.clone();
+                    } else if on_change_one.is_some() || value_own.is_some() || open_own.is_some() {
+                        let on_select = on_change_one.clone();
                         let value_own = value_own.clone();
                         let open_own = open_own.clone();
                         item = item.on_click(move |_, window, cx| {
@@ -671,7 +708,38 @@ impl RenderOnce for Select {
                     }
                 }
 
-                panel = panel.child(item);
+                rows.push(item.into_any_element());
+                gpui::div()
+                    .flex()
+                    .flex_col()
+                    .when_some(fixed_h, |el, h| el.h(h).w_full())
+                    .children(rows)
+                    .into_any_element()
+            };
+
+            match self.row_height {
+                // Virtual: only the rows in view are built, which is what makes
+                // a thousand options affordable.
+                Some(row_height) => {
+                    panel = panel.child(
+                        gpui::uniform_list(
+                            el_name(format!("{base}-rows")),
+                            options_len,
+                            move |range, _window, cx| {
+                                range
+                                    .map(|i| row(i, Some(row_height), cx))
+                                    .collect::<Vec<_>>()
+                            },
+                        )
+                        .h(px(280.))
+                        .w_full(),
+                    );
+                }
+                None => {
+                    for i in 0..options_len {
+                        panel = panel.child(row(i, None, cx));
+                    }
+                }
             }
 
             root = root.child(util::floating(

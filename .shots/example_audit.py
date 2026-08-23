@@ -97,12 +97,6 @@ NEEDS_FEATURE = {
     # needs a combined date-and-time value; this port's `DateField` is
     # date-only and `TimeField` is time-only.
     'DateField.Granularity': 'datetime-granularity',
-    # ListBox and Table virtualize through gpui's `uniform_list`; the three
-    # pickers still render every option row, so their popovers are not yet
-    # virtual.
-    'ComboBox.Virtualization': 'virtual-list',
-    'Autocomplete.Virtualization': 'virtual-list',
-    'Select.Virtualization': 'virtual-list',
 }
 
 SYNONYM = {

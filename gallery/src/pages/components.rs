@@ -149,6 +149,13 @@ fn virtual_user(i: usize) -> (String, String) {
     )
 }
 
+/// A thousand names, for the pickers' virtualization demos.
+fn virtual_names() -> Vec<SharedString> {
+    (0..1000)
+        .map(|i| SharedString::from(virtual_user(i).0))
+        .collect()
+}
+
 /// A thousand list rows, for the virtualization demos.
 fn virtual_users() -> Vec<h::ListBoxItem> {
     (0..1000)
@@ -9103,6 +9110,24 @@ impl Gallery {
             crate::pages::Page::Autocomplete.import_line(),
             vec![
                 (
+                    "Virtualization",
+                    col(vec![
+                        para(
+                            "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` \
+                             carries that here, and gpui's `uniform_list` builds only the rows in \
+                             view. A thousand options, forty pixels each.",
+                            cx,
+                        ),
+                        h::Autocomplete::new(
+                            self.demo_text("ac-virtual", "", cx),
+                            virtual_names(),
+                        )
+                        .label("User")
+                        .row_height(px(40.))
+                        .into_any_element(),
+                    ]),
+                ),
+                (
                     "Variants",
                     col(vec![
                         h::Autocomplete::new(self.demo_text("ac-primary", "", cx), languages())
@@ -9356,6 +9381,21 @@ impl Gallery {
             crate::pages::Page::ComboBox.description(),
             crate::pages::Page::ComboBox.import_line(),
             vec![
+                (
+                    "Virtualization",
+                    col(vec![
+                        para(
+                            "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` \
+                             carries that here, and gpui's `uniform_list` builds only the rows in \
+                             view. A thousand options, forty pixels each.",
+                            cx,
+                        ),
+                        h::ComboBox::new(self.demo_text("cb-virtual", "", cx), virtual_names())
+                            .label("User")
+                            .row_height(px(40.))
+                            .into_any_element(),
+                    ]),
+                ),
                 (
                     "Full Width",
                     col(vec![h::ComboBox::new(
@@ -9702,6 +9742,22 @@ impl Gallery {
             crate::pages::Page::Select.description(),
             crate::pages::Page::Select.import_line(),
             vec![
+                (
+                    "Virtualization",
+                    col(vec![
+                        para(
+                            "v3 wraps the popover's list in React Aria's `Virtualizer`; `row_height` \
+                             carries that here, and gpui's `uniform_list` builds only the rows in \
+                             view. A thousand options, forty pixels each.",
+                            cx,
+                        ),
+                        h::Select::new("sel-virtual", virtual_names())
+                            .label("User")
+                            .placeholder("Choose one")
+                            .row_height(px(40.))
+                            .into_any_element(),
+                    ]),
+                ),
                 (
                     "With Description",
                     col(vec![h::Select::new("sel-desc", languages())
