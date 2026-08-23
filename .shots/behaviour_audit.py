@@ -76,6 +76,16 @@ REMOVE_KEY = ('TagGroup',)
 # for free -- which is exactly why this port shipped panels that closed only
 # through their own trigger. Derived, like the arrow keys, from what the
 # component *is*.
+# A number field is React Aria's `useSpinButton`: the arrows step it, Home and
+# End run to the bounds. v3's page says nothing about it, and the field had no
+# key handler at all -- the steppers were the only way to change it.
+SPIN_KEYS = ('NumberField',)
+
+# React Aria shows a tooltip on keyboard focus as well as on hover; a hover-only
+# tooltip is invisible to a keyboard user, and v3's own page says "shown on hover
+# or focus".
+FOCUS_OPEN = ('Tooltip',)
+
 OVERLAY_DISMISS = (
     'Popover', 'Dropdown', 'Select', 'ComboBox', 'Autocomplete',
     'DatePicker', 'DateRangePicker', 'ColorPicker', 'Tooltip',
@@ -141,6 +151,8 @@ EVIDENCE = {
     ('DateRangePicker', 'dismiss'): ('date_picker.rs', r'dismiss_on_escape'),
     ('ColorPicker', 'dismiss'): ('color_picker.rs', r'dismiss_on_press_outside'),
     ('Tooltip', 'dismiss'): ('tooltip.rs', r'dismiss_on_escape'),
+    ('NumberField', 'spin-keys'): ('number_field.rs', r'"up" \| "pageup"'),
+    ('Tooltip', 'focus-open'): ('tooltip.rs', r'contains_focused'),
     ('Accordion', 'activation'): ('accordion.rs', r'tab_stop_handle'),
     ('Button', 'activation'): ('button.rs', r'tab_stop_handle'),
     ('CloseButton', 'activation'): ('close_button.rs', r'tab_stop_handle'),
@@ -192,8 +204,8 @@ def main():
     by_reason = {}
 
     # The derived claims first, so their numbers land in the same totals.
-    for page in ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS:
-        for claim in ('arrow-nav', 'remove-key', 'dismiss'):
+    for page in ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + FOCUS_OPEN:
+        for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'focus-open'):
             key = (page, claim)
             if key not in EVIDENCE:
                 continue

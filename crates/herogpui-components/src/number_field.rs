@@ -497,6 +497,40 @@ impl RenderOnce for NumberField {
                 .border_color(seam),
             );
         }
+        // React Aria drives a number field from `useSpinButton`: the arrows
+        // step by `step`, Home and End run to the bounds, and Page Up/Down fall
+        // back to a plain step because `NumberField` passes no page handlers.
+        // The keys arrive at the focused input and bubble to here.
+        if !self.is_disabled && !self.is_read_only {
+            let key_state = self.state.clone();
+            let key_change = self.on_change.clone();
+            group = group.on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
+                let (min, max) = key_state.read(cx).range();
+                let dir = match ev.keystroke.key.as_str() {
+                    "up" | "pageup" => 1.0,
+                    "down" | "pagedown" => -1.0,
+                    "home" => {
+                        key_state.update(cx, |s, cx| s.set_value(min, cx));
+                        if let Some(cb) = &key_change {
+                            cb(key_state.read(cx).value(), window, cx);
+                        }
+                        return;
+                    }
+                    "end" => {
+                        key_state.update(cx, |s, cx| s.set_value(max, cx));
+                        if let Some(cb) = &key_change {
+                            cb(key_state.read(cx).value(), window, cx);
+                        }
+                        return;
+                    }
+                    _ => return,
+                };
+                key_state.update(cx, |s, cx| s.bump(dir, cx));
+                if let Some(cb) = &key_change {
+                    cb(key_state.read(cx).value(), window, cx);
+                }
+            });
+        }
         if self.is_disabled {
             group = group.opacity(layout.disabled_opacity);
         }

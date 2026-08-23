@@ -190,7 +190,19 @@ impl RenderOnce for Tooltip {
         // The state entity has to be created before the theme tokens are read;
         // `use_keyed_state` takes `cx` mutably and would conflict with them.
         let state = window.use_keyed_state(key.clone(), cx, |_, _| TooltipHover::new());
-        let open = state.read(cx).open;
+        // React Aria shows a tooltip on keyboard focus as well as on hover --
+        // without it a keyboard user never sees one. The handle is a focus
+        // *parent*, not a tab stop (tab stops come from `.tab_stop(true)`), so
+        // it reports whether the trigger inside it holds the focus without
+        // adding a stop of its own.
+        let wrap_focus = window.use_keyed_state(
+            ElementId::Name(format!("{key:?}-wrap-focus").into()),
+            cx,
+            |_, cx| cx.focus_handle(),
+        );
+        let wrap_handle = wrap_focus.read(cx).clone();
+        let focus_open = wrap_handle.contains_focused(window, cx) && util::focus_visible(cx);
+        let open = state.read(cx).open || focus_open;
 
         let colors = cx.colors();
         let layout = cx.layout();
@@ -268,6 +280,7 @@ impl RenderOnce for Tooltip {
         let mut wrapper = gpui::div()
             // `on_hover` needs a stateful element, so the wrapper carries the id.
             .id(key.clone())
+            .track_focus(&wrap_handle)
             .relative()
             .flex()
             .children(self.children)
