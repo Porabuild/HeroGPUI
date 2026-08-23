@@ -2,7 +2,10 @@
 //!
 //! Edge-anchored overlay panel. Render from your root view like [`Modal`].
 
-use gpui::{prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window};
+use gpui::{
+    prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
+    SharedString, StatefulInteractiveElement, Styled, Window,
+};
 use herogpui_theme::ActiveTheme;
 
 use herogpui_core::Backdrop;
@@ -24,7 +27,7 @@ pub enum DrawerPlacement {
 
 /// The drawer panel's extent along its axis. v3 sets this in `drawer.css`
 /// rather than with a prop, capped at 90% of the window by `max-w`/`max-h`.
-const PANEL_EXTENT: gpui::Pixels = gpui::px(320.);
+const PANEL_EXTENT: gpui::Pixels = px(320.);
 
 /// HeroUI Drawer (controlled).
 #[derive(IntoElement)]
@@ -69,7 +72,6 @@ impl Drawer {
         self
     }
 
-
     /// `isKeyboardDismissDisabled` — stops Escape from closing the drawer.
     pub fn is_keyboard_dismiss_disabled(mut self, v: bool) -> Self {
         self.is_keyboard_dismiss_disabled = v;
@@ -84,10 +86,7 @@ impl Drawer {
 
     /// `onOpenChange` — fires with `false` on every dismissal path, alongside
     /// [`Drawer::on_close`].
-    pub fn on_open_change(
-        mut self,
-        f: impl Fn(bool, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_open_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -112,10 +111,7 @@ impl Drawer {
         self
     }
 
-    pub fn on_close(
-        mut self,
-        f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_close(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
         self.on_close = Some(std::sync::Arc::new(f));
         self
     }
@@ -231,10 +227,38 @@ impl RenderOnce for Drawer {
 
         // anchor to the requested edge
         let anchored = match self.placement {
-            DrawerPlacement::Left => panel.w(PANEL_EXTENT).max_w(gpui::relative(0.9)).h_full().absolute().left(px(0.)).top(px(0.)).bottom(px(0.)),
-            DrawerPlacement::Right => panel.w(PANEL_EXTENT).max_w(gpui::relative(0.9)).h_full().absolute().right(px(0.)).top(px(0.)).bottom(px(0.)),
-            DrawerPlacement::Top => panel.h(PANEL_EXTENT).max_h(gpui::relative(0.9)).w_full().absolute().top(px(0.)).left(px(0.)).right(px(0.)),
-            DrawerPlacement::Bottom => panel.h(PANEL_EXTENT).max_h(gpui::relative(0.9)).w_full().absolute().bottom(px(0.)).left(px(0.)).right(px(0.)),
+            DrawerPlacement::Left => panel
+                .w(PANEL_EXTENT)
+                .max_w(gpui::relative(0.9))
+                .h_full()
+                .absolute()
+                .left(px(0.))
+                .top(px(0.))
+                .bottom(px(0.)),
+            DrawerPlacement::Right => panel
+                .w(PANEL_EXTENT)
+                .max_w(gpui::relative(0.9))
+                .h_full()
+                .absolute()
+                .right(px(0.))
+                .top(px(0.))
+                .bottom(px(0.)),
+            DrawerPlacement::Top => panel
+                .h(PANEL_EXTENT)
+                .max_h(gpui::relative(0.9))
+                .w_full()
+                .absolute()
+                .top(px(0.))
+                .left(px(0.))
+                .right(px(0.)),
+            DrawerPlacement::Bottom => panel
+                .h(PANEL_EXTENT)
+                .max_h(gpui::relative(0.9))
+                .w_full()
+                .absolute()
+                .bottom(px(0.))
+                .left(px(0.))
+                .right(px(0.)),
         };
 
         // v3 backdrop variants; gpui has no backdrop-filter, so `Blur` renders a
@@ -259,7 +283,6 @@ impl RenderOnce for Drawer {
             )),
         };
 
-
         // `ClickEvent::default()` is the Keyboard variant, so a caller
         // inspecting the event sees a keyboard activation, which is what this
         // is.
@@ -276,7 +299,7 @@ impl RenderOnce for Drawer {
             .on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
                 if ev.keystroke.key == "escape" {
                     if let Some(f) = &keyboard_dismiss {
-                        f(&gpui::ClickEvent::default(), window, cx);
+                        f(&ClickEvent::default(), window, cx);
                     }
                 }
             });
@@ -306,8 +329,12 @@ impl RenderOnce for Drawer {
                         cx,
                     )
                 } else {
-                    crate::anim::entering(scrim, "drawer-backdrop-anim", crate::anim::Motion::BACKDROP_IN,
-                cx)
+                    crate::anim::entering(
+                        scrim,
+                        "drawer-backdrop-anim",
+                        crate::anim::Motion::BACKDROP_IN,
+                        cx,
+                    )
                 });
             }
         }

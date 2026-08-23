@@ -1,9 +1,11 @@
 //! Tabs — port of `@heroui/tabs`.
 
-use gpui::{prelude::*, px, AnyElement, App, IntoElement, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window};
+use gpui::{
+    prelude::*, px, AnyElement, App, IntoElement, RenderOnce, SharedString,
+    StatefulInteractiveElement, Styled, Window,
+};
 use herogpui_core::Orientation;
 use herogpui_theme::ActiveTheme;
-
 
 /// Tab bar style (`variant`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -109,9 +111,6 @@ impl Tabs {
         self
     }
 
-
-
-
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -162,7 +161,7 @@ impl RenderOnce for Tabs {
         match self.variant {
             TabsVariant::Primary => {
                 list = list
-                    .gap(px(4.))
+                    .gap(px(8.))
                     .p(px(4.))
                     .rounded(crate::util::control_radius(cx))
                     .bg(colors.surface_secondary);
@@ -276,6 +275,3 @@ impl RenderOnce for Tabs {
         el
     }
 }
-
-
-

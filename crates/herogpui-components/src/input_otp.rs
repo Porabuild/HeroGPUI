@@ -4,7 +4,7 @@ use gpui::{
     prelude::*, px, App, Entity, FocusHandle, Focusable, IntoElement, KeyDownEvent, RenderOnce,
     SharedString, Styled, Window,
 };
-use herogpui_core::{FieldVariant, Color};
+use herogpui_core::{Color, FieldVariant};
 use herogpui_theme::ActiveTheme;
 
 /// Editable state for an OTP field: one char per cell.
@@ -87,7 +87,7 @@ impl OtpState {
 }
 
 impl Focusable for OtpState {
-    fn focus_handle(&self, _cx: &gpui::App) -> FocusHandle {
+    fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.focus_handle.clone()
     }
 }
@@ -106,8 +106,11 @@ pub enum OtpTextAlign {
 }
 
 impl OtpTextAlign {
-    pub const ALL: [OtpTextAlign; 3] =
-        [OtpTextAlign::Left, OtpTextAlign::Center, OtpTextAlign::Right];
+    pub const ALL: [OtpTextAlign; 3] = [
+        OtpTextAlign::Left,
+        OtpTextAlign::Center,
+        OtpTextAlign::Right,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -126,12 +129,12 @@ pub struct InputOTP {
     slot: Option<Slot>,
     /// `name` — the name this control submits under; read back by
     /// [`Self::form_field`].
-    name: Option<gpui::SharedString>,
+    name: Option<SharedString>,
     variant: FieldVariant,
     /// `validate` — run by the component, not the caller.
     validate: Option<crate::validation::Validator<str>>,
     /// `validationErrors` — messages from a server round-trip.
-    validation_errors: Vec<gpui::SharedString>,
+    validation_errors: Vec<SharedString>,
     /// `textAlign` — where the digit sits inside its slot.
     text_align: OtpTextAlign,
     /// `autoFocus` — take focus on the first render.
@@ -190,7 +193,7 @@ impl InputOTP {
     }
 
     /// `name` — the name this control submits under.
-    pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = Some(name.into());
         self
     }
@@ -208,11 +211,8 @@ impl InputOTP {
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
         let state = self.state.clone();
-        Some(
-            crate::form::FormField::code(name, state).is_required(false),
-        )
+        Some(crate::form::FormField::code(name, state).is_required(false))
     }
-
 
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
@@ -222,10 +222,7 @@ impl InputOTP {
     /// `validate` — returns the message to show, or `None` when the code is fine.
     ///
     /// The component runs it and surfaces the result.
-    pub fn validate(
-        mut self,
-        f: impl Fn(&str) -> Option<gpui::SharedString> + 'static,
-    ) -> Self {
+    pub fn validate(mut self, f: impl Fn(&str) -> Option<SharedString> + 'static) -> Self {
         self.validate = Some(std::sync::Arc::new(f));
         self
     }
@@ -234,7 +231,7 @@ impl InputOTP {
     /// whatever `validate` returns.
     pub fn validation_errors(
         mut self,
-        errors: impl IntoIterator<Item = impl Into<gpui::SharedString>>,
+        errors: impl IntoIterator<Item = impl Into<SharedString>>,
     ) -> Self {
         self.validation_errors = errors.into_iter().map(Into::into).collect();
         self
@@ -283,10 +280,7 @@ impl InputOTP {
     }
 
     /// Fires on every cell change, not just completion (`onChange`).
-    pub fn on_change(
-        mut self,
-        f: impl Fn(&str, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_change(mut self, f: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -302,10 +296,7 @@ impl InputOTP {
         self
     }
 
-    pub fn on_complete(
-        mut self,
-        f: impl Fn(&str, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_complete(mut self, f: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.on_complete = Some(std::sync::Arc::new(f));
         self
     }
@@ -330,7 +321,9 @@ impl RenderOnce for InputOTP {
         let colors = cx.colors();
         let layout = cx.layout();
 
-        let (cell_px, text) = (px(40.), px(18.));
+        // `.input-otp__slot` is `h-10 w-9.5` with `text-sm`, and the row and
+        // group are both `gap-2`.
+        let (cell_w, cell_h, text, slot_gap) = (px(38.), px(40.), px(14.), px(8.));
 
         let focused = focused_handle.is_focused(window);
         let (cells_snapshot, cursor) = {
@@ -356,7 +349,12 @@ impl RenderOnce for InputOTP {
             ))
             .flex()
             .items_center()
-            .cursor(if disabled { gpui::CursorStyle::Arrow } else { gpui::CursorStyle::IBeam })
+            .gap(slot_gap)
+            .cursor(if disabled {
+                gpui::CursorStyle::Arrow
+            } else {
+                gpui::CursorStyle::IBeam
+            })
             .track_focus(&focused_handle)
             .key_context("InputOTP")
             .on_mouse_down(gpui::MouseButton::Left, {
@@ -394,42 +392,36 @@ impl RenderOnce for InputOTP {
                     OtpTextAlign::Center => c.justify_center(),
                     OtpTextAlign::Right => c.justify_end().pr(px(6.)),
                 })
-                .w(cell_px)
-                .h(cell_px + px(6.))
-                .rounded(px(8.))
+                .w(cell_w)
+                .h(cell_h)
+                .rounded(crate::util::field_radius(cx))
                 .text_size(text)
                 .font_weight(gpui::FontWeight::SEMIBOLD);
 
-            // `secondary` cells sit flat on a surface; `primary` keeps the
-            // field fill.
-            let filled_bg = match self.variant {
+            // Every slot is filled and shadowed, empty or not -- v3 gives
+            // `.input-otp__slot` `bg-field shadow-field` with a zero-width
+            // border, and `bg-field-focus` (which resolves back to the same
+            // background) once it is active or filled. Drawing empty slots as a
+            // bare 2px outline instead made them all but invisible.
+            let slot_bg = match self.variant {
                 FieldVariant::Primary => colors.field.background,
-                FieldVariant::Secondary => colors.surface_secondary,
+                FieldVariant::Secondary => colors.default.color,
             };
             let ring = if invalid {
                 colors.danger.color
             } else {
                 sem.color
             };
-            let idle_border = if invalid {
-                colors.danger.color
-            } else {
-                colors.default.soft_hover()
-            };
-
+            cell = cell.bg(slot_bg).text_color(colors.foreground);
+            if self.variant == FieldVariant::Primary && !layout.field_shadow.is_empty() {
+                cell = cell.shadow(layout.field_shadow.clone());
+            }
             if is_cursor_cell {
-                cell = cell.border_2().border_color(ring).bg(filled_bg);
-            } else if ch != ' ' {
-                cell = cell
-                    .border_2()
-                    .border_color(idle_border)
-                    .text_color(colors.foreground)
-                    .bg(filled_bg);
-            } else {
-                cell = cell
-                    .border_2()
-                    .border_color(idle_border)
-                    .text_color(colors.foreground);
+                // `status-focused-field` — a 2px focus ring, no offset.
+                cell = cell.border_2().border_color(colors.focus);
+            } else if invalid {
+                // `status-invalid-field` — a 1px danger outline.
+                cell = cell.border_1().border_color(colors.danger.color);
             }
 
             // `slot` is v3's render prop on `InputOTP.Slot`: it receives the
@@ -443,7 +435,9 @@ impl RenderOnce for InputOTP {
                 // v3's `@keyframes caret-blink`.
                 cell = cell.child(crate::anim::caret_blink(
                     gpui::div().w(px(1.5)).h(text).bg(ring),
-                    gpui::ElementId::Name(format!("otp-caret-{}-{i}", self.state.entity_id().as_u64()).into()),
+                    gpui::ElementId::Name(
+                        format!("otp-caret-{}-{i}", self.state.entity_id().as_u64()).into(),
+                    ),
                     cx,
                 ));
             } else {
@@ -453,7 +447,7 @@ impl RenderOnce for InputOTP {
                     .child(self.placeholder.to_string());
             }
 
-            row = row.child(cell.ml(if i > 0 { px(6.) } else { px(0.) }));
+            row = row.child(cell);
         }
 
         // editing
@@ -470,9 +464,8 @@ impl RenderOnce for InputOTP {
 
             // Ctrl/Cmd+V fills the slots from the clipboard. `Cmd` matters on
             // macOS; checking only `control` would make paste dead there.
-            let paste_chord = (ev.keystroke.modifiers.control
-                || ev.keystroke.modifiers.platform)
-                && key == "v";
+            let paste_chord =
+                (ev.keystroke.modifiers.control || ev.keystroke.modifiers.platform) && key == "v";
             if paste_chord {
                 if let Some(text) = cx.read_from_clipboard().and_then(|c| c.text()) {
                     let text = match &paste_transformer {
@@ -577,8 +570,6 @@ impl RenderOnce for InputOTP {
         }
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {

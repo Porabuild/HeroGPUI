@@ -43,11 +43,7 @@ impl Label {
     /// which is what makes the association do the one thing it does visibly:
     /// clicking the label focuses the field. Pass a distinct `id` per label so
     /// the click target has one.
-    pub fn label_for(
-        mut self,
-        id: impl Into<gpui::ElementId>,
-        handle: gpui::FocusHandle,
-    ) -> Self {
+    pub fn label_for(mut self, id: impl Into<gpui::ElementId>, handle: gpui::FocusHandle) -> Self {
         self.label_for = Some((id.into(), handle));
         self
     }
@@ -86,11 +82,7 @@ impl RenderOnce for Label {
             .child(self.text.to_string());
 
         if self.is_required {
-            el = el.child(
-                div()
-                    .text_color(colors.danger.color)
-                    .child("*".to_string()),
-            );
+            el = el.child(div().text_color(colors.danger.color).child("*".to_owned()));
         }
 
         if self.is_disabled {
@@ -103,7 +95,7 @@ impl RenderOnce for Label {
                 .id(id)
                 .cursor_pointer()
                 .on_click(move |_: &gpui::ClickEvent, window: &mut Window, _| {
-                    window.focus(&handle)
+                    window.focus(&handle);
                 })
                 .into_any_element(),
             _ => el.into_any_element(),
@@ -218,7 +210,7 @@ pub struct Fieldset {
 impl Fieldset {
     pub fn new() -> Self {
         Self {
-            gap: px(16.),
+            gap: px(24.),
             children: Vec::new(),
         }
     }

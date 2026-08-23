@@ -3,7 +3,10 @@
 
 use std::collections::HashSet;
 
-use gpui::{prelude::*, px, Context, Entity, IntoElement, ParentElement, Render, SharedString, StatefulInteractiveElement, Styled, Window};
+use gpui::{
+    prelude::*, px, Context, Entity, IntoElement, ParentElement, Render, SharedString,
+    StatefulInteractiveElement, Styled, Window,
+};
 use herogpui_components as h;
 use herogpui_theme::{toggle_light_dark, toggle_reduce_motion, ActiveTheme};
 
@@ -103,7 +106,7 @@ pub struct Gallery {
 }
 
 impl Gallery {
-    pub fn new(cx: &mut Context<Self>) -> Self {
+    pub fn new(cx: &mut Context<'_, Self>) -> Self {
         let name = cx.new(|cx| h::InputState::new(cx));
         let email = cx.new(|cx| h::InputState::new(cx));
         // Seeded with newlines so the multi-line surface is visible at rest.
@@ -225,7 +228,7 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
 }
 
 impl Render for Gallery {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
         let colors = cx.colors().clone();
 
         // ---- top navbar ----------------------------------------------------
@@ -240,7 +243,11 @@ impl Render for Gallery {
             .start_content(
                 gpui::svg()
                     .size(px(16.))
-                    .path(if is_dark { h::icons::SUN } else { h::icons::MOON })
+                    .path(if is_dark {
+                        h::icons::SUN
+                    } else {
+                        h::icons::MOON
+                    })
                     .text_color(colors.foreground),
             );
 
@@ -346,31 +353,36 @@ impl Render for Gallery {
                     .text_size(px(11.5))
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .text_color(colors.muted)
-                    .child(section.title.to_string()),
+                    .child(section.title.to_owned()),
             );
             for item in section.items {
                 let active = self.page == item;
                 let mut row = gpui::div()
-                    .id(gpui::ElementId::Name(format!("nav-{:?}", item).into()))
+                    .id(gpui::ElementId::Name(format!("nav-{item:?}").into()))
                     .px(px(8.))
                     .py(px(5.))
                     .rounded(px(8.))
                     .text_size(px(13.5))
                     .cursor_pointer();
                 if active {
-                    row = row.bg(colors.default.soft()).font_weight(gpui::FontWeight::MEDIUM);
+                    row = row
+                        .bg(colors.default.soft())
+                        .font_weight(gpui::FontWeight::MEDIUM);
                 } else {
                     row = row.hover(move |s| s.bg(colors.default.soft()));
                 }
-                row = row.text_color(if active { colors.foreground } else { colors.muted });
-                col = col.child(
-                    row.child(item.title())
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.page = item;
-                            this.dropdown_open = false;
-                            cx.notify();
-                        })),
-                );
+                row = row.text_color(if active {
+                    colors.foreground
+                } else {
+                    colors.muted
+                });
+                col = col.child(row.child(item.title()).on_click(cx.listener(
+                    move |this, _, _, cx| {
+                        this.page = item;
+                        this.dropdown_open = false;
+                        cx.notify();
+                    },
+                )));
             }
             sidebar = sidebar.child(col);
         }

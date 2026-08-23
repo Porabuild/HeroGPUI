@@ -5,7 +5,9 @@
 
 use std::collections::HashSet;
 
-use gpui::{px, AnyElement, App, IntoElement, ParentElement, RenderOnce, SharedString, Styled, Window};
+use gpui::{
+    px, AnyElement, App, IntoElement, ParentElement, RenderOnce, SharedString, Styled, Window,
+};
 
 use crate::accordion::{Accordion, AccordionItem, AccordionVariant};
 
@@ -48,7 +50,6 @@ impl Disclosure {
         self.is_disabled = v;
         self
     }
-
 }
 
 impl ParentElement for Disclosure {
@@ -59,8 +60,13 @@ impl ParentElement for Disclosure {
 
 impl RenderOnce for Disclosure {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        let item = AccordionItem::new("disclosure", self.title.clone())
-            .content(gpui::div().flex().flex_col().gap(px(6.)).children(self.children));
+        let item = AccordionItem::new("disclosure", self.title.clone()).content(
+            gpui::div()
+                .flex()
+                .flex_col()
+                .gap(px(6.))
+                .children(self.children),
+        );
         let mut set = HashSet::new();
         if self.is_expanded {
             set.insert(SharedString::from("disclosure"));
@@ -74,7 +80,7 @@ impl RenderOnce for Disclosure {
                 let cb = self.on_toggle.clone();
                 move |_k, w, cx| {
                     if let Some(f) = &cb {
-                        f(!was_expanded, w, cx)
+                        f(!was_expanded, w, cx);
                     }
                 }
             })
@@ -99,8 +105,14 @@ impl DisclosureGroup {
         }
     }
 
-    pub fn item(mut self, key: impl Into<SharedString>, title: impl Into<SharedString>, content: impl IntoElement) -> Self {
-        self.items.push((key.into(), title.into(), vec![content.into_any_element()]));
+    pub fn item(
+        mut self,
+        key: impl Into<SharedString>,
+        title: impl Into<SharedString>,
+        content: impl IntoElement,
+    ) -> Self {
+        self.items
+            .push((key.into(), title.into(), vec![content.into_any_element()]));
         self
     }
 
@@ -123,12 +135,16 @@ impl Default for DisclosureGroup {
 
 impl RenderOnce for DisclosureGroup {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        let items: Vec<AccordionItem> = self.items.into_iter().map(|(k, t, children)| {
-            let mut it = AccordionItem::new(k.clone(), t);
-            // join children into one content block
-            it = it.content(gpui::div().flex().flex_col().gap(px(4.)).children(children));
-            it
-        }).collect();
+        let items: Vec<AccordionItem> = self
+            .items
+            .into_iter()
+            .map(|(k, t, children)| {
+                let mut it = AccordionItem::new(k, t);
+                // join children into one content block
+                it = it.content(gpui::div().flex().flex_col().gap(px(4.)).children(children));
+                it
+            })
+            .collect();
 
         let mut acc = Accordion::new(items).expanded_keys(self.expanded.clone());
         if let Some(cb) = self.on_toggle.clone() {

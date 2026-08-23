@@ -40,15 +40,11 @@ pub struct Checkbox {
 }
 
 impl Checkbox {
-
     /// `isReadOnly` — shows the value but refuses changes.
     /// `validate` — returns the message to show, or `None` when the state is fine.
     ///
     /// The component runs it and surfaces the result.
-    pub fn validate(
-        mut self,
-        f: impl Fn(&bool) -> Option<gpui::SharedString> + 'static,
-    ) -> Self {
+    pub fn validate(mut self, f: impl Fn(&bool) -> Option<gpui::SharedString> + 'static) -> Self {
         self.validate = Some(std::sync::Arc::new(f));
         self
     }
@@ -176,8 +172,6 @@ impl Checkbox {
         self
     }
 
-
-
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -189,10 +183,7 @@ impl Checkbox {
         self
     }
 
-    pub fn on_change(
-        mut self,
-        f: impl Fn(bool, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Box::new(f));
         self
     }
@@ -232,7 +223,7 @@ impl RenderOnce for Checkbox {
         let colors = cx.colors();
         let layout = cx.layout();
 
-        let (box_px, icon_px, text) = (px(18.), px(12.), px(14.));
+        let (box_px, icon_px, text) = (px(16.), px(10.), px(14.));
 
         let active = checked || self.is_indeterminate;
 
@@ -241,7 +232,7 @@ impl RenderOnce for Checkbox {
             .items_center()
             .justify_center()
             .size(box_px)
-            .rounded(crate::util::control_radius(cx))
+            .rounded(crate::util::mark_radius(cx))
             .flex_shrink_0()
             // `Primary` carries the field shadow; `Secondary` is the flat
             // variant meant for use on a surface.
@@ -251,13 +242,22 @@ impl RenderOnce for Checkbox {
                 |e| e.shadow(layout.field_shadow.clone()),
             );
 
+        // `.checkbox__control` has no border (`--field-border-width: 0`). Unset
+        // it is `bg-field` on the primary variant and `--default` on the
+        // secondary one; selected, the `::before` overlay covers it in
+        // `bg-accent` (or `bg-danger` when invalid, which `sem` already is).
         if active {
-            boxel = boxel.bg(sem.color).border_2().border_color(sem.color);
+            boxel = boxel.bg(sem.color);
         } else {
-            boxel = boxel
-                .bg(colors.default.soft())
-                .border_2()
-                .border_color(colors.default.soft_hover());
+            boxel = boxel.bg(match self.variant {
+                herogpui_core::FieldVariant::Primary => colors.field.background,
+                herogpui_core::FieldVariant::Secondary => colors.default.color,
+            });
+            // `status-invalid-field` draws a 1px danger outline over the fill,
+            // and v3 applies it only while the box is unchecked.
+            if validity.is_invalid {
+                boxel = boxel.border_1().border_color(colors.danger.color);
+            }
         }
 
         if self.is_indeterminate {
@@ -269,16 +269,23 @@ impl RenderOnce for Checkbox {
                     .bg(sem.foreground),
             );
         } else if checked {
-            boxel =
-                boxel.child(gpui::svg().size(icon_px).path(icons::CHECK).text_color(sem.foreground));
+            boxel = boxel.child(
+                gpui::svg()
+                    .size(icon_px)
+                    .path(icons::CHECK)
+                    .text_color(sem.foreground),
+            );
         }
 
         let row = gpui::div()
             .id(self.id.clone())
             .flex()
             .items_center()
-            .gap(px(8.))
-            .when(!self.is_disabled && !self.is_read_only, |r| r.cursor_pointer())
+            // `.checkbox__content` is `gap-3`.
+            .gap(px(12.))
+            .when(!self.is_disabled && !self.is_read_only, |r| {
+                r.cursor_pointer()
+            })
             .when(self.is_disabled, |r| r.opacity(layout.disabled_opacity))
             .children(
                 std::iter::once(boxel.into_any_element())
@@ -329,10 +336,7 @@ pub struct CheckboxOption {
 }
 
 impl CheckboxOption {
-    pub fn new(
-        key: impl Into<gpui::SharedString>,
-        label: impl Into<gpui::SharedString>,
-    ) -> Self {
+    pub fn new(key: impl Into<gpui::SharedString>, label: impl Into<gpui::SharedString>) -> Self {
         Self {
             key: key.into(),
             label: label.into(),
@@ -423,12 +427,15 @@ impl CheckboxGroup {
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
-        Some(crate::form::FormField::keys(
+        Some(
+            crate::form::FormField::keys(
                 name,
                 self.value
                     .clone()
                     .unwrap_or_else(|| self.default_value.clone()),
-            ).is_required(self.is_required))
+            )
+            .is_required(self.is_required),
+        )
     }
 
     pub fn label(mut self, text: impl Into<gpui::SharedString>) -> Self {
@@ -456,10 +463,7 @@ impl CheckboxGroup {
     ///
     /// Only consulted when `value` is not supplied; the group then owns the
     /// selection and each checkbox toggles its own key in it.
-    pub fn default_value(
-        mut self,
-        keys: impl IntoIterator<Item = gpui::SharedString>,
-    ) -> Self {
+    pub fn default_value(mut self, keys: impl IntoIterator<Item = gpui::SharedString>) -> Self {
         self.default_value = keys.into_iter().collect();
         self
     }
@@ -473,7 +477,6 @@ impl CheckboxGroup {
         self.variant = variant;
         self
     }
-
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
@@ -532,7 +535,8 @@ impl RenderOnce for CheckboxGroup {
             );
         }
 
-        let mut list = gpui::div().flex().gap(px(10.));
+        // `.checkbox-group` gives each option `mt-4`.
+        let mut list = gpui::div().flex().gap(px(16.));
         list = match self.orientation {
             herogpui_core::Orientation::Vertical => list.flex_col(),
             herogpui_core::Orientation::Horizontal => list.flex_row().flex_wrap(),

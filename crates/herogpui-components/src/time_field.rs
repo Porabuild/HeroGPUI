@@ -57,9 +57,8 @@ impl Time {
 
     /// Adds `delta` to one segment, wrapping within that segment's range.
     pub fn bump(self, segment: TimeSegment, delta: i32) -> Self {
-        let wrap = |value: u32, len: i32| -> u32 {
-            (((value as i32 + delta) % len + len) % len) as u32
-        };
+        let wrap =
+            |value: u32, len: i32| -> u32 { (((value as i32 + delta) % len + len) % len) as u32 };
         match segment {
             TimeSegment::Hour => Self {
                 hour: wrap(self.hour, 24),
@@ -282,7 +281,6 @@ impl TimeField {
         self
     }
 
-
     pub fn hour_cycle(mut self, cycle: HourCycle) -> Self {
         self.hour_cycle = cycle;
         self
@@ -317,11 +315,8 @@ impl TimeField {
     /// fine. Receives `None` when the field is empty, as v3's `TimeValue | null`.
     ///
     /// The component runs it and surfaces the result.
-    pub fn validate(
-        mut self,
-        f: impl Fn(&Option<Time>) -> Option<SharedString> + 'static,
-    ) -> Self {
-        self.validate = Some(std::sync::Arc::new(f));
+    pub fn validate(mut self, f: impl Fn(&Option<Time>) -> Option<SharedString> + 'static) -> Self {
+        self.validate = Some(Arc::new(f));
         self
     }
 
@@ -372,10 +367,10 @@ impl RenderOnce for TimeField {
         // `defaultValue` seeds the state once, before anything reads it.
         if let Some(value) = self.default_value {
             let state = self.state.clone();
-            crate::util::seed_once(
+            util::seed_once(
                 window,
                 cx,
-                gpui::ElementId::Name(
+                ElementId::Name(
                     format!("timefield-default-{}", self.state.entity_id().as_u64()).into(),
                 ),
                 move |cx| {
@@ -419,7 +414,7 @@ impl RenderOnce for TimeField {
         let hour_cycle = self.hour_cycle;
         let segment_text = move |segment: TimeSegment| -> String {
             let Some(t) = value else {
-                return "--".to_string();
+                return "--".to_owned();
             };
             match segment {
                 TimeSegment::Hour => {
@@ -431,7 +426,7 @@ impl RenderOnce for TimeField {
                 }
                 TimeSegment::Minute => format!("{:02}", t.minute),
                 TimeSegment::Second => format!("{:02}", t.second),
-                TimeSegment::Meridiem => t.twelve_hour().1.to_string(),
+                TimeSegment::Meridiem => t.twelve_hour().1.to_owned(),
             }
         };
 
@@ -533,7 +528,12 @@ impl RenderOnce for TimeField {
                         .cursor_pointer()
                         .text_color(colors.muted)
                         .hover(move |s| s.bg(hover_bg))
-                        .child(gpui::svg().size(px(10.)).path(icon).text_color(colors.muted))
+                        .child(
+                            gpui::svg()
+                                .size(px(10.))
+                                .path(icon)
+                                .text_color(colors.muted),
+                        )
                         .on_click(move |_, window, cx| {
                             let next = state.update(cx, |s, cx| {
                                 s.bump_focused_from(delta, seed);
@@ -680,7 +680,10 @@ mod clamp_tests {
     #[test]
     fn seconds_participate_in_the_comparison() {
         let min = Time::new(9, 0).with_second(30);
-        assert_eq!(clamp_time(Time::new(9, 0).with_second(10), Some(min), None), min);
+        assert_eq!(
+            clamp_time(Time::new(9, 0).with_second(10), Some(min), None),
+            min
+        );
         let inside = Time::new(9, 0).with_second(45);
         assert_eq!(clamp_time(inside, Some(min), None), inside);
     }

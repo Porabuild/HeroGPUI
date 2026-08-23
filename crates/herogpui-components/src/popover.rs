@@ -105,12 +105,8 @@ impl Popover {
         self
     }
 
-
     /// Toggle handler wired to the trigger click.
-    pub fn on_open_change(
-        mut self,
-        f: impl Fn(bool, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_open_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -145,7 +141,9 @@ impl RenderOnce for Popover {
         let layout = cx.layout();
 
         let mut trigger_wrap = gpui::div()
-            .id(gpui::ElementId::Name(format!("{:?}-trigger", self.id).into()))
+            .id(gpui::ElementId::Name(
+                format!("{:?}-trigger", self.id).into(),
+            ))
             .flex()
             .cursor_pointer();
         if self.on_open_change.is_some() || open_own.is_some() {
@@ -167,7 +165,12 @@ impl RenderOnce for Popover {
             });
         }
 
-        let mut root = gpui::div().relative().flex().flex_col().items_start().child(trigger_wrap.child(self.trigger));
+        let mut root = gpui::div()
+            .relative()
+            .flex()
+            .flex_col()
+            .items_start()
+            .child(trigger_wrap.child(self.trigger));
 
         if phase == crate::util::OverlayPhase::Closed {
             return root;
@@ -187,7 +190,7 @@ impl RenderOnce for Popover {
             header_row = header_row.child("");
         }
         if self.show_close_button {
-            let close_own = open_own.clone();
+            let close_own = open_own;
             if self.on_open_change.is_some() || close_own.is_some() {
                 let on_open_change = self.on_open_change.clone();
                 let mut btn = gpui::div()
@@ -217,9 +220,7 @@ impl RenderOnce for Popover {
                         gpui::svg()
                             .size(px(12.))
                             .path(icons::CLOSE)
-                            .text_color(
-                                colors.muted,
-                            ),
+                            .text_color(colors.muted),
                     ),
                 );
             }
@@ -230,8 +231,8 @@ impl RenderOnce for Popover {
             .flex()
             .flex_col()
             .gap(px(8.))
-            .px(px(14.))
-            .py(px(12.))
+            .px(px(16.))
+            .py(px(16.))
             .bg(colors.surface.background)
             .text_color(colors.surface.foreground)
             .rounded(crate::util::control_radius(cx))
@@ -251,11 +252,21 @@ impl RenderOnce for Popover {
             .padding_x(px(14.))
             .sized(px(260.));
         let panel = if exiting {
-            crate::anim::exiting(panel, "popover-panel-out", zoom, crate::anim::Motion::LIST_OUT,
-                cx)
+            crate::anim::exiting(
+                panel,
+                "popover-panel-out",
+                zoom,
+                crate::anim::Motion::LIST_OUT,
+                cx,
+            )
         } else {
-            crate::anim::entering_zoom(panel, "popover-panel", zoom, crate::anim::Motion::POPOVER_IN,
-                cx)
+            crate::anim::entering_zoom(
+                panel,
+                "popover-panel",
+                zoom,
+                crate::anim::Motion::POPOVER_IN,
+                cx,
+            )
         };
 
         // `shouldFlip` lets the panel move to stay on screen. gpui's `anchored`

@@ -41,8 +41,6 @@ impl CloseButton {
         }
     }
 
-
-
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -61,7 +59,6 @@ impl CloseButton {
         self.on_press = Some(Box::new(handler));
         self
     }
-
 }
 
 impl RenderOnce for CloseButton {

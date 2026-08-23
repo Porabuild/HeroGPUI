@@ -10,7 +10,6 @@ use gpui::{
 use herogpui_core::{Orientation as SelectionOrientation, SelectionMode, Size};
 use herogpui_theme::ActiveTheme;
 
-
 // ---------------------------------------------------------------------------
 // ToggleButton
 // ---------------------------------------------------------------------------
@@ -84,12 +83,10 @@ impl ToggleButton {
         self
     }
 
-
     pub fn size(mut self, s: Size) -> Self {
         self.size = s;
         self
     }
-
 
     pub fn is_selected(mut self, v: bool) -> Self {
         self.is_selected = Some(v);
@@ -147,7 +144,7 @@ impl RenderOnce for ToggleButton {
         let (is_selected, own) = crate::util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-selected", self.id).into()),
+            ElementId::Name(format!("{:?}-selected", self.id).into()),
             self.is_selected,
             self.default_selected,
         );
@@ -166,7 +163,9 @@ impl RenderOnce for ToggleButton {
             .flex_shrink_0()
             .border_1()
             .when(is_selected, |e| {
-                e.bg(sem.color).text_color(sem.foreground).border_color(sem.color)
+                e.bg(sem.color)
+                    .text_color(sem.foreground)
+                    .border_color(sem.color)
             })
             .when(!is_selected, |e| match self.variant {
                 ToggleVariant::Default => e
@@ -320,8 +319,11 @@ impl ToggleButtonGroup {
         self
     }
 
-    pub fn selected_keys(mut self, keys: impl IntoIterator<Item = impl Into<SharedString>>) -> Self {
-        self.selected = keys.into_iter().map(|k| k.into()).collect();
+    pub fn selected_keys(
+        mut self,
+        keys: impl IntoIterator<Item = impl Into<SharedString>>,
+    ) -> Self {
+        self.selected = keys.into_iter().map(Into::into).collect();
         self
     }
 
@@ -406,13 +408,9 @@ pub struct ToggleSeparator;
 
 impl RenderOnce for ToggleSeparator {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        div()
-            .w(px(1.))
-            .h(px(20.))
-            .bg(cx.colors().separator)
+        div().w(px(1.)).h(px(20.)).bg(cx.colors().separator)
     }
 }
-
 
 #[cfg(test)]
 mod tests {

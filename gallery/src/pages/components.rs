@@ -50,7 +50,7 @@ fn spec(label: &str, el: impl IntoElement, cx: &gpui::App) -> AnyElement {
             gpui::div()
                 .text_size(px(11.))
                 .text_color(muted)
-                .child(label.to_string()),
+                .child(label.to_owned()),
         )
         .into_any_element()
 }
@@ -63,10 +63,12 @@ trait IntoVecEls {
 impl<I> IntoVecEls for I
 where
     I: IntoIterator,
-    I::Item: gpui::IntoElement,
+    I::Item: IntoElement,
 {
     fn els(self) -> Vec<AnyElement> {
-        self.into_iter().map(|e| e.into_any_element()).collect()
+        self.into_iter()
+            .map(IntoElement::into_any_element)
+            .collect()
     }
 }
 
@@ -150,7 +152,7 @@ fn palette() -> Vec<h::PickerColor> {
 // ---------------------------------------------------------------------------
 
 impl Gallery {
-    pub fn page_button(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_button(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let clicks = self.button_clicks;
         doc_page(
             "Button",
@@ -240,22 +242,20 @@ impl Gallery {
                 ),
                 (
                     "Press handler",
-                    col(vec![
-                        h::Button::new("btn-press")
-                            .label(format!("Pressed {clicks} times"))
-                            .on_press(cx.listener(|this, _, _, cx| {
-                                this.button_clicks += 1;
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                    ]),
+                    col(vec![h::Button::new("btn-press")
+                        .label(format!("Pressed {clicks} times"))
+                        .on_press(cx.listener(|this, _, _, cx| {
+                            this.button_clicks += 1;
+                            cx.notify();
+                        }))
+                        .into_any_element()]),
                 ),
             ],
             cx,
         )
     }
 
-    pub fn page_button_group(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_button_group(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Button Group",
             crate::pages::Page::ButtonGroup.description(),
@@ -306,7 +306,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_close_button(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_close_button(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let presses = self.close_button_presses;
         doc_page(
             "Close Button",
@@ -336,7 +336,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_toggle_button(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_toggle_button(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let single = self.toggle_single.clone();
         let multiple = self.toggle_multiple.clone();
         doc_page(
@@ -348,9 +348,13 @@ impl Gallery {
                     "Single selection",
                     row(vec![h::ToggleButtonGroup::new()
                         .selection_mode(SelectionMode::Single)
-                        .selected_keys(single.clone().into_iter().collect::<Vec<_>>())
+                        .selected_keys(single.into_iter().collect::<Vec<_>>())
                         .child_toggle(h::ToggleButton::new("tb-left").key("left").label("Left"))
-                        .child_toggle(h::ToggleButton::new("tb-center").key("center").label("Center"))
+                        .child_toggle(
+                            h::ToggleButton::new("tb-center")
+                                .key("center")
+                                .label("Center"),
+                        )
                         .child_toggle(h::ToggleButton::new("tb-right").key("right").label("Right"))
                         .on_change(cx.listener(|this, keys: &[SharedString], _, cx| {
                             this.toggle_single = keys.first().cloned();
@@ -364,8 +368,16 @@ impl Gallery {
                         .selection_mode(SelectionMode::Multiple)
                         .selected_keys(multiple.iter().cloned().collect::<Vec<_>>())
                         .child_toggle(h::ToggleButton::new("tb-bold").key("bold").label("Bold"))
-                        .child_toggle(h::ToggleButton::new("tb-italic").key("italic").label("Italic"))
-                        .child_toggle(h::ToggleButton::new("tb-underline").key("underline").label("Underline"))
+                        .child_toggle(
+                            h::ToggleButton::new("tb-italic")
+                                .key("italic")
+                                .label("Italic"),
+                        )
+                        .child_toggle(
+                            h::ToggleButton::new("tb-underline")
+                                .key("underline")
+                                .label("Underline"),
+                        )
                         .on_change(cx.listener(|this, keys: &[SharedString], _, cx| {
                             this.toggle_multiple = keys.iter().cloned().collect();
                             cx.notify();
@@ -410,7 +422,7 @@ impl Gallery {
     // Collections
     // -----------------------------------------------------------------------
 
-    pub fn page_dropdown(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_dropdown(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.dropdown_open;
         let selected = self
             .dropdown_selected
@@ -467,12 +479,10 @@ impl Gallery {
                         .selection_mode(SelectionMode::Multiple)
                         .selected_keys(self.dropdown_multi.clone())
                         .disabled_keys(vec!["status"])
-                        .on_selection_change(cx.listener(
-                            |this, keys: &[SharedString], _, cx| {
-                                this.dropdown_multi = keys.to_vec();
-                                cx.notify();
-                            },
-                        ))
+                        .on_selection_change(cx.listener(|this, keys: &[SharedString], _, cx| {
+                            this.dropdown_multi = keys.to_vec();
+                            cx.notify();
+                        }))
                         .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
                             this.dropdown_open = *open;
                             cx.notify();
@@ -489,7 +499,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_list_box(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_list_box(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let selection = self.list_selection.clone();
         let items = vec![
             h::ListBoxItem::section("Mail"),
@@ -542,7 +552,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_tag_group(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_tag_group(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let tags: Vec<h::Tag> = self
             .tags
             .iter()
@@ -604,7 +614,7 @@ impl Gallery {
     // Colors
     // -----------------------------------------------------------------------
 
-    pub fn page_color_area(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_color_area(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let value = self.picker_color;
         doc_page(
             "Color Area",
@@ -615,12 +625,10 @@ impl Gallery {
                     "Saturation & brightness",
                     col(vec![
                         h::ColorArea::new("ca-main", value)
-                            .on_change(color_cb(cx.listener(
-                                |this, c: &h::PickerColor, _, cx| {
-                                    this.picker_color = *c;
-                                    cx.notify();
-                                },
-                            )))
+                            .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
+                                this.picker_color = *c;
+                                cx.notify();
+                            })))
                             .into_any_element(),
                         para(&format!("Value: {}", value.to_hex()), cx),
                     ]),
@@ -637,7 +645,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_color_field(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_color_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let value = self.picker_color;
         doc_page(
             "Color Field",
@@ -700,7 +708,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_color_picker(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_color_picker(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let value = self.picker_color;
         let is_open = self.color_picker_open;
         doc_page(
@@ -717,19 +725,17 @@ impl Gallery {
                         this.color_picker_open = *open;
                         cx.notify();
                     })))
-                    .on_change(color_cb(cx.listener(
-                        |this, c: &h::PickerColor, _, cx| {
-                            this.picker_color = *c;
-                            cx.notify();
-                        },
-                    )))
+                    .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
+                        this.picker_color = *c;
+                        cx.notify();
+                    })))
                     .into_any_element()]),
             )],
             cx,
         )
     }
 
-    pub fn page_color_slider(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_color_slider(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let value = self.picker_color;
         let channels = [
             h::ColorChannel::Hue,
@@ -747,17 +753,12 @@ impl Gallery {
                     col(channels
                         .iter()
                         .map(|ch| {
-                            h::ColorSlider::new(
-                                el_id(format!("cs-{ch:?}")),
-                                value,
-                                *ch,
-                            )
-                            .on_change(color_cb(cx.listener(
-                                |this, c: &h::PickerColor, _, cx| {
+                            h::ColorSlider::new(el_id(format!("cs-{ch:?}")), value, *ch).on_change(
+                                color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
                                     this.picker_color = *c;
                                     cx.notify();
-                                },
-                            )))
+                                })),
+                            )
                         })
                         .els()),
                 ),
@@ -770,13 +771,12 @@ impl Gallery {
                     ]
                     .iter()
                     .map(|ch| {
-                        h::ColorSlider::new(el_id(format!("cs-rgb-{ch:?}")), value, *ch)
-                            .on_change(color_cb(cx.listener(
-                                |this, c: &h::PickerColor, _, cx| {
-                                    this.picker_color = *c;
-                                    cx.notify();
-                                },
-                            )))
+                        h::ColorSlider::new(el_id(format!("cs-rgb-{ch:?}")), value, *ch).on_change(
+                            color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
+                                this.picker_color = *c;
+                                cx.notify();
+                            })),
+                        )
                     })
                     .els()),
                 ),
@@ -785,7 +785,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_color_swatch(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_color_swatch(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Color Swatch",
             crate::pages::Page::ColorSwatch.description(),
@@ -845,7 +845,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_color_swatch_picker(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_color_swatch_picker(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let selected = self.swatch_selected;
         doc_page(
             "Color Swatch Picker",
@@ -858,12 +858,10 @@ impl Gallery {
                         h::ColorSwatchPicker::new("csp-main", palette())
                             .value(selected)
                             .size(SizeXl::Lg)
-                            .on_change(color_cb(cx.listener(
-                                |this, c: &h::PickerColor, _, cx| {
-                                    this.swatch_selected = *c;
-                                    cx.notify();
-                                },
-                            )))
+                            .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
+                                this.swatch_selected = *c;
+                                cx.notify();
+                            })))
                             .into_any_element(),
                         para(&format!("Selected: {}", selected.to_hex()), cx),
                     ]),
@@ -874,12 +872,10 @@ impl Gallery {
                         .value(selected)
                         .shape(h::SwatchShape::Square)
                         .layout(h::SwatchLayout::Stack)
-                        .on_change(color_cb(cx.listener(
-                            |this, c: &h::PickerColor, _, cx| {
-                                this.swatch_selected = *c;
-                                cx.notify();
-                            },
-                        )))
+                        .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
+                            this.swatch_selected = *c;
+                            cx.notify();
+                        })))
                         .into_any_element()]),
                 ),
             ],
@@ -891,7 +887,7 @@ impl Gallery {
     // Controls
     // -----------------------------------------------------------------------
 
-    pub fn page_slider(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_slider(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let value = self.slider_value;
         doc_page(
             "Slider",
@@ -965,7 +961,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_switch(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_switch(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let (a, b) = (self.switch_a, self.switch_b);
         doc_page(
             "Switch",
@@ -1011,7 +1007,9 @@ impl Gallery {
                 (
                     "Disabled",
                     row(vec![
-                        h::Switch::new("sw-d-off").is_disabled(true).into_any_element(),
+                        h::Switch::new("sw-d-off")
+                            .is_disabled(true)
+                            .into_any_element(),
                         h::Switch::new("sw-d-on")
                             .is_selected(true)
                             .is_disabled(true)
@@ -1027,7 +1025,7 @@ impl Gallery {
     // Data display
     // -----------------------------------------------------------------------
 
-    pub fn page_badge(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_badge(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Badge",
             crate::pages::Page::Badge.description(),
@@ -1057,10 +1055,7 @@ impl Gallery {
                         .map(|c| {
                             spec(
                                 c.label(),
-                                h::Badge::new()
-                                    .content("5")
-                                    .color(*c)
-                                    .child(avatar_box(cx)),
+                                h::Badge::new().content("5").color(*c).child(avatar_box(cx)),
                                 cx,
                             )
                         })
@@ -1091,7 +1086,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_chip(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_chip(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Chip",
             crate::pages::Page::Chip.description(),
@@ -1101,11 +1096,7 @@ impl Gallery {
                     "Variants",
                     row(h::ChipVariant::ALL
                         .iter()
-                        .map(|v| {
-                            h::Chip::new(v.label())
-                                .variant(*v)
-                                .color(Color::Accent)
-                        })
+                        .map(|v| h::Chip::new(v.label()).variant(*v).color(Color::Accent))
                         .els()),
                 ),
                 (
@@ -1127,7 +1118,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_table(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_table(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let build = || {
             h::Table::new(vec!["Name".into(), "Role".into(), "Status".into()])
                 .row(vec![
@@ -1211,10 +1202,7 @@ impl Gallery {
                                 },
                             ))
                             .into_any_element(),
-                        para(
-                            &format!("{} selected", self.table_selection.len()),
-                            cx,
-                        ),
+                        para(&format!("{} selected", self.table_selection.len()), cx),
                     ]),
                 ),
                 (
@@ -1253,7 +1241,7 @@ impl Gallery {
                         para(
                             &match &self.table_sort {
                                 Some(d) => format!("Sorted by {} {:?}", d.column, d.direction),
-                                None => "Unsorted".to_string(),
+                                None => "Unsorted".to_owned(),
                             },
                             cx,
                         ),
@@ -1277,7 +1265,7 @@ impl Gallery {
     // Date and time
     // -----------------------------------------------------------------------
 
-    pub fn page_calendar(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_calendar(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let picked = self.cal_picked;
         let today = h::Date::today();
         doc_page(
@@ -1299,7 +1287,7 @@ impl Gallery {
                         para(
                             &match picked {
                                 Some(d) => format!("Selected: {}", d.format_iso()),
-                                None => "No date selected".to_string(),
+                                None => "No date selected".to_owned(),
                             },
                             cx,
                         ),
@@ -1373,7 +1361,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_date_field(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_date_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let iso = self.date_iso;
         doc_page(
             "Date Field",
@@ -1394,7 +1382,7 @@ impl Gallery {
                     para(
                         &match iso {
                             Some(d) => format!("Parsed: {}", d.format_iso()),
-                            None => "Step a segment with the arrows to pick a date".to_string(),
+                            None => "Step a segment with the arrows to pick a date".to_owned(),
                         },
                         cx,
                     ),
@@ -1404,7 +1392,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_date_picker(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_date_picker(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.date_picker_open;
         doc_page(
             "Date Picker",
@@ -1432,7 +1420,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_date_range_picker(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_date_range_picker(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.range_open;
         doc_page(
             "Date Range Picker",
@@ -1454,7 +1442,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_range_calendar(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_range_calendar(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Range Calendar",
             crate::pages::Page::RangeCalendar.description(),
@@ -1469,7 +1457,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_time_field(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_time_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Time Field",
             crate::pages::Page::TimeField.description(),
@@ -1480,9 +1468,9 @@ impl Gallery {
                     col(vec![h::TimeField::new(self.time.clone())
                         .label("Start time")
                         .description("Click a segment, then use the steppers.")
-                        .on_change(opt_time_cb(cx.listener(
-                            |_, _t: &Option<h::Time>, _, cx| cx.notify(),
-                        )))
+                        .on_change(opt_time_cb(
+                            cx.listener(|_, _t: &Option<h::Time>, _, cx| cx.notify()),
+                        ))
                         .into_any_element()]),
                 ),
                 (
@@ -1491,9 +1479,9 @@ impl Gallery {
                         .label("Reminder")
                         .hour_cycle(h::HourCycle::H12)
                         .show_seconds(true)
-                        .on_change(opt_time_cb(cx.listener(
-                            |_, _t: &Option<h::Time>, _, cx| cx.notify(),
-                        )))
+                        .on_change(opt_time_cb(
+                            cx.listener(|_, _t: &Option<h::Time>, _, cx| cx.notify()),
+                        ))
                         .into_any_element()]),
                 ),
             ],
@@ -1505,7 +1493,7 @@ impl Gallery {
     // Feedback
     // -----------------------------------------------------------------------
 
-    pub fn page_alert(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_alert(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Alert",
             crate::pages::Page::Alert.description(),
@@ -1550,7 +1538,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_meter(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_meter(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let value = self.meter_value;
         doc_page(
             "Meter",
@@ -1583,7 +1571,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_progress_bar(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_progress_bar(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Progress Bar",
             crate::pages::Page::ProgressBar.description(),
@@ -1607,9 +1595,18 @@ impl Gallery {
                 (
                     "Sizes",
                     col(vec![
-                        h::ProgressBar::new().value(40.0).size(Size::Sm).into_any_element(),
-                        h::ProgressBar::new().value(60.0).size(Size::Md).into_any_element(),
-                        h::ProgressBar::new().value(80.0).size(Size::Lg).into_any_element(),
+                        h::ProgressBar::new()
+                            .value(40.0)
+                            .size(Size::Sm)
+                            .into_any_element(),
+                        h::ProgressBar::new()
+                            .value(60.0)
+                            .size(Size::Md)
+                            .into_any_element(),
+                        h::ProgressBar::new()
+                            .value(80.0)
+                            .size(Size::Lg)
+                            .into_any_element(),
                     ]),
                 ),
             ],
@@ -1617,7 +1614,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_progress_circle(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_progress_circle(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Progress Circle",
             crate::pages::Page::ProgressCircle.description(),
@@ -1659,26 +1656,24 @@ impl Gallery {
         )
     }
 
-    pub fn page_skeleton(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_skeleton(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Skeleton",
             crate::pages::Page::Skeleton.description(),
             crate::pages::Page::Skeleton.import_line(),
-            vec![
-                (
-                    "Loading",
-                    col(vec![
-                        h::Skeleton::new().w(px(320.)).h(px(16.)).into_any_element(),
-                        h::Skeleton::new().w(px(260.)).h(px(16.)).into_any_element(),
-                        h::Skeleton::new().w(px(180.)).h(px(16.)).into_any_element(),
-                    ]),
-                ),
-            ],
+            vec![(
+                "Loading",
+                col(vec![
+                    h::Skeleton::new().w(px(320.)).h(px(16.)).into_any_element(),
+                    h::Skeleton::new().w(px(260.)).h(px(16.)).into_any_element(),
+                    h::Skeleton::new().w(px(180.)).h(px(16.)).into_any_element(),
+                ]),
+            )],
             cx,
         )
     }
 
-    pub fn page_spinner(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_spinner(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Spinner",
             crate::pages::Page::Spinner.description(),
@@ -1719,7 +1714,7 @@ impl Gallery {
     // Forms
     // -----------------------------------------------------------------------
 
-    pub fn page_checkbox(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_checkbox(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let (basic, colored) = (self.cb_basic, self.cb_color);
         doc_page(
             "Checkbox",
@@ -1739,7 +1734,7 @@ impl Gallery {
                             .into_any_element(),
                         h::Checkbox::new("cb-2")
                             .is_selected(colored)
-                            .variant(h::FieldVariant::Secondary)
+                            .variant(FieldVariant::Secondary)
                             .label(gpui::div().child("Subscribe to updates"))
                             .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                 this.cb_color = *v;
@@ -1765,7 +1760,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_checkbox_group(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_checkbox_group(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let selected = self.checkbox_group.clone();
         let group_options = || {
             vec![
@@ -1786,12 +1781,10 @@ impl Gallery {
                         .label("Notifications")
                         .description("Pick how we reach you.")
                         .value(selected.iter().cloned())
-                        .on_change(cx.listener(
-                            |this, keys: &HashSet<SharedString>, _, cx| {
-                                this.checkbox_group = keys.clone();
-                                cx.notify();
-                            },
-                        ))
+                        .on_change(cx.listener(|this, keys: &HashSet<SharedString>, _, cx| {
+                            this.checkbox_group = keys.clone();
+                            cx.notify();
+                        }))
                         .into_any_element()]),
                 ),
                 (
@@ -1801,12 +1794,10 @@ impl Gallery {
                         .orientation(Orientation::Horizontal)
                         .error_message("Choose at least two channels.")
                         .value(selected.iter().cloned())
-                        .on_change(cx.listener(
-                            |this, keys: &HashSet<SharedString>, _, cx| {
-                                this.checkbox_group = keys.clone();
-                                cx.notify();
-                            },
-                        ))
+                        .on_change(cx.listener(|this, keys: &HashSet<SharedString>, _, cx| {
+                            this.checkbox_group = keys.clone();
+                            cx.notify();
+                        }))
                         .into_any_element()]),
                 ),
                 (
@@ -1821,7 +1812,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_fieldset(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_fieldset(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Fieldset",
             crate::pages::Page::Fieldset.description(),
@@ -1858,7 +1849,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_field_slots(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_field_slots(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Label & Messages",
             crate::pages::Page::FieldSlots.description(),
@@ -1876,8 +1867,7 @@ impl Gallery {
                 (
                     "Description & error",
                     col(vec![
-                        h::Description::new("We will never share your address.")
-                            .into_any_element(),
+                        h::Description::new("We will never share your address.").into_any_element(),
                         h::ErrorMessage::new("Enter a valid email address.").into_any_element(),
                     ]),
                 ),
@@ -1896,7 +1886,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_form(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_form(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let submitted = self.input_submitted.clone();
         doc_page(
             "Form",
@@ -1918,18 +1908,16 @@ impl Gallery {
                                 h::FormField::text(self.input_email.clone())
                                     .default_text(self.input_email.clone(), ""),
                             )
-                            .on_submit(cx.listener(
-                                |this, data: &h::FormData, _, cx| {
-                                    this.input_submitted = data
-                                        .iter()
-                                        .map(|(n, v)| format!("{n}={}", v.as_text()))
-                                        .collect::<Vec<_>>()
-                                        .join(", ");
-                                    cx.notify();
-                                },
-                            ))
+                            .on_submit(cx.listener(|this, data: &h::FormData, _, cx| {
+                                this.input_submitted = data
+                                    .iter()
+                                    .map(|(n, v)| format!("{n}={}", v.as_text()))
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                cx.notify();
+                            }))
                             .on_invalid(cx.listener(|this, _: &h::FormData, _, cx| {
-                                this.input_submitted = "Name is required".to_string();
+                                this.input_submitted = "Name is required".to_owned();
                                 cx.notify();
                             }))
                             .on_reset({
@@ -1975,7 +1963,7 @@ impl Gallery {
                     },
                     para(
                         &if submitted.is_empty() {
-                            "Nothing submitted yet".to_string()
+                            "Nothing submitted yet".to_owned()
                         } else {
                             format!("Submitted: {submitted}")
                         },
@@ -1987,7 +1975,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_input(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_input(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Input",
             crate::pages::Page::Input.description(),
@@ -2031,7 +2019,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_input_group(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_input_group(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Input Group",
             crate::pages::Page::InputGroup.description(),
@@ -2044,9 +2032,9 @@ impl Gallery {
                         .description("Charged monthly.")
                         .child(h::InputAddon::new("$"))
                         .child(
-                            gpui::div()
-                                .flex_1()
-                                .child(h::Input::new(self.group_amount.clone()).placeholder("0.00")),
+                            gpui::div().flex_1().child(
+                                h::Input::new(self.group_amount.clone()).placeholder("0.00"),
+                            ),
                         )
                         .child(h::InputAddon::new("USD"))
                         .into_any_element()]),
@@ -2056,15 +2044,11 @@ impl Gallery {
                     col(vec![h::InputGroup::new()
                         .variant(FieldVariant::Secondary)
                         .child(
-                            gpui::div()
-                                .flex_1()
-                                .child(h::Input::new(self.input_email.clone()).placeholder("Email")),
+                            gpui::div().flex_1().child(
+                                h::Input::new(self.input_email.clone()).placeholder("Email"),
+                            ),
                         )
-                        .child(
-                            h::Button::new("ig-send")
-                                .label("Send")
-                                .size(Size::Sm),
-                        )
+                        .child(h::Button::new("ig-send").label("Send").size(Size::Sm))
                         .into_any_element()]),
                 ),
             ],
@@ -2072,7 +2056,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_input_otp(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_input_otp(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let done = self.otp_done.clone();
         doc_page(
             "Input OTP",
@@ -2083,13 +2067,13 @@ impl Gallery {
                 col(vec![
                     h::InputOTP::new(self.otp.clone())
                         .on_complete(cx.listener(|this, code: &str, _, cx| {
-                            this.otp_done = code.to_string();
+                            this.otp_done = code.to_owned();
                             cx.notify();
                         }))
                         .into_any_element(),
                     para(
                         &if done.is_empty() {
-                            "Enter six digits".to_string()
+                            "Enter six digits".to_owned()
                         } else {
                             format!("Complete: {done}")
                         },
@@ -2101,7 +2085,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_number_field(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_number_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Number Field",
             crate::pages::Page::NumberField.description(),
@@ -2133,10 +2117,9 @@ impl Gallery {
         )
     }
 
-    pub fn page_radio_group(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_radio_group(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let selected = self.radio_sel;
-        let options: Vec<SharedString> =
-            vec!["Free".into(), "Pro".into(), "Enterprise".into()];
+        let options: Vec<SharedString> = vec!["Free".into(), "Pro".into(), "Enterprise".into()];
         doc_page(
             "Radio Group",
             crate::pages::Page::RadioGroup.description(),
@@ -2181,7 +2164,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_search_field(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_search_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let query = self.search_query.clone();
         doc_page(
             "Search Field",
@@ -2194,13 +2177,13 @@ impl Gallery {
                         .label("Search docs")
                         .placeholder("Search components")
                         .on_change(cx.listener(|this, text: &str, _, cx| {
-                            this.search_query = text.to_string();
+                            this.search_query = text.to_owned();
                             cx.notify();
                         }))
                         .into_any_element(),
                     para(
                         &if query.is_empty() {
-                            "Type to search".to_string()
+                            "Type to search".to_owned()
                         } else {
                             format!("Query: {query}")
                         },
@@ -2212,7 +2195,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_text_area(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_text_area(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Text Area",
             crate::pages::Page::TextArea.description(),
@@ -2238,7 +2221,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_text_field(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_text_field(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Text Field",
             crate::pages::Page::TextField.description(),
@@ -2269,35 +2252,35 @@ impl Gallery {
     // Layout
     // -----------------------------------------------------------------------
 
-    pub fn page_card(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_card(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let card = |variant: h::CardVariant| {
             h::Card::new()
                 .variant(variant)
                 .w(px(260.))
                 .child(h::CardHeader::new().child("Daily report"))
                 .child(h::CardBody::new().child("Sessions are up 12% week over week."))
-                .child(h::CardFooter::new().child(
-                    h::Button::new(el_id(format!("card-{variant:?}-cta")))
-                        .label("View")
-                        .size(Size::Sm)
-                        .variant(Variant::Tertiary),
-                ))
+                .child(
+                    h::CardFooter::new().child(
+                        h::Button::new(el_id(format!("card-{variant:?}-cta")))
+                            .label("View")
+                            .size(Size::Sm)
+                            .variant(Variant::Tertiary),
+                    ),
+                )
         };
         doc_page(
             "Card",
             crate::pages::Page::Card.description(),
             crate::pages::Page::Card.import_line(),
-            vec![
-                (
-                    "Variants",
-                    row(h::CardVariant::ALL.iter().map(|v| card(*v)).els()),
-                ),
-            ],
+            vec![(
+                "Variants",
+                row(h::CardVariant::ALL.iter().map(|v| card(*v)).els()),
+            )],
             cx,
         )
     }
 
-    pub fn page_separator(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_separator(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Separator",
             crate::pages::Page::Separator.description(),
@@ -2338,18 +2321,18 @@ impl Gallery {
         )
     }
 
-    pub fn page_surface(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_surface(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let panel = |variant: h::SurfaceVariant| {
             h::Surface::new()
                 .variant(variant)
+                .child(h::Typography::heading(6, "Surface content").into_any_element())
                 .child(
-                    h::Typography::heading(6, "Surface content")
-                        .into_any_element(),
-                )
-                .child(
-                    h::Typography::paragraph(h::ParagraphSize::Sm, "Nested content inherits the surface foreground.")
-                        .color(h::TextColor::Muted)
-                        .into_any_element(),
+                    h::Typography::paragraph(
+                        h::ParagraphSize::Sm,
+                        "Nested content inherits the surface foreground.",
+                    )
+                    .color(h::TextColor::Muted)
+                    .into_any_element(),
                 )
         };
         doc_page(
@@ -2385,7 +2368,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_toolbar(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_toolbar(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let bar = |key: &str, attached: bool, orientation: Orientation| {
             h::Toolbar::new()
                 .is_attached(attached)
@@ -2394,12 +2377,10 @@ impl Gallery {
                     h::ToggleButtonGroup::new()
                         .selection_mode(SelectionMode::Multiple)
                         .child_toggle(
-                            h::ToggleButton::new(el_id(format!("tbar-{key}-b")))
-                                .label("B"),
+                            h::ToggleButton::new(el_id(format!("tbar-{key}-b"))).label("B"),
                         )
                         .child_toggle(
-                            h::ToggleButton::new(el_id(format!("tbar-{key}-i")))
-                                .label("I"),
+                            h::ToggleButton::new(el_id(format!("tbar-{key}-i"))).label("I"),
                         ),
                 )
                 .child(h::Separator::new().orientation(match orientation {
@@ -2410,14 +2391,8 @@ impl Gallery {
                     h::ButtonGroup::new()
                         .variant(Variant::Tertiary)
                         .size(Size::Sm)
-                        .button(
-                            h::Button::new(el_id(format!("tbar-{key}-copy")))
-                                .label("Copy"),
-                        )
-                        .button(
-                            h::Button::new(el_id(format!("tbar-{key}-cut")))
-                                .label("Cut"),
-                        ),
+                        .button(h::Button::new(el_id(format!("tbar-{key}-copy"))).label("Copy"))
+                        .button(h::Button::new(el_id(format!("tbar-{key}-cut"))).label("Cut")),
                 )
         };
         doc_page(
@@ -2427,15 +2402,21 @@ impl Gallery {
             vec![
                 (
                     "Horizontal",
-                    col(vec![bar("h", false, Orientation::Horizontal).into_any_element()]),
+                    col(vec![
+                        bar("h", false, Orientation::Horizontal).into_any_element()
+                    ]),
                 ),
                 (
                     "Attached",
-                    col(vec![bar("attached", true, Orientation::Horizontal).into_any_element()]),
+                    col(vec![
+                        bar("attached", true, Orientation::Horizontal).into_any_element()
+                    ]),
                 ),
                 (
                     "Vertical",
-                    col(vec![bar("v", false, Orientation::Vertical).into_any_element()]),
+                    col(vec![
+                        bar("v", false, Orientation::Vertical).into_any_element()
+                    ]),
                 ),
             ],
             cx,
@@ -2446,7 +2427,7 @@ impl Gallery {
     // Media
     // -----------------------------------------------------------------------
 
-    pub fn page_avatar(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_avatar(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Avatar",
             crate::pages::Page::Avatar.description(),
@@ -2457,7 +2438,11 @@ impl Gallery {
                     row(Size::ALL
                         .iter()
                         .map(|s| {
-                            spec(s.label(), h::Avatar::new().name("Ada Lovelace").size(*s), cx)
+                            spec(
+                                s.label(),
+                                h::Avatar::new().name("Ada Lovelace").size(*s),
+                                cx,
+                            )
                         })
                         .collect()),
                 ),
@@ -2465,9 +2450,7 @@ impl Gallery {
                     "Colors",
                     row(Color::ALL
                         .iter()
-                        .map(|c| {
-                            h::Avatar::new().name("HG").color(*c)
-                        })
+                        .map(|c| h::Avatar::new().name("HG").color(*c))
                         .els()),
                 ),
                 (
@@ -2477,10 +2460,7 @@ impl Gallery {
                         .map(|v| {
                             spec(
                                 v.label(),
-                                h::Avatar::new()
-                                    .name("HG")
-                                    .color(Color::Accent)
-                                    .variant(*v),
+                                h::Avatar::new().name("HG").color(Color::Accent).variant(*v),
                                 cx,
                             )
                         })
@@ -2507,7 +2487,7 @@ impl Gallery {
     // Navigation
     // -----------------------------------------------------------------------
 
-    pub fn page_accordion(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_accordion(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let open = self.accordion_open.clone();
         let items = || {
             vec![
@@ -2517,7 +2497,9 @@ impl Gallery {
                     .content(gpui::div().child("Yes — every token has a light and dark value.")),
                 h::AccordionItem::new("3", "Is it production ready?")
                     .subtitle("Short answer")
-                    .content(gpui::div().child("The component set is complete; the API is settling.")),
+                    .content(
+                        gpui::div().child("The component set is complete; the API is settling."),
+                    ),
             ]
         };
         doc_page(
@@ -2562,7 +2544,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_breadcrumbs(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_breadcrumbs(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let crumbs = || {
             vec![
                 h::Crumb::new("Home").href("#"),
@@ -2575,7 +2557,10 @@ impl Gallery {
             crate::pages::Page::Breadcrumbs.description(),
             crate::pages::Page::Breadcrumbs.import_line(),
             vec![
-                ("Usage", col(vec![h::Breadcrumbs::new(crumbs()).into_any_element()])),
+                (
+                    "Usage",
+                    col(vec![h::Breadcrumbs::new(crumbs()).into_any_element()]),
+                ),
                 (
                     "Separators",
                     col(vec![
@@ -2595,7 +2580,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_disclosure(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_disclosure(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let expanded = self.disclosure_expanded;
         let group = self.disclosure_group_expanded.clone();
         doc_page(
@@ -2639,25 +2624,23 @@ impl Gallery {
         )
     }
 
-    pub fn page_link(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_link(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Link",
             crate::pages::Page::Link.description(),
             crate::pages::Page::Link.import_line(),
-            vec![
-                (
-                    "Usage",
-                    col(vec![h::Link::new("ln-hover")
-                        .label("Hover to see the underline")
-                        .href("#")
-                        .into_any_element()]),
-                ),
-            ],
+            vec![(
+                "Usage",
+                col(vec![h::Link::new("ln-hover")
+                    .label("Hover to see the underline")
+                    .href("#")
+                    .into_any_element()]),
+            )],
             cx,
         )
     }
 
-    pub fn page_pagination(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_pagination(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let page = self.pagination_page;
         doc_page(
             "Pagination",
@@ -2687,17 +2670,14 @@ impl Gallery {
         )
     }
 
-    pub fn page_tabs(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_tabs(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let primary = self.tab_solid.clone();
         let secondary = self.tab_underline.clone();
         let items = || {
             vec![
-                h::TabItem::new("home", "Home")
-                    .content(gpui::div().child("The home panel.")),
-                h::TabItem::new("music", "Music")
-                    .content(gpui::div().child("The music panel.")),
-                h::TabItem::new("videos", "Videos")
-                    .content(gpui::div().child("The videos panel.")),
+                h::TabItem::new("home", "Home").content(gpui::div().child("The home panel.")),
+                h::TabItem::new("music", "Music").content(gpui::div().child("The music panel.")),
+                h::TabItem::new("videos", "Videos").content(gpui::div().child("The videos panel.")),
             ]
         };
         doc_page(
@@ -2716,7 +2696,7 @@ impl Gallery {
                 ),
                 (
                     "Secondary",
-                    col(vec![h::Tabs::new("tabs-secondary", items(), secondary.clone())
+                    col(vec![h::Tabs::new("tabs-secondary", items(), secondary)
                         .variant(h::TabsVariant::Secondary)
                         .on_selection_change(cx.listener(|this, key: &SharedString, _, cx| {
                             this.tab_underline = key.clone();
@@ -2733,7 +2713,7 @@ impl Gallery {
     // Overlays
     // -----------------------------------------------------------------------
 
-    pub fn page_alert_dialog(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_alert_dialog(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.alert_dialog_open;
         doc_page(
             "Alert Dialog",
@@ -2781,7 +2761,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_drawer(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_drawer(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.drawer_open;
         doc_page(
             "Drawer",
@@ -2827,7 +2807,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_modal(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_modal(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.modal_open;
         doc_page(
             "Modal",
@@ -2855,9 +2835,7 @@ impl Gallery {
                             .is_open(is_open)
                             .title("Create account")
                             .is_dismissible(true)
-                            .child(gpui::div().child(
-                                "Sign up to get started with HeroGPUI.",
-                            ))
+                            .child(gpui::div().child("Sign up to get started with HeroGPUI."))
                             .footer_child(
                                 h::Button::new("md-cancel")
                                     .label("Cancel")
@@ -2884,7 +2862,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_popover(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_popover(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.popover_open;
         doc_page(
             "Popover",
@@ -2911,7 +2889,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_toast(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_toast(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Toast",
             crate::pages::Page::Toast.description(),
@@ -2931,10 +2909,7 @@ impl Gallery {
                                     .description("Pushed from the gallery.")
                                     .variant(color)
                                     .closable(true)
-                                    .push(
-                                        Some(std::time::Duration::from_secs(4)),
-                                        cx,
-                                    );
+                                    .push(Some(std::time::Duration::from_secs(4)), cx);
                             })
                     })
                     .els()),
@@ -2943,7 +2918,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_tooltip(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_tooltip(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Tooltip",
             crate::pages::Page::Tooltip.description(),
@@ -3002,11 +2977,7 @@ impl Gallery {
                         h::Tooltip::new("Waits half a second")
                             .delay(500)
                             .close_delay(0)
-                            .child(
-                                h::Button::new("tip-slow")
-                                    .label("500ms")
-                                    .into_any_element(),
-                            )
+                            .child(h::Button::new("tip-slow").label("500ms").into_any_element())
                             .into_any_element(),
                     ]),
                 ),
@@ -3019,7 +2990,7 @@ impl Gallery {
     // Pickers
     // -----------------------------------------------------------------------
 
-    pub fn page_autocomplete(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_autocomplete(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Autocomplete",
             crate::pages::Page::Autocomplete.description(),
@@ -3038,7 +3009,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_combo_box(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_combo_box(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.combo_open;
         doc_page(
             "Combo Box",
@@ -3047,40 +3018,44 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    col(vec![h::ComboBox::new(self.combo_state.clone(), languages())
-                        .label("Language")
-                        .placeholder("Pick or type")
-                        .is_open(is_open)
-                        .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-                            this.combo_open = *open;
-                            cx.notify();
-                        })))
-                        .on_selection_change(cx.listener(
-                            |this, _key: &SharedString, _, cx| {
-                                this.combo_open = false;
-                                cx.notify();
-                            },
-                        ))
-                        .into_any_element()]),
+                    col(vec![h::ComboBox::new(
+                        self.combo_state.clone(),
+                        languages(),
+                    )
+                    .label("Language")
+                    .placeholder("Pick or type")
+                    .is_open(is_open)
+                    .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
+                        this.combo_open = *open;
+                        cx.notify();
+                    })))
+                    .on_selection_change(cx.listener(|this, _key: &SharedString, _, cx| {
+                        this.combo_open = false;
+                        cx.notify();
+                    }))
+                    .into_any_element()]),
                 ),
                 (
                     "Custom values allowed",
-                    col(vec![h::ComboBox::new(self.combo_state.clone(), languages())
-                        .label("Language")
-                        .allows_custom_value(true)
-                        .is_open(is_open)
-                        .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-                            this.combo_open = *open;
-                            cx.notify();
-                        })))
-                        .into_any_element()]),
+                    col(vec![h::ComboBox::new(
+                        self.combo_state.clone(),
+                        languages(),
+                    )
+                    .label("Language")
+                    .allows_custom_value(true)
+                    .is_open(is_open)
+                    .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
+                        this.combo_open = *open;
+                        cx.notify();
+                    })))
+                    .into_any_element()]),
                 ),
             ],
             cx,
         )
     }
 
-    pub fn page_select(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_select(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let selected = self.select_lang;
         let is_open = self.select_open;
         doc_page(
@@ -3144,17 +3119,12 @@ impl Gallery {
                             .selection_mode(SelectionMode::Multiple)
                             .selected_indices(self.select_multi.iter().copied())
                             .is_open(true)
-                            .on_selection_change_all(cx.listener(
-                                |this, next: &[usize], _, cx| {
-                                    this.select_multi = next.to_vec();
-                                    cx.notify();
-                                },
-                            ))
+                            .on_selection_change_all(cx.listener(|this, next: &[usize], _, cx| {
+                                this.select_multi = next.to_vec();
+                                cx.notify();
+                            }))
                             .into_any_element(),
-                        para(
-                            &format!("{} selected", self.select_multi.len()),
-                            cx,
-                        ),
+                        para(&format!("{} selected", self.select_multi.len()), cx),
                     ]),
                 ),
             ],
@@ -3166,7 +3136,7 @@ impl Gallery {
     // Typography
     // -----------------------------------------------------------------------
 
-    pub fn page_kbd(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_kbd(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         doc_page(
             "Kbd",
             crate::pages::Page::Kbd.description(),
@@ -3192,7 +3162,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_typography(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_typography(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let scale = [
             (h::TypographyType::H1, "h1", "36 / 600"),
             (h::TypographyType::H2, "h2", "30 / 600"),
@@ -3287,9 +3257,14 @@ impl Gallery {
     // Utilities
     // -----------------------------------------------------------------------
 
-    pub fn page_scroll_shadow(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn page_scroll_shadow(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let lines: Vec<AnyElement> = (1..=20)
-            .map(|i| gpui::div().py(px(4.)).child(format!("Row {i}")).into_any_element())
+            .map(|i| {
+                gpui::div()
+                    .py(px(4.))
+                    .child(format!("Row {i}"))
+                    .into_any_element()
+            })
             .collect();
         doc_page(
             "Scroll Shadow",
@@ -3327,7 +3302,10 @@ impl Gallery {
                         .max_h(px(140.))
                         .is_enabled(false)
                         .children((1..=10).map(|i| {
-                            gpui::div().py(px(4.)).child(format!("Row {i}")).into_any_element()
+                            gpui::div()
+                                .py(px(4.))
+                                .child(format!("Row {i}"))
+                                .into_any_element()
                         }))
                         .into_any_element()]),
                 ),

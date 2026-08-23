@@ -8,7 +8,7 @@ use crate::app::Gallery;
 use crate::pages::{code_block, doc_page, example_frame, para};
 
 impl Gallery {
-    pub fn page_introduction(&mut self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    pub fn page_introduction(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
         let colors = cx.colors();
         let _ = colors;
         doc_page(
@@ -44,7 +44,7 @@ impl Gallery {
         )
     }
 
-    pub fn page_installation(&mut self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    pub fn page_installation(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
         let main_rs = r#"use gpui::{prelude::*, px, size, App, Application,
     Bounds, Render, Window, WindowBounds, WindowOptions};
 use herogpui::theme::{ThemeProvider, ActiveTheme};
@@ -53,7 +53,7 @@ use herogpui_core::Color;
 struct HelloWorld;
 
 impl Render for HelloWorld {
-    fn render(&mut self, _w: &mut Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _w: &mut Window, cx: &mut gpui::Context<'_, Self>) -> impl IntoElement {
         let colors = cx.colors();
         gpui::div().size_full().bg(colors.background)
             .text_color(colors.foreground)
@@ -97,7 +97,7 @@ fn main() {
         )
     }
 
-    pub fn page_theming(&mut self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    pub fn page_theming(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
         let colors = cx.colors();
 
         let mut palette = gpui::div().flex().flex_col().gap(px(10.));
@@ -123,7 +123,10 @@ fn main() {
                             .h(px(20.))
                             .rounded(px(6.))
                             .overflow_hidden()
-                            .children([sem.soft(), sem.soft_hover(), sem.color, sem.hover()].map(|c| gpui::div().flex_1().bg(c))),
+                            .children(
+                                [sem.soft(), sem.soft_hover(), sem.color, sem.hover()]
+                                    .map(|c| gpui::div().flex_1().bg(c)),
+                            ),
                     )
                     .child(
                         gpui::div()
@@ -155,7 +158,7 @@ fn main() {
         )
     }
 
-    pub fn page_dark_mode(&mut self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    pub fn page_dark_mode(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
         doc_page(
             "Dark Mode",
             "ThemeProvider registers both `light` and `dark`. Toggle at runtime from any handler — \
@@ -185,15 +188,13 @@ fn main() {
         )
     }
 
-    pub fn page_customization(&mut self, cx: &mut Context<Self>) -> gpui::AnyElement {
+    pub fn page_customization(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
         // Live violet custom theme preview
         // v3 themes override a base token and let every derived value follow.
-        let preview_theme = herogpui_theme::Theme::builder(
-            "violet-preview",
-            herogpui_theme::Theme::light(),
-        )
-        .accent(herogpui_core::oklch(0.55, 0.23, 295.0))
-        .build();
+        let preview_theme =
+            herogpui_theme::Theme::builder("violet-preview", herogpui_theme::Theme::light())
+                .accent(herogpui_core::oklch(0.55, 0.23, 295.0))
+                .build();
 
         let mut chips = gpui::div().flex().flex_wrap().gap(px(10.));
         for role in Color::ALL {
@@ -260,7 +261,7 @@ fn feature_row(title: &str, desc: &str, cx: &App) -> gpui::AnyElement {
                     .text_size(px(14.))
                     .line_height(px(22.))
                     .font_weight(gpui::FontWeight::MEDIUM)
-                    .child(format!("{} — {}", title, desc)),
+                    .child(format!("{title} — {desc}")),
             ),
         )
         .into_any_element()
@@ -269,5 +270,3 @@ fn feature_row(title: &str, desc: &str, cx: &App) -> gpui::AnyElement {
 // keep FONT_FAMILY referenced for docs readers
 #[allow(unused_imports)]
 use crate::app::FONT_FAMILY as _FONT;
-
-

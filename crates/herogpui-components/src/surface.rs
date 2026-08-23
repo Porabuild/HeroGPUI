@@ -4,7 +4,9 @@
 //! descendants. Mirrors the React API: `variant` of
 //! `transparent | default | secondary | tertiary`.
 
-use gpui::{div, px, AnyElement, App, IntoElement, ParentElement, Pixels, RenderOnce, Styled, Window};
+use gpui::{
+    div, px, AnyElement, App, IntoElement, ParentElement, Pixels, RenderOnce, Styled, Window,
+};
 use herogpui_theme::ActiveTheme;
 
 /// Prominence level of a surface (`variant` prop).
@@ -54,7 +56,6 @@ impl Surface {
         self.gap = gap.into();
         self
     }
-
 }
 
 impl Default for Surface {
@@ -83,9 +84,9 @@ impl RenderOnce for Surface {
         el = match self.variant {
             // No fill, so the outline is what marks the surface out — the same
             // treatment `Card`'s `transparent` variant gets.
-            SurfaceVariant::Transparent => {
-                el.border(cx.layout().border_width).border_color(colors.border)
-            }
+            SurfaceVariant::Transparent => el
+                .border(cx.layout().border_width)
+                .border_color(colors.border),
             SurfaceVariant::Default => el.bg(colors.surface.background),
             SurfaceVariant::Secondary => el.bg(colors.surface_secondary),
             SurfaceVariant::Tertiary => el.bg(colors.surface_tertiary),

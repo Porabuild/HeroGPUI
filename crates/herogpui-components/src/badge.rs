@@ -1,6 +1,8 @@
 //! Badge — port of `@heroui/badge`.
 
-use gpui::{prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Styled, Window};
+use gpui::{
+    prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Styled, Window,
+};
 use herogpui_core::{Color, Size};
 use herogpui_theme::ActiveTheme;
 
@@ -114,7 +116,7 @@ impl RenderOnce for Badge {
 
         let (size_px, font) = match self.size {
             Size::Sm => (px(16.), px(10.)),
-            Size::Md => (px(20.), px(12.)),
+            Size::Md => (px(28.), px(12.)),
             Size::Lg => (px(24.), px(14.)),
         };
 

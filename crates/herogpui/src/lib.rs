@@ -29,7 +29,6 @@ pub mod prelude {
         Placement, Prominence, SelectionMode, Size, SizeXl, UnitDisplay, Variant,
     };
     pub use herogpui_theme::{
-        set_theme, toggle_light_dark, use_theme, ActiveTheme, Appearance, Theme,
-        ThemeProvider,
+        set_theme, toggle_light_dark, use_theme, ActiveTheme, Appearance, Theme, ThemeProvider,
     };
 }

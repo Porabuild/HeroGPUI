@@ -47,48 +47,89 @@ mod tests {
     use super::*;
 
     fn keys(items: &[&str]) -> Vec<SharedString> {
-        items.iter().map(|s| SharedString::from(s.to_string())).collect()
+        items
+            .iter()
+            .map(|s| SharedString::from(s.to_string()))
+            .collect()
     }
 
     #[test]
     fn single_replaces() {
-        let next = next_selection(&keys(&["a"]), &SharedString::from("b"), SelectionMode::Single, false);
+        let next = next_selection(
+            &keys(&["a"]),
+            &SharedString::from("b"),
+            SelectionMode::Single,
+            false,
+        );
         assert_eq!(next, keys(&["b"]));
     }
 
     #[test]
     fn single_clears_on_reselect() {
-        let next = next_selection(&keys(&["a"]), &SharedString::from("a"), SelectionMode::Single, false);
+        let next = next_selection(
+            &keys(&["a"]),
+            &SharedString::from("a"),
+            SelectionMode::Single,
+            false,
+        );
         assert!(next.is_empty());
     }
 
     #[test]
     fn single_keeps_when_empty_disallowed() {
-        let next = next_selection(&keys(&["a"]), &SharedString::from("a"), SelectionMode::Single, true);
+        let next = next_selection(
+            &keys(&["a"]),
+            &SharedString::from("a"),
+            SelectionMode::Single,
+            true,
+        );
         assert_eq!(next, keys(&["a"]));
     }
 
     #[test]
     fn multiple_toggles() {
-        let added = next_selection(&keys(&["a"]), &SharedString::from("b"), SelectionMode::Multiple, false);
+        let added = next_selection(
+            &keys(&["a"]),
+            &SharedString::from("b"),
+            SelectionMode::Multiple,
+            false,
+        );
         assert_eq!(added, keys(&["a", "b"]));
-        let removed =
-            next_selection(&keys(&["a", "b"]), &SharedString::from("a"), SelectionMode::Multiple, false);
+        let removed = next_selection(
+            &keys(&["a", "b"]),
+            &SharedString::from("a"),
+            SelectionMode::Multiple,
+            false,
+        );
         assert_eq!(removed, keys(&["b"]));
     }
 
     #[test]
     fn multiple_keeps_last_when_empty_disallowed() {
-        let next = next_selection(&keys(&["a"]), &SharedString::from("a"), SelectionMode::Multiple, true);
+        let next = next_selection(
+            &keys(&["a"]),
+            &SharedString::from("a"),
+            SelectionMode::Multiple,
+            true,
+        );
         assert_eq!(next, keys(&["a"]));
-        let next =
-            next_selection(&keys(&["a", "b"]), &SharedString::from("a"), SelectionMode::Multiple, true);
+        let next = next_selection(
+            &keys(&["a", "b"]),
+            &SharedString::from("a"),
+            SelectionMode::Multiple,
+            true,
+        );
         assert_eq!(next, keys(&["b"]));
     }
 
     #[test]
     fn none_is_inert() {
-        let next = next_selection(&keys(&["a"]), &SharedString::from("b"), SelectionMode::None, false);
+        let next = next_selection(
+            &keys(&["a"]),
+            &SharedString::from("b"),
+            SelectionMode::None,
+            false,
+        );
         assert_eq!(next, keys(&["a"]));
     }
 }

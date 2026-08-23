@@ -236,7 +236,10 @@ mod tests {
         for (y, m) in [(2026, 2), (2026, 3), (2026, 8), (2024, 2), (2027, 5)] {
             let rows = c.rows(y, m);
             let needed = c.lead_cells(y, m) + days_in_month(y, m) as usize;
-            assert!(rows * 7 >= needed, "{y}-{m}: {rows} rows for {needed} cells");
+            assert!(
+                rows * 7 >= needed,
+                "{y}-{m}: {rows} rows for {needed} cells"
+            );
         }
     }
 

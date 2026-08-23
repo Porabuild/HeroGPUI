@@ -3,7 +3,9 @@
 //! A container for interactive controls with arrow-key navigation. Mirrors the
 //! React API: `orientation` and `isAttached`.
 
-use gpui::{div, px, AnyElement, App, IntoElement, ParentElement, Pixels, RenderOnce, Styled, Window};
+use gpui::{
+    div, px, AnyElement, App, IntoElement, ParentElement, Pixels, RenderOnce, Styled, Window,
+};
 use herogpui_core::Orientation;
 use herogpui_theme::ActiveTheme;
 
@@ -61,7 +63,9 @@ impl RenderOnce for Toolbar {
         let colors = cx.colors();
         // Attached toolbars sit tight against their controls; detached ones use
         // the wider 8px rhythm between groups.
-        let gap = self.gap.unwrap_or(if self.is_attached { px(4.) } else { px(8.) });
+        let gap = self
+            .gap
+            .unwrap_or(if self.is_attached { px(4.) } else { px(8.) });
 
         let mut el = div().flex().items_center().gap(gap);
 

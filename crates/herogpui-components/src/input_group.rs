@@ -5,8 +5,8 @@
 //! read as a single control.
 
 use gpui::{
-    div, prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce,
-    SharedString, Styled, Window,
+    div, prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, SharedString,
+    Styled, Window,
 };
 use herogpui_core::FieldVariant;
 use herogpui_theme::ActiveTheme;
@@ -69,7 +69,6 @@ impl InputGroup {
         self
     }
 
-
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self
@@ -99,7 +98,6 @@ impl InputGroup {
         self.error_message = Some(text.into());
         self
     }
-
 }
 
 impl Default for InputGroup {

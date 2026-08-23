@@ -1,8 +1,9 @@
 //! Kbd — port of `@heroui/kbd`.
 
-use gpui::{prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Styled, Window};
+use gpui::{
+    prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Styled, Window,
+};
 use herogpui_theme::ActiveTheme;
-
 
 /// Visual style of a key (`variant`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -40,7 +41,6 @@ impl Kbd {
         }
     }
 
-
     pub fn variant(mut self, v: KbdVariant) -> Self {
         self.variant = v;
         self
@@ -72,7 +72,7 @@ impl RenderOnce for Kbd {
             .flex()
             .items_center()
             .justify_center()
-            .px(px(4.))
+            .px(px(8.))
             .min_w(min_w)
             .h(h)
             .rounded(crate::util::key_radius(cx))
@@ -88,13 +88,9 @@ impl RenderOnce for Kbd {
                 .when(!layout.field_shadow.is_empty(), |e: gpui::Div| {
                     e.shadow(layout.field_shadow.clone())
                 }),
-            KbdVariant::Light => el
-                .bg(colors.default.soft())
-                .text_color(colors.muted),
+            KbdVariant::Light => el.bg(colors.default.soft()).text_color(colors.muted),
         };
 
         el.children(self.children)
     }
 }
-
-

@@ -72,8 +72,6 @@ impl ButtonGroup {
         self
     }
 
-
-
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self
@@ -102,7 +100,11 @@ impl RenderOnce for ButtonGroup {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let vertical = !self.orientation.is_horizontal();
         let mut el = div().flex().items_center();
-        el = if vertical { el.flex_col() } else { el.flex_row() };
+        el = if vertical {
+            el.flex_col()
+        } else {
+            el.flex_row()
+        };
 
         if self.full_width {
             el = el.w_full();
@@ -122,15 +124,12 @@ impl RenderOnce for ButtonGroup {
         let variant = self.variant;
         let size = self.size;
         let disabled = self.is_disabled;
-        let inherited = self
-            .buttons
-            .into_iter()
-            .map(move |b| {
-                b.variant(variant)
-                    .size(size)
-                    .is_disabled(disabled)
-                    .into_any_element()
-            });
+        let inherited = self.buttons.into_iter().map(move |b| {
+            b.variant(variant)
+                .size(size)
+                .is_disabled(disabled)
+                .into_any_element()
+        });
 
         // Overlapping the 1px edges is what draws a single hairline between
         // members, so hiding the separator means not overlapping them.

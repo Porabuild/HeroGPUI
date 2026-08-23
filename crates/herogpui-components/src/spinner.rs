@@ -110,16 +110,16 @@ impl RenderOnce for Spinner {
             .path(icons::SPINNER)
             .text_color(color)
             .with_animation(
-            self.id,
-            Animation::new(Duration::from_millis(800)).repeat(),
-            |svg, delta| {
-                let t = if delta.is_finite() {
-                    delta.clamp(0.0, 1.0)
-                } else {
-                    0.0
-                };
-                svg.with_transformation(gpui::Transformation::rotate(gpui::percentage(t)))
-            },
-        )
+                self.id,
+                Animation::new(Duration::from_millis(800)).repeat(),
+                |svg, delta| {
+                    let t = if delta.is_finite() {
+                        delta.clamp(0.0, 1.0)
+                    } else {
+                        0.0
+                    };
+                    svg.with_transformation(gpui::Transformation::rotate(gpui::percentage(t)))
+                },
+            )
     }
 }

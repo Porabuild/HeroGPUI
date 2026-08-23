@@ -1,7 +1,10 @@
 //! Pagination — port of `@heroui/pagination`.
 
-use gpui::{prelude::*, px, App, IntoElement, InteractiveElement, RenderOnce, StatefulInteractiveElement, Styled, Window};
-use herogpui_core::{Size, Color};
+use gpui::{
+    prelude::*, px, App, InteractiveElement, IntoElement, RenderOnce, StatefulInteractiveElement,
+    Styled, Window,
+};
+use herogpui_core::{Color, Size};
 use herogpui_theme::ActiveTheme;
 
 use crate::icons;
@@ -47,25 +50,17 @@ impl Pagination {
     ///
     /// The closure receives the page number and `isActive`, the values v3
     /// passes into the same render prop.
-    pub fn link(
-        mut self,
-        render: impl Fn(usize, bool) -> gpui::AnyElement + 'static,
-    ) -> Self {
+    pub fn link(mut self, render: impl Fn(usize, bool) -> gpui::AnyElement + 'static) -> Self {
         self.link = Some(std::sync::Arc::new(render));
         self
     }
-
-
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
-    pub fn on_change(
-        mut self,
-        f: impl Fn(usize, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_change(mut self, f: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -89,7 +84,7 @@ impl RenderOnce for Pagination {
         };
         let cell_text = self.size.text_size();
 
-        let mut row = gpui::div().flex().items_center().gap(px(4.));
+        let mut row = gpui::div().flex().items_center().gap(px(16.));
 
         row = row.child(
             nav_button(
@@ -269,8 +264,3 @@ fn visible_pages(page: usize, total: usize, siblings: usize) -> Vec<PageRef> {
     out.push(PageRef::Num(total));
     out
 }
-
-
-
-
-

@@ -33,12 +33,7 @@ pub fn oklcha(l: f32, c: f32, h: f32, alpha: f32) -> Hsla {
         b: c * rad.sin(),
     };
     let (r, g, b) = lab.to_srgb();
-    Hsla::from(Rgba {
-        r,
-        g,
-        b,
-        a: alpha,
-    })
+    Hsla::from(Rgba { r, g, b, a: alpha })
 }
 
 /// CSS `color-mix(in oklab, a (1-t), b t)`.

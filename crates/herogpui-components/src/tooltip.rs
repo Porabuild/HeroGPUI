@@ -53,7 +53,6 @@ impl TooltipPlacement {
             TooltipPlacement::Right => std::f32::consts::FRAC_PI_2,
         }
     }
-
 }
 
 /// Hover state for one tooltip.
@@ -178,7 +177,10 @@ impl RenderOnce for Tooltip {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         if self.is_disabled {
             // A disabled tooltip renders its trigger and nothing else.
-            return gpui::div().flex().children(self.children).into_any_element();
+            return gpui::div()
+                .flex()
+                .children(self.children)
+                .into_any_element();
         }
 
         let key = self
@@ -204,7 +206,7 @@ impl RenderOnce for Tooltip {
             .absolute()
             .px(px(8.))
             .py(px(4.))
-            .rounded(crate::util::small_radius(cx))
+            .rounded(util::small_radius(cx))
             .bg(colors.foreground)
             .text_color(colors.background)
             .text_size(px(12.))
@@ -233,19 +235,35 @@ impl RenderOnce for Tooltip {
                     ))),
             );
             arrow = match self.placement {
-                TooltipPlacement::Top => arrow.top_full().left(px(0.)).right(px(0.)).flex().justify_center(),
-                TooltipPlacement::Bottom => {
-                    arrow.bottom_full().left(px(0.)).right(px(0.)).flex().justify_center()
-                }
-                TooltipPlacement::Left => arrow.left_full().top(px(0.)).bottom(px(0.)).flex().items_center(),
-                TooltipPlacement::Right => {
-                    arrow.right_full().top(px(0.)).bottom(px(0.)).flex().items_center()
-                }
+                TooltipPlacement::Top => arrow
+                    .top_full()
+                    .left(px(0.))
+                    .right(px(0.))
+                    .flex()
+                    .justify_center(),
+                TooltipPlacement::Bottom => arrow
+                    .bottom_full()
+                    .left(px(0.))
+                    .right(px(0.))
+                    .flex()
+                    .justify_center(),
+                TooltipPlacement::Left => arrow
+                    .left_full()
+                    .top(px(0.))
+                    .bottom(px(0.))
+                    .flex()
+                    .items_center(),
+                TooltipPlacement::Right => arrow
+                    .right_full()
+                    .top(px(0.))
+                    .bottom(px(0.))
+                    .flex()
+                    .items_center(),
             };
             tip = tip.child(arrow);
         }
 
-        let hover_state = state.clone();
+        let hover_state = state;
         let mut wrapper = gpui::div()
             // `on_hover` needs a stateful element, so the wrapper carries the id.
             .id(key.clone())

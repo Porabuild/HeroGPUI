@@ -1,0 +1,9 @@
+# Pins the toolchain *components* the lint and format gates need, so
+# `.shots/lint.ps1` and `cargo fmt --all --check` fail on the code rather than
+# on a missing component. The channel floats on stable: `rust-version` in
+# Cargo.toml (1.87) is the floor the crates promise, not the toolchain to build
+# with. If `cargo fmt --all --check` ever starts failing on untouched code, a
+# new stable changed rustfmt's output — pin an exact version here.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

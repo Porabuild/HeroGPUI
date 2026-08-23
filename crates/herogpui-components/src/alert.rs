@@ -1,7 +1,9 @@
 //! Alert — port of `@heroui/alert`.
 
-use gpui::{prelude::*, px, App, ClickEvent, IntoElement, RenderOnce, SharedString, Styled, Window};
-use herogpui_core::{Color};
+use gpui::{
+    prelude::*, px, App, ClickEvent, IntoElement, RenderOnce, SharedString, Styled, Window,
+};
+use herogpui_core::Color;
 use herogpui_theme::ActiveTheme;
 
 use crate::icons;
@@ -42,13 +44,8 @@ impl Alert {
         self
     }
 
-
-
     /// Shows a close button (`isClosable`).
-    pub fn is_closable(
-        mut self,
-        f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn is_closable(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
         self.is_closable = true;
         self.on_close = Some(Box::new(f));
         self
@@ -76,10 +73,10 @@ impl RenderOnce for Alert {
         let mut alert = gpui::div()
             .flex()
             .items_start()
-            .gap(px(10.))
+            .gap(px(16.))
             .w_full()
-            .px(px(12.))
-            .py(px(10.))
+            .px(px(16.))
+            .py(px(12.))
             .rounded(crate::util::control_radius(cx))
             .bg(bg)
             .text_color(fg);
@@ -123,12 +120,7 @@ impl RenderOnce for Alert {
                         .id("alert-close")
                         .cursor_pointer()
                         .flex_shrink_0()
-                        .child(
-                            gpui::svg()
-                                .size(px(14.))
-                                .path(icons::CLOSE)
-                                .text_color(fg),
-                        )
+                        .child(gpui::svg().size(px(14.)).path(icons::CLOSE).text_color(fg))
                         .on_click(move |ev, w, cx| on_close(ev, w, cx)),
                 );
             }

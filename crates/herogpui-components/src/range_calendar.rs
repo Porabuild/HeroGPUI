@@ -20,8 +20,7 @@ use crate::{
     icons, util,
 };
 
-type OnRangeChange =
-    Arc<dyn Fn(Option<Date>, Option<Date>, &mut Window, &mut App) + 'static>;
+type OnRangeChange = Arc<dyn Fn(Option<Date>, Option<Date>, &mut Window, &mut App) + 'static>;
 
 /// HeroUI RangeCalendar.
 #[derive(IntoElement)]
@@ -62,7 +61,7 @@ impl RangeCalendar {
         mut self,
         handler: impl Fn(Date, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.on_focus_change = Some(std::sync::Arc::new(handler));
+        self.on_focus_change = Some(Arc::new(handler));
         self
     }
 
@@ -151,7 +150,6 @@ impl RangeCalendar {
         self.on_year_picker_open_change = Some(Arc::new(f));
         self
     }
-
 
     pub fn min_value(mut self, date: Date) -> Self {
         self.constraints.min_value = Some(date);
@@ -244,7 +242,7 @@ struct Frame<'a> {
 impl RangeCalendar {
     /// One day cell. The range interior is a square fill so the run reads as
     /// continuous; the two ends are pills.
-    fn range_cell(&self, date: Date, frame: &Frame, key: String, cx: &App) -> gpui::AnyElement {
+    fn range_cell(&self, date: Date, frame: &Frame<'_>, key: String, cx: &App) -> gpui::AnyElement {
         let colors = cx.colors();
         let accent = if self.is_invalid {
             colors.danger
@@ -356,7 +354,7 @@ impl RangeCalendar {
     }
 
     /// The 7-column grid for one month.
-    fn month_grid(&self, y: i32, m: u32, frame: &Frame, cx: &App) -> gpui::AnyElement {
+    fn month_grid(&self, y: i32, m: u32, frame: &Frame<'_>, cx: &App) -> gpui::AnyElement {
         let lead = self.constraints.lead_cells(y, m);
         let total = days_in_month(y, m) as usize;
 
@@ -445,10 +443,10 @@ impl RenderOnce for RangeCalendar {
         // `defaultValue` seeds the state once, before anything reads it.
         if let Some(value) = self.default_value {
             let state = self.state.clone();
-            crate::util::seed_once(
+            util::seed_once(
                 window,
                 cx,
-                gpui::ElementId::Name(
+                ElementId::Name(
                     format!("rangecalendar-default-{}", self.state.entity_id().as_u64()).into(),
                 ),
                 move |cx| {
@@ -469,10 +467,10 @@ impl RenderOnce for RangeCalendar {
         // `isYearPickerOpen` wins; without it the component holds the flag and
         // the heading toggles it, which is what `defaultYearPickerOpen`
         // promises. This borrows `cx` mutably, so it precedes the tokens.
-        let (year_picker_open, year_picker_own) = crate::util::controlled(
+        let (year_picker_open, year_picker_own) = util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{base}-yearpicker").into()),
+            ElementId::Name(format!("{base}-yearpicker").into()),
             self.year_picker_open,
             self.default_year_picker_open,
         );
@@ -524,7 +522,12 @@ impl RenderOnce for RangeCalendar {
                 .cursor_pointer()
                 .text_color(colors.muted)
                 .hover(move |s| s.bg(hover_bg))
-                .child(gpui::svg().size(px(14.)).path(icon).text_color(colors.muted))
+                .child(
+                    gpui::svg()
+                        .size(px(14.))
+                        .path(icon)
+                        .text_color(colors.muted),
+                )
                 .on_click(move |_, _, cx| {
                     state.update(cx, |s, cx| {
                         s.set_anchor(target);
@@ -547,14 +550,14 @@ impl RenderOnce for RangeCalendar {
                     let own = year_picker_own.clone();
                     let open = year_picker_open;
                     let hover_bg = colors.default.soft_hover();
-                    gpui::div()
-                        .id(gpui::ElementId::Name(key.into()))
+                    div()
+                        .id(ElementId::Name(key.into()))
                         .flex()
                         .items_center()
                         .gap(px(3.))
                         .px(px(6.))
                         .py(px(2.))
-                        .rounded(crate::util::control_radius(cx))
+                        .rounded(util::control_radius(cx))
                         .cursor_pointer()
                         .hover(move |s| s.bg(hover_bg))
                         .on_click(move |_, _, cx| {
@@ -603,7 +606,7 @@ impl RenderOnce for RangeCalendar {
                                     cx.notify();
                                 });
                             }
-                            cb(!open, window, cx)
+                            cb(!open, window, cx);
                         })
                         .child(label)
                         .child(
@@ -734,7 +737,7 @@ impl RenderOnce for RangeCalendar {
                         .text_center()
                         .text_size(px(11.))
                         .text_color(colors.muted)
-                        .child(Weekday::ALL[weekday_index(*d)].short_label().to_string())
+                        .child(Weekday::ALL[weekday_index(*d)].short_label().to_owned())
                 })));
             }
             let mut grid = div().flex().flex_col().gap(px(2.));

@@ -3,6 +3,7 @@ name = "herogpui-components"
 description = "HeroUI-style component library for GPUI"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -10,3 +11,6 @@ repository.workspace = true
 gpui.workspace = true
 herogpui-core.workspace = true
 herogpui-theme.workspace = true
+
+[lints]
+workspace = true

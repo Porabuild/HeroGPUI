@@ -5,6 +5,12 @@
 # so those surface in one pass.
 param([int]$SecondsPerPage = 4)
 
+# A page that exits early counts as a failure only if it does so *twice*.
+# Launching 71 gpui windows back to back intermittently kills one during
+# startup: exit -1, empty stderr, a different page every run, and never a panic
+# message. Reporting those made the gate unheedable. A real panic reproduces on
+# the retry and prints to stderr, which is what the retry distinguishes.
+
 # The window is parked off-screen rather than minimized. Minimizing is quieter
 # but a minimized window may never present a frame, which would make this pass
 # without having rendered anything -- the opposite of what it is for. Off-screen
@@ -47,8 +53,9 @@ $pages = @(
 )
 
 $env:HEROGPUI_UNFOCUSED = "1"
-$failed = @()
-foreach ($pg in $pages) {
+# Launches one page and returns $null if it was still running at the deadline,
+# or the (exit code, stderr) pair if it had already gone.
+function Invoke-Page($pg, $exe, $SecondsPerPage, $SWP_NOACTIVATE, $SWP_NOZORDER) {
   $env:HEROGPUI_PAGE = $pg
   # Hide the *console*, not the app. `gallery.exe` is a console-subsystem
   # binary, so 71 launches would pop 71 console windows and take focus 71 times.
@@ -78,12 +85,27 @@ foreach ($pg in $pages) {
   }
   Start-Sleep -Seconds $SecondsPerPage
   if ($p.HasExited) {
-    $err = $p.StandardError.ReadToEnd()
-    $failed += [pscustomobject]@{ Page = $pg; Exit = $p.ExitCode; Error = $err }
-    Write-Host ("FAIL  {0}  (exit {1})" -f $pg, $p.ExitCode) -ForegroundColor Red
-    if ($err) { Write-Host ($err.Trim()) -ForegroundColor DarkRed }
+    return [pscustomobject]@{ Exit = $p.ExitCode; Error = $p.StandardError.ReadToEnd() }
+  }
+  Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+  return $null
+}
+
+$failed = @()
+foreach ($pg in $pages) {
+  $r = Invoke-Page $pg $exe $SecondsPerPage $SWP_NOACTIVATE $SWP_NOZORDER
+  if ($null -ne $r) {
+    # Second chance: see the note on $SecondsPerPage above.
+    Start-Sleep -Milliseconds 500
+    $r2 = Invoke-Page $pg $exe $SecondsPerPage $SWP_NOACTIVATE $SWP_NOZORDER
+    if ($null -eq $r2) {
+      Write-Host ("ok    {0}  (first launch died with exit {1}; retry rendered)" -f $pg, $r.Exit) -ForegroundColor DarkYellow
+      continue
+    }
+    $failed += [pscustomobject]@{ Page = $pg; Exit = $r2.Exit; Error = $r2.Error }
+    Write-Host ("FAIL  {0}  (exit {1}, twice)" -f $pg, $r2.Exit) -ForegroundColor Red
+    if ($r2.Error) { Write-Host ($r2.Error.Trim()) -ForegroundColor DarkRed }
   } else {
-    Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
     Write-Host ("ok    {0}" -f $pg)
   }
 }

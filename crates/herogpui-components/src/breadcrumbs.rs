@@ -1,6 +1,9 @@
 //! Breadcrumbs — port of `@heroui/breadcrumbs`.
 
-use gpui::{prelude::*, px, App, ClickEvent, IntoElement, InteractiveElement, RenderOnce, SharedString, Styled, Window};
+use gpui::{
+    prelude::*, px, App, ClickEvent, InteractiveElement, IntoElement, RenderOnce, SharedString,
+    Styled, Window,
+};
 use herogpui_theme::ActiveTheme;
 
 use crate::icons;
@@ -35,7 +38,8 @@ impl Crumb {
     }
 }
 
-type OnNavigate = std::sync::Arc<dyn Fn(usize, &Crumb, &ClickEvent, &mut Window, &mut App) + 'static>;
+type OnNavigate =
+    std::sync::Arc<dyn Fn(usize, &Crumb, &ClickEvent, &mut Window, &mut App) + 'static>;
 
 /// HeroUI Breadcrumbs.
 #[derive(IntoElement)]
@@ -60,7 +64,6 @@ impl Breadcrumbs {
             on_navigate: None,
         }
     }
-
 
     pub fn separator(mut self, s: BreadcrumbSeparator) -> Self {
         self.separator = s;
@@ -107,16 +110,16 @@ impl RenderOnce for Breadcrumbs {
                     .text_size(text_size)
                     .line_height(text_size * 1.3)
                     .text_color(if is_last { active_color } else { muted })
-                    .when(
-                        !is_last && on_navigate.is_some() && !disabled,
-                        |el| el.cursor_pointer().hover(move |s| s.text_color(active_color)),
-                    )
+                    .when(!is_last && on_navigate.is_some() && !disabled, |el| {
+                        el.cursor_pointer()
+                            .hover(move |s| s.text_color(active_color))
+                    })
                     .when(disabled, |el| el.opacity(disabled_opacity))
                     .child(crumb.label.to_string());
 
                 if !is_last && !disabled {
                     if let (Some(on_nav), Some(href)) = (&on_navigate, crumb.href.clone()) {
-                        let crumb2 = crumb.clone();
+                        let crumb2 = crumb;
                         let idx = i;
                         let on_nav2 = on_nav.clone();
                         label_el = label_el.on_click(move |ev, w, cx| {
@@ -124,7 +127,7 @@ impl RenderOnce for Breadcrumbs {
                             cx.open_url(&href);
                         });
                     } else if let Some(on_nav) = &on_navigate {
-                        let crumb2 = crumb.clone();
+                        let crumb2 = crumb;
                         let idx = i;
                         let on_nav2 = on_nav.clone();
                         label_el =
@@ -132,24 +135,24 @@ impl RenderOnce for Breadcrumbs {
                     }
                 }
 
-                row.child(label_el).when(!is_last, |row| {
-                    row.child(if separator == BreadcrumbSeparator::Chevron {
-                        gpui::svg()
-                            .size(px(12.))
-                            .path(icons::CHEVRON_RIGHT)
-                            .text_color(muted)
-                            .into_any_element()
-                    } else {
-                        gpui::div()
-                            .text_size(text_size)
-                            .text_color(muted)
-                            .child(sep_icon.to_string())
-                            .into_any_element()
+                row.child(label_el)
+                    .when(!is_last, |row| {
+                        row.child(if separator == BreadcrumbSeparator::Chevron {
+                            gpui::svg()
+                                .size(px(12.))
+                                .path(icons::CHEVRON_RIGHT)
+                                .text_color(muted)
+                                .into_any_element()
+                        } else {
+                            gpui::div()
+                                .text_size(text_size)
+                                .text_color(muted)
+                                .child(sep_icon.to_owned())
+                                .into_any_element()
+                        })
                     })
-                })
-                .into_any_element()
-            },
-            )
+                    .into_any_element()
+            })
             .collect();
 
         gpui::div()

@@ -6,7 +6,10 @@
 
 use std::sync::Arc;
 
-use gpui::{div, prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce, SharedString, Styled, Window};
+use gpui::{
+    div, prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
+    SharedString, Styled, Window,
+};
 use herogpui_core::{Backdrop, Color, Size, Variant};
 use herogpui_theme::ActiveTheme;
 
@@ -156,11 +159,8 @@ impl AlertDialog {
     }
 
     /// `onOpenChange` — fires with `false` when the dialog is dismissed.
-    pub fn on_open_change(
-        mut self,
-        f: impl Fn(bool, &mut Window, &mut App) + 'static,
-    ) -> Self {
-        self.on_open_change = Some(std::sync::Arc::new(f));
+    pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
+        self.on_open_change = Some(Arc::new(f));
         self
     }
 
@@ -215,11 +215,11 @@ impl ParentElement for AlertDialog {
 impl RenderOnce for AlertDialog {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // v3 keeps a closing panel on screen for its `[data-exiting]` run.
-        let phase = crate::util::overlay_phase(window, cx, "alert-dialog-phase", self.is_open);
-        if phase == crate::util::OverlayPhase::Closed {
+        let phase = util::overlay_phase(window, cx, "alert-dialog-phase", self.is_open);
+        if phase == util::OverlayPhase::Closed {
             return div().into_any_element();
         }
-        let exiting = phase == crate::util::OverlayPhase::Exiting;
+        let exiting = phase == util::OverlayPhase::Exiting;
 
         // Escape has to reach the overlay, and key events only travel to the
         // focused element and its ancestors. Claiming focus while nothing
@@ -341,8 +341,8 @@ impl RenderOnce for AlertDialog {
         {
             _ if !self.is_dismissible => None,
             (None, None) => None,
-            (cancel, open_change) => Some(crate::util::shared(
-                move |ev: &gpui::ClickEvent, window: &mut Window, cx: &mut App| {
+            (cancel, open_change) => Some(util::shared(
+                move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
                     if let Some(f) = &cancel {
                         f(ev, window, cx);
                     }
@@ -358,8 +358,8 @@ impl RenderOnce for AlertDialog {
         } else {
             match (self.on_cancel.clone(), self.on_open_change.clone()) {
                 (None, None) => None,
-                (cancel, open_change) => Some(crate::util::shared(
-                    move |ev: &gpui::ClickEvent, window: &mut Window, cx: &mut App| {
+                (cancel, open_change) => Some(util::shared(
+                    move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
                         if let Some(f) = &cancel {
                             f(ev, window, cx);
                         }
@@ -371,7 +371,11 @@ impl RenderOnce for AlertDialog {
             }
         };
 
-        let mut backdrop = div().id("alert-dialog-backdrop").absolute().inset_0().bg(backdrop_bg);
+        let mut backdrop = div()
+            .id("alert-dialog-backdrop")
+            .absolute()
+            .inset_0()
+            .bg(backdrop_bg);
         if let Some(on_dismiss) = dismiss {
             backdrop = backdrop.on_click(move |ev, window, cx| on_dismiss(ev, window, cx));
         }
@@ -385,8 +389,12 @@ impl RenderOnce for AlertDialog {
                 cx,
             )
         } else {
-            crate::anim::entering(backdrop, "alert-dialog-backdrop-anim", crate::anim::Motion::BACKDROP_IN,
-                cx)
+            crate::anim::entering(
+                backdrop,
+                "alert-dialog-backdrop-anim",
+                crate::anim::Motion::BACKDROP_IN,
+                cx,
+            )
         };
 
         div()
@@ -398,7 +406,7 @@ impl RenderOnce for AlertDialog {
             .on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
                 if ev.keystroke.key == "escape" {
                     if let Some(f) = &keyboard_dismiss {
-                        f(&gpui::ClickEvent::default(), window, cx);
+                        f(&ClickEvent::default(), window, cx);
                     }
                 }
             })
@@ -421,11 +429,21 @@ impl RenderOnce for AlertDialog {
                     .padding_x(px(24.))
                     .sized(self.size.width());
                 if exiting {
-                    crate::anim::exiting(panel, "alert-dialog-panel-out", zoom, crate::anim::Motion::PANEL_OUT,
-                cx)
+                    crate::anim::exiting(
+                        panel,
+                        "alert-dialog-panel-out",
+                        zoom,
+                        crate::anim::Motion::PANEL_OUT,
+                        cx,
+                    )
                 } else {
-                    crate::anim::entering_zoom(panel, "alert-dialog-panel", zoom, crate::anim::Motion::PANEL_IN,
-                cx)
+                    crate::anim::entering_zoom(
+                        panel,
+                        "alert-dialog-panel",
+                        zoom,
+                        crate::anim::Motion::PANEL_IN,
+                        cx,
+                    )
                 }
             })
             .into_any_element()

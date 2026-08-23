@@ -22,7 +22,7 @@ impl Global for ThemeProvider {}
 impl ThemeProvider {
     /// Registers the provider with the default light theme.
     pub fn init(cx: &mut App) {
-        Self::init_with(Theme::light(), cx)
+        Self::init_with(Theme::light(), cx);
     }
 
     /// Registers the provider starting from an explicit theme.

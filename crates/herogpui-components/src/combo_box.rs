@@ -53,7 +53,7 @@ pub struct ComboBox {
     variant: FieldVariant,
     menu_trigger: MenuTrigger,
     /// `defaultFilter` — decides whether an item matches the query.
-    filter: Option<std::sync::Arc<dyn Fn(&str, &str) -> bool + 'static>>,
+    filter: Option<Arc<dyn Fn(&str, &str) -> bool + 'static>>,
     allows_custom_value: bool,
     max_items: usize,
     full_width: bool,
@@ -68,8 +68,7 @@ pub struct ComboBox {
     default_value: Option<std::collections::BTreeSet<SharedString>>,
     /// `defaultInputValue` — seeds the text state on the first render only.
     default_input_value: Option<SharedString>,
-    on_selection_change_all:
-        Option<std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>>,
+    on_selection_change_all: Option<Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>>,
     on_input_change: Option<Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>>,
     on_selection_change: Option<OnSelectionChange>,
     on_open_change: Option<OnOpenChange>,
@@ -114,7 +113,7 @@ impl ComboBox {
         mut self,
         handler: impl Fn(&[SharedString], &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.on_selection_change_all = Some(std::sync::Arc::new(handler));
+        self.on_selection_change_all = Some(Arc::new(handler));
         self
     }
 
@@ -241,7 +240,6 @@ impl ComboBox {
         self
     }
 
-
     pub fn menu_trigger(mut self, trigger: MenuTrigger) -> Self {
         self.menu_trigger = trigger;
         self
@@ -253,7 +251,7 @@ impl ComboBox {
     /// Called as `filter(item_text, input)`, and owns the whole decision —
     /// including what an empty query means.
     pub fn filter(mut self, f: impl Fn(&str, &str) -> bool + 'static) -> Self {
-        self.filter = Some(std::sync::Arc::new(f));
+        self.filter = Some(Arc::new(f));
         self
     }
 
@@ -310,7 +308,7 @@ impl RenderOnce for ComboBox {
         // `defaultInputValue` seeds the text once, before anything reads it.
         if let Some(text) = self.default_input_value.clone() {
             let state = self.state.clone();
-            crate::util::seed_once(
+            util::seed_once(
                 window,
                 cx,
                 gpui::ElementId::Name(
@@ -327,7 +325,7 @@ impl RenderOnce for ComboBox {
 
         // `defaultValue` opts into the component holding its own selection;
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
-        let (selection, selection_own) = crate::util::controlled(
+        let (selection, selection_own) = util::controlled(
             window,
             cx,
             gpui::ElementId::Name(
@@ -342,7 +340,7 @@ impl RenderOnce for ComboBox {
         self.selected_keys = selection;
 
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
-        let (open_state, open_own) = crate::util::controlled(
+        let (open_state, open_own) = util::controlled(
             window,
             cx,
             gpui::ElementId::Name(
@@ -358,7 +356,7 @@ impl RenderOnce for ComboBox {
         let container_radius = util::container_radius(cx);
         let control_radius = util::control_radius(cx);
         let entity_id = self.state.entity_id().as_u64();
-        let raw_query = self.state.read(cx).value().to_string();
+        let raw_query = self.state.read(cx).value().to_owned();
         let query = raw_query.to_lowercase();
         let is_invalid = self.is_invalid || self.error_message.is_some();
         let multiple = self.selection_mode == SelectionMode::Multiple;
@@ -410,7 +408,7 @@ impl RenderOnce for ComboBox {
             let hover_bg = colors.default.hover();
             trigger = trigger.cursor_pointer().hover(move |s| s.bg(hover_bg));
             if on_open_change.is_some() || open_own.is_some() {
-                let own = open_own.clone();
+                let own = open_own;
                 trigger = trigger.on_click(move |_, window, cx| {
                     // Uncontrolled: flip our own copy, or the chevron would be
                     // inert without a caller handler.
@@ -485,9 +483,10 @@ impl RenderOnce for ComboBox {
                 .border(layout.border_width)
                 .border_color(colors.border)
                 .text_color(colors.overlay.foreground)
-                .when(!layout.overlay_shadow.is_empty(), |e: gpui::Stateful<gpui::Div>| {
-                    e.shadow(layout.overlay_shadow.clone())
-                });
+                .when(
+                    !layout.overlay_shadow.is_empty(),
+                    |e: gpui::Stateful<gpui::Div>| e.shadow(layout.overlay_shadow.clone()),
+                );
 
             if matches.is_empty() {
                 // `allowsCustomValue` means an unmatched query is still valid,
@@ -594,17 +593,14 @@ impl RenderOnce for ComboBox {
                 panel = panel.child(row);
             }
 
-            root = root.child(crate::util::floating(
-                crate::util::placed_field_panel(self.placement, px(6.)).child(
-                    crate::anim::entering_zoom(
-                        panel,
-                        gpui::ElementId::Name(format!("combobox-{entity_id}-anim").into()),
-                        crate::anim::ZoomBox::panel(px(4.), container_radius)
-                            .padding_x(px(4.)),
-                        crate::anim::Motion::LIST_IN,
-                cx,
-                    ),
-                ),
+            root = root.child(util::floating(
+                util::placed_field_panel(self.placement, px(6.)).child(crate::anim::entering_zoom(
+                    panel,
+                    gpui::ElementId::Name(format!("combobox-{entity_id}-anim").into()),
+                    crate::anim::ZoomBox::panel(px(4.), container_radius).padding_x(px(4.)),
+                    crate::anim::Motion::LIST_IN,
+                    cx,
+                )),
             ));
         }
 

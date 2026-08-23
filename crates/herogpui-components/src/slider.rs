@@ -99,10 +99,13 @@ impl Slider {
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
-        Some(crate::form::FormField::number_value(
+        Some(
+            crate::form::FormField::number_value(
                 name,
                 self.default_value.unwrap_or(self.value) as f64,
-            ).is_required(false))
+            )
+            .is_required(false),
+        )
     }
 
     /// `minValue`
@@ -121,7 +124,6 @@ impl Slider {
         self.step = v.max(0.0001);
         self
     }
-
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
@@ -168,37 +170,25 @@ impl Slider {
     /// The closure receives the thumb's `index` and its value, the values v3
     /// passes into the same render prop. With a single-thumb slider the index
     /// is always 0.
-    pub fn thumb(
-        mut self,
-        render: impl Fn(usize, f32) -> gpui::AnyElement + 'static,
-    ) -> Self {
+    pub fn thumb(mut self, render: impl Fn(usize, f32) -> gpui::AnyElement + 'static) -> Self {
         self.thumb = Some(std::sync::Arc::new(render));
         self
     }
 
     /// `onChange` for the multi-thumb form — reports every value.
-    pub fn on_change_all(
-        mut self,
-        f: impl Fn(&[f32], &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_change_all(mut self, f: impl Fn(&[f32], &mut Window, &mut App) + 'static) -> Self {
         self.on_change_all = Some(std::sync::Arc::new(f));
         self
     }
 
-    pub fn on_change(
-        mut self,
-        f: impl Fn(f32, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_change(mut self, f: impl Fn(f32, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
 
     /// `onChangeEnd` — fires once when the drag finishes, for callers that only
     /// want to commit the final value.
-    pub fn on_change_end(
-        mut self,
-        f: impl Fn(f32, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_change_end(mut self, f: impl Fn(f32, &mut Window, &mut App) + 'static) -> Self {
         self.on_change_end = Some(std::sync::Arc::new(f));
         self
     }
@@ -313,7 +303,10 @@ impl RenderOnce for Slider {
                 move |bounds: Bounds<gpui::Pixels>, _, _| {
                     recorder_bounds.set(Bounds {
                         origin: gpui::point(f32::from(bounds.origin.x), f32::from(bounds.origin.y)),
-                        size: gpui::size(f32::from(bounds.size.width), f32::from(bounds.size.height)),
+                        size: gpui::size(
+                            f32::from(bounds.size.width),
+                            f32::from(bounds.size.height),
+                        ),
                     });
                     bounds
                 },
@@ -373,7 +366,6 @@ impl RenderOnce for Slider {
         }
 
         if !self.is_disabled {
-
             let target_down = DragTarget {
                 min: self.min,
                 span: range_span,
@@ -389,8 +381,16 @@ impl RenderOnce for Slider {
                 gpui::MouseButton::Left,
                 move |ev: &MouseDownEvent, window, cx| {
                     d_down.set(true);
-                    set_from_x(&b_down, axis_pos(ev.position, vertical), &target_down,
-                        &on_change_down, &all_down, &own_down, window, cx);
+                    set_from_x(
+                        &b_down,
+                        axis_pos(ev.position, vertical),
+                        &target_down,
+                        &on_change_down,
+                        &all_down,
+                        &own_down,
+                        window,
+                        cx,
+                    );
                 },
             );
 
@@ -402,24 +402,32 @@ impl RenderOnce for Slider {
             };
             let on_change_move = self.on_change.clone();
             let all_move = self.on_change_all.clone();
-            let own_move = own.clone();
+            let own_move = own;
             let b_move = bounds_slot.clone();
             let d_move = dragging.clone();
             track = track.on_mouse_move(move |ev: &MouseMoveEvent, window, cx| {
                 if d_move.get() {
-                    set_from_x(&b_move, axis_pos(ev.position, vertical), &target_move,
-                        &on_change_move, &all_move, &own_move, window, cx);
+                    set_from_x(
+                        &b_move,
+                        axis_pos(ev.position, vertical),
+                        &target_move,
+                        &on_change_move,
+                        &all_move,
+                        &own_move,
+                        window,
+                        cx,
+                    );
                 }
             });
 
-            let d_up = dragging.clone();
+            let d_up = dragging;
             let on_change_end = self.on_change_end.clone();
-            let b_up = bounds_slot.clone();
+            let b_up = bounds_slot;
             let target_up = DragTarget {
                 min: self.min,
                 span: range_span,
                 step: self.step,
-                thumbs: thumbs.clone(),
+                thumbs,
             };
             track = track.on_mouse_up(
                 gpui::MouseButton::Left,
@@ -476,8 +484,8 @@ fn set_from_x(
     }
     let frac = ((x - b.origin.x) / b.size.width).clamp(0.0, 1.0);
     let raw = target.min + frac * target.span;
-    let snapped = ((raw / target.step).round() * target.step)
-        .clamp(target.min, target.min + target.span);
+    let snapped =
+        ((raw / target.step).round() * target.step).clamp(target.min, target.min + target.span);
 
     if target.thumbs.len() > 1 {
         // Multi-thumb: whichever thumb is nearest the pointer follows it, so a
@@ -486,11 +494,8 @@ fn set_from_x(
         let nearest = next
             .iter()
             .enumerate()
-            .min_by(|(_, a), (_, b)| {
-                (**a - snapped).abs().total_cmp(&(**b - snapped).abs())
-            })
-            .map(|(i, _)| i)
-            .unwrap_or(0);
+            .min_by(|(_, a), (_, b)| (**a - snapped).abs().total_cmp(&(**b - snapped).abs()))
+            .map_or(0, |(i, _)| i);
         next[nearest] = snapped;
         next.sort_by(f32::total_cmp);
         if let Some(cb) = on_change_all {
@@ -513,8 +518,6 @@ fn set_from_x(
         cb(&[snapped], window, cx);
     }
 }
-
-
 
 /// The pointer coordinate along the slider's own axis.
 ///

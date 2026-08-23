@@ -4,12 +4,11 @@
 //! styled element bound to it (controlled like HeroUI's controlled inputs).
 
 use gpui::{
-    prelude::*, px, App, Entity, FocusHandle, Focusable, IntoElement, KeyDownEvent,
-    RenderOnce, SharedString, Styled, Window,
+    prelude::*, px, App, Entity, FocusHandle, Focusable, IntoElement, KeyDownEvent, RenderOnce,
+    SharedString, Styled, Window,
 };
 use herogpui_core::FieldVariant;
 use herogpui_theme::ActiveTheme;
-
 
 /// Editable state of a single-line text input.
 pub struct InputState {
@@ -97,7 +96,7 @@ impl InputState {
 }
 
 impl Focusable for InputState {
-    fn focus_handle(&self, _cx: &gpui::App) -> FocusHandle {
+    fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.focus_handle.clone()
     }
 }
@@ -182,7 +181,7 @@ fn state_accepts(
     input_type: InputType,
     max_length: Option<usize>,
 ) -> bool {
-    let selected = state.selection().map(|(lo, hi)| hi - lo).unwrap_or(0);
+    let selected = state.selection().map_or(0, |(lo, hi)| hi - lo);
     accepts_char(
         state.value.chars().count(),
         selected,
@@ -283,12 +282,8 @@ fn select_all(state: &mut InputState) {
 }
 
 fn char_to_byte(s: &str, char_idx: usize) -> usize {
-    s.char_indices()
-        .nth(char_idx)
-        .map(|(b, _)| b)
-        .unwrap_or(s.len())
+    s.char_indices().nth(char_idx).map_or(s.len(), |(b, _)| b)
 }
-
 
 /// A validation outcome for the current value.
 ///
@@ -403,7 +398,12 @@ fn multiline_body(b: MultilineBody<'_>, cx: &App) -> gpui::AnyElement {
         let end = start + len;
         // `min_w_0` on the text spans is what lets each wrap inside the field
         // instead of pushing the row wider than its box.
-        let mut para = gpui::div().flex().flex_wrap().items_center().w_full().min_w_0();
+        let mut para = gpui::div()
+            .flex()
+            .flex_wrap()
+            .items_center()
+            .w_full()
+            .min_w_0();
 
         // The selection, clipped to this line.
         let local_sel = b.selection.and_then(|(lo, hi)| {
@@ -482,6 +482,9 @@ pub struct Input {
     start_content: Option<gpui::AnyElement>,
     end_content: Option<gpui::AnyElement>,
     /// Stretch beyond the 320px default demo width.
+    /// Multi-line only: the height `rows` asks for. `None` leaves v3's
+    /// `min-height: 38px`.
+    min_h: Option<gpui::Pixels>,
     full_width: bool,
     is_disabled: bool,
     is_read_only: bool,
@@ -533,6 +536,7 @@ impl Input {
             pattern: None,
             start_content: None,
             end_content: None,
+            min_h: None,
             full_width: false,
             is_disabled: false,
             is_read_only: false,
@@ -564,6 +568,12 @@ impl Input {
     /// switches one implementation between the two.
     pub(crate) fn multiline(mut self, v: bool) -> Self {
         self.multiline = v;
+        self
+    }
+
+    /// Multi-line only: the height `TextArea::rows` asks for.
+    pub(crate) fn min_h(mut self, h: gpui::Pixels) -> Self {
+        self.min_h = Some(h);
         self
     }
 
@@ -613,10 +623,7 @@ impl Input {
     ///
     /// The component runs it and surfaces the result, so a caller does not have
     /// to mirror the logic into `is_invalid` / `error_message`.
-    pub fn validate(
-        mut self,
-        f: impl Fn(&str) -> Option<SharedString> + 'static,
-    ) -> Self {
+    pub fn validate(mut self, f: impl Fn(&str) -> Option<SharedString> + 'static) -> Self {
         self.validate = Some(std::sync::Arc::new(f));
         self
     }
@@ -635,8 +642,6 @@ impl Input {
         self.error_message = Some(e.into());
         self
     }
-
-
 
     /// The `type` attribute — `password` masks, `number` filters keystrokes.
     pub fn input_type(mut self, input_type: InputType) -> Self {
@@ -701,7 +706,6 @@ impl Input {
         self
     }
 
-
     pub fn start_content(mut self, el: impl IntoElement) -> Self {
         self.start_content = Some(el.into_any_element());
         self
@@ -744,18 +748,12 @@ impl Input {
         self
     }
 
-    pub fn on_change(
-        mut self,
-        f: impl Fn(&str, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_change(mut self, f: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
 
-    pub fn on_submit(
-        mut self,
-        f: impl Fn(&str, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_submit(mut self, f: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.on_submit = Some(std::sync::Arc::new(f));
         self
     }
@@ -814,7 +812,7 @@ impl RenderOnce for Input {
 
         // v3 order: the controlled flag, then server errors, then `validate`,
         // with `errorMessage` as the fallback.
-        let value_now = self.state.read(cx).value().to_string();
+        let value_now = self.state.read(cx).value().to_owned();
         let validity = crate::validation::resolve(
             self.is_invalid,
             &self.validation_errors,
@@ -830,6 +828,10 @@ impl RenderOnce for Input {
             colors.border
         };
         let multiline = self.multiline;
+        // `.textarea` is `py-2` over a `min-height: 38px`; `rows` raises
+        // that floor. Without this the field ignored `rows`, so every
+        // TextArea came out one line tall inside a taller wrapper.
+        let multiline_h = self.min_h.unwrap_or(px(38.));
         let mut field = gpui::div()
             .id(gpui::ElementId::Name(
                 format!("input-{}", self.state.entity_id().as_u64()).into(),
@@ -839,7 +841,11 @@ impl RenderOnce for Input {
             // with the content, and the width is fixed so lines can wrap.
             .map(|f| {
                 if multiline {
-                    f.items_start().min_h(h).py(px(10.)).w_full().overflow_hidden()
+                    f.items_start()
+                        .min_h(multiline_h)
+                        .py(px(8.))
+                        .w_full()
+                        .overflow_hidden()
                 } else {
                     f.items_center().h(h)
                 }
@@ -904,17 +910,19 @@ impl RenderOnce for Input {
         if self.multiline && !(is_empty && !focused && self.placeholder.is_some()) {
             // One wrapping paragraph per newline, with the caret and any
             // selection placed inside the line they fall in.
-            let caret_id = gpui::ElementId::Name(
-                format!("caret-{}", self.state.entity_id().as_u64()).into(),
-            );
-            row = row.child(multiline_body(MultilineBody {
-                value: &value,
-                cursor,
-                selection,
-                focused,
-                caret: (caret_id, text * 1.3, accent.color),
-                selection_bg: accent.with_alpha(0.24),
-            }, cx));
+            let caret_id =
+                gpui::ElementId::Name(format!("caret-{}", self.state.entity_id().as_u64()).into());
+            row = row.child(multiline_body(
+                MultilineBody {
+                    value: &value,
+                    cursor,
+                    selection,
+                    focused,
+                    caret: (caret_id, text * 1.3, accent.color),
+                    selection_bg: accent.with_alpha(0.24),
+                },
+                cx,
+            ));
         } else if is_empty && !focused && self.placeholder.is_some() {
             row = row.child(
                 gpui::div()
@@ -981,7 +989,9 @@ impl RenderOnce for Input {
             let clear_on_change = self.on_change.clone();
             field = field.child(
                 gpui::div()
-                    .id(gpui::ElementId::Name(format!("input-clear-{}", self.state.entity_id().as_u64()).into()))
+                    .id(gpui::ElementId::Name(
+                        format!("input-clear-{}", self.state.entity_id().as_u64()).into(),
+                    ))
                     .flex()
                     .items_center()
                     .justify_center()
@@ -1142,17 +1152,17 @@ impl RenderOnce for Input {
             if changed {
                 if let Some(cb) = &on_change {
                     {
-                    let v = state_entity.read(cx).value().to_string();
-                    cb(&v, window, cx);
-                }
+                        let v = state_entity.read(cx).value().to_owned();
+                        cb(&v, window, cx);
+                    }
                 }
             }
             if submit {
                 if let Some(cb) = &on_submit {
                     {
-                    let v = state_entity.read(cx).value().to_string();
-                    cb(&v, window, cx);
-                }
+                        let v = state_entity.read(cx).value().to_owned();
+                        cb(&v, window, cx);
+                    }
                 }
             }
         });
@@ -1175,7 +1185,9 @@ impl RenderOnce for Input {
                 .child(label.to_string());
             if self.is_required {
                 label_row = label_row.child(
-                    gpui::div().text_color(colors.danger.color).child("*".to_string()),
+                    gpui::div()
+                        .text_color(colors.danger.color)
+                        .child("*".to_owned()),
                 );
             }
             el = el.child(label_row);
@@ -1200,8 +1212,6 @@ impl RenderOnce for Input {
         el
     }
 }
-
-
 
 // ---------------------------------------------------------------------------
 // TextField / SearchField
@@ -1264,10 +1274,7 @@ impl TextField {
     }
 
     /// `validate` — see [`Input::validate`].
-    pub fn validate(
-        mut self,
-        f: impl Fn(&str) -> Option<SharedString> + 'static,
-    ) -> Self {
+    pub fn validate(mut self, f: impl Fn(&str) -> Option<SharedString> + 'static) -> Self {
         self.inner = self.inner.validate(f);
         self
     }
@@ -1316,18 +1323,12 @@ impl TextField {
         self
     }
 
-    pub fn on_change(
-        mut self,
-        handler: impl Fn(&str, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_change(mut self, handler: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.inner = self.inner.on_change(handler);
         self
     }
 
-    pub fn on_submit(
-        mut self,
-        handler: impl Fn(&str, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_submit(mut self, handler: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.inner = self.inner.on_submit(handler);
         self
     }
@@ -1418,7 +1419,6 @@ impl SearchField {
         self
     }
 
-
     pub fn full_width(mut self) -> Self {
         self.full_width = true;
         self
@@ -1429,18 +1429,12 @@ impl SearchField {
         self
     }
 
-    pub fn on_change(
-        mut self,
-        handler: impl Fn(&str, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_change(mut self, handler: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(handler));
         self
     }
 
-    pub fn on_submit(
-        mut self,
-        handler: impl Fn(&str, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_submit(mut self, handler: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.on_submit = Some(std::sync::Arc::new(handler));
         self
     }
@@ -1464,10 +1458,7 @@ impl SearchField {
     }
 
     /// `validate` — see [`Input::validate`].
-    pub fn validate(
-        mut self,
-        f: impl Fn(&str) -> Option<SharedString> + 'static,
-    ) -> Self {
+    pub fn validate(mut self, f: impl Fn(&str) -> Option<SharedString> + 'static) -> Self {
         self.validate = Some(std::sync::Arc::new(f));
         self
     }
@@ -1590,7 +1581,14 @@ mod tests {
     fn empty_is_valid_regardless_of_bounds() {
         // Emptiness is `is_required`'s business, not the bounds'.
         assert_eq!(
-            check("", InputType::Number, Some(5), Some(10.0), Some(20.0), Some(2.0)),
+            check(
+                "",
+                InputType::Number,
+                Some(5),
+                Some(10.0),
+                Some(20.0),
+                Some(2.0)
+            ),
             InputValidity::Valid
         );
     }
@@ -1615,10 +1613,22 @@ mod tests {
     #[test]
     fn numeric_bounds_are_inclusive() {
         let n = InputType::Number;
-        assert_eq!(check("9", n, None, Some(10.0), None, None), InputValidity::BelowMin);
-        assert_eq!(check("10", n, None, Some(10.0), None, None), InputValidity::Valid);
-        assert_eq!(check("20", n, None, None, Some(20.0), None), InputValidity::Valid);
-        assert_eq!(check("21", n, None, None, Some(20.0), None), InputValidity::AboveMax);
+        assert_eq!(
+            check("9", n, None, Some(10.0), None, None),
+            InputValidity::BelowMin
+        );
+        assert_eq!(
+            check("10", n, None, Some(10.0), None, None),
+            InputValidity::Valid
+        );
+        assert_eq!(
+            check("20", n, None, None, Some(20.0), None),
+            InputValidity::Valid
+        );
+        assert_eq!(
+            check("21", n, None, None, Some(20.0), None),
+            InputValidity::AboveMax
+        );
     }
 
     #[test]
@@ -1642,11 +1652,23 @@ mod tests {
     fn step_is_measured_from_min() {
         let n = InputType::Number;
         // Steps of 3 from 1: 1, 4, 7 ...
-        assert_eq!(check("4", n, None, Some(1.0), None, Some(3.0)), InputValidity::Valid);
-        assert_eq!(check("5", n, None, Some(1.0), None, Some(3.0)), InputValidity::OffStep);
+        assert_eq!(
+            check("4", n, None, Some(1.0), None, Some(3.0)),
+            InputValidity::Valid
+        );
+        assert_eq!(
+            check("5", n, None, Some(1.0), None, Some(3.0)),
+            InputValidity::OffStep
+        );
         // With no min, the base is 0.
-        assert_eq!(check("6", n, None, None, None, Some(3.0)), InputValidity::Valid);
-        assert_eq!(check("5", n, None, None, None, Some(3.0)), InputValidity::OffStep);
+        assert_eq!(
+            check("6", n, None, None, None, Some(3.0)),
+            InputValidity::Valid
+        );
+        assert_eq!(
+            check("5", n, None, None, None, Some(3.0)),
+            InputValidity::OffStep
+        );
     }
 
     #[test]
@@ -1669,7 +1691,15 @@ mod tests {
     fn pattern_is_checked_before_the_other_rules() {
         let deny = |_: &str| false;
         assert_eq!(
-            validate_value("ab", InputType::Text, Some(10), None, None, None, Some(&deny)),
+            validate_value(
+                "ab",
+                InputType::Text,
+                Some(10),
+                None,
+                None,
+                None,
+                Some(&deny)
+            ),
             InputValidity::PatternMismatch
         );
         let allow = |v: &str| v.starts_with('a');

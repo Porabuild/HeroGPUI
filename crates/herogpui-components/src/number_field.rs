@@ -2,9 +2,7 @@
 
 use std::sync::Arc;
 
-use gpui::{
-    prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, Styled, Window,
-};
+use gpui::{prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, Styled, Window};
 use herogpui_core::{FieldVariant, NumberFormat};
 use herogpui_theme::ActiveTheme;
 
@@ -43,7 +41,7 @@ impl NumberState {
     ///
     /// The uncontrolled entry point; `new` already takes the value, so this is
     /// its documented alias.
-    pub fn with_value(cx: &mut gpui::App, value: f64) -> Self {
+    pub fn with_value(cx: &mut App, value: f64) -> Self {
         Self::new(cx, value)
     }
 
@@ -174,7 +172,7 @@ pub struct NumberField {
     /// `validate` — run by the component, not the caller.
     validate: Option<crate::validation::Validator<f64>>,
     /// `validationErrors` — messages from a server round-trip.
-    validation_errors: Vec<gpui::SharedString>,
+    validation_errors: Vec<SharedString>,
     is_invalid: bool,
     is_required: bool,
     is_read_only: bool,
@@ -247,11 +245,8 @@ impl NumberField {
     /// `validate` — returns the message to show, or `None` when the number is fine.
     ///
     /// The component runs it and surfaces the result.
-    pub fn validate(
-        mut self,
-        f: impl Fn(&f64) -> Option<gpui::SharedString> + 'static,
-    ) -> Self {
-        self.validate = Some(std::sync::Arc::new(f));
+    pub fn validate(mut self, f: impl Fn(&f64) -> Option<SharedString> + 'static) -> Self {
+        self.validate = Some(Arc::new(f));
         self
     }
 
@@ -259,7 +254,7 @@ impl NumberField {
     /// whatever `validate` returns.
     pub fn validation_errors(
         mut self,
-        errors: impl IntoIterator<Item = impl Into<gpui::SharedString>>,
+        errors: impl IntoIterator<Item = impl Into<SharedString>>,
     ) -> Self {
         self.validation_errors = errors.into_iter().map(Into::into).collect();
         self
@@ -309,9 +304,6 @@ impl NumberField {
         self
     }
 
-
-
-
     /// Hides the -/+ steppers (`hideStepper`).
     pub fn hide_steppers(mut self, v: bool) -> Self {
         self.hide_steppers = v;
@@ -358,7 +350,12 @@ impl RenderOnce for NumberField {
             let min = self.min_value.unwrap_or(cur_min);
             let max = self.max_value.unwrap_or(cur_max);
             let step = self.step.unwrap_or(cur_step);
-            if min != cur_min || max != cur_max || step != cur_step {
+            // Exact comparison on purpose: these are the same values round-
+            // tripped through the state entity, so anything but bit equality
+            // means the caller passed a new prop and the state must be written.
+            #[allow(clippy::float_cmp)]
+            let changed = min != cur_min || max != cur_max || step != cur_step;
+            if changed {
                 self.state.update(cx, |s, _| {
                     s.set_range(min, max);
                     s.set_step(step);
@@ -387,7 +384,8 @@ impl RenderOnce for NumberField {
         // `formatOptions` lives in the state, which owns the text. `set_format`
         // is a no-op when it already matches, so this does not loop.
         if let Some(format) = self.format.clone() {
-            self.state.update(cx, |s, cx| s.set_format(Some(format), cx));
+            self.state
+                .update(cx, |s, cx| s.set_format(Some(format), cx));
         }
 
         // text field bound to the inner InputState
@@ -472,8 +470,7 @@ fn stepper_btn(
 ) -> gpui::AnyElement {
     let st = state.clone();
     let on_change = on_change.clone();
-    let id =
-        gpui::ElementId::Name(format!("num-{}-{dir}", state.entity_id().as_u64()).into());
+    let id = gpui::ElementId::Name(format!("num-{}-{dir}", state.entity_id().as_u64()).into());
     let mut b = gpui::div()
         .id(id)
         .flex()

@@ -11,6 +11,7 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.87"
 license = "MIT"
 repository = "https://github.com/heroui-inc/HeroGPUI"
 
@@ -20,6 +21,51 @@ herogpui-core = { path = "crates/herogpui-core" }
 herogpui-theme = { path = "crates/herogpui-theme" }
 herogpui-components = { path = "crates/herogpui-components" }
 herogpui = { path = "crates/herogpui" }
+
+# Lint policy lives here so every crate gets the same one via
+# `lints.workspace = true`; a crate that forgets that line is the only way to
+# drift. `.shots/lint.ps1` is the gate that enforces it.
+[workspace.lints.rust]
+unsafe_code = "deny"
+rust_2018_idioms = { level = "warn", priority = -1 }
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+# Every prop builder is named after its v3 prop and consumes `self`, so
+# `isDisabled` ports to `fn is_disabled(mut self, ..) -> Self`. `extra_audit.py`
+# checks those names against v3's tables; renaming them to satisfy the lint
+# would fail the parity audit instead.
+wrong_self_convention = "allow"
+
+# Would rewrite `.when_some(top, |b, t| b.top(t))` into
+# `.when_some(top, gpui::Styled::top)`, naming a trait path that appears
+# nowhere else in the codebase. The fluent closure is the house style.
+redundant_closure_for_method_calls = "allow"
+
+# Left in the tree by accident, never on purpose.
+dbg_macro = "deny"
+todo = "warn"
+
+# Colour math is f32 all the way down; `==` on a float is a real bug here.
+float_cmp = "warn"
+
+# Selected pedantic/nursery lints. The whole `pedantic` group is too noisy for
+# a builder-heavy UI library (every `pub fn size(mut self, ..)` trips
+# `must_use_candidate`), so the useful members are named individually.
+cloned_instead_of_copied = "warn"
+explicit_iter_loop = "warn"
+implicit_clone = "warn"
+inefficient_to_string = "warn"
+manual_let_else = "warn"
+map_unwrap_or = "warn"
+needless_continue = "warn"
+redundant_clone = "warn"
+semicolon_if_nothing_returned = "warn"
+str_to_string = "warn"
+uninlined_format_args = "warn"
+unnested_or_patterns = "warn"
 
 [profile.dev]
 opt-level = 1

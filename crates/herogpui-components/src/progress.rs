@@ -1,8 +1,7 @@
 //! ProgressBar / ProgressCircle — port of `@heroui/progress`.
 
 use gpui::{
-    prelude::*, px, App, AnimationExt, IntoElement, RenderOnce, SharedString, Styled,
-    Window,
+    prelude::*, px, AnimationExt, App, IntoElement, RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::{Color, Size};
 use herogpui_theme::ActiveTheme;
@@ -83,7 +82,6 @@ impl ProgressBar {
         self
     }
 
-
     /// Label rendered above the track (`label` + `showValueLabel`).
     pub fn label(mut self, l: impl Into<String>) -> Self {
         self.label = Some(l.into());
@@ -149,7 +147,7 @@ impl RenderOnce for ProgressBar {
             .w_full()
             .h(h)
             .overflow_hidden()
-            .rounded_full()
+            .rounded(crate::util::hairline_radius(cx))
             .bg(colors.default.soft_hover());
 
         // Indeterminate bars sweep a short segment; reduced motion falls back
@@ -162,7 +160,7 @@ impl RenderOnce for ProgressBar {
                         .relative()
                         .h_full()
                         .w(gpui::relative(0.35))
-                        .rounded_full()
+                        .rounded(crate::util::hairline_radius(cx))
                         .bg(fill)
                         .with_animation(
                             "progress-indeterminate",
@@ -176,7 +174,7 @@ impl RenderOnce for ProgressBar {
                 .child(
                     gpui::div()
                         .h_full()
-                        .rounded_full()
+                        .rounded(crate::util::hairline_radius(cx))
                         .bg(sem.color)
                         .w(gpui::relative(0.66)),
                 )
@@ -184,7 +182,7 @@ impl RenderOnce for ProgressBar {
         } else {
             let indicator = gpui::div()
                 .h_full()
-                .rounded_full()
+                .rounded(crate::util::hairline_radius(cx))
                 .bg(sem.color)
                 .w(gpui::relative(fraction));
             track.child(indicator).into_any_element()
@@ -269,7 +267,6 @@ impl ProgressCircle {
         };
         self
     }
-
 
     pub fn show_value_label(mut self, v: bool) -> Self {
         self.show_value = v;
@@ -376,5 +373,3 @@ impl RenderOnce for ProgressCircle {
             })
     }
 }
-
-

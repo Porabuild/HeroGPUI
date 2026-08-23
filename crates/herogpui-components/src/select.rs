@@ -16,7 +16,7 @@ type OnSelectionChange = std::sync::Arc<dyn Fn(Option<usize>, &mut Window, &mut 
 pub struct Select {
     /// `name` — the name this control submits under; read back by
     /// [`Self::form_field`].
-    name: Option<gpui::SharedString>,
+    name: Option<SharedString>,
     id: gpui::ElementId,
     options: Vec<SharedString>,
     selected: Option<usize>,
@@ -48,7 +48,6 @@ pub struct Select {
 }
 
 impl Select {
-
     /// `onChange` — the v3 name for [`Select::on_selection_change`].
     pub fn on_change(
         self,
@@ -107,7 +106,7 @@ impl Select {
     }
 
     /// `name` — the name this control submits under.
-    pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = Some(name.into());
         self
     }
@@ -124,13 +123,16 @@ impl Select {
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
-        Some(crate::form::FormField::text_value(
+        Some(
+            crate::form::FormField::text_value(
                 name,
                 self.selected
                     .or(self.default_value)
                     .and_then(|i| self.options.get(i).cloned())
                     .unwrap_or_default(),
-            ).is_required(self.is_required))
+            )
+            .is_required(self.is_required),
+        )
     }
 
     /// `selectionMode`
@@ -205,8 +207,6 @@ impl Select {
         self
     }
 
-
-
     pub fn variant(mut self, v: FieldVariant) -> Self {
         self.variant = v;
         self
@@ -217,10 +217,7 @@ impl Select {
         self
     }
 
-    pub fn on_open_change(
-        mut self,
-        f: impl Fn(bool, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_open_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -313,7 +310,7 @@ impl RenderOnce for Select {
             let names: Vec<String> = self
                 .selected_indices
                 .iter()
-                .filter_map(|i| self.options.get(*i).map(|o| o.to_string()))
+                .filter_map(|i| self.options.get(*i).map(ToString::to_string))
                 .collect();
             if names.is_empty() {
                 self.placeholder.clone()
@@ -347,7 +344,11 @@ impl RenderOnce for Select {
             .child(
                 gpui::svg()
                     .size(px(16.))
-                    .path(if is_open { icons::CHEVRON_UP } else { icons::CHEVRON_DOWN })
+                    .path(if is_open {
+                        icons::CHEVRON_UP
+                    } else {
+                        icons::CHEVRON_DOWN
+                    })
                     .text_color(colors.muted)
                     .flex_shrink_0(),
             );
@@ -434,7 +435,9 @@ impl RenderOnce for Select {
                 }
 
                 if is_sel {
-                    item = item.text_color(sem.color).font_weight(gpui::FontWeight::MEDIUM);
+                    item = item
+                        .text_color(sem.color)
+                        .font_weight(gpui::FontWeight::MEDIUM);
                 } else {
                     item = item.text_color(colors.foreground);
                 }
@@ -443,7 +446,10 @@ impl RenderOnce for Select {
 
                 if is_sel {
                     item = item.child(
-                        gpui::svg().size(px(13.)).path(icons::CHECK).text_color(sem.color),
+                        gpui::svg()
+                            .size(px(13.))
+                            .path(icons::CHECK)
+                            .text_color(sem.color),
                     );
                 }
 
@@ -497,10 +503,7 @@ impl RenderOnce for Select {
                     crate::anim::entering_zoom(
                         panel,
                         el_name(format!("{base}-panel")),
-                        crate::anim::ZoomBox::panel(
-                            px(6.),
-                            crate::util::container_radius(cx),
-                        ),
+                        crate::anim::ZoomBox::panel(px(6.), crate::util::container_radius(cx)),
                         crate::anim::Motion::LIST_IN,
                         cx,
                     ),
@@ -517,8 +520,5 @@ fn el_name(s: String) -> gpui::ElementId {
 }
 
 fn id_debug(id: &gpui::ElementId) -> String {
-    format!("{id:?}").trim_matches('"').to_string()
+    format!("{id:?}").trim_matches('"').to_owned()
 }
-
-
-

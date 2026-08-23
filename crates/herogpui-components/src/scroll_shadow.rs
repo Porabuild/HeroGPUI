@@ -101,8 +101,6 @@ impl ScrollShadow {
         self
     }
 
-
-
     /// Gradient depth in pixels.
     pub fn size(mut self, size: impl Into<Pixels>) -> Self {
         self.size = size.into();
@@ -113,7 +111,6 @@ impl ScrollShadow {
         self.offset = offset.into();
         self
     }
-
 
     /// Turns shadow rendering off while keeping the scroll behaviour.
     pub fn is_enabled(mut self, v: bool) -> Self {
@@ -154,11 +151,7 @@ impl RenderOnce for ScrollShadow {
         let bg = cx.colors().background;
         let horizontal = self.orientation.is_horizontal();
 
-        let mut scroller = div()
-            .id(self.id)
-            .overflow_hidden()
-            .flex()
-            .gap(self.gap);
+        let mut scroller = div().id(self.id).overflow_hidden().flex().gap(self.gap);
 
         scroller = if horizontal {
             scroller.flex_row().overflow_x_scroll()
@@ -185,19 +178,13 @@ impl RenderOnce for ScrollShadow {
         // `transparent_black` would drag the midpoint through grey.
         let clear = bg.alpha(0.0);
         let fade = |from_start: bool| {
-            let stops = if from_start {
-                (bg, clear)
-            } else {
-                (clear, bg)
-            };
+            let stops = if from_start { (bg, clear) } else { (clear, bg) };
             let angle = if horizontal { 90.0 } else { 180.0 };
-            let mut el = div()
-                .absolute()
-                .bg(gpui::linear_gradient(
-                    angle,
-                    gpui::linear_color_stop(stops.0, 0.0),
-                    gpui::linear_color_stop(stops.1, 1.0),
-                ));
+            let mut el = div().absolute().bg(gpui::linear_gradient(
+                angle,
+                gpui::linear_color_stop(stops.0, 0.0),
+                gpui::linear_color_stop(stops.1, 1.0),
+            ));
             el = if horizontal {
                 el.top_0().bottom_0().w(self.size)
             } else {

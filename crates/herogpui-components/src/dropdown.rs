@@ -1,7 +1,10 @@
 //! Dropdown & Menu — port of `@heroui/dropdown`, `@heroui/menu` and
 //! `@heroui/listbox`.
 
-use gpui::{px, AnyElement, App, ClickEvent, IntoElement, InteractiveElement, ParentElement, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window};
+use gpui::{
+    px, AnyElement, App, ClickEvent, InteractiveElement, IntoElement, ParentElement, RenderOnce,
+    SharedString, StatefulInteractiveElement, Styled, Window,
+};
 use herogpui_core::SelectionMode;
 use herogpui_theme::ActiveTheme;
 
@@ -80,8 +83,7 @@ impl IndicatorKind {
 pub type OnSelectionChange =
     std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
 
-type ItemContent =
-    std::sync::Arc<dyn Fn(&SharedString, bool, bool) -> gpui::AnyElement + 'static>;
+type ItemContent = std::sync::Arc<dyn Fn(&SharedString, bool, bool) -> AnyElement + 'static>;
 
 #[derive(IntoElement)]
 pub struct Menu {
@@ -133,7 +135,7 @@ impl Menu {
     /// `isIndeterminate`, the values v3 passes into the same render prop.
     pub fn item_content(
         mut self,
-        render: impl Fn(&SharedString, bool, bool) -> gpui::AnyElement + 'static,
+        render: impl Fn(&SharedString, bool, bool) -> AnyElement + 'static,
     ) -> Self {
         self.item_content = Some(std::sync::Arc::new(render));
         self
@@ -179,14 +181,10 @@ impl Menu {
     }
 
     /// `onAction` — an item was activated, independent of any selection.
-    pub fn on_action(
-        mut self,
-        f: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_action(mut self, f: impl Fn(&SharedString, &mut Window, &mut App) + 'static) -> Self {
         self.on_action = Some(std::sync::Arc::new(f));
         self
     }
-
 
     pub fn selected_key(mut self, key: impl Into<SharedString>) -> Self {
         self.selected_key = Some(key.into());
@@ -214,7 +212,13 @@ impl RenderOnce for Menu {
         for (i, item) in self.items.into_iter().enumerate() {
             match item {
                 MenuItem::Separator => {
-                    panel = panel.child(gpui::div().w_full().my(px(4.)).h(cx.layout().border_width).bg(colors.separator));
+                    panel = panel.child(
+                        gpui::div()
+                            .w_full()
+                            .my(px(4.))
+                            .h(cx.layout().border_width)
+                            .bg(colors.separator),
+                    );
                 }
                 MenuItem::SectionLabel(label) => {
                     panel = panel.child(
@@ -264,15 +268,17 @@ impl RenderOnce for Menu {
 
                     if let Some(icon_path) = icon {
                         row = row.child(
-                            gpui::svg().size(px(15.)).path(icon_path).text_color(text_color),
+                            gpui::svg()
+                                .size(px(15.))
+                                .path(icon_path)
+                                .text_color(text_color),
                         );
                     }
                     // `children` on `Dropdown.Item` is a render function in
                     // v3, handed `isSelected` and `isIndeterminate`. A
                     // multi-selection item is indeterminate when some but not
                     // all of the menu's keys are chosen.
-                    let is_indeterminate = self.selection_mode
-                        == SelectionMode::Multiple
+                    let is_indeterminate = self.selection_mode == SelectionMode::Multiple
                         && !self.selected_keys.is_empty()
                         && !is_selected;
                     row = row.child(gpui::div().flex_1().child(match &self.item_content {
@@ -292,25 +298,19 @@ impl RenderOnce for Menu {
                             IndicatorKind::Checkmark => row.child(
                                 gpui::svg()
                                     .size(px(13.))
-                                    .path(crate::icons::CHECK)
+                                    .path(icons::CHECK)
                                     // svg() never inherits text colour.
                                     .text_color(sem_primary(cx)),
                             ),
-                            IndicatorKind::Dot => row.child(
-                                gpui::div()
-                                    .size(px(6.))
-                                    .rounded_full()
-                                    .bg(sem_primary(cx)),
-                            ),
+                            IndicatorKind::Dot => row
+                                .child(gpui::div().size(px(6.)).rounded_full().bg(sem_primary(cx))),
                         };
                     }
 
                     if !is_item_disabled {
                         let on_action = self.on_action.clone();
                         let on_selection_change = self.on_selection_change.clone();
-                        if on_action.is_some()
-                            || on_selection_change.is_some()
-                        {
+                        if on_action.is_some() || on_selection_change.is_some() {
                             let key2 = key.clone();
                             let mode = self.selection_mode;
                             let current = self.selected_keys.clone();
@@ -335,11 +335,21 @@ impl RenderOnce for Menu {
 
         let zoom = crate::anim::ZoomBox::panel(px(6.), crate::util::container_radius(cx));
         crate::util::floating(if self.exiting {
-            crate::anim::exiting(panel, "dropdown-panel-out", zoom, crate::anim::Motion::LIST_OUT,
-                cx)
+            crate::anim::exiting(
+                panel,
+                "dropdown-panel-out",
+                zoom,
+                crate::anim::Motion::LIST_OUT,
+                cx,
+            )
         } else {
-            crate::anim::entering_zoom(panel, "dropdown-panel", zoom, crate::anim::Motion::POPOVER_IN,
-                cx)
+            crate::anim::entering_zoom(
+                panel,
+                "dropdown-panel",
+                zoom,
+                crate::anim::Motion::POPOVER_IN,
+                cx,
+            )
         })
     }
 }
@@ -348,7 +358,11 @@ fn sem_primary(cx: &App) -> gpui::Hsla {
     cx.colors().accent.color
 }
 
-fn when_selected(el: gpui::Stateful<gpui::Div>, selected: bool, color: gpui::Hsla) -> gpui::Stateful<gpui::Div> {
+fn when_selected(
+    el: gpui::Stateful<gpui::Div>,
+    selected: bool,
+    color: gpui::Hsla,
+) -> gpui::Stateful<gpui::Div> {
     if selected {
         el.bg(color.alpha(0.14)).text_color(color)
     } else {
@@ -471,10 +485,7 @@ impl Dropdown {
     }
 
     /// `onAction` on `Dropdown.Menu`.
-    pub fn on_action(
-        mut self,
-        f: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_action(mut self, f: impl Fn(&SharedString, &mut Window, &mut App) + 'static) -> Self {
         self.on_action = Some(std::sync::Arc::new(f));
         self
     }
@@ -483,8 +494,6 @@ impl Dropdown {
         self.placement = p;
         self
     }
-
-
 }
 
 impl RenderOnce for Dropdown {
@@ -493,13 +502,8 @@ impl RenderOnce for Dropdown {
 
         // `isOpen` wins; without it the menu holds the flag itself, which is
         // what `defaultOpen` promises. See `Dropdown::uncontrolled`.
-        let (is_open, open_own) = crate::util::controlled(
-            window,
-            cx,
-            "dropdown-open",
-            self.is_open,
-            self.default_open,
-        );
+        let (is_open, open_own) =
+            crate::util::controlled(window, cx, "dropdown-open", self.is_open, self.default_open);
         // `overlay_phase` takes `cx` mutably too, so it goes here.
         let phase = crate::util::overlay_phase(window, cx, "dropdown-phase", is_open);
 
@@ -507,7 +511,7 @@ impl RenderOnce for Dropdown {
         let on_open_change = self.on_open_change.clone();
         if on_open_change.is_some() || open_own.is_some() {
             let next_open = !is_open;
-            let own = open_own.clone();
+            let own = open_own;
             trigger_wrap = trigger_wrap.on_click(move |_ev: &ClickEvent, w, cx| {
                 // Uncontrolled: flip our own copy, or the trigger would be
                 // inert without a caller handler.
@@ -554,5 +558,3 @@ impl RenderOnce for Dropdown {
         root
     }
 }
-
-

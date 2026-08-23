@@ -39,7 +39,6 @@ impl Skeleton {
         self
     }
 
-
     pub fn w(mut self, v: impl Into<Pixels>) -> Self {
         self.w = Some(v.into());
         self
@@ -116,7 +115,7 @@ impl RenderOnce for Skeleton {
                         90.0,
                         gpui::linear_color_stop(highlight.alpha(0.0), 0.0),
                         gpui::linear_color_stop(highlight.alpha(0.7), 0.5),
-                        ))
+                    ))
                     .with_animation(
                         self.id,
                         Animation::new(Duration::from_millis(1400)).repeat(),

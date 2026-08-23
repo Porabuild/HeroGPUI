@@ -13,7 +13,7 @@ use crate::app::Gallery;
 
 /// Dispatches the active page to its renderer.
 impl Gallery {
-    pub fn render_current_page(&mut self, cx: &mut gpui::Context<Self>) -> gpui::AnyElement {
+    pub fn render_current_page(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
         match self.page {
             // Getting started
             Page::Introduction => self.page_introduction(cx),
@@ -400,9 +400,7 @@ impl Page {
                 "use herogpui::components::color_picker::{ColorChannel, ColorSlider};"
             }
             Page::ColorSwatch => "use herogpui::components::color_picker::ColorSwatch;",
-            Page::ColorSwatchPicker => {
-                "use herogpui::components::color_picker::ColorSwatchPicker;"
-            }
+            Page::ColorSwatchPicker => "use herogpui::components::color_picker::ColorSwatchPicker;",
             Page::Slider => "use herogpui::components::slider::Slider;",
             Page::Switch => "use herogpui::components::switch::Switch;",
             Page::Badge => "use herogpui::components::badge::Badge;",
@@ -414,9 +412,7 @@ impl Page {
             Page::DateRangePicker => {
                 "use herogpui::components::date_picker::{DateRangePicker, DateRangeState};"
             }
-            Page::RangeCalendar => {
-                "use herogpui::components::range_calendar::RangeCalendar;"
-            }
+            Page::RangeCalendar => "use herogpui::components::range_calendar::RangeCalendar;",
             Page::TimeField => "use herogpui::components::time_field::{TimeField, TimeState};",
             Page::Alert => "use herogpui::components::alert::Alert;",
             Page::Meter => "use herogpui::components::meter::Meter;",
@@ -448,9 +444,7 @@ impl Page {
             Page::Surface => "use herogpui::components::surface::Surface;",
             Page::Toolbar => "use herogpui::components::toolbar::Toolbar;",
             Page::Avatar => "use herogpui::components::avatar::{Avatar, AvatarGroup};",
-            Page::Accordion => {
-                "use herogpui::components::accordion::{Accordion, AccordionItem};"
-            }
+            Page::Accordion => "use herogpui::components::accordion::{Accordion, AccordionItem};",
             Page::Breadcrumbs => "use herogpui::components::breadcrumbs::{Breadcrumbs, Crumb};",
             Page::Disclosure => {
                 "use herogpui::components::disclosure::{Disclosure, DisclosureGroup};"
@@ -638,14 +632,14 @@ pub fn doc_page(
                 .text_size(px(30.))
                 .line_height(px(38.))
                 .font_weight(gpui::FontWeight::BOLD)
-                .child(title.to_string()),
+                .child(title.to_owned()),
         )
         .child(
             gpui::div()
                 .text_size(px(15.5))
                 .line_height(px(26.))
                 .text_color(colors.muted)
-                .child(description.to_string()),
+                .child(description.to_owned()),
         );
 
     if !import_line.is_empty() {
@@ -667,7 +661,7 @@ pub fn section_heading(text: &str) -> gpui::Div {
         gpui::div()
             .text_size(px(20.))
             .font_weight(gpui::FontWeight::SEMIBOLD)
-            .child(text.to_string()),
+            .child(text.to_owned()),
     )
 }
 
@@ -701,7 +695,7 @@ pub fn code_block(code: &str, cx: &App) -> gpui::AnyElement {
         .text_size(px(13.))
         .line_height(px(22.))
         .text_color(gpui::rgb(0xE4E4E7))
-        .child(code.to_string())
+        .child(code.to_owned())
         .into_any_element()
 }
 
@@ -713,6 +707,6 @@ pub fn para(text: &str, cx: &App) -> gpui::AnyElement {
         .line_height(px(24.))
         .text_color(colors.foreground)
         .max_w(px(720.))
-        .child(text.to_string())
+        .child(text.to_owned())
         .into_any_element()
 }

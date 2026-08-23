@@ -97,12 +97,7 @@ fn clamp_day(year: i32, month: u32, day: u32) -> Date {
 }
 
 /// The anchor after paging by `dir` (-1 back, +1 forward).
-pub fn page(
-    duration: VisibleDuration,
-    behavior: PageBehavior,
-    anchor: Date,
-    dir: i32,
-) -> Date {
+pub fn page(duration: VisibleDuration, behavior: PageBehavior, anchor: Date, dir: i32) -> Date {
     let step = match behavior {
         PageBehavior::Visible => duration.count(),
         PageBehavior::Single => 1,
@@ -168,11 +163,7 @@ pub fn month_headings(duration: VisibleDuration, anchor: Date) -> Vec<(i32, u32)
 
 /// The consecutive dates a week or day view shows; empty for a month view,
 /// which builds its cells from lead offsets instead.
-pub fn linear_cells(
-    duration: VisibleDuration,
-    first_day: Weekday,
-    anchor: Date,
-) -> Vec<Date> {
+pub fn linear_cells(duration: VisibleDuration, first_day: Weekday, anchor: Date) -> Vec<Date> {
     let n = duration.count();
     match duration {
         VisibleDuration::Months(_) => Vec::new(),
@@ -188,7 +179,12 @@ pub fn linear_cells(
 pub fn range_heading(cells: &[Date]) -> String {
     match (cells.first(), cells.last()) {
         (Some(a), Some(b)) if a == b => {
-            format!("{} {}, {}", crate::calendar::month_abbr(a.month), a.day, a.year)
+            format!(
+                "{} {}, {}",
+                crate::calendar::month_abbr(a.month),
+                a.day,
+                a.year
+            )
         }
         (Some(a), Some(b)) if a.year == b.year => format!(
             "{} {} \u{2013} {} {}, {}",
@@ -282,10 +278,19 @@ mod tests {
             page(w, PageBehavior::Visible, d(2026, 8, 3), 1),
             d(2026, 8, 17)
         );
-        assert_eq!(page(w, PageBehavior::Single, d(2026, 8, 3), 1), d(2026, 8, 10));
+        assert_eq!(
+            page(w, PageBehavior::Single, d(2026, 8, 3), 1),
+            d(2026, 8, 10)
+        );
         let day = VisibleDuration::Days(3);
-        assert_eq!(page(day, PageBehavior::Visible, d(2026, 8, 3), 1), d(2026, 8, 6));
-        assert_eq!(page(day, PageBehavior::Single, d(2026, 8, 3), -1), d(2026, 8, 2));
+        assert_eq!(
+            page(day, PageBehavior::Visible, d(2026, 8, 3), 1),
+            d(2026, 8, 6)
+        );
+        assert_eq!(
+            page(day, PageBehavior::Single, d(2026, 8, 3), -1),
+            d(2026, 8, 2)
+        );
     }
 
     #[test]
@@ -302,7 +307,12 @@ mod tests {
         // React Aria's alignCenter halves the duration then backs off again on
         // an even count, so a 2-up range leads by nothing and Center == Start.
         assert_eq!(
-            aligned_anchor(two, SelectionAlignment::Center, Weekday::Mon, d(2026, 8, 10)),
+            aligned_anchor(
+                two,
+                SelectionAlignment::Center,
+                Weekday::Mon,
+                d(2026, 8, 10)
+            ),
             d(2026, 8, 10)
         );
         assert_eq!(

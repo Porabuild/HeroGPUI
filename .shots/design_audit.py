@@ -78,6 +78,11 @@ def helper_px(name):
     return None
 
 
+def SIZE_XL(name):
+    """`SizeXl` variant -> pixels, matching `SizeXl::px`."""
+    return {'Xs': 16.0, 'Sm': 20.0, 'Md': 24.0, 'Lg': 32.0, 'Xl': 40.0}.get(name)
+
+
 # (css file, rule selector, metric, our label, our file, regex, transform)
 #
 # The regex must capture our value in group 1, or the transform turns the match
@@ -149,6 +154,94 @@ CHECKS = [
      r'\.text_size\(px\((\d+(?:\.\d*)?)\)\)', None),
     ('chip', '.chip', 'radius', 'Chip -> util::_radius', SRC + 'chip.rs',
      r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    # --- The sweep: the rest of the measurable geometry -------------------
+    ('chip', '.chip', 'gap', 'Chip gap', SRC + 'chip.rs',
+     '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
+    # chip's tuple is (height, text, pad_x), so the padding is the third slot.
+    ('chip', '.chip', 'px', 'Chip padding_x Md', SRC + 'chip.rs',
+     'Size::Md => \\(px\\(\\d+(?:\\.\\d*)?\\), px\\(\\d+(?:\\.\\d*)?\\), '
+     'px\\((\\d+(?:\\.\\d*)?)\\)', None),
+    ('popover', '.popover__dialog', 'p', 'Popover padding', SRC + 'popover.rs',
+     '\\.px\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)\\s+\\.py\\(px\\(16\\.\\)\\)', None),
+    ('pagination', '.pagination', 'gap', 'Pagination gap', SRC + 'pagination.rs',
+     'items_center\\(\\)\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
+    ('alert', '.alert', 'gap', 'Alert gap', SRC + 'alert.rs',
+     '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
+    ('alert', '.alert', 'px', 'Alert padding_x', SRC + 'alert.rs',
+     '\\.px\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
+    ('alert', '.alert', 'py', 'Alert padding_y', SRC + 'alert.rs',
+     '\\.py\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
+    ('link', '.link', 'radius', 'Link -> util::_radius', SRC + 'link.rs',
+     '\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
+    ('badge', '.badge', 'min_w', 'Badge min width Md', SRC + 'badge.rs',
+     'Size::Md => \\(px\\((\\d+(?:\\.\\d*)?)\\)', None),
+    ('kbd', '.kbd', 'px', 'Kbd padding_x', SRC + 'kbd.rs',
+     '\\n            \\.px\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
+    ('fieldset', '.fieldset', 'gap', 'Fieldset gap', SRC + 'field.rs',
+     '\\n            gap: px\\((\\d+(?:\\.\\d*)?)\\),', None),
+    ('checkbox', '.checkbox__control', 'size', 'Checkbox control', SRC + 'checkbox.rs',
+     'let \\(box_px, icon_px, text\\) = \\(px\\((\\d+(?:\\.\\d*)?)\\)', None),
+    ('checkbox', '.checkbox__control', 'radius', 'Checkbox -> util::_radius', SRC + 'checkbox.rs',
+     '\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
+    ('radio', '.radio__control', 'size', 'Radio control', SRC + 'radio_group.rs',
+     'let \\(circle, dot, text, gap\\) = \\(px\\((\\d+(?:\\.\\d*)?)\\)', None),
+    # Anchored on the control, since the `secondary` variant's panel also has a
+    # radius and comes first in the file.
+    ('radio', '.radio__control', 'radius', 'Radio -> util::_radius', SRC + 'radio_group.rs',
+     '\\.size\\(circle\\)\\s+\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
+    ('radio', '.radio__content', 'gap', 'Radio row gap', SRC + 'radio_group.rs',
+     'let \\(circle, dot, text, gap\\) = \\(px\\(\\d+(?:\\.\\d*)?\\), px\\(\\d+(?:\\.\\d*)?\\), px\\(\\d+(?:\\.\\d*)?\\), px\\((\\d+(?:\\.\\d*)?)\\)', None),
+    ('list-box-item', '.list-box-item', 'gap', 'ListBox row gap', SRC + 'list_box.rs',
+     '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)\\s+\\.px\\(px\\(8\\.\\)\\)', None),
+    ('list-box-item', '.list-box-item', 'py', 'ListBox row padding_y', SRC + 'list_box.rs',
+     '\\.min_h\\(row_h\\)\\s+\\.py\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
+    # Anchored on the row, since the panel around it has a radius too.
+    ('list-box-item', '.list-box-item', 'radius', 'ListBox row -> util::_radius', SRC + 'list_box.rs',
+     '\\.py\\(px\\(6\\.\\)\\)\\s+\\.rounded\\(util::(\\w+_radius)\\(cx\\)\\)', helper_px),
+    ('color-swatch', '.color-swatch', 'size', 'ColorSwatch default', SRC + 'color_picker.rs',
+     'size: SizeXl::(\\w+),', SIZE_XL),
+    ('card', '.card', 'gap', 'Card gap', SRC + 'card.rs',
+     '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
+    ('toolbar', '.toolbar', 'gap', 'Toolbar default gap', SRC + 'toolbar.rs',
+     'is_attached \\{ px\\(\\d+(?:\\.\\d*)?\\) \\} else \\{ px\\((\\d+(?:\\.\\d*)?)\\) \\}', None),
+    ('toast', '.toast', 'gap', 'Toast gap', SRC + 'toast.rs',
+     '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
+    ('tabs', '.tabs', 'gap', 'Tabs gap', SRC + 'tabs.rs',
+     '\\n                    \\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
+    ('progress-bar', '.progress-bar__track', 'radius', 'ProgressBar track', SRC + 'progress.rs',
+     '\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
+    ('checkbox', '.checkbox__content', 'gap', 'Checkbox row gap', SRC + 'checkbox.rs',
+     '`\.checkbox__content` is `gap-3`\.\s+\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('checkbox-group', '[data-slot="checkbox"]', 'mt', 'CheckboxGroup option gap',
+     SRC + 'checkbox.rs',
+     'let mut list = gpui::div\(\)\.flex\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('radio-group', '&[data-orientation="horizontal"]', 'gap', 'RadioGroup horizontal gap',
+     SRC + 'radio_group.rs',
+     'Orientation::Horizontal => gpui::div\(\)\.flex\(\)\.items_center\(\)\.flex_wrap\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('switch', '.switch__control', 'w', 'Switch md track width', SRC + 'switch.rs',
+     'Size::Md => \(px\((\d+(?:\.\d*)?)\.\), px\(20\.\)', None),
+    ('switch', '.switch__control', 'h', 'Switch md track height', SRC + 'switch.rs',
+     'Size::Md => \(px\(40\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('switch', '.switch--sm .switch__control', 'w', 'Switch sm track width',
+     SRC + 'switch.rs',
+     'Size::Sm => \(px\((\d+(?:\.\d*)?)\.\), px\(16\.\)', None),
+    ('switch', '.switch--lg .switch__control', 'h', 'Switch lg track height',
+     SRC + 'switch.rs',
+     'Size::Lg => \(px\(48\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('switch', '.switch__thumb', 'w', 'Switch md thumb width', SRC + 'switch.rs',
+     'Size::Md => \(px\(40\.\), px\(20\.\), px\((\d+(?:\.\d*)?)\.?\)', None),
+    ('switch', '.switch__thumb', 'h', 'Switch md thumb height', SRC + 'switch.rs',
+     'Size::Md => \(px\(40\.\), px\(20\.\), px\(22\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('switch', '.switch__content', 'gap', 'Switch row gap', SRC + 'switch.rs',
+     '`\.switch__content` is `gap-3`\.\s+let mut el = gpui::div\(\)\.flex\(\)\.items_center\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('input-otp', '.input-otp__slot', 'w', 'InputOTP slot width', SRC + 'input_otp.rs',
+     'let \(cell_w, cell_h, text, slot_gap\) = \(px\((\d+(?:\.\d*)?)\.?\)', None),
+    ('input-otp', '.input-otp__slot', 'h', 'InputOTP slot height', SRC + 'input_otp.rs',
+     'let \(cell_w, cell_h, text, slot_gap\) = \(px\(38\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('input-otp', '.input-otp__slot', 'text', 'InputOTP slot text', SRC + 'input_otp.rs',
+     'px\(38\.\), px\(40\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('input-otp', '.input-otp', 'gap', 'InputOTP slot gap', SRC + 'input_otp.rs',
+     'px\(38\.\), px\(40\.\), px\(14\.\), px\((\d+(?:\.\d*)?)\.\)', None),
 ]
 
 
@@ -163,10 +256,21 @@ def fetch():
 
 
 def rule_body(css, selector):
-    """The body of exactly one rule, e.g. `.button` or `.button--lg`."""
+    """The body of exactly one rule, e.g. `.button` or `.button--lg`.
+
+    v3 uses CSS nesting, so a rule's braces also hold its parts:
+    `.radio { @apply gap-1; &__description { @apply text-xs; } }`. Everything
+    from the first nested `{` onward belongs to a part, not to this rule --
+    reading past it made a radio's *label* measure 12px, which is its
+    description's size.
+    """
     pattern = '^' + re.escape(selector) + r'\s*\{(.*?)\n\}'
     m = re.search(pattern, css, re.S | re.M)
-    return m.group(1) if m else None
+    if not m:
+        return None
+    body = m.group(1)
+    nested = body.find('{')
+    return body[:nested] if nested >= 0 else body
 
 
 def utilities(body):
@@ -200,11 +304,20 @@ def measure(body):
         m = re.fullmatch(r'\[(\d+(?:\.\d*)?)px\]', tok)
         return float(m.group(1)) if m else None
 
+    # The switch declares `height: 1.25rem` rather than `h-5`, so a rem
+    # declaration counts as the same metric. rem is root-relative (16px), not
+    # font-relative -- v3's own comments guess otherwise.
+    for prop, metric in (('height', 'h'), ('width', 'w')):
+        m = re.search(prop + r':\s*([\d.]+)rem', body)
+        if m:
+            offer(metric, float(m.group(1)) * 16.0, '')
+
     for tok, bps in utilities(body).items():
         for bp in bps:
             for prefix, metric in (('h-', 'h'), ('w-', 'w'), ('px-', 'px'),
                                    ('py-', 'py'), ('gap-', 'gap'), ('p-', 'p'),
-                                   ('size-', 'size'), ('min-w-', 'min_w')):
+                                   ('size-', 'size'), ('min-w-', 'min_w'),
+                                   ('mt-', 'mt')):
                 if tok.startswith(prefix):
                     v = px(tok[len(prefix):])
                     if v is not None:
@@ -232,6 +345,74 @@ def our_value(path, pattern, transform):
     return float(group) if group is not None else None
 
 
+# Every check above is a number, and a control can match all of them and still
+# be invisible: the radio measured 16px at radius 8 while painting a background
+# v3 never uses, so an unselected option disappeared into the panel behind it.
+#
+# These compare the *fill token* instead. Each entry names the v3 rule and the
+# token it fills with, plus the theme token our source must read for it -- both
+# sides are checked, so a rule that stops declaring the token reports stale
+# rather than passing.
+FILLS = [
+    # (css file, css rule, token in that rule, our file, our token expression)
+    ('radio', '.radio__control', 'bg-field',
+     SRC + 'radio_group.rs', 'colors.field.background'),
+    ('radio-group', '.radio-group--secondary .radio__control', 'var(--default)',
+     SRC + 'radio_group.rs', 'colors.default.color'),
+    ('checkbox', '.checkbox__control', 'bg-field',
+     SRC + 'checkbox.rs', 'colors.field.background'),
+    ('checkbox', '.checkbox--secondary .checkbox__control', 'var(--default)',
+     SRC + 'checkbox.rs', 'colors.default.color'),
+    ('input', '.input--secondary', 'var(--default)',
+     SRC + 'util.rs', 'FieldVariant::Secondary => colors.default.color'),
+    ('input', '.input', 'bg-field',
+     SRC + 'util.rs', 'FieldVariant::Primary => colors.field.background'),
+    ('textarea', '.textarea', 'bg-field',
+     SRC + 'util.rs', 'FieldVariant::Primary => colors.field.background'),
+    # The track's fill is a custom property declared on the root, not a
+    # `bg-*` utility on the control.
+    ('switch', '.switch', 'var(--default)',
+     SRC + 'switch.rs', 'colors.default.color'),
+    ('switch', '.switch__thumb', 'bg-white',
+     SRC + 'switch.rs', 'herogpui_theme::white()'),
+    ('input-otp', '.input-otp__slot', 'bg-field',
+     SRC + 'input_otp.rs', 'colors.field.background'),
+]
+
+
+def check_fills():
+    """Each control's fill token, in v3's CSS and in ours."""
+    rows, bad, stale = [], 0, 0
+    for comp, selector, token, path, expr in FILLS:
+        css_path = os.path.join(CACHE, comp + '.css')
+        body = None
+        if os.path.exists(css_path):
+            css = io.open(css_path, encoding='utf-8', errors='replace').read()
+            body = rule_body(css, selector)
+        if body is None or token not in body:
+            rows.append(('?', selector, token, 'not declared in v3 CSS'))
+            stale += 1
+            continue
+        try:
+            src = io.open(path, encoding='utf-8').read()
+        except OSError:
+            src = ''
+        if expr in src:
+            rows.append((' ', selector, token, expr))
+        else:
+            rows.append(('!', selector, token, 'ours does not read ' + expr))
+            bad += 1
+    print()
+    print('  %-40s %-16s %s' % ('v3 rule', 'v3 fill', 'ours'))
+    for mark, selector, token, note in rows:
+        print('%s %-40s %-16s %s' % (mark, selector, token, note))
+    print('fills compared   : %d' % len(rows))
+    print('fills stale      : %d  (v3 no longer declares it -- re-read the rule)'
+          % stale)
+    print('WRONG FILLS      : %d' % bad)
+    return bad, stale
+
+
 def main():
     if '--fetch' in sys.argv:
         fetch()
@@ -247,6 +428,25 @@ def main():
         if os.path.exists(css_path):
             css = io.open(css_path, encoding='utf-8', errors='replace').read()
             body = rule_body(css, selector)
+            if body is None:
+                # A rule nested inside another one is indented, so the
+                # start-of-line match above misses it. `.checkbox-group` puts
+                # its option spacing in `[data-slot="checkbox"]` and
+                # `.radio-group` puts its horizontal gap in an
+                # `&[data-orientation=...]` block; both are only reachable here.
+                m = re.search(r'^\s+' + re.escape(selector) + r'\s*\{(.*?)' + chr(10)
+                              + r'\s+\}', css, re.S | re.M)
+                if m:
+                    body = m.group(1)
+            if body is None and '__' in selector:
+                # A part is nested inside its parent, written either as
+                # `&__dialog {` or spelled out as `.popover__dialog {`.
+                part = selector.split('__')[1]
+                for form in (r'&__' + re.escape(part), re.escape(selector)):
+                    m = re.search(form + r'\s*\{(.*?)\n  \}', css, re.S)
+                    if m:
+                        body = m.group(1)
+                        break
             # A size modifier inherits whatever it does not restate.
             if body is not None:
                 want = measure(body).get(metric)
@@ -276,6 +476,7 @@ def main():
     print('metrics compared : %d' % len(rows))
     print('unreadable       : %d  (a pattern stopped matching -- fix it)' % unreadable)
     print('MISMATCHED       : %d' % mismatched)
+    check_fills()
 
 
 if __name__ == '__main__':

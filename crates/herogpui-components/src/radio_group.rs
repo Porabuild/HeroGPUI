@@ -9,7 +9,7 @@ use herogpui_theme::ActiveTheme;
 pub struct RadioGroup {
     /// `name` — the name this control submits under; read back by
     /// [`Self::form_field`].
-    name: Option<gpui::SharedString>,
+    name: Option<SharedString>,
     id: gpui::ElementId,
     options: Vec<SharedString>,
     selected: Option<usize>,
@@ -27,7 +27,6 @@ pub struct RadioGroup {
 }
 
 impl RadioGroup {
-
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
         self
@@ -68,7 +67,7 @@ impl RadioGroup {
     }
 
     /// `name` — the name this control submits under.
-    pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = Some(name.into());
         self
     }
@@ -85,13 +84,16 @@ impl RadioGroup {
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
-        Some(crate::form::FormField::text_value(
+        Some(
+            crate::form::FormField::text_value(
                 name,
                 self.selected
                     .or(self.default_value)
                     .and_then(|i| self.options.get(i).cloned())
                     .unwrap_or_default(),
-            ).is_required(self.is_required))
+            )
+            .is_required(self.is_required),
+        )
     }
 
     /// `value` — the selected option, by index. Supplying it makes the group
@@ -111,7 +113,6 @@ impl RadioGroup {
         self
     }
 
-
     pub fn orientation(mut self, o: Orientation) -> Self {
         self.orientation = o;
         self
@@ -122,10 +123,7 @@ impl RadioGroup {
         self
     }
 
-    pub fn on_change(
-        mut self,
-        f: impl Fn(usize, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_change(mut self, f: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -145,63 +143,75 @@ impl RenderOnce for RadioGroup {
         let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
-        let (circle, dot, text, gap) = (px(18.), px(7.), px(14.), px(10.));
+        // `.radio__control` is `size-4 rounded-lg` — a rounded square, not a
+        // circle — and `.radio__indicator` fills it at `rounded-lg` too.
+        // The selected dot is the indicator scaled to `0.4286` of the 16px
+        // control, which v3's own comment rounds to 6px. (8px is its *pressed*
+        // size, `scale: 0.5714`.)
+        let (circle, dot, text, gap) = (px(16.), px(6.), px(14.), px(12.));
 
+        // `.radio-group` spaces its options with `mt-4` when vertical and
+        // `gap-4` when horizontal — 16px either way.
         let mut group = match self.orientation {
-            Orientation::Horizontal => gpui::div().flex().items_center().gap(gap * 3.),
-            Orientation::Vertical => gpui::div().flex().flex_col().gap(gap),
+            Orientation::Horizontal => gpui::div().flex().items_center().flex_wrap().gap(px(16.)),
+            Orientation::Vertical => gpui::div().flex().flex_col().gap(px(16.)),
         };
-        // `secondary` groups sit on a surface panel, matching the other
-        // low-emphasis field variants.
-        if self.variant == FieldVariant::Secondary {
-            group = group
-                .p(px(12.))
-                .rounded(crate::util::field_radius(cx))
-                .bg(colors.surface_secondary);
-        }
+        // `.radio-group--secondary` is not a panel: it only repaints the
+        // *control* with `--default` and drops its shadow. This used to wrap the
+        // whole group in a padded `surface_secondary` card, which v3 has no rule
+        // for.
+        let control_bg = match self.variant {
+            FieldVariant::Primary => colors.field.background,
+            FieldVariant::Secondary => colors.default.color,
+        };
+        let control_shadow = (self.variant == FieldVariant::Primary
+            && !layout.field_shadow.is_empty())
+        .then(|| layout.field_shadow.clone());
 
         for (i, label) in self.options.into_iter().enumerate() {
             let is_selected = selected == Some(i);
+            // `.radio__control` has no border (`--field-border-width: 0`); it is
+            // a filled square. Unselected it is `bg-field` plus `shadow-field`;
+            // selected it fills with `bg-accent` and the indicator shrinks to a
+            // 6px `bg-accent-foreground` dot (`scale: 0.4286` of 16px).
             let mut circle_el = gpui::div()
                 .flex()
                 .items_center()
                 .justify_center()
                 .size(circle)
-                .rounded_full()
-                .flex_shrink_0();
+                .rounded(crate::util::key_radius(cx))
+                .flex_shrink_0()
+                .bg(if is_selected { sem.color } else { control_bg })
+                .when_some(control_shadow.clone(), gpui::Div::shadow);
 
             if is_selected {
-                let marker = if self.is_invalid {
-                    colors.danger.color
-                } else {
-                    sem.color
-                };
-                circle_el = circle_el
-                    .border_2()
-                    .border_color(marker)
-                    .child(gpui::div().size(dot).rounded_full().bg(marker));
-            } else {
-                circle_el = circle_el.border_2().border_color(if self.is_invalid {
-                    colors.danger.color
-                } else {
-                    colors.default.soft_hover()
-                });
+                circle_el = circle_el.child(
+                    gpui::div()
+                        .size(dot)
+                        .rounded(crate::util::key_radius(cx))
+                        .bg(sem.foreground),
+                );
+            }
+            // `status-invalid-field` is a 1px danger outline over whatever the
+            // control already paints — it does not replace the fill, and v3
+            // applies it whether or not the option is selected.
+            if self.is_invalid {
+                circle_el = circle_el.border_1().border_color(colors.danger.color);
             }
 
             let mut row = gpui::div()
-                .id(gpui::ElementId::Name(format!(
-                    "{}-opt-{i}",
-                    element_id_name(&self.id)
-                )
-                .into()))
+                .id(gpui::ElementId::Name(
+                    format!("{}-opt-{i}", element_id_name(&self.id)).into(),
+                ))
                 .flex()
                 .items_center()
                 .gap(gap)
                 .text_size(text)
                 .text_color(colors.foreground)
-                .when(!self.is_disabled && !self.is_read_only, |r| r.cursor_pointer())
+                .when(!self.is_disabled && !self.is_read_only, |r| {
+                    r.cursor_pointer()
+                })
                 .when(self.is_disabled, |r| r.opacity(layout.disabled_opacity))
-
                 .child(circle_el)
                 .child(label.to_string());
 
@@ -243,7 +253,5 @@ impl RenderOnce for RadioGroup {
 }
 
 fn element_id_name(id: &gpui::ElementId) -> String {
-    format!("{id:?}").trim_matches('"').to_string()
+    format!("{id:?}").trim_matches('"').to_owned()
 }
-
-

@@ -5,7 +5,10 @@
 //! the `Typography.Heading` / `Typography.Paragraph` / `Typography.Code` /
 //! `Typography.Prose` convenience primitives.
 
-use gpui::{div, px, AnyElement, App, IntoElement, ParentElement, Pixels, RenderOnce, SharedString, Styled, Window};
+use gpui::{
+    div, px, AnyElement, App, IntoElement, ParentElement, Pixels, RenderOnce, SharedString, Styled,
+    Window,
+};
 use herogpui_theme::ActiveTheme;
 
 const MONO_FONT: &str = "Consolas";
@@ -49,9 +52,7 @@ impl TypographyType {
     /// Default weight for this type — headings are semibold, body normal.
     pub fn default_weight(self) -> FontWeight {
         match self {
-            Self::H1 | Self::H2 | Self::H3 | Self::H4 | Self::H5 | Self::H6 => {
-                FontWeight::Semibold
-            }
+            Self::H1 | Self::H2 | Self::H3 | Self::H4 | Self::H5 | Self::H6 => FontWeight::Semibold,
             _ => FontWeight::Normal,
         }
     }

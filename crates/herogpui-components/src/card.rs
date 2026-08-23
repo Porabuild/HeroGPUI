@@ -1,8 +1,6 @@
 //! Card — port of `@heroui/card`.
 
-use gpui::{
-    prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Window,
-};
+use gpui::{prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Window};
 use herogpui_theme::ActiveTheme;
 
 /// Card surface style (`shadow|bordered`).
@@ -125,7 +123,9 @@ pub struct CardHeader {
 
 impl CardHeader {
     pub fn new() -> Self {
-        Self { children: Vec::new() }
+        Self {
+            children: Vec::new(),
+        }
     }
 }
 
@@ -164,7 +164,9 @@ pub struct CardBody {
 
 impl CardBody {
     pub fn new() -> Self {
-        Self { children: Vec::new() }
+        Self {
+            children: Vec::new(),
+        }
     }
 }
 
@@ -201,7 +203,9 @@ pub struct CardFooter {
 
 impl CardFooter {
     pub fn new() -> Self {
-        Self { children: Vec::new() }
+        Self {
+            children: Vec::new(),
+        }
     }
 }
 

@@ -18,8 +18,7 @@ use herogpui_theme::ActiveTheme;
 use crate::{checkbox::Checkbox, icons};
 
 type OnRowClick = std::sync::Arc<dyn Fn(usize, &ClickEvent, &mut Window, &mut App) + 'static>;
-type OnSelectionChange =
-    std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
+type OnSelectionChange = std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
 type OnSortChange = std::sync::Arc<dyn Fn(SortDescriptor, &mut Window, &mut App) + 'static>;
 type OnLoadMore = std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>;
 
@@ -168,7 +167,7 @@ impl From<SharedString> for TableColumn {
 
 impl From<&str> for TableColumn {
     fn from(label: &str) -> Self {
-        TableColumn::new(label.to_string())
+        TableColumn::new(label.to_owned())
     }
 }
 
@@ -244,10 +243,7 @@ impl Table {
     /// The closure receives `sortDirection`, the value v3 passes into the same
     /// render prop, so a caller can draw an arrow, a caret or a label without
     /// re-deriving which way the column is sorted.
-    pub fn indicator(
-        mut self,
-        render: impl Fn(SortDirection) -> AnyElement + 'static,
-    ) -> Self {
+    pub fn indicator(mut self, render: impl Fn(SortDirection) -> AnyElement + 'static) -> Self {
         self.indicator = Some(std::sync::Arc::new(render));
         self
     }
@@ -280,8 +276,6 @@ impl Table {
         self.rows.push(TableRow::new(cells).key(key));
         self
     }
-
-
 
     /// `selectionMode` — adds the selection column when not `None`.
     pub fn selection_mode(mut self, mode: SelectionMode) -> Self {
@@ -424,8 +418,11 @@ impl RenderOnce for Table {
                 if let Some(cb) = self.on_selection_change.clone() {
                     box_el = box_el.on_change(move |_next, window, cx| {
                         // Anything short of everything selects everything.
-                        let next: Vec<SharedString> =
-                            if all_selected { Vec::new() } else { all.clone() };
+                        let next: Vec<SharedString> = if all_selected {
+                            Vec::new()
+                        } else {
+                            all.clone()
+                        };
                         cb(&next, window, cx);
                     });
                 }
@@ -522,17 +519,15 @@ impl RenderOnce for Table {
                     .justify_center()
                     .w(px(44.))
                     .py(px(10.));
-                let mut box_el = Checkbox::new(gpui::ElementId::Name(
-                    format!("table-select-{i}").into(),
-                ))
-                .is_selected(is_selected);
+                let mut box_el =
+                    Checkbox::new(gpui::ElementId::Name(format!("table-select-{i}").into()))
+                        .is_selected(is_selected);
                 if let Some(cb) = self.on_selection_change.clone() {
                     let current = self.selected_keys.clone();
                     let key2 = key.clone();
                     let mode = self.selection_mode;
                     box_el = box_el.on_change(move |_next, window, cx| {
-                        let next =
-                            crate::selection::next_selection(&current, &key2, mode, false);
+                        let next = crate::selection::next_selection(&current, &key2, mode, false);
                         cb(&next, window, cx);
                     });
                 }
@@ -542,8 +537,11 @@ impl RenderOnce for Table {
 
             // Cells are flex rows so inline children (chips, buttons) size to
             // their content instead of stretching to the column width.
-            let widths: Vec<(Option<Pixels>, Option<Pixels>)> =
-                self.columns.iter().map(|c| (c.width, c.min_width)).collect();
+            let widths: Vec<(Option<Pixels>, Option<Pixels>)> = self
+                .columns
+                .iter()
+                .map(|c| (c.width, c.min_width))
+                .collect();
             row = row.children(row_data.cells.into_iter().enumerate().map(|(c, cell)| {
                 let (width, min_width) = widths.get(c).copied().unwrap_or((None, None));
                 gpui::div()
@@ -608,7 +606,10 @@ impl RenderOnce for Table {
 
             if self.is_pending {
                 sentinel = sentinel
-                    .child(crate::spinner::Spinner::new("table-load-spinner").size(herogpui_core::Size::Sm))
+                    .child(
+                        crate::spinner::Spinner::new("table-load-spinner")
+                            .size(herogpui_core::Size::Sm),
+                    )
                     .child("Loading\u{2026}");
             } else if let Some(cb) = self.on_load_more.clone() {
                 let hover = colors.default.soft();

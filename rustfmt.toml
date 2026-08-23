@@ -1,0 +1,21 @@
+# Formatting is settled here rather than left to each machine's default, so
+# `cargo fmt --all --check` is a meaningful gate. Only *stable* options are
+# listed: rustfmt silently ignores nightly-only keys on a stable toolchain, so
+# an unstable option here would read as enforced while doing nothing.
+edition = "2021"
+
+# rustfmt's default. Stated explicitly because the gpui builder style produces
+# long method chains, and a narrower width would rewrap most of the library.
+max_width = 100
+
+# The tree currently mixes LF and CRLF (autocrlf=true plus files written by
+# different tools). Pin LF and pair it with .gitattributes so a reformat never
+# shows up as a whole-file diff.
+newline_style = "Unix"
+
+# `Foo { size }` over `Foo { size: size }` — the builder structs assign a lot
+# of same-named fields.
+use_field_init_shorthand = true
+
+# `?` over `match ... return Err(e)`.
+use_try_shorthand = true

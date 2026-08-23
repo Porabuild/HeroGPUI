@@ -1,12 +1,10 @@
 //! Chip — port of `@heroui/chip`.
 
 use gpui::{
-    px, AnyElement, App, IntoElement, ParentElement, RenderOnce,
-    SharedString, Styled, Window,
+    px, AnyElement, App, IntoElement, ParentElement, RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::{Color, Size};
 use herogpui_theme::ActiveTheme;
-
 
 /// Chip visual style (`solid|bordered|light|flat|dot|faded|shadow`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -76,12 +74,10 @@ impl Chip {
         self
     }
 
-
     pub fn start_content(mut self, el: impl IntoElement) -> Self {
         self.start_content = Some(el.into_any_element());
         self
     }
-
 }
 
 impl RenderOnce for Chip {
@@ -98,7 +94,7 @@ impl RenderOnce for Chip {
         let mut el = gpui::div()
             .flex()
             .items_center()
-            .gap(px(4.))
+            .gap(px(2.))
             .h(height)
             .px(pad_x)
             .text_size(text)
@@ -110,13 +106,14 @@ impl RenderOnce for Chip {
 
         el = match self.variant {
             ChipVariant::Primary => el.bg(sem.color).text_color(sem.foreground),
-            ChipVariant::Secondary => el
-                .bg(cx.colors().default.color)
-                .text_color(if self.color == Color::Default {
-                    fg_default
-                } else {
-                    sem.soft_foreground()
-                }),
+            ChipVariant::Secondary => {
+                el.bg(cx.colors().default.color)
+                    .text_color(if self.color == Color::Default {
+                        fg_default
+                    } else {
+                        sem.soft_foreground()
+                    })
+            }
             ChipVariant::Tertiary => el
                 .border(cx.layout().border_width)
                 .border_color(cx.colors().border)
@@ -125,18 +122,19 @@ impl RenderOnce for Chip {
                 } else {
                     sem.soft_foreground()
                 }),
-            ChipVariant::Soft => el.bg(sem.soft()).text_color(if self.color == Color::Default {
-                fg_default
-            } else {
-                sem.soft_foreground()
-            }),
+            ChipVariant::Soft => el
+                .bg(sem.soft())
+                .text_color(if self.color == Color::Default {
+                    fg_default
+                } else {
+                    sem.soft_foreground()
+                }),
         };
 
         if let Some(start) = self.start_content {
             el = el.child(start);
         }
         el = el.child(self.label.to_string());
-
 
         el
     }

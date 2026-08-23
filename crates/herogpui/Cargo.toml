@@ -3,6 +3,7 @@ name = "herogpui"
 description = "Beautiful, fast and modern cross-platform Rust GPUI UI library — HeroUI for GPUI"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 
@@ -11,3 +12,6 @@ gpui.workspace = true
 herogpui-core.workspace = true
 herogpui-theme.workspace = true
 herogpui-components.workspace = true
+
+[lints]
+workspace = true

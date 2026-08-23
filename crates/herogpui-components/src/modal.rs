@@ -3,7 +3,10 @@
 //! Render the returned element from your root view; it covers the window
 //! with a dimmed backdrop and a centered panel when `is_open`.
 
-use gpui::{prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window};
+use gpui::{
+    prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
+    SharedString, StatefulInteractiveElement, Styled, Window,
+};
 use herogpui_core::Backdrop;
 use herogpui_theme::ActiveTheme;
 
@@ -79,7 +82,6 @@ pub enum ModalScroll {
 }
 
 pub type OnClose = std::sync::Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
-
 
 /// `onOpenChange` — every overlay reports dismissal through this shape.
 pub type OnOpenChange = std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>;
@@ -166,10 +168,7 @@ impl Modal {
 
     /// `onOpenChange` — fires with `false` on every dismissal path, alongside
     /// [`Modal::on_close`].
-    pub fn on_open_change(
-        mut self,
-        f: impl Fn(bool, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_open_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -187,10 +186,7 @@ impl Modal {
     }
 
     /// Shows a close button and enables backdrop dismissal (`onClose`).
-    pub fn on_close(
-        mut self,
-        f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_close(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
         self.on_close = Some(std::sync::Arc::new(f));
         self
     }
@@ -234,7 +230,7 @@ impl RenderOnce for Modal {
         let dismiss: Option<OnClose> = match (self.on_close.clone(), self.on_open_change.clone()) {
             (None, None) => None,
             (close, open_change) => Some(crate::util::shared(
-                move |ev: &gpui::ClickEvent, window: &mut Window, cx: &mut App| {
+                move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
                     if let Some(f) = &close {
                         f(ev, window, cx);
                     }
@@ -253,7 +249,6 @@ impl RenderOnce for Modal {
         } else {
             dismiss.clone()
         };
-
 
         // Header: title (optional) + close button
         let mut header = gpui::div()
@@ -360,7 +355,7 @@ impl RenderOnce for Modal {
             .on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
                 if ev.keystroke.key == "escape" {
                     if let Some(f) = &keyboard_dismiss {
-                        f(&gpui::ClickEvent::default(), window, cx);
+                        f(&ClickEvent::default(), window, cx);
                     }
                 }
             })
@@ -404,11 +399,15 @@ impl RenderOnce for Modal {
                         "modal-backdrop-out",
                         crate::anim::ZoomBox::default(),
                         crate::anim::Motion::BACKDROP_OUT,
-                cx,
+                        cx,
                     )
                 } else {
-                    crate::anim::entering(scrim, "modal-backdrop-anim", crate::anim::Motion::BACKDROP_IN,
-                cx)
+                    crate::anim::entering(
+                        scrim,
+                        "modal-backdrop-anim",
+                        crate::anim::Motion::BACKDROP_IN,
+                        cx,
+                    )
                 });
             }
         }
@@ -418,18 +417,23 @@ impl RenderOnce for Modal {
             ..Default::default()
         };
         overlay = overlay.child(if exiting {
-            crate::anim::exiting(panel, "modal-panel-out", zoom, crate::anim::Motion::PANEL_OUT,
-                cx)
+            crate::anim::exiting(
+                panel,
+                "modal-panel-out",
+                zoom,
+                crate::anim::Motion::PANEL_OUT,
+                cx,
+            )
         } else {
-            crate::anim::entering_zoom(panel, "modal-panel", zoom, crate::anim::Motion::PANEL_IN,
-                cx)
+            crate::anim::entering_zoom(
+                panel,
+                "modal-panel",
+                zoom,
+                crate::anim::Motion::PANEL_IN,
+                cx,
+            )
         });
 
         overlay.into_any_element()
     }
 }
-
-
-
-
-

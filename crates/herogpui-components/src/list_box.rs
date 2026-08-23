@@ -172,7 +172,6 @@ impl ListBox {
         self
     }
 
-
     pub fn variant(mut self, variant: ListBoxItemVariant) -> Self {
         self.variant = variant;
         self
@@ -273,14 +272,16 @@ impl RenderOnce for ListBox {
                     };
 
                     let mut row = div()
-                        .id(ElementId::Name(format!("{:?}-item-{index}", self.id).into()))
+                        .id(ElementId::Name(
+                            format!("{:?}-item-{index}", self.id).into(),
+                        ))
                         .flex()
                         .flex_row()
                         .items_center()
-                        .gap(px(8.))
+                        .gap(px(12.))
                         .px(px(8.))
                         .min_h(row_h)
-                        .py(px(4.))
+                        .py(px(6.))
                         .rounded(util::soft_radius(cx))
                         .text_size(text_size)
                         .text_color(fg);

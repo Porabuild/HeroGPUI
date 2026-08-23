@@ -2,7 +2,10 @@
 
 use std::collections::HashSet;
 
-use gpui::{prelude::*, px, AnyElement, App, IntoElement, RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window};
+use gpui::{
+    prelude::*, px, AnyElement, App, IntoElement, RenderOnce, SharedString,
+    StatefulInteractiveElement, Styled, Window,
+};
 use herogpui_theme::ActiveTheme;
 
 use crate::icons;
@@ -163,7 +166,6 @@ impl Accordion {
         self
     }
 
-
     /// `hideSeparator` — drops the rules between items.
     pub fn hide_separator(mut self, v: bool) -> Self {
         self.hide_separator = v;
@@ -171,10 +173,7 @@ impl Accordion {
     }
 
     /// Fires with the toggled key; the parent flips membership in its set.
-    pub fn on_toggle(
-        mut self,
-        f: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_toggle(mut self, f: impl Fn(&SharedString, &mut Window, &mut App) + 'static) -> Self {
         self.on_toggle = Some(std::sync::Arc::new(f));
         self
     }
@@ -355,7 +354,9 @@ mod tests {
     use super::*;
 
     fn set(keys: &[&str]) -> HashSet<SharedString> {
-        keys.iter().map(|k| SharedString::from(k.to_string())).collect()
+        keys.iter()
+            .map(|k| SharedString::from(k.to_string()))
+            .collect()
     }
 
     #[test]

@@ -283,13 +283,7 @@ pub enum SizeXl {
 }
 
 impl SizeXl {
-    pub const ALL: [SizeXl; 5] = [
-        SizeXl::Xs,
-        SizeXl::Sm,
-        SizeXl::Md,
-        SizeXl::Lg,
-        SizeXl::Xl,
-    ];
+    pub const ALL: [SizeXl; 5] = [SizeXl::Xs, SizeXl::Sm, SizeXl::Md, SizeXl::Lg, SizeXl::Xl];
 
     /// Square edge length: 16 / 20 / 24 / 32 / 40 px.
     pub fn px(self) -> gpui::Pixels {
@@ -347,7 +341,7 @@ pub enum SelectionMode {
 
 /// A unique element id helper — most components require one for interactivity.
 pub fn auto_id(seed: &str) -> gpui::ElementId {
-    gpui::ElementId::Name(seed.to_string().into())
+    gpui::ElementId::Name(seed.to_owned().into())
 }
 
 /// `placement` — where a floating panel sits relative to its trigger.

@@ -135,9 +135,13 @@ def check_motions():
     """Each `Motion` constant against the CSS it transcribes."""
     src = io.open('crates/herogpui-components/src/anim.rs', encoding='utf-8').read()
     ours = {}
+    # `cargo fix`/rustfmt may split a constant across lines, so match the
+    # fields rather than the one-line form -- this regex silently found nothing
+    # after a reformat, which read as twelve mismatches.
     for m in re.finditer(
-            r'pub const (\w+): Motion = Motion \{ ms: (\d+), scale: ([\d.]+), '
-            r'curve: Curve::(\w+) \}', src):
+            r'pub const (\w+): Motion = Motion \{\s*ms:\s*(\d+),'
+            r'\s*scale:\s*([\d.]+),\s*curve:\s*Curve::(\w+),?\s*\}',
+            src, re.S):
         ours[m.group(1)] = {'ms': int(m.group(2)), 'scale': float(m.group(3)),
                             'curve': m.group(4)}
     rows, bad = [], 0

@@ -134,13 +134,15 @@ impl NumberFormat {
         };
         let min = self.minimum_fraction_digits.unwrap_or(default_min);
         // An explicit minimum raises the maximum with it, as `Intl` does.
-        let max = self
-            .maximum_fraction_digits
-            .unwrap_or(default_max.max(min));
+        let max = self.maximum_fraction_digits.unwrap_or(default_max.max(min));
         (min, max.max(min))
     }
 
     /// Formats `value`, applying the style's own scaling (`percent` × 100).
+    // `scaled.abs() == 1.0` picks the singular unit name. Intl's plural rules
+    // are exact too — 0.999 is "inches", not "inch" — so a tolerance here would
+    // be a behaviour change, not a fix.
+    #[allow(clippy::float_cmp)]
     pub fn format(&self, value: f64) -> String {
         let scaled = match self.style {
             NumberStyle::Percent => value * 100.0,
@@ -154,7 +156,11 @@ impl NumberFormat {
             NumberStyle::Currency => format!("{}{digits}", currency_symbol(self.currency)),
             NumberStyle::Unit => match (self.unit, self.unit_display) {
                 (Some(u), UnitDisplay::Long) => {
-                    format!("{digits} {}", long_unit(u, scaled.abs() == 1.0))
+                    // English pluralises on *exactly* one: 1.5 kilograms is
+                    // plural, so a tolerance would read the grammar wrong.
+                    #[allow(clippy::float_cmp)]
+                    let singular = scaled.abs() == 1.0;
+                    format!("{digits} {}", long_unit(u, singular))
                 }
                 (Some(u), UnitDisplay::Narrow) => format!("{digits}{}", short_unit(u)),
                 (Some(u), UnitDisplay::Short) => format!("{digits} {}", short_unit(u)),
@@ -186,7 +192,7 @@ impl NumberFormat {
             }
         }
         let (int, frac) = match text.split_once('.') {
-            Some((i, f)) => (i.to_string(), Some(f.to_string())),
+            Some((i, f)) => (i.to_owned(), Some(f.to_owned())),
             None => (text, None),
         };
         let int = if self.use_grouping { group(&int) } else { int };
@@ -249,11 +255,11 @@ fn short_unit(unit: &str) -> &str {
 
 fn long_unit(unit: &str, singular: bool) -> String {
     if singular {
-        unit.to_string()
+        unit.to_owned()
     } else {
         // English plurals for the unit names above; none of them is irregular.
         match unit {
-            "inch" => "inches".to_string(),
+            "inch" => "inches".to_owned(),
             other => format!("{other}s"),
         }
     }
@@ -268,7 +274,9 @@ mod tests {
         assert_eq!(NumberFormat::decimal().format(1234567.0), "1,234,567");
         assert_eq!(NumberFormat::decimal().format(999.0), "999");
         assert_eq!(
-            NumberFormat::decimal().use_grouping(false).format(1234567.0),
+            NumberFormat::decimal()
+                .use_grouping(false)
+                .format(1234567.0),
             "1234567"
         );
     }
@@ -313,15 +321,15 @@ mod tests {
     fn units_render_short_narrow_and_long() {
         let kg = NumberFormat::unit("kilogram");
         assert_eq!(kg.format(5.0), "5 kg");
-        assert_eq!(kg.clone().unit_display(UnitDisplay::Narrow).format(5.0), "5kg");
+        assert_eq!(
+            kg.clone().unit_display(UnitDisplay::Narrow).format(5.0),
+            "5kg"
+        );
         assert_eq!(
             kg.clone().unit_display(UnitDisplay::Long).format(5.0),
             "5 kilograms"
         );
-        assert_eq!(
-            kg.unit_display(UnitDisplay::Long).format(1.0),
-            "1 kilogram"
-        );
+        assert_eq!(kg.unit_display(UnitDisplay::Long).format(1.0), "1 kilogram");
     }
 
     #[test]

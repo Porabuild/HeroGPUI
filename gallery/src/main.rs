@@ -41,7 +41,7 @@ mod herogpui_gallery_pages {
 
 fn section_title(p: Page) -> String {
     // match on the enum's Debug-ish title used by nav (e.g. "Date Picker")
-    p.title().to_string()
+    p.title().to_owned()
 }
 
 fn initial_theme() -> herogpui_theme::Theme {

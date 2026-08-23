@@ -5,8 +5,8 @@
 //! colour role — v3 removed the `color` prop.
 
 use gpui::{
-    div, prelude::*, px, App, ClickEvent, ElementId, InteractiveElement, IntoElement,
-    RenderOnce, SharedString, Styled, Window,
+    div, prelude::*, px, App, ClickEvent, ElementId, InteractiveElement, IntoElement, RenderOnce,
+    SharedString, Styled, Window,
 };
 use herogpui_theme::ActiveTheme;
 
@@ -46,11 +46,6 @@ impl Link {
         self
     }
 
-
-
-
-
-
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -63,7 +58,6 @@ impl Link {
         self.auto_focus = v;
         self
     }
-
 
     /// `onPress` — extra behaviour, in addition to opening `href`.
     pub fn on_press(
@@ -81,7 +75,7 @@ impl RenderOnce for Link {
         // `focus_once` takes `cx` mutably, so it runs before the tokens.
         let focus = self.auto_focus.then(|| {
             let handle = window.use_keyed_state(
-                gpui::ElementId::Name(format!("{:?}-link-focus", self.id).into()),
+                ElementId::Name(format!("{:?}-link-focus", self.id).into()),
                 cx,
                 |_, cx| cx.focus_handle(),
             );
@@ -89,7 +83,7 @@ impl RenderOnce for Link {
             crate::util::focus_once(
                 window,
                 cx,
-                gpui::ElementId::Name(format!("{:?}-link-autofocus", self.id).into()),
+                ElementId::Name(format!("{:?}-link-autofocus", self.id).into()),
                 &handle,
             );
             handle
@@ -106,7 +100,8 @@ impl RenderOnce for Link {
             .w_auto()
             .text_color(color)
             // `.link { @apply font-semibold no-underline hover:underline; }`
-            .font_weight(gpui::FontWeight::SEMIBOLD)
+            .font_weight(gpui::FontWeight::MEDIUM)
+            .rounded(crate::util::small_radius(cx))
             .border_color(color)
             .pb(px(1.))
             .when_some(focus, |el, handle| el.track_focus(&handle));
@@ -118,7 +113,9 @@ impl RenderOnce for Link {
             // colour shift have to share one closure.
             let hover_color = colors.accent.color;
             el = el.cursor_pointer().hover(move |s| {
-                s.text_color(hover_color).border_color(hover_color).border_b_1()
+                s.text_color(hover_color)
+                    .border_color(hover_color)
+                    .border_b_1()
             });
         }
 

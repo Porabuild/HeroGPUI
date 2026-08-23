@@ -43,15 +43,11 @@ impl Switch {
         self.on_change(handler)
     }
 
-
     /// `validate` — returns the message to show, or `None` when the state is fine.
     ///
     /// The component runs it and surfaces the result, so a caller does not have
     /// to mirror the logic into `is_invalid`.
-    pub fn validate(
-        mut self,
-        f: impl Fn(&bool) -> Option<gpui::SharedString> + 'static,
-    ) -> Self {
+    pub fn validate(mut self, f: impl Fn(&bool) -> Option<gpui::SharedString> + 'static) -> Self {
         self.validate = Some(std::sync::Arc::new(f));
         self
     }
@@ -181,10 +177,7 @@ impl Switch {
         self
     }
 
-    pub fn on_change(
-        mut self,
-        f: impl Fn(bool, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(Box::new(f));
         self
     }
@@ -212,14 +205,19 @@ impl RenderOnce for Switch {
             self.validate.as_ref().and_then(|f| f(&checked)),
             None,
         );
-        let validity_invalid = validity.is_invalid;
 
-        // HeroUI switch dims: md 40x24 thumb 16; sm 32x20 thumb 12; lg 48x28 thumb 20
-        let (w, h, thumb) = match self.size {
-            Size::Sm => (px(32.), px(20.), px(12.)),
-            Size::Md => (px(40.), px(24.), px(16.)),
-            Size::Lg => (px(48.), px(28.), px(20.)),
+        // `.switch__control` and `.switch__thumb` state their sizes in `rem`,
+        // so at a 16px root: track 32x16 / 40x20 / 48x24, and a thumb that is a
+        // rounded *rectangle* 1.375x as wide as it is tall -- 16.5x12 / 22x16 /
+        // 27.5x20 -- inset `ms-0.5` (2px) at each end. The track radii are
+        // `rounded-lg` for `sm` and `rounded-xl` above it; the thumb's are
+        // `rounded-md` / `rounded-lg` / `rounded-xl`.
+        let (w, h, thumb_w, thumb_h, track_r, thumb_r) = match self.size {
+            Size::Sm => (px(32.), px(16.), px(16.5), px(12.), px(8.), px(6.)),
+            Size::Md => (px(40.), px(20.), px(22.), px(16.), px(12.), px(8.)),
+            Size::Lg => (px(48.), px(24.), px(27.5), px(20.), px(12.), px(12.)),
         };
+        let thumb_inset = px(2.);
 
         // `default` is the v3 unchecked track. A soft (alpha) mix vanishes on
         // a white overlay, so the track uses the solid role colour.
@@ -234,17 +232,16 @@ impl RenderOnce for Switch {
             .relative()
             .w(w)
             .h(h)
-            .rounded_full()
+            .rounded(track_r)
             .bg(track_bg)
             .flex()
             .items_center()
-            .px((h - thumb) / 2.)
+            .px(thumb_inset)
             .when(self.is_disabled, |t| t.opacity(layout.disabled_opacity))
             .when(!self.is_disabled, |t| t.cursor_pointer());
-
-        if validity_invalid {
-            track = track.border_2().border_color(colors.danger.color);
-        }
+        // v3's switch stylesheet has no invalid rule at all -- the state shows
+        // in the field error below, not as a danger ring on the track, so the
+        // ring this used to draw was an invention.
 
         if !self.is_disabled && !self.is_read_only {
             let hover_bg = if checked {
@@ -255,33 +252,48 @@ impl RenderOnce for Switch {
             track = track.hover(move |s| s.bg(hover_bg));
         }
 
-        // Thumb sits at the end when checked, start when unchecked.
+        // Thumb sits at the end when checked, start when unchecked. v3 moves it
+        // by margin rather than transform, which is what `ml_auto`/`mr_auto` do
+        // here. It is `bg-white` unchecked and `bg-accent-foreground` checked --
+        // not the page background and a soft grey, which is what this drew
+        // before.
+        let thumb_el = gpui::div()
+            .w(thumb_w)
+            .h(thumb_h)
+            .rounded(thumb_r)
+            .flex_shrink_0();
         track = track.child(if checked {
-            gpui::div()
+            thumb_el
                 .ml_auto()
-                .size(thumb)
-                .rounded_full()
-                .bg(colors.background)
-                .shadow(vec![gpui::BoxShadow {
-                    color: gpui::black().alpha(0.25),
-                    offset: gpui::point(px(0.), px(1.)),
-                    blur_radius: px(3.),
-                    spread_radius: px(0.),
-                }])
-                .flex_shrink_0()
+                .bg(sem.foreground)
+                // The checked thumb carries its own three-layer shadow.
+                .shadow(vec![
+                    gpui::BoxShadow {
+                        color: gpui::black().alpha(0.02),
+                        offset: gpui::point(px(0.), px(0.)),
+                        blur_radius: px(5.),
+                        spread_radius: px(0.),
+                    },
+                    gpui::BoxShadow {
+                        color: gpui::black().alpha(0.06),
+                        offset: gpui::point(px(0.), px(2.)),
+                        blur_radius: px(10.),
+                        spread_radius: px(0.),
+                    },
+                    gpui::BoxShadow {
+                        color: gpui::black().alpha(0.3),
+                        offset: gpui::point(px(0.), px(0.)),
+                        blur_radius: px(1.),
+                        spread_radius: px(0.),
+                    },
+                ])
         } else {
-            gpui::div()
+            thumb_el
                 .mr_auto()
-                .size(thumb)
-                .rounded_full()
-                .bg(colors.default.soft())
-                .shadow(vec![gpui::BoxShadow {
-                    color: gpui::black().alpha(0.25),
-                    offset: gpui::point(px(0.), px(1.)),
-                    blur_radius: px(3.),
-                    spread_radius: px(0.),
-                }])
-                .flex_shrink_0()
+                .bg(herogpui_theme::white())
+                .when(!layout.field_shadow.is_empty(), |t| {
+                    t.shadow(layout.field_shadow.clone())
+                })
         });
 
         if !self.is_disabled && (self.on_change.is_some() || own.is_some()) {
@@ -300,15 +312,12 @@ impl RenderOnce for Switch {
             });
         }
 
-        let mut el = gpui::div().flex().items_center().gap(px(8.)).child(track);
+        // `.switch__content` is `gap-3`.
+        let mut el = gpui::div().flex().items_center().gap(px(12.)).child(track);
         if let Some(label) = self.label {
             el = el.child(label);
             if self.is_required {
-                el = el.child(
-                    gpui::div()
-                        .text_color(colors.danger.color)
-                        .child("*"),
-                );
+                el = el.child(gpui::div().text_color(colors.danger.color).child("*"));
             }
         }
 
@@ -326,4 +335,3 @@ impl RenderOnce for Switch {
         }
     }
 }
-

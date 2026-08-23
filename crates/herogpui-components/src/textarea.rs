@@ -5,20 +5,20 @@
 //! newline, Enter inserts a newline instead of submitting, and the caret is
 //! placed inside the line it falls in. `rows` sets the visible height.
 
-use gpui::{
-    prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, Styled, Window,
-};
-use herogpui_theme::ActiveTheme;
-
 use crate::input::{Input, InputState};
+use gpui::{prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, Styled, Window};
 
 /// Multi-line text field.
 #[derive(IntoElement)]
 pub struct TextArea {
     inner: Input,
-    min_h: gpui::Pixels,
     /// `cols`, as a pixel width. `None` leaves the field's natural width.
     min_w: Option<gpui::Pixels>,
+}
+
+/// `rows` as a height: one 20px line each, over `.textarea`'s `py-2`.
+fn rows_height(rows: u32) -> gpui::Pixels {
+    px(rows.max(1) as f32 * 20.0 + 16.0)
 }
 
 impl TextArea {
@@ -53,19 +53,18 @@ impl TextArea {
     /// `rows` — the visible line count, at one line height per row plus the
     /// field's vertical padding.
     pub fn rows(mut self, rows: u32) -> Self {
-        self.min_h = px(rows.max(1) as f32 * 20.0 + 20.0);
+        self.inner = self.inner.min_h(rows_height(rows));
         self
     }
 
-
     /// `name` — see [`crate::input::Input::name`].
-    pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.inner = self.inner.name(name);
         self
     }
 
     /// `defaultValue` — see [`crate::input::Input::default_value`].
-    pub fn default_value(mut self, text: impl Into<gpui::SharedString>) -> Self {
+    pub fn default_value(mut self, text: impl Into<SharedString>) -> Self {
         self.inner = self.inner.default_value(text);
         self
     }
@@ -107,10 +106,7 @@ impl TextArea {
     }
 
     /// `validate` — see [`crate::input::Input::validate`].
-    pub fn validate(
-        mut self,
-        f: impl Fn(&str) -> Option<gpui::SharedString> + 'static,
-    ) -> Self {
+    pub fn validate(mut self, f: impl Fn(&str) -> Option<SharedString> + 'static) -> Self {
         self.inner = self.inner.validate(f);
         self
     }
@@ -118,29 +114,26 @@ impl TextArea {
     /// `validationErrors` — see [`crate::input::Input::validation_errors`].
     pub fn validation_errors(
         mut self,
-        errors: impl IntoIterator<Item = impl Into<gpui::SharedString>>,
+        errors: impl IntoIterator<Item = impl Into<SharedString>>,
     ) -> Self {
         self.inner = self.inner.validation_errors(errors);
         self
     }
 
-    pub fn error_message(mut self, text: impl Into<gpui::SharedString>) -> Self {
+    pub fn error_message(mut self, text: impl Into<SharedString>) -> Self {
         self.inner = self.inner.error_message(text);
         self
     }
 
-    pub fn on_change(
-        mut self,
-        handler: impl Fn(&str, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_change(mut self, handler: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.inner = self.inner.on_change(handler);
         self
     }
 
     pub fn new(state: Entity<InputState>) -> Self {
         Self {
-            inner: Input::new(state).multiline(true),
-            min_h: px(80.),
+            // v3 documents `rows` as defaulting to 3.
+            inner: Input::new(state).multiline(true).min_h(rows_height(3)),
             min_w: None,
         }
     }
@@ -159,23 +152,20 @@ impl TextArea {
         self.inner = self.inner.description(d);
         self
     }
-
-
 }
 
 impl RenderOnce for TextArea {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let colors = cx.colors();
+    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
         // The field itself is multi-line; this wrapper only gives it the height
-        // `rows` asks for and keeps the text at the top of it.
+        // `rows` asks for and keeps the text at the top of it. The field paints
+        // its own chrome (`util::apply_field_chrome`) -- the wrapper used to
+        // repaint a `default.soft()` background at a hardcoded 10px radius,
+        // neither of which is a v3 value.
         gpui::div()
             .flex()
             .flex_col()
             .items_start()
-            .min_h(self.min_h)
             .when_some(self.min_w, |e, w| e.min_w(w))
-            .bg(colors.default.soft())
-            .rounded(px(10.))
             .child(self.inner)
     }
 }

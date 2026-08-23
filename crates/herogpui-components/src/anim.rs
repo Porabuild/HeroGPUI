@@ -115,34 +115,78 @@ pub struct Motion {
 impl Motion {
     /// `duration-250 ease-out-quad zoom-in-105` — `Modal` and `AlertDialog`
     /// panels, which settle *down* onto the page.
-    pub const PANEL_IN: Motion = Motion { ms: 250, scale: 1.05, curve: Curve::OutQuad };
+    pub const PANEL_IN: Motion = Motion {
+        ms: 250,
+        scale: 1.05,
+        curve: Curve::OutQuad,
+    };
     /// `duration-100 ease-out-quad zoom-out-95`.
-    pub const PANEL_OUT: Motion = Motion { ms: 100, scale: 0.95, curve: Curve::OutQuad };
+    pub const PANEL_OUT: Motion = Motion {
+        ms: 100,
+        scale: 0.95,
+        curve: Curve::OutQuad,
+    };
 
     /// `duration-150 ease-out fade-in-0` — the backdrop behind a panel, which
     /// only fades.
-    pub const BACKDROP_IN: Motion = Motion { ms: 150, scale: 1.0, curve: Curve::Out };
+    pub const BACKDROP_IN: Motion = Motion {
+        ms: 150,
+        scale: 1.0,
+        curve: Curve::Out,
+    };
     /// `duration-100 ease-out fade-out-0`.
-    pub const BACKDROP_OUT: Motion = Motion { ms: 100, scale: 1.0, curve: Curve::Out };
+    pub const BACKDROP_OUT: Motion = Motion {
+        ms: 100,
+        scale: 1.0,
+        curve: Curve::Out,
+    };
 
     /// `duration-150 ease-smooth zoom-in-90` — `Popover`, `Dropdown`, `Tooltip`.
-    pub const POPOVER_IN: Motion = Motion { ms: 150, scale: 0.90, curve: Curve::Smooth };
+    pub const POPOVER_IN: Motion = Motion {
+        ms: 150,
+        scale: 0.90,
+        curve: Curve::Smooth,
+    };
     /// `duration-150 ease-smooth zoom-in-95` — `Select`, `ComboBox`, the date
     /// and colour pickers, which start closer to full size.
-    pub const LIST_IN: Motion = Motion { ms: 150, scale: 0.95, curve: Curve::Smooth };
+    pub const LIST_IN: Motion = Motion {
+        ms: 150,
+        scale: 0.95,
+        curve: Curve::Smooth,
+    };
     /// `duration-100 ease-smooth zoom-out-95` — the exit both share.
-    pub const LIST_OUT: Motion = Motion { ms: 100, scale: 0.95, curve: Curve::Smooth };
+    pub const LIST_OUT: Motion = Motion {
+        ms: 100,
+        scale: 0.95,
+        curve: Curve::Smooth,
+    };
 
     /// `translate 250ms cubic-bezier(0.32, 0.72, 0, 1)` — the drawer's slide,
     /// which `drawer.css` gives its own `--drawer-enter-*` tokens.
-    pub const DRAWER_IN: Motion = Motion { ms: 250, scale: 1.0, curve: Curve::OutFluid };
+    pub const DRAWER_IN: Motion = Motion {
+        ms: 250,
+        scale: 1.0,
+        curve: Curve::OutFluid,
+    };
     /// `--drawer-exit-duration: 200ms`, same curve.
-    pub const DRAWER_OUT: Motion = Motion { ms: 200, scale: 1.0, curve: Curve::OutFluid };
+    pub const DRAWER_OUT: Motion = Motion {
+        ms: 200,
+        scale: 1.0,
+        curve: Curve::OutFluid,
+    };
 
     /// `duration-250 ease-out-fluid zoom-in-95` — `Autocomplete` alone.
-    pub const FLUID_IN: Motion = Motion { ms: 250, scale: 0.95, curve: Curve::OutFluid };
+    pub const FLUID_IN: Motion = Motion {
+        ms: 250,
+        scale: 0.95,
+        curve: Curve::OutFluid,
+    };
     /// `duration-100 ease-out-quad zoom-out-95`.
-    pub const FLUID_OUT: Motion = Motion { ms: 100, scale: 0.95, curve: Curve::OutQuad };
+    pub const FLUID_OUT: Motion = Motion {
+        ms: 100,
+        scale: 0.95,
+        curve: Curve::OutQuad,
+    };
 }
 
 /// v3's `--ease-smooth`, which is CSS `ease`: `cubic-bezier(0.25, 0.1, 0.25, 1)`.
@@ -210,11 +254,7 @@ pub struct PressBox {
 /// quarter-second ramp is missing.
 ///
 /// Returns `el` untouched under reduced motion.
-pub fn pressed(
-    el: gpui::Stateful<gpui::Div>,
-    b: PressBox,
-    cx: &App,
-) -> gpui::Stateful<gpui::Div> {
+pub fn pressed(el: gpui::Stateful<gpui::Div>, b: PressBox, cx: &App) -> gpui::Stateful<gpui::Div> {
     if cx.reduce_motion() {
         return el;
     }
@@ -329,8 +369,7 @@ where
 
     el.with_animation(
         id.into(),
-        gpui::Animation::new(Duration::from_millis(m.ms))
-            .with_easing(move |t| m.curve.at(t)),
+        gpui::Animation::new(Duration::from_millis(m.ms)).with_easing(move |t| m.curve.at(t)),
         move |el, delta| {
             // `scale` may be above 1.0: a modal panel settles down from 105%.
             let f = m.scale + (1.0 - m.scale) * delta;
@@ -375,13 +414,7 @@ where
 /// Returns `el` untouched under reduced motion, which is also what makes the
 /// panel disappear immediately: with nothing to animate, the extra frames are
 /// invisible.
-pub fn exiting<E>(
-    el: E,
-    id: impl Into<ElementId>,
-    b: ZoomBox,
-    m: Motion,
-    cx: &App,
-) -> AnyElement
+pub fn exiting<E>(el: E, id: impl Into<ElementId>, b: ZoomBox, m: Motion, cx: &App) -> AnyElement
 where
     E: IntoElement + Styled + 'static,
 {
@@ -391,8 +424,7 @@ where
 
     el.with_animation(
         id.into(),
-        gpui::Animation::new(Duration::from_millis(m.ms))
-            .with_easing(move |t| m.curve.at(t)),
+        gpui::Animation::new(Duration::from_millis(m.ms)).with_easing(move |t| m.curve.at(t)),
         move |el, delta| {
             // `delta` runs 0 -> 1 over the exit, so the scale runs 1 -> m.scale.
             let f = 1.0 - (1.0 - m.scale) * delta;
@@ -455,7 +487,7 @@ pub fn hover_fade(
 
     let state = window.use_keyed_state(id.clone(), cx, |_, _| HoverFade::default());
     let current = *state.read(cx);
-    let held = state.clone();
+    let held = state;
     let el = el
         .bg(if current.hovered { hovered } else { idle })
         .on_hover(move |over: &bool, _, cx| {
@@ -482,8 +514,7 @@ pub fn hover_fade(
     }
     el.with_animation(
         ElementId::Name(format!("{id:?}-fade-{}", current.generation).into()),
-        gpui::Animation::new(Duration::from_millis(TRANSITION_MS))
-            .with_easing(ease_out()),
+        gpui::Animation::new(Duration::from_millis(TRANSITION_MS)).with_easing(ease_out()),
         move |el, delta| el.bg(herogpui_core::mix_oklab(from, to, delta)),
     )
     .into_any_element()
@@ -541,9 +572,8 @@ where
 
     el.with_animation(
         id.into(),
-        gpui::Animation::new(Duration::from_millis(m.ms))
-            .with_easing(move |t| m.curve.at(t)),
-        |el, delta| el.opacity(delta),
+        gpui::Animation::new(Duration::from_millis(m.ms)).with_easing(move |t| m.curve.at(t)),
+        Styled::opacity,
     )
     .into_any_element()
 }
@@ -570,8 +600,7 @@ where
 
     el.with_animation(
         id.into(),
-        gpui::Animation::new(Duration::from_millis(m.ms))
-            .with_easing(move |t| m.curve.at(t)),
+        gpui::Animation::new(Duration::from_millis(m.ms)).with_easing(move |t| m.curve.at(t)),
         move |el, delta| {
             let remaining = travel * (1.0 - delta);
             let el = el.opacity(delta);
@@ -606,8 +635,7 @@ where
 
     el.with_animation(
         id.into(),
-        gpui::Animation::new(Duration::from_millis(m.ms))
-            .with_easing(move |t| m.curve.at(t)),
+        gpui::Animation::new(Duration::from_millis(m.ms)).with_easing(move |t| m.curve.at(t)),
         move |el, delta| {
             let gone = travel * delta;
             let el = el.opacity(1.0 - delta);
@@ -651,7 +679,10 @@ mod tests {
         for h in [32.0f32, 40.0, 48.0] {
             let inset = f32::from(pressed_inset(px(h)));
             let shrunk = f32::from(shrink(px(h), pressed_inset(px(h)) + pressed_inset(px(h))));
-            assert!((shrunk + inset * 2.0 - h).abs() < 1e-4, "footprint changed at {h}");
+            assert!(
+                (shrunk + inset * 2.0 - h).abs() < 1e-4,
+                "footprint changed at {h}"
+            );
         }
     }
 
@@ -675,21 +706,28 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // the keyframe values are meant to be exact
     fn caret_blink_matches_its_keyframes() {
         // 0%, 70% and 100% are opaque; 20% and 50% are transparent.
-        assert_eq!(caret_opacity(0.0), 1.0);
-        assert_eq!(caret_opacity(0.20), 0.0);
-        assert_eq!(caret_opacity(0.35), 0.0);
-        assert_eq!(caret_opacity(0.50), 0.0);
-        assert_eq!(caret_opacity(0.70), 1.0);
-        assert_eq!(caret_opacity(1.0), 1.0);
+        let at = |t: f32| caret_opacity(t);
+        for (t, want) in [
+            (0.0, 1.0),
+            (0.20, 0.0),
+            (0.35, 0.0),
+            (0.50, 0.0),
+            (0.70, 1.0),
+            (1.0, 1.0),
+        ] {
+            assert!((at(t) - want).abs() < 1e-6, "{t} should be {want}");
+        }
         // and it ramps rather than jumping
         assert!((caret_opacity(0.10) - 0.5).abs() < 1e-6);
         assert!((caret_opacity(0.60) - 0.5).abs() < 1e-6);
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // clamped to exactly zero, not to near-zero
     fn shrink_never_goes_negative() {
-        assert_eq!(f32::from(shrink(px(1.), px(4.))), 0.0);
+        assert!(f32::from(shrink(px(1.), px(4.))).abs() < 1e-6);
     }
 }

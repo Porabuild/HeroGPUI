@@ -72,7 +72,7 @@ mod tests {
     use super::*;
 
     fn s(v: &str) -> SharedString {
-        SharedString::from(v.to_string())
+        SharedString::from(v.to_owned())
     }
 
     #[test]
@@ -108,7 +108,12 @@ mod tests {
     #[test]
     fn own_message_is_a_fallback_not_an_addition() {
         // With a specific failure, the generic message would duplicate it.
-        let v = resolve(false, &[], Some(s("Too short")), Some(s("Check this field")));
+        let v = resolve(
+            false,
+            &[],
+            Some(s("Too short")),
+            Some(s("Check this field")),
+        );
         assert_eq!(v.messages, vec![s("Too short")]);
         // With nothing specific, it is what the field shows.
         let v = resolve(false, &[], None, Some(s("Check this field")));

@@ -1,12 +1,10 @@
 //! Avatar & AvatarGroup — port of `@heroui/avatar`.
 
 use gpui::{
-    prelude::*, px, App, IntoElement, ParentElement, RenderOnce, SharedString,
-    Styled, Window,
+    prelude::*, px, App, IntoElement, ParentElement, RenderOnce, SharedString, Styled, Window,
 };
-use herogpui_core::{Color};
+use herogpui_core::Color;
 use herogpui_theme::ActiveTheme;
-
 
 /// Visual style of an avatar fallback (`variant`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -80,8 +78,6 @@ impl Avatar {
         self
     }
 
-
-
     fn with_border(mut self, v: bool) -> Self {
         self.is_bordered = v;
         self
@@ -91,7 +87,6 @@ impl Avatar {
         self.color = c;
         self
     }
-
 }
 
 impl Default for Avatar {
@@ -109,7 +104,7 @@ fn initials(name: &str) -> String {
         }
     }
     if out.is_empty() {
-        "?".to_string()
+        "?".to_owned()
     } else {
         out
     }
@@ -202,30 +197,32 @@ impl RenderOnce for AvatarGroup {
                     .flex()
                     .children(visible.into_iter().enumerate().map(|(i, a)| {
                         gpui::div()
-                            .when(i > 0, |d| d.ml(gpui::px(-8.)))
+                            .when(i > 0, |d| d.ml(px(-8.)))
                             .rounded_full()
                             .child(a.with_border(true))
                     })),
             )
-            .when(count > self.max || self.total.map(|t| t > self.max).unwrap_or(false), |el| {
-                let shown_total = self.total.unwrap_or(count);
-                el.child(
-                    gpui::div()
-                        .ml(px(-8.))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .w(px(40.))
-                        .h(px(40.))
-                        .rounded_full()
-                        .bg(cx.colors().default.soft())
-                        .text_color(cx.colors().muted)
-                        .text_size(px(12.))
-                        .border_2()
-                        .border_color(cx.colors().background)
-                        .child(format!("+{}", shown_total - self.max)),
-                )
-            })
+            .when(
+                count > self.max || self.total.is_some_and(|t| t > self.max),
+                |el| {
+                    let shown_total = self.total.unwrap_or(count);
+                    el.child(
+                        gpui::div()
+                            .ml(px(-8.))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .w(px(40.))
+                            .h(px(40.))
+                            .rounded_full()
+                            .bg(cx.colors().default.soft())
+                            .text_color(cx.colors().muted)
+                            .text_size(px(12.))
+                            .border_2()
+                            .border_color(cx.colors().background)
+                            .child(format!("+{}", shown_total - self.max)),
+                    )
+                },
+            )
     }
 }
-

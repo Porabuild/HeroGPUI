@@ -38,7 +38,15 @@ pub fn small_radius(cx: &App) -> Pixels {
     layout.capped(layout.radius_xl())
 }
 
-/// `rounded-lg` — the keyboard key, and nothing else in v3.
+/// `rounded-md` — the checkbox control (`.checkbox__control` is
+/// `size-4 rounded-md`).
+pub fn mark_radius(cx: &App) -> Pixels {
+    let layout = cx.layout();
+    layout.capped(layout.radius_md())
+}
+
+/// `rounded-lg` — the keyboard key and the radio control, which v3 draws as a
+/// rounded square rather than a circle.
 pub fn key_radius(cx: &App) -> Pixels {
     let layout = cx.layout();
     layout.capped(layout.radius_lg())
@@ -88,8 +96,10 @@ pub fn apply_field_chrome(
 
     let mut el = el.rounded(field_radius(cx)).bg(match variant {
         FieldVariant::Primary => colors.field.background,
-        // Low-emphasis fields sit on a surface, so they borrow its next level.
-        FieldVariant::Secondary => colors.surface_secondary,
+        // `.input--secondary` sets `--input-bg: var(--default)` and drops the
+        // shadow. This used to use `surface_secondary`, which is a different
+        // token (oklch 95.24% vs 94% in light mode) and a shade too light.
+        FieldVariant::Secondary => colors.default.color,
     });
 
     if variant == FieldVariant::Primary && !layout.field_shadow.is_empty() {
@@ -99,9 +109,13 @@ pub fn apply_field_chrome(
     // `--field-border-width` is 0 by default; an invalid or focused field draws
     // a ring regardless so the state is visible.
     if is_invalid {
-        el = el.border(layout.border_width.max(gpui::px(1.))).border_color(colors.danger.color);
+        el = el
+            .border(layout.border_width.max(gpui::px(1.)))
+            .border_color(colors.danger.color);
     } else if is_focused {
-        el = el.border(layout.border_width.max(gpui::px(1.))).border_color(colors.focus);
+        el = el
+            .border(layout.border_width.max(gpui::px(1.)))
+            .border_color(colors.focus);
     } else if layout.field_border_width > gpui::px(0.) {
         el = el
             .border(layout.field_border_width)
@@ -140,10 +154,7 @@ pub fn shared<F: 'static>(f: F) -> std::sync::Arc<F> {
 /// drift apart. The caller still has to hand the result to [`floating`] --
 /// gpui paints in tree order, so `absolute` alone does not lift a panel above
 /// later siblings.
-pub fn placed_panel(
-    placement: herogpui_core::Placement,
-    offset: gpui::Pixels,
-) -> gpui::Div {
+pub fn placed_panel(placement: herogpui_core::Placement, offset: Pixels) -> Div {
     use herogpui_core::{Placement, PlacementAlign};
 
     let base = gpui::div().absolute();
@@ -176,10 +187,7 @@ pub fn placed_panel(
 ///
 /// These panels stretch to the trigger's width, so the start and end alignment
 /// variants coincide and only the side differs.
-pub fn placed_field_panel(
-    placement: herogpui_core::Placement,
-    offset: gpui::Pixels,
-) -> gpui::Div {
+pub fn placed_field_panel(placement: herogpui_core::Placement, offset: Pixels) -> Div {
     use herogpui_core::Placement;
 
     let base = gpui::div().absolute();
@@ -206,7 +214,7 @@ pub fn placed_field_panel(
 /// would steal focus back on every frame and the user could never leave it.
 pub fn focus_once(
     window: &mut gpui::Window,
-    cx: &mut gpui::App,
+    cx: &mut App,
     key: impl Into<gpui::ElementId>,
     handle: &gpui::FocusHandle,
 ) {
@@ -247,7 +255,7 @@ struct PhaseState {
 /// and [`crate::anim::exiting`] on `Exiting`.
 pub fn overlay_phase(
     window: &mut gpui::Window,
-    cx: &mut gpui::App,
+    cx: &mut App,
     key: impl Into<gpui::ElementId>,
     is_open: bool,
 ) -> OverlayPhase {
@@ -300,9 +308,9 @@ pub fn overlay_phase(
 /// seed independently.
 pub fn seed_once(
     window: &mut gpui::Window,
-    cx: &mut gpui::App,
+    cx: &mut App,
     key: impl Into<gpui::ElementId>,
-    apply: impl FnOnce(&mut gpui::App),
+    apply: impl FnOnce(&mut App),
 ) {
     let done = window.use_keyed_state(key.into(), cx, |_, _| false);
     if !*done.read(cx) {
@@ -322,7 +330,7 @@ pub fn seed_once(
 /// write the next value into.
 pub fn controlled<T>(
     window: &mut gpui::Window,
-    cx: &mut gpui::App,
+    cx: &mut App,
     key: impl Into<gpui::ElementId>,
     controlled: Option<T>,
     default: T,

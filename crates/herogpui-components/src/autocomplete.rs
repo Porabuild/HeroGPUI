@@ -4,8 +4,8 @@
 //! field is focused and the query matches items.
 
 use gpui::{
-    prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString,
-    StatefulInteractiveElement, Styled, Window,
+    prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, StatefulInteractiveElement,
+    Styled, Window,
 };
 use herogpui_core::{FieldVariant, Placement, SelectionMode};
 use herogpui_theme::ActiveTheme;
@@ -22,7 +22,7 @@ type OnSelectionChange = std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut 
 pub struct Autocomplete {
     /// `name` — the name this control submits under; read back by
     /// [`Self::form_field`].
-    name: Option<gpui::SharedString>,
+    name: Option<SharedString>,
     state: Entity<InputState>,
     items: Vec<SharedString>,
     max_items: usize,
@@ -149,10 +149,7 @@ impl Autocomplete {
     }
 
     /// `onInputChange` — fires on every keystroke in the query field.
-    pub fn on_input_change(
-        mut self,
-        f: impl Fn(&str, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_input_change(mut self, f: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.on_input_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -207,7 +204,7 @@ impl Autocomplete {
     }
 
     /// `name` — the name this control submits under.
-    pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = Some(name.into());
         self
     }
@@ -224,7 +221,10 @@ impl Autocomplete {
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
-        Some(crate::form::FormField::keys(name, self.selected_keys.clone()).is_required(self.is_required))
+        Some(
+            crate::form::FormField::keys(name, self.selected_keys.clone())
+                .is_required(self.is_required),
+        )
     }
 
     pub fn max_items(mut self, n: usize) -> Self {
@@ -241,7 +241,6 @@ impl Autocomplete {
         self.placeholder = Some(p.into());
         self
     }
-
 
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.description = Some(text.into());
@@ -294,7 +293,6 @@ impl Autocomplete {
         self.allows_empty_collection = v;
         self
     }
-
 
     pub fn on_selection_change(
         mut self,
@@ -353,7 +351,7 @@ impl RenderOnce for Autocomplete {
         // A controlled `inputValue` wins over whatever the entity holds.
         let raw_query = match &self.input_value {
             Some(v) => v.clone(),
-            None => self.state.read(cx).value().to_string(),
+            None => self.state.read(cx).value().to_owned(),
         };
         let query = raw_query.to_lowercase();
 
@@ -397,7 +395,7 @@ impl RenderOnce for Autocomplete {
                     if !raw_query.is_empty() {
                         trailing = trailing.child(
                             gpui::div()
-                                .id(el_name("autocomplete-clear".to_string()))
+                                .id(el_name("autocomplete-clear".to_owned()))
                                 .flex()
                                 .items_center()
                                 .justify_center()
@@ -417,7 +415,7 @@ impl RenderOnce for Autocomplete {
                 }
 
                 let mut chevron = gpui::div()
-                    .id(el_name("autocomplete-trigger".to_string()))
+                    .id(el_name("autocomplete-trigger".to_owned()))
                     .flex()
                     .items_center()
                     .justify_center()
@@ -466,9 +464,8 @@ impl RenderOnce for Autocomplete {
         };
 
         // `allowsEmptyCollection` keeps the panel up with an empty state.
-        let show_panel = !self.is_disabled
-            && open
-            && (!matches.is_empty() || self.allows_empty_collection);
+        let show_panel =
+            !self.is_disabled && open && (!matches.is_empty() || self.allows_empty_collection);
         if show_panel {
             let base = "autocomplete-list";
             let mut panel = gpui::div()
@@ -486,7 +483,7 @@ impl RenderOnce for Autocomplete {
             for item in &matches {
                 let item_disabled = self.disabled_keys.contains(item);
                 let mut row = gpui::div()
-                    .id(el_name(format!("{base}-{}", item)))
+                    .id(el_name(format!("{base}-{item}")))
                     .px(px(12.))
                     .h(px(32.))
                     .flex()
@@ -544,7 +541,8 @@ impl RenderOnce for Autocomplete {
                     continue;
                 }
 
-                if let Some(on_select) = self.on_selection_change.clone().filter(|_| !item_disabled) {
+                if let Some(on_select) = self.on_selection_change.clone().filter(|_| !item_disabled)
+                {
                     let value = item.clone();
                     let state = self.state.clone();
                     row = row.on_click(move |_, window, cx| {
@@ -574,11 +572,8 @@ impl RenderOnce for Autocomplete {
                 crate::util::placed_field_panel(self.placement, px(6.)).child(
                     crate::anim::entering_zoom(
                         panel,
-                        el_name("autocomplete-panel".to_string()),
-                        crate::anim::ZoomBox::panel(
-                            px(6.),
-                            crate::util::control_radius(cx),
-                        ),
+                        el_name("autocomplete-panel".to_owned()),
+                        crate::anim::ZoomBox::panel(px(6.), crate::util::control_radius(cx)),
                         crate::anim::Motion::FLUID_IN,
                         cx,
                     ),
@@ -589,6 +584,3 @@ impl RenderOnce for Autocomplete {
         root
     }
 }
-
-
-

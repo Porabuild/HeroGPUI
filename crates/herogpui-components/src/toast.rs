@@ -9,7 +9,9 @@
 
 use std::time::Duration;
 
-use gpui::{prelude::*, px, App, Entity, Global, IntoElement, RenderOnce, SharedString, Styled, Window};
+use gpui::{
+    prelude::*, px, App, Entity, Global, IntoElement, RenderOnce, SharedString, Styled, Window,
+};
 use herogpui_core::Color;
 use herogpui_theme::ActiveTheme;
 
@@ -126,7 +128,9 @@ pub fn toast_store(cx: &mut App) -> Entity<ToastStore> {
         return hub.store.clone();
     }
     let store = cx.new(|_| ToastStore::new());
-    cx.set_global(ToastHub { store: store.clone() });
+    cx.set_global(ToastHub {
+        store: store.clone(),
+    });
     store
 }
 
@@ -308,7 +312,9 @@ impl RenderOnce for ToastViewport {
             ToastPlacement::TopStart | ToastPlacement::BottomStart => region.left(self.inset),
             ToastPlacement::TopEnd | ToastPlacement::BottomEnd => region.right(self.inset),
             // Centred placements stretch and centre their children.
-            ToastPlacement::Top | ToastPlacement::Bottom => region.left_0().right_0().items_center(),
+            ToastPlacement::Top | ToastPlacement::Bottom => {
+                region.left_0().right_0().items_center()
+            }
         };
 
         // The newest toast is at the end, so depth counts back from there.
@@ -333,7 +339,7 @@ fn toast_card(
     // Each step back shrinks the card by `scale_factor`, expressed as a
     // horizontal inset since a div cannot be scaled.
     let shrink = (1.0 - scale_factor * depth as f32).clamp(0.5, 1.0);
-    let width = gpui::px(f32::from(width) * shrink);
+    let width = px(f32::from(width) * shrink);
     ToastCardEl { t, width }.into_any_element()
 }
 
@@ -352,7 +358,7 @@ impl RenderOnce for ToastCardEl {
             .w(self.width)
             .flex()
             .items_start()
-            .gap(px(10.))
+            .gap(px(6.))
             .px(px(16.))
             .py(px(12.))
             .rounded(crate::util::container_radius(cx))
@@ -387,9 +393,7 @@ impl RenderOnce for ToastCardEl {
                 gpui::div()
                     .text_size(px(12.5))
                     .line_height(px(18.))
-                    .text_color(
-                        colors.muted,
-                    )
+                    .text_color(colors.muted)
                     .child(desc.to_string()),
             );
         }
@@ -413,9 +417,7 @@ impl RenderOnce for ToastCardEl {
                     gpui::svg()
                         .size(px(11.))
                         .path(icons::CLOSE)
-                        .text_color(
-                            colors.muted,
-                        ),
+                        .text_color(colors.muted),
                 ),
             );
         }
@@ -431,9 +433,3 @@ impl RenderOnce for ToastCardEl {
         )
     }
 }
-
-
-
-
-
-

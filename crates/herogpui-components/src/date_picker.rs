@@ -5,8 +5,8 @@
 //! `isDateUnavailable` / `firstDayOfWeek`.
 
 use gpui::{
-    prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString,
-    StatefulInteractiveElement, Styled, Window,
+    prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, StatefulInteractiveElement,
+    Styled, Window,
 };
 use herogpui_theme::ActiveTheme;
 
@@ -87,10 +87,7 @@ impl DatePicker {
     }
 
     /// `onOpenChange`
-    pub fn on_open_change(
-        mut self,
-        f: impl Fn(bool, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_open_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -164,9 +161,6 @@ impl DatePicker {
         self.placeholder = p.into();
         self
     }
-
-
-
 
     pub fn on_change(mut self, f: impl Fn(Option<Date>, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
@@ -268,7 +262,7 @@ impl RenderOnce for DatePicker {
             field = field.opacity(layout.disabled_opacity);
         } else if self.on_open_change.is_some() || open_own.is_some() {
             let cb = self.on_open_change.clone();
-            let own = open_own.clone();
+            let own = open_own;
             let next = !is_open;
             field = field.on_click(move |_, window, cx| {
                 // Uncontrolled: flip our own copy, or the trigger would be
@@ -305,7 +299,14 @@ impl RenderOnce for DatePicker {
             if let Some(on_change) = self.on_change.clone() {
                 cal = cal.on_change(move |d, window, cx| on_change(d, window, cx));
             }
-            root = root.child(gpui::div().absolute().top_full().left(px(0.)).mt(px(6.)).child(cal));
+            root = root.child(
+                gpui::div()
+                    .absolute()
+                    .top_full()
+                    .left(px(0.))
+                    .mt(px(6.))
+                    .child(cal),
+            );
         }
 
         root
@@ -368,7 +369,13 @@ impl DateRangeState {
 
     /// The range's moving edge while the user hovers before picking nd.
     pub fn preview_end(&self) -> Option<Date> {
-        if self.end.is_some() { self.end } else if self.start.is_some() { self.hovered } else { None }
+        if self.end.is_some() {
+            self.end
+        } else if self.start.is_some() {
+            self.hovered
+        } else {
+            None
+        }
     }
 
     /// Click logic: first click sets start; second click sets end (or restarts
@@ -481,7 +488,6 @@ impl DateRangePicker {
         self
     }
 
-
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -526,10 +532,7 @@ impl DateRangePicker {
     }
 
     /// `onOpenChange` — reports the popover toggling, including trigger clicks.
-    pub fn on_open_change(
-        mut self,
-        f: impl Fn(bool, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_open_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -547,7 +550,6 @@ impl DateRangePicker {
         self
     }
 
-
     /// Fired after any pick (read `start`/`end` from the entity).
     pub fn on_change(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
@@ -564,7 +566,11 @@ impl RenderOnce for DateRangePicker {
                 window,
                 cx,
                 gpui::ElementId::Name(
-                    format!("daterangepicker-default-{}", self.state.entity_id().as_u64()).into(),
+                    format!(
+                        "daterangepicker-default-{}",
+                        self.state.entity_id().as_u64()
+                    )
+                    .into(),
                 ),
                 move |cx| {
                     state.update(cx, |s, cx| {
@@ -636,7 +642,7 @@ impl RenderOnce for DateRangePicker {
             // could open the popover.
             if self.on_open_change.is_some() || open_own.is_some() {
                 let cb = self.on_open_change.clone();
-                let own = open_own.clone();
+                let own = open_own;
                 let next = !is_open;
                 field = field.on_click(move |_, window, cx| {
                     // Uncontrolled: flip our own copy too.
@@ -724,8 +730,7 @@ pub enum DateSegment {
 
 impl DateSegment {
     /// The segments a date field shows, in the order it shows them.
-    pub const ALL: [DateSegment; 3] =
-        [DateSegment::Month, DateSegment::Day, DateSegment::Year];
+    pub const ALL: [DateSegment; 3] = [DateSegment::Month, DateSegment::Day, DateSegment::Year];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -750,7 +755,9 @@ impl DateSegment {
         match self {
             DateSegment::Year => {
                 let year = date.year + delta;
-                let day = date.day.min(crate::calendar::days_in_month(year, date.month));
+                let day = date
+                    .day
+                    .min(crate::calendar::days_in_month(year, date.month));
                 Date::new(year, date.month, day)
             }
             DateSegment::Month => {
@@ -832,10 +839,7 @@ impl DateField {
     /// `validate` — returns the message to show, or `None` when the date is fine.
     ///
     /// The component runs it and surfaces the result.
-    pub fn validate(
-        mut self,
-        f: impl Fn(&Option<Date>) -> Option<SharedString> + 'static,
-    ) -> Self {
+    pub fn validate(mut self, f: impl Fn(&Option<Date>) -> Option<SharedString> + 'static) -> Self {
         self.validate = Some(std::sync::Arc::new(f));
         self
     }
@@ -944,7 +948,6 @@ impl DateField {
         self
     }
 
-
     pub fn on_change(mut self, f: impl Fn(Option<Date>, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
@@ -970,7 +973,8 @@ impl RenderOnce for DateField {
         // `validationBehavior` travels with the name, on the text state.
         if let Some(behavior) = self.validation_behavior {
             if self.state.read(cx).validation_behavior() != behavior {
-                self.state.update(cx, |s, _| s.set_validation_behavior(behavior));
+                self.state
+                    .update(cx, |s, _| s.set_validation_behavior(behavior));
             }
         }
         // `defaultValue` seeds the state once, before anything reads it.
@@ -1004,7 +1008,7 @@ impl RenderOnce for DateField {
         let colors = cx.colors().clone();
         let layout = cx.layout().clone();
 
-        let text = self.state.read(cx).value().to_string();
+        let text = self.state.read(cx).value().to_owned();
         let parsed = parse_iso(&text);
         let non_empty = !text.trim().is_empty();
 
@@ -1013,22 +1017,24 @@ impl RenderOnce for DateField {
         let rejection = if !non_empty {
             None
         } else if parsed.is_none() {
-            Some("Enter a valid date.".to_string())
+            Some("Enter a valid date.".to_owned())
         } else {
             let date = parsed.expect("checked above");
             if self.constraints.out_of_range(date) {
-                Some(match (self.constraints.min_value, self.constraints.max_value) {
-                    (Some(min), Some(max)) => format!(
-                        "Pick a date between {} and {}.",
-                        min.format_iso(),
-                        max.format_iso()
-                    ),
-                    (Some(min), None) => format!("Pick {} or later.", min.format_iso()),
-                    (None, Some(max)) => format!("Pick {} or earlier.", max.format_iso()),
-                    (None, None) => "Date is out of range.".to_string(),
-                })
+                Some(
+                    match (self.constraints.min_value, self.constraints.max_value) {
+                        (Some(min), Some(max)) => format!(
+                            "Pick a date between {} and {}.",
+                            min.format_iso(),
+                            max.format_iso()
+                        ),
+                        (Some(min), None) => format!("Pick {} or later.", min.format_iso()),
+                        (None, Some(max)) => format!("Pick {} or earlier.", max.format_iso()),
+                        (None, None) => "Date is out of range.".to_owned(),
+                    },
+                )
             } else if self.constraints.is_unavailable(date) {
-                Some("That date is unavailable.".to_string())
+                Some("That date is unavailable.".to_owned())
             } else {
                 None
             }
@@ -1046,7 +1052,7 @@ impl RenderOnce for DateField {
 
         let segment_text = move |segment: DateSegment| -> String {
             let Some(d) = parsed else {
-                return segment.hint().to_string();
+                return segment.hint().to_owned();
             };
             match segment {
                 DateSegment::Month => format!("{:02}", d.month),
@@ -1069,7 +1075,7 @@ impl RenderOnce for DateField {
 
         group = match self.variant {
             herogpui_core::FieldVariant::Primary => {
-                let shadow = layout.field_shadow.clone();
+                let shadow = layout.field_shadow;
                 group
                     .bg(colors.field.background)
                     .when(!shadow.is_empty(), |e| e.shadow(shadow))
@@ -1127,8 +1133,8 @@ impl RenderOnce for DateField {
         let seed = self.placeholder_value.unwrap_or_else(Date::today);
         let mut steppers = gpui::div().flex().flex_col().ml(px(8.)).flex_shrink_0();
         for (icon, delta, key) in [
-            (crate::icons::CHEVRON_UP, 1i32, "up"),
-            (crate::icons::CHEVRON_DOWN, -1i32, "down"),
+            (icons::CHEVRON_UP, 1i32, "up"),
+            (icons::CHEVRON_DOWN, -1i32, "down"),
         ] {
             let state = self.state.clone();
             let on_change = self.on_change.clone();
@@ -1145,7 +1151,12 @@ impl RenderOnce for DateField {
                     .size(px(14.))
                     .cursor_pointer()
                     .text_color(colors.muted)
-                    .child(gpui::svg().size(px(10.)).path(icon).text_color(colors.muted))
+                    .child(
+                        gpui::svg()
+                            .size(px(10.))
+                            .path(icon)
+                            .text_color(colors.muted),
+                    )
                     .on_click(move |_, window, cx| {
                         let base = current.unwrap_or(seed);
                         // An empty field takes the seed itself on the first
@@ -1164,7 +1175,11 @@ impl RenderOnce for DateField {
                     }),
             );
         }
-        let row = gpui::div().flex().items_center().child(group).child(steppers);
+        let row = gpui::div()
+            .flex()
+            .items_center()
+            .child(group)
+            .child(steppers);
 
         // -- label / description / error wrapper ------------------------------
         let mut el = gpui::div().flex().flex_col().gap(px(4.));
@@ -1188,9 +1203,3 @@ impl RenderOnce for DateField {
         el.into_any_element()
     }
 }
-
-
-
-
-
-

@@ -205,7 +205,6 @@ impl RenderOnce for TagGroup {
         if self.tags.is_empty() {
             let text = self
                 .empty_state
-                .clone()
                 .unwrap_or_else(|| SharedString::from("No tags"));
             root = root.child(
                 div()
@@ -219,7 +218,8 @@ impl RenderOnce for TagGroup {
         let mut list = div().flex().flex_row().flex_wrap().gap(px(6.));
 
         for (index, tag) in self.tags.iter().enumerate() {
-            let disabled = self.is_disabled || tag.is_disabled || self.disabled_keys.contains(&tag.key);
+            let disabled =
+                self.is_disabled || tag.is_disabled || self.disabled_keys.contains(&tag.key);
             let selected = self.selected_keys.contains(&tag.key);
             let selectable = self.selection_mode != SelectionMode::None;
 

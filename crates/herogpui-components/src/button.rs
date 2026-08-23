@@ -5,8 +5,8 @@
 //! There is no `color` or `radius` prop, and `isLoading` became `isPending`.
 
 use gpui::{
-    div, prelude::*, AnyElement, App, ClickEvent, Div, ElementId, InteractiveElement,
-    IntoElement, ParentElement, RenderOnce, SharedString, Stateful, Styled, Window,
+    div, prelude::*, AnyElement, App, ClickEvent, Div, ElementId, InteractiveElement, IntoElement,
+    ParentElement, RenderOnce, SharedString, Stateful, Styled, Window,
 };
 use herogpui_core::{Size, Variant};
 use herogpui_theme::ActiveTheme;
@@ -212,7 +212,7 @@ fn apply_variant(
                 el.when(hover_bg, |e| {
                     e.hover(move |s| s.bg(base.color).text_color(colors.foreground))
                 })
-                    .active(|s| s.opacity(0.85))
+                .active(|s| s.opacity(0.85))
             } else {
                 el
             }
@@ -241,7 +241,6 @@ fn apply_variant(
         }
     }
 }
-
 
 /// The text colour `variant` paints. Needed because gpui svgs never inherit
 /// `text_color`, so a pending spinner has to be told what "current" means.
@@ -303,10 +302,8 @@ impl RenderOnce for Button {
         // documented render-prop pattern.
         if self.is_pending {
             let spinner_id = ElementId::Name(format!("{:?}-spinner", self.id).into());
-            el = el.child(
-                Spinner::new(spinner_id)
-                    .current_color(button_foreground(self.variant, cx)),
-            );
+            el = el
+                .child(Spinner::new(spinner_id).current_color(button_foreground(self.variant, cx)));
         } else if let Some(start) = self.start_content {
             el = el.child(start);
         }

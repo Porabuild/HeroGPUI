@@ -1,0 +1,10 @@
+# Keep the working tree's line endings stable so `cargo fmt` never produces a
+# whole-file diff. rustfmt.toml pins `newline_style = "Unix"`; this makes git
+# check the same files out that way.
+* text=auto
+*.rs text eol=lf
+*.toml text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+# PowerShell is happier with CRLF on Windows.
+*.ps1 text eol=crlf

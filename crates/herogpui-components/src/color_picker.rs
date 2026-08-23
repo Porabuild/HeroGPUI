@@ -168,10 +168,18 @@ impl PickerColor {
     }
 
     /// Builds a color from normalised sRGB components.
+    // `max` is `r.max(g).max(b)`, so `max == r` asks which channel won, not
+    // whether two computed floats are near each other. An epsilon here would
+    // make two equally-large channels both match.
+    #[allow(clippy::float_cmp)]
     pub fn from_rgb(r: f32, g: f32, b: f32) -> Self {
         let max = r.max(g).max(b);
         let min = r.min(g).min(b);
         let delta = max - min;
+        // `max` is by construction one of `r`/`g`/`b`, so these comparisons
+        // select a branch rather than test a quantity; comparing within a
+        // tolerance would pick the wrong one when two channels are merely close.
+        #[allow(clippy::float_cmp)]
         let hue = if delta <= f32::EPSILON {
             0.0
         } else if max == r {
@@ -183,7 +191,11 @@ impl PickerColor {
         };
         Self {
             hue: hue.rem_euclid(360.0),
-            saturation: if max <= f32::EPSILON { 0.0 } else { delta / max },
+            saturation: if max <= f32::EPSILON {
+                0.0
+            } else {
+                delta / max
+            },
             brightness: max,
             alpha: 1.0,
         }
@@ -224,13 +236,7 @@ impl PickerColor {
         if self.alpha >= 1.0 {
             format!("#{:02X}{:02X}{:02X}", q(r), q(g), q(b))
         } else {
-            format!(
-                "#{:02X}{:02X}{:02X}{:02X}",
-                q(r),
-                q(g),
-                q(b),
-                q(self.alpha)
-            )
+            format!("#{:02X}{:02X}{:02X}{:02X}", q(r), q(g), q(b), q(self.alpha))
         }
     }
 
@@ -273,12 +279,7 @@ impl PickerColor {
     }
 
     /// [`PickerColor::with_channel`] written in `space`.
-    pub fn with_channel_in(
-        self,
-        channel: ColorChannel,
-        space: ColorSpace,
-        value: f32,
-    ) -> Self {
+    pub fn with_channel_in(self, channel: ColorChannel, space: ColorSpace, value: f32) -> Self {
         match (channel, space) {
             (ColorChannel::Saturation, ColorSpace::Hsl) => self.with_hsl_saturation(value),
             _ => self.with_channel(channel, value),
@@ -345,8 +346,7 @@ type OnColorChange = Arc<dyn Fn(PickerColor, &mut Window, &mut App) + 'static>;
 
 /// `ColorField`'s `onChange`, which reports `None` when the text is not a
 /// colour -- v3 types it `(color: Color | null) => void`.
-type OnColorFieldChange =
-    Arc<dyn Fn(Option<PickerColor>, &mut Window, &mut App) + 'static>;
+type OnColorFieldChange = Arc<dyn Fn(Option<PickerColor>, &mut Window, &mut App) + 'static>;
 
 /// Shape of a swatch.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -391,7 +391,8 @@ impl ColorSwatch {
     pub fn new(color: PickerColor) -> Self {
         Self {
             color,
-            size: SizeXl::Md,
+            // `.color-swatch` is `size-8` (32px), which is `SizeXl::Lg`.
+            size: SizeXl::Lg,
             shape: SwatchShape::Circle,
         }
     }
@@ -405,7 +406,6 @@ impl ColorSwatch {
         self.shape = shape;
         self
     }
-
 }
 
 impl RenderOnce for ColorSwatch {
@@ -547,10 +547,10 @@ impl RenderOnce for ColorArea {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `defaultValue` opts into the component holding its own colour;
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
-        let (resolved, own) = crate::util::controlled(
+        let (resolved, own) = util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-area-value", self.id).into()),
+            ElementId::Name(format!("{:?}-area-value", self.id).into()),
             match self.default_value {
                 Some(_) => None,
                 None => Some(self.value),
@@ -564,8 +564,10 @@ impl RenderOnce for ColorArea {
 
         let (x_min, x_max) = self.x_channel.range();
         let (y_min, y_max) = self.y_channel.range();
-        let x_norm = ((self.value.channel(self.x_channel) - x_min) / (x_max - x_min)).clamp(0.0, 1.0);
-        let y_norm = ((self.value.channel(self.y_channel) - y_min) / (y_max - y_min)).clamp(0.0, 1.0);
+        let x_norm =
+            ((self.value.channel(self.x_channel) - x_min) / (x_max - x_min)).clamp(0.0, 1.0);
+        let y_norm =
+            ((self.value.channel(self.y_channel) - y_min) / (y_max - y_min)).clamp(0.0, 1.0);
 
         // Saturation left-to-right over the hue, brightness bottom-to-top.
         let mut area = div()
@@ -582,13 +584,11 @@ impl RenderOnce for ColorArea {
                 gpui::linear_color_stop(gpui::white(), 0.0),
                 gpui::linear_color_stop(hue_color, 1.0),
             ))
-            .child(
-                div().absolute().inset_0().bg(gpui::linear_gradient(
-                    180.0,
-                    gpui::linear_color_stop(gpui::transparent_black(), 0.0),
-                    gpui::linear_color_stop(gpui::black(), 1.0),
-                )),
-            );
+            .child(div().absolute().inset_0().bg(gpui::linear_gradient(
+                180.0,
+                gpui::linear_color_stop(gpui::transparent_black(), 0.0),
+                gpui::linear_color_stop(gpui::black(), 1.0),
+            )));
 
         // `showDots` — the dot-grid overlay. gpui has no repeating background,
         // so the grid is drawn as rows of small translucent dots.
@@ -704,7 +704,7 @@ impl RenderOnce for ColorArea {
 pub struct ColorSlider {
     /// `name` — the name this control submits under; read back by
     /// [`Self::form_field`].
-    name: Option<gpui::SharedString>,
+    name: Option<SharedString>,
     /// `defaultValue` — set it to hand this component its own state.
     default_value: Option<PickerColor>,
     id: ElementId,
@@ -740,7 +740,7 @@ impl ColorSlider {
     }
 
     /// `name` — the name this control submits under.
-    pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = Some(name.into());
         self
     }
@@ -757,10 +757,13 @@ impl ColorSlider {
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
-        Some(crate::form::FormField::number_value(
+        Some(
+            crate::form::FormField::number_value(
                 name,
                 self.value.channel_in(self.channel, self.color_space) as f64,
-            ).is_required(false))
+            )
+            .is_required(false),
+        )
     }
 
     /// `defaultValue` — the uncontrolled initial colour.
@@ -831,10 +834,10 @@ impl RenderOnce for ColorSlider {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `defaultValue` opts into the component holding its own colour;
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
-        let (resolved, own) = crate::util::controlled(
+        let (resolved, own) = util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-slider-value", self.id).into()),
+            ElementId::Name(format!("{:?}-slider-value", self.id).into()),
             match self.default_value {
                 Some(_) => None,
                 None => Some(self.value),
@@ -897,7 +900,8 @@ impl RenderOnce for ColorSlider {
 
         // A vertical slider's zero end is at the bottom, so the offset is
         // measured from the far edge.
-        let thumb_offset = px(f32::from(self.length) * if vertical { 1.0 - norm } else { norm } - 8.);
+        let thumb_offset =
+            px(f32::from(self.length) * if vertical { 1.0 - norm } else { norm } - 8.);
         track = track.child(
             div()
                 .absolute()
@@ -931,7 +935,7 @@ impl RenderOnce for ColorSlider {
             let resolve_up = resolve;
             track = track.cursor_pointer();
             if on_change.is_some() || own.is_some() {
-                let own = own.clone();
+                let own = own;
                 track = track.on_mouse_down(
                     gpui::MouseButton::Left,
                     move |event: &MouseDownEvent, window, cx| {
@@ -1009,7 +1013,7 @@ pub struct ColorField {
     validation_behavior: crate::form::ValidationBehavior,
     /// `name` — the name this control submits under; read back by
     /// [`Self::form_field`].
-    name: Option<gpui::SharedString>,
+    name: Option<SharedString>,
     /// `defaultValue` — set it to hand this component its own state.
     default_value: Option<PickerColor>,
     id: ElementId,
@@ -1086,7 +1090,7 @@ impl ColorField {
     }
 
     /// `name` — the name this control submits under.
-    pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = Some(name.into());
         self
     }
@@ -1103,8 +1107,11 @@ impl ColorField {
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
-        Some(crate::form::FormField::text_value(name, self.value.to_hex()).is_required(self.is_required)
-            .validation_behavior(self.validation_behavior))
+        Some(
+            crate::form::FormField::text_value(name, self.value.to_hex())
+                .is_required(self.is_required)
+                .validation_behavior(self.validation_behavior),
+        )
     }
 
     /// `defaultValue` — the uncontrolled initial colour.
@@ -1124,10 +1131,7 @@ impl ColorField {
 
     /// `validate` — returns the message to show, or `None` when the colour is
     /// fine. The component runs it and surfaces the result.
-    pub fn validate(
-        mut self,
-        f: impl Fn(&PickerColor) -> Option<SharedString> + 'static,
-    ) -> Self {
+    pub fn validate(mut self, f: impl Fn(&PickerColor) -> Option<SharedString> + 'static) -> Self {
         self.validate = Some(Arc::new(f));
         self
     }
@@ -1257,10 +1261,10 @@ impl RenderOnce for ColorField {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `defaultValue` opts into the component holding its own colour;
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
-        let (resolved, own) = crate::util::controlled(
+        let (resolved, own) = util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-field-value", self.id).into()),
+            ElementId::Name(format!("{:?}-field-value", self.id).into()),
             match self.default_value {
                 Some(_) => None,
                 None => Some(self.value),
@@ -1298,7 +1302,7 @@ impl RenderOnce for ColorField {
             if let Some(ph) = self.placeholder.clone() {
                 input = input.placeholder(ph);
             } else {
-                input = input.placeholder(text.clone());
+                input = input.placeholder(text);
             }
             if let Some(label) = self.label.clone() {
                 input = input.label(label);
@@ -1311,7 +1315,7 @@ impl RenderOnce for ColorField {
             }
             if self.on_change.is_some() || own.is_some() {
                 let cb = self.on_change.clone();
-                let own = own.clone();
+                let own = own;
                 let parser = self;
                 input = input.on_change(move |text, window, cx| {
                     let next = parser.parse(text);
@@ -1377,9 +1381,12 @@ impl RenderOnce for ColorField {
                 // One notch is a percent of the channel's range, so hue moves
                 // in degrees and an 8-bit channel in whole steps.
                 let step = ((max - min) / 100.0).max(1.0);
-                let next = (value.channel_in(channel, space) + step * dy.signum())
-                    .clamp(min, max);
-                cb(Some(value.with_channel_in(channel, space, next)), window, cx);
+                let next = (value.channel_in(channel, space) + step * dy.signum()).clamp(min, max);
+                cb(
+                    Some(value.with_channel_in(channel, space, next)),
+                    window,
+                    cx,
+                );
             });
         }
 
@@ -1448,7 +1455,8 @@ impl ColorSwatchPicker {
             id: id.into(),
             swatches,
             value: None,
-            size: SizeXl::Md,
+            // `.color-swatch` is `size-8` (32px), which is `SizeXl::Lg`.
+            size: SizeXl::Lg,
             shape: SwatchShape::Circle,
             layout: SwatchLayout::Grid,
             is_disabled: false,
@@ -1503,10 +1511,10 @@ impl RenderOnce for ColorSwatchPicker {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `defaultValue` opts into the component holding its own selection;
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
-        let (resolved, own) = crate::util::controlled(
+        let (resolved, own) = util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-swatches-value", self.id).into()),
+            ElementId::Name(format!("{:?}-swatches-value", self.id).into()),
             match self.default_value {
                 Some(_) => None,
                 None => Some(self.value),
@@ -1522,10 +1530,7 @@ impl RenderOnce for ColorSwatchPicker {
         }
 
         for (index, swatch) in self.swatches.iter().enumerate() {
-            let selected = self
-                .value
-                .map(|v| v.to_hex() == swatch.to_hex())
-                .unwrap_or(false);
+            let selected = self.value.is_some_and(|v| v.to_hex() == swatch.to_hex());
 
             let mut cell = div()
                 .id(ElementId::Name(
@@ -1671,10 +1676,10 @@ impl RenderOnce for ColorPicker {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `defaultValue` opts into the component holding its own colour;
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
-        let (resolved, own) = crate::util::controlled(
+        let (resolved, own) = util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(format!("{:?}-picker-value", self.id).into()),
+            ElementId::Name(format!("{:?}-picker-value", self.id).into()),
             match self.default_value {
                 Some(_) => None,
                 None => Some(self.value),
@@ -1793,7 +1798,7 @@ impl RenderOnce for ColorPicker {
             .show_label(false);
             {
                 let cb = self.on_change.clone();
-                let own = own.clone();
+                let own = own;
                 alpha = alpha.on_change(move |c, window, cx| {
                     if let Some(held) = &own {
                         held.update(cx, |v, cx| {
@@ -1817,8 +1822,8 @@ impl RenderOnce for ColorPicker {
                 .child(self.value.to_hex()),
         );
 
-        root.child(crate::util::floating(
-            crate::util::placed_panel(self.placement, px(6.)).child(crate::anim::entering_zoom(
+        root.child(util::floating(
+            util::placed_panel(self.placement, px(6.)).child(crate::anim::entering_zoom(
                 panel,
                 ElementId::Name(format!("{base}-panel-anim").into()),
                 crate::anim::ZoomBox::panel(px(12.), util::container_radius(cx))
@@ -1866,6 +1871,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // the two spaces must agree bit for bit
     fn channel_in_only_diverges_for_saturation() {
         let c = PickerColor {
             hue: 30.0,
@@ -1882,9 +1888,12 @@ mod tests {
             ColorChannel::Green,
             ColorChannel::Blue,
         ] {
-            assert_eq!(
+            let (hsl, hsb) = (
                 c.channel_in(ch, ColorSpace::Hsl),
                 c.channel_in(ch, ColorSpace::Hsb),
+            );
+            assert!(
+                (hsl - hsb).abs() < 1e-6,
                 "{ch:?} should not depend on the colour space"
             );
         }
@@ -1912,7 +1921,9 @@ mod tests {
 
     #[test]
     fn hex_round_trips() {
-        for hex in ["#FF0000", "#00FF00", "#0000FF", "#123456", "#FFFFFF", "#000000"] {
+        for hex in [
+            "#FF0000", "#00FF00", "#0000FF", "#123456", "#FFFFFF", "#000000",
+        ] {
             let c = PickerColor::from_hex(hex).expect(hex);
             assert_eq!(c.to_hex(), hex, "{hex}");
         }
@@ -1945,11 +1956,16 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)] // the clamp bounds are exact
     fn channel_values_stay_in_range() {
         let c = PickerColor::default();
-        assert_eq!(c.with_channel(ColorChannel::Alpha, 5.0).alpha, 1.0);
+        assert!((c.with_channel(ColorChannel::Alpha, 5.0).alpha - 1.0).abs() < 1e-6);
         assert_eq!(c.with_channel(ColorChannel::Alpha, -1.0).alpha, 0.0);
-        assert!(c.with_channel(ColorChannel::Red, 999.0).channel(ColorChannel::Red) <= 255.0);
+        assert!(
+            c.with_channel(ColorChannel::Red, 999.0)
+                .channel(ColorChannel::Red)
+                <= 255.0
+        );
     }
 
     #[test]

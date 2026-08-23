@@ -11,7 +11,54 @@ cargo run -p herogpui-gallery      # launch the gallery app
 cargo test --workspace             # unit tests (color math, time math)
 cargo clippy --workspace           # lint (no warnings policy on new code)
 cargo fix --allow-dirty --workspace
+cargo fmt --all                    # format; --check is the CI-shaped gate
+.shots/lint.ps1                    # the real lint gate: see below
+.shots/lint.ps1 -Fix               # apply the machine-applicable fixes first
 ```
+
+## Lint and format
+
+Both are configured, not left to each machine's defaults, so `--check` means
+something:
+
+- `rustfmt.toml` sets edition, `max_width = 100`, LF newlines and the two
+  non-default shorthands. Only **stable** options are listed — rustfmt silently
+  ignores nightly-only keys on a stable toolchain, so an unstable option there
+  would read as enforced while doing nothing. `.gitattributes` pins the same
+  line endings so a reformat is never a whole-file diff.
+- `[workspace.lints]` in the root `Cargo.toml` holds the whole policy, and every
+  crate inherits it with `lints.workspace = true`. A crate that forgets that
+  line silently opts out of everything, which is why `.shots/lint.ps1` checks
+  for it *before* running clippy.
+- `clippy.toml` carries `msrv`, which mirrors `rust-version = "1.87"` in the
+  manifest. That number is read off the code, not chosen: `u64::is_multiple_of`
+  (`format.rs`, `range_calendar.rs`) is stable since 1.87.
+
+Run the gate with `.shots/lint.ps1`; it is `cargo clippy --workspace
+--all-targets -- -D warnings` plus the inheritance check. `--all-targets`
+matters — float comparisons and unused imports hide in `#[cfg(test)]`.
+
+The policy is `clippy::all` plus named pedantic/nursery members rather than the
+`pedantic` group, which is unusable here: every `pub fn size(mut self, ..)`
+trips `must_use_candidate`. Three deliberate exceptions, each with its reason in
+the manifest:
+
+- **`wrong_self_convention` is allowed.** Prop builders are named after their v3
+  props, so `isDisabled` ports to `fn is_disabled(mut self, ..) -> Self`.
+  `extra_audit.py` checks those names against v3's tables; renaming them to
+  satisfy clippy would fail the parity audit instead.
+- **`redundant_closure_for_method_calls` is allowed.** It rewrites
+  `.when_some(top, |b, t| b.top(t))` into `.when_some(top, gpui::Styled::top)`,
+  naming a trait path that appears nowhere else in the codebase.
+- **`float_cmp` is on**, and the handful of exact comparisons that remain are
+  each `#[allow]`ed at the site with a comment saying why the comparison is
+  exact on purpose — `max == r` in `from_rgb` asks which channel won a
+  `r.max(g).max(b)`, and an epsilon there would let two equal channels both
+  match.
+
+`clippy --fix` is worth running but not worth trusting blind: it turned 25
+builder closures into `gpui::Styled::*` paths before that lint was switched off.
+Read the diff.
 
 - First build of `gpui` takes several minutes; incremental after that.
 - Incremental compilation is disabled for the dev profile (see `Cargo.toml`).

@@ -2,8 +2,8 @@
 //! `@heroui/date-picker`'s range grid (std-only date math).
 
 use gpui::{
-    prelude::*, px, App, Entity, IntoElement, RenderOnce,
-    StatefulInteractiveElement, Styled, Window,
+    prelude::*, px, App, Entity, IntoElement, RenderOnce, StatefulInteractiveElement, Styled,
+    Window,
 };
 use herogpui_theme::ActiveTheme;
 
@@ -40,7 +40,6 @@ impl Date {
     pub fn format_iso(&self) -> String {
         format!("{:04}-{:02}-{:02}", self.year, self.month, self.day)
     }
-
 }
 
 /// Days since epoch -> civil date (Howard Hinnant's algorithm).
@@ -112,8 +111,18 @@ fn first_weekday(year: i32, month: u32) -> usize {
 }
 
 const MONTH_NAMES: [&str; 12] = [
-    "January", "February", "March", "April", "May", "June", "July", "August",
-    "September", "October", "November", "December",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
 ];
 
 fn next_month(y: i32, m: u32) -> (i32, u32) {
@@ -264,7 +273,8 @@ pub struct Calendar {
     /// seeded from `defaultYearPickerOpen`.
     year_picker_open: Option<bool>,
     default_year_picker_open: bool,
-    on_year_picker_open_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
+    on_year_picker_open_change:
+        Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
     on_focus_change: Option<std::sync::Arc<dyn Fn(Date, &mut Window, &mut App) + 'static>>,
     on_change: Option<OnChange>,
 }
@@ -323,7 +333,6 @@ impl Calendar {
         self
     }
 
-
     /// `minValue` — the earliest selectable date.
     pub fn min_value(mut self, date: Date) -> Self {
         self.constraints.min_value = Some(date);
@@ -337,10 +346,7 @@ impl Calendar {
     }
 
     /// `isDateUnavailable` — blocks individual dates inside the range.
-    pub fn is_date_unavailable(
-        mut self,
-        f: impl Fn(Date) -> bool + 'static,
-    ) -> Self {
+    pub fn is_date_unavailable(mut self, f: impl Fn(Date) -> bool + 'static) -> Self {
         self.constraints.is_date_unavailable = Some(std::sync::Arc::new(f));
         self
     }
@@ -434,11 +440,7 @@ impl Calendar {
         self
     }
 
-
-    pub fn on_change(
-        mut self,
-        f: impl Fn(Option<Date>, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_change(mut self, f: impl Fn(Option<Date>, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -457,7 +459,7 @@ struct Frame<'a> {
 
 impl Calendar {
     /// One day cell, shared by the month, week and day views.
-    fn day_cell(&self, date: Date, frame: &Frame, key: String, cx: &App) -> gpui::AnyElement {
+    fn day_cell(&self, date: Date, frame: &Frame<'_>, key: String, cx: &App) -> gpui::AnyElement {
         let colors = cx.colors();
         let accent = colors.accent;
         // In the multiple mode membership of the set is what marks a date.
@@ -561,13 +563,13 @@ impl Calendar {
                     .text_center()
                     .text_size(px(11.))
                     .text_color(muted)
-                    .child(d.to_string())
+                    .child(d.to_owned())
             }))
     }
 
     /// The 7-column grid for a single month, with its lead blanks and the
     /// muted spill into the next month.
-    fn month_grid(&self, y: i32, m: u32, frame: &Frame, cx: &App) -> gpui::AnyElement {
+    fn month_grid(&self, y: i32, m: u32, frame: &Frame<'_>, cx: &App) -> gpui::AnyElement {
         let muted = cx.colors().muted;
         let lead = self.constraints.lead_cells(y, m);
         let dim = days_in_month(y, m) as usize;
@@ -738,9 +740,8 @@ impl RenderOnce for Calendar {
         let linear = calendar_view::linear_cells(self.duration, first_day, anchor);
         let columns = months.len().max(1);
 
-        let nav_target = |dir: i32| {
-            calendar_view::page(self.duration, self.page_behavior, anchor, dir)
-        };
+        let nav_target =
+            |dir: i32| calendar_view::page(self.duration, self.page_behavior, anchor, dir);
         let state_for_nav = self.state.clone();
         let nav_btn = |icon_path: &'static str, target: Date, key: String| {
             let state = state_for_nav.clone();
@@ -838,7 +839,7 @@ impl RenderOnce for Calendar {
                                     cx.notify();
                                 });
                             }
-                            cb(!open, window, cx)
+                            cb(!open, window, cx);
                         })
                         .child(label)
                         .child(
@@ -897,11 +898,7 @@ impl RenderOnce for Calendar {
             for (i, &(y, m)) in months.iter().enumerate() {
                 let first = i == 0;
                 let last = i + 1 == columns;
-                let mut col = gpui::div()
-                    .w(column_width)
-                    .flex()
-                    .flex_col()
-                    .gap(px(8.));
+                let mut col = gpui::div().w(column_width).flex().flex_col().gap(px(8.));
                 // Only the outer columns carry nav buttons; the others keep
                 // a same-size spacer so every heading lines up.
                 let spacer = || gpui::div().size(px(28.)).into_any_element();
@@ -911,12 +908,8 @@ impl RenderOnce for Calendar {
                         .items_center()
                         .justify_between()
                         .child(if first {
-                            nav_btn(
-                                icons::CHEVRON_LEFT,
-                                nav_target(-1),
-                                format!("{base}-prev"),
-                            )
-                            .into_any_element()
+                            nav_btn(icons::CHEVRON_LEFT, nav_target(-1), format!("{base}-prev"))
+                                .into_any_element()
                         } else {
                             spacer()
                         })
@@ -925,12 +918,8 @@ impl RenderOnce for Calendar {
                             format!("{base}-heading{i}"),
                         ))
                         .child(if last {
-                            nav_btn(
-                                icons::CHEVRON_RIGHT,
-                                nav_target(1),
-                                format!("{base}-next"),
-                            )
-                            .into_any_element()
+                            nav_btn(icons::CHEVRON_RIGHT, nav_target(1), format!("{base}-next"))
+                                .into_any_element()
                         } else {
                             spacer()
                         }),
@@ -973,20 +962,14 @@ impl RenderOnce for Calendar {
                 root = root.child(self.weekday_header(cx));
             } else {
                 // A day view labels each visible column with its own weekday.
-                root = root.child(
-                    gpui::div().flex().children(linear.iter().map(|d| {
-                        gpui::div()
-                            .flex_1()
-                            .text_center()
-                            .text_size(px(11.))
-                            .text_color(colors.muted)
-                            .child(
-                                Weekday::ALL[crate::calendar::weekday_index(*d)]
-                                    .short_label()
-                                    .to_string(),
-                            )
-                    })),
-                );
+                root = root.child(gpui::div().flex().children(linear.iter().map(|d| {
+                    gpui::div()
+                        .flex_1()
+                        .text_center()
+                        .text_size(px(11.))
+                        .text_color(colors.muted)
+                        .child(Weekday::ALL[weekday_index(*d)].short_label().to_owned())
+                })));
             }
             let mut grid = gpui::div().flex().flex_col().gap(px(2.));
             for chunk in linear.chunks(per_row) {

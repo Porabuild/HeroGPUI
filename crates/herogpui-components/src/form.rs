@@ -12,8 +12,10 @@
 
 use std::sync::Arc;
 
-use gpui::{px, AnyElement, App, Entity, IntoElement, ParentElement, RenderOnce, SharedString,
-           Styled, Window};
+use gpui::{
+    px, AnyElement, App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled,
+    Window,
+};
 
 use crate::{input::InputState, number_field::NumberState};
 
@@ -37,7 +39,10 @@ impl FormValue {
             FormValue::Flag(true) => SharedString::from("on"),
             FormValue::Flag(false) => SharedString::from(""),
             FormValue::Keys(k) => SharedString::from(
-                k.iter().map(|s| s.to_string()).collect::<Vec<_>>().join(","),
+                k.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
             ),
         }
     }
@@ -86,9 +91,7 @@ impl FormData {
     pub fn missing_required(&self, required: &[SharedString]) -> Vec<SharedString> {
         required
             .iter()
-            .filter(|name| {
-                self.get(name).map(|v| v.is_empty()).unwrap_or(true)
-            })
+            .filter(|name| self.get(name).is_none_or(FormValue::is_empty))
             .cloned()
             .collect()
     }
@@ -125,7 +128,7 @@ impl FormField {
     pub fn text(state: Entity<InputState>) -> Self {
         let read_state = state.clone();
         let name_state = state.clone();
-        let behavior_state = state.clone();
+        let behavior_state = state;
         Self {
             name: None,
             name_of: Some(Arc::new(move |cx: &App| name_state.read(cx).name())),
@@ -133,19 +136,19 @@ impl FormField {
                 behavior_state.read(cx).validation_behavior()
             })),
             read: Arc::new(move |cx: &App| {
-                FormValue::Text(SharedString::from(read_state.read(cx).value().to_string()))
+                FormValue::Text(SharedString::from(read_state.read(cx).value().to_owned()))
             }),
             restore: None,
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
-                    }
+        }
     }
 
     /// A numeric field, read from its [`NumberState`].
     pub fn number(state: Entity<NumberState>) -> Self {
         let read_state = state.clone();
         let name_state = state.clone();
-        let behavior_state = state.clone();
+        let behavior_state = state;
         Self {
             name: None,
             name_of: Some(Arc::new(move |cx: &App| {
@@ -159,14 +162,11 @@ impl FormField {
             restore: None,
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
-                    }
+        }
     }
 
     /// An OTP field, read from its [`crate::input_otp::OtpState`].
-    pub fn code(
-        name: impl Into<SharedString>,
-        state: Entity<crate::input_otp::OtpState>,
-    ) -> Self {
+    pub fn code(name: impl Into<SharedString>, state: Entity<crate::input_otp::OtpState>) -> Self {
         Self {
             name: Some(name.into()),
             name_of: None,
@@ -182,10 +182,7 @@ impl FormField {
 
     /// A plain text value the caller holds — a formatted date, a colour hex,
     /// an OTP code.
-    pub fn text_value(
-        name: impl Into<SharedString>,
-        value: impl Into<SharedString>,
-    ) -> Self {
+    pub fn text_value(name: impl Into<SharedString>, value: impl Into<SharedString>) -> Self {
         let value = value.into();
         Self {
             name: Some(name.into()),
@@ -248,7 +245,11 @@ impl FormField {
     }
 
     /// The value a reset restores. Without one, a reset only reports itself.
-    pub fn default_text(mut self, state: Entity<InputState>, value: impl Into<SharedString>) -> Self {
+    pub fn default_text(
+        mut self,
+        state: Entity<InputState>,
+        value: impl Into<SharedString>,
+    ) -> Self {
         let value = value.into();
         self.restore = Some(Arc::new(move |cx: &mut App| {
             state.update(cx, |s, cx| {
@@ -288,8 +289,7 @@ impl FormField {
         let behavior = self
             .behavior_of
             .as_ref()
-            .map(|f| f(cx))
-            .unwrap_or(self.validation_behavior);
+            .map_or(self.validation_behavior, |f| f(cx));
         behavior == ValidationBehavior::Native
     }
 
@@ -370,10 +370,7 @@ impl Form {
     }
 
     /// `onSubmit` — receives the collected submission.
-    pub fn on_submit(
-        mut self,
-        f: impl Fn(&FormData, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_submit(mut self, f: impl Fn(&FormData, &mut Window, &mut App) + 'static) -> Self {
         self.on_submit = Some(Arc::new(f));
         self
     }
@@ -389,10 +386,7 @@ impl Form {
     /// Blocked means either a form-level `validationErrors` entry or a required
     /// field with no value, and only under [`ValidationBehavior::Native`] —
     /// `Allow` submits regardless, as v3's does.
-    pub fn on_invalid(
-        mut self,
-        f: impl Fn(&FormData, &mut Window, &mut App) + 'static,
-    ) -> Self {
+    pub fn on_invalid(mut self, f: impl Fn(&FormData, &mut Window, &mut App) + 'static) -> Self {
         self.on_invalid = Some(Arc::new(f));
         self
     }
@@ -459,8 +453,11 @@ impl Form {
     /// default, then fires `onReset`.
     #[allow(clippy::arc_with_non_send_sync)] // see `util::shared`
     pub fn reset_handler(&self) -> Arc<dyn Fn(&mut Window, &mut App) + 'static> {
-        let restores: Vec<Restore> =
-            self.fields.iter().filter_map(|f| f.restore.clone()).collect();
+        let restores: Vec<Restore> = self
+            .fields
+            .iter()
+            .filter_map(|f| f.restore.clone())
+            .collect();
         let on_reset = self.on_reset.clone();
         Arc::new(move |window: &mut Window, cx: &mut App| {
             for restore in &restores {

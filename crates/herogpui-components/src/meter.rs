@@ -10,7 +10,6 @@ use herogpui_core::{Color, Size};
 
 use crate::progress::ProgressBar;
 
-
 /// HeroUI Meter. Supports `value` in `0..max` with
 /// optional label and fill color.
 #[derive(IntoElement)]
@@ -113,5 +112,3 @@ impl RenderOnce for Meter {
         p.into_any_element()
     }
 }
-
-
