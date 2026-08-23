@@ -35,6 +35,12 @@ pub struct Checkbox {
     validation_errors: Vec<gpui::SharedString>,
     is_invalid: bool,
     variant: herogpui_core::FieldVariant,
+    /// `Checkbox.Indicator` children — v3 swaps the glyph per state, which is
+    /// its "Custom Indicator" example. The closure is handed the checked flag.
+    indicator: Option<Box<dyn Fn(bool) -> AnyElement + 'static>>,
+    /// A round control instead of `rounded-md`. v3's "Full Rounded" example
+    /// does it with `className="rounded-full"` on `Checkbox.Control`.
+    is_round: bool,
     children: Vec<AnyElement>,
     on_change: Option<Box<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
 }
@@ -71,6 +77,20 @@ impl Checkbox {
         self
     }
 
+    /// `Checkbox.Indicator` — draws the mark yourself. The closure is handed
+    /// whether the box is checked.
+    pub fn indicator(mut self, render: impl Fn(bool) -> AnyElement + 'static) -> Self {
+        self.indicator = Some(Box::new(render));
+        self
+    }
+
+    /// A fully round control, which v3's "Full Rounded" example asks for with
+    /// `rounded-full` on `Checkbox.Control`.
+    pub fn is_round(mut self, v: bool) -> Self {
+        self.is_round = v;
+        self
+    }
+
     /// `variant` — `Secondary` drops the shadow for use on a surface.
     pub fn variant(mut self, variant: herogpui_core::FieldVariant) -> Self {
         self.variant = variant;
@@ -98,6 +118,8 @@ impl Checkbox {
             validation_errors: Vec::new(),
             is_invalid: false,
             variant: herogpui_core::FieldVariant::Primary,
+            indicator: None,
+            is_round: false,
             children: Vec::new(),
             on_change: None,
         }
@@ -232,7 +254,13 @@ impl RenderOnce for Checkbox {
             .items_center()
             .justify_center()
             .size(box_px)
-            .rounded(crate::util::mark_radius(cx))
+            .map(|b| {
+                if self.is_round {
+                    b.rounded_full()
+                } else {
+                    b.rounded(crate::util::mark_radius(cx))
+                }
+            })
             .flex_shrink_0()
             // `Primary` carries the field shadow; `Secondary` is the flat
             // variant meant for use on a surface.
@@ -260,7 +288,11 @@ impl RenderOnce for Checkbox {
             }
         }
 
-        if self.is_indeterminate {
+        // A caller-drawn indicator replaces both marks, the way
+        // `Checkbox.Indicator`'s render prop does.
+        if let Some(render) = &self.indicator {
+            boxel = boxel.child(render(active));
+        } else if self.is_indeterminate {
             boxel = boxel.child(
                 gpui::div()
                     .w(icon_px)

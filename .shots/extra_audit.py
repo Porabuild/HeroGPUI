@@ -173,6 +173,12 @@ EXTRA_OK_SCOPED = {
     # `SearchField.SearchIcon` is a composed part; replacing it is v3's
     # "Custom Icons" example.
     'SearchField.search_icon': 'composition',
+    # `Checkbox.Indicator` takes children (v3 swaps the glyph per state), and
+    # its "Full Rounded" example rounds `Checkbox.Control` with a class.
+    'Checkbox.indicator': 'composition',
+    'Checkbox.is_round': 'no-classname',
+    'Link.icon': 'composition',
+    'Link.icon_first': 'composition',
 }
 
 

@@ -1,4 +1,4 @@
-"""Label & Messages, Fieldset, Form: the v3 examples for the field parts."""
+"""CheckboxGroup, RadioGroup and ToggleButtonGroup pages."""
 import io
 
 P = 'gallery/src/pages/components.rs'
@@ -11,162 +11,222 @@ def rep(old, new):
     s = s.replace(old, new)
 
 
-# ---------------------------------------------------- Label & Messages page
-rep("""            crate::pages::Page::FieldSlots.import_line(),
+# ----------------------------------------------------------- CheckboxGroup
+rep("""            crate::pages::Page::CheckboxGroup.import_line(),
             vec![
                 (
-                    "Label",""",
-    """            crate::pages::Page::FieldSlots.import_line(),
+                    "Vertical",""",
+    """            crate::pages::Page::CheckboxGroup.import_line(),
             vec![
                 (
                     "Usage",
-                    col(vec![
-                        h::Label::new("Email").into_any_element(),
-                        h::Description::new("We will never share your address.")
-                            .into_any_element(),
-                        h::ErrorMessage::new("Enter a valid email address.").into_any_element(),
-                    ]),
-                ),
-                (
-                    "With Required Indicator",
-                    col(vec![h::Label::new("Email")
-                        .is_required(true)
+                    col(vec![h::CheckboxGroup::new("cbg-usage", group_options())
+                        .label("Notifications")
                         .into_any_element()]),
                 ),
-                (
-                    "With Disabled State",
-                    col(vec![h::Label::new("Email")
-                        .is_disabled(true)
-                        .into_any_element()]),
-                ),
-                (
-                    "With Invalid State",
-                    col(vec![h::Label::new("Email")
-                        .is_invalid(true)
-                        .into_any_element()]),
-                ),
-                (
-                    "With Form Fields",
-                    col(vec![h::TextField::new(self.demo_text("fs-with-field", "", cx))
-                        .label("Email")
-                        .input_type(h::InputType::Email)
-                        .description("We will never share your email")
-                        .into_any_element()]),
-                ),
-                (
-                    "Integration with TextField",
-                    col(vec![
-                        para(
-                            "A `TextField` composes all three parts itself: the label above, the \\
-                             input, and the description or the error message below.",
-                            cx,
-                        ),
-                        h::TextField::new(self.demo_text("fs-integration", "", cx))
-                            .label("Email")
-                            .placeholder("Enter your email")
-                            .description("We will never share your email")
-                            .into_any_element(),
-                    ]),
-                ),
-                (
-                    "Basic Validation",
-                    col(vec![h::TextField::new(self.demo_text("fs-validate", "", cx))
-                        .label("Password")
-                        .input_type(h::InputType::Password)
-                        .is_required(true)
-                        .validate(|value| {
-                            (value.chars().count() < 8)
-                                .then(|| "Use at least 8 characters".into())
-                        })
-                        .into_any_element()]),
-                ),
-                (
-                    "With Dynamic Messages",
-                    col(vec![
-                        para(
-                            "v3's `FieldError` takes a render prop and joins \\
-                             `validation.validationErrors`. `validationErrors` here is a list, \\
-                             and the field shows them in order.",
-                            cx,
-                        ),
-                        h::TextField::new(self.demo_text("fs-dynamic", "abc", cx))
-                            .label("Password")
-                            .is_invalid(true)
-                            .validation_errors([
-                                "Use at least 8 characters",
-                                "Include a digit",
-                            ])
-                            .into_any_element(),
-                    ]),
-                ),
-                (
-                    "Custom Validation Logic",
-                    col(vec![h::TextField::new(self.demo_text("fs-custom", "", cx))
-                        .label("Username")
-                        .description("Letters, digits and dashes only")
-                        .validate(|value| {
-                            (!value.is_empty()
-                                && !value
-                                    .chars()
-                                    .all(|c| c.is_ascii_alphanumeric() || c == '-'))
-                            .then(|| "Letters, digits and dashes only".into())
-                        })
-                        .into_any_element()]),
-                ),
-                (
-                    "Multiple Error Messages",
-                    col(vec![h::TextField::new(self.demo_text("fs-multi", "", cx))
-                        .label("Password")
-                        .is_invalid(true)
-                        .validation_errors([
-                            "Use at least 8 characters",
-                            "Include an uppercase letter",
-                            "Include a digit",
-                        ])
-                        .into_any_element()]),
-                ),
-                (
-                    "Label",""")
-
-# ---------------------------------------------------------------- Fieldset
-rep("""            crate::pages::Page::Fieldset.import_line(),
-            vec![(
-                "Usage",""",
-    """            crate::pages::Page::Fieldset.import_line(),
-            vec![
                 (
                     "In Surface",
                     col(vec![h::Surface::new()
                         .padding(px(24.))
-                        .gap(px(16.))
                         .child(
-                            h::Fieldset::new()
-                                .child(h::FieldsetLegend::new("Profile"))
-                                .child(
-                                    h::FieldsetGroup::new()
-                                        .child(
-                                            h::TextField::new(
-                                                self.demo_text("fset-name", "", cx),
-                                            )
-                                            .label("Name")
-                                            .variant(FieldVariant::Secondary),
-                                        )
-                                        .child(
-                                            h::TextField::new(
-                                                self.demo_text("fset-email", "", cx),
-                                            )
-                                            .label("Email")
-                                            .variant(FieldVariant::Secondary),
-                                        ),
-                                )
-                                .child(h::FieldsetActions::new().child(
-                                    h::Button::new("fset-save").label("Save").size(Size::Sm),
-                                )),
+                            h::CheckboxGroup::new("cbg-surface", group_options())
+                                .label("Notifications")
+                                .variant(FieldVariant::Secondary),
                         )
                         .into_any_element()]),
                 ),
                 (
-                    "Usage",""")
+                    "Disabled",
+                    col(vec![h::CheckboxGroup::new("cbg-disabled", group_options())
+                        .label("Notifications")
+                        .is_disabled(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Indeterminate",
+                    col(vec![
+                        para(
+                            "v3 pairs a \\"select all\\" checkbox with the group: it is \\
+                             indeterminate while only some children are selected.",
+                            cx,
+                        ),
+                        h::Checkbox::new("cbg-all")
+                            .is_selected(selected.len() == 3)
+                            .is_indeterminate(!selected.is_empty() && selected.len() < 3)
+                            .label(gpui::div().child("All notifications"))
+                            .into_any_element(),
+                        h::CheckboxGroup::new("cbg-ind", group_options())
+                            .value(selected.iter().cloned())
+                            .on_change(cx.listener(|this, keys: &HashSet<SharedString>, _, cx| {
+                                this.checkbox_group = keys.clone();
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Validation",
+                    col(vec![h::CheckboxGroup::new("cbg-validate", group_options())
+                        .label("Notifications")
+                        .is_required(true)
+                        .is_invalid(selected.is_empty())
+                        .error_message("Pick at least one channel")
+                        .value(selected.iter().cloned())
+                        .on_change(cx.listener(|this, keys: &HashSet<SharedString>, _, cx| {
+                            this.checkbox_group = keys.clone();
+                            cx.notify();
+                        }))
+                        .into_any_element()]),
+                ),
+                (
+                    "Features and Add-ons Example",
+                    col(vec![h::CheckboxGroup::new(
+                        "cbg-addons",
+                        vec![
+                            h::CheckboxOption::new("analytics", "Analytics")
+                                .description("Usage dashboards and funnels"),
+                            h::CheckboxOption::new("backups", "Daily backups")
+                                .description("Restore any of the last 30 days"),
+                            h::CheckboxOption::new("sso", "Single sign-on")
+                                .description("SAML and OIDC"),
+                        ],
+                    )
+                    .label("Add-ons")
+                    .description("Billed monthly, cancel any time.")
+                    .into_any_element()]),
+                ),
+                (
+                    "With Custom Indicator",
+                    col(vec![
+                        para(
+                            "The group's options carry the same indicator slot a single \\
+                             `Checkbox` does; here each one draws a tick of its own.",
+                            cx,
+                        ),
+                        h::Checkbox::new("cbg-ci-1")
+                            .default_selected(true)
+                            .indicator(move |selected| {
+                                if selected {
+                                    gpui::svg()
+                                        .size(px(10.))
+                                        .path(h::icons::HEART_FILL)
+                                        .text_color(gpui::white())
+                                        .into_any_element()
+                                } else {
+                                    gpui::div().into_any_element()
+                                }
+                            })
+                            .label(gpui::div().child("Email"))
+                            .into_any_element(),
+                        h::Checkbox::new("cbg-ci-2")
+                            .indicator(move |selected| {
+                                if selected {
+                                    gpui::svg()
+                                        .size(px(10.))
+                                        .path(h::icons::HEART_FILL)
+                                        .text_color(gpui::white())
+                                        .into_any_element()
+                                } else {
+                                    gpui::div().into_any_element()
+                                }
+                            })
+                            .label(gpui::div().child("SMS"))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Vertical",""")
+
+# -------------------------------------------------------------- RadioGroup
+rep("""    pub fn page_radio_group(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let selected = self.radio_sel;
+        let options: Vec<SharedString> = vec!["Free".into(), "Pro".into(), "Enterprise".into()];
+        doc_page(""",
+    """    pub fn page_radio_group(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let selected = self.radio_sel;
+        let options: Vec<SharedString> = vec!["Free".into(), "Pro".into(), "Enterprise".into()];
+        let plans = || -> Vec<SharedString> {
+            vec!["Free".into(), "Pro".into(), "Enterprise".into()]
+        };
+        doc_page(""")
+
+rep("""            crate::pages::Page::RadioGroup.import_line(),
+            vec![""",
+    """            crate::pages::Page::RadioGroup.import_line(),
+            vec![
+                (
+                    "Usage",
+                    col(vec![h::RadioGroup::new("rg-usage", plans())
+                        .default_value(Some(0))
+                        .into_any_element()]),
+                ),
+                (
+                    "Variants",
+                    col(vec![
+                        h::RadioGroup::new("rg-v-primary", plans())
+                            .default_value(Some(0))
+                            .into_any_element(),
+                        h::RadioGroup::new("rg-v-secondary", plans())
+                            .default_value(Some(1))
+                            .variant(FieldVariant::Secondary)
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "In Surface",
+                    col(vec![h::Surface::new()
+                        .padding(px(24.))
+                        .child(
+                            h::RadioGroup::new("rg-surface", plans())
+                                .default_value(Some(0))
+                                .variant(FieldVariant::Secondary),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Validation",
+                    col(vec![h::RadioGroup::new("rg-validate", plans())
+                        .value(None)
+                        .is_required(true)
+                        .is_invalid(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Delivery & Payment",
+                    col(vec![
+                        h::RadioGroup::new(
+                            "rg-delivery",
+                            vec![
+                                "Standard — 5 to 7 days".into(),
+                                "Express — 2 days".into(),
+                                "Overnight".into(),
+                            ],
+                        )
+                        .default_value(Some(0))
+                        .into_any_element(),
+                        h::Separator::new().into_any_element(),
+                        h::RadioGroup::new(
+                            "rg-payment",
+                            vec!["Card".into(), "Bank transfer".into(), "Invoice".into()],
+                        )
+                        .default_value(Some(0))
+                        .orientation(Orientation::Horizontal)
+                        .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Custom Indicator",
+                    col(vec![
+                        para(
+                            "v3 replaces `Radio.Indicator`. This port draws v3's own filled \\
+                             square; the group below shows it selected in both variants.",
+                            cx,
+                        ),
+                        h::RadioGroup::new("rg-indicator", plans())
+                            .default_value(Some(2))
+                            .into_any_element(),
+                    ]),
+                ),""")
 
 io.open(P, 'w', encoding='utf-8', newline='').write(s)
-print('patched field slots + fieldset')
+print('patched checkbox group + radio group')
