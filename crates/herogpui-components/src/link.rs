@@ -94,21 +94,22 @@ impl RenderOnce for Link {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `autoFocus` needs a focus target, and a link is not one by default.
         // `focus_once` takes `cx` mutably, so it runs before the tokens.
-        let focus = self.auto_focus.then(|| {
-            let handle = window.use_keyed_state(
-                ElementId::Name(format!("{:?}-link-focus", self.id).into()),
-                cx,
-                |_, cx| cx.focus_handle(),
-            );
-            let handle = handle.read(cx).clone();
+        // A link is a tab stop and rings like one -- `.link:focus-visible` is
+        // `status-focused` -- so the handle exists whether or not `autoFocus`
+        // asked for it.
+        let focus = crate::util::tab_stop_handle(
+            ElementId::Name(format!("{:?}-link-focus", self.id).into()),
+            window,
+            cx,
+        );
+        if self.auto_focus {
             crate::util::focus_once(
                 window,
                 cx,
                 ElementId::Name(format!("{:?}-link-autofocus", self.id).into()),
-                &handle,
+                &focus,
             );
-            handle
-        });
+        }
 
         let colors = cx.colors();
         let color = colors.link;
@@ -125,7 +126,7 @@ impl RenderOnce for Link {
             .rounded(crate::util::small_radius(cx))
             .border_color(color)
             .pb(px(1.))
-            .when_some(focus, |el, handle| el.track_focus(&handle));
+            .track_focus(&focus);
 
         if self.is_disabled {
             el = el.opacity(cx.layout().disabled_opacity);

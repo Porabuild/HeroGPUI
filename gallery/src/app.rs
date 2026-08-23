@@ -587,7 +587,10 @@ impl Render for Gallery {
             .min_w_0()
             .child(self.render_current_page(cx));
 
-        gpui::div()
+        // The shell records keyboard-versus-pointer input, which is what a focus
+        // ring reads, and moves the focus on Tab -- in a browser the platform
+        // does both.
+        h::util::app_focus_root(gpui::div(), _window, cx)
             .size_full()
             .flex()
             .flex_col()

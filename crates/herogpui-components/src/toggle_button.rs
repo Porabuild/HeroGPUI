@@ -161,6 +161,12 @@ impl RenderOnce for ToggleButton {
             self.default_selected,
         );
 
+        // `.toggle-button:focus-visible` is `status-focused`.
+        let focus_handle = crate::util::tab_stop_handle(
+            ElementId::Name(format!("{:?}-focus", self.id).into()),
+            window,
+            cx,
+        );
         let sem = cx.colors().accent;
         let colors = cx.colors();
         let layout = cx.layout();
@@ -265,7 +271,17 @@ impl RenderOnce for ToggleButton {
             });
         }
 
-        el
+        if self.is_disabled {
+            return el;
+        }
+        crate::util::ring_if_focused(
+            el.track_focus(&focus_handle),
+            &focus_handle,
+            true,
+            Vec::new(),
+            window,
+            cx,
+        )
     }
 }
 

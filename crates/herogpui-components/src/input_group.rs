@@ -164,7 +164,15 @@ impl ParentElement for InputGroup {
 }
 
 impl RenderOnce for InputGroup {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `.input-group` rings on `focus-within`, and what is inside it is a
+        // real `Input` or `TextArea`, so their state is where the focus is.
+        // A `TextArea` is converted to an `Input` by `text_area`, so there is one
+        // slot to ask.
+        let focus_within = self
+            .input
+            .as_ref()
+            .is_some_and(|input| input.state_focus(cx).is_focused(window));
         let colors = cx.colors();
         let layout = cx.layout();
         let is_invalid = self.is_invalid || self.error_message.is_some();
@@ -180,7 +188,9 @@ impl RenderOnce for InputGroup {
             .text_size(util::FIELD_TEXT)
             .text_color(colors.field.foreground);
 
-        group = util::apply_field_chrome(group, self.variant, is_invalid, false, cx);
+        // v3 rings the *group* on `focus-within`, so the state comes from the
+        // field inside it.
+        group = util::apply_field_chrome(group, self.variant, is_invalid, focus_within, cx);
         if self.is_disabled {
             group = group.opacity(layout.disabled_opacity);
         }

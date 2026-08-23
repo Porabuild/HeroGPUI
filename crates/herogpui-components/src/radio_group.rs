@@ -140,6 +140,21 @@ impl RenderOnce for RadioGroup {
             self.default_value,
         );
 
+        // One tab stop per option, all of them created before the theme is
+        // borrowed: `use_keyed_state` takes `cx` mutably, and the loop below
+        // holds `cx.colors()`.
+        let option_focus: Vec<gpui::FocusHandle> = (0..self.options.len())
+            .map(|i| {
+                crate::util::tab_stop_handle(
+                    gpui::ElementId::Name(
+                        format!("{}-opt-{i}-focus", element_id_name(&self.id)).into(),
+                    ),
+                    window,
+                    cx,
+                )
+            })
+            .collect();
+
         let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
@@ -199,10 +214,24 @@ impl RenderOnce for RadioGroup {
                 circle_el = circle_el.border_1().border_color(colors.danger.color);
             }
 
+            // v3 focuses the radio and rings `.radio__control`: the row takes the
+            // focus, the control shows it.
+            let focused = option_focus
+                .get(i)
+                .is_some_and(|h| h.is_focused(window) && crate::util::focus_visible(cx));
+            let circle_el = crate::util::with_focus_ring(
+                circle_el,
+                focused && !self.is_disabled,
+                true,
+                control_shadow.clone().unwrap_or_default(),
+                cx,
+            );
+
             let mut row = gpui::div()
                 .id(gpui::ElementId::Name(
                     format!("{}-opt-{i}", element_id_name(&self.id)).into(),
                 ))
+                .when_some(option_focus.get(i), |r, handle| r.track_focus(handle))
                 .flex()
                 .items_center()
                 .gap(gap)

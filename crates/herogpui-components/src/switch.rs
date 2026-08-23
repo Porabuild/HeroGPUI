@@ -231,6 +231,13 @@ impl RenderOnce for Switch {
             self.default_checked,
         );
 
+        // The keyboard's focus target. `use_keyed_state` takes `cx` mutably, so
+        // it precedes every borrow of the theme.
+        let focus_handle = crate::util::tab_stop_handle(
+            gpui::ElementId::Name(format!("{:?}-focus", self.id).into()),
+            window,
+            cx,
+        );
         let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
@@ -266,6 +273,7 @@ impl RenderOnce for Switch {
 
         let mut track = gpui::div()
             .id(self.id.clone())
+            .track_focus(&focus_handle)
             .relative()
             .w(w)
             .h(h)
@@ -358,6 +366,11 @@ impl RenderOnce for Switch {
                     cb(!checked, window, cx);
                 }
             });
+        }
+
+        if !self.is_disabled {
+            track =
+                crate::util::ring_if_focused(track, &focus_handle, true, Vec::new(), window, cx);
         }
 
         // `.switch__content` is `gap-3`. v3 gets the label's side from the order

@@ -62,7 +62,14 @@ impl CloseButton {
 }
 
 impl RenderOnce for CloseButton {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `.close-button:focus-visible` is `status-focused`. The handle has to be
+        // read before the theme tokens: `use_keyed_state` takes `cx` mutably.
+        let focus_handle = crate::util::tab_stop_handle(
+            ElementId::Name(format!("{:?}-focus", self.id).into()),
+            window,
+            cx,
+        );
         let colors = cx.colors();
         let layout = cx.layout();
         // `.close-button` is `h-6 p-1` with a `size-4` glyph.
@@ -103,6 +110,16 @@ impl RenderOnce for CloseButton {
             }
         }
 
-        el
+        if self.is_disabled {
+            return el;
+        }
+        crate::util::ring_if_focused(
+            el.track_focus(&focus_handle),
+            &focus_handle,
+            true,
+            Vec::new(),
+            window,
+            cx,
+        )
     }
 }

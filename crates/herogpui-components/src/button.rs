@@ -328,6 +328,13 @@ fn group_radius(
 
 impl RenderOnce for Button {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // The handle that says whether this button holds the focus.
+        // `use_keyed_state` takes `cx` mutably, so it precedes the tokens.
+        let focus_handle = util::tab_stop_handle(
+            ElementId::Name(format!("{:?}-focus", self.id).into()),
+            window,
+            cx,
+        );
         let layout = cx.layout();
         let interactive = !self.is_disabled && !self.is_pending;
         // v3's `transition-colors`: the fill eases rather than switching on the
@@ -363,6 +370,20 @@ impl RenderOnce for Button {
         }
 
         el = apply_variant(el, self.variant, interactive, fade.is_none(), cx);
+
+        // `.button:focus-visible` is `status-focused`: a 2px ring, offset from
+        // the button by another in the background colour. A disabled button is
+        // not a tab stop, which is what `pointer-events-none` amounts to here.
+        if interactive {
+            el = util::ring_if_focused(
+                el.track_focus(&focus_handle),
+                &focus_handle,
+                true,
+                Vec::new(),
+                window,
+                cx,
+            );
+        }
 
         if self.is_disabled {
             el = el.opacity(layout.disabled_opacity);

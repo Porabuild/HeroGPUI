@@ -5268,15 +5268,18 @@ impl Gallery {
             vec![
                 (
                     "Variants",
-                    col(FieldVariant::ALL
-                        .iter()
-                        .map(|v| {
-                            h::Input::new(self.input_name.clone())
-                                .label(v.label())
-                                .placeholder("Type here")
-                                .variant(*v)
-                        })
-                        .els()),
+                    col(vec![
+                        h::Input::new(self.demo_text("in-variant-primary", "", cx))
+                            .label(FieldVariant::Primary.label())
+                            .placeholder("Type here")
+                            .variant(FieldVariant::Primary)
+                            .into_any_element(),
+                        h::Input::new(self.demo_text("in-variant-secondary", "", cx))
+                            .label(FieldVariant::Secondary.label())
+                            .placeholder("Type here")
+                            .variant(FieldVariant::Secondary)
+                            .into_any_element(),
+                    ]),
                 ),
                 (
                     "Usage",
@@ -5348,19 +5351,19 @@ impl Gallery {
                 (
                     "States",
                     col(vec![
-                        h::Input::new(self.input_name.clone())
+                        h::Input::new(self.demo_text("in-required", "", cx))
                             .label("Required")
                             .is_required(true)
                             .into_any_element(),
-                        h::Input::new(self.input_name.clone())
+                        h::Input::new(self.demo_text("in-invalid", "", cx))
                             .label("Invalid")
                             .error_message("That name is taken.")
                             .into_any_element(),
-                        h::Input::new(self.input_name.clone())
+                        h::Input::new(self.demo_text("in-disabled", "", cx))
                             .label("Disabled")
                             .is_disabled(true)
                             .into_any_element(),
-                        h::Input::new(self.input_name.clone())
+                        h::Input::new(self.demo_text("in-clearable", "Ada", cx))
                             .label("Clearable")
                             .is_clearable(true)
                             .into_any_element(),

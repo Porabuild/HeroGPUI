@@ -598,7 +598,13 @@ impl RenderOnce for TimeField {
             .font_family("Consolas")
             .text_color(colors.field.foreground);
 
-        group = util::apply_field_chrome(group, self.variant, is_invalid, false, cx);
+        group = util::apply_field_chrome(
+            group,
+            self.variant,
+            is_invalid,
+            focus_handle.is_focused(window),
+            cx,
+        );
 
         // v3 drives a time field from the keyboard: the arrows step the focused
         // segment and walk between segments, and digits type into it.

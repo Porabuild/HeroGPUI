@@ -139,6 +139,17 @@ impl RenderOnce for Tabs {
             .clone()
             .or_else(|| self.items.first().map(|i| i.key.clone()))
             .unwrap_or_default();
+        let tab_focus: Vec<gpui::FocusHandle> = self
+            .items
+            .iter()
+            .map(|item| {
+                crate::util::tab_stop_handle(
+                    gpui::ElementId::Name(format!("{base_id}-tab-{}-focus", item.key).into()),
+                    window,
+                    cx,
+                )
+            })
+            .collect();
         let (selected_key, selection_own) = crate::util::controlled(
             window,
             cx,
@@ -165,12 +176,13 @@ impl RenderOnce for Tabs {
                     .p(px(4.))
                     .rounded(crate::util::control_radius(cx))
                     .bg(colors.surface_secondary);
-                for item in &self.items {
+                for (index, item) in self.items.iter().enumerate() {
                     let active = item.key == selected_key;
                     let mut tab = gpui::div()
                         .id(gpui::ElementId::Name(
                             format!("{base_id}-tab-{}", item.key).into(),
                         ))
+                        .when_some(tab_focus.get(index), |t, handle| t.track_focus(handle))
                         .px(px(14.))
                         .py(px(6.))
                         .rounded(crate::util::control_radius(cx))
@@ -210,18 +222,29 @@ impl RenderOnce for Tabs {
                             }
                         });
                     }
+                    // `.tab:focus-visible` is `status-focused`.
+                    let tab = crate::util::with_focus_ring(
+                        tab,
+                        tab_focus.get(index).is_some_and(|h| h.is_focused(window))
+                            && crate::util::focus_visible(cx)
+                            && !self.is_disabled,
+                        true,
+                        Vec::new(),
+                        cx,
+                    );
                     list = list.child(tab.child(item.label.to_string()));
                 }
             }
             TabsVariant::Secondary => {
                 list = list.gap(px(16.));
                 list = list.border_b_1().border_color(colors.separator);
-                for item in &self.items {
+                for (index, item) in self.items.iter().enumerate() {
                     let active = item.key == selected_key;
                     let mut tab = gpui::div()
                         .id(gpui::ElementId::Name(
                             format!("{base_id}-tab-{}", item.key).into(),
                         ))
+                        .when_some(tab_focus.get(index), |t, handle| t.track_focus(handle))
                         .px(px(2.))
                         .pb(px(6.))
                         .text_size(px(14.))
@@ -256,6 +279,16 @@ impl RenderOnce for Tabs {
                             }
                         });
                     }
+                    // `.tab:focus-visible` is `status-focused`.
+                    let tab = crate::util::with_focus_ring(
+                        tab,
+                        tab_focus.get(index).is_some_and(|h| h.is_focused(window))
+                            && crate::util::focus_visible(cx)
+                            && !self.is_disabled,
+                        true,
+                        Vec::new(),
+                        cx,
+                    );
                     list = list.child(tab.child(item.label.to_string()));
                 }
             }

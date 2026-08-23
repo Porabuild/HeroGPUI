@@ -185,7 +185,19 @@ impl TagGroup {
 }
 
 impl RenderOnce for TagGroup {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // One tab stop per tag. `use_keyed_state` takes `cx` mutably, so the
+        // handles come before the theme is borrowed.
+        let tag_focus: Vec<gpui::FocusHandle> = (0..self.tags.len())
+            .map(|index| {
+                crate::util::tab_stop_handle(
+                    ElementId::Name(format!("{:?}-tag-{index}-focus", self.id).into()),
+                    window,
+                    cx,
+                )
+            })
+            .collect();
+        let ring_visible = crate::util::focus_visible(cx);
         let colors = cx.colors();
         let layout = cx.layout();
         let (height, pad_x, text_size) = Self::metrics(self.size);
@@ -225,6 +237,7 @@ impl RenderOnce for TagGroup {
 
             let mut chip = div()
                 .id(ElementId::Name(format!("{:?}-tag-{index}", self.id).into()))
+                .when_some(tag_focus.get(index), |c, handle| c.track_focus(handle))
                 .flex()
                 .flex_row()
                 .items_center()
@@ -332,6 +345,16 @@ impl RenderOnce for TagGroup {
                 });
             }
 
+            // `.tag:focus-visible` is `status-focused`.
+            let chip = crate::util::with_focus_ring(
+                chip,
+                !disabled
+                    && ring_visible
+                    && tag_focus.get(index).is_some_and(|h| h.is_focused(window)),
+                true,
+                Vec::new(),
+                cx,
+            );
             list = list.child(chip);
         }
 

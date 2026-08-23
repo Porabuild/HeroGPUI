@@ -771,6 +771,16 @@ impl Input {
     }
 }
 
+impl Input {
+    /// The focus handle of the state this field is bound to.
+    ///
+    /// `InputGroup` rings on `focus-within`, and the only thing inside it that
+    /// can hold a focus is this field.
+    pub(crate) fn state_focus(&self, cx: &App) -> FocusHandle {
+        self.state.read(cx).focus_handle.clone()
+    }
+}
+
 impl RenderOnce for Input {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `validationBehavior` travels with the name, on the state.

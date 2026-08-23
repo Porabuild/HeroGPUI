@@ -1555,7 +1555,13 @@ impl RenderOnce for DateField {
                 });
         }
 
-        group = crate::util::apply_field_chrome(group, self.variant, is_invalid, false, cx);
+        group = crate::util::apply_field_chrome(
+            group,
+            self.variant,
+            is_invalid,
+            focus_handle.is_focused(window),
+            cx,
+        );
         if self.full_width {
             group = group.w_full();
         }

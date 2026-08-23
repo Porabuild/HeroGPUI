@@ -67,7 +67,32 @@ impl Pagination {
 }
 
 impl RenderOnce for Pagination {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // Every interactive item is a tab stop with a ring. The handles come
+        // first: `use_keyed_state` takes `cx` mutably and the theme is borrowed
+        // for the rest of the render.
+        let base_id = format!("{:?}", self.id);
+        let page_focus: Vec<gpui::FocusHandle> = (0..=self.total)
+            .map(|n| {
+                crate::util::tab_stop_handle(
+                    gpui::ElementId::Name(format!("{base_id}-page-{n}-focus").into()),
+                    window,
+                    cx,
+                )
+            })
+            .collect();
+        let prev_focus = crate::util::tab_stop_handle(
+            gpui::ElementId::Name(format!("{base_id}-prev-focus").into()),
+            window,
+            cx,
+        );
+        let next_focus = crate::util::tab_stop_handle(
+            gpui::ElementId::Name(format!("{base_id}-next-focus").into()),
+            window,
+            cx,
+        );
+        let ring_visible = crate::util::focus_visible(cx);
+
         let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
@@ -98,6 +123,9 @@ impl RenderOnce for Pagination {
                     disabled_opacity: layout.disabled_opacity,
                     cell,
                 },
+                &prev_focus,
+                (ring_visible && prev_focus.is_focused(window))
+                    .then(|| crate::util::focus_ring_shadows(true, cx)),
             )
             .on_click({
                 let cb: Option<OnChange> = self.on_change.clone();
@@ -115,6 +143,7 @@ impl RenderOnce for Pagination {
                     let active = n == self.page;
                     let mut btn = gpui::div()
                         .id(gpui::ElementId::Name(format!("{base}-page-{n}").into()))
+                        .when_some(page_focus.get(n), |b, handle| b.track_focus(handle))
                         .flex()
                         .items_center()
                         .justify_center()
@@ -143,6 +172,14 @@ impl RenderOnce for Pagination {
                     // `link` is v3's render prop on `Pagination.Link`: it
                     // receives `isActive`, so a caller can style the current
                     // page without re-deriving which one it is.
+                    // `.pagination__item:focus-visible` is `status-focused`.
+                    let btn = crate::util::with_focus_ring(
+                        btn,
+                        ring_visible && page_focus.get(n).is_some_and(|h| h.is_focused(window)),
+                        true,
+                        Vec::new(),
+                        cx,
+                    );
                     row = row.child(match &self.link {
                         Some(render) => btn.child(render(n, active)),
                         None => btn.child(n.to_string()),
@@ -176,6 +213,9 @@ impl RenderOnce for Pagination {
                     disabled_opacity: layout.disabled_opacity,
                     cell,
                 },
+                &next_focus,
+                (ring_visible && next_focus.is_focused(window))
+                    .then(|| crate::util::focus_ring_shadows(true, cx)),
             )
             .on_click({
                 let cb: Option<OnChange> = self.on_change.clone();
@@ -205,6 +245,9 @@ fn nav_button(
     icon: &'static str,
     enabled: bool,
     style: NavStyle,
+    focus: &gpui::FocusHandle,
+    // The focus ring's shadows, when this button is the one holding the focus.
+    ring: Option<Vec<gpui::BoxShadow>>,
 ) -> gpui::Stateful<gpui::Div> {
     let NavStyle {
         foreground,
@@ -215,6 +258,8 @@ fn nav_button(
     } = style;
     let mut btn = gpui::div()
         .id(gpui::ElementId::Name(id.into()))
+        .track_focus(focus)
+        .when_some(ring, |b, shadows| b.shadow(shadows))
         .flex()
         .items_center()
         .justify_center()

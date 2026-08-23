@@ -237,6 +237,14 @@ impl RenderOnce for Checkbox {
         );
 
         // `isInvalid` outranks the colour role, as it does on every field.
+        // v3 focuses the checkbox and rings `.checkbox__control`, so the two sit
+        // on different elements: the row takes the focus, the box shows it.
+        // `use_keyed_state` takes `cx` mutably, so it precedes the theme.
+        let focus_handle = crate::util::tab_stop_handle(
+            gpui::ElementId::Name(format!("{:?}-focus", self.id).into()),
+            window,
+            cx,
+        );
         let sem = if validity.is_invalid {
             cx.role(Color::Danger)
         } else {
@@ -261,14 +269,18 @@ impl RenderOnce for Checkbox {
                     b.rounded(crate::util::mark_radius(cx))
                 }
             })
-            .flex_shrink_0()
-            // `Primary` carries the field shadow; `Secondary` is the flat
-            // variant meant for use on a surface.
-            .when(
-                self.variant == herogpui_core::FieldVariant::Primary
-                    && !layout.field_shadow.is_empty(),
-                |e| e.shadow(layout.field_shadow.clone()),
-            );
+            .flex_shrink_0();
+
+        // `Primary` carries the field shadow; `Secondary` is the flat variant
+        // meant for use on a surface. Held as a list rather than applied,
+        // because the focus ring is applied to the same slot and `shadow()`
+        // replaces: a focused checkbox would otherwise lose its shadow.
+        let box_shadow: Vec<gpui::BoxShadow> =
+            if self.variant == herogpui_core::FieldVariant::Primary {
+                layout.field_shadow.clone()
+            } else {
+                Vec::new()
+            };
 
         // `.checkbox__control` has no border (`--field-border-width: 0`). Unset
         // it is `bg-field` on the primary variant and `--default` on the
@@ -309,8 +321,17 @@ impl RenderOnce for Checkbox {
             );
         }
 
+        let boxel = crate::util::with_focus_ring(
+            boxel,
+            !self.is_disabled && focus_handle.is_focused(window) && crate::util::focus_visible(cx),
+            true,
+            box_shadow,
+            cx,
+        );
+
         let row = gpui::div()
             .id(self.id.clone())
+            .track_focus(&focus_handle)
             .flex()
             .items_center()
             // `.checkbox__content` is `gap-3`.

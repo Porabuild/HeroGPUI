@@ -443,8 +443,18 @@ impl RenderOnce for NumberField {
             .h(h)
             .overflow_hidden()
             .text_size(crate::util::FIELD_TEXT);
-        group =
-            crate::util::apply_field_chrome(group, self.variant, validity.is_invalid, false, cx);
+        group = crate::util::apply_field_chrome(
+            group,
+            self.variant,
+            validity.is_invalid,
+            self.state
+                .read(cx)
+                .input
+                .read(cx)
+                .focus_handle
+                .is_focused(window),
+            cx,
+        );
         if self.full_width {
             group = group.w_full();
         } else {

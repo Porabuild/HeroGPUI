@@ -107,27 +107,43 @@ pub fn apply_field_chrome<T: Styled>(
         FieldVariant::Secondary => colors.default.color,
     });
 
-    if variant == FieldVariant::Primary && !layout.field_shadow.is_empty() {
-        el = el.shadow(layout.field_shadow.clone());
-    }
+    // `--field-border-width` is 0, so a field's states are *rings*, not borders:
+    // `status-focused-field` is `ring-2 ring-focus` with no offset, and
+    // `status-invalid-field` is a 1px danger outline that becomes a 2px danger
+    // ring once the field takes focus. Both ride on the field's own shadow,
+    // because `shadow()` replaces the list rather than adding to it.
+    let mut shadows = if variant == FieldVariant::Primary {
+        layout.field_shadow.clone()
+    } else {
+        Vec::new()
+    };
 
-    // `--field-border-width` is 0 by default; an invalid or focused field draws
-    // a ring regardless so the state is visible.
     if is_invalid {
-        el = el
-            .border(layout.border_width.max(gpui::px(1.)))
-            .border_color(colors.danger.color);
+        if is_focused {
+            shadows.push(gpui::BoxShadow {
+                color: colors.danger.color,
+                offset: gpui::point(gpui::px(0.), gpui::px(0.)),
+                blur_radius: gpui::px(1.),
+                spread_radius: gpui::px(2.),
+            });
+        } else {
+            el = el
+                .border(layout.border_width.max(gpui::px(1.)))
+                .border_color(colors.danger.color);
+        }
     } else if is_focused {
-        el = el
-            .border(layout.border_width.max(gpui::px(1.)))
-            .border_color(colors.focus);
+        shadows.extend(focus_ring_shadows(false, cx));
     } else if layout.field_border_width > gpui::px(0.) {
         el = el
             .border(layout.field_border_width)
             .border_color(colors.field.border);
     }
 
-    el
+    if shadows.is_empty() {
+        el
+    } else {
+        el.shadow(shadows)
+    }
 }
 
 /// Lifts a floating panel above the rest of the page.
@@ -352,4 +368,190 @@ where
             (current, Some(held))
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Focus rings (`status-focused`)
+// ---------------------------------------------------------------------------
+
+/// Whether the last input this app saw was a key.
+struct FocusVisible(bool);
+impl gpui::Global for FocusVisible {}
+
+/// `[data-focus-visible]` — whether a focus ring should be showing.
+///
+/// A browser rings a control focused by the keyboard and not one focused by a
+/// click; React Aria says the same thing with `data-focus-visible`, and 41 of
+/// v3's stylesheets style that state. gpui reports *that* an element has focus
+/// but not how the focus arrived, so the app root records which kind of input
+/// was last seen and every ring in the tree reads it.
+pub fn focus_visible(cx: &App) -> bool {
+    cx.try_global::<FocusVisible>().is_some_and(|v| v.0)
+}
+
+pub fn set_focus_visible(visible: bool, cx: &mut App) {
+    if focus_visible(cx) != visible {
+        cx.set_global(FocusVisible(visible));
+        cx.refresh_windows();
+    }
+}
+
+/// Records keyboard-versus-pointer input, and moves the focus on Tab.
+///
+/// Put this on the app's root element once. Three things have to be true for a
+/// focus ring to work at all, and this is where they are arranged:
+///
+/// - **The root holds the focus when nothing else does.** gpui delivers a key
+///   event to the focused element and then up through its ancestors; with
+///   nothing focused there is no chain, so the very first Tab would go nowhere.
+/// - **Tab moves the focus.** In a browser the platform does this. Here the app
+///   asks for it, and gpui walks the tab stops in tree order.
+/// - **The kind of input is recorded**, because a ring shows for a keyboard
+///   focus and not for a click. The mouse half runs in the capture phase, before
+///   the press reaches whatever it landed on.
+pub fn app_focus_root<T>(el: T, window: &mut gpui::Window, cx: &mut App) -> T
+where
+    T: gpui::InteractiveElement,
+{
+    let root = window
+        .use_keyed_state(
+            gpui::ElementId::Name("herogpui-focus-root".into()),
+            cx,
+            |_, cx| cx.focus_handle(),
+        )
+        .read(cx)
+        .clone();
+    if !root.contains_focused(window, cx) {
+        window.focus(&root);
+    }
+    el.track_focus(&root)
+        .capture_any_mouse_down(|_, _, cx| set_focus_visible(false, cx))
+        .on_key_down(|event, window, cx| {
+            set_focus_visible(true, cx);
+            match event.keystroke.key.as_str() {
+                "tab" if event.keystroke.modifiers.shift => window.focus_prev(),
+                "tab" => window.focus_next(),
+                _ => {}
+            }
+        })
+}
+
+/// A focus handle the Tab key can reach, kept in the window's keyed state.
+///
+/// gpui registers a tab stop from the **handle's** own `tab_stop` flag; the
+/// element's `tab_index` builder only configures a handle the element creates
+/// for itself, which a component that has to read its own focus state cannot
+/// use. Marking the handle is what makes `window.focus_next()` see it.
+pub fn tab_stop_handle(
+    id: gpui::ElementId,
+    window: &mut gpui::Window,
+    cx: &mut App,
+) -> gpui::FocusHandle {
+    window
+        .use_keyed_state(id, cx, |_, cx| cx.focus_handle().tab_stop(true))
+        .read(cx)
+        .clone()
+}
+
+/// The shadows that draw v3's focus ring.
+///
+/// `status-focused` is `ring-2 ring-focus` over a `ring-offset-2` in the
+/// background colour: two rings, the inner one separating the accent from the
+/// control. A ring costs no layout here because it is a shadow -- a border would
+/// move the content inside it -- and they are painted largest first, since a
+/// later shadow paints over an earlier one and that overlap is what carves the
+/// gap.
+///
+/// **The blur cannot be zero.** gpui's shadow shader is a Gaussian integral: it
+/// samples over `3 * blur_radius`, so a blur of zero integrates over nothing and
+/// paints a completely transparent shadow -- which is why the first version of
+/// this drew no ring at all. One pixel is the smallest blur that draws, and it
+/// softens the ring's outer edge by about a pixel: the closest this gpui gets to
+/// a crisp `ring-2`.
+pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
+    let colors = cx.colors();
+    let layout = cx.layout();
+    let ring = gpui::px(2.);
+    let blur = gpui::px(1.);
+    let gap = if offset {
+        layout.ring_offset_width
+    } else {
+        gpui::px(0.)
+    };
+    let mut shadows = vec![gpui::BoxShadow {
+        color: colors.focus,
+        offset: gpui::point(gpui::px(0.), gpui::px(0.)),
+        blur_radius: blur,
+        spread_radius: gap + ring,
+    }];
+    if gap > gpui::px(0.) {
+        shadows.push(gpui::BoxShadow {
+            color: colors.background,
+            offset: gpui::point(gpui::px(0.), gpui::px(0.)),
+            blur_radius: blur,
+            spread_radius: gap,
+        });
+    }
+    shadows
+}
+
+/// Applies the focus ring on top of whatever the element already casts.
+///
+/// `base` is the element's own shadow list, because `shadow()` replaces rather
+/// than adds: a focused field that dropped its `field_shadow` would flatten as
+/// it took focus.
+pub fn with_focus_ring<T: Styled>(
+    el: T,
+    focused: bool,
+    offset: bool,
+    base: Vec<gpui::BoxShadow>,
+    cx: &App,
+) -> T {
+    if !focused {
+        return if base.is_empty() { el } else { el.shadow(base) };
+    }
+    let mut all = base;
+    all.extend(focus_ring_shadows(offset, cx));
+    el.shadow(all)
+}
+
+/// Makes `el` a tab stop that rings when the keyboard focuses it.
+///
+/// The whole of `status-focused` in one call, for the common case: an element
+/// that casts no shadow of its own and both takes the focus and shows the ring.
+pub fn focusable<T>(
+    el: T,
+    id: gpui::ElementId,
+    offset: bool,
+    window: &mut gpui::Window,
+    cx: &mut App,
+) -> T
+where
+    T: Styled + gpui::InteractiveElement,
+{
+    let handle = tab_stop_handle(id, window, cx);
+    ring_if_focused(
+        el.track_focus(&handle),
+        &handle,
+        offset,
+        Vec::new(),
+        window,
+        cx,
+    )
+}
+
+/// The ring a control shows when it holds a keyboard focus.
+///
+/// The two conditions v3's selector has: the element is focused, *and* the focus
+/// came from the keyboard.
+pub fn ring_if_focused<T: Styled>(
+    el: T,
+    handle: &gpui::FocusHandle,
+    offset: bool,
+    base: Vec<gpui::BoxShadow>,
+    window: &gpui::Window,
+    cx: &App,
+) -> T {
+    let focused = handle.is_focused(window) && focus_visible(cx);
+    with_focus_ring(el, focused, offset, base, cx)
 }
