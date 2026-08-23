@@ -158,6 +158,8 @@ EXTRA_OK_SCOPED = {
     'InputGroup.text_area': 'composition',
     'DateField.prefix': 'composition',
     'DateField.suffix': 'composition',
+    'TimeField.prefix': 'composition',
+    'TimeField.suffix': 'composition',
     # `ButtonGroup.Separator` is a child part in v3, composed inside whichever
     # member should show one. A monolithic group takes it as a flag.
     'ButtonGroup.separators': 'composition',

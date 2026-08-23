@@ -2061,27 +2061,156 @@ impl Gallery {
             "Date Field",
             crate::pages::Page::DateField.description(),
             crate::pages::Page::DateField.import_line(),
-            vec![(
-                "Usage",
-                col(vec![
-                    h::DateField::new(self.date_input.clone())
-                        .label("Start date")
-                        .on_change(opt_date_cb(cx.listener(
-                            |this, d: &Option<h::Date>, _, cx| {
-                                this.date_iso = *d;
-                                cx.notify();
+            vec![
+                (
+                    "Usage",
+                    col(vec![
+                        h::DateField::new(self.date_input.clone())
+                            .label("Start date")
+                            .on_change(opt_date_cb(cx.listener(
+                                |this, d: &Option<h::Date>, _, cx| {
+                                    this.date_iso = *d;
+                                    cx.notify();
+                                },
+                            )))
+                            .into_any_element(),
+                        para(
+                            &match iso {
+                                Some(d) => format!("Parsed: {}", d.format_iso()),
+                                None => {
+                                    "Type digits, or step a segment with the arrow keys".to_owned()
+                                }
                             },
-                        )))
-                        .into_any_element(),
-                    para(
-                        &match iso {
-                            Some(d) => format!("Parsed: {}", d.format_iso()),
-                            None => "Type digits, or step a segment with the arrow keys".to_owned(),
-                        },
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "With Icons",
+                    col(vec![h::DateField::new(self.demo_text("df-icon", "", cx))
+                        .label("Date")
+                        .prefix(icon(h::icons::MOON, cx))
+                        .into_any_element()]),
+                ),
+                (
+                    "Variants",
+                    col(vec![
+                        h::DateField::new(self.demo_text("df-primary", "", cx))
+                            .label("Primary")
+                            .into_any_element(),
+                        h::DateField::new(self.demo_text("df-secondary", "", cx))
+                            .label("Secondary")
+                            .variant(FieldVariant::Secondary)
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "In Surface",
+                    col(vec![h::Surface::new()
+                        .padding(px(24.))
+                        .gap(px(16.))
+                        .child(
+                            h::DateField::new(self.demo_text("df-surface", "", cx))
+                                .label("Date")
+                                .variant(FieldVariant::Secondary),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "With Description",
+                    col(vec![h::DateField::new(self.demo_text("df-desc", "", cx))
+                        .label("Date")
+                        .description("Month, day and year")
+                        .into_any_element()]),
+                ),
+                (
+                    "Required Field",
+                    col(vec![h::DateField::new(self.demo_text("df-req", "", cx))
+                        .label("Date")
+                        .is_required(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Disabled State",
+                    col(vec![h::DateField::new(self.demo_text(
+                        "df-dis",
+                        "2025-12-25",
                         cx,
-                    ),
-                ]),
-            )],
+                    ))
+                    .label("Date")
+                    .is_disabled(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Full Width",
+                    col(vec![h::DateField::new(self.demo_text("df-full", "", cx))
+                        .label("Date")
+                        .full_width(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Validation",
+                    col(vec![h::DateField::new(self.demo_text(
+                        "df-invalid",
+                        "",
+                        cx,
+                    ))
+                    .label("Date")
+                    .is_required(true)
+                    .is_invalid(true)
+                    .validation_errors(["Pick a date"])
+                    .into_any_element()]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::DateField::new(self.demo_text("df-ctl", "", cx))
+                            .label("Date")
+                            .on_change(opt_date_cb(cx.listener(
+                                |this, d: &Option<h::Date>, _, cx| {
+                                    this.date_iso = *d;
+                                    cx.notify();
+                                },
+                            )))
+                            .into_any_element(),
+                        para(
+                            &match iso {
+                                Some(d) => format!("Value: {}", d.format_iso()),
+                                None => "No value".to_owned(),
+                            },
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "With Validation",
+                    col(vec![h::DateField::new(self.demo_text(
+                        "df-validate",
+                        "",
+                        cx,
+                    ))
+                    .label("Date")
+                    .min_value(h::Date::new(2025, 1, 1))
+                    .max_value(h::Date::new(2025, 12, 31))
+                    .description("Must fall in 2025")
+                    .into_any_element()]),
+                ),
+                (
+                    "Form Example",
+                    col(vec![{
+                        let field = self.demo_text("df-form", "", cx);
+                        h::Form::new()
+                            .field(h::FormField::text(field.clone()).name("start"))
+                            .child(
+                                h::DateField::new(field)
+                                    .label("Start date")
+                                    .is_required(true),
+                            )
+                            .child(h::Button::new("df-form-submit").label("Save"))
+                            .into_any_element()
+                    }]),
+                ),
+            ],
             cx,
         )
     }
@@ -2177,6 +2306,109 @@ impl Gallery {
                             cx.listener(|_, _t: &Option<h::Time>, _, cx| cx.notify()),
                         ))
                         .into_any_element()]),
+                ),
+                (
+                    "Usage",
+                    col(vec![h::TimeField::new(self.demo_time("tmf-usage", cx))
+                        .label("Time")
+                        .into_any_element()]),
+                ),
+                (
+                    "With Icons",
+                    col(vec![h::TimeField::new(self.demo_time("tmf-icon", cx))
+                        .label("Time")
+                        .prefix(icon(h::icons::SUN, cx))
+                        .into_any_element()]),
+                ),
+                (
+                    "On Surface",
+                    col(vec![h::Surface::new()
+                        .padding(px(24.))
+                        .gap(px(16.))
+                        .child(
+                            h::TimeField::new(self.demo_time("tmf-surface", cx))
+                                .label("Time")
+                                .variant(FieldVariant::Secondary),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "With Description",
+                    col(vec![h::TimeField::new(self.demo_time("tmf-desc", cx))
+                        .label("Time")
+                        .description("Hour and minute")
+                        .into_any_element()]),
+                ),
+                (
+                    "Required Field",
+                    col(vec![h::TimeField::new(self.demo_time("tmf-req", cx))
+                        .label("Time")
+                        .is_required(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Disabled State",
+                    col(vec![h::TimeField::new(self.demo_time("tmf-dis", cx))
+                        .label("Time")
+                        .is_disabled(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Full Width",
+                    col(vec![h::TimeField::new(self.demo_time("tmf-full", cx))
+                        .label("Time")
+                        .full_width(true)
+                        .into_any_element()]),
+                ),
+                (
+                    "Validation",
+                    col(vec![h::TimeField::new(self.demo_time("tmf-invalid", cx))
+                        .label("Time")
+                        .is_required(true)
+                        .is_invalid(true)
+                        .error_message("Pick a time")
+                        .into_any_element()]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::TimeField::new(self.demo_time("tmf-ctl", cx))
+                            .label("Time")
+                            .on_change(opt_time_cb(
+                                cx.listener(|_, _t: &Option<h::Time>, _, cx| cx.notify()),
+                            ))
+                            .into_any_element(),
+                        para(
+                            "The field owns the value; `on_change` reports each edit.",
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "With Validation",
+                    col(vec![h::TimeField::new(self.demo_time("tmf-validate", cx))
+                        .label("Meeting time")
+                        .description("Office hours are 09:00 to 17:00")
+                        .validate(|value| {
+                            value
+                                .filter(|t| t.hour < 9 || t.hour >= 17)
+                                .map(|_| "Pick a time inside office hours".into())
+                        })
+                        .into_any_element()]),
+                ),
+                (
+                    "Form Example",
+                    col(vec![{
+                        let state = self.demo_time("tmf-form", cx);
+                        let field = h::TimeField::new(state.clone())
+                            .label("Start time")
+                            .name("start_time")
+                            .is_required(true);
+                        h::Form::new()
+                            .child(field)
+                            .child(h::Button::new("tmf-form-submit").label("Save"))
+                            .into_any_element()
+                    }]),
                 ),
             ],
             cx,

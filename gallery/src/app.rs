@@ -115,6 +115,7 @@ pub struct Gallery {
     // demos it actually shows.
     pub demo_text: HashMap<&'static str, Entity<h::InputState>>,
     pub demo_number: HashMap<&'static str, Entity<h::NumberState>>,
+    pub demo_time: HashMap<&'static str, Entity<h::TimeState>>,
     pub demo_flags: HashMap<&'static str, bool>,
     pub demo_choice: HashMap<&'static str, Option<usize>>,
     pub demo_keys: HashMap<&'static str, Vec<SharedString>>,
@@ -161,6 +162,16 @@ impl Gallery {
             n
         });
         self.demo_number.insert(key, state.clone());
+        state
+    }
+
+    /// The time state for one demo, created on first use.
+    pub fn demo_time(&mut self, key: &'static str, cx: &mut App) -> Entity<h::TimeState> {
+        if let Some(state) = self.demo_time.get(key) {
+            return state.clone();
+        }
+        let state = cx.new(|cx| h::TimeState::with_value(cx, h::Time::new(9, 30)));
+        self.demo_time.insert(key, state.clone());
         state
     }
 
@@ -320,6 +331,7 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             color_field_state,
             demo_text: HashMap::new(),
             demo_number: HashMap::new(),
+            demo_time: HashMap::new(),
             demo_flags: HashMap::new(),
             demo_choice: HashMap::new(),
             demo_keys: HashMap::new(),

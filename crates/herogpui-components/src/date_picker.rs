@@ -874,6 +874,10 @@ pub struct DateField {
     suffix: Option<gpui::AnyElement>,
     state: Entity<crate::input::InputState>,
     label: Option<SharedString>,
+    /// `Description` — composed inside the field in v3's own example.
+    description: Option<SharedString>,
+    is_disabled: bool,
+    is_read_only: bool,
     on_change: Option<OnChange>,
 }
 
@@ -885,6 +889,24 @@ impl DateField {
     }
 
     /// `isRequired`
+    /// `Description` — help text under the field.
+    pub fn description(mut self, text: impl Into<SharedString>) -> Self {
+        self.description = Some(text.into());
+        self
+    }
+
+    /// `isDisabled` — greys the field out and stops it answering keys.
+    pub fn is_disabled(mut self, v: bool) -> Self {
+        self.is_disabled = v;
+        self
+    }
+
+    /// `isReadOnly` — shows the value but refuses edits.
+    pub fn is_read_only(mut self, v: bool) -> Self {
+        self.is_read_only = v;
+        self
+    }
+
     pub fn is_required(mut self, v: bool) -> Self {
         self.is_required = v;
         self
@@ -986,6 +1008,9 @@ impl DateField {
             suffix: None,
             state,
             label: None,
+            description: None,
+            is_disabled: false,
+            is_read_only: false,
             on_change: None,
         }
     }
@@ -1166,9 +1191,7 @@ impl RenderOnce for DateField {
         // v3 drives a date field from the keyboard: the arrows step the focused
         // segment and walk between segments, and digits type into it. Without
         // this the steppers were the only way to change a value at all.
-        // v3's DateField documents no `isDisabled`/`isReadOnly`, so there is no
-        // state in which the keys should be ignored.
-        {
+        if !self.is_disabled && !self.is_read_only {
             let state = self.state.clone();
             let on_change = self.on_change.clone();
             let constraints = self.constraints.clone();
@@ -1388,13 +1411,25 @@ impl RenderOnce for DateField {
             el = el.child(
                 crate::field::Label::new(label)
                     .is_required(self.is_required)
-                    .is_invalid(is_invalid),
+                    .is_invalid(is_invalid)
+                    .is_disabled(self.is_disabled),
             );
         }
         el = el.child(row);
+        // The format hint is the description v3 shows when the caller supplies
+        // none of their own.
         match validity.first() {
             Some(message) => el = el.child(crate::field::ErrorMessage::new(message)),
-            None => el = el.child(crate::field::Description::new("MM/DD/YYYY")),
+            None => {
+                let description = self
+                    .description
+                    .clone()
+                    .unwrap_or_else(|| "MM/DD/YYYY".into());
+                el = el.child(crate::field::Description::new(description));
+            }
+        }
+        if self.is_disabled {
+            el = el.opacity(cx.layout().disabled_opacity);
         }
         el.into_any_element()
     }

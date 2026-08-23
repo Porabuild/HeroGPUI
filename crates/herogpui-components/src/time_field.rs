@@ -157,6 +157,11 @@ pub struct TimeField {
     validate: Option<crate::validation::Validator<Option<Time>>>,
     /// `validationErrors` — messages from a server round-trip.
     validation_errors: Vec<SharedString>,
+    /// `TimeField.Prefix` — content before the segments, drawn in the
+    /// placeholder colour and inert.
+    prefix: Option<gpui::AnyElement>,
+    /// `TimeField.Suffix` — content after the segments.
+    suffix: Option<gpui::AnyElement>,
     variant: FieldVariant,
     hour_cycle: HourCycle,
     /// `granularity="second"` in React.
@@ -190,6 +195,8 @@ impl TimeField {
             label: None,
             description: None,
             error_message: None,
+            prefix: None,
+            suffix: None,
             variant: FieldVariant::Primary,
             hour_cycle: HourCycle::H24,
             show_seconds: false,
@@ -273,6 +280,18 @@ impl TimeField {
 
     pub fn error_message(mut self, text: impl Into<SharedString>) -> Self {
         self.error_message = Some(text.into());
+        self
+    }
+
+    /// `TimeField.Prefix` — content before the segments.
+    pub fn prefix(mut self, el: impl IntoElement) -> Self {
+        self.prefix = Some(el.into_any_element());
+        self
+    }
+
+    /// `TimeField.Suffix` — content after the segments.
+    pub fn suffix(mut self, el: impl IntoElement) -> Self {
+        self.suffix = Some(el.into_any_element());
         self
     }
 
@@ -363,7 +382,7 @@ impl TimeField {
 }
 
 impl RenderOnce for TimeField {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `defaultValue` seeds the state once, before anything reads it.
         if let Some(value) = self.default_value {
             let state = self.state.clone();
@@ -448,6 +467,20 @@ impl RenderOnce for TimeField {
         }
         if self.full_width {
             group = group.w_full();
+        }
+
+        // `.date-input-group__prefix` is `ms-3 me-0`; the group's own padding
+        // already provides the outer inset.
+        if let Some(prefix) = self.prefix.take() {
+            group = group.child(
+                div()
+                    .flex()
+                    .items_center()
+                    .flex_shrink_0()
+                    .mr(px(4.))
+                    .text_color(colors.field.placeholder)
+                    .child(prefix),
+            );
         }
 
         for (index, segment) in segments.iter().copied().enumerate() {
@@ -539,6 +572,18 @@ impl RenderOnce for TimeField {
                 );
             }
             group = group.child(steppers);
+        }
+
+        if let Some(suffix) = self.suffix.take() {
+            group = group.child(
+                div()
+                    .flex()
+                    .items_center()
+                    .flex_shrink_0()
+                    .ml(px(4.))
+                    .text_color(colors.field.placeholder)
+                    .child(suffix),
+            );
         }
 
         let mut root = div().flex().flex_col().gap(px(6.));
