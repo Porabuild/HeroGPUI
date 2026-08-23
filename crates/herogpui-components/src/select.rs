@@ -329,6 +329,22 @@ impl RenderOnce for Select {
             |_, _| None::<usize>,
         );
         let cursor_at = *cursor.read(cx);
+        // v3's list is `overflow-y-auto`, and React Aria keeps the focused
+        // option in view. Both need a handle: the virtual list has its own kind,
+        // and a plain scrolling div has the other. `use_keyed_state` takes `cx`
+        // mutably, so they precede the theme.
+        let list_scroll = window.use_keyed_state(
+            el_name(format!("select-{}-list-scroll", id_debug(&self.id))),
+            cx,
+            |_, _| gpui::UniformListScrollHandle::new(),
+        );
+        let panel_scroll = window.use_keyed_state(
+            el_name(format!("select-{}-panel-scroll", id_debug(&self.id))),
+            cx,
+            |_, _| gpui::ScrollHandle::new(),
+        );
+        let list_scroll_now = list_scroll.read(cx).clone();
+        let panel_scroll_now = panel_scroll.read(cx).clone();
         // The letters typed so far, which a search resetting every frame could
         // not accumulate.
         let typeahead = window.use_keyed_state(
@@ -395,6 +411,9 @@ impl RenderOnce for Select {
             let on_open_change = self.on_open_change.clone();
             let on_select = self.on_selection_change.clone();
             let was_open = is_open;
+            let virtual_rows = self.row_height.is_some();
+            let key_list_scroll = list_scroll_now.clone();
+            let key_panel_scroll = panel_scroll_now.clone();
             let fh = focus_handle.clone();
             field = field
                 .track_focus(&focus_handle)
@@ -456,6 +475,14 @@ impl RenderOnce for Select {
                                 *v = Some(next);
                                 cx.notify();
                             });
+                            // React Aria keeps the focused option in view; the
+                            // highlight walking off the bottom of the list looks
+                            // like the arrows have stopped working.
+                            if virtual_rows {
+                                key_list_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
+                            } else {
+                                key_panel_scroll.scroll_to_item(next);
+                            }
                         }
                         crate::list_nav::Move::Activate => {
                             // Take the selection only. Closing is the trigger's
@@ -633,7 +660,11 @@ impl RenderOnce for Select {
                 el.border(layout.border_width).border_color(hairline)
                 })
                 .shadow(layout.overlay_shadow.clone())
-                .overflow_hidden()
+                // `.select__popover` is `overflow-y-auto`: a long list scrolls
+                // rather than being clipped. gpui needs an id for that.
+                .id(el_name(format!("{base}-scroll")))
+                .overflow_y_scroll()
+                .track_scroll(&panel_scroll_now)
                 .max_h(px(280.));
 
             // React Aria dismisses the list on a press outside it. Escape is
@@ -811,6 +842,7 @@ impl RenderOnce for Select {
                                     .collect::<Vec<_>>()
                             },
                         )
+                        .track_scroll(list_scroll_now)
                         .h(px(280.))
                         .w_full(),
                     );

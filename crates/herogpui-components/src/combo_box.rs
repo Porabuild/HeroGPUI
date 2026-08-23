@@ -568,6 +568,20 @@ impl RenderOnce for ComboBox {
             |_, _| None::<usize>,
         );
         let cursor_at = *cursor.read(cx);
+        // React Aria keeps the focused row in view; the panel scrolls and the
+        // virtual list scrolls itself. `use_keyed_state` takes `cx` mutably.
+        let list_scroll = window.use_keyed_state(
+            gpui::ElementId::Name(format!("combobox-{entity_id}-list-scroll").into()),
+            cx,
+            |_, _| gpui::UniformListScrollHandle::new(),
+        );
+        let panel_scroll = window.use_keyed_state(
+            gpui::ElementId::Name(format!("combobox-{entity_id}-panel-scroll").into()),
+            cx,
+            |_, _| gpui::ScrollHandle::new(),
+        );
+        let list_scroll_now = list_scroll.read(cx).clone();
+        let panel_scroll_now = panel_scroll.read(cx).clone();
 
         let mut root = div()
             // The panel overlays the page rather than pushing it down, so the
@@ -596,6 +610,9 @@ impl RenderOnce for ComboBox {
                 .collect();
             let held = cursor;
             let wrap = self.should_focus_wrap;
+            let virtual_rows = self.row_height.is_some();
+            let key_list_scroll = list_scroll_now.clone();
+            let key_panel_scroll = panel_scroll_now.clone();
             let rows = matches.clone();
             let state = self.state.clone();
             let on_selection_change = self.on_selection_change.clone();
@@ -610,6 +627,11 @@ impl RenderOnce for ComboBox {
                             *v = Some(next);
                             cx.notify();
                         });
+                        if virtual_rows {
+                            key_list_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
+                        } else {
+                            key_panel_scroll.scroll_to_item(next);
+                        }
                         // Walking the list opens it, which is what typing does.
                         if let Some(held) = &open_own_keys {
                             held.update(cx, |v, cx| {
@@ -675,6 +697,7 @@ impl RenderOnce for ComboBox {
                 .p(px(4.))
                 .max_h(px(240.))
                 .overflow_y_scroll()
+                .track_scroll(&panel_scroll_now)
                 .rounded(container_radius)
                 .bg(colors.overlay.background)
                 // v3 gives a floating panel no border: `.popover` and friends are
@@ -885,6 +908,7 @@ impl RenderOnce for ComboBox {
                                     .collect::<Vec<_>>()
                             },
                         )
+                        .track_scroll(list_scroll_now)
                         .h(px(240.))
                         .w_full(),
                     );

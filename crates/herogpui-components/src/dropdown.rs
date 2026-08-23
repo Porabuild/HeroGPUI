@@ -264,6 +264,15 @@ impl RenderOnce for Menu {
             |_, _| None::<usize>,
         );
         let cursor_at = *cursor.read(cx);
+        // `.dropdown__popover` is `overflow-y-auto`, and React Aria keeps the
+        // focused row in view. `use_keyed_state` takes `cx` mutably, so the
+        // handle precedes the theme.
+        let menu_scroll = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{base}-scroll").into()),
+            cx,
+            |_, _| gpui::ScrollHandle::new(),
+        );
+        let menu_scroll_now = menu_scroll.read(cx).clone();
         let typed = window.use_keyed_state(
             gpui::ElementId::Name(format!("{base}-typed").into()),
             cx,
@@ -317,7 +326,14 @@ impl RenderOnce for Menu {
             .bg(colors.overlay.background)
             .rounded(crate::util::container_radius(cx))
             .shadow(cx.layout().overlay_shadow.clone())
-            .overflow_hidden()
+            // A long menu scrolls rather than being clipped, and gpui needs an
+            // id for that. React Aria sizes the popover to the space the
+            // viewport leaves; the closest thing here is a share of the window,
+            // since a menu is anchored to a trigger that can be anywhere in it.
+            .id(gpui::ElementId::Name(format!("{base}-list").into()))
+            .max_h(window.viewport_size().height * 0.6)
+            .overflow_y_scroll()
+            .track_scroll(&menu_scroll_now)
             .track_focus(&focus_handle)
             .key_context("Menu");
 
@@ -336,6 +352,7 @@ impl RenderOnce for Menu {
             let typed_keys = typed;
             let on_action = self.on_action.clone();
             let on_selection_change = self.on_selection_change.clone();
+            let key_scroll = menu_scroll_now;
             let mode = self.selection_mode;
             let selected_now = self.selected_keys.clone();
             let keys = item_keys;
@@ -348,6 +365,9 @@ impl RenderOnce for Menu {
                             *v = Some(next);
                             cx.notify();
                         });
+                        // Keep the focused row on screen: a highlight that walks
+                        // out of the panel reads as the arrows having stopped.
+                        key_scroll.scroll_to_item(next);
                     }
                     crate::list_nav::Move::Activate => {
                         let Some(item_key) = from.and_then(|i| keys.get(i).cloned()) else {

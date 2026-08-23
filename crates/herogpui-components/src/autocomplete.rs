@@ -412,6 +412,26 @@ impl RenderOnce for Autocomplete {
             |_, _| None::<usize>,
         );
         let cursor_at = *cursor.read(cx);
+        // React Aria keeps the focused suggestion in view, and v3's popover is
+        // `overflow-y-auto`. `use_keyed_state` takes `cx` mutably.
+        let list_scroll = window.use_keyed_state(
+            el_name(format!(
+                "autocomplete-{}-list-scroll",
+                self.state.entity_id().as_u64()
+            )),
+            cx,
+            |_, _| gpui::UniformListScrollHandle::new(),
+        );
+        let panel_scroll = window.use_keyed_state(
+            el_name(format!(
+                "autocomplete-{}-panel-scroll",
+                self.state.entity_id().as_u64()
+            )),
+            cx,
+            |_, _| gpui::ScrollHandle::new(),
+        );
+        let list_scroll_now = list_scroll.read(cx).clone();
+        let panel_scroll_now = panel_scroll.read(cx).clone();
 
         let colors = cx.colors();
         let layout = cx.layout();
@@ -537,6 +557,9 @@ impl RenderOnce for Autocomplete {
                 .collect();
             let held = cursor;
             let wrap = self.should_focus_wrap;
+            let virtual_rows = self.row_height.is_some();
+            let key_list_scroll = list_scroll_now.clone();
+            let key_panel_scroll = panel_scroll_now.clone();
             let rows = matches.clone();
             let state = self.state.clone();
             let on_selection_change = self.on_selection_change.clone();
@@ -567,6 +590,11 @@ impl RenderOnce for Autocomplete {
                             *v = Some(next);
                             cx.notify();
                         });
+                        if virtual_rows {
+                            key_list_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
+                        } else {
+                            key_panel_scroll.scroll_to_item(next);
+                        }
                     }
                     crate::list_nav::Move::Activate => {
                         let Some(item) = from.and_then(|i| rows.get(i).cloned()) else {
@@ -611,7 +639,11 @@ impl RenderOnce for Autocomplete {
                 el.border(layout.border_width).border_color(hairline)
                 })
                 .shadow(layout.overlay_shadow.clone())
-                .overflow_hidden();
+                // v3's popover is `overflow-y-auto`; gpui needs an id to scroll.
+                .id(el_name(format!("{base}-scroll")))
+                .max_h(px(280.))
+                .overflow_y_scroll()
+                .track_scroll(&panel_scroll_now);
 
             // React Aria dismisses the popover on a press outside it; Escape is
             // read above, where the flag lives.
@@ -779,6 +811,7 @@ impl RenderOnce for Autocomplete {
                                     .collect::<Vec<_>>()
                             },
                         )
+                        .track_scroll(list_scroll_now)
                         .h(px(280.))
                         .w_full(),
                     );

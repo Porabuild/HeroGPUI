@@ -108,6 +108,12 @@ SORT_KEYS = ('Table',)
 # the caller and the component has no handle for it.
 FOCUS_RETURN = ('Dropdown', 'Modal', 'Drawer', 'AlertDialog')
 
+# v3's popovers are `overflow-y-auto` and React Aria keeps the focused row in
+# view. Ours were `overflow-hidden`, so a long list was *clipped* -- the rows
+# past the panel's height could not be reached by mouse at all, and the keyboard
+# highlight walked off the bottom.
+SCROLL_INTO_VIEW = ('Select', 'ComboBox', 'Autocomplete', 'ListBox', 'Dropdown')
+
 OVERLAY_DISMISS = (
     'Popover', 'Dropdown', 'Select', 'ComboBox', 'Autocomplete',
     'DatePicker', 'DateRangePicker', 'ColorPicker', 'Tooltip',
@@ -181,6 +187,11 @@ EVIDENCE = {
     ('TextArea', 'text-keys'): ('input.rs', r'fn vertical_target'),
     ('TextField', 'text-keys'): ('input.rs', r'key_char'),
     ('Dropdown', 'focus-return'): ('dropdown.rs', r'back_to_trigger'),
+    ('Select', 'scroll-into-view'): ('select.rs', r'scroll_to_item'),
+    ('ComboBox', 'scroll-into-view'): ('combo_box.rs', r'scroll_to_item'),
+    ('Autocomplete', 'scroll-into-view'): ('autocomplete.rs', r'scroll_to_item'),
+    ('ListBox', 'scroll-into-view'): ('list_box.rs', r'scroll_to_item'),
+    ('Dropdown', 'scroll-into-view'): ('dropdown.rs', r'scroll_to_item'),
     ('Table', 'sort-keys'): ('table.rs', r'sort_focus'),
     ('Input', 'pointer-caret'): ('input.rs', r'fn char_at_x'),
     ('TextField', 'pointer-caret'): ('input.rs', r'closest_index_for_x'),
@@ -250,11 +261,12 @@ def main():
     # every total.
     derived = dict.fromkeys(
         ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + FOCUS_OPEN
-        + TEXT_KEYS + POINTER_CARET + SORT_KEYS + FOCUS_RETURN
+        + TEXT_KEYS + POINTER_CARET + SORT_KEYS + FOCUS_RETURN + SCROLL_INTO_VIEW
     )
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'focus-open',
-                      'text-keys', 'pointer-caret', 'sort-keys', 'focus-return'):
+                      'text-keys', 'pointer-caret', 'sort-keys', 'focus-return',
+                      'scroll-into-view'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach
             # the breakdown: reading only EVIDENCE skipped `TextArea`'s

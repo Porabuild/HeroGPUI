@@ -277,6 +277,20 @@ impl RenderOnce for ListBox {
             |_, _| None::<usize>,
         );
         let cursor_at = *cursor.read(cx);
+        // React Aria keeps the focused row in view. Two handles, because the
+        // virtual list owns its own scrolling and a plain one does not.
+        let list_scroll = window.use_keyed_state(
+            ElementId::Name(format!("{base}-list-scroll").into()),
+            cx,
+            |_, _| gpui::UniformListScrollHandle::new(),
+        );
+        let box_scroll = window.use_keyed_state(
+            ElementId::Name(format!("{base}-box-scroll").into()),
+            cx,
+            |_, _| gpui::ScrollHandle::new(),
+        );
+        let list_scroll_now = list_scroll.read(cx).clone();
+        let box_scroll_now = box_scroll.read(cx).clone();
         // The letters typed so far. A search that reset every frame could only
         // ever match one letter.
         let typed = window.use_keyed_state(
@@ -314,7 +328,10 @@ impl RenderOnce for ListBox {
         // scroll offset it computes the visible range from; a second scroller
         // around it would move the rows without telling it.
         if let (Some(max_h), None) = (self.max_h, self.row_height) {
-            list = list.max_h(max_h).overflow_y_scroll();
+            list = list
+                .max_h(max_h)
+                .overflow_y_scroll()
+                .track_scroll(&box_scroll_now);
         }
 
         // The rows a keyboard can land on: an item that is not disabled.
@@ -337,6 +354,9 @@ impl RenderOnce for ListBox {
             let held = cursor;
             let stops_for_keys = stops;
             let wrap = self.should_focus_wrap;
+            let virtual_rows = self.row_height.is_some();
+            let key_list_scroll = list_scroll_now.clone();
+            let key_box_scroll = box_scroll_now;
             let keys: Vec<SharedString> = self
                 .items
                 .iter()
@@ -370,6 +390,11 @@ impl RenderOnce for ListBox {
                             *v = Some(next);
                             cx.notify();
                         });
+                        if virtual_rows {
+                            key_list_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
+                        } else {
+                            key_box_scroll.scroll_to_item(next);
+                        }
                     }
                     crate::list_nav::Move::Activate => {
                         let Some(item_key) = from.and_then(|i| keys.get(i).cloned()) else {
@@ -444,6 +469,7 @@ impl RenderOnce for ListBox {
                                 .collect::<Vec<_>>()
                         },
                     )
+                    .track_scroll(list_scroll_now)
                     .id(list_id)
                     .h(height)
                     .w_full(),
