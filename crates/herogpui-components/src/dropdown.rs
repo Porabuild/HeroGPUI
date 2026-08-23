@@ -321,8 +321,11 @@ impl RenderOnce for Menu {
         let mut panel = gpui::div()
             .flex()
             .flex_col()
-            .min_w(px(180.))
-            .py(px(6.))
+            // `.dropdown__popover` is `md:min-w-55` (220px) and the menu inside
+            // it is `gap-0.5 p-1`.
+            .min_w(px(220.))
+            .gap(px(2.))
+            .p(px(4.))
             .bg(colors.overlay.background)
             .rounded(crate::util::container_radius(cx))
             .shadow(cx.layout().overlay_shadow.clone())

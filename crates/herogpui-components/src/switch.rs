@@ -382,11 +382,18 @@ impl RenderOnce for Switch {
 
         // `.switch__content` is `gap-3`. v3 gets the label's side from the order
         // of its children, so `label_first` puts it before the control.
-        let mut el = gpui::div().flex().items_center().gap(px(12.));
+        let mut el = gpui::div()
+            .flex()
+            .items_center()
+            .gap(px(12.))
+            .text_size(px(14.));
         let label_row = self.label.map(|label| {
             gpui::div()
                 .flex()
                 .items_center()
+                // `.switch__label` is `text-base`, a step larger than the
+                // content around it.
+                .text_size(px(16.))
                 .gap(px(4.))
                 .child(label)
                 .when(self.is_required, |r| {

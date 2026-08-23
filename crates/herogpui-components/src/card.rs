@@ -83,9 +83,14 @@ impl RenderOnce for Card {
         // v3 surface alias, falls back to content1
         let surface_bg = colors.surface.background;
         let surface_fg = colors.surface.foreground;
+        // `.card` is `flex flex-col gap-3 p-4`: the card is the padded box and
+        // its parts (`__header`, `__content`, `__footer`) carry none of their
+        // own, which is why this used to double the inset on every section.
         let mut el = gpui::div()
             .flex()
             .flex_col()
+            .gap(px(12.))
+            .p(px(16.))
             .overflow_hidden()
             .rounded(crate::util::container_radius(cx))
             .bg(surface_bg)
@@ -143,15 +148,14 @@ impl ParentElement for CardHeader {
 
 impl RenderOnce for CardHeader {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+        // `.card__header` is `flex flex-col`; the title inside it is `text-sm
+        // leading-6 font-medium`.
         gpui::div()
             .flex()
-            .items_center()
-            .gap(px(12.))
-            .px(px(16.))
-            .py(px(12.))
+            .flex_col()
             .text_size(px(14.))
-            .line_height(px(20.))
-            .font_weight(gpui::FontWeight::SEMIBOLD)
+            .line_height(px(24.))
+            .font_weight(gpui::FontWeight::MEDIUM)
             .children(self.children)
     }
 }
@@ -184,13 +188,15 @@ impl ParentElement for CardBody {
 
 impl RenderOnce for CardBody {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+        // `.card__content` is `flex flex-1 flex-col gap-1` with `text-sm`
+        // leading-5 from `.card__description`; the padding is the card's.
         gpui::div()
             .flex()
+            .flex_1()
             .flex_col()
-            .px(px(16.))
-            .py(px(16.))
+            .gap(px(4.))
             .text_size(px(14.))
-            .line_height(px(24.))
+            .line_height(px(20.))
             .children(self.children)
     }
 }
@@ -223,12 +229,12 @@ impl ParentElement for CardFooter {
 
 impl RenderOnce for CardFooter {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+        // `.card__footer` is `flex flex-row items-center` -- no padding of its
+        // own, and the gap comes from whatever the caller puts in it.
         gpui::div()
             .flex()
             .items_center()
             .gap(px(8.))
-            .px(px(16.))
-            .py(px(12.))
             .text_size(px(14.))
             .children(self.children)
     }
