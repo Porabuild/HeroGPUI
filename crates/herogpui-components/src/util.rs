@@ -492,6 +492,27 @@ pub struct FieldFocus {
     pub is_focus_visible: bool,
 }
 
+/// v3's *value* render props, as one value.
+///
+/// `Select.Value`, `Autocomplete.Value` and `ComboBox.Value` all hand their
+/// children a function and pass in `{defaultChildren, isPlaceholder,
+/// selectedItems, selectedText}`. `defaultChildren` is what the slot would have
+/// drawn, so a caller can wrap it instead of rebuilding it -- which is what v3's
+/// own examples do (`if (isPlaceholder) return defaultChildren`).
+pub struct SelectionValue<'a> {
+    /// `selectedItems` — the chosen items' text, in the collection's order.
+    pub selected_items: &'a [gpui::SharedString],
+    /// Where those items sit in the collection, for a caller keyed by index.
+    pub selected_indices: &'a [usize],
+    /// `selectedText` — the same items joined. v3 joins with locale-aware
+    /// separators; without CLDR data this is a comma and a space.
+    pub selected_text: &'a str,
+    /// `isPlaceholder` — nothing is chosen, so the placeholder shows.
+    pub is_placeholder: bool,
+    /// `defaultChildren` — the element this slot would have drawn.
+    pub default_children: gpui::AnyElement,
+}
+
 /// v3's interactive render props, as one value.
 ///
 /// Every pressable control in v3 hands its children a function and passes these

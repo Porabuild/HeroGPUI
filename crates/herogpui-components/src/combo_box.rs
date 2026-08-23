@@ -83,6 +83,8 @@ pub struct ComboBox {
     disabled_keys: std::collections::HashSet<SharedString>,
     selection_mode: SelectionMode,
     selected_keys: std::collections::BTreeSet<SharedString>,
+    /// `ComboBox.Value` — draws the chosen item under the field.
+    value_content: Option<Box<dyn Fn(util::SelectionValue<'_>) -> gpui::AnyElement + 'static>>,
     /// `defaultValue` — set it to hand this component its own selection.
     default_value: Option<std::collections::BTreeSet<SharedString>>,
     /// `defaultInputValue` — seeds the text state on the first render only.
@@ -211,6 +213,20 @@ impl ComboBox {
         self
     }
 
+    /// `ComboBox.Value` — draw the chosen item under the field.
+    ///
+    /// v3's `.combo-box__value` is an optional part (`text-sm
+    /// text-field-foreground empty:hidden`), and the closure is handed the same
+    /// render props the component passes down: `selectedItem` reaches
+    /// `selected_items`, and `defaultChildren` is the row this port would draw.
+    pub fn value_content(
+        mut self,
+        render: impl Fn(util::SelectionValue<'_>) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.value_content = Some(Box::new(render));
+        self
+    }
+
     /// `name` — the name this field submits under.
     pub fn name(mut self, name: impl Into<SharedString>) -> Self {
         self.name = Some(name.into());
@@ -292,6 +308,7 @@ impl ComboBox {
             disabled_keys: std::collections::HashSet::new(),
             selection_mode: SelectionMode::Single,
             selected_keys: std::collections::BTreeSet::new(),
+            value_content: None,
             default_value: None,
             default_input_value: None,
             on_selection_change_all: None,
@@ -596,6 +613,42 @@ impl RenderOnce for ComboBox {
             // `.combo-box__input-group` is the field itself, and
             // `--full-width` is the `full_width` flag above.
             .child(input.render(window, cx));
+
+        // `ComboBox.Value` — `.combo-box__value` is `text-sm
+        // text-field-foreground empty:hidden`, so it shows only once something
+        // is chosen.
+        if let Some(render) = self.value_content.take() {
+            let items: Vec<SharedString> = self
+                .items
+                .iter()
+                .filter(|it| self.selected_keys.contains(*it))
+                .cloned()
+                .collect();
+            let indices: Vec<usize> = self
+                .items
+                .iter()
+                .enumerate()
+                .filter(|(_, it)| self.selected_keys.contains(*it))
+                .map(|(i, _)| i)
+                .collect();
+            let text = items
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
+            let default_children = div()
+                .text_size(util::FIELD_TEXT)
+                .text_color(colors.field.foreground)
+                .child(text.clone())
+                .into_any_element();
+            root = root.child(render(util::SelectionValue {
+                selected_items: &items,
+                selected_indices: &indices,
+                selected_text: &text,
+                is_placeholder: items.is_empty(),
+                default_children,
+            }));
+        }
 
         // `allowsEmptyCollection` keeps the panel up with no matches. Without
         // it an empty result closes the list -- except when a custom value is

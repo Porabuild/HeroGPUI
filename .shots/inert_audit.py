@@ -52,6 +52,13 @@ KEYED = (
 # `ScrollShadow.visibility` has one without being anything the user changes.
 NOT_STATE = {
     'ScrollShadow.visibility': 'static-configuration',
+    # `defaultChildren` is not the uncontrolled seed of `children`: it is what
+    # the value slot *would have drawn*, handed into the render prop so a caller
+    # can return it unchanged (`if (isPlaceholder) return defaultChildren`). The
+    # pair reads like state and is a render-prop argument.
+    'Autocomplete.children': 'default-is-the-rendering',
+    'Select.children': 'default-is-the-rendering',
+    'ComboBox.children': 'default-is-the-rendering',
 }
 
 # Instances that are meant to be frozen, with the reason.

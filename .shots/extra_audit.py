@@ -218,6 +218,8 @@ EXTRA_OK_SCOPED = {
     'Table.tree_row': 'composition',
     'Select.indicator': 'composition',
     'Select.value_content': 'composition',
+    'Autocomplete.value_content': 'composition',
+    'ComboBox.value_content': 'composition',
     'Checkbox.is_round': 'no-classname',
     'Link.icon': 'composition',
     'Link.icon_first': 'composition',

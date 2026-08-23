@@ -743,6 +743,64 @@ Recorded omissions rot. `python .shots/reason_audit.py [reason ...]` prints each
   table-parsing artefacts.
 - five entries no longer matched any documented row at all.
 
+### What no audit measures: the anatomy
+
+Fourteen audits at zero still said nothing about whether a component is *built*
+the way v3 builds it, and the Autocomplete was not. v3's `autocomplete.css` is a
+`.autocomplete__trigger` (a field-shaped box holding `.autocomplete__value` and a
+chevron `.autocomplete__indicator`) plus an `.autocomplete__popover` that stacks
+`[data-slot="search-field"]` above the list -- a Select whose popover searches.
+This port had built it as an `Input` with a suggestion panel, which is the
+*ComboBox*'s anatomy (`combo-box.css`: an input group with a chevron trigger at
+its end). Every audit passed anyway, and each for its own reason:
+
+- `design_audit.py` compared `.autocomplete__trigger`'s height, radius and
+  padding against the `Input` the component composed. A field and a select
+  trigger are both `min-h-9 rounded-field px-3`, so the numbers matched while
+  naming the wrong element. Two of its rows said `-> Input` in their label, which
+  is the audit *recording* the substitution rather than questioning it.
+- `part_audit.py` counts a selector as accounted for when the source names it in
+  a comment, and the old file cited `.autocomplete__indicator` and
+  `.autocomplete__clear-button` from inside the input's `end_content`.
+- `api_audit.py` mapped the props onto whatever builder had the right name:
+  `inputValue` and `onInputChange` really do belong to `Autocomplete.Filter`, so
+  they matched -- while `value` (v3: the *selection*) was implemented as the
+  input's text.
+- `example_audit.py` matched "Custom Value" by name, and the demo underneath it
+  explained free-text entry.
+
+A prop diff cannot find this, and neither can a screenshot of a control that
+looks plausible. What finds it is reading the component's stylesheet as a
+*structure* -- which parts exist, and which part contains which -- before
+matching its props. The three pickers are the case to keep straight:
+
+| v3 component | field | where the query is typed | selection shows in |
+|---|---|---|---|
+| Select | trigger | nowhere (typeahead only) | `.select__value` |
+| Autocomplete | trigger | a `SearchField` **inside** the popover | `.autocomplete__value` |
+| ComboBox | input | the input itself | the input, and `.combo-box__value` |
+
+Two things the rebuild turned up that a diff would not have:
+
+- **Focusing an element inside a keystroke fires its click listener.** The Enter
+  that picks a row closed the popover and then reopened it: the handler moved the
+  focus back to the trigger, and gpui activates a focused element on Enter, so
+  the trigger's own `on_click` ran in the same event. Escape can refocus safely;
+  Enter cannot. A `std::fs::write` probe in both handlers is what showed the
+  order (`click was_open=false` *after* `key-close`).
+- **An unset controlled prop is not an empty controlled value.** Passing
+  `Some(selected_keys)` to `util::controlled` whenever `default_value` was absent
+  made every plain `Autocomplete` controlled-by-nobody: clicking a row wrote to a
+  set no one owned and the trigger never changed. `Select` had the answer already
+  -- an `is_controlled` flag set by the builder itself -- and `inert_audit.py`
+  cannot see this one, because the demo passes no controlled prop at all.
+
+`inert_audit.py` did report the new demo, for the wrong reason: v3's render-prop
+table documents `defaultChildren` beside `children`, which reads exactly like a
+`default*`/controlled pair. It is not one -- `defaultChildren` is *what the slot
+would have drawn*, handed in so a caller can return it unchanged -- so the three
+components that take a value closure are recorded in `NOT_STATE`.
+
 ## Scope: HeroUI v3 only
 
 This is a port of **HeroUI v3**, not v2. When in doubt, the authoritative source

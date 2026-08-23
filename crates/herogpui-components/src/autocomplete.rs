@@ -1,7 +1,21 @@
 //! Autocomplete — port of `@heroui/autocomplete`.
 //!
-//! Reuses [`InputState`]; the suggestion menu opens automatically while the
-//! field is focused and the query matches items.
+//! v3's Autocomplete is a **Select whose popover holds a search field**, not a
+//! text field with suggestions under it. `autocomplete.css` says so directly:
+//! `.autocomplete__trigger` is a field-shaped box (`min-h-9 rounded-field
+//! bg-field px-3 shadow-field`) holding `.autocomplete__value` and a chevron
+//! `.autocomplete__indicator`, and `.autocomplete__popover` stacks
+//! `[data-slot="search-field"]` above the list. The text field *with* a list is
+//! the [`crate::combo_box::ComboBox`], which is a separate component with its
+//! own stylesheet.
+//!
+//! This port had it the other way round -- an [`Input`] with a suggestion panel
+//! -- which drew none of that sheet and left the trigger nothing to show the
+//! selection in. The trigger draws the selection now, and the popover searches.
+//!
+//! [`InputState`] therefore backs the **search field inside the popover**, which
+//! is what `Autocomplete.Filter`'s `inputValue` and `onInputChange` address. The
+//! selection is a set of item keys, held by `value` / `defaultValue`.
 
 use gpui::{
     prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, StatefulInteractiveElement,
@@ -12,7 +26,7 @@ use herogpui_theme::ActiveTheme;
 
 use crate::{
     icons,
-    input::{Input, InputState},
+    input::{InputState, SearchField},
     util,
 };
 
@@ -24,6 +38,7 @@ pub struct Autocomplete {
     /// `name` — the name this control submits under; read back by
     /// [`Self::form_field`].
     name: Option<SharedString>,
+    /// The search field's text state — `Autocomplete.Filter`'s `inputValue`.
     state: Entity<InputState>,
     items: Vec<SharedString>,
     max_items: usize,
@@ -48,16 +63,23 @@ pub struct Autocomplete {
     /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
     /// the row is selected.
     indicator: Option<Box<dyn Fn(bool) -> gpui::AnyElement + 'static>>,
+    /// `Autocomplete.Value` — draws the trigger's value.
+    value_content: Option<Box<dyn Fn(util::SelectionValue<'_>) -> gpui::AnyElement + 'static>>,
     /// `allowsEmptyCollection` — keep the panel open with an empty state
     /// instead of hiding it when nothing matches.
     allows_empty_collection: bool,
     selection_mode: SelectionMode,
     selected_keys: std::collections::BTreeSet<SharedString>,
+    /// Whether the caller drives the selection. An unset `value` is not an empty
+    /// controlled selection: without this flag every uncontrolled Autocomplete
+    /// would hand its own clicks back to a set nobody owns, and picking an item
+    /// would do nothing.
+    is_controlled: bool,
     /// `defaultValue` — set it to hand this component its own selection.
     default_value: Option<std::collections::BTreeSet<SharedString>>,
     on_selection_change_all:
         Option<std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>>,
-    /// `isOpen`. `None` follows focus, which is the v3 default behaviour.
+    /// `isOpen`. `None` lets the trigger own it, seeded from `defaultOpen`.
     is_open: Option<bool>,
     default_open: bool,
     placement: Placement,
@@ -78,11 +100,10 @@ impl Autocomplete {
         self
     }
 
-    /// The chosen item labels under `selectionMode="multiple"`.
     /// `defaultValue` — the uncontrolled initial selection.
     ///
     /// Supplying it hands the component its own selection set, seeded once;
-    /// `selected_keys` is the controlled spelling.
+    /// [`Self::value`] is the controlled spelling.
     pub fn default_value(
         mut self,
         keys: impl IntoIterator<Item = impl Into<SharedString>>,
@@ -91,8 +112,17 @@ impl Autocomplete {
         self
     }
 
+    /// `value` — the controlled selection, as item keys.
+    pub fn value(mut self, keys: impl IntoIterator<Item = impl Into<SharedString>>) -> Self {
+        self.selected_keys = keys.into_iter().map(Into::into).collect();
+        self.is_controlled = true;
+        self
+    }
+
+    /// The `ListBox`'s spelling of [`Self::value`], for a caller that has a set.
     pub fn selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.selected_keys = keys.into_iter().collect();
+        self.is_controlled = true;
         self
     }
 
@@ -105,28 +135,19 @@ impl Autocomplete {
         self
     }
 
-    /// `value` — writes the query through to the bound state.
-    pub fn value(self, value: impl Into<String>, cx: &mut App) -> Self {
-        self.state.update(cx, |s, _| s.set_value(value));
-        self
-    }
-
-    /// `isOpen` — forces the suggestion panel open regardless of focus.
     /// `placement` on `Autocomplete.Popover`.
     pub fn placement(mut self, placement: Placement) -> Self {
         self.placement = placement;
         self
     }
 
-    /// `defaultOpen` — the popover starts open, until the field takes focus.
-    ///
-    /// After the first focus the popover follows focus, so a blur closes it;
-    /// the seed only covers the render before the user has engaged.
+    /// `defaultOpen` — the popover starts open.
     pub fn default_open(mut self, v: bool) -> Self {
         self.default_open = v;
         self
     }
 
+    /// `isOpen` — the controlled popover state.
     pub fn is_open(mut self, v: bool) -> Self {
         self.is_open = Some(v);
         self
@@ -141,7 +162,8 @@ impl Autocomplete {
         self
     }
 
-    /// `filter` — replaces the default case-insensitive substring match.
+    /// `filter` on `Autocomplete.Filter` — replaces the default
+    /// case-insensitive substring match.
     ///
     /// Called as `filter(item_text, input)`.
     pub fn filter(mut self, f: impl Fn(&str, &str) -> bool + 'static) -> Self {
@@ -149,16 +171,17 @@ impl Autocomplete {
         self
     }
 
-    /// `inputValue` — the controlled query text.
+    /// `inputValue` on `Autocomplete.Filter` — the controlled search text.
     ///
-    /// Unlike [`Autocomplete::value`] this does not write through to the bound
-    /// state, so a caller can hold the query itself.
+    /// Unlike the bound [`InputState`] this does not write through, so a caller
+    /// can hold the query itself.
     pub fn input_value(mut self, value: impl Into<String>) -> Self {
         self.input_value = Some(value.into());
         self
     }
 
-    /// `onInputChange` — fires on every keystroke in the query field.
+    /// `onInputChange` on `Autocomplete.Filter` — every keystroke in the search
+    /// field.
     pub fn on_input_change(mut self, f: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
         self.on_input_change = Some(std::sync::Arc::new(f));
         self
@@ -184,7 +207,7 @@ impl Autocomplete {
             name: None,
             state,
             items,
-            max_items: 8,
+            max_items: 100,
             row_height: None,
             label: None,
             placeholder: None,
@@ -200,9 +223,11 @@ impl Autocomplete {
             should_focus_wrap: false,
             sections: Vec::new(),
             indicator: None,
+            value_content: None,
             allows_empty_collection: false,
             selection_mode: SelectionMode::Single,
             selected_keys: std::collections::BTreeSet::new(),
+            is_controlled: false,
             default_value: None,
             on_selection_change_all: None,
             filter: None,
@@ -291,6 +316,7 @@ impl Autocomplete {
         self
     }
 
+    /// A read-only Autocomplete shows its selection and does not open.
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
@@ -312,7 +338,6 @@ impl Autocomplete {
         self
     }
 
-    /// `allowsEmptyCollection`
     /// `shouldFocusWrap` — whether the arrow keys wrap at the ends of the list.
     pub fn should_focus_wrap(mut self, v: bool) -> Self {
         self.should_focus_wrap = v;
@@ -335,6 +360,21 @@ impl Autocomplete {
         self
     }
 
+    /// `Autocomplete.Value` — draw the trigger's value yourself.
+    ///
+    /// The closure is handed the render props v3 passes into
+    /// `<Autocomplete.Value>{({defaultChildren, isPlaceholder, selectedItems,
+    /// selectedText}) => …}`, so a multiple selection can be drawn as tags.
+    pub fn value_content(
+        mut self,
+        render: impl Fn(util::SelectionValue<'_>) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.value_content = Some(Box::new(render));
+        self
+    }
+
+    /// `allowsEmptyCollection` — the popover stays open with an empty state when
+    /// nothing matches.
     pub fn allows_empty_collection(mut self, v: bool) -> Self {
         self.allows_empty_collection = v;
         self
@@ -355,204 +395,320 @@ fn el_name(s: String) -> gpui::ElementId {
 
 impl RenderOnce for Autocomplete {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let base = format!("autocomplete-{}", self.state.entity_id().as_u64());
         // `defaultValue` opts into the component holding its own selection;
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
         let (selection, selection_own) = util::controlled(
             window,
             cx,
-            gpui::ElementId::Name(
-                format!("autocomplete-{}-selection", self.state.entity_id().as_u64()).into(),
-            ),
-            match self.default_value {
-                Some(_) => None,
-                None => Some(self.selected_keys.clone()),
-            },
+            el_name(format!("{base}-selection")),
+            self.is_controlled.then(|| self.selected_keys.clone()),
             self.default_value.clone().unwrap_or_default(),
         );
         self.selected_keys = selection;
 
-        // The `defaultOpen` seed: `isOpen` wins over it, then focus, and the
-        // first focus spends the seed so a later blur closes the popover
-        // instead of leaving it pinned open. `use_keyed_state` takes `cx`
-        // mutably, so this precedes the theme tokens.
-        let focused = self.state.read(cx).focus_handle.is_focused(window);
-        let seed = window.use_keyed_state(
-            gpui::ElementId::Name(
-                format!("autocomplete-{:?}-default-open", self.state.entity_id()).into(),
-            ),
+        // `isOpen` / `defaultOpen`: the trigger owns the popover, the way
+        // `.autocomplete__trigger` does in v3 -- the old port opened on focus,
+        // which is a ComboBox's behaviour, not this one's.
+        let (is_open, open_own) = util::controlled(
+            window,
             cx,
-            {
-                let default_open = self.default_open;
-                move |_, _| default_open
-            },
+            el_name(format!("{base}-open")),
+            self.is_open,
+            self.default_open,
         );
-        let seeded = *seed.read(cx);
-        if focused && seeded {
-            seed.update(cx, |v, _| *v = false);
-        }
-        // Escape closes this popover while the field keeps the focus, and the
-        // popover is open *because* the field has the focus -- so the dismissal
-        // is a flag, cleared by the next key.
-        let dismissed = window.use_keyed_state(
-            gpui::ElementId::Name(
-                format!("autocomplete-{:?}-dismissed", self.state.entity_id()).into(),
-            ),
-            cx,
-            |_, _| false,
-        );
+        let open = is_open && !self.is_disabled;
 
-        // Which suggestion the keyboard is on. The inner input keeps left and
-        // right for the caret, so up, down, Home, End and Enter bubble to here.
-        let cursor = window.use_keyed_state(
-            el_name(format!(
-                "autocomplete-{}-cursor",
-                self.state.entity_id().as_u64()
-            )),
-            cx,
-            |_, _| None::<usize>,
-        );
+        // The trigger is what holds focus, so the open list can be walked with
+        // the arrows. A disabled control leaves the tab order.
+        let focus_handle = if self.is_disabled {
+            None
+        } else {
+            Some(util::tab_stop_handle(
+                el_name(format!("{base}-focus")),
+                window,
+                cx,
+            ))
+        };
+        // Which row the keyboard is on.
+        let cursor =
+            window.use_keyed_state(el_name(format!("{base}-cursor")), cx, |_, _| None::<usize>);
         let cursor_at = *cursor.read(cx);
-        // React Aria keeps the focused suggestion in view, and v3's popover is
-        // `overflow-y-auto`. `use_keyed_state` takes `cx` mutably.
-        let list_scroll = window.use_keyed_state(
-            el_name(format!(
-                "autocomplete-{}-list-scroll",
-                self.state.entity_id().as_u64()
-            )),
-            cx,
-            |_, _| gpui::UniformListScrollHandle::new(),
-        );
-        let panel_scroll = window.use_keyed_state(
-            el_name(format!(
-                "autocomplete-{}-panel-scroll",
-                self.state.entity_id().as_u64()
-            )),
-            cx,
-            |_, _| gpui::ScrollHandle::new(),
-        );
+        // React Aria keeps the focused row in view, and v3's list is
+        // `overflow-y-auto`. The virtual list has its own handle kind, a
+        // scrolling div the other. `use_keyed_state` takes `cx` mutably, so both
+        // precede the theme tokens.
+        let list_scroll =
+            window.use_keyed_state(el_name(format!("{base}-list-scroll")), cx, |_, _| {
+                gpui::UniformListScrollHandle::new()
+            });
+        let panel_scroll =
+            window.use_keyed_state(el_name(format!("{base}-panel-scroll")), cx, |_, _| {
+                gpui::ScrollHandle::new()
+            });
         let list_scroll_now = list_scroll.read(cx).clone();
         let panel_scroll_now = panel_scroll.read(cx).clone();
+        // v3 writes `<SearchField autoFocus>` inside `Autocomplete.Filter`, so
+        // the query field takes the focus as the popover opens -- once per
+        // opening, or it would take the focus back on every frame.
+        let autofocused =
+            window.use_keyed_state(el_name(format!("{base}-autofocus")), cx, |_, _| false);
+        let search_focus = self.state.read(cx).focus_handle.clone();
+        if open && !*autofocused.read(cx) {
+            window.focus(&search_focus);
+            autofocused.update(cx, |v, _| *v = true);
+        } else if !open && *autofocused.read(cx) {
+            autofocused.update(cx, |v, _| *v = false);
+        }
 
         let colors = cx.colors();
         let layout = cx.layout();
 
-        // A controlled `inputValue` wins over whatever the entity holds.
+        // A controlled `inputValue` wins over whatever the search field holds.
         let raw_query = match &self.input_value {
             Some(v) => v.clone(),
             None => self.state.read(cx).value().to_owned(),
         };
         let query = raw_query.to_lowercase();
-
-        let open = self
-            .is_open
-            .unwrap_or((focused || seeded) && !*dismissed.read(cx));
         let multiple = self.selection_mode == SelectionMode::Multiple;
-        let matches: Vec<SharedString> = if open {
-            let custom = self.filter.clone();
-            self.items
-                .iter()
-                .filter(|it| match &custom {
-                    // A custom filter owns the whole decision, including what
-                    // an empty query means.
-                    Some(f) => f(it.as_ref(), &raw_query),
-                    None => !query.is_empty() && it.to_lowercase().contains(&query),
-                })
-                .take(self.max_items)
-                .cloned()
-                .collect()
-        } else {
-            Vec::new()
-        };
+
+        // The list starts unfiltered: v3's popover shows the whole collection
+        // until something is typed into the search field.
+        let custom = self.filter.clone();
+        let matches: Vec<SharedString> = self
+            .items
+            .iter()
+            .filter(|it| match &custom {
+                // A custom filter owns the whole decision, including what an
+                // empty query means.
+                Some(f) => f(it.as_ref(), &raw_query),
+                None => query.is_empty() || it.to_lowercase().contains(&query),
+            })
+            .take(self.max_items)
+            .cloned()
+            .collect();
 
         let is_invalid = self.is_invalid || self.error_message.is_some();
-        let hover_bg = colors.default.soft_hover();
-        let mut input = Input::new(self.state.clone())
-            .variant(self.variant)
-            .is_disabled(self.is_disabled)
-            .is_read_only(self.is_read_only)
-            .is_invalid(is_invalid)
-            .is_required(self.is_required)
-            .end_content({
-                let mut trailing = gpui::div()
-                    .flex()
-                    .items_center()
-                    .gap(px(2.))
-                    .flex_shrink_0();
+        let can_open = !self.is_disabled && !self.is_read_only;
 
-                // The clear affordance only exists when a handler backs it, and
-                // only when there is something to clear.
-                if let Some(cb) = self.on_clear.clone() {
-                    if !raw_query.is_empty() {
-                        trailing = trailing.child(
-                            gpui::div()
-                                .id(el_name("autocomplete-clear".to_owned()))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                // `.autocomplete__clear-button` is `h-6 w-6`
-                                // and then `size-5`, so 20px, `rounded-xl` and
-                                // `p-1` -- which leaves the glyph 12.
-                                .size(px(20.))
-                                .p(px(4.))
-                                .rounded(util::small_radius(cx))
-                                .cursor_pointer()
-                                .hover(|st| st.bg(hover_bg))
-                                .child(
-                                    gpui::svg()
-                                        .size(px(12.))
-                                        .path(icons::CLOSE)
-                                        .text_color(colors.muted),
-                                )
-                                .on_click(move |_, window, cx| cb(window, cx)),
-                        );
-                    }
-                }
-
-                // `.autocomplete__indicator` -- the chevron at the field's end.
-                let mut chevron = gpui::div()
-                    .id(el_name("autocomplete-trigger".to_owned()))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .flex_shrink_0()
-                    .child(
-                        gpui::svg()
-                            .size(px(14.))
-                            .path(icons::CHEVRON_DOWN)
-                            .text_color(colors.muted),
-                    );
-                if let Some(cb) = self.on_open_change.clone() {
-                    let next = !open;
-                    chevron = chevron
-                        .cursor_pointer()
-                        .on_click(move |_, window, cx| cb(next, window, cx));
-                }
-                trailing.child(chevron)
-            });
-
-        // `onInputChange` reports every keystroke in the query field.
-        if let Some(cb) = self.on_input_change.clone() {
-            input = input.on_change(move |text, window, cx| cb(text, window, cx));
+        // --- the trigger ----------------------------------------------------
+        // `.autocomplete__trigger` is `relative isolate inline-flex min-h-9
+        // rounded-field border bg-field px-3 py-2 text-sm shadow-field`, plus
+        // `pe-7` because the indicator sits inside it.
+        let mut field = gpui::div()
+            .id(el_name(format!("{base}-trigger")))
+            .relative()
+            .flex()
+            .items_center()
+            .gap(px(8.))
+            .min_h(util::FIELD_HEIGHT)
+            .px(px(12.))
+            .pr(px(28.))
+            .text_size(util::FIELD_TEXT);
+        field = util::apply_field_chrome(field, self.variant, is_invalid, false, cx);
+        // `.autocomplete__trigger:focus-visible` is `status-focused` -- the
+        // offset ring, not a field's flush one, which is why the chrome above is
+        // not told about the focus.
+        if let Some(handle) = &focus_handle {
+            field = util::ring_if_focused(field, handle, true, Vec::new(), window, cx);
         }
-        if let Some(label) = &self.label {
-            input = input.label(label.clone());
-        }
-        if let Some(ph) = &self.placeholder {
-            input = input.placeholder(ph.clone());
+        if self.is_disabled {
+            field = field.opacity(layout.disabled_opacity);
+        } else {
+            let hover_bg = match self.variant {
+                FieldVariant::Primary => colors.field.hover(),
+                FieldVariant::Secondary => colors.default.soft_hover(),
+            };
+            field = field.hover(move |s| s.bg(hover_bg)).cursor_pointer();
         }
         if self.full_width {
-            input = input.full_width();
-        }
-        if is_invalid {
-            if let Some(message) = &self.error_message {
-                input = input.error_message(message.clone());
-            }
-        } else if let Some(description) = &self.description {
-            input = input.description(description.clone());
+            field = field.w_full();
+        } else {
+            // v3's trigger is `inline-flex` and every documented example sizes
+            // it from the outside (`<Autocomplete className="w-[256px]">`).
+            // There is no `className` here, so the trigger keeps a floor of its
+            // own rather than collapsing onto the placeholder -- the same choice
+            // `ComboBox` makes.
+            field = field.min_w(px(180.));
         }
 
-        let mut root = gpui::div().relative().child(input);
-        if !self.is_disabled && !self.is_read_only {
+        // --- `.autocomplete__value` -----------------------------------------
+        let selected_items: Vec<SharedString> = self
+            .items
+            .iter()
+            .filter(|it| self.selected_keys.contains(*it))
+            .cloned()
+            .collect();
+        // `selectedText` — v3 joins with locale-aware separators; without CLDR
+        // data this is a comma and a space.
+        let selected_text = selected_items
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(", ");
+        let is_placeholder = selected_items.is_empty();
+        let placeholder = self
+            .placeholder
+            .clone()
+            // v3's own default for this prop.
+            .unwrap_or_else(|| SharedString::from("Select an item"));
+        // `.autocomplete__value` is `flex-1 text-start text-sm`, and
+        // `text-field-placeholder` while nothing is chosen.
+        let default_children = gpui::div()
+            .flex_1()
+            .min_w_0()
+            .truncate()
+            .text_size(util::FIELD_TEXT)
+            .text_color(if is_placeholder {
+                colors.field.placeholder
+            } else {
+                colors.field.foreground
+            })
+            .child(if is_placeholder {
+                placeholder.to_string()
+            } else {
+                selected_text.clone()
+            })
+            .into_any_element();
+        let selected_indices: Vec<usize> = self
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, it)| self.selected_keys.contains(*it))
+            .map(|(i, _)| i)
+            .collect();
+        let value_slot = match self.value_content.take() {
+            Some(render) => gpui::div()
+                .flex_1()
+                .min_w_0()
+                .child(render(util::SelectionValue {
+                    selected_items: &selected_items,
+                    selected_indices: &selected_indices,
+                    selected_text: &selected_text,
+                    is_placeholder,
+                    default_children,
+                }))
+                .into_any_element(),
+            None => default_children,
+        };
+        field = field.child(value_slot);
+
+        // `.autocomplete__clear-button` — only when a handler backs it, and only
+        // when there is a selection to clear (`data-empty` hides it otherwise).
+        if let Some(cb) = self.on_clear.clone() {
+            if !is_placeholder && can_open {
+                let own = selection_own.clone();
+                let hover_bg = colors.default.soft_hover();
+                field = field.child(
+                    gpui::div()
+                        .id(el_name(format!("{base}-clear")))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        // `.autocomplete__clear-button` is `h-6 w-6`
+                        // and then `size-5`, so 20px, `rounded-xl` and `p-1`
+                        // -- which leaves the glyph 12.
+                        .size(px(20.))
+                        .p(px(4.))
+                        .rounded(util::small_radius(cx))
+                        .cursor_pointer()
+                        .hover(move |st| st.bg(hover_bg))
+                        .child(
+                            gpui::svg()
+                                .size(px(12.))
+                                .path(icons::CLOSE)
+                                .text_color(colors.muted),
+                        )
+                        .on_click(move |_, window, cx| {
+                            // Uncontrolled: drop our own selection too, or the
+                            // button would clear nothing.
+                            if let Some(held) = &own {
+                                held.update(cx, |v, cx| {
+                                    v.clear();
+                                    cx.notify();
+                                });
+                            }
+                            cb(window, cx);
+                        }),
+                );
+            }
+        }
+
+        // `.autocomplete__indicator` is `absolute inset-y-0 end-2 my-auto`, and
+        // its glyph is `size-4`. gpui 0.2.2 cannot rotate a div, so the chevron
+        // is swapped rather than turned -- which is what v3's `rotate-180` looks
+        // like on a symmetric glyph.
+        field = field.child(
+            gpui::div()
+                .absolute()
+                .right(px(8.))
+                .top_0()
+                .bottom_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    gpui::svg()
+                        .size(util::FIELD_ICON)
+                        .path(if open {
+                            icons::CHEVRON_UP
+                        } else {
+                            icons::CHEVRON_DOWN
+                        })
+                        .text_color(colors.field.placeholder),
+                ),
+        );
+
+        // Clicking the trigger opens and closes the popover.
+        if can_open {
+            let own = open_own.clone();
+            let cb = self.on_open_change.clone();
+            let was_open = open;
+            field = field
+                .when_some(focus_handle.as_ref(), |el, handle| el.track_focus(handle))
+                .on_click(move |_, window, cx| {
+                    if let Some(held) = &own {
+                        held.update(cx, |v, cx| {
+                            *v = !was_open;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &cb {
+                        cb(!was_open, window, cx);
+                    }
+                });
+        }
+
+        // --- the wrapper: `.autocomplete` is `flex flex-col gap-1` -----------
+        let mut wrapper = gpui::div().flex().flex_col().gap(px(4.)).w_full();
+        if let Some(label) = &self.label {
+            wrapper = wrapper.child(
+                crate::field::Label::new(label.clone())
+                    .is_required(self.is_required)
+                    .is_disabled(self.is_disabled)
+                    .is_invalid(is_invalid),
+            );
+        }
+        wrapper = wrapper.child(field);
+        if is_invalid {
+            if let Some(message) = &self.error_message {
+                wrapper = wrapper.child(crate::field::ErrorMessage::new(message.clone()));
+            }
+        } else if let Some(desc) = &self.description {
+            wrapper = wrapper.child(crate::field::Description::new(desc.clone()));
+        }
+
+        let mut root = gpui::div().relative().child(wrapper);
+        root = if self.full_width {
+            root.w_full()
+        } else {
+            root.max_w(px(320.))
+        };
+
+        // Arrows, Home, End and Enter walk the list while the search field has
+        // the focus: the input keeps left and right for the caret, so the rest
+        // bubbles up to here. Escape closes.
+        if can_open {
             let stops: Vec<usize> = (0..matches.len())
                 .filter(|i| {
                     matches
@@ -566,30 +722,53 @@ impl RenderOnce for Autocomplete {
             let key_list_scroll = list_scroll_now.clone();
             let key_panel_scroll = panel_scroll_now.clone();
             let rows = matches.clone();
-            let state = self.state.clone();
-            let on_selection_change = self.on_selection_change.clone();
-            let key_dismissed = dismissed.clone();
+            let key_open_own = open_own.clone();
             let key_open_change = self.on_open_change.clone();
+            let on_change_all = self.on_selection_change_all.clone();
+            let on_change_one = self.on_selection_change.clone();
+            let key_selection_own = selection_own.clone();
+            let selected_now = self.selected_keys.clone();
+            let trigger_focus = focus_handle.clone();
+            let was_open = open;
             root = root.on_key_down(move |event, window, cx| {
-                if event.keystroke.key == "escape" {
-                    key_dismissed.update(cx, |v, cx| {
-                        *v = true;
-                        cx.notify();
-                    });
+                let key = event.keystroke.key.as_str();
+                if key == "escape" {
+                    if let Some(held) = &key_open_own {
+                        held.update(cx, |v, cx| {
+                            *v = false;
+                            cx.notify();
+                        });
+                    }
                     if let Some(cb) = &key_open_change {
                         cb(false, window, cx);
                     }
+                    // The focus goes back to the trigger, or Tab would resume
+                    // from a field that is no longer on screen.
+                    if let Some(handle) = &trigger_focus {
+                        window.focus(handle);
+                    }
                     return;
                 }
-                // Any other key is the user carrying on: the list comes back.
-                if *key_dismissed.read(cx) {
-                    key_dismissed.update(cx, |v, cx| {
-                        *v = false;
-                        cx.notify();
-                    });
+                if !was_open {
+                    // Closed: Down and Up open it. Enter and Space are *not*
+                    // handled here -- the trigger has a click listener and gpui
+                    // fires those for a focused element, so answering them again
+                    // would open and close the popover in one keystroke.
+                    if matches!(key, "down" | "up") {
+                        if let Some(held) = &key_open_own {
+                            held.update(cx, |v, cx| {
+                                *v = true;
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &key_open_change {
+                            cb(true, window, cx);
+                        }
+                    }
+                    return;
                 }
                 let from = *held.read(cx);
-                match crate::list_nav::resolve(&stops, from, event.keystroke.key.as_str(), wrap) {
+                match crate::list_nav::resolve(&stops, from, key, wrap) {
                     crate::list_nav::Move::To(next) => {
                         held.update(cx, |v, cx| {
                             *v = Some(next);
@@ -605,64 +784,106 @@ impl RenderOnce for Autocomplete {
                         let Some(item) = from.and_then(|i| rows.get(i).cloned()) else {
                             return;
                         };
-                        // Taking a suggestion fills the field, as a click does.
-                        state.update(cx, |st, cx| {
-                            st.set_value(item.to_string());
-                            cx.notify();
-                        });
-                        held.update(cx, |v, _| *v = None);
-                        if let Some(cb) = &on_selection_change {
+                        let mut next = selected_now.clone();
+                        if multiple {
+                            if !next.remove(&item) {
+                                next.insert(item.clone());
+                            }
+                        } else {
+                            next.clear();
+                            next.insert(item.clone());
+                        }
+                        if let Some(own) = &key_selection_own {
+                            let set = next.clone();
+                            own.update(cx, |v, cx| {
+                                *v = set;
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &on_change_one {
                             cb(&item, window, cx);
+                        }
+                        if let Some(cb) = &on_change_all {
+                            let all: Vec<SharedString> = next.into_iter().collect();
+                            cb(&all, window, cx);
+                        }
+                        // A single selection closes the popover, as v3's does;
+                        // a multiple one stays open for the next pick.
+                        if !multiple {
+                            if let Some(own) = &key_open_own {
+                                own.update(cx, |v, cx| {
+                                    *v = false;
+                                    cx.notify();
+                                });
+                            }
+                            if let Some(cb) = &key_open_change {
+                                cb(false, window, cx);
+                            }
+                            // The focus is *not* moved back to the trigger here.
+                            // gpui activates a focused element on Enter, so
+                            // focusing the trigger inside this very keystroke
+                            // fires its click listener and the popover reopens --
+                            // observed, not theorised.
                         }
                     }
                     crate::list_nav::Move::Ignore => {}
                 }
             });
         }
-        root = if self.full_width {
-            root.w_full()
-        } else {
-            root.max_w(px(320.))
-        };
 
-        // `allowsEmptyCollection` keeps the panel up with an empty state.
-        let show_panel =
-            !self.is_disabled && open && (!matches.is_empty() || self.allows_empty_collection);
+        // --- the popover ----------------------------------------------------
+        // `allowsEmptyCollection` keeps it up with an empty state.
+        let show_panel = open && (!matches.is_empty() || self.allows_empty_collection);
         if show_panel {
-            let base = "autocomplete-list";
             let panel = gpui::div()
                 .w_full()
                 .flex()
                 .flex_col()
-                .py(px(6.))
+                // `.autocomplete__popover` is `p-0 pt-2`: the search field and
+                // the list bring their own padding.
+                .pt(px(8.))
                 .bg(colors.overlay.background)
                 .rounded(util::container_radius(cx))
                 // v3 gives a floating panel no border: `.popover` and friends are
                 // `bg-overlay shadow-overlay` and a radius, and dark mode's
                 // inset hairline is what separates the panel from the page.
                 .when_some(layout.overlay_hairline, |el, hairline| {
-                el.border(layout.border_width).border_color(hairline)
+                    el.border(layout.border_width).border_color(hairline)
                 })
-                .shadow(layout.overlay_shadow.clone())
-                // v3's popover is `overflow-y-auto`; gpui needs an id to scroll.
-                .id(el_name(format!("{base}-scroll")))
-                .max_h(px(280.))
-                .overflow_y_scroll()
-                .track_scroll(&panel_scroll_now);
+                .shadow(layout.overlay_shadow.clone());
 
             // React Aria dismisses the popover on a press outside it; Escape is
-            // read above, where the flag lives.
-            let out_dismissed = dismissed;
-            let out_open_change = self.on_open_change.clone();
+            // read by the key handler above.
+            let dismiss_own = open_own.clone();
+            let dismiss_cb = self.on_open_change.clone();
             let mut panel = util::dismiss_on_press_outside(panel, move |window, cx| {
-                out_dismissed.update(cx, |v, cx| {
-                    *v = true;
-                    cx.notify();
-                });
-                if let Some(cb) = &out_open_change {
+                if let Some(held) = &dismiss_own {
+                    held.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &dismiss_cb {
                     cb(false, window, cx);
                 }
             });
+
+            // The search field: v3's `[data-slot="search-field"]` inside the
+            // popover is `shrink-0 px-3 py-1`, and `variant="secondary"` so it
+            // reads as part of the panel rather than as a second field.
+            let mut search = SearchField::new(self.state.clone())
+                .variant(FieldVariant::Secondary)
+                .placeholder("Search...");
+            if let Some(cb) = self.on_input_change.clone() {
+                search = search.on_change(move |text, window, cx| cb(text, window, cx));
+            }
+            panel = panel.child(
+                gpui::div()
+                    .flex_shrink_0()
+                    .px(px(12.))
+                    .py(px(4.))
+                    .child(search),
+            );
 
             // Everything a row reads, owned: `uniform_list`'s callback is
             // `'static` and runs again on every scroll, so it cannot borrow
@@ -677,15 +898,22 @@ impl RenderOnce for Autocomplete {
                 self.indicator.take().map(std::rc::Rc::from);
             let on_change_all = self.on_selection_change_all.clone();
             let on_change_one = self.on_selection_change.clone();
-            let row_state = self.state.clone();
-            let selection_own = selection_own;
-            let base_row = base.to_owned();
+            let row_selection_own = selection_own;
+            let row_open_own = open_own;
+            let row_open_change = self.on_open_change.clone();
+            let row_trigger_focus = focus_handle;
+            let base_row = format!("{base}-list");
             let row_muted = colors.muted;
             let row_fg = colors.foreground;
             let row_hover_bg = colors.default.soft();
             let row_focus = colors.focus;
             let row_accent = colors.accent.color;
             let row_disabled_opacity = layout.disabled_opacity;
+            // v3's `EmptyState` inside the popover is `text-center text-sm
+            // text-overlay-foreground/60`. Copied out here because the row
+            // builder below takes `cx` mutably, which ends the theme borrow.
+            let mut empty_fg = colors.overlay.foreground;
+            empty_fg.a *= 0.6;
             let row_of = move |index: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
                 let base = base_row.as_str();
                 let item = &rows[index];
@@ -705,7 +933,7 @@ impl RenderOnce for Autocomplete {
                 if let Some((_, label)) = sections.iter().find(|(at, _)| at == item) {
                     head.push(
                         gpui::div()
-                            .px(px(8.))
+                            .px(px(10.))
                             .pt(px(6.))
                             .pb(px(2.))
                             .text_size(px(12.))
@@ -715,39 +943,46 @@ impl RenderOnce for Autocomplete {
                     );
                 }
                 let item_disabled = row_disabled_keys.contains(item);
+                let row_selected = row_selected_keys.contains(item);
                 let mut row = gpui::div()
-                        .id(el_name(format!("{base}-{item}")))
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        // Every menu row in v3 is a `.list-box-item`: `min-h-9
-                        // rounded-2xl px-2 py-1.5 gap-3` at `text-sm`.
-                        .min_h(util::FIELD_HEIGHT)
-                        .rounded(util::soft_radius(cx))
-                        .px(px(8.))
-                        .py(px(6.))
-                        .gap(px(12.))
-                        .text_size(util::FIELD_TEXT)
-                        .text_color(row_fg)
-                        .child(item.to_string());
+                    .id(el_name(format!("{base}-{item}")))
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .w_full()
+                    // Every menu row in v3 is a `.list-box-item`: `min-h-9
+                    // rounded-2xl py-1.5 gap-3` at `text-sm`, and the
+                    // Autocomplete's popover restates the padding as `px-2.5`.
+                    .min_h(util::FIELD_HEIGHT)
+                    .rounded(util::soft_radius(cx))
+                    .px(px(10.))
+                    .py(px(6.))
+                    .gap(px(12.))
+                    .text_size(util::FIELD_TEXT)
+                    .child(gpui::div().truncate().child(item.to_string()));
 
                 if item_disabled {
                     row = row.opacity(row_disabled_opacity);
                 } else {
                     row = row.cursor_pointer().hover(move |s| s.bg(row_hover_bg));
                 }
-
+                if row_selected {
+                    row = row
+                        .text_color(row_accent)
+                        .font_weight(gpui::FontWeight::MEDIUM);
+                } else {
+                    row = row.text_color(row_fg);
+                }
                 // `status-focused` on the row the keyboard is on.
                 if cursor_at == Some(index) {
                     row = row.border_2().border_color(row_focus);
                 }
 
-                // A multiple selection check-marks every chosen item, unless
-                // `ListBox.ItemIndicator` is drawn by the caller.
-                let row_selected = row_selected_keys.contains(item);
+                // The chosen rows are ticked, unless `ListBox.ItemIndicator` is
+                // drawn by the caller.
                 match &indicator {
                     Some(render) => row = row.child(render(row_selected)),
-                    None if multiple && row_selected => {
+                    None if row_selected => {
                         row = row.child(
                             gpui::svg()
                                 .size(px(13.))
@@ -758,50 +993,65 @@ impl RenderOnce for Autocomplete {
                     None => {}
                 }
 
-                if multiple && !item_disabled {
-                    if on_change_all.is_some() || selection_own.is_some() {
-                        let cb = on_change_all.clone();
-                        let own = selection_own.clone();
-                        let current = row_selected_keys.clone();
-                        let value = item.clone();
-                        row = row.on_click(move |_, window, cx| {
-                            let mut next = current.clone();
+                if !item_disabled {
+                    let value = item.clone();
+                    let current = row_selected_keys.clone();
+                    let own = row_selection_own.clone();
+                    let cb_all = on_change_all.clone();
+                    let cb_one = on_change_one.clone();
+                    let open_own = row_open_own.clone();
+                    let open_cb = row_open_change.clone();
+                    let trigger_focus = row_trigger_focus.clone();
+                    row = row.on_click(move |_, window, cx| {
+                        let mut next = current.clone();
+                        if multiple {
                             if !next.remove(&value) {
                                 next.insert(value.clone());
                             }
-                            // Uncontrolled: keep the new set, or picking an
-                            // item would do nothing.
-                            if let Some(held) = &own {
-                                let set = next.clone();
+                        } else {
+                            next.clear();
+                            next.insert(value.clone());
+                        }
+                        // Uncontrolled: keep the new set, or picking an item
+                        // would do nothing.
+                        if let Some(held) = &own {
+                            let set = next.clone();
+                            held.update(cx, |v, cx| {
+                                *v = set;
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &cb_one {
+                            cb(&value, window, cx);
+                        }
+                        if let Some(cb) = &cb_all {
+                            let all: Vec<SharedString> = next.into_iter().collect();
+                            cb(&all, window, cx);
+                        }
+                        // A single selection closes the popover; a multiple one
+                        // stays open for the next pick.
+                        if !multiple {
+                            if let Some(held) = &open_own {
                                 held.update(cx, |v, cx| {
-                                    *v = set;
+                                    *v = false;
                                     cx.notify();
                                 });
                             }
-                            if let Some(cb) = &cb {
-                                let next: Vec<SharedString> = next.into_iter().collect();
-                                cb(&next, window, cx);
+                            if let Some(cb) = &open_cb {
+                                cb(false, window, cx);
                             }
-                        });
-                    }
-                    return done(head, row.into_any_element());
-                }
-
-                if let Some(on_select) = on_change_one.clone().filter(|_| !item_disabled) {
-                    let value = item.clone();
-                    let state = row_state.clone();
-                    row = row.on_click(move |_, window, cx| {
-                        state.update(cx, |s, sc| {
-                            s.set_value(value.to_string());
-                            sc.notify();
-                        });
-                        on_select(&value, window, cx);
+                            if let Some(handle) = &trigger_focus {
+                                window.focus(handle);
+                            }
+                        }
                     });
                 }
 
                 done(head, row.into_any_element())
             };
 
+            // The list: `[data-slot="list-box"]` inside the popover is
+            // `max-h-[320px] p-1.5 overflow-y-auto`.
             match self.row_height {
                 // Virtual: only the rows in view are built, which is what makes
                 // a thousand options affordable.
@@ -817,32 +1067,45 @@ impl RenderOnce for Autocomplete {
                             },
                         )
                         .track_scroll(list_scroll_now)
-                        .h(px(280.))
-                        .w_full(),
+                        .h(px(320.))
+                        .w_full()
+                        .p(px(6.)),
                     );
                 }
                 None => {
+                    let mut list = gpui::div()
+                        .id(el_name(format!("{base}-list-scroll")))
+                        .flex()
+                        .flex_col()
+                        .w_full()
+                        .p(px(6.))
+                        .max_h(px(320.))
+                        .overflow_y_scroll()
+                        .track_scroll(&panel_scroll_now);
                     for index in 0..matches_len {
-                        panel = panel.child(row_of(index, None, cx));
+                        list = list.child(row_of(index, None, cx));
                     }
+                    panel = panel.child(list);
                 }
             }
 
             if matches.is_empty() {
                 panel = panel.child(
                     gpui::div()
+                        .w_full()
                         .px(px(12.))
-                        .py(px(6.))
+                        .py(px(12.))
+                        .text_center()
                         .text_size(util::FIELD_TEXT)
-                        .text_color(row_muted)
-                        .child("No matching options"),
+                        .text_color(empty_fg)
+                        .child("No results found"),
                 );
             }
 
             root = root.child(util::floating(
                 util::placed_field_panel(self.placement, px(6.)).child(crate::anim::entering_zoom(
                     panel,
-                    el_name("autocomplete-panel".to_owned()),
+                    el_name(format!("{base}-panel")),
                     crate::anim::ZoomBox::panel(px(6.), util::container_radius(cx)),
                     crate::anim::Motion::FLUID_IN,
                     cx,

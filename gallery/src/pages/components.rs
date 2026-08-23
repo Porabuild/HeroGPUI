@@ -9823,13 +9823,35 @@ impl Gallery {
                     "Custom Value",
                     col(vec![
                         para(
-                            "An `Autocomplete` keeps whatever is typed in its own state, so an \
-                             unmatched query stays put -- which is v3's custom-value behaviour.",
+                            "`Autocomplete.Value` takes a render function, and v3 hands it \
+                             `defaultChildren`, `isPlaceholder`, `selectedItems` and \
+                             `selectedText`. This one draws the selection as tags and hands the \
+                             default back while nothing is chosen, which is what v3's own \
+                             example does.",
                             cx,
                         ),
-                        h::Autocomplete::new(self.demo_text("ac-custom", "Zig", cx), languages())
-                            .label("Language")
-                            .allows_empty_collection(true)
+                        h::Autocomplete::new(self.demo_text("ac-custom", "", cx), languages())
+                            .label("Languages")
+                            .selection_mode(SelectionMode::Multiple)
+                            .default_value(["Rust", "Go"])
+                            .value_content(|value| {
+                                if value.is_placeholder {
+                                    return value.default_children;
+                                }
+                                // v3's own example draws the selection as a
+                                // `TagGroup` of `Tag`s, which is what a
+                                // multiple-selection trigger looks like there.
+                                h::TagGroup::new(
+                                    "ac-custom-tags",
+                                    value
+                                        .selected_items
+                                        .iter()
+                                        .map(|item| h::Tag::new(item.clone(), item.clone()))
+                                        .collect(),
+                                )
+                                .size(Size::Sm)
+                                .into_any_element()
+                            })
                             .into_any_element(),
                     ]),
                 ),
@@ -9840,7 +9862,7 @@ impl Gallery {
                         languages(),
                     )
                     .label("Language")
-                    .placeholder("Start typing")
+                    .placeholder("Select a language")
                     .into_any_element()]),
                 ),
             ],
@@ -10400,7 +10422,7 @@ impl Gallery {
                                 cx.notify();
                             },
                         )))
-                        .value_content(move |chosen| match chosen.first() {
+                        .value_content(move |value| match value.selected_indices.first() {
                             Some(i) => gpui::div()
                                 .flex()
                                 .items_center()
@@ -10412,8 +10434,9 @@ impl Gallery {
                                 )
                                 .child(languages().get(*i).cloned().unwrap_or_default().to_string())
                                 .into_any_element(),
-                            // An empty selection is v3's `isPlaceholder`.
-                            None => gpui::div().child("Choose one").into_any_element(),
+                            // v3's own example hands `defaultChildren` back for
+                            // the placeholder case rather than rebuilding it.
+                            None => value.default_children,
                         })
                         .into_any_element()]),
                 ),

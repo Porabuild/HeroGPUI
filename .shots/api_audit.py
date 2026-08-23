@@ -141,6 +141,14 @@ ALIAS = {
     'ListBox.isSelected': 'indicator',
     'Select.selectedItems': 'value_content',
     'Select.isPlaceholder': 'value_content',
+    'Select.defaultChildren': 'value_content',
+    # `Autocomplete.Value` and `ComboBox.Value` take the same closure, and it is
+    # handed `util::SelectionValue` -- v3's four value render props as one value.
+    'Autocomplete.selectedItems': 'value_content',
+    'Autocomplete.selectedText': 'value_content',
+    'Autocomplete.isPlaceholder': 'value_content',
+    'Autocomplete.defaultChildren': 'value_content',
+    'ComboBox.selectedItem': 'value_content',
     # `getThumbValueLabel` formats one thumb's value; the thumb closure is handed
     # the index and the value, so the caller formats it there.
     'Slider.getThumbValueLabel': 'thumb',
@@ -198,10 +206,15 @@ WONT_PORT = {
     'estimatedHeadingHeight': 'single-line-headings',
     'Table.headingHeight': 'no-section-rows',
     'ListBox.loaderHeight': 'no-loader-row',
-    # The drop indicator belongs to React Aria's drag-and-drop, which this port
-    # does not implement: no list here reorders by dragging, so there is no
-    # indicator to give a thickness to.
-    'dropIndicatorThickness': 'no-drag-and-drop',
+    # The thickness of a drop indicator, on a layout whose drag-and-drop v3
+    # itself does not expose: `dragAndDropHooks`, `onReorder` and every other
+    # drag prop React Aria's list takes are documented nowhere in v3, so nothing
+    # a caller can set could produce an indicator to give a thickness to. Same
+    # shape as `state_audit.py`'s `no-disabled-prop` -- a styling knob for a
+    # feature the surrounding API does not offer -- and building the drag
+    # ourselves would add props v3 does not document, which `extra_audit.py`
+    # would then report.
+    'dropIndicatorThickness': 'no-drag-source-prop',
 
     # A `ToastQueue` exists because React state lives outside React. A gpui
     # `Entity` is observable by construction -- `cx.observe(&store, ..)` is the
@@ -220,15 +233,10 @@ WONT_PORT = {
     # React Aria passes the rendering the component *would* have done, so a
     # render function can fall back to it. A builder that replaces the slot has
     # nothing to hand over: the default is the thing being replaced.
-    'Select.defaultChildren': 'no-default-children',
-    'Autocomplete.defaultChildren': 'no-default-children',
+
     # An Autocomplete's or ComboBox's text and selection live in the caller's
     # `InputState` and `selected_keys`; the caller owns both, so there is
     # nothing to give back.
-    'Autocomplete.selectedItems': 'caller-owns-the-selection',
-    'Autocomplete.selectedText': 'caller-owns-the-selection',
-    'Autocomplete.isPlaceholder': 'caller-owns-the-selection',
-    'ComboBox.selectedItem': 'caller-owns-the-selection',
     # An HTML5 ValidityState object.
     'validationDetails': 'no-html-forms',
     # The `form` attribute names the HTML form a control submits to. A `Form` is

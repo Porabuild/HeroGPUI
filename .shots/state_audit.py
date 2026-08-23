@@ -102,9 +102,6 @@ EVIDENCE_OVERRIDE = {
     ('color-slider', 'status-focused'): r'ring_if_focused\(track,',
     ('color-picker', 'status-focused'): r'ring_if_focused\(\s*trigger,',
     ('color-swatch-picker', 'status-focused'): r'swatch_focus',
-    # An Autocomplete's focus lands on the `Input` it composes, and a field's
-    # ring is drawn by its chrome rather than by a ring call of its own.
-    ('autocomplete', 'status-focused'): r'apply_field_chrome',
     # The OTP draws its own flush ring on the active slot, so there is no
     # `apply_field_chrome` to find.
     ('input-otp', 'status-focused-field'): r'with_focus_ring',
@@ -135,9 +132,10 @@ ELSEWHERE = {
     # `calendar_view.rs` is the grid; the component that takes `isDisabled` and
     # dims is `Calendar`.
     ('calendar', 'status-disabled'): 'calendar.rs',
-    # What takes the focus inside an Autocomplete or a ComboBox is the `Input`
-    # they compose, and its chrome is what rings.
-    ('autocomplete', 'status-focused'): 'input.rs',
+    # What takes the focus inside a ComboBox is the `Input` it composes, and its
+    # chrome is what rings. (An Autocomplete's trigger is its own element and
+    # rings itself -- `.autocomplete__trigger:focus-visible` is `status-focused`,
+    # the offset ring, not a field's flush one.)
     ('combo-box', 'status-focused-field'): 'input.rs',
     # A `TextArea` composes an `Input` with a taller box, so the ring is the
     # field's own.

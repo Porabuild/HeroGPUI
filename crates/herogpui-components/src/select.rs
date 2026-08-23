@@ -49,7 +49,7 @@ pub struct Select {
     indicator: Option<Box<dyn Fn(bool) -> gpui::AnyElement + 'static>>,
     /// `Select.Value` — draws the trigger's value. The closure is handed the
     /// selected index, or `None` while the placeholder shows.
-    value_content: Option<Box<dyn Fn(&[usize]) -> gpui::AnyElement + 'static>>,
+    value_content: Option<Box<dyn Fn(util::SelectionValue<'_>) -> gpui::AnyElement + 'static>>,
     is_required: bool,
     disabled_keys: std::collections::HashSet<usize>,
     full_width: bool,
@@ -104,12 +104,13 @@ impl Select {
 
     /// `Select.Value` — draw the trigger's value yourself.
     ///
-    /// The closure is handed `selectedItems`: every chosen index, in order, so a
-    /// `multiple` select can draw all of them. An empty slice is v3's
-    /// `isPlaceholder` -- nothing is chosen and the placeholder would show.
+    /// The closure is handed the render props v3 passes into
+    /// `<Select.Value>{({defaultChildren, isPlaceholder, selectedItems}) => …}`,
+    /// so a `multiple` select can draw all of them and a caller can fall back to
+    /// what the trigger would have drawn.
     pub fn value_content(
         mut self,
-        render: impl Fn(&[usize]) -> gpui::AnyElement + 'static,
+        render: impl Fn(util::SelectionValue<'_>) -> gpui::AnyElement + 'static,
     ) -> Self {
         self.value_content = Some(Box::new(render));
         self
@@ -560,6 +561,20 @@ impl RenderOnce for Select {
             selected.is_some()
         };
 
+        // What the trigger draws when the caller does not: v3's
+        // `defaultChildren`, which a `Select.Value` closure can hand straight
+        // back for the placeholder case.
+        let default_children = gpui::div()
+            .flex_1()
+            .truncate()
+            .text_color(if has_value {
+                colors.foreground
+            } else {
+                colors.muted
+            })
+            .child(value_text.to_string())
+            .into_any_element();
+
         // `Select.Value` — a caller-drawn value replaces the trigger's text.
         let value_slot = match &self.value_content {
             Some(render) => {
@@ -572,22 +587,28 @@ impl RenderOnce for Select {
                 } else {
                     selected.into_iter().collect()
                 };
+                let items: Vec<SharedString> = chosen
+                    .iter()
+                    .filter_map(|i| self.options.get(*i).cloned())
+                    .collect();
+                let text = items
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 gpui::div()
                     .flex_1()
                     .min_w_0()
-                    .child(render(&chosen))
+                    .child(render(util::SelectionValue {
+                        selected_items: &items,
+                        selected_indices: &chosen,
+                        selected_text: &text,
+                        is_placeholder: !has_value,
+                        default_children,
+                    }))
                     .into_any_element()
             }
-            None => gpui::div()
-                .flex_1()
-                .truncate()
-                .text_color(if has_value {
-                    colors.foreground
-                } else {
-                    colors.muted
-                })
-                .child(value_text.to_string())
-                .into_any_element(),
+            None => default_children,
         };
         field = field.child(value_slot).child(
             gpui::svg()

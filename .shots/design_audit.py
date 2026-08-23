@@ -955,10 +955,11 @@ CHECKS = [
     ('switch', '.switch', 'gap', 'Switch content/description gap', SRC + 'switch.rs',
      r'so the text lines up under the label\.[\s\S]{0,300}?'
      r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
-    # An Autocomplete composes an Input, and the Input owns the label column.
-    ('autocomplete', '.autocomplete', 'gap', 'Autocomplete wrapper gap -> Input', SRC + 'input.rs',
-     r'-- wrapper with label / description / error -+\s*'
-     r'let mut el = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('autocomplete', '.autocomplete', 'gap', 'Autocomplete wrapper gap',
+     SRC + 'autocomplete.rs',
+     r'`\.autocomplete` is `flex flex-col gap-1` -+\s*'
+     r'let mut wrapper = gpui::div\(\)\.flex\(\)\.flex_col\(\)'
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('date-range-picker', '.date-range-picker', 'gap', 'DateRangePicker wrapper gap',
      SRC + 'date_picker.rs',
      r'let mut wrapper = gpui::div\(\)\.flex\(\)\.flex_col\(\)'
@@ -1200,11 +1201,9 @@ CHECKS = [
 
     ('select', '.select__trigger', 'px', 'Select trigger px', SRC + 'select.rs',
      r'\.min_h\(h\)\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
-    # An Autocomplete composes an Input, so the trigger is the field.
-    ('autocomplete', '.autocomplete__trigger', 'px', 'Autocomplete trigger px -> Input',
-     SRC + 'input.rs',
-     r'`\.input-group__input` keeps `px-3`[\s\S]{0,200}?None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\)',
-     None),
+    ('autocomplete', '.autocomplete__trigger', 'px', 'Autocomplete trigger px',
+     SRC + 'autocomplete.rs',
+     r'\.min_h\(util::FIELD_HEIGHT\)\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('toast', '.toast__indicator', 'p', 'Toast indicator padding', SRC + 'toast.rs',
      r'`\.toast__indicator` — `flex shrink-0 items-center justify-center p-1`'
      r'[\s\S]{0,400}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
