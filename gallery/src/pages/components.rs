@@ -215,6 +215,12 @@ fn sort_cb(
     move |v, w, cx| l(&v, w, cx)
 }
 
+fn date_cb(
+    l: impl Fn(&h::Date, &mut gpui::Window, &mut gpui::App) + 'static,
+) -> impl Fn(h::Date, &mut gpui::Window, &mut gpui::App) + 'static {
+    move |v, w, cx| l(&v, w, cx)
+}
+
 fn opt_date_cb(
     l: impl Fn(&Option<h::Date>, &mut gpui::Window, &mut gpui::App) + 'static,
 ) -> impl Fn(Option<h::Date>, &mut gpui::Window, &mut gpui::App) + 'static {
@@ -737,7 +743,7 @@ impl Gallery {
                                 .label("Center"),
                         )
                         .child_toggle(h::ToggleButton::new("tb-right").key("right").label("Right"))
-                        .on_change(cx.listener(|this, keys: &[SharedString], _, cx| {
+                        .on_selection_change(cx.listener(|this, keys: &[SharedString], _, cx| {
                             this.toggle_single = keys.first().cloned();
                             cx.notify();
                         }))
@@ -1316,6 +1322,11 @@ impl Gallery {
                                     ],
                                 )
                                 .selected_keys(selection.iter().cloned())
+                                // `onAction` fires on a press, selection or not.
+                                .on_action(cx.listener(|this, key: &SharedString, _, cx| {
+                                    this.set_demo_text_value("lb-action", key.to_string());
+                                    cx.notify();
+                                }))
                                 .on_selection_change(cx.listener(
                                     |this, keys: &HashSet<SharedString>, _, cx| {
                                         this.list_selection = keys.clone();
@@ -1436,10 +1447,18 @@ impl Gallery {
                 ),
                 (
                     "Disabled",
-                    col(vec![h::TagGroup::new("tg-disabled", tags())
-                        .label("Skills")
-                        .is_disabled(true)
-                        .into_any_element()]),
+                    col(vec![
+                        h::TagGroup::new("tg-disabled", tags())
+                            .label("Skills")
+                            .is_disabled(true)
+                            .into_any_element(),
+                        h::TagGroup::new("tg-disabled-keys", tags())
+                            .label("Some disabled")
+                            // `disabledKeys` disables individual tags rather
+                            // than the whole group.
+                            .disabled_keys([SharedString::from("rust")])
+                            .into_any_element(),
+                    ]),
                 ),
                 (
                     "Selection Modes",
@@ -1575,7 +1594,10 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    col(vec![h::ColorArea::new("ca-usage", value).into_any_element()]),
+                    // v3: `<ColorArea defaultValue="hsl(30, 100%, 50%)" />`.
+                    col(vec![h::ColorArea::new("ca-usage", value)
+                        .default_value(value)
+                        .into_any_element()]),
                 ),
                 (
                     "With Dots",
@@ -1657,6 +1679,8 @@ impl Gallery {
                     "Usage",
                     col(vec![h::ColorField::new("cf-usage", value)
                         .state(self.demo_text("cf-usage", "#0085F5", cx))
+                        // v3's Usage is uncontrolled: `defaultValue="#0085F5"`.
+                        .default_value(value)
                         .label("Color")
                         .into_any_element()]),
                 ),
@@ -1736,6 +1760,9 @@ impl Gallery {
                         row(vec![
                             h::ColorField::new("cf-ch-hue", value)
                                 .state(self.demo_text("cf-ch-hue", "", cx))
+                                // `colorSpace` names the channel set; `channel`
+                                // picks one of them.
+                                .color_space(h::ColorSpace::Hsl)
                                 .channel(h::ColorChannel::Hue)
                                 .label("Hue")
                                 .into_any_element(),
@@ -1858,6 +1885,8 @@ impl Gallery {
                 (
                     "Usage",
                     col(vec![h::ColorPicker::new("cp-main", value)
+                        // v3's Usage is uncontrolled; "Controlled" is separate.
+                        .default_value(value)
                         .label("Accent")
                         .is_open(is_open)
                         .show_alpha(true)
@@ -1964,11 +1993,14 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    // v3's Usage is uncontrolled; "Controlled" is its own
+                    // example further down.
                     col(vec![h::ColorSlider::new(
                         "cs-usage",
                         value,
                         h::ColorChannel::Hue,
                     )
+                    .default_value(value)
                     .into_any_element()]),
                 ),
                 (
@@ -2344,13 +2376,12 @@ impl Gallery {
                 ),
                 (
                     "Usage",
-                    col(vec![h::Slider::new("sl-main", value)
+                    // v3: `<Slider defaultValue={30}>` -- uncontrolled, with
+                    // "Controlled Value" below for the other half.
+                    col(vec![h::Slider::new("sl-main", 30.)
+                        .default_value(30.)
                         .label("Volume")
                         .show_value(true)
-                        .on_change(f32_cb(cx.listener(|this, v: &f32, _, cx| {
-                            this.slider_value = *v;
-                            cx.notify();
-                        })))
                         .into_any_element()]),
                 ),
                 (
@@ -2622,53 +2653,57 @@ impl Gallery {
                 ),
                 (
                     "Group",
-                    col(vec![
-                        h::Switch::new("sw-g-wifi")
-                            .is_selected(wifi)
-                            .label(gpui::div().child("Wi-Fi"))
-                            .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
-                                this.set_demo_flag("sw-group-wifi", *v);
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                        h::Switch::new("sw-g-bt")
-                            .is_selected(bluetooth)
-                            .label(gpui::div().child("Bluetooth"))
-                            .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
-                                this.set_demo_flag("sw-group-bt", *v);
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                        h::Switch::new("sw-g-air")
-                            .is_selected(airplane)
-                            .label(gpui::div().child("Airplane mode"))
-                            .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
-                                this.set_demo_flag("sw-group-air", *v);
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                    ]),
+                    col(vec![h::SwitchGroup::new()
+                        .orientation(Orientation::Vertical)
+                        .child(
+                            h::Switch::new("sw-g-wifi")
+                                .is_selected(wifi)
+                                .label(gpui::div().child("Wi-Fi"))
+                                .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("sw-group-wifi", *v);
+                                    cx.notify();
+                                }))),
+                        )
+                        .child(
+                            h::Switch::new("sw-g-bt")
+                                .is_selected(bluetooth)
+                                .label(gpui::div().child("Bluetooth"))
+                                .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("sw-group-bt", *v);
+                                    cx.notify();
+                                }))),
+                        )
+                        .child(
+                            h::Switch::new("sw-g-air")
+                                .is_selected(airplane)
+                                .label(gpui::div().child("Airplane mode"))
+                                .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("sw-group-air", *v);
+                                    cx.notify();
+                                }))),
+                        )
+                        .into_any_element()]),
                 ),
                 (
                     "Group Horizontal",
-                    row(vec![
-                        h::Switch::new("sw-gh-1")
-                            .default_selected(true)
-                            .label(gpui::div().child("Email"))
-                            .into_any_element(),
-                        h::Switch::new("sw-gh-2")
-                            .label(gpui::div().child("SMS"))
-                            .into_any_element(),
-                        h::Switch::new("sw-gh-3")
-                            .label(gpui::div().child("Push"))
-                            .into_any_element(),
-                    ]),
+                    row(vec![h::SwitchGroup::new()
+                        .orientation(Orientation::Horizontal)
+                        .child(
+                            h::Switch::new("sw-gh-1")
+                                .default_selected(true)
+                                .label(gpui::div().child("Email")),
+                        )
+                        .child(h::Switch::new("sw-gh-2").label(gpui::div().child("SMS")))
+                        .child(h::Switch::new("sw-gh-3").label(gpui::div().child("Push")))
+                        .into_any_element()]),
                 ),
                 (
                     "Form Integration",
                     col(vec![
                         h::Switch::new("sw-form")
                             .name("terms")
+                            // `value` is what a checked switch submits.
+                            .value("accepted")
                             .is_selected(terms)
                             .is_required(true)
                             .label(gpui::div().child("Accept the terms"))
@@ -3370,6 +3405,10 @@ impl Gallery {
                     "Controlled",
                     col(vec![
                         h::Calendar::new(self.demo_calendar("cal-controlled", cx))
+                            .on_focus_change(date_cb(cx.listener(|this, d: &h::Date, _, cx| {
+                                this.set_demo_text_value("cal-focus", d.format_iso());
+                                cx.notify();
+                            })))
                             .on_change(opt_date_cb(cx.listener(
                                 |this, d: &Option<h::Date>, _, cx| {
                                     this.cal_picked = *d;
@@ -3576,6 +3615,8 @@ impl Gallery {
                     "Usage",
                     col(vec![
                         h::DateField::new(self.date_input.clone())
+                            // v3's Usage seeds the field with `defaultValue`.
+                            .default_value(h::Date::new(2025, 12, 25))
                             .label("Start date")
                             .on_change(opt_date_cb(cx.listener(
                                 |this, d: &Option<h::Date>, _, cx| {
@@ -3768,6 +3809,10 @@ impl Gallery {
                         self.demo_calendar("dp-invalid", cx),
                     )
                     .label("Date")
+                    // `minValue`/`maxValue` bound the calendar: everything
+                    // outside the range is unselectable.
+                    .min_value(h::Date::new(2025, 12, 1))
+                    .max_value(h::Date::new(2026, 6, 30))
                     .is_invalid(true)
                     .into_any_element()]),
                 ),
@@ -3810,6 +3855,8 @@ impl Gallery {
                 (
                     "Usage",
                     col(vec![h::DatePicker::new(self.calendar.clone())
+                        // v3's Usage seeds the picker with `defaultValue`.
+                        .default_value(h::Date::new(2025, 12, 25))
                         .label("Due date")
                         .is_open(is_open)
                         .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
@@ -3850,9 +3897,44 @@ impl Gallery {
                     "Controlled",
                     col(vec![
                         para("The range lives in the state entity the caller owns.", cx),
-                        h::DateRangePicker::new(self.date_range.clone())
-                            .label("Stay")
-                            .into_any_element(),
+                        {
+                            // `value` writes the caller's copy back in, and
+                            // `on_change` is how the caller gets one: a range
+                            // picker reports the change with no arguments, so
+                            // the range is read out of the state entity.
+                            let state = self.date_range.clone();
+                            let held = cx.entity().downgrade();
+                            let (start, end) = {
+                                let range = self.date_range.read(cx);
+                                (range.start, range.end)
+                            };
+                            h::DateRangePicker::new(self.date_range.clone())
+                                .label("Stay")
+                                .value(start, end, cx)
+                                .on_change(move |_, cx| {
+                                    let (start, end) = {
+                                        let range = state.read(cx);
+                                        (range.start, range.end)
+                                    };
+                                    if let Some(gallery) = held.upgrade() {
+                                        gallery.update(cx, |gallery, cx| {
+                                            gallery.set_demo_text_value(
+                                                "drp-controlled",
+                                                match (start, end) {
+                                                    (Some(a), Some(b)) => format!(
+                                                        "{} to {}",
+                                                        a.format_iso(),
+                                                        b.format_iso()
+                                                    ),
+                                                    _ => String::new(),
+                                                },
+                                            );
+                                            cx.notify();
+                                        });
+                                    }
+                                })
+                                .into_any_element()
+                        },
                     ]),
                 ),
                 (
@@ -3881,7 +3963,11 @@ impl Gallery {
                     "Form Example",
                     col(vec![h::Form::new()
                         .child(
-                            h::DateRangePicker::new(self.demo_range("drp-form", cx)).label("Stay"),
+                            h::DateRangePicker::new(self.demo_range("drp-form", cx))
+                                .label("Stay")
+                                // v3 submits a range as two named fields.
+                                .start_name("check_in")
+                                .end_name("check_out"),
                         )
                         .child(h::Button::new("drp-form-submit").label("Book"))
                         .into_any_element()]),
@@ -3903,6 +3989,9 @@ impl Gallery {
                     "Usage",
                     col(vec![h::DateRangePicker::new(self.date_range.clone())
                         .label("Trip dates")
+                        // v3's Usage seeds the range and bounds it.
+                        .default_value((h::Date::new(2025, 12, 8), h::Date::new(2025, 12, 14)))
+                        .min_value(h::Date::new(2025, 1, 1))
                         .is_open(is_open)
                         .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
                             this.range_open = *open;
@@ -3935,6 +4024,8 @@ impl Gallery {
                     "Year Picker",
                     col(vec![h::RangeCalendar::new(self.demo_range("rc-year", cx))
                         .default_year_picker_open(true)
+                        // `firstDayOfWeek` reorders the seven columns.
+                        .first_day_of_week(h::Weekday::Mon)
                         .into_any_element()]),
                 ),
                 (
@@ -3949,7 +4040,17 @@ impl Gallery {
                     "Controlled",
                     col(vec![
                         para("The range lives in the state entity the caller owns.", cx),
-                        h::RangeCalendar::new(self.date_range.clone()).into_any_element(),
+                        h::RangeCalendar::new(self.date_range.clone())
+                            .value(
+                                Some(h::Date::new(2025, 12, 8)),
+                                Some(h::Date::new(2025, 12, 14)),
+                                cx,
+                            )
+                            .on_focus_change(date_cb(cx.listener(|this, d: &h::Date, _, cx| {
+                                this.set_demo_text_value("rc-focus", d.format_iso());
+                                cx.notify();
+                            })))
+                            .into_any_element(),
                     ]),
                 ),
                 (
@@ -4173,6 +4274,9 @@ impl Gallery {
                     "Validation",
                     col(vec![h::TimeField::new(self.demo_time("tmf-invalid", cx))
                         .label("Time")
+                        // `minValue`/`maxValue` clamp what the segments accept.
+                        .min_value(h::Time::new(9, 0))
+                        .max_value(h::Time::new(17, 30))
                         .is_required(true)
                         .is_invalid(true)
                         .error_message("Pick a time")
@@ -5425,6 +5529,10 @@ impl Gallery {
                         h::Input::new(self.demo_text("in-num", "", cx))
                             .label("Age")
                             .input_type(h::InputType::Number)
+                            // `min`/`max` bound a numeric input, which is what
+                            // its validity is checked against.
+                            .min(18.)
+                            .max(120.)
                             .placeholder("21")
                             .into_any_element(),
                         h::Input::new(self.demo_text("in-email", "", cx))
@@ -5494,6 +5602,10 @@ impl Gallery {
                         .prefix(h::InputAddon::new("https://"))
                         .input(
                             h::Input::new(self.demo_text("ig-usage", "", cx))
+                                // v3's group example seeds the input with
+                                // `defaultValue`; `value` is the controlled
+                                // spelling of the same thing.
+                                .default_value("heroui.com")
                                 .placeholder("heroui.com"),
                         )
                         .into_any_element()]),
@@ -5850,6 +5962,9 @@ impl Gallery {
                     "Controlled",
                     col(vec![
                         h::InputOTP::new(self.demo_otp("otp-controlled", 6, cx))
+                            // `value` writes the caller's copy back into the
+                            // field, which is what "controlled" means.
+                            .value(&otp_typed, cx)
                             .on_change(cx.listener(|this, code: &str, _, cx| {
                                 this.otp_typed = code.to_owned();
                                 cx.notify();
@@ -5920,11 +6035,18 @@ impl Gallery {
                 ),
                 (
                     "With Validation",
-                    col(vec![h::InputOTP::new(self.demo_otp("otp-validate", 6, cx))
-                        .validate(|code| {
-                            (code.chars().count() < 6).then(|| "Enter all six digits".into())
-                        })
-                        .into_any_element()]),
+                    col(vec![
+                        h::InputOTP::new(self.demo_otp("otp-validate", 6, cx))
+                            .validate(|code| {
+                                (code.chars().count() < 6).then(|| "Enter all six digits".into())
+                            })
+                            .into_any_element(),
+                        h::InputOTP::new(self.demo_otp("otp-invalid", 6, cx))
+                            // `isInvalid` from the outside: what a rejected code
+                            // looks like when the server says so.
+                            .is_invalid(true)
+                            .into_any_element(),
+                    ]),
                 ),
             ],
             cx,
@@ -5944,6 +6066,8 @@ impl Gallery {
                 (
                     "Usage",
                     col(vec![h::NumberField::new(self.number.clone())
+                        // v3's Usage seeds the field with `defaultValue`.
+                        .default_value(2.)
                         .label("Quantity")
                         .on_change(f64_cb(cx.listener(|_, _v: &f64, _, cx| cx.notify())))
                         .into_any_element()]),
@@ -6041,6 +6165,10 @@ impl Gallery {
                         cx,
                     ))
                     .label("Quantity")
+                    // `minValue`/`maxValue` on the component, which is what
+                    // clamps the steppers and the typed value.
+                    .min_value(1.)
+                    .max_value(99.)
                     .is_required(true)
                     .is_invalid(true)
                     .validation_errors(["Order at least one"])
@@ -6376,6 +6504,11 @@ impl Gallery {
                         h::SearchField::new(controlled)
                             .label("Search")
                             .on_change(|_, _, _| {})
+                            // Enter submits: v3's `onSubmit`.
+                            .on_submit(cx.listener(|this, text: &str, _, cx| {
+                                this.search_query = text.to_owned();
+                                cx.notify();
+                            }))
                             .into_any_element(),
                         para(
                             &if controlled_text.is_empty() {
@@ -6587,15 +6720,23 @@ impl Gallery {
                 ),
                 (
                     "Validation",
-                    col(vec![h::TextField::new(self.demo_text(
-                        "tf-validate",
-                        "",
-                        cx,
-                    ))
-                    .label("Full name")
-                    .is_required(true)
-                    .validate(|value| value.trim().is_empty().then(|| "Name is required".into()))
-                    .into_any_element()]),
+                    col(vec![
+                        h::TextField::new(self.demo_text("tf-validate", "", cx,))
+                            .label("Full name")
+                            .is_required(true)
+                            .validate(|value| value
+                                .trim()
+                                .is_empty()
+                                .then(|| "Name is required".into()))
+                            .into_any_element(),
+                        h::TextField::new(self.demo_text("tf-invalid", "", cx))
+                        .label("Full name")
+                        // `isInvalid` marks it invalid from the outside, which is
+                        // what a server-side error looks like.
+                        .is_invalid(true)
+                        .error_message("Name is required")
+                        .into_any_element()
+                    ]),
                 ),
                 (
                     "Controlled",
@@ -7173,6 +7314,12 @@ impl Gallery {
                         h::Accordion::new(items())
                             .id("acc-controlled")
                             .expanded_keys(open.clone())
+                            .on_expanded_change(cx.listener(
+                                |this, keys: &HashSet<SharedString>, _, cx| {
+                                    this.accordion_open = keys.clone();
+                                    cx.notify();
+                                },
+                            ))
                             .on_toggle(cx.listener(|this, key: &SharedString, _, cx| {
                                 toggle_key(&mut this.accordion_open, key);
                                 cx.notify();
@@ -8926,7 +9073,8 @@ impl Gallery {
                     col(vec![
                         para(
                             "The viewport decides where the stack sits. This gallery mounts one \
-                             `ToastViewport` in its shell; the buttons below push into it.",
+                             `ToastViewport` in its shell; each button moves it and pushes a \
+                             toast into that corner.",
                             cx,
                         ),
                         row([
@@ -8938,17 +9086,22 @@ impl Gallery {
                             ("BottomEnd", h::ToastPlacement::BottomEnd),
                         ]
                         .into_iter()
-                        .map(|(label, _placement)| {
+                        .map(|(label, placement)| {
                             h::Button::new(el_id(format!("toast-pl-{label}")))
                                 .label(label)
                                 .variant(Variant::Tertiary)
                                 .size(Size::Sm)
-                                .on_press(move |_, _, cx| {
+                                // Move the viewport, then push into it: six
+                                // buttons that all pushed into the same corner
+                                // showed nothing about `placement`.
+                                .on_press(cx.listener(move |this, _, _, cx| {
+                                    this.toast_placement = placement;
                                     h::Toast::new(label)
                                         .description("Pushed into the shell's viewport.")
                                         .closable(true)
                                         .push(Some(std::time::Duration::from_secs(3)), cx);
-                                })
+                                    cx.notify();
+                                }))
                                 .into_any_element()
                         })
                         .collect()),
@@ -9174,6 +9327,8 @@ impl Gallery {
                     row(vec![
                         h::Tooltip::new("With an arrow")
                             .show_arrow(true)
+                            // `offset` is the gap between trigger and panel.
+                            .offset(px(10.))
                             .child(
                                 h::Button::new("tt-arrow-on")
                                     .label("Arrow")
@@ -9280,6 +9435,7 @@ impl Gallery {
 
     pub fn page_autocomplete(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let ac_picked = self.demo_text_value("ac-picked");
+        let ac_typed = self.demo_text_value("ac-typed");
         let ac_multi = self.demo_selection("ac-multi");
         let ac_open = self.demo_flag("ac-open", false);
         component_doc_page!(
@@ -9415,6 +9571,9 @@ impl Gallery {
                     )
                     .label("Languages")
                     .selection_mode(SelectionMode::Multiple)
+                    // `defaultValue` is `Key | Key[]`: the uncontrolled
+                    // selection, seeded once.
+                    .default_value(["Rust"])
                     .default_open(true)
                     .into_any_element()]),
                 ),
@@ -9423,7 +9582,12 @@ impl Gallery {
                     col(vec![
                         h::Autocomplete::new(self.demo_text("ac-controlled", "", cx), languages())
                             .label("Language")
-                            .on_selection_change(cx.listener(|this, key: &SharedString, _, cx| {
+                            .input_value(ac_typed)
+                            .on_input_change(cx.listener(|this, text: &str, _, cx| {
+                                this.set_demo_text_value("ac-typed", text.to_owned());
+                                cx.notify();
+                            }))
+                            .on_change(cx.listener(|this, key: &SharedString, _, cx| {
                                 this.set_demo_text_value("ac-picked", key.to_string());
                                 cx.notify();
                             }))
@@ -9668,6 +9832,10 @@ impl Gallery {
                     col(vec![
                         h::ComboBox::new(self.demo_text("cb-controlled", "", cx), languages())
                             .label("Language")
+                            // `defaultSelectedKey`/`selectedKey` seed the pick;
+                            // `inputValue` writes the text back in.
+                            .selected_key(cb_picked.clone(), cx)
+                            .input_value(cb_typed.clone(), cx)
                             .on_selection_change(cx.listener(
                                 |this, key: &SharedString, _, cx| {
                                     this.set_demo_text_value("cb-picked", key.to_string());
@@ -10125,7 +10293,7 @@ impl Gallery {
                             this.select_open = *open;
                             cx.notify();
                         })))
-                        .on_selection_change(opt_usize_cb(cx.listener(
+                        .on_change(opt_usize_cb(cx.listener(
                             |this, i: &Option<usize>, _, cx| {
                                 this.select_lang = *i;
                                 this.select_open = false;

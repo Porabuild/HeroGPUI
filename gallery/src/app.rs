@@ -144,6 +144,10 @@ pub struct Gallery {
     /// `HEROGPUI_OPEN_OVERLAYS=1`: every overlay demo starts open, so a smoke
     /// run and a screenshot both see the panel rather than just its trigger.
     pub overlays_open: bool,
+    /// Which corner the shell's `ToastViewport` sits in -- the Toast page's
+    /// "Placements" demo sets it, which is the only way one viewport can show
+    /// what `placement` does.
+    pub toast_placement: h::ToastPlacement,
     pub demo_values: HashMap<&'static str, f32>,
     pub demo_strings: HashMap<&'static str, String>,
     pub demo_selections: HashMap<&'static str, Vec<SharedString>>,
@@ -409,6 +413,7 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
             demo_range: HashMap::new(),
             demo_flags: HashMap::new(),
             overlays_open: std::env::var("HEROGPUI_OPEN_OVERLAYS").is_ok(),
+            toast_placement: h::ToastPlacement::BottomEnd,
             demo_values: HashMap::new(),
             demo_strings: HashMap::new(),
             demo_selections: HashMap::new(),
@@ -691,7 +696,7 @@ impl Render for Gallery {
             .child(gpui::div().flex().flex_1().min_h_0().child(sidebar).child(content))
             // Toasts last so they paint above the shell. Modal and Drawer
             // demos live on their own pages.
-            .child(h::ToastViewport::new())
+            .child(h::ToastViewport::new().placement(self.toast_placement))
     }
 }
 

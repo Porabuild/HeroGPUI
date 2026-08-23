@@ -101,6 +101,13 @@ Read the diff.
     for a background process and costs the foreground it had just been given, at
     which point every click lands somewhere else and the component looks broken.
 
+  **A single posted click sometimes does not register.** The first
+  `WM_LBUTTONDOWN`/`UP` pair after the pointer moves onto a control can be
+  swallowed -- the element takes the hover and nothing else -- so a check that
+  reads "the handler never ran" may only mean the press did not. Send the click
+  twice (`do='click:X,Y click:X,Y'`) and assert on the *effect*: the button
+  labelled "Pressed 0 times" said 1 on the second attempt with no code change.
+
   **Capture must never read the screen.** Both scripts had three separate ways
   of interrupting whatever the user was doing, and one of them silently wrote
   the user's own screen into the repo:
@@ -451,6 +458,47 @@ wrong first, each of which silently inflated or deflated the number:
   number cannot hide. It is empty now: the last two entries were virtualization
   (`uniform_list`, for the list, the table and the three pickers) and a date
   field spanning a date *and* a time (`granularity`).
+
+`example_audit.py` matches example *names*, and a name is not a demo. The Tabs
+"With Separator" section stood a `Separator` next to two plain tabs for months
+and matched perfectly, so the code on both sides needs comparing too:
+
+```bash
+python .shots/demo_audit.py            # the report
+python .shots/demo_audit.py Tabs       # one page
+```
+
+It reads every JSX attribute in every ```tsx block under a page's `## Usage` and
+`## Examples`, keeps the ones v3 documents as props of that component *and* this
+port implements, and asks whether the gallery's page ever calls the builder that
+ports it. 308 props, and 51 of them were exercised by v3's docs and by nothing
+here -- which is how these were found:
+
+- **Eleven pages had no uncontrolled demo at all.** v3's Usage examples are
+  `defaultValue={...}` with a separate "Controlled" example below; ours were
+  controlled twice over, so the uncontrolled path -- the one that broke Tabs --
+  was neither shown nor exercised.
+- **The Toast "Placements" demo ignored the placement it named**: six buttons
+  mapped over `ToastPlacement::*` and every one pushed into the same corner
+  (`|(label, _placement)|`). The shell's viewport takes the page's choice now.
+- **The Switch "Group" demos never used `SwitchGroup`** -- bare switches in a
+  `col` and a `row`, so the component and its one prop appeared nowhere.
+- Bounds (`minValue`/`maxValue` on the date, time and number fields), the
+  invalid state on two fields, `disabledKeys`, `onAction`, `onSubmit`,
+  `onFocusChange`, `firstDayOfWeek`, `startName`/`endName` and the v3-named
+  aliases (`onChange`, `onSelectionChange`, `onExpandedChange`) were all
+  implemented, documented and undemonstrated.
+
+The unit is the page, not the example: v3's snippets set plenty of props to their
+default (`selectionMode="single"`, `delay={700}`) and a demo that leaves those
+out shows the same thing, which is why comparing example by example reported 656
+of them. What matters is whether a prop is exercised *somewhere*, because one
+that is exercised nowhere is one nobody has looked at since it was written.
+
+Two of its fixes tripped other audits, which is the system working: a comment
+between `(` and a section title hides the title from `example_audit.py`, and a
+`value` written on every render freezes the control unless the caller stores what
+comes back -- `inert_audit.py` caught both new demos doing it.
 
 A prop that is stored but never read is worse than a missing one: the API
 promises behaviour it does not have. After adding fields, run
