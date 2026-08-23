@@ -137,6 +137,38 @@ fn opt_time_cb(
     move |v, w, cx| l(&v, w, cx)
 }
 
+/// One overlay demo: the trigger, and the panel it opens.
+///
+/// An overlay needs a positioned ancestor and enough height to show the panel,
+/// and each demo owns its own open flag -- v3's pages show one variant per
+/// example, so a shared flag would open all of them at once.
+fn overlay_demo(
+    key: &'static str,
+    label: &str,
+    open: bool,
+    panel: AnyElement,
+    cx: &mut Context<'_, Gallery>,
+) -> AnyElement {
+    gpui::div()
+        .relative()
+        .flex()
+        .flex_col()
+        .items_start()
+        .w_full()
+        .min_h(px(120.))
+        .child(
+            h::Button::new(el_id(format!("{key}-open")))
+                .label(label.to_owned())
+                .variant(Variant::Secondary)
+                .on_press(cx.listener(move |this, _, _, cx| {
+                    this.set_demo_flag(key, true);
+                    cx.notify();
+                })),
+        )
+        .child(panel)
+        .into_any_element()
+}
+
 /// The demo palette used by the color pages.
 fn palette() -> Vec<h::PickerColor> {
     [
@@ -6572,8 +6604,279 @@ impl Gallery {
             "Alert Dialog",
             crate::pages::Page::AlertDialog.description(),
             crate::pages::Page::AlertDialog.import_line(),
-            vec![(
-                "Usage",
+            vec![
+                (
+                    "Sizes",
+                    col([
+                        ("ad-size-xs", "Xs", h::AlertDialogSize::Xs),
+                        ("ad-size-sm", "Sm", h::AlertDialogSize::Sm),
+                        ("ad-size-md", "Md", h::AlertDialogSize::Md),
+                        ("ad-size-lg", "Lg", h::AlertDialogSize::Lg),
+                        ("ad-size-cover", "Cover", h::AlertDialogSize::Cover),
+                    ]
+                    .into_iter()
+                    .map(|(key, label, size)| {
+                        let open = self.demo_overlay(key);
+                        overlay_demo(
+                            key,
+                            label,
+                            open,
+                            h::AlertDialog::new(format!("Size: {label}"))
+                                .description("Every size shares one panel style.")
+                                .is_open(open)
+                                .size(size)
+                                .on_open_change(bool_cb(cx.listener(
+                                    move |this, v: &bool, _, cx| {
+                                        this.set_demo_flag(key, *v);
+                                        cx.notify();
+                                    },
+                                )))
+                                .into_any_element(),
+                            cx,
+                        )
+                    })
+                    .collect()),
+                ),
+                (
+                    "Statuses",
+                    col([
+                        ("ad-st-default", "Default", Color::Default),
+                        ("ad-st-accent", "Accent", Color::Accent),
+                        ("ad-st-success", "Success", Color::Success),
+                        ("ad-st-warning", "Warning", Color::Warning),
+                        ("ad-st-danger", "Danger", Color::Danger),
+                    ]
+                    .into_iter()
+                    .map(|(key, label, status)| {
+                        let open = self.demo_overlay(key);
+                        overlay_demo(
+                            key,
+                            label,
+                            open,
+                            h::AlertDialog::new(format!("{label} status"))
+                                .description("The status colours the icon and the confirm action.")
+                                .is_open(open)
+                                .status(status)
+                                .on_open_change(bool_cb(cx.listener(
+                                    move |this, v: &bool, _, cx| {
+                                        this.set_demo_flag(key, *v);
+                                        cx.notify();
+                                    },
+                                )))
+                                .into_any_element(),
+                            cx,
+                        )
+                    })
+                    .collect()),
+                ),
+                (
+                    "Placements",
+                    col([
+                        ("ad-pl-auto", "Auto", h::ModalPlacement::Auto),
+                        ("ad-pl-center", "Center", h::ModalPlacement::Center),
+                        ("ad-pl-top", "Top", h::ModalPlacement::Top),
+                        ("ad-pl-bottom", "Bottom", h::ModalPlacement::Bottom),
+                    ]
+                    .into_iter()
+                    .map(|(key, label, placement)| {
+                        let open = self.demo_overlay(key);
+                        overlay_demo(
+                            key,
+                            label,
+                            open,
+                            h::AlertDialog::new(format!("Placement: {label}"))
+                                .description("The panel keeps its own size.")
+                                .is_open(open)
+                                .placement(placement)
+                                .on_open_change(bool_cb(cx.listener(
+                                    move |this, v: &bool, _, cx| {
+                                        this.set_demo_flag(key, *v);
+                                        cx.notify();
+                                    },
+                                )))
+                                .into_any_element(),
+                            cx,
+                        )
+                    })
+                    .collect()),
+                ),
+                (
+                    "Backdrop Variants",
+                    col(herogpui_core::Backdrop::ALL
+                        .iter()
+                        .map(|backdrop| {
+                            let key: &'static str = match backdrop {
+                                herogpui_core::Backdrop::Opaque => "ad-bd-opaque",
+                                herogpui_core::Backdrop::Blur => "ad-bd-blur",
+                                herogpui_core::Backdrop::Transparent => "ad-bd-transparent",
+                            };
+                            let open = self.demo_overlay(key);
+                            overlay_demo(
+                                key,
+                                backdrop.label(),
+                                open,
+                                h::AlertDialog::new(format!("Backdrop: {}", backdrop.label()))
+                                    .description("The scrim behind the panel.")
+                                    .is_open(open)
+                                    .backdrop(*backdrop)
+                                    .on_open_change(bool_cb(cx.listener(
+                                        move |this, v: &bool, _, cx| {
+                                            this.set_demo_flag(key, *v);
+                                            cx.notify();
+                                        },
+                                    )))
+                                    .into_any_element(),
+                                cx,
+                            )
+                        })
+                        .collect()),
+                ),
+                (
+                    "Controlled State",
+                    col(vec![overlay_demo(
+                        "ad-controlled",
+                        "Open (controlled)",
+                        self.demo_overlay("ad-controlled"),
+                        h::AlertDialog::new("Controlled")
+                            .description("The flag lives with the caller; closing reports through onOpenChange.")
+                            .is_open(self.demo_overlay("ad-controlled"))
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("ad-controlled", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
+                (
+                    "Custom Icon",
+                    col(vec![overlay_demo(
+                        "ad-icon",
+                        "Open with a status icon",
+                        self.demo_overlay("ad-icon"),
+                        h::AlertDialog::new("Heads up")
+                            .description("The status picks the icon, so a warning dialog shows the warning glyph.")
+                            .is_open(self.demo_overlay("ad-icon"))
+                            .status(Color::Warning)
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("ad-icon", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
+                (
+                    "Custom Backdrop",
+                    col(vec![overlay_demo(
+                        "ad-custom-bd",
+                        "Open with a blurred backdrop",
+                        self.demo_overlay("ad-custom-bd"),
+                        h::AlertDialog::new("Blurred")
+                            .description("The page behind the panel is blurred.")
+                            .is_open(self.demo_overlay("ad-custom-bd"))
+                            .backdrop(herogpui_core::Backdrop::Blur)
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("ad-custom-bd", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
+                (
+                    "Dismiss Behavior",
+                    col(vec![overlay_demo(
+                        "ad-dismiss",
+                        "Open a non-dismissable dialog",
+                        self.demo_overlay("ad-dismiss"),
+                        h::AlertDialog::new("Confirm first")
+                            .description("The backdrop and Escape are both inert; answer with an action.")
+                            .is_open(self.demo_overlay("ad-dismiss"))
+                            .is_dismissible(false)
+                            .is_keyboard_dismiss_disabled(true)
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("ad-dismiss", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
+                (
+                    "Close Methods",
+                    col(vec![overlay_demo(
+                        "ad-close",
+                        "Open (destructive confirm)",
+                        self.demo_overlay("ad-close"),
+                        h::AlertDialog::new("Delete for ever?")
+                            .description("Confirm, cancel, Escape or the backdrop -- four ways out.")
+                            .is_open(self.demo_overlay("ad-close"))
+                            .is_destructive(true)
+                            .confirm_label("Delete")
+                            .cancel_label("Keep")
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("ad-close", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
+                (
+                    "Custom Animations",
+                    col(vec![overlay_demo(
+                        "ad-anim",
+                        "Open and watch the panel",
+                        self.demo_overlay("ad-anim"),
+                        h::AlertDialog::new("Animated")
+                            .description("The panel shrinks in from 105% over 250ms and leaves at 95% over 100ms.")
+                            .is_open(self.demo_overlay("ad-anim"))
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("ad-anim", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
+                (
+                    "Custom Trigger",
+                    col(vec![gpui::div()
+                        .relative()
+                        .flex()
+                        .flex_col()
+                        .items_start()
+                        .w_full()
+                        .min_h(px(120.))
+                        .child(
+                            gpui::div()
+                                .id("ad-custom-trigger")
+                                .cursor_pointer()
+                                .child(
+                                    h::Chip::new("Delete account")
+                                        .color(Color::Danger)
+                                        .variant(h::ChipVariant::Soft),
+                                )
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.set_demo_flag("ad-custom", true);
+                                    cx.notify();
+                                })),
+                        )
+                        .child(
+                            h::AlertDialog::new("Delete this account?")
+                                .description("Any element can open an alert dialog.")
+                                .is_open(self.demo_overlay("ad-custom"))
+                                .is_destructive(true)
+                                .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("ad-custom", *v);
+                                    cx.notify();
+                                })))
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Usage",
                 col(vec![gpui::div()
                     .relative()
                     .flex()
@@ -6620,97 +6923,691 @@ impl Gallery {
             "Drawer",
             crate::pages::Page::Drawer.description(),
             crate::pages::Page::Drawer.import_line(),
-            vec![(
-                "Usage",
-                col(vec![gpui::div()
-                    .relative()
-                    .flex()
-                    .flex_col()
-                    .items_start()
-                    .w_full()
-                    .min_h(px(240.))
-                    .child(
-                        h::Button::new("dr-open")
-                            .label("Open drawer")
-                            .on_press(cx.listener(|this, _, _, cx| {
-                                this.drawer_open = true;
-                                cx.notify();
-                            })),
-                    )
-                    .child(
+            vec![
+                (
+                    "Placement",
+                    col([
+                        ("dr-left", "Left", h::DrawerPlacement::Left),
+                        ("dr-right", "Right", h::DrawerPlacement::Right),
+                        ("dr-top", "Top", h::DrawerPlacement::Top),
+                        ("dr-bottom", "Bottom", h::DrawerPlacement::Bottom),
+                    ]
+                    .into_iter()
+                    .map(|(key, label, placement)| {
+                        let open = self.demo_overlay(key);
+                        overlay_demo(
+                            key,
+                            label,
+                            open,
+                            h::Drawer::new()
+                                .is_open(open)
+                                .placement(placement)
+                                .title(format!("From the {label}"))
+                                .is_dismissible(true)
+                                .child(gpui::div().child("The panel slides in along its edge."))
+                                .on_open_change(bool_cb(cx.listener(
+                                    move |this, v: &bool, _, cx| {
+                                        this.set_demo_flag(key, *v);
+                                        cx.notify();
+                                    },
+                                )))
+                                .into_any_element(),
+                            cx,
+                        )
+                    })
+                    .collect()),
+                ),
+                (
+                    "Non-Dismissable",
+                    col(vec![overlay_demo(
+                        "dr-no-dismiss",
+                        "Open a non-dismissable drawer",
+                        self.demo_overlay("dr-no-dismiss"),
                         h::Drawer::new()
-                            .is_open(is_open)
-                            .title("Settings")
-                            .placement(h::DrawerPlacement::Right)
-                            .child(gpui::div().child("Panel content goes here."))
-                            .footer_child(h::Button::new("dr-done").label("Done").on_press(
+                            .is_open(self.demo_overlay("dr-no-dismiss"))
+                            .title("Finish first")
+                            .is_dismissible(false)
+                            .is_keyboard_dismiss_disabled(true)
+                            .child(gpui::div().child("The backdrop and Escape are both inert."))
+                            .footer_child(
+                                h::Button::new("dr-no-dismiss-ok").label("Done").on_press(
+                                    cx.listener(|this, _, _, cx| {
+                                        this.set_demo_flag("dr-no-dismiss", false);
+                                        cx.notify();
+                                    }),
+                                ),
+                            )
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("dr-no-dismiss", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
+                (
+                    "Scrollable Content",
+                    col(vec![overlay_demo(
+                        "dr-scroll",
+                        "Open a long drawer",
+                        self.demo_overlay("dr-scroll"),
+                        h::Drawer::new()
+                            .is_open(self.demo_overlay("dr-scroll"))
+                            .title("Release notes")
+                            .is_dismissible(true)
+                            .child(
+                                gpui::div().flex().flex_col().gap(px(8.)).children(
+                                    (1..=20).map(|n| {
+                                        gpui::div().child(format!("Change {n} of twenty."))
+                                    }),
+                                ),
+                            )
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("dr-scroll", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
+                (
+                    "Controlled State",
+                    col(vec![
+                        para(
+                            &format!(
+                                "The flag lives with the caller: {}",
+                                if self.demo_overlay("dr-controlled") {
+                                    "open"
+                                } else {
+                                    "closed"
+                                }
+                            ),
+                            cx,
+                        ),
+                        overlay_demo(
+                            "dr-controlled",
+                            "Open (controlled)",
+                            self.demo_overlay("dr-controlled"),
+                            h::Drawer::new()
+                                .is_open(self.demo_overlay("dr-controlled"))
+                                .title("Controlled")
+                                .is_dismissible(true)
+                                .child(gpui::div().child("Closing reports through onOpenChange."))
+                                .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("dr-controlled", *v);
+                                    cx.notify();
+                                })))
+                                .into_any_element(),
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "With Form",
+                    col(vec![overlay_demo(
+                        "dr-form",
+                        "Open a form drawer",
+                        self.demo_overlay("dr-form"),
+                        h::Drawer::new()
+                            .is_open(self.demo_overlay("dr-form"))
+                            .title("New issue")
+                            .is_dismissible(true)
+                            .child(
+                                gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(12.))
+                                    .child(
+                                        h::TextField::new(self.demo_text("dr-form-title", "", cx))
+                                            .label("Title"),
+                                    )
+                                    .child(
+                                        h::TextArea::new(self.demo_text("dr-form-body", "", cx))
+                                            .label("Description")
+                                            .rows(3),
+                                    ),
+                            )
+                            .footer_child(h::Button::new("dr-form-save").label("Create").on_press(
                                 cx.listener(|this, _, _, cx| {
-                                    this.drawer_open = false;
+                                    this.set_demo_flag("dr-form", false);
                                     cx.notify();
                                 }),
                             ))
-                            .on_close(cx.listener(|this, _, _, cx| {
-                                this.drawer_open = false;
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("dr-form", *v);
                                 cx.notify();
-                            })),
-                    )
-                    .into_any_element()]),
-            )],
+                            })))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
+                (
+                    "Navigation Drawer",
+                    col(vec![overlay_demo(
+                        "dr-nav",
+                        "Open the navigation",
+                        self.demo_overlay("dr-nav"),
+                        h::Drawer::new()
+                            .is_open(self.demo_overlay("dr-nav"))
+                            .placement(h::DrawerPlacement::Left)
+                            .title("Menu")
+                            .is_dismissible(true)
+                            .child(h::ListBox::new(
+                                "dr-nav-list",
+                                vec![
+                                    h::ListBoxItem::new("home", "Home"),
+                                    h::ListBoxItem::new("projects", "Projects"),
+                                    h::ListBoxItem::new("settings", "Settings"),
+                                    h::ListBoxItem::separator(),
+                                    h::ListBoxItem::new("logout", "Log out").danger(),
+                                ],
+                            ))
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("dr-nav", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
+                (
+                    "Backdrop Variants",
+                    col(herogpui_core::Backdrop::ALL
+                        .iter()
+                        .map(|backdrop| {
+                            let key: &'static str = match backdrop {
+                                herogpui_core::Backdrop::Opaque => "dr-bd-opaque",
+                                herogpui_core::Backdrop::Blur => "dr-bd-blur",
+                                herogpui_core::Backdrop::Transparent => "dr-bd-transparent",
+                            };
+                            let open = self.demo_overlay(key);
+                            overlay_demo(
+                                key,
+                                backdrop.label(),
+                                open,
+                                h::Drawer::new()
+                                    .is_open(open)
+                                    .backdrop(*backdrop)
+                                    .title(format!("Backdrop: {}", backdrop.label()))
+                                    .is_dismissible(true)
+                                    .child(gpui::div().child("The scrim behind the panel."))
+                                    .on_open_change(bool_cb(cx.listener(
+                                        move |this, v: &bool, _, cx| {
+                                            this.set_demo_flag(key, *v);
+                                            cx.notify();
+                                        },
+                                    )))
+                                    .into_any_element(),
+                                cx,
+                            )
+                        })
+                        .collect()),
+                ),
+                (
+                    "Usage",
+                    col(vec![gpui::div()
+                        .relative()
+                        .flex()
+                        .flex_col()
+                        .items_start()
+                        .w_full()
+                        .min_h(px(240.))
+                        .child(h::Button::new("dr-open").label("Open drawer").on_press(
+                            cx.listener(|this, _, _, cx| {
+                                this.drawer_open = true;
+                                cx.notify();
+                            }),
+                        ))
+                        .child(
+                            h::Drawer::new()
+                                .is_open(is_open)
+                                .title("Settings")
+                                .placement(h::DrawerPlacement::Right)
+                                .child(gpui::div().child("Panel content goes here."))
+                                .footer_child(h::Button::new("dr-done").label("Done").on_press(
+                                    cx.listener(|this, _, _, cx| {
+                                        this.drawer_open = false;
+                                        cx.notify();
+                                    }),
+                                ))
+                                .on_close(cx.listener(|this, _, _, cx| {
+                                    this.drawer_open = false;
+                                    cx.notify();
+                                })),
+                        )
+                        .into_any_element()]),
+                ),
+            ],
             cx,
         )
     }
 
     pub fn page_modal(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.modal_open;
+        let md_controlled = self.demo_overlay("md-controlled");
+        let md_form = self.demo_overlay("md-form");
+        let md_custom = self.demo_overlay("md-custom");
+        let md_bd_custom = self.demo_overlay("md-bd-custom");
+        let md_no_dismiss = self.demo_overlay("md-no-dismiss");
+        let md_close = self.demo_overlay("md-close");
+        let md_anim = self.demo_overlay("md-anim");
         doc_page(
             "Modal",
             crate::pages::Page::Modal.description(),
             crate::pages::Page::Modal.import_line(),
-            vec![(
-                "Usage",
-                col(vec![gpui::div()
-                    .relative()
-                    .flex()
-                    .flex_col()
-                    .items_start()
-                    .w_full()
-                    .min_h(px(280.))
-                    .child(
-                        h::Button::new("md-open")
-                            .label("Open modal")
-                            .on_press(cx.listener(|this, _, _, cx| {
-                                this.modal_open = true;
-                                cx.notify();
-                            })),
-                    )
-                    .child(
+            vec![
+                (
+                    "Sizes",
+                    col([
+                        ("md-size-xs", "Xs", h::ModalSize::Xs),
+                        ("md-size-sm", "Sm", h::ModalSize::Sm),
+                        ("md-size-md", "Md", h::ModalSize::Md),
+                        ("md-size-lg", "Lg", h::ModalSize::Lg),
+                        ("md-size-cover", "Cover", h::ModalSize::Cover),
+                        ("md-size-full", "Full", h::ModalSize::Full),
+                    ]
+                    .into_iter()
+                    .map(|(key, label, size)| {
+                        let open = self.demo_overlay(key);
+                        overlay_demo(
+                            key,
+                            label,
+                            open,
+                            h::Modal::new()
+                                .is_open(open)
+                                .size(size)
+                                .title(format!("Size: {label}"))
+                                .is_dismissible(true)
+                                .child(gpui::div().child("Every size shares one panel style."))
+                                .on_open_change(bool_cb(cx.listener(
+                                    move |this, v: &bool, _, cx| {
+                                        this.set_demo_flag(key, *v);
+                                        cx.notify();
+                                    },
+                                )))
+                                .into_any_element(),
+                            cx,
+                        )
+                    })
+                    .collect()),
+                ),
+                (
+                    "Placement",
+                    col([
+                        ("md-place-auto", "Auto", h::ModalPlacement::Auto),
+                        ("md-place-center", "Center", h::ModalPlacement::Center),
+                        ("md-place-top", "Top", h::ModalPlacement::Top),
+                        ("md-place-bottom", "Bottom", h::ModalPlacement::Bottom),
+                    ]
+                    .into_iter()
+                    .map(|(key, label, placement)| {
+                        let open = self.demo_overlay(key);
+                        overlay_demo(
+                            key,
+                            label,
+                            open,
+                            h::Modal::new()
+                                .is_open(open)
+                                .placement(placement)
+                                .title(format!("Placement: {label}"))
+                                .is_dismissible(true)
+                                .child(gpui::div().child("The panel keeps its own size."))
+                                .on_open_change(bool_cb(cx.listener(
+                                    move |this, v: &bool, _, cx| {
+                                        this.set_demo_flag(key, *v);
+                                        cx.notify();
+                                    },
+                                )))
+                                .into_any_element(),
+                            cx,
+                        )
+                    })
+                    .collect()),
+                ),
+                (
+                    "Scroll Behavior",
+                    col([
+                        ("md-scroll-inside", "Inside", h::ModalScroll::Inside),
+                        ("md-scroll-outside", "Outside", h::ModalScroll::Outside),
+                    ]
+                    .into_iter()
+                    .map(|(key, label, scroll)| {
+                        let open = self.demo_overlay(key);
+                        overlay_demo(
+                            key,
+                            label,
+                            open,
+                            h::Modal::new()
+                                .is_open(open)
+                                .scroll(scroll)
+                                .title(format!("Scroll: {label}"))
+                                .is_dismissible(true)
+                                .child(gpui::div().flex().flex_col().gap(px(8.)).children(
+                                    (1..=12).map(|n| {
+                                        gpui::div().child(format!("Paragraph {n} of twelve."))
+                                    }),
+                                ))
+                                .on_open_change(bool_cb(cx.listener(
+                                    move |this, v: &bool, _, cx| {
+                                        this.set_demo_flag(key, *v);
+                                        cx.notify();
+                                    },
+                                )))
+                                .into_any_element(),
+                            cx,
+                        )
+                    })
+                    .collect()),
+                ),
+                (
+                    "Controlled State",
+                    col(vec![
+                        para(
+                            &format!(
+                                "The flag lives with the caller: {}",
+                                if md_controlled { "open" } else { "closed" }
+                            ),
+                            cx,
+                        ),
+                        overlay_demo(
+                            "md-controlled",
+                            "Open (controlled)",
+                            md_controlled,
+                            h::Modal::new()
+                                .is_open(md_controlled)
+                                .title("Controlled")
+                                .is_dismissible(true)
+                                .child(gpui::div().child("Closing reports through onOpenChange."))
+                                .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("md-controlled", *v);
+                                    cx.notify();
+                                })))
+                                .into_any_element(),
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "With Form",
+                    col(vec![overlay_demo(
+                        "md-form",
+                        "Open form modal",
+                        md_form,
                         h::Modal::new()
-                            .is_open(is_open)
-                            .title("Create account")
+                            .is_open(md_form)
+                            .title("Invite a teammate")
                             .is_dismissible(true)
-                            .child(gpui::div().child("Sign up to get started with HeroGPUI."))
+                            .child(
+                                gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(12.))
+                                    .child(
+                                        h::TextField::new(self.demo_text("md-form-name", "", cx))
+                                            .label("Name"),
+                                    )
+                                    .child(
+                                        h::TextField::new(self.demo_text("md-form-email", "", cx))
+                                            .label("Email")
+                                            .input_type(h::InputType::Email),
+                                    ),
+                            )
                             .footer_child(
-                                h::Button::new("md-cancel")
-                                    .label("Cancel")
-                                    .variant(Variant::Tertiary)
+                                h::Button::new("md-form-send")
+                                    .label("Send invite")
                                     .on_press(cx.listener(|this, _, _, cx| {
-                                        this.modal_open = false;
+                                        this.set_demo_flag("md-form", false);
                                         cx.notify();
                                     })),
                             )
-                            .footer_child(h::Button::new("md-ok").label("Sign up").on_press(
-                                cx.listener(|this, _, _, cx| {
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("md-form", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
+                (
+                    "Custom Trigger",
+                    col(vec![gpui::div()
+                        .relative()
+                        .flex()
+                        .flex_col()
+                        .items_start()
+                        .w_full()
+                        .min_h(px(120.))
+                        .child(
+                            gpui::div()
+                                .id("md-custom-trigger")
+                                .cursor_pointer()
+                                .child(h::Avatar::new().name("Jane Doe"))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.set_demo_flag("md-custom", true);
+                                    cx.notify();
+                                })),
+                        )
+                        .child(
+                            h::Modal::new()
+                                .is_open(md_custom)
+                                .title("Jane Doe")
+                                .is_dismissible(true)
+                                .child(gpui::div().child("Any element can open a modal."))
+                                .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("md-custom", *v);
+                                    cx.notify();
+                                }))),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Backdrop Variants",
+                    col(herogpui_core::Backdrop::ALL
+                        .iter()
+                        .map(|backdrop| {
+                            let key: &'static str = match backdrop {
+                                herogpui_core::Backdrop::Opaque => "md-bd-opaque",
+                                herogpui_core::Backdrop::Blur => "md-bd-blur",
+                                herogpui_core::Backdrop::Transparent => "md-bd-transparent",
+                            };
+                            let open = self.demo_overlay(key);
+                            overlay_demo(
+                                key,
+                                backdrop.label(),
+                                open,
+                                h::Modal::new()
+                                    .is_open(open)
+                                    .backdrop(*backdrop)
+                                    .title(format!("Backdrop: {}", backdrop.label()))
+                                    .is_dismissible(true)
+                                    .child(gpui::div().child("The scrim behind the panel."))
+                                    .on_open_change(bool_cb(cx.listener(
+                                        move |this, v: &bool, _, cx| {
+                                            this.set_demo_flag(key, *v);
+                                            cx.notify();
+                                        },
+                                    )))
+                                    .into_any_element(),
+                                cx,
+                            )
+                        })
+                        .collect()),
+                ),
+                (
+                    "Custom Backdrop",
+                    col(vec![
+                        para(
+                            "v3 restyles the backdrop with a class. `Backdrop::Blur` is the \
+                             strongest variant the token set has; anything past it is the \
+                             caller's own scrim.",
+                            cx,
+                        ),
+                        overlay_demo(
+                            "md-bd-custom",
+                            "Open with a blurred backdrop",
+                            md_bd_custom,
+                            h::Modal::new()
+                                .is_open(md_bd_custom)
+                                .backdrop(h::Backdrop::Blur)
+                                .title("Blurred")
+                                .is_dismissible(true)
+                                .child(gpui::div().child("The page behind is blurred."))
+                                .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("md-bd-custom", *v);
+                                    cx.notify();
+                                })))
+                                .into_any_element(),
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Dismiss Behavior",
+                    col(vec![
+                        para(
+                            "`isDismissible` decides whether the backdrop closes it; \
+                             `isKeyboardDismissDisabled` decides whether Escape does.",
+                            cx,
+                        ),
+                        overlay_demo(
+                            "md-no-dismiss",
+                            "Open a non-dismissable modal",
+                            md_no_dismiss,
+                            h::Modal::new()
+                                .is_open(md_no_dismiss)
+                                .title("Confirm first")
+                                .is_dismissible(false)
+                                .is_keyboard_dismiss_disabled(true)
+                                .child(gpui::div().child(
+                                    "The backdrop and Escape are both inert; use the button.",
+                                ))
+                                .footer_child(
+                                    h::Button::new("md-no-dismiss-ok").label("Got it").on_press(
+                                        cx.listener(|this, _, _, cx| {
+                                            this.set_demo_flag("md-no-dismiss", false);
+                                            cx.notify();
+                                        }),
+                                    ),
+                                )
+                                .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("md-no-dismiss", *v);
+                                    cx.notify();
+                                })))
+                                .into_any_element(),
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Close Methods",
+                    col(vec![
+                        para(
+                            "Three ways out: the close button, a footer action, and the \
+                             backdrop. `hideCloseButton` removes the first.",
+                            cx,
+                        ),
+                        overlay_demo(
+                            "md-close",
+                            "Open (no close button)",
+                            md_close,
+                            h::Modal::new()
+                                .is_open(md_close)
+                                .title("Close me")
+                                .hide_close_button(true)
+                                .is_dismissible(true)
+                                .child(gpui::div().child("The corner button is gone."))
+                                .footer_child(
+                                    h::Button::new("md-close-ok").label("Close").on_press(
+                                        cx.listener(|this, _, _, cx| {
+                                            this.set_demo_flag("md-close", false);
+                                            cx.notify();
+                                        }),
+                                    ),
+                                )
+                                .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("md-close", *v);
+                                    cx.notify();
+                                })))
+                                .into_any_element(),
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Custom Animations",
+                    col(vec![
+                        para(
+                            "v3 overrides the panel's duration and easing per instance with a \
+                             class. The motion here is the one its stylesheet declares: the \
+                             panel shrinks in from 105% over 250ms on `ease-out-quad` and \
+                             leaves at 95% over 100ms. `Motion on` in the navbar switches it \
+                             off, which is the `prefers-reduced-motion` path.",
+                            cx,
+                        ),
+                        overlay_demo(
+                            "md-anim",
+                            "Open and watch the panel",
+                            md_anim,
+                            h::Modal::new()
+                                .is_open(md_anim)
+                                .title("Animated")
+                                .is_dismissible(true)
+                                .child(gpui::div().child("Close and reopen to see it again."))
+                                .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("md-anim", *v);
+                                    cx.notify();
+                                })))
+                                .into_any_element(),
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
+                    "Usage",
+                    col(vec![gpui::div()
+                        .relative()
+                        .flex()
+                        .flex_col()
+                        .items_start()
+                        .w_full()
+                        .min_h(px(280.))
+                        .child(
+                            h::Button::new("md-open")
+                                .label("Open modal")
+                                .on_press(cx.listener(|this, _, _, cx| {
+                                    this.modal_open = true;
+                                    cx.notify();
+                                })),
+                        )
+                        .child(
+                            h::Modal::new()
+                                .is_open(is_open)
+                                .title("Create account")
+                                .is_dismissible(true)
+                                .child(gpui::div().child("Sign up to get started with HeroGPUI."))
+                                .footer_child(
+                                    h::Button::new("md-cancel")
+                                        .label("Cancel")
+                                        .variant(Variant::Tertiary)
+                                        .on_press(cx.listener(|this, _, _, cx| {
+                                            this.modal_open = false;
+                                            cx.notify();
+                                        })),
+                                )
+                                .footer_child(h::Button::new("md-ok").label("Sign up").on_press(
+                                    cx.listener(|this, _, _, cx| {
+                                        this.modal_open = false;
+                                        cx.notify();
+                                    }),
+                                ))
+                                .on_close(cx.listener(|this, _, _, cx| {
                                     this.modal_open = false;
                                     cx.notify();
-                                }),
-                            ))
-                            .on_close(cx.listener(|this, _, _, cx| {
-                                this.modal_open = false;
-                                cx.notify();
-                            })),
-                    )
-                    .into_any_element()]),
-            )],
+                                })),
+                        )
+                        .into_any_element()]),
+                ),
+            ],
             cx,
         )
     }

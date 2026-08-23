@@ -1,4 +1,4 @@
-"""Dropdown page: the fifteen v3 examples it was missing."""
+"""Drawer page: the seven v3 examples it was missing."""
 import io
 
 P = 'gallery/src/pages/components.rs'
@@ -11,287 +11,232 @@ def rep(old, new):
     s = s.replace(old, new)
 
 
-rep("""        let items = vec![
-            h::MenuItem::new("new", "New file").shortcut("Ctrl N"),
-            h::MenuItem::new("copy", "Copy link").shortcut("Ctrl C"),
-            h::MenuItem::Separator,
-            h::MenuItem::new("delete", "Delete file").danger(),
-        ];""",
-    """        let items = vec![
-            h::MenuItem::new("new", "New file").shortcut("Ctrl N"),
-            h::MenuItem::new("copy", "Copy link").shortcut("Ctrl C"),
-            h::MenuItem::Separator,
-            h::MenuItem::new("delete", "Delete file").danger(),
-        ];
-        // A `MenuItem` is moved into the menu that shows it, so each demo builds
-        // its own list.
-        let plain = || {
-            vec![
-                h::MenuItem::new("new", "New file"),
-                h::MenuItem::new("open", "Open file"),
-                h::MenuItem::new("save", "Save"),
-            ]
-        };
-        let dd_multi = self.dropdown_multi.clone();""")
-
-rep("""            crate::pages::Page::Dropdown.import_line(),
+rep("""            crate::pages::Page::Drawer.import_line(),
+            vec![(
+                "Usage",""",
+    """            crate::pages::Page::Drawer.import_line(),
             vec![
                 (
-                    "Usage",""",
-    """            crate::pages::Page::Dropdown.import_line(),
-            vec![
-                (
-                    "With Icons",
-                    col(vec![h::Dropdown::uncontrolled(
-                        h::Button::new("dd-icons")
-                            .label("File")
-                            .variant(Variant::Secondary),
-                        vec![
-                            h::MenuItem::new("new", "New file").icon(h::icons::PLUS),
-                            h::MenuItem::new("copy", "Copy").icon(h::icons::COPY),
-                            h::MenuItem::new("delete", "Delete")
-                                .icon(h::icons::CLOSE)
-                                .danger(),
-                        ],
-                    )
-                    .into_any_element()]),
-                ),
-                (
-                    "With Descriptions",
-                    col(vec![h::Dropdown::uncontrolled(
-                        h::Button::new("dd-desc")
-                            .label("Merge")
-                            .variant(Variant::Secondary),
-                        vec![
-                            h::MenuItem::new("merge", "Create a merge commit").description(
-                                "All commits from this branch are added to the base branch",
-                            ),
-                            h::MenuItem::new("squash", "Squash and merge")
-                                .description("The commits are combined into one"),
-                            h::MenuItem::new("rebase", "Rebase and merge")
-                                .description("The commits are rebased onto the base branch"),
-                        ],
-                    )
-                    .into_any_element()]),
-                ),
-                (
-                    "With Disabled Items",
-                    col(vec![h::Dropdown::uncontrolled(
-                        h::Button::new("dd-disabled")
-                            .label("Actions")
-                            .variant(Variant::Secondary),
-                        plain(),
-                    )
-                    .disabled_keys([SharedString::from("save")])
-                    .into_any_element()]),
-                ),
-                (
-                    "With Sections",
-                    col(vec![h::Dropdown::uncontrolled(
-                        h::Button::new("dd-sections")
-                            .label("Actions")
-                            .variant(Variant::Secondary),
-                        vec![
-                            h::MenuItem::SectionLabel("File".into()),
-                            h::MenuItem::new("new", "New file"),
-                            h::MenuItem::new("open", "Open file"),
-                            h::MenuItem::Separator,
-                            h::MenuItem::SectionLabel("Danger".into()),
-                            h::MenuItem::new("delete", "Delete").danger(),
-                        ],
-                    )
-                    .into_any_element()]),
-                ),
-                (
-                    "Controlled",
-                    col(vec![
-                        h::Dropdown::new(
-                            h::Button::new("dd-controlled")
-                                .label("Actions")
-                                .variant(Variant::Secondary),
-                            plain(),
-                            is_open,
-                        )
-                        .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-                            this.dropdown_open = *open;
-                            cx.notify();
-                        })))
-                        .on_action(cx.listener(|this, key: &SharedString, _, cx| {
-                            this.dropdown_selected = Some(key.clone());
-                            this.dropdown_open = false;
-                            cx.notify();
-                        }))
-                        .into_any_element(),
-                        para(&format!("Last action: {selected}"), cx),
-                    ]),
-                ),
-                (
-                    "Controlled Open State",
-                    col(vec![
-                        row(vec![
-                            h::Button::new("dd-open-btn")
-                                .label(if is_open { "Close menu" } else { "Open menu" })
-                                .size(Size::Sm)
-                                .on_press(cx.listener(|this, _, _, cx| {
-                                    this.dropdown_open = !this.dropdown_open;
-                                    cx.notify();
-                                }))
+                    "Placement",
+                    col([
+                        ("dr-left", "Left", h::DrawerPlacement::Left),
+                        ("dr-right", "Right", h::DrawerPlacement::Right),
+                        ("dr-top", "Top", h::DrawerPlacement::Top),
+                        ("dr-bottom", "Bottom", h::DrawerPlacement::Bottom),
+                    ]
+                    .into_iter()
+                    .map(|(key, label, placement)| {
+                        let open = self.demo_overlay(key);
+                        overlay_demo(
+                            key,
+                            label,
+                            open,
+                            h::Drawer::new()
+                                .is_open(open)
+                                .placement(placement)
+                                .title(format!("From the {label}"))
+                                .is_dismissible(true)
+                                .child(gpui::div().child("The panel slides in along its edge."))
+                                .on_open_change(bool_cb(cx.listener(
+                                    move |this, v: &bool, _, cx| {
+                                        this.set_demo_flag(key, *v);
+                                        cx.notify();
+                                    },
+                                )))
                                 .into_any_element(),
-                            para(if is_open { "Open" } else { "Closed" }, cx),
-                        ]),
-                        h::Dropdown::new(
-                            h::Button::new("dd-open")
-                                .label("Actions")
-                                .variant(Variant::Secondary),
-                            plain(),
-                            is_open,
+                            cx,
                         )
-                        .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-                            this.dropdown_open = *open;
-                            cx.notify();
-                        })))
-                        .into_any_element(),
-                    ]),
+                    })
+                    .collect()),
                 ),
                 (
-                    "With Single Selection",
-                    col(vec![h::Dropdown::uncontrolled(
-                        h::Button::new("dd-single")
-                            .label("Sort by")
-                            .variant(Variant::Secondary),
-                        vec![
-                            h::MenuItem::new("name", "Name"),
-                            h::MenuItem::new("date", "Date"),
-                            h::MenuItem::new("size", "Size"),
-                        ],
-                    )
-                    .selection_mode(SelectionMode::Single)
-                    .selected_key("date")
-                    .into_any_element()]),
+                    "Non-Dismissable",
+                    col(vec![overlay_demo(
+                        "dr-no-dismiss",
+                        "Open a non-dismissable drawer",
+                        self.demo_overlay("dr-no-dismiss"),
+                        h::Drawer::new()
+                            .is_open(self.demo_overlay("dr-no-dismiss"))
+                            .title("Finish first")
+                            .is_dismissible(false)
+                            .is_keyboard_dismiss_disabled(true)
+                            .child(gpui::div().child("The backdrop and Escape are both inert."))
+                            .footer_child(h::Button::new("dr-no-dismiss-ok").label("Done").on_press(
+                                cx.listener(|this, _, _, cx| {
+                                    this.set_demo_flag("dr-no-dismiss", false);
+                                    cx.notify();
+                                }),
+                            ))
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("dr-no-dismiss", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        cx,
+                    )]),
                 ),
                 (
-                    "Single With Custom Indicator",
-                    col(vec![h::Dropdown::uncontrolled(
-                        h::Button::new("dd-single-ind")
-                            .label("Sort by")
-                            .variant(Variant::Secondary),
-                        vec![
-                            h::MenuItem::new("name", "Name"),
-                            h::MenuItem::new("date", "Date"),
-                        ],
-                    )
-                    .selection_mode(SelectionMode::Single)
-                    .selected_key("name")
-                    .indicator(h::IndicatorKind::Dot)
-                    .into_any_element()]),
+                    "Scrollable Content",
+                    col(vec![overlay_demo(
+                        "dr-scroll",
+                        "Open a long drawer",
+                        self.demo_overlay("dr-scroll"),
+                        h::Drawer::new()
+                            .is_open(self.demo_overlay("dr-scroll"))
+                            .title("Release notes")
+                            .is_dismissible(true)
+                            .child(
+                                gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(8.))
+                                    .children((1..=20).map(|n| {
+                                        gpui::div().child(format!("Change {n} of twenty."))
+                                    })),
+                            )
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("dr-scroll", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        cx,
+                    )]),
                 ),
                 (
-                    "With Section Level Selection",
-                    col(vec![h::Dropdown::uncontrolled(
-                        h::Button::new("dd-section-sel")
-                            .label("View")
-                            .variant(Variant::Secondary),
-                        vec![
-                            h::MenuItem::SectionLabel("Sort".into()),
-                            h::MenuItem::new("name", "Name"),
-                            h::MenuItem::new("date", "Date"),
-                            h::MenuItem::Separator,
-                            h::MenuItem::SectionLabel("Show".into()),
-                            h::MenuItem::new("hidden", "Hidden files"),
-                        ],
-                    )
-                    .selection_mode(SelectionMode::Multiple)
-                    .selected_keys(dd_multi.clone())
-                    .on_selection_change(cx.listener(|this, keys: &[SharedString], _, cx| {
-                        this.dropdown_multi = keys.to_vec();
-                        cx.notify();
-                    }))
-                    .into_any_element()]),
-                ),
-                (
-                    "With Keyboard Shortcuts",
-                    col(vec![h::Dropdown::uncontrolled(
-                        h::Button::new("dd-shortcuts")
-                            .label("Edit")
-                            .variant(Variant::Secondary),
-                        vec![
-                            h::MenuItem::new("cut", "Cut").shortcut("Ctrl X"),
-                            h::MenuItem::new("copy", "Copy").shortcut("Ctrl C"),
-                            h::MenuItem::new("paste", "Paste").shortcut("Ctrl V"),
-                        ],
-                    )
-                    .into_any_element()]),
-                ),
-                (
-                    "With Submenus",
-                    col(vec![h::Dropdown::uncontrolled(
-                        h::Button::new("dd-submenu")
-                            .label("Share")
-                            .variant(Variant::Secondary),
-                        vec![
-                            h::MenuItem::new("link", "Copy link"),
-                            h::MenuItem::new("email", "Email"),
-                            h::MenuItem::new("other", "Other").submenu(vec![
-                                h::MenuItem::new("sms", "SMS"),
-                                h::MenuItem::new("airdrop", "AirDrop"),
-                                h::MenuItem::new("more", "More\\u{2026}"),
-                            ]),
-                        ],
-                    )
-                    .into_any_element()]),
-                ),
-                (
-                    "With Custom Submenu Indicator",
+                    "Controlled State",
                     col(vec![
                         para(
-                            "`Dropdown.SubmenuIndicator` is the chevron on a row that opens \\
-                             another panel; hover the row to open it.",
+                            &format!(
+                                "The flag lives with the caller: {}",
+                                if self.demo_overlay("dr-controlled") {
+                                    "open"
+                                } else {
+                                    "closed"
+                                }
+                            ),
                             cx,
                         ),
-                        h::Dropdown::uncontrolled(
-                            h::Button::new("dd-submenu-ind")
-                                .label("More")
-                                .variant(Variant::Secondary),
-                            vec![
-                                h::MenuItem::new("profile", "Profile"),
-                                h::MenuItem::new("workspace", "Workspace").submenu(vec![
-                                    h::MenuItem::new("members", "Members"),
-                                    h::MenuItem::new("billing", "Billing"),
-                                ]),
-                            ],
-                        )
-                        .into_any_element(),
+                        overlay_demo(
+                            "dr-controlled",
+                            "Open (controlled)",
+                            self.demo_overlay("dr-controlled"),
+                            h::Drawer::new()
+                                .is_open(self.demo_overlay("dr-controlled"))
+                                .title("Controlled")
+                                .is_dismissible(true)
+                                .child(gpui::div().child("Closing reports through onOpenChange."))
+                                .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("dr-controlled", *v);
+                                    cx.notify();
+                                })))
+                                .into_any_element(),
+                            cx,
+                        ),
                     ]),
                 ),
                 (
-                    "Custom Trigger",
-                    col(vec![h::Dropdown::uncontrolled(
-                        h::Avatar::new().name("Jane Doe"),
-                        vec![
-                            h::MenuItem::new("profile", "Profile"),
-                            h::MenuItem::new("settings", "Settings"),
-                            h::MenuItem::Separator,
-                            h::MenuItem::new("logout", "Log out").danger(),
-                        ],
-                    )
-                    .into_any_element()]),
+                    "With Form",
+                    col(vec![overlay_demo(
+                        "dr-form",
+                        "Open a form drawer",
+                        self.demo_overlay("dr-form"),
+                        h::Drawer::new()
+                            .is_open(self.demo_overlay("dr-form"))
+                            .title("New issue")
+                            .is_dismissible(true)
+                            .child(
+                                gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(12.))
+                                    .child(
+                                        h::TextField::new(self.demo_text("dr-form-title", "", cx))
+                                            .label("Title"),
+                                    )
+                                    .child(
+                                        h::TextArea::new(self.demo_text("dr-form-body", "", cx))
+                                            .label("Description")
+                                            .rows(3),
+                                    ),
+                            )
+                            .footer_child(h::Button::new("dr-form-save").label("Create").on_press(
+                                cx.listener(|this, _, _, cx| {
+                                    this.set_demo_flag("dr-form", false);
+                                    cx.notify();
+                                }),
+                            ))
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("dr-form", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        cx,
+                    )]),
                 ),
                 (
-                    "Long Press Trigger",
-                    col(vec![
-                        para("Hold the button for half a second.", cx),
-                        h::Dropdown::uncontrolled(
-                            h::Button::new("dd-long")
-                                .label("Long press")
-                                .variant(Variant::Secondary),
-                            plain(),
-                        )
-                        .trigger(h::DropdownTrigger::LongPress)
-                        .into_any_element(),
-                    ]),
+                    "Navigation Drawer",
+                    col(vec![overlay_demo(
+                        "dr-nav",
+                        "Open the navigation",
+                        self.demo_overlay("dr-nav"),
+                        h::Drawer::new()
+                            .is_open(self.demo_overlay("dr-nav"))
+                            .placement(h::DrawerPlacement::Left)
+                            .title("Menu")
+                            .is_dismissible(true)
+                            .child(h::ListBox::new(
+                                "dr-nav-list",
+                                vec![
+                                    h::ListBoxItem::new("home", "Home"),
+                                    h::ListBoxItem::new("projects", "Projects"),
+                                    h::ListBoxItem::new("settings", "Settings"),
+                                    h::ListBoxItem::separator(),
+                                    h::ListBoxItem::new("logout", "Log out").danger(),
+                                ],
+                            ))
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.set_demo_flag("dr-nav", *v);
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        cx,
+                    )]),
+                ),
+                (
+                    "Backdrop Variants",
+                    col(herogpui_core::Backdrop::ALL
+                        .iter()
+                        .map(|backdrop| {
+                            let key: &'static str = match backdrop {
+                                herogpui_core::Backdrop::Opaque => "dr-bd-opaque",
+                                herogpui_core::Backdrop::Blur => "dr-bd-blur",
+                                herogpui_core::Backdrop::Transparent => "dr-bd-transparent",
+                            };
+                            let open = self.demo_overlay(key);
+                            overlay_demo(
+                                key,
+                                backdrop.label(),
+                                open,
+                                h::Drawer::new()
+                                    .is_open(open)
+                                    .backdrop(*backdrop)
+                                    .title(format!("Backdrop: {}", backdrop.label()))
+                                    .is_dismissible(true)
+                                    .child(gpui::div().child("The scrim behind the panel."))
+                                    .on_open_change(bool_cb(cx.listener(
+                                        move |this, v: &bool, _, cx| {
+                                            this.set_demo_flag(key, *v);
+                                            cx.notify();
+                                        },
+                                    )))
+                                    .into_any_element(),
+                                cx,
+                            )
+                        })
+                        .collect()),
                 ),
                 (
                     "Usage",""")
 
 io.open(P, 'w', encoding='utf-8', newline='').write(s)
-print('patched dropdown page')
+print('patched drawer page')
