@@ -271,6 +271,12 @@ CHECKS = [
     ('toggle-button-group', '.toggle-button-group--detached', 'gap',
      'ToggleButtonGroup detached gap', SRC + 'toggle_button.rs',
      r'is_detached \{ px\((\d+(?:\.\d*)?)\.\) \} else \{ px\(0\.\) \}', None),
+    ('accordion', '.accordion__trigger', 'px', 'Accordion trigger padding_x',
+     SRC + 'accordion.rs',
+     r'`\.accordion__trigger` is `px-4 py-4`\.\s+\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('accordion', '.accordion__trigger', 'py', 'Accordion trigger padding_y',
+     SRC + 'accordion.rs',
+     r'\.px\(px\(16\.\)\)\s+\.py\(px\((\d+(?:\.\d*)?)\.\)\)', None),
 ]
 
 

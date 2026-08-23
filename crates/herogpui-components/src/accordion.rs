@@ -198,26 +198,22 @@ impl RenderOnce for Accordion {
         let colors = cx.colors();
         let layout = cx.layout();
 
-        // `default` is flush with the page; `surface` lifts the whole group
-        // onto a surface with the surface shadow.
+        // `.accordion` is `w-full` and nothing else: the default variant is
+        // flush with the page. Only `.accordion--surface` paints a background
+        // and rounds the group. This used to give both variants a rounded white
+        // card, so `variant` made no visible difference.
         let mut container = match self.variant {
             AccordionVariant::Default => gpui::div(),
             AccordionVariant::Surface => gpui::div()
                 .bg(colors.surface.background)
-                .border(layout.border_width)
-                .border_color(colors.border)
                 .rounded(crate::util::container_radius(cx))
+                .overflow_hidden()
                 .when(!layout.surface_shadow.is_empty(), |e| {
                     e.shadow(layout.surface_shadow.clone())
                 }),
         };
 
-        container = container
-            .flex()
-            .flex_col()
-            .rounded(crate::util::control_radius(cx))
-            .bg(colors.surface.background)
-            .overflow_hidden();
+        container = container.w_full().flex().flex_col();
 
         let count = self.items.len();
         for (i, item) in self.items.into_iter().enumerate() {
@@ -229,8 +225,9 @@ impl RenderOnce for Accordion {
                 .flex()
                 .items_center()
                 .justify_between()
-                .px(px(12.))
-                .py(px(10.));
+                // `.accordion__trigger` is `px-4 py-4`.
+                .px(px(16.))
+                .py(px(16.));
 
             if item_disabled {
                 header = header.opacity(layout.disabled_opacity);
@@ -305,8 +302,8 @@ impl RenderOnce for Accordion {
             if is_open {
                 section = section.child(
                     gpui::div()
-                        .px(px(12.))
-                        .pb(px(12.))
+                        .px(px(16.))
+                        .pb(px(16.))
                         .pt(px(2.))
                         .text_size(px(14.))
                         .line_height(px(22.))
@@ -315,8 +312,23 @@ impl RenderOnce for Accordion {
                 );
             }
 
+            // `.accordion__item::after` is a 1px `bg-separator` line at the
+            // bottom of every item but the last, inset to 3%/94% on a surface.
+            let inset = self.variant == AccordionVariant::Surface;
             section = section.when(!self.hide_separator && i + 1 < count, |s| {
-                s.border_b_1().border_color(colors.separator)
+                s.child(
+                    gpui::div()
+                        .h(px(1.))
+                        .rounded(crate::util::hairline_radius(cx))
+                        .bg(colors.separator)
+                        .map(|line| {
+                            if inset {
+                                line.mx(gpui::relative(0.03)).w(gpui::relative(0.94))
+                            } else {
+                                line.w_full()
+                            }
+                        }),
+                )
             });
 
             container = container.child(section);

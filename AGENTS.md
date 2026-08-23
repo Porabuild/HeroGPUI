@@ -69,10 +69,10 @@ Read the diff.
 - The gallery is a GUI app and renders lazily, so a page can compile and still
   panic at runtime (gpui asserts on e.g. a second `.hover()` call on one
   element). After touching components, walk every route:
-  `.shots/smoke.ps1` — it launches each of the 71 pages and reports any that
+  `.shots/smoke.ps1` — it launches each of the 73 pages and reports any that
   exit early, with the panic message. Run it in the current shell, not through
   `powershell -File`. A page is only reported as failed if it dies **twice**:
-  launching 71 gpui windows back to back intermittently kills one during
+  launching 73 gpui windows back to back intermittently kills one during
   startup — exit -1, empty stderr, a different page each run — and reporting
   those made the gate unheedable. A real panic reproduces on the retry and
   prints; a line reading `retry rendered` is the transient kind.
@@ -111,7 +111,7 @@ Read the diff.
     back blank for anything presenting through DirectComposition, as gpui does.
     Check the result is not a uniform frame before saving.
   - `gallery.exe` is a **console-subsystem** binary, so every launch pops a
-    console window and takes focus — 71 times in a smoke run. Launch it through
+    console window and takes focus — 73 times in a smoke run. Launch it through
     `ProcessStartInfo` with `CreateNoWindow = $true` (the CREATE_NO_WINDOW
     creation flag), which suppresses that console and nothing else.
     `Start-Process -WindowStyle Hidden` hides the gpui window too, and then
@@ -166,6 +166,12 @@ times:
   several structs (`Toast`/`ToastViewport`, `Table`/`TableColumn`), list them in
   `COMPANIONS` — but never list a *different* component that happens to live in
   the same module, or a gap on one hides behind the other.
+- **The window truncated the widest tables.** `props_for` read 4000 characters
+  after a `### Component` heading. ComboBox's type column is wide enough that
+  the last six rows of its table fell outside it and were never compared:
+  `validate`, `validationBehavior`, `name`, `form`, `formValue` and
+  `autoComplete`. Both this and `reason_audit.py` now run to the next heading of
+  level three or shallower, with no cap -- 592 documented props became 624.
 - `ALIAS` can launder a gap. `defaultValue` was mapped to `value`, so every
   missing *uncontrolled* seed counted as an implemented *controlled* prop — 18
   of them. An alias is for a prop we spell differently, never for a different
@@ -291,6 +297,33 @@ What is genuinely out of reach: ARIA attributes with no accessibility tree,
 of a `<form>`, and single-valued enums. One more is a missing *mode*, named that
 way (`single-wrap-mode`) rather than dressed up as an unportable prop. Say which
 is which rather than reporting one number.
+
+None of the prop audits asks whether the gallery ever *shows* a feature. v3's
+docs are a list of worked examples per component, so that is its own diff:
+
+```bash
+python .shots/example_audit.py     # v3's `### ` examples vs the gallery's sections
+python .shots/example_src.py Button "Social Buttons"   # what one contains
+```
+
+It reads the `### ` headings under each page's `## Examples` on one side, and the
+section titles each `page_*` hands to `doc_page` on the other. Four things it got
+wrong first, each of which silently inflated or deflated the number:
+
+- **Match on indentation, not on `("..",`.** The loose form also counted every
+  element id and tab key in the page body, which made "104 demonstrated" mean
+  nothing.
+- **A single-section page writes `vec![(` on one line**, so that tuple's paren
+  never starts a line and the section did not count at all.
+- **A page whose v3 name is not the snake_case of ours needs a `PAGE_ALIAS`.**
+  `ToggleButtonGroup`, `Label`, `Description`, `ErrorMessage` and `FieldError`
+  were being skipped entirely -- 26 examples that never appeared in the total.
+- **Three categories, not two.** `WONT_DEMO_NAMES` is for an example name
+  wherever it appears (v3 documents "Render Function" on 31 pages and it is the
+  same DOM-substituting prop every time); `WONT_DEMO` is for one page's example;
+  and `NEEDS_FEATURE` is for an example waiting on a component feature this port
+  has not built -- counted and named separately rather than excused, so the
+  number cannot hide.
 
 A prop that is stored but never read is worse than a missing one: the API
 promises behaviour it does not have. After adding fields, run
