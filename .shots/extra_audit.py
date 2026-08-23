@@ -163,6 +163,7 @@ EXTRA_OK_SCOPED = {
     # `ButtonGroup.Separator` is a child part in v3, composed inside whichever
     # member should show one. A monolithic group takes it as a flag.
     'ButtonGroup.separators': 'composition',
+    'ToggleButtonGroup.separators': 'composition',
     # `Switch.Thumb` takes children (v3 swaps an icon per state), and the
     # label's side comes from the order of `Switch.Content`'s children.
     'Switch.thumb_icons': 'composition',
@@ -176,6 +177,11 @@ EXTRA_OK_SCOPED = {
     # `Checkbox.Indicator` takes children (v3 swaps the glyph per state), and
     # its "Full Rounded" example rounds `Checkbox.Control` with a class.
     'Checkbox.indicator': 'composition',
+    # v3 builds a Select's list out of `ListBox` parts and its trigger out of
+    # `Select.Value`; a monolithic Select takes each as a slot.
+    'Select.section_before': 'composition',
+    'Select.indicator': 'composition',
+    'Select.value_content': 'composition',
     'Checkbox.is_round': 'no-classname',
     'Link.icon': 'composition',
     'Link.icon_first': 'composition',

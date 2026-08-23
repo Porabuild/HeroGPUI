@@ -38,6 +38,14 @@ pub struct Select {
     variant: FieldVariant,
     is_disabled: bool,
     is_invalid: bool,
+    /// `ListBox.Section` — the heading that precedes an option, by index.
+    sections: Vec<(usize, SharedString)>,
+    /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
+    /// the row is selected.
+    indicator: Option<Box<dyn Fn(bool) -> gpui::AnyElement + 'static>>,
+    /// `Select.Value` — draws the trigger's value. The closure is handed the
+    /// selected index, or `None` while the placeholder shows.
+    value_content: Option<Box<dyn Fn(Option<usize>) -> gpui::AnyElement + 'static>>,
     is_required: bool,
     disabled_keys: std::collections::HashSet<usize>,
     full_width: bool,
@@ -59,6 +67,28 @@ impl Select {
     /// `disabledKeys` — indices that cannot be chosen.
     pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = usize>) -> Self {
         self.disabled_keys = keys.into_iter().collect();
+        self
+    }
+
+    /// `ListBox.Section` — a heading rendered above the option at `index`.
+    pub fn section_before(mut self, index: usize, label: impl Into<SharedString>) -> Self {
+        self.sections.push((index, label.into()));
+        self
+    }
+
+    /// `ListBox.ItemIndicator` — draw the selected tick yourself.
+    pub fn indicator(mut self, render: impl Fn(bool) -> gpui::AnyElement + 'static) -> Self {
+        self.indicator = Some(Box::new(render));
+        self
+    }
+
+    /// `Select.Value` — draw the trigger's value yourself. The closure is handed
+    /// the selected index, or `None` while the placeholder shows.
+    pub fn value_content(
+        mut self,
+        render: impl Fn(Option<usize>) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.value_content = Some(Box::new(render));
         self
     }
 
@@ -96,6 +126,9 @@ impl Select {
             variant: FieldVariant::Primary,
             is_disabled: false,
             is_invalid: false,
+            sections: Vec::new(),
+            indicator: None,
+            value_content: None,
             is_required: false,
             disabled_keys: std::collections::HashSet::new(),
             full_width: false,
@@ -317,29 +350,35 @@ impl RenderOnce for Select {
             selected.is_some()
         };
 
-        field = field
-            .child(
-                gpui::div()
-                    .flex_1()
-                    .truncate()
-                    .text_color(if has_value {
-                        colors.foreground
-                    } else {
-                        colors.muted
-                    })
-                    .child(value_text.to_string()),
-            )
-            .child(
-                gpui::svg()
-                    .size(px(16.))
-                    .path(if is_open {
-                        icons::CHEVRON_UP
-                    } else {
-                        icons::CHEVRON_DOWN
-                    })
-                    .text_color(colors.muted)
-                    .flex_shrink_0(),
-            );
+        // `Select.Value` — a caller-drawn value replaces the trigger's text.
+        let value_slot = match &self.value_content {
+            Some(render) => gpui::div()
+                .flex_1()
+                .min_w_0()
+                .child(render(if has_value { selected } else { None }))
+                .into_any_element(),
+            None => gpui::div()
+                .flex_1()
+                .truncate()
+                .text_color(if has_value {
+                    colors.foreground
+                } else {
+                    colors.muted
+                })
+                .child(value_text.to_string())
+                .into_any_element(),
+        };
+        field = field.child(value_slot).child(
+            gpui::svg()
+                .size(px(16.))
+                .path(if is_open {
+                    icons::CHEVRON_UP
+                } else {
+                    icons::CHEVRON_DOWN
+                })
+                .text_color(colors.muted)
+                .flex_shrink_0(),
+        );
 
         if !self.is_disabled && (self.on_open_change.is_some() || open_own.is_some()) {
             let on_open_change = self.on_open_change.clone();
@@ -399,6 +438,19 @@ impl RenderOnce for Select {
                 .max_h(px(280.));
 
             for (i, opt) in self.options.iter().enumerate() {
+                // `ListBox.Section`'s `Header`: `text-xs` in the muted colour,
+                // above the option it introduces.
+                if let Some((_, label)) = self.sections.iter().find(|(at, _)| *at == i) {
+                    panel = panel.child(
+                        gpui::div()
+                            .px(px(8.))
+                            .pt(px(6.))
+                            .pb(px(2.))
+                            .text_size(px(12.))
+                            .text_color(colors.muted)
+                            .child(label.to_string()),
+                    );
+                }
                 let is_sel = if multiple {
                     self.selected_indices.contains(&i)
                 } else {
@@ -437,13 +489,17 @@ impl RenderOnce for Select {
 
                 item = item.child(gpui::div().truncate().child(opt.to_string()));
 
-                if is_sel {
-                    item = item.child(
-                        gpui::svg()
-                            .size(px(13.))
-                            .path(icons::CHECK)
-                            .text_color(sem.color),
-                    );
+                match &self.indicator {
+                    Some(render) => item = item.child(render(is_sel)),
+                    None if is_sel => {
+                        item = item.child(
+                            gpui::svg()
+                                .size(px(13.))
+                                .path(icons::CHECK)
+                                .text_color(sem.color),
+                        );
+                    }
+                    None => {}
                 }
 
                 if !opt_disabled {
