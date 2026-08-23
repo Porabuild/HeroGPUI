@@ -21,6 +21,11 @@ pub enum MenuItem {
         shortcut: Option<SharedString>,
         icon: Option<&'static str>,
         is_danger: bool,
+        /// `Description` inside a `Dropdown.Item` — v3's "With Descriptions".
+        description: Option<SharedString>,
+        /// `Dropdown.SubmenuTrigger` — the rows this item opens. The row grows a
+        /// trailing indicator and the panel appears beside it.
+        submenu: Vec<MenuItem>,
     },
 }
 
@@ -32,7 +37,25 @@ impl MenuItem {
             shortcut: None,
             icon: None,
             is_danger: false,
+            description: None,
+            submenu: Vec::new(),
         }
+    }
+
+    /// `Description` — the second line v3 composes inside an item.
+    pub fn description(mut self, text: impl Into<SharedString>) -> Self {
+        if let MenuItem::Item { description, .. } = &mut self {
+            *description = Some(text.into());
+        }
+        self
+    }
+
+    /// `Dropdown.SubmenuTrigger` — the rows this item opens.
+    pub fn submenu(mut self, items: Vec<MenuItem>) -> Self {
+        if let MenuItem::Item { submenu, .. } = &mut self {
+            *submenu = items;
+        }
+        self
     }
 
     pub fn shortcut(mut self, s: impl Into<SharedString>) -> Self {
@@ -193,9 +216,17 @@ impl Menu {
 }
 
 impl RenderOnce for Menu {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let colors = cx.colors();
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let base = format!("{:?}", self.id);
+        // Which submenu is open, if any. `use_keyed_state` takes `cx` mutably,
+        // so it precedes everything that borrows the theme.
+        let submenu_state = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{base}-submenu").into()),
+            cx,
+            |_, _| None::<SharedString>,
+        );
+        let submenu_open = submenu_state.read(cx).clone();
+        let colors = cx.colors();
 
         let mut panel = gpui::div()
             .flex()
@@ -237,6 +268,8 @@ impl RenderOnce for Menu {
                     shortcut,
                     icon,
                     is_danger,
+                    description,
+                    submenu,
                 } => {
                     // Either the single controlled key or membership of the
                     // selection set marks an item.
@@ -250,6 +283,7 @@ impl RenderOnce for Menu {
                     } else {
                         colors.foreground
                     };
+                    let has_description = description.is_some();
                     let mut row = gpui::div()
                         .id(gpui::ElementId::Name(format!("{base}-item-{i}").into()))
                         .flex()
@@ -257,9 +291,15 @@ impl RenderOnce for Menu {
                         .gap(px(8.))
                         .px(px(8.))
                         .rounded(crate::util::soft_radius(cx))
-                        .h(px(32.))
                         .text_size(px(13.5))
                         .text_color(text_color);
+                    // A described row grows instead of clipping its second line,
+                    // which is what `.list-box-item`'s `min-h-9` does.
+                    row = if has_description {
+                        row.min_h(px(32.)).py(px(6.))
+                    } else {
+                        row.h(px(32.))
+                    };
                     if !is_item_disabled {
                         row = row.cursor_pointer();
                         row = row.hover(move |s| s.bg(colors.default.soft()));
@@ -281,10 +321,28 @@ impl RenderOnce for Menu {
                     let is_indeterminate = self.selection_mode == SelectionMode::Multiple
                         && !self.selected_keys.is_empty()
                         && !is_selected;
-                    row = row.child(gpui::div().flex_1().child(match &self.item_content {
-                        Some(render) => render(&key, is_selected, is_indeterminate),
-                        None => label.to_string().into_any_element(),
-                    }));
+                    row = row.child(
+                        gpui::div().flex_1().child(match &self.item_content {
+                            Some(render) => render(&key, is_selected, is_indeterminate),
+                            None => match &description {
+                                // `Label` over `Description`, which is how v3
+                                // composes a described item.
+                                Some(text) => gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(1.))
+                                    .child(gpui::div().child(label.to_string()))
+                                    .child(
+                                        gpui::div()
+                                            .text_size(px(11.5))
+                                            .text_color(colors.muted)
+                                            .child(text.to_string()),
+                                    )
+                                    .into_any_element(),
+                                None => label.to_string().into_any_element(),
+                            },
+                        }),
+                    );
                     if let Some(sc) = shortcut {
                         row = row.child(
                             gpui::div()
@@ -293,6 +351,18 @@ impl RenderOnce for Menu {
                                 .child(sc.to_string()),
                         );
                     }
+                    // `Dropdown.SubmenuIndicator` — the chevron that says a row
+                    // opens another panel.
+                    let has_submenu = !submenu.is_empty();
+                    if has_submenu {
+                        row = row.child(
+                            gpui::svg()
+                                .size(px(13.))
+                                .path(icons::CHEVRON_RIGHT)
+                                .text_color(colors.muted),
+                        );
+                    }
+
                     if is_selected && self.selection_mode != SelectionMode::None {
                         row = match self.indicator {
                             IndicatorKind::Checkmark => row.child(
@@ -328,7 +398,51 @@ impl RenderOnce for Menu {
                         }
                     }
 
-                    panel = panel.child(row);
+                    // `Dropdown.SubmenuTrigger`: the child panel is anchored to
+                    // the row and opens while the row is hovered. gpui paints in
+                    // tree order, so it goes through `util::floating` like every
+                    // other floating surface.
+                    if has_submenu {
+                        let open_key = SharedString::from(format!("{base}-sub-{i}"));
+                        let is_sub_open = submenu_open.as_ref() == Some(&open_key);
+                        let held = submenu_state.clone();
+                        let open_key2 = open_key.clone();
+                        row = row.on_hover(move |hovered, _window, cx| {
+                            let next = if *hovered {
+                                Some(open_key2.clone())
+                            } else {
+                                None
+                            };
+                            held.update(cx, |v, cx| {
+                                if *v != next {
+                                    *v = next.clone();
+                                    cx.notify();
+                                }
+                            });
+                        });
+                        let mut slot = gpui::div().relative().child(row);
+                        if is_sub_open {
+                            slot = slot.child(crate::util::floating(
+                                gpui::div()
+                                    .absolute()
+                                    .left_full()
+                                    .top(px(-6.))
+                                    .ml(px(4.))
+                                    .child({
+                                        let mut sub = Menu::new(submenu).indicator(self.indicator);
+                                        if let Some(cb) = self.on_action.clone() {
+                                            sub = sub.on_action(move |key, window, cx| {
+                                                cb(key, window, cx);
+                                            });
+                                        }
+                                        sub
+                                    }),
+                            ));
+                        }
+                        panel = panel.child(slot);
+                    } else {
+                        panel = panel.child(row);
+                    }
                 }
             }
         }
@@ -370,11 +484,26 @@ fn when_selected(
     }
 }
 
+/// `trigger` — what opens the menu.
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum DropdownTrigger {
+    /// A press opens it, which is v3's default.
+    #[default]
+    Press,
+    /// A press held for `LONG_PRESS_MS` opens it.
+    LongPress,
+}
+
+/// How long `trigger="longPress"` waits. React Aria uses 500ms.
+const LONG_PRESS_MS: u64 = 500;
+
 /// Dropdown wrapper: trigger + floating menu panel (`Dropdown/DropdownTrigger/
 /// DropdownMenu` composition).
 #[derive(IntoElement)]
 pub struct Dropdown {
     trigger: AnyElement,
+    /// `trigger` — press (the default) or long press.
+    trigger_kind: DropdownTrigger,
     /// `isOpen` — `None` leaves the component holding the flag, seeded from
     /// `defaultOpen`.
     is_open: Option<bool>,
@@ -422,6 +551,12 @@ impl Dropdown {
 
     /// An uncontrolled dropdown: the menu holds its own open state, seeded
     /// from [`Dropdown::default_open`], and the trigger toggles it.
+    /// `trigger` — `Press` (default) or `LongPress`.
+    pub fn trigger(mut self, kind: DropdownTrigger) -> Self {
+        self.trigger_kind = kind;
+        self
+    }
+
     pub fn uncontrolled(trigger: impl IntoElement, items: Vec<MenuItem>) -> Self {
         let mut dd = Self::new(trigger, items, false);
         dd.is_open = None;
@@ -431,6 +566,7 @@ impl Dropdown {
     pub fn new(trigger: impl IntoElement, items: Vec<MenuItem>, is_open: bool) -> Self {
         Self {
             trigger: trigger.into_any_element(),
+            trigger_kind: DropdownTrigger::default(),
             is_open: Some(is_open),
             default_open: false,
             on_open_change: None,
@@ -507,24 +643,76 @@ impl RenderOnce for Dropdown {
         // `overlay_phase` takes `cx` mutably too, so it goes here.
         let phase = crate::util::overlay_phase(window, cx, "dropdown-phase", is_open);
 
+        // `trigger="longPress"` needs to know whether the button is still down
+        // when the timer fires, so the press is a piece of state rather than a
+        // local.
+        let holding = window.use_keyed_state("dropdown-holding", cx, |_, _| false);
+
         let mut trigger_wrap = gpui::div().id("dropdown-trigger").cursor_pointer();
         let on_open_change = self.on_open_change.clone();
         if on_open_change.is_some() || open_own.is_some() {
             let next_open = !is_open;
             let own = open_own;
-            trigger_wrap = trigger_wrap.on_click(move |_ev: &ClickEvent, w, cx| {
-                // Uncontrolled: flip our own copy, or the trigger would be
-                // inert without a caller handler.
-                if let Some(held) = &own {
-                    held.update(cx, |v, cx| {
-                        *v = next_open;
-                        cx.notify();
+            match self.trigger_kind {
+                DropdownTrigger::Press => {
+                    trigger_wrap = trigger_wrap.on_click(move |_ev: &ClickEvent, w, cx| {
+                        // Uncontrolled: flip our own copy, or the trigger would
+                        // be inert without a caller handler.
+                        if let Some(held) = &own {
+                            held.update(cx, |v, cx| {
+                                *v = next_open;
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &on_open_change {
+                            cb(next_open, w, cx);
+                        }
                     });
                 }
-                if let Some(cb) = &on_open_change {
-                    cb(next_open, w, cx);
+                DropdownTrigger::LongPress => {
+                    let up_holding = holding.clone();
+                    trigger_wrap = trigger_wrap
+                        .on_mouse_down(gpui::MouseButton::Left, {
+                            let holding = holding.clone();
+                            move |_, window, cx| {
+                                holding.update(cx, |v, _| *v = true);
+                                let holding = holding.clone();
+                                let own = own.clone();
+                                let on_open_change = on_open_change.clone();
+                                // Open only if the button is still down when the
+                                // timer expires; a quick click leaves it shut.
+                                // `window.spawn` rather than `cx.spawn`: the
+                                // callback needs a `Window`, and only a window
+                                // async context can hand one back.
+                                window
+                                    .spawn(cx, async move |cx| {
+                                        cx.background_executor()
+                                            .timer(std::time::Duration::from_millis(LONG_PRESS_MS))
+                                            .await;
+                                        cx.update(|window, cx| {
+                                            if !*holding.read(cx) {
+                                                return;
+                                            }
+                                            if let Some(held) = &own {
+                                                held.update(cx, |v, cx| {
+                                                    *v = true;
+                                                    cx.notify();
+                                                });
+                                            }
+                                            if let Some(cb) = &on_open_change {
+                                                cb(true, window, cx);
+                                            }
+                                        })
+                                        .ok();
+                                    })
+                                    .detach();
+                            }
+                        })
+                        .on_mouse_up(gpui::MouseButton::Left, move |_, _window, cx| {
+                            up_holding.update(cx, |v, _| *v = false);
+                        });
                 }
-            });
+            }
         }
 
         // A flex column with `items_start` keeps the trigger at its natural

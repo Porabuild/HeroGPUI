@@ -1,4 +1,4 @@
-"""ListBox and TagGroup pages: every v3 example."""
+"""Dropdown page: the fifteen v3 examples it was missing."""
 import io
 
 P = 'gallery/src/pages/components.rs'
@@ -11,232 +11,287 @@ def rep(old, new):
     s = s.replace(old, new)
 
 
-# ----------------------------------------------------------------- ListBox
-rep("""            crate::pages::Page::ListBox.import_line(),
+rep("""        let items = vec![
+            h::MenuItem::new("new", "New file").shortcut("Ctrl N"),
+            h::MenuItem::new("copy", "Copy link").shortcut("Ctrl C"),
+            h::MenuItem::Separator,
+            h::MenuItem::new("delete", "Delete file").danger(),
+        ];""",
+    """        let items = vec![
+            h::MenuItem::new("new", "New file").shortcut("Ctrl N"),
+            h::MenuItem::new("copy", "Copy link").shortcut("Ctrl C"),
+            h::MenuItem::Separator,
+            h::MenuItem::new("delete", "Delete file").danger(),
+        ];
+        // A `MenuItem` is moved into the menu that shows it, so each demo builds
+        // its own list.
+        let plain = || {
+            vec![
+                h::MenuItem::new("new", "New file"),
+                h::MenuItem::new("open", "Open file"),
+                h::MenuItem::new("save", "Save"),
+            ]
+        };
+        let dd_multi = self.dropdown_multi.clone();""")
+
+rep("""            crate::pages::Page::Dropdown.import_line(),
             vec![
                 (
-                    "Single selection",""",
-    """            crate::pages::Page::ListBox.import_line(),
+                    "Usage",""",
+    """            crate::pages::Page::Dropdown.import_line(),
             vec![
                 (
-                    "Usage",
-                    col(vec![gpui::div()
-                        .w(px(280.))
-                        .child(h::ListBox::new(
-                            "lb-usage",
-                            vec![
-                                h::ListBoxItem::new("inbox", "Inbox"),
-                                h::ListBoxItem::new("sent", "Sent"),
-                                h::ListBoxItem::new("drafts", "Drafts"),
-                            ],
-                        ))
-                        .into_any_element()]),
+                    "With Icons",
+                    col(vec![h::Dropdown::uncontrolled(
+                        h::Button::new("dd-icons")
+                            .label("File")
+                            .variant(Variant::Secondary),
+                        vec![
+                            h::MenuItem::new("new", "New file").icon(h::icons::PLUS),
+                            h::MenuItem::new("copy", "Copy").icon(h::icons::COPY),
+                            h::MenuItem::new("delete", "Delete")
+                                .icon(h::icons::CLOSE)
+                                .danger(),
+                        ],
+                    )
+                    .into_any_element()]),
+                ),
+                (
+                    "With Descriptions",
+                    col(vec![h::Dropdown::uncontrolled(
+                        h::Button::new("dd-desc")
+                            .label("Merge")
+                            .variant(Variant::Secondary),
+                        vec![
+                            h::MenuItem::new("merge", "Create a merge commit").description(
+                                "All commits from this branch are added to the base branch",
+                            ),
+                            h::MenuItem::new("squash", "Squash and merge")
+                                .description("The commits are combined into one"),
+                            h::MenuItem::new("rebase", "Rebase and merge")
+                                .description("The commits are rebased onto the base branch"),
+                        ],
+                    )
+                    .into_any_element()]),
                 ),
                 (
                     "With Disabled Items",
-                    col(vec![gpui::div()
-                        .w(px(280.))
-                        .child(
-                            h::ListBox::new(
-                                "lb-disabled",
-                                vec![
-                                    h::ListBoxItem::new("inbox", "Inbox"),
-                                    h::ListBoxItem::new("sent", "Sent"),
-                                    h::ListBoxItem::new("drafts", "Drafts"),
-                                ],
-                            )
-                            .disabled_keys([SharedString::from("drafts")]),
-                        )
-                        .into_any_element()]),
+                    col(vec![h::Dropdown::uncontrolled(
+                        h::Button::new("dd-disabled")
+                            .label("Actions")
+                            .variant(Variant::Secondary),
+                        plain(),
+                    )
+                    .disabled_keys([SharedString::from("save")])
+                    .into_any_element()]),
                 ),
                 (
                     "With Sections",
-                    col(vec![gpui::div()
-                        .w(px(280.))
-                        .child(h::ListBox::new(
-                            "lb-sections",
-                            vec![
-                                h::ListBoxItem::section("Mail"),
-                                h::ListBoxItem::new("inbox", "Inbox"),
-                                h::ListBoxItem::new("sent", "Sent"),
-                                h::ListBoxItem::separator(),
-                                h::ListBoxItem::section("Archive"),
-                                h::ListBoxItem::new("2024", "2024"),
-                                h::ListBoxItem::new("2025", "2025"),
-                            ],
-                        ))
-                        .into_any_element()]),
-                ),
-                (
-                    "Multi Select",
-                    col(vec![gpui::div()
-                        .w(px(280.))
-                        .child(
-                            h::ListBox::new(
-                                "lb-multi-select",
-                                vec![
-                                    h::ListBoxItem::new("inbox", "Inbox"),
-                                    h::ListBoxItem::new("sent", "Sent"),
-                                    h::ListBoxItem::new("spam", "Spam"),
-                                ],
-                            )
-                            .selection_mode(SelectionMode::Multiple)
-                            .selected_keys(selection.iter().cloned())
-                            .on_selection_change(cx.listener(
-                                |this, keys: &HashSet<SharedString>, _, cx| {
-                                    this.list_selection = keys.clone();
-                                    cx.notify();
-                                },
-                            )),
-                        )
-                        .into_any_element()]),
-                ),
-                (
-                    "Controlled",
-                    col(vec![
-                        gpui::div()
-                            .w(px(280.))
-                            .child(
-                                h::ListBox::new(
-                                    "lb-controlled",
-                                    vec![
-                                        h::ListBoxItem::new("inbox", "Inbox"),
-                                        h::ListBoxItem::new("sent", "Sent"),
-                                        h::ListBoxItem::new("spam", "Spam"),
-                                    ],
-                                )
-                                .selected_keys(selection.iter().cloned())
-                                .on_selection_change(cx.listener(
-                                    |this, keys: &HashSet<SharedString>, _, cx| {
-                                        this.list_selection = keys.clone();
-                                        cx.notify();
-                                    },
-                                )),
-                            )
-                            .into_any_element(),
-                        para(&format!("{} selected", selection.len()), cx),
-                    ]),
-                ),
-                (
-                    "Custom Check Icon",
-                    col(vec![
-                        para(
-                            "v3 replaces `ListBox.ItemIndicator`. A row's `variant` is what \\
-                             carries the indicator style here, so the danger row below shows the \\
-                             same tick in its own colour.",
-                            cx,
-                        ),
-                        gpui::div()
-                            .w(px(280.))
-                            .child(
-                                h::ListBox::new(
-                                    "lb-check",
-                                    vec![
-                                        h::ListBoxItem::new("keep", "Keep"),
-                                        h::ListBoxItem::new("delete", "Delete").danger(),
-                                    ],
-                                )
-                                .selected_key("keep"),
-                            )
-                            .into_any_element(),
-                    ]),
-                ),
-                (
-                    "Single selection",""")
-
-# ---------------------------------------------------------------- TagGroup
-rep("""            crate::pages::Page::TagGroup.import_line(),
-            vec![
-                (
-                    "Removable",""",
-    """            crate::pages::Page::TagGroup.import_line(),
-            vec![
-                (
-                    "Usage",
-                    col(vec![h::TagGroup::new("tg-usage", tags())
-                        .label("Skills")
-                        .into_any_element()]),
-                ),
-                (
-                    "Disabled",
-                    col(vec![h::TagGroup::new("tg-disabled", tags())
-                        .label("Skills")
-                        .is_disabled(true)
-                        .into_any_element()]),
-                ),
-                (
-                    "Selection Modes",
-                    col(vec![
-                        spec(
-                            "Single",
-                            h::TagGroup::new("tg-single", tags())
-                                .selection_mode(SelectionMode::Single),
-                            cx,
-                        ),
-                        spec(
-                            "Multiple",
-                            h::TagGroup::new("tg-multiple", tags())
-                                .selection_mode(SelectionMode::Multiple),
-                            cx,
-                        ),
-                    ]),
-                ),
-                (
-                    "Controlled",
-                    col(vec![
-                        h::TagGroup::new("tg-controlled", tags())
-                            .selection_mode(SelectionMode::Multiple)
-                            .selected_keys(tag_selection.iter().cloned())
-                            .on_selection_change(cx.listener(
-                                |this, keys: &HashSet<SharedString>, _, cx| {
-                                    this.tag_selection = keys.clone();
-                                    cx.notify();
-                                },
-                            ))
-                            .into_any_element(),
-                        para(&format!("{} selected", tag_selection.len()), cx),
-                    ]),
-                ),
-                (
-                    "With Error Message",
-                    col(vec![h::TagGroup::new("tg-error", tags())
-                        .label("Skills")
-                        .description("Pick at least one")
-                        .into_any_element()]),
-                ),
-                (
-                    "With List Data",
-                    col(vec![h::TagGroup::new(
-                        "tg-list",
-                        ["Design", "Research", "Writing", "Support", "Ops"]
-                            .into_iter()
-                            .map(|name| h::Tag::new(name.to_lowercase(), name))
-                            .collect(),
-                    )
-                    .label("Teams")
-                    .into_any_element()]),
-                ),
-                (
-                    "With Prefix",
-                    col(vec![h::TagGroup::new(
-                        "tg-prefix",
+                    col(vec![h::Dropdown::uncontrolled(
+                        h::Button::new("dd-sections")
+                            .label("Actions")
+                            .variant(Variant::Secondary),
                         vec![
-                            h::Tag::new("rust", "Rust").icon(h::icons::CHECK),
-                            h::Tag::new("gpui", "GPUI").icon(h::icons::CHECK),
+                            h::MenuItem::SectionLabel("File".into()),
+                            h::MenuItem::new("new", "New file"),
+                            h::MenuItem::new("open", "Open file"),
+                            h::MenuItem::Separator,
+                            h::MenuItem::SectionLabel("Danger".into()),
+                            h::MenuItem::new("delete", "Delete").danger(),
                         ],
                     )
-                    .label("Verified")
                     .into_any_element()]),
                 ),
                 (
-                    "With Remove Button",
-                    col(vec![h::TagGroup::new("tg-remove", tags())
-                        .label("Skills")
-                        .on_remove(cx.listener(|_, _key: &SharedString, _, cx| cx.notify()))
-                        .into_any_element()]),
+                    "Controlled",
+                    col(vec![
+                        h::Dropdown::new(
+                            h::Button::new("dd-controlled")
+                                .label("Actions")
+                                .variant(Variant::Secondary),
+                            plain(),
+                            is_open,
+                        )
+                        .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
+                            this.dropdown_open = *open;
+                            cx.notify();
+                        })))
+                        .on_action(cx.listener(|this, key: &SharedString, _, cx| {
+                            this.dropdown_selected = Some(key.clone());
+                            this.dropdown_open = false;
+                            cx.notify();
+                        }))
+                        .into_any_element(),
+                        para(&format!("Last action: {selected}"), cx),
+                    ]),
                 ),
                 (
-                    "Removable",""")
+                    "Controlled Open State",
+                    col(vec![
+                        row(vec![
+                            h::Button::new("dd-open-btn")
+                                .label(if is_open { "Close menu" } else { "Open menu" })
+                                .size(Size::Sm)
+                                .on_press(cx.listener(|this, _, _, cx| {
+                                    this.dropdown_open = !this.dropdown_open;
+                                    cx.notify();
+                                }))
+                                .into_any_element(),
+                            para(if is_open { "Open" } else { "Closed" }, cx),
+                        ]),
+                        h::Dropdown::new(
+                            h::Button::new("dd-open")
+                                .label("Actions")
+                                .variant(Variant::Secondary),
+                            plain(),
+                            is_open,
+                        )
+                        .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
+                            this.dropdown_open = *open;
+                            cx.notify();
+                        })))
+                        .into_any_element(),
+                    ]),
+                ),
+                (
+                    "With Single Selection",
+                    col(vec![h::Dropdown::uncontrolled(
+                        h::Button::new("dd-single")
+                            .label("Sort by")
+                            .variant(Variant::Secondary),
+                        vec![
+                            h::MenuItem::new("name", "Name"),
+                            h::MenuItem::new("date", "Date"),
+                            h::MenuItem::new("size", "Size"),
+                        ],
+                    )
+                    .selection_mode(SelectionMode::Single)
+                    .selected_key("date")
+                    .into_any_element()]),
+                ),
+                (
+                    "Single With Custom Indicator",
+                    col(vec![h::Dropdown::uncontrolled(
+                        h::Button::new("dd-single-ind")
+                            .label("Sort by")
+                            .variant(Variant::Secondary),
+                        vec![
+                            h::MenuItem::new("name", "Name"),
+                            h::MenuItem::new("date", "Date"),
+                        ],
+                    )
+                    .selection_mode(SelectionMode::Single)
+                    .selected_key("name")
+                    .indicator(h::IndicatorKind::Dot)
+                    .into_any_element()]),
+                ),
+                (
+                    "With Section Level Selection",
+                    col(vec![h::Dropdown::uncontrolled(
+                        h::Button::new("dd-section-sel")
+                            .label("View")
+                            .variant(Variant::Secondary),
+                        vec![
+                            h::MenuItem::SectionLabel("Sort".into()),
+                            h::MenuItem::new("name", "Name"),
+                            h::MenuItem::new("date", "Date"),
+                            h::MenuItem::Separator,
+                            h::MenuItem::SectionLabel("Show".into()),
+                            h::MenuItem::new("hidden", "Hidden files"),
+                        ],
+                    )
+                    .selection_mode(SelectionMode::Multiple)
+                    .selected_keys(dd_multi.clone())
+                    .on_selection_change(cx.listener(|this, keys: &[SharedString], _, cx| {
+                        this.dropdown_multi = keys.to_vec();
+                        cx.notify();
+                    }))
+                    .into_any_element()]),
+                ),
+                (
+                    "With Keyboard Shortcuts",
+                    col(vec![h::Dropdown::uncontrolled(
+                        h::Button::new("dd-shortcuts")
+                            .label("Edit")
+                            .variant(Variant::Secondary),
+                        vec![
+                            h::MenuItem::new("cut", "Cut").shortcut("Ctrl X"),
+                            h::MenuItem::new("copy", "Copy").shortcut("Ctrl C"),
+                            h::MenuItem::new("paste", "Paste").shortcut("Ctrl V"),
+                        ],
+                    )
+                    .into_any_element()]),
+                ),
+                (
+                    "With Submenus",
+                    col(vec![h::Dropdown::uncontrolled(
+                        h::Button::new("dd-submenu")
+                            .label("Share")
+                            .variant(Variant::Secondary),
+                        vec![
+                            h::MenuItem::new("link", "Copy link"),
+                            h::MenuItem::new("email", "Email"),
+                            h::MenuItem::new("other", "Other").submenu(vec![
+                                h::MenuItem::new("sms", "SMS"),
+                                h::MenuItem::new("airdrop", "AirDrop"),
+                                h::MenuItem::new("more", "More\\u{2026}"),
+                            ]),
+                        ],
+                    )
+                    .into_any_element()]),
+                ),
+                (
+                    "With Custom Submenu Indicator",
+                    col(vec![
+                        para(
+                            "`Dropdown.SubmenuIndicator` is the chevron on a row that opens \\
+                             another panel; hover the row to open it.",
+                            cx,
+                        ),
+                        h::Dropdown::uncontrolled(
+                            h::Button::new("dd-submenu-ind")
+                                .label("More")
+                                .variant(Variant::Secondary),
+                            vec![
+                                h::MenuItem::new("profile", "Profile"),
+                                h::MenuItem::new("workspace", "Workspace").submenu(vec![
+                                    h::MenuItem::new("members", "Members"),
+                                    h::MenuItem::new("billing", "Billing"),
+                                ]),
+                            ],
+                        )
+                        .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Custom Trigger",
+                    col(vec![h::Dropdown::uncontrolled(
+                        h::Avatar::new().name("Jane Doe"),
+                        vec![
+                            h::MenuItem::new("profile", "Profile"),
+                            h::MenuItem::new("settings", "Settings"),
+                            h::MenuItem::Separator,
+                            h::MenuItem::new("logout", "Log out").danger(),
+                        ],
+                    )
+                    .into_any_element()]),
+                ),
+                (
+                    "Long Press Trigger",
+                    col(vec![
+                        para("Hold the button for half a second.", cx),
+                        h::Dropdown::uncontrolled(
+                            h::Button::new("dd-long")
+                                .label("Long press")
+                                .variant(Variant::Secondary),
+                            plain(),
+                        )
+                        .trigger(h::DropdownTrigger::LongPress)
+                        .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Usage",""")
 
 io.open(P, 'w', encoding='utf-8', newline='').write(s)
-print('patched list box + tag group')
+print('patched dropdown page')
