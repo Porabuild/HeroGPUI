@@ -35,17 +35,50 @@ PAGES = ('gallery/src/pages/components.rs', 'gallery/src/pages/docs.rs')
 # CamelCase -> snake_case conversion does not land on it.
 PAGE_ALIAS = {
     'InputOTP': 'input_otp',
-    'LabelAndMessages': 'field_slots',
-    'Label & Messages': 'field_slots',
+    # v3 documents the field parts on their own pages; this port shows all four
+    # on one "Label & Messages" page, the way v3's sidebar groups them.
+    'Label': 'field_slots',
+    'Description': 'field_slots',
+    'ErrorMessage': 'field_slots',
+    'FieldError': 'field_slots',
+    # One page per component pair, as v3's sidebar has it.
+    'ToggleButtonGroup': 'toggle_button',
+    'DisclosureGroup': 'disclosure',
 }
+# v3 pages that are not component documentation at all.
+NOT_A_COMPONENT = ('MCP Server',)
 
 # v3 example name -> the gallery section that covers it, where the titles are
 # genuinely different words for the same demo.
 ALIAS = {}
 
-# Examples that cannot be demonstrated in this port, with the reason. Keyed
-# `Component.Example`.
-WONT_DEMO = {}
+# Examples that cannot be demonstrated in this port, with the reason.
+#
+# `WONT_DEMO_NAMES` applies to an example name wherever it appears -- v3
+# documents "Render Function" on 31 pages and it is the same prop every time --
+# and `WONT_DEMO` is for one page's example, keyed `Component.Example`.
+WONT_DEMO_NAMES = {
+    # v3's `render` prop replaces the *DOM element* a component renders
+    # (`render={(props) => <div {...props} data-custom="foo" />}`). gpui has no
+    # DOM and no element to substitute, which is why `api_audit.py` skips the
+    # prop too. The state those functions receive is reachable a different way:
+    # the caller owns the state entity, so "Render Props" is demonstrated.
+    'Render Function': 'no-dom-element',
+}
+WONT_DEMO = {
+    # v3 composes a third-party npm ripple component as a child
+    # (`<Button><Ripple /></Button>`); the example is about that library.
+    'Button.Adding Ripple Effect': 'third-party-lib',
+    # Both need CLDR data for non-Gregorian calendars; the port is Gregorian.
+    'Calendar.International Calendars': 'no-intl',
+    'RangeCalendar.International Calendars': 'no-intl',
+    'DatePicker.International Calendar': 'no-intl',
+    # A React portal renders outside the tree. gpui paints in tree order and
+    # `util::floating` (deferred) is the only lift there is, so there is no
+    # "render this dialog somewhere else" to show.
+    'AlertDialog.Custom Portal': 'no-portal',
+    'Modal.Custom Portal': 'no-portal',
+}
 
 SYNONYM = {
     'usage': 'basic',
@@ -122,9 +155,14 @@ def main():
     rows, total, covered, unportable = [], 0, 0, 0
     missing_by_page = {}
     for page in sorted(v3):
+        if page in NOT_A_COMPONENT:
+            continue
         suffix = suffix_for(page)
         if suffix not in ours:
-            continue          # a docs page, not a component page
+            # Not a component page (a getting-started guide, a migration note).
+            # Anything that *is* one and lands here is a missing `PAGE_ALIAS`,
+            # which would silently drop its examples from the count.
+            continue
         have = {norm(t) for t in ours[suffix]}
         # A gallery section often covers two v3 examples ("Pending & disabled");
         # split on the separators so each half counts.
@@ -136,7 +174,7 @@ def main():
         for ex in v3[page]:
             total += 1
             key = '%s.%s' % (page, ex)
-            if key in WONT_DEMO:
+            if key in WONT_DEMO or ex in WONT_DEMO_NAMES:
                 unportable += 1
                 continue
             target = norm(ALIAS.get(key, ALIAS.get(ex, ex)))

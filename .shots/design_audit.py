@@ -89,8 +89,10 @@ def SIZE_XL(name):
 # into one. `None` means "parse group 1 as a float".
 CHECKS = [
     # --- Button, the whole size scale -------------------------------------
+    # The radius reaches the button through `group_radius`, which is what lets a
+    # grouped member round only its outer corners.
     ('button', '.button', 'radius', 'Button -> util::_radius', SRC + 'button.rs',
-     r'\.rounded\(util::(\w+_radius)\(cx\)\)', helper_px),
+     r'group_radius\(e, self\.group_edge, util::(\w+_radius)\(cx\)\)', helper_px),
     ('button', '.button', 'h', 'Size::control_height Md', CORE,
      r'Control height[\s\S]*?Size::Md => gpui::px\((\d+(?:\.\d*)?)\)', None),
     ('button', '.button--sm', 'h', 'Size::control_height Sm', CORE,

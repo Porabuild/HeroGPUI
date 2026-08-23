@@ -15,6 +15,24 @@ use crate::{spinner::Spinner, util};
 
 type OnPress = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
+/// Which edge of a [`crate::button_group::ButtonGroup`] a button sits on.
+///
+/// `.button-group .button` is `rounded-none`; the first member takes
+/// `rounded-s-3xl` and the last `rounded-e-3xl`, so a joined group has one
+/// outer radius rather than a rounded box per member. The press scale is also
+/// off inside a group (`.button-group .button:active { transform: none }`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum GroupEdge {
+    /// First member: the leading corners are round.
+    Start,
+    /// Between two others: square on both ends.
+    Middle,
+    /// Last member: the trailing corners are round.
+    End,
+    /// The only member, so it keeps the full radius.
+    Only,
+}
+
 /// HeroUI Button.
 #[derive(IntoElement)]
 pub struct Button {
@@ -24,6 +42,9 @@ pub struct Button {
     size: Size,
     full_width: bool,
     is_icon_only: bool,
+    /// Set by [`crate::button_group::ButtonGroup`]: which end of the group this
+    /// button is, and whether the group stacks.
+    group_edge: Option<(GroupEdge, bool)>,
     is_disabled: bool,
     is_pending: bool,
     /// Rendered before the label — the leading `<Icon />` child in React.
@@ -43,6 +64,7 @@ impl Button {
             size: Size::Md,
             full_width: false,
             is_icon_only: false,
+            group_edge: None,
             is_disabled: false,
             is_pending: false,
             start_content: None,
@@ -74,6 +96,13 @@ impl Button {
 
     pub fn is_icon_only(mut self, v: bool) -> Self {
         self.is_icon_only = v;
+        self
+    }
+
+    /// Joins this button to a group edge. Internal: a caller reaches it by
+    /// putting the button in a [`crate::button_group::ButtonGroup`].
+    pub(crate) fn group_edge(mut self, edge: GroupEdge, vertical: bool) -> Self {
+        self.group_edge = Some((edge, vertical));
         self
     }
 
@@ -256,6 +285,27 @@ pub fn button_foreground(variant: Variant, cx: &App) -> gpui::Hsla {
     }
 }
 
+/// Applies `radius` to only the corners a group edge leaves round.
+fn group_radius(
+    el: Stateful<Div>,
+    edge: Option<(GroupEdge, bool)>,
+    radius: gpui::Pixels,
+) -> Stateful<Div> {
+    let Some((edge, vertical)) = edge else {
+        return el.rounded(radius);
+    };
+    match (edge, vertical) {
+        (GroupEdge::Only, _) => el.rounded(radius),
+        // Horizontal: the start edge rounds its left corners, the end edge its
+        // right ones. Vertical: top and bottom.
+        (GroupEdge::Start, false) => el.rounded_tl(radius).rounded_bl(radius),
+        (GroupEdge::End, false) => el.rounded_tr(radius).rounded_br(radius),
+        (GroupEdge::Start, true) => el.rounded_tl(radius).rounded_tr(radius),
+        (GroupEdge::End, true) => el.rounded_bl(radius).rounded_br(radius),
+        (GroupEdge::Middle, _) => el,
+    }
+}
+
 impl RenderOnce for Button {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let layout = cx.layout();
@@ -277,7 +327,7 @@ impl RenderOnce for Button {
             .overflow_hidden()
             .whitespace_nowrap()
             .font_weight(gpui::FontWeight::MEDIUM)
-            .rounded(util::control_radius(cx))
+            .map(|e| group_radius(e, self.group_edge, util::control_radius(cx)))
             .text_size(self.size.text_size())
             .line_height(self.size.line_height())
             .h(self.size.control_height());
@@ -319,7 +369,7 @@ impl RenderOnce for Button {
 
         // v3's `[data-pressed]` scale. Applied last so the press geometry sits
         // on top of whatever the variant did to padding.
-        if interactive {
+        if interactive && self.group_edge.is_none() {
             el = crate::anim::pressed(
                 el,
                 crate::anim::PressBox {

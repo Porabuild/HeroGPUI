@@ -160,6 +160,12 @@ impl Gallery {
             crate::pages::Page::Button.import_line(),
             vec![
                 (
+                    "Usage",
+                    row(vec![h::Button::new("btn-usage")
+                        .label("Click me")
+                        .into_any_element()]),
+                ),
+                (
                     "Variants",
                     row(Variant::ALL
                         .iter()
@@ -241,6 +247,44 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "Social Buttons",
+                    col(vec![
+                        para(
+                            "v3 stacks full-width tertiary buttons behind a leading brand mark. \
+                             The marks are trademarks, so this port shows the same layout with \
+                             its own glyphs.",
+                            cx,
+                        ),
+                        gpui::div()
+                            .flex()
+                            .flex_col()
+                            .w(px(280.))
+                            .gap(px(12.))
+                            .child(
+                                h::Button::new("btn-soc-1")
+                                    .label("Sign in with Email")
+                                    .variant(Variant::Tertiary)
+                                    .full_width(true)
+                                    .start_content(icon(h::icons::MAIL, cx)),
+                            )
+                            .child(
+                                h::Button::new("btn-soc-2")
+                                    .label("Sign in with a passkey")
+                                    .variant(Variant::Tertiary)
+                                    .full_width(true)
+                                    .start_content(icon(h::icons::KEY, cx)),
+                            )
+                            .child(
+                                h::Button::new("btn-soc-3")
+                                    .label("Single sign-on")
+                                    .variant(Variant::Tertiary)
+                                    .full_width(true)
+                                    .start_content(icon(h::icons::GLOBE, cx)),
+                            )
+                            .into_any_element(),
+                    ]),
+                ),
+                (
                     "Press handler",
                     col(vec![h::Button::new("btn-press")
                         .label(format!("Pressed {clicks} times"))
@@ -262,12 +306,64 @@ impl Gallery {
             crate::pages::Page::ButtonGroup.import_line(),
             vec![
                 (
+                    "Usage",
+                    row(vec![h::ButtonGroup::new()
+                        .button(h::Button::new("bgu-1").label("Merge pull request"))
+                        .button(
+                            h::Button::new("bgu-2")
+                                .is_icon_only(true)
+                                .start_content(icon(h::icons::CHEVRON_DOWN, cx)),
+                        )
+                        .into_any_element()]),
+                ),
+                (
                     "Merged",
                     row(vec![h::ButtonGroup::new()
                         .variant(Variant::Secondary)
                         .button(h::Button::new("bg-1").label("Day"))
                         .button(h::Button::new("bg-2").label("Week"))
                         .button(h::Button::new("bg-3").label("Month"))
+                        .into_any_element()]),
+                ),
+                (
+                    "Sizes",
+                    col(Size::ALL
+                        .iter()
+                        .map(|sz| {
+                            h::ButtonGroup::new()
+                                .variant(Variant::Secondary)
+                                .size(*sz)
+                                .button(
+                                    h::Button::new(el_id(format!("bgs-{sz:?}-1"))).label("Left"),
+                                )
+                                .button(
+                                    h::Button::new(el_id(format!("bgs-{sz:?}-2"))).label("Middle"),
+                                )
+                                .button(
+                                    h::Button::new(el_id(format!("bgs-{sz:?}-3"))).label("Right"),
+                                )
+                        })
+                        .els()),
+                ),
+                (
+                    "With Icons",
+                    row(vec![h::ButtonGroup::new()
+                        .variant(Variant::Tertiary)
+                        .button(
+                            h::Button::new("bgi-1")
+                                .label("Fork")
+                                .start_content(icon(h::icons::COPY, cx)),
+                        )
+                        .button(
+                            h::Button::new("bgi-2")
+                                .label("Star")
+                                .start_content(icon(h::icons::PLUS, cx)),
+                        )
+                        .button(
+                            h::Button::new("bgi-3")
+                                .is_icon_only(true)
+                                .start_content(icon(h::icons::ELLIPSIS, cx)),
+                        )
                         .into_any_element()]),
                 ),
                 (
@@ -283,13 +379,45 @@ impl Gallery {
                         .els()),
                 ),
                 (
-                    "Vertical",
+                    "Orientation",
+                    row(vec![
+                        h::ButtonGroup::new()
+                            .variant(Variant::Secondary)
+                            .button(h::Button::new("bgo-l").label("Left"))
+                            .button(h::Button::new("bgo-c").label("Center"))
+                            .button(h::Button::new("bgo-r").label("Right"))
+                            .into_any_element(),
+                        h::ButtonGroup::new()
+                            .variant(Variant::Secondary)
+                            .orientation(Orientation::Vertical)
+                            .button(h::Button::new("bgv-top").label("Top"))
+                            .button(h::Button::new("bgv-mid").label("Middle"))
+                            .button(h::Button::new("bgv-bot").label("Bottom"))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Full Width",
+                    col(vec![gpui::div()
+                        .w_full()
+                        .child(
+                            h::ButtonGroup::new()
+                                .variant(Variant::Secondary)
+                                .full_width(true)
+                                .button(h::Button::new("bgf-1").label("Cancel"))
+                                .button(h::Button::new("bgf-2").label("Save draft"))
+                                .button(h::Button::new("bgf-3").label("Publish")),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Without Separator",
                     row(vec![h::ButtonGroup::new()
                         .variant(Variant::Secondary)
-                        .orientation(Orientation::Vertical)
-                        .button(h::Button::new("bgv-top").label("Top"))
-                        .button(h::Button::new("bgv-mid").label("Middle"))
-                        .button(h::Button::new("bgv-bot").label("Bottom"))
+                        .separators(false)
+                        .button(h::Button::new("bgn-1").label("One"))
+                        .button(h::Button::new("bgn-2").label("Two"))
+                        .button(h::Button::new("bgn-3").label("Three"))
                         .into_any_element()]),
                 ),
                 (
@@ -314,6 +442,21 @@ impl Gallery {
             crate::pages::Page::CloseButton.import_line(),
             vec![
                 (
+                    "Usage",
+                    row(vec![h::CloseButton::new("cb-usage").into_any_element()]),
+                ),
+                (
+                    "With Custom Icon",
+                    row(vec![
+                        spec(
+                            "Custom icon",
+                            h::CloseButton::new("cb-icon-1").icon(icon(h::icons::CLOSE_CIRCLE, cx)),
+                            cx,
+                        ),
+                        spec("Default", h::CloseButton::new("cb-icon-2"), cx),
+                    ]),
+                ),
+                (
                     "Interactive",
                     col(vec![
                         h::CloseButton::new("cb-press")
@@ -337,6 +480,7 @@ impl Gallery {
     }
 
     pub fn page_toggle_button(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let liked = self.toggle_like;
         let single = self.toggle_single.clone();
         let multiple = self.toggle_multiple.clone();
         doc_page(
@@ -344,6 +488,85 @@ impl Gallery {
             crate::pages::Page::ToggleButton.description(),
             crate::pages::Page::ToggleButton.import_line(),
             vec![
+                (
+                    "Usage",
+                    row(vec![h::ToggleButton::new("tb-usage")
+                        .label("Bold")
+                        .into_any_element()]),
+                ),
+                (
+                    "Sizes",
+                    row(Size::ALL
+                        .iter()
+                        .map(|sz| {
+                            h::ToggleButton::new(el_id(format!("tb-sz-{sz:?}")))
+                                .label(sz.label())
+                                .size(*sz)
+                                .is_selected(true)
+                        })
+                        .els()),
+                ),
+                (
+                    "Icon Only",
+                    row(vec![
+                        h::ToggleButton::new("tb-io-1")
+                            .is_icon_only(true)
+                            .is_selected(true)
+                            .child(icon(h::icons::EYE, cx))
+                            .into_any_element(),
+                        h::ToggleButton::new("tb-io-2")
+                            .is_icon_only(true)
+                            .child(icon(h::icons::COPY, cx))
+                            .into_any_element(),
+                        h::ToggleButton::new("tb-io-3")
+                            .is_icon_only(true)
+                            .child(icon(h::icons::SEARCH, cx))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Disabled",
+                    row(vec![
+                        h::ToggleButton::new("tb-dis-1")
+                            .label("Off")
+                            .is_disabled(true)
+                            .into_any_element(),
+                        h::ToggleButton::new("tb-dis-2")
+                            .label("On")
+                            .is_selected(true)
+                            .is_disabled(true)
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Controlled",
+                    col(vec![
+                        h::ToggleButton::new("tb-like")
+                            .label(if liked { "Liked" } else { "Like" })
+                            .is_selected(liked)
+                            .child(icon(
+                                if liked {
+                                    h::icons::HEART_FILL
+                                } else {
+                                    h::icons::HEART
+                                },
+                                cx,
+                            ))
+                            .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.toggle_like = *v;
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                        para(
+                            if liked {
+                                "Status: selected"
+                            } else {
+                                "Status: not selected"
+                            },
+                            cx,
+                        ),
+                    ]),
+                ),
                 (
                     "Single selection",
                     row(vec![h::ToggleButtonGroup::new()

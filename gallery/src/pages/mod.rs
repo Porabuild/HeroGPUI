@@ -5,6 +5,7 @@
 
 pub mod components;
 pub mod docs;
+pub mod docs_guides;
 
 use gpui::{px, App};
 use herogpui_theme::ActiveTheme;
@@ -21,6 +22,8 @@ impl Gallery {
             Page::Theming => self.page_theming(cx),
             Page::DarkMode => self.page_dark_mode(cx),
             Page::Customization => self.page_customization(cx),
+            Page::Styling => self.page_styling(cx),
+            Page::DesignPrinciples => self.page_design_principles(cx),
 
             // Buttons
             Page::Button => self.page_button(cx),
@@ -130,6 +133,8 @@ pub enum Page {
     Theming,
     DarkMode,
     Customization,
+    Styling,
+    DesignPrinciples,
 
     // Buttons
     Button,
@@ -237,6 +242,8 @@ impl Page {
             Page::Theming => "Theming",
             Page::DarkMode => "Dark Mode",
             Page::Customization => "Customization",
+            Page::Styling => "Styling",
+            Page::DesignPrinciples => "Design Principles",
             Page::Button => "Button",
             Page::ButtonGroup => "Button Group",
             Page::CloseButton => "Close Button",
@@ -313,6 +320,8 @@ impl Page {
             Page::Theming => "The OKLCH semantic token system shared by every component.",
             Page::DarkMode => "Switch between the light and dark appearance at runtime.",
             Page::Customization => "Build custom themes by overriding a handful of base tokens.",
+            Page::Styling => "Where a v3 `className` goes when there are no classes: props, tokens and slots.",
+            Page::DesignPrinciples => "The ten principles v3 is built on, and how each one lands in a gpui port.",
             Page::Button => "A pressable button with variants and states.",
             Page::ButtonGroup => "Group related buttons with a shared variant and merged edges.",
             Page::CloseButton => "A button for dismissing dialogs, modals and inline content.",
@@ -487,6 +496,8 @@ pub fn nav_sections() -> Vec<NavSection> {
                 Page::Theming,
                 Page::DarkMode,
                 Page::Customization,
+                Page::Styling,
+                Page::DesignPrinciples,
             ],
         },
         NavSection {

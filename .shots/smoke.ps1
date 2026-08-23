@@ -31,6 +31,7 @@ if (-not (Test-Path $exe)) { throw "build the gallery first: cargo build --works
 # Keep in sync with Page::title in gallery/src/pages/mod.rs.
 $pages = @(
   "Introduction", "Installation", "Theming", "Dark Mode", "Customization",
+  "Styling", "Design Principles",
   "Button", "Button Group", "Close Button", "Toggle Button",
   "Dropdown", "List Box", "Tag Group",
   "Color Area", "Color Field", "Color Picker", "Color Slider", "Color Swatch",
