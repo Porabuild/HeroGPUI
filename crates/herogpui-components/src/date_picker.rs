@@ -220,7 +220,7 @@ impl RenderOnce for DatePicker {
             .id(gpui::ElementId::Name(
                 format!("dp-{}", self.state.entity_id().as_u64()).into(),
             ))
-            .track_focus(&trigger_focus)
+            .when(!self.is_disabled, |el| el.track_focus(&trigger_focus))
             .flex()
             .items_center()
             .justify_between()

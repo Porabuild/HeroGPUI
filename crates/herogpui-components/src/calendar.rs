@@ -471,7 +471,7 @@ impl Calendar {
 
 /// `date` a month away, clamped to the target month's length -- 31 January plus
 /// a month is the end of February, not the 31st.
-fn month_step(date: Date, delta: i32) -> Date {
+pub(crate) fn month_step(date: Date, delta: i32) -> Date {
     let (year, month) = bump_month(date.year, date.month, delta);
     Date::new(year, month, date.day.min(days_in_month(year, month)))
 }
@@ -968,7 +968,11 @@ impl RenderOnce for Calendar {
             .flex_col()
             .gap(px(8.))
             .text_color(colors.surface.foreground)
-            .track_focus(&grid_focus);
+            // A disabled or read-only grid is not a tab stop: v3 gives it
+            // `pointer-events-none` and nothing to move.
+            .when(!self.is_disabled && !self.is_read_only, |el| {
+                el.track_focus(&grid_focus)
+            });
 
         // v3 drives a calendar from the keyboard: the arrows step a day and a
         // week, Page Up/Down a month, Home and End the ends of the month, and

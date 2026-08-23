@@ -617,6 +617,10 @@ v2 concepts that must **not** come back:
     bites the other way too: an element that has *both* a click listener and its
     own Enter handling does the thing twice, which is why the Select trigger
     keeps only the arrows and lets the click own the open and close.
+  - **A disabled control must leave the tab order.** `track_focus` is what puts
+    it in, so gate it: v3 gives a disabled control `pointer-events-none` and
+    nothing to move, and a Tab that lands on a disabled calendar looks like the
+    keyboard is broken.
   - **A tab stop comes from the handle, not the element.** `.tab_index(0)`
     configures a handle the element creates for itself, which a component that
     reads its own focus state cannot use; `util::tab_stop_handle` marks the

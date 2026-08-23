@@ -237,7 +237,9 @@ impl RenderOnce for TagGroup {
 
             let mut chip = div()
                 .id(ElementId::Name(format!("{:?}-tag-{index}", self.id).into()))
-                .when_some(tag_focus.get(index), |c, handle| c.track_focus(handle))
+                .when_some(tag_focus.get(index).filter(|_| !disabled), |c, handle| {
+                    c.track_focus(handle)
+                })
                 .flex()
                 .flex_row()
                 .items_center()

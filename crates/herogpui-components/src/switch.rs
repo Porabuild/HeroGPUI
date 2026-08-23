@@ -275,7 +275,7 @@ impl RenderOnce for Switch {
 
         let mut track = gpui::div()
             .id(self.id.clone())
-            .track_focus(&focus_handle)
+            .when(!self.is_disabled, |el| el.track_focus(&focus_handle))
             .relative()
             .w(w)
             .h(h)

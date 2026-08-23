@@ -143,7 +143,10 @@ impl RenderOnce for Pagination {
                     let active = n == self.page;
                     let mut btn = gpui::div()
                         .id(gpui::ElementId::Name(format!("{base}-page-{n}").into()))
-                        .when_some(page_focus.get(n), |b, handle| b.track_focus(handle))
+                        .when_some(
+                            page_focus.get(n).filter(|_| !self.is_disabled),
+                            |b, handle| b.track_focus(handle),
+                        )
                         .flex()
                         .items_center()
                         .justify_center()

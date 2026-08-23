@@ -334,7 +334,7 @@ impl RenderOnce for Checkbox {
 
         let row = gpui::div()
             .id(self.id.clone())
-            .track_focus(&focus_handle)
+            .when(!self.is_disabled, |el| el.track_focus(&focus_handle))
             .flex()
             .items_center()
             // `.checkbox__content` is `gap-3`.

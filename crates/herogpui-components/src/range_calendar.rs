@@ -13,7 +13,9 @@ use gpui::{
 use herogpui_theme::ActiveTheme;
 
 use crate::{
-    calendar::{days_from_civil, days_in_month, month_name, weekday_index, Date},
+    calendar::{
+        add_days, days_from_civil, days_in_month, month_name, month_step, weekday_index, Date,
+    },
     calendar_view::{self, PageBehavior, SelectionAlignment, VisibleDuration},
     date_constraints::{DateConstraints, Weekday},
     date_picker::DateRangeState,
@@ -237,6 +239,10 @@ struct Frame<'a> {
     today: Date,
     interactive: bool,
     base: &'a str,
+    /// The date wearing the focus ring: `focusedValue` when the caller controls
+    /// it, otherwise wherever the arrow keys have walked to. `None` while the
+    /// grid does not hold the keyboard.
+    focused: Option<Date>,
 }
 
 impl RangeCalendar {
@@ -318,7 +324,7 @@ impl RangeCalendar {
         // `.range-calendar__cell` takes `status-focused` -- a ring, not a border,
         // which would shrink the cell as the cursor arrived.
         let mut cell =
-            util::with_focus_ring(cell, self.focused_value == Some(date), true, Vec::new(), cx);
+            util::with_focus_ring(cell, frame.focused == Some(date), true, Vec::new(), cx);
 
         if !selectable {
             cell = cell.text_color(colors.muted);
@@ -501,6 +507,17 @@ impl RenderOnce for RangeCalendar {
             self.default_year_picker_open,
         );
 
+        // The grid is one tab stop with a cursor inside it, as the Calendar's is.
+        // `use_keyed_state` takes `cx` mutably, so both precede the theme.
+        let grid_focus =
+            util::tab_stop_handle(ElementId::Name(format!("{base}-focus").into()), window, cx);
+        let cursor = window.use_keyed_state(
+            ElementId::Name(format!("{base}-cursor").into()),
+            cx,
+            |_, _| None::<Date>,
+        );
+        let cursor_at = *cursor.read(cx);
+
         let colors = cx.colors();
         let layout = cx.layout();
         let first_day = self.constraints.first_day_of_week;
@@ -520,12 +537,21 @@ impl RenderOnce for RangeCalendar {
             ),
             _ => stored_anchor,
         };
+        // Taking the focus puts the ring where v3 would have focused -- the
+        // range's start, or today.
+        let ring_at = self
+            .focused_value
+            .or(cursor_at)
+            .or(start)
+            .or_else(|| Some(Date::today()))
+            .filter(|_| grid_focus.is_focused(window));
         let frame = Frame {
             start,
             preview_end,
             today: Date::today(),
             interactive: !self.is_disabled && !self.is_read_only,
             base: &base,
+            focused: ring_at,
         };
 
         let months = calendar_view::month_headings(self.duration, anchor);
@@ -654,7 +680,59 @@ impl RenderOnce for RangeCalendar {
             .flex()
             .flex_col()
             .gap(px(8.))
-            .text_color(colors.surface.foreground);
+            .text_color(colors.surface.foreground)
+            .when(!self.is_disabled && !self.is_read_only, |el| {
+                el.track_focus(&grid_focus)
+            });
+
+        // The same keys the Calendar answers, and Enter picks: the first press
+        // sets the range's start, the second its end, which is what `pick` does
+        // for a click.
+        if !self.is_disabled && !self.is_read_only {
+            let held = cursor;
+            let from_start = self.focused_value.or(start).unwrap_or_else(Date::today);
+            let state = self.state.clone();
+            let on_change = self.on_change.clone();
+            let on_focus = self.on_focus_change.clone();
+            let selectable = self.constraints.clone();
+            root = root.on_key_down(move |event, window, cx| {
+                let from = *held.read(cx);
+                let at = from.unwrap_or(from_start);
+                let key = event.keystroke.key.as_str();
+                if matches!(key, "enter" | "space") {
+                    if !selectable.allows(at) {
+                        return;
+                    }
+                    let (next_start, next_end) = state.update(cx, |s, cx| {
+                        s.pick(at);
+                        cx.notify();
+                        (s.start, s.end)
+                    });
+                    if let Some(cb) = &on_change {
+                        cb(next_start, next_end, window, cx);
+                    }
+                    return;
+                }
+                let next = match key {
+                    "left" => add_days(&at, -1),
+                    "right" => add_days(&at, 1),
+                    "up" => add_days(&at, -7),
+                    "down" => add_days(&at, 7),
+                    "pageup" => month_step(at, -1),
+                    "pagedown" => month_step(at, 1),
+                    "home" => Date::new(at.year, at.month, 1),
+                    "end" => Date::new(at.year, at.month, days_in_month(at.year, at.month)),
+                    _ => return,
+                };
+                held.update(cx, |v, cx| {
+                    *v = Some(next);
+                    cx.notify();
+                });
+                if let Some(cb) = &on_focus {
+                    cb(next, window, cx);
+                }
+            });
+        }
 
         if year_picker_open {
             root = root.w(crate::calendar::CALENDAR_WIDTH);

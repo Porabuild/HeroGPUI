@@ -356,7 +356,8 @@ impl RenderOnce for InputOTP {
             } else {
                 gpui::CursorStyle::IBeam
             })
-            .track_focus(&focused_handle)
+            // A disabled field is not a tab stop.
+            .when(!self.is_disabled, |el| el.track_focus(&focused_handle))
             .key_context("InputOTP")
             .on_mouse_down(gpui::MouseButton::Left, {
                 let fh = focused_handle.clone();

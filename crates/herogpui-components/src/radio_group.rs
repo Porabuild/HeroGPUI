@@ -263,7 +263,10 @@ impl RenderOnce for RadioGroup {
                 .id(gpui::ElementId::Name(
                     format!("{}-opt-{i}", element_id_name(&self.id)).into(),
                 ))
-                .when_some(option_focus.get(i), |r, handle| r.track_focus(handle))
+                .when_some(
+                    option_focus.get(i).filter(|_| !self.is_disabled),
+                    |r, handle| r.track_focus(handle),
+                )
                 .flex()
                 .items_center()
                 .gap(gap)

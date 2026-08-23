@@ -579,7 +579,7 @@ impl RenderOnce for ColorArea {
         // Saturation left-to-right over the hue, brightness bottom-to-top.
         let mut area = div()
             .id(self.id.clone())
-            .track_focus(&area_focus)
+            .when(!self.is_disabled, |el| el.track_focus(&area_focus))
             .relative()
             .w(self.width)
             .h(self.height)
@@ -1618,7 +1618,10 @@ impl RenderOnce for ColorSwatchPicker {
                 .id(ElementId::Name(
                     format!("{:?}-swatch-{index}", self.id).into(),
                 ))
-                .when_some(swatch_focus.get(index), |c, handle| c.track_focus(handle))
+                .when_some(
+                    swatch_focus.get(index).filter(|_| !self.is_disabled),
+                    |c, handle| c.track_focus(handle),
+                )
                 .flex()
                 .items_center()
                 .justify_center()
@@ -1794,7 +1797,7 @@ impl RenderOnce for ColorPicker {
         // Trigger: swatch plus the hex value.
         let mut trigger = div()
             .id(ElementId::Name(format!("{base}-trigger").into()))
-            .track_focus(&trigger_focus)
+            .when(!self.is_disabled, |el| el.track_focus(&trigger_focus))
             .flex()
             .flex_row()
             .items_center()

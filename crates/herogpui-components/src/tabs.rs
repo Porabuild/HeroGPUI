@@ -182,7 +182,10 @@ impl RenderOnce for Tabs {
                         .id(gpui::ElementId::Name(
                             format!("{base_id}-tab-{}", item.key).into(),
                         ))
-                        .when_some(tab_focus.get(index), |t, handle| t.track_focus(handle))
+                        .when_some(
+                            tab_focus.get(index).filter(|_| !self.is_disabled),
+                            |t, handle| t.track_focus(handle),
+                        )
                         .px(px(14.))
                         .py(px(6.))
                         .rounded(crate::util::control_radius(cx))
@@ -248,7 +251,10 @@ impl RenderOnce for Tabs {
                         .id(gpui::ElementId::Name(
                             format!("{base_id}-tab-{}", item.key).into(),
                         ))
-                        .when_some(tab_focus.get(index), |t, handle| t.track_focus(handle))
+                        .when_some(
+                            tab_focus.get(index).filter(|_| !self.is_disabled),
+                            |t, handle| t.track_focus(handle),
+                        )
                         .px(px(2.))
                         .pb(px(6.))
                         .text_size(px(14.))

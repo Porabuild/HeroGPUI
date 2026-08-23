@@ -238,7 +238,9 @@ impl RenderOnce for Accordion {
             let header_focus = trigger_focus.get(i);
             let mut header = gpui::div()
                 .id(gpui::ElementId::Name(format!("acc-{}", item.key).into()))
-                .when_some(header_focus, |h, handle| h.track_focus(handle))
+                .when_some(header_focus.filter(|_| !item_disabled), |h, handle| {
+                    h.track_focus(handle)
+                })
                 .flex()
                 .items_center()
                 .justify_between()
