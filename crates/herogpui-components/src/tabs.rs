@@ -61,9 +61,8 @@ pub struct Tabs {
     default_selected_key: Option<SharedString>,
     variant: TabsVariant,
     is_disabled: bool,
-    hide_separator: bool,
     orientation: Orientation,
-    on_change: Option<OnChange>,
+    on_selection_change: Option<OnChange>,
 }
 
 impl Tabs {
@@ -88,14 +87,6 @@ impl Tabs {
         self
     }
 
-    /// `onSelectionChange` — the v3 name for [`Tabs::on_change`].
-    pub fn on_selection_change(
-        self,
-        handler: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
-    ) -> Self {
-        self.on_change(handler)
-    }
-
     pub fn new(
         id: impl Into<gpui::ElementId>,
         items: Vec<TabItem>,
@@ -108,9 +99,8 @@ impl Tabs {
             default_selected_key: None,
             variant: TabsVariant::Primary,
             is_disabled: false,
-            hide_separator: false,
             orientation: Orientation::Horizontal,
-            on_change: None,
+            on_selection_change: None,
         }
     }
 
@@ -121,22 +111,18 @@ impl Tabs {
 
 
 
-    /// `hideSeparator` — drops the rail under a `secondary` tab list.
-    pub fn hide_separator(mut self, v: bool) -> Self {
-        self.hide_separator = v;
-        self
-    }
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
     }
 
-    pub fn on_change(
+    /// `onSelectionChange` — reports the key of the tab the press moves to.
+    pub fn on_selection_change(
         mut self,
         f: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.on_change = Some(std::sync::Arc::new(f));
+        self.on_selection_change = Some(std::sync::Arc::new(f));
         self
     }
 }
@@ -206,10 +192,10 @@ impl RenderOnce for Tabs {
                         }
                     }
                     if !self.is_disabled
-                        && (self.on_change.is_some() || selection_own.is_some())
+                        && (self.on_selection_change.is_some() || selection_own.is_some())
                     {
                         let key = item.key.clone();
-                        let cb = self.on_change.clone();
+                        let cb = self.on_selection_change.clone();
                         let own = selection_own.clone();
                         tab = tab.on_click(move |_, window, cx| {
                             // Uncontrolled: move our own selection, or pressing
@@ -230,9 +216,7 @@ impl RenderOnce for Tabs {
             }
             TabsVariant::Secondary => {
                 list = list.gap(px(16.));
-                if !self.hide_separator {
-                    list = list.border_b_1().border_color(colors.separator);
-                }
+                list = list.border_b_1().border_color(colors.separator);
                 for item in &self.items {
                     let active = item.key == selected_key;
                     let mut tab = gpui::div()
@@ -254,10 +238,10 @@ impl RenderOnce for Tabs {
                             .text_color(colors.muted)
                     };
                     if !self.is_disabled
-                        && (self.on_change.is_some() || selection_own.is_some())
+                        && (self.on_selection_change.is_some() || selection_own.is_some())
                     {
                         let key = item.key.clone();
-                        let cb = self.on_change.clone();
+                        let cb = self.on_selection_change.clone();
                         let own = selection_own.clone();
                         tab = tab.on_click(move |_, window, cx| {
                             // Uncontrolled: move our own selection, or pressing

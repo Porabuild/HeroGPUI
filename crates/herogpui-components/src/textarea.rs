@@ -61,11 +61,6 @@ impl TextArea {
         self
     }
 
-    pub fn size(mut self, size: herogpui_core::Size) -> Self {
-        self.inner = self.inner.size(size);
-        self
-    }
-
     pub fn full_width(mut self) -> Self {
         self.inner = self.inner.full_width();
         self

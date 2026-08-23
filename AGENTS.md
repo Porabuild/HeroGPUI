@@ -50,13 +50,15 @@ python .shots/api_audit.py
 
 It diffs every documented v3 prop table against our `pub fn` builders and
 reports three numbers: implemented, deliberately not ported (with a reason in
-`WONT_PORT` — controlled-only, no-intl, no-html-forms, …), and **real gaps**.
+`WONT_PORT` — no-intl, no-html-forms, state-entity-seeds-it, …), and **real
+gaps**.
 Add a prop to `WONT_PORT` only with a reason; add to `ALIAS` when we simply
 spell a prop differently. Both tables accept a scoped `Component.prop` key,
 which is the form to use whenever a bare name would mean different things in
 different components.
 
-**The audit is only as honest as its inputs**, and it has been wrong twice:
+**The audit is only as honest as its inputs**, and it has been wrong three
+times:
 
 - v3 splits a component's API across the root table *and* one table per
   composed part (`### Tooltip.Content`, `### Table.Column`, `### Dropdown.Menu`).
@@ -68,6 +70,32 @@ different components.
   several structs (`Toast`/`ToastViewport`, `Table`/`TableColumn`), list them in
   `COMPANIONS` — but never list a *different* component that happens to live in
   the same module, or a gap on one hides behind the other.
+- `ALIAS` can launder a gap. `defaultValue` was mapped to `value`, so every
+  missing *uncontrolled* seed counted as an implemented *controlled* prop — 18
+  of them. An alias is for a prop we spell differently, never for a different
+  prop that happens to be adjacent.
+
+The diff also only ever ran in one direction. `api_audit.py` asks "is every
+documented prop implemented?", which cannot see a prop held over from v2:
+
+```bash
+python .shots/extra_audit.py
+```
+
+reports every builder we expose that v3 does not document, and it is how
+`Card::is_pressable`, `ProgressBar::is_striped`, `RadioGroup::size` and the
+`radius` prop were finally found. It splits the report in two, because v3's
+per-component tables are demonstrably incomplete (`Input` lists no `isInvalid`
+though every sibling field does, and several say only *"Inherits from React
+Aria X"*):
+
+- **documented for a sibling** — informational; a shared spelling is consistent.
+- **not documented anywhere in v3** — must reach zero. Delete the builder, or
+  record it in `EXTRA_OK` with one of the few allowed reasons (`constructor`,
+  `composition`, `no-classname`, `gpui-element-id`, `state-entity`, `accessor`).
+  `composition` is the common one: v3 composes `<Label>`, `Modal.Close` or
+  `ProgressBar.ValueLabel` as child parts, and a monolithic builder takes them
+  as a prop or as a flag that renders the built-in part.
 
 A prop that is stored but never read is worse than a missing one: the API
 promises behaviour it does not have. After adding fields, run
@@ -107,13 +135,6 @@ Recorded omissions rot. `python .shots/reason_audit.py [reason ...]` prints each
   table-parsing artefacts.
 - five entries no longer matched any documented row at all.
 
-A prop that is stored but never read is worse than a missing one: the API
-promises behaviour it does not have. After adding fields, run
-
-```bash
-python .shots/write_only.py
-```
-
 ## Scope: HeroUI v3 only
 
 This is a port of **HeroUI v3**, not v2. When in doubt, the authoritative source
@@ -128,6 +149,13 @@ v2 concepts that must **not** come back:
 - `primary` / `secondary` as colors → `accent`; `secondary` is a *variant*
 - the `radius` prop → theme radius tokens (v3 removed it from every component)
 - `divider` → `separator`; `hover_opacity` → a hover *color* mix
+- the v2 props v3 deleted, which `extra_audit.py` is what catches: `color` on
+  anything but Avatar/Badge/Chip/ColorSwatch/ColorSwatchPicker/Meter/
+  ProgressBar/ProgressCircle/Spinner/Typography; `size` on any form field (v3
+  gives them one height — `util::FIELD_HEIGHT`/`FIELD_TEXT`/`FIELD_ICON`); and
+  `isStriped`, `isBordered`, `isPressable`, `isHoverable`, `isBlurred`,
+  `isLoaded`, `isExternal`, `underline`, `showOutline`, `isInvisible`,
+  `strokeWidth`, `hideSeparator`
 - `isLoading` → `isPending`; `Divider` → `Separator`; `DateInput` → `DateField`;
   `Progress` → `ProgressBar`; `CircularProgress` → `ProgressCircle`;
   `NumberInput` → `NumberField`

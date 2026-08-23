@@ -49,10 +49,6 @@ pub struct Badge {
     variant: BadgeVariant,
     size: Size,
     placement: BadgePlacement,
-    count: Option<u32>,
-    dot: bool,
-    invisible: bool,
-    show_outline: bool,
     content: Option<AnyElement>,
     children: Vec<AnyElement>,
 }
@@ -64,10 +60,6 @@ impl Badge {
             variant: BadgeVariant::Primary,
             size: Size::Md,
             placement: BadgePlacement::TopRight,
-            count: None,
-            dot: false,
-            invisible: false,
-            show_outline: false,
             content: None,
             children: Vec::new(),
         }
@@ -93,30 +85,10 @@ impl Badge {
         self
     }
 
-    /// Numeric badge (`count`); values above 99 render as `99+`.
-    pub fn count(mut self, n: u32) -> Self {
-        self.count = Some(n);
-        self
-    }
-
-    /// Small dot without content (`isDot`).
-    pub fn dot(mut self) -> Self {
-        self.dot = true;
-        self
-    }
-
-    /// Hides the badge while keeping layout (`isInvisible`).
-    pub fn invisible(mut self, v: bool) -> Self {
-        self.invisible = v;
-        self
-    }
-
-    pub fn show_outline(mut self, v: bool) -> Self {
-        self.show_outline = v;
-        self
-    }
-
-    /// Custom badge content instead of a number.
+    /// The badge's own content — v3's `<Badge>5</Badge>` children.
+    ///
+    /// This builder's [`ParentElement`] children are the *anchor* instead
+    /// (v3's `Badge.Anchor`), since one struct stands in for both parts.
     pub fn content(mut self, el: impl IntoElement) -> Self {
         self.content = Some(el.into_any_element());
         self
@@ -180,28 +152,26 @@ impl RenderOnce for Badge {
             .flex()
             .items_center()
             .justify_center()
-            .when(self.show_outline, |b| {
-                b.border_2().border_color(colors.background)
-            })
+            // v3 rings every anchored badge against the page background;
+            // there is no prop, because without it the badge and its anchor
+            // bleed together.
+            .border_2()
+            .border_color(colors.background)
             .when_some(top, |b, t| b.top(t))
             .when_some(bottom, |b, v| b.bottom(v))
             .when_some(left, |b, l| b.left(l))
             .when_some(right, |b, r| b.right(r));
 
-        if self.dot {
-            badge = badge.size(size_px).max_w(size_px).px(px(0.));
-        } else if let Some(count) = self.count {
-            badge = badge.child(if count > 99 { "99+".to_string() } else { count.to_string() });
-        } else if let Some(content) = self.content {
-            badge = badge.child(content);
-        }
-
-        let hidden = self.invisible;
+        // No content is v3's dot badge: a circle at the badge size.
+        badge = match self.content {
+            Some(content) => badge.child(content),
+            None => badge.size(size_px).max_w(size_px).px(px(0.)),
+        };
 
         gpui::div()
             .relative()
             .flex()
             .children(self.children)
-            .when(!hidden, |el| el.child(badge))
+            .child(badge)
     }
 }

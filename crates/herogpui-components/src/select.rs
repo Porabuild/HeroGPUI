@@ -4,7 +4,7 @@ use gpui::{
     prelude::*, px, App, IntoElement, ParentElement, RenderOnce, SharedString,
     StatefulInteractiveElement, Styled, Window,
 };
-use herogpui_core::{Color, FieldVariant, Placement, SelectionMode, Size};
+use herogpui_core::{Color, FieldVariant, Placement, SelectionMode};
 use herogpui_theme::ActiveTheme;
 
 use crate::icons;
@@ -17,6 +17,10 @@ pub struct Select {
     id: gpui::ElementId,
     options: Vec<SharedString>,
     selected: Option<usize>,
+    /// Whether `value` was supplied. `Option<usize>` cannot distinguish
+    /// "controlled, nothing selected" from "uncontrolled" on its own.
+    is_controlled: bool,
+    default_value: Option<usize>,
     /// Backs `selectionMode="multiple"`; `selected` backs `single`.
     selected_indices: std::collections::BTreeSet<usize>,
     selection_mode: SelectionMode,
@@ -28,9 +32,7 @@ pub struct Select {
     label: Option<SharedString>,
     placeholder: SharedString,
     description: Option<SharedString>,
-    size: Size,
     variant: FieldVariant,
-    color: Color,
     is_disabled: bool,
     is_invalid: bool,
     is_required: bool,
@@ -43,10 +45,6 @@ pub struct Select {
 }
 
 impl Select {
-    /// `value` — the v3 name for [`Select::selected`].
-    pub fn value(self, index: Option<usize>) -> Self {
-        self.selected(index)
-    }
 
     /// `onChange` — the v3 name for [`Select::on_selection_change`].
     pub fn on_change(
@@ -82,6 +80,8 @@ impl Select {
             id: id.into(),
             options,
             selected: None,
+            is_controlled: false,
+            default_value: None,
             selected_indices: std::collections::BTreeSet::new(),
             selection_mode: SelectionMode::Single,
             is_open: None,
@@ -90,9 +90,7 @@ impl Select {
             label: None,
             placeholder: "Select an option".into(),
             description: None,
-            size: Size::Md,
             variant: FieldVariant::Primary,
-            color: Color::Default,
             is_disabled: false,
             is_invalid: false,
             is_required: false,
@@ -125,8 +123,20 @@ impl Select {
         self
     }
 
-    pub fn selected(mut self, i: Option<usize>) -> Self {
+    /// `value` — the selected option, by index. Supplying it makes the select
+    /// controlled, even with `None`.
+    pub fn value(mut self, i: Option<usize>) -> Self {
         self.selected = i;
+        self.is_controlled = true;
+        self
+    }
+
+    /// `defaultValue` — the uncontrolled initial selection.
+    ///
+    /// Only consulted when `value` is not supplied; the select then owns the
+    /// selection and choosing an option moves it.
+    pub fn default_value(mut self, i: Option<usize>) -> Self {
+        self.default_value = i;
         self
     }
 
@@ -164,19 +174,10 @@ impl Select {
         self
     }
 
-    pub fn size(mut self, s: Size) -> Self {
-        self.size = s;
-        self
-    }
 
 
     pub fn variant(mut self, v: FieldVariant) -> Self {
         self.variant = v;
-        self
-    }
-
-    pub fn color(mut self, c: Color) -> Self {
-        self.color = c;
         self
     }
 
@@ -203,8 +204,8 @@ impl Select {
 }
 
 impl Select {
-    fn value_text_single(&self) -> SharedString {
-        self.selected
+    fn value_text_single(&self, selected: Option<usize>) -> SharedString {
+        selected
             .and_then(|i| self.options.get(i).cloned())
             .unwrap_or_else(|| self.placeholder.clone())
     }
@@ -220,16 +221,19 @@ impl RenderOnce for Select {
             self.is_open,
             self.default_open,
         );
+        let (selected, value_own) = crate::util::controlled(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("{:?}-value", self.id).into()),
+            self.is_controlled.then_some(self.selected),
+            self.default_value,
+        );
 
-        let sem = cx.role(self.color);
+        let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
 
-        let (h, text) = match self.size {
-            Size::Sm => (px(32.), px(13.)),
-            Size::Md => (px(40.), px(14.)),
-            Size::Lg => (px(48.), px(16.)),
-        };
+        let (h, text) = (px(40.), px(14.));
 
         let trigger_id = el_name(format!("select-{}", id_debug(&self.id)));
         let mut field = gpui::div()
@@ -289,12 +293,12 @@ impl RenderOnce for Select {
                 SharedString::from(format!("{} selected", names.len()))
             }
         } else {
-            self.value_text_single()
+            self.value_text_single(selected)
         };
         let has_value = if multiple {
             !self.selected_indices.is_empty()
         } else {
-            self.selected.is_some()
+            selected.is_some()
         };
 
         field = field
@@ -378,7 +382,7 @@ impl RenderOnce for Select {
                 let is_sel = if multiple {
                     self.selected_indices.contains(&i)
                 } else {
-                    self.selected == Some(i)
+                    selected == Some(i)
                 };
                 let opt_disabled = self.disabled_keys.contains(&i);
                 let mut item = gpui::div()
@@ -425,8 +429,32 @@ impl RenderOnce for Select {
                                 cb(&next, window, cx);
                             });
                         }
-                    } else if let Some(on_select) = self.on_selection_change.clone() {
-                        item = item.on_click(move |_, window, cx| on_select(Some(i), window, cx));
+                    } else if self.on_selection_change.is_some()
+                        || value_own.is_some()
+                        || open_own.is_some()
+                    {
+                        let on_select = self.on_selection_change.clone();
+                        let value_own = value_own.clone();
+                        let open_own = open_own.clone();
+                        item = item.on_click(move |_, window, cx| {
+                            // Uncontrolled: take the selection and close, or
+                            // choosing an option would do nothing.
+                            if let Some(held) = &value_own {
+                                held.update(cx, |v, cx| {
+                                    *v = Some(i);
+                                    cx.notify();
+                                });
+                            }
+                            if let Some(held) = &open_own {
+                                held.update(cx, |v, cx| {
+                                    *v = false;
+                                    cx.notify();
+                                });
+                            }
+                            if let Some(f) = &on_select {
+                                f(Some(i), window, cx);
+                            }
+                        });
                     }
                 }
 

@@ -91,7 +91,6 @@ pub struct Menu {
     indicator: IndicatorKind,
     on_selection_change: Option<OnSelectionChange>,
     on_action: Option<OnSelect>,
-    on_select: Option<OnSelect>,
 }
 
 impl Menu {
@@ -106,7 +105,6 @@ impl Menu {
             indicator: IndicatorKind::default(),
             on_selection_change: None,
             on_action: None,
-            on_select: None,
         }
     }
 
@@ -158,13 +156,6 @@ impl Menu {
         self
     }
 
-    pub fn on_select(
-        mut self,
-        f: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
-    ) -> Self {
-        self.on_select = Some(std::sync::Arc::new(f));
-        self
-    }
 
     pub fn selected_key(mut self, key: impl Into<SharedString>) -> Self {
         self.selected_key = Some(key.into());
@@ -272,20 +263,15 @@ impl RenderOnce for Menu {
                     }
 
                     if !is_item_disabled {
-                        let on_select = self.on_select.clone();
                         let on_action = self.on_action.clone();
                         let on_selection_change = self.on_selection_change.clone();
-                        if on_select.is_some()
-                            || on_action.is_some()
+                        if on_action.is_some()
                             || on_selection_change.is_some()
                         {
                             let key2 = key.clone();
                             let mode = self.selection_mode;
                             let current = self.selected_keys.clone();
                             row = row.on_click(move |_, window, cx| {
-                                if let Some(cb) = &on_select {
-                                    cb(&key2, window, cx);
-                                }
                                 if let Some(cb) = &on_action {
                                     cb(&key2, window, cx);
                                 }
@@ -338,8 +324,6 @@ pub struct Dropdown {
     on_selection_change: Option<OnSelectionChange>,
     on_action: Option<OnSelect>,
     placement: DropdownPlacement,
-    on_toggle: Option<std::sync::Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>,
-    on_select: Option<OnSelect>,
 }
 
 /// `placement` on `Dropdown.Popover`.
@@ -349,8 +333,7 @@ pub struct Dropdown {
 pub use herogpui_core::Placement as DropdownPlacement;
 
 impl Dropdown {
-    /// `onOpenChange` — the v3 name for [`Dropdown::on_toggle`], reporting the
-    /// next open state rather than the raw click.
+    /// `onOpenChange` — reports the open state the trigger moves to.
     pub fn on_open_change(
         mut self,
         handler: impl Fn(bool, &mut Window, &mut App) + 'static,
@@ -395,8 +378,6 @@ impl Dropdown {
             on_selection_change: None,
             on_action: None,
             placement: DropdownPlacement::BottomStart,
-            on_toggle: None,
-            on_select: None,
         }
     }
 
@@ -453,21 +434,7 @@ impl Dropdown {
         self
     }
 
-    pub fn on_toggle(
-        mut self,
-        f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
-    ) -> Self {
-        self.on_toggle = Some(std::sync::Arc::new(f));
-        self
-    }
 
-    pub fn on_select(
-        mut self,
-        f: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
-    ) -> Self {
-        self.on_select = Some(std::sync::Arc::new(f));
-        self
-    }
 }
 
 impl RenderOnce for Dropdown {
@@ -485,12 +452,11 @@ impl RenderOnce for Dropdown {
         );
 
         let mut trigger_wrap = gpui::div().id("dropdown-trigger").cursor_pointer();
-        let on_toggle = self.on_toggle.clone();
         let on_open_change = self.on_open_change.clone();
-        if on_toggle.is_some() || on_open_change.is_some() || open_own.is_some() {
+        if on_open_change.is_some() || open_own.is_some() {
             let next_open = !is_open;
             let own = open_own.clone();
-            trigger_wrap = trigger_wrap.on_click(move |ev: &ClickEvent, w, cx| {
+            trigger_wrap = trigger_wrap.on_click(move |_ev: &ClickEvent, w, cx| {
                 // Uncontrolled: flip our own copy, or the trigger would be
                 // inert without a caller handler.
                 if let Some(held) = &own {
@@ -498,9 +464,6 @@ impl RenderOnce for Dropdown {
                         *v = next_open;
                         cx.notify();
                     });
-                }
-                if let Some(cb) = &on_toggle {
-                    cb(ev, w, cx);
                 }
                 if let Some(cb) = &on_open_change {
                     cb(next_open, w, cx);
@@ -524,11 +487,6 @@ impl RenderOnce for Dropdown {
                 .selected_keys(self.selected_keys.clone())
                 .disabled_keys(self.disabled_keys.clone())
                 .indicator(self.indicator);
-            if let Some(on_select) = self.on_select.clone() {
-                menu = menu.on_select(move |k, w, cx| {
-                    on_select(k, w, cx);
-                });
-            }
             if let Some(on_action) = self.on_action.clone() {
                 menu = menu.on_action(move |k, w, cx| on_action(k, w, cx));
             }

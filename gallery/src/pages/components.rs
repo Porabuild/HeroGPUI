@@ -301,25 +301,6 @@ impl Gallery {
                         .button(h::Button::new("bgd2-2").label("Two"))
                         .into_any_element()]),
                 ),
-                (
-                    "Hidden separator",
-                    row(vec![h::ButtonGroup::new()
-                        .variant(Variant::Secondary)
-                        .hide_separator(true)
-                        .button(h::Button::new("bghs-1").label("One"))
-                        .button(h::Button::new("bghs-2").label("Two"))
-                        .button(h::Button::new("bghs-3").label("Three"))
-                        .into_any_element()]),
-                ),
-                (
-                    "Detached",
-                    row(vec![h::ButtonGroup::new()
-                        .variant(Variant::Tertiary)
-                        .disable_radius_merge(true)
-                        .button(h::Button::new("bgd-1").label("Copy"))
-                        .button(h::Button::new("bgd-2").label("Cut"))
-                        .into_any_element()]),
-                ),
             ],
             cx,
         )
@@ -332,15 +313,6 @@ impl Gallery {
             crate::pages::Page::CloseButton.description(),
             crate::pages::Page::CloseButton.import_line(),
             vec![
-                (
-                    "Sizes",
-                    row(Size::ALL
-                        .iter()
-                        .map(|s| {
-                            h::CloseButton::new(el_id(format!("cb-{s:?}"))).size(*s)
-                        })
-                        .els()),
-                ),
                 (
                     "Interactive",
                     col(vec![
@@ -418,7 +390,7 @@ impl Gallery {
                     "Vertical & detached",
                     row(vec![
                         h::ToggleButtonGroup::new()
-                            .is_vertical(true)
+                            .orientation(Orientation::Vertical)
                             .child_toggle(h::ToggleButton::new("tbv-1").label("Top"))
                             .child_toggle(h::ToggleButton::new("tbv-2").label("Bottom"))
                             .into_any_element(),
@@ -465,11 +437,11 @@ impl Gallery {
                             items,
                             is_open,
                         )
-                        .on_toggle(cx.listener(|this, _, _, cx| {
-                            this.dropdown_open = !this.dropdown_open;
+                        .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
+                            this.dropdown_open = *open;
                             cx.notify();
-                        }))
-                        .on_select(cx.listener(|this, key: &SharedString, _, cx| {
+                        })))
+                        .on_action(cx.listener(|this, key: &SharedString, _, cx| {
                             this.dropdown_selected = Some(key.clone());
                             this.dropdown_open = false;
                             cx.notify();
@@ -501,10 +473,10 @@ impl Gallery {
                                 cx.notify();
                             },
                         ))
-                        .on_toggle(cx.listener(|this, _, _, cx| {
-                            this.dropdown_open = !this.dropdown_open;
+                        .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
+                            this.dropdown_open = *open;
                             cx.notify();
-                        }))
+                        })))
                         .into_any_element(),
                         para(
                             &format!("Showing {} columns", self.dropdown_multi.len()),
@@ -938,20 +910,6 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Sizes",
-                    col(Size::ALL
-                        .iter()
-                        .map(|s| {
-                            h::Slider::new(el_id(format!("sl-{s:?}")), value)
-                                .size(*s)
-                                .on_change(f32_cb(cx.listener(|this, v: &f32, _, cx| {
-                                    this.slider_value = *v;
-                                    cx.notify();
-                                })))
-                        })
-                        .els()),
-                ),
-                (
                     "Vertical",
                     row(vec![h::Slider::new("sl-vert", value)
                         .orientation(Orientation::Vertical)
@@ -995,7 +953,7 @@ impl Gallery {
                     "Usage",
                     col(vec![
                         h::Switch::new("sw-a")
-                            .checked(a)
+                            .is_selected(a)
                             .label(gpui::div().child("Enable notifications"))
                             .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                 this.switch_a = *v;
@@ -1003,7 +961,7 @@ impl Gallery {
                             })))
                             .into_any_element(),
                         h::Switch::new("sw-b")
-                            .checked(b)
+                            .is_selected(b)
                             .label(gpui::div().child("Share usage data"))
                             .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                 this.switch_b = *v;
@@ -1020,7 +978,7 @@ impl Gallery {
                             spec(
                                 s.label(),
                                 h::Switch::new(el_id(format!("sw-{s:?}")))
-                                    .checked(true)
+                                    .is_selected(true)
                                     .size(*s),
                                 cx,
                             )
@@ -1032,7 +990,7 @@ impl Gallery {
                     row(vec![
                         h::Switch::new("sw-d-off").is_disabled(true).into_any_element(),
                         h::Switch::new("sw-d-on")
-                            .checked(true)
+                            .is_selected(true)
                             .is_disabled(true)
                             .into_any_element(),
                     ]),
@@ -1060,10 +1018,10 @@ impl Gallery {
                             spec(
                                 v.label(),
                                 h::Badge::new()
-                                    .count(5)
+                                    .content("5")
                                     .color(Color::Accent)
                                     .variant(*v)
-                                    .content(avatar_box(cx)),
+                                    .child(avatar_box(cx)),
                                 cx,
                             )
                         })
@@ -1077,9 +1035,9 @@ impl Gallery {
                             spec(
                                 c.label(),
                                 h::Badge::new()
-                                    .count(5)
+                                    .content("5")
                                     .color(*c)
-                                    .content(avatar_box(cx)),
+                                    .child(avatar_box(cx)),
                                 cx,
                             )
                         })
@@ -1088,30 +1046,22 @@ impl Gallery {
                 (
                     "Dot & placement",
                     row(vec![
+                        // No content is v3's dot badge.
                         h::Badge::new()
-                            .dot()
                             .color(Color::Success)
-                            .content(avatar_box(cx))
+                            .child(avatar_box(cx))
                             .into_any_element(),
                         h::Badge::new()
-                            .count(9)
+                            .content("9")
                             .placement(h::BadgePlacement::BottomRight)
-                            .content(avatar_box(cx))
+                            .child(avatar_box(cx))
                             .into_any_element(),
                         h::Badge::new()
-                            .count(3)
-                            .show_outline(false)
-                            .content(avatar_box(cx))
+                            .content("New")
+                            .placement(h::BadgePlacement::TopLeft)
+                            .child(avatar_box(cx))
                             .into_any_element(),
                     ]),
-                ),
-                (
-                    "Invisible",
-                    row(vec![h::Badge::new()
-                        .count(3)
-                        .invisible(true)
-                        .content(avatar_box(cx))
-                        .into_any_element()]),
                 ),
             ],
             cx,
@@ -1148,13 +1098,6 @@ impl Gallery {
                         .iter()
                         .map(|s| h::Chip::new(s.label()).size(*s))
                         .els()),
-                ),
-                (
-                    "Closable",
-                    row(vec![h::Chip::new("Dismiss me")
-                        .color(Color::Danger)
-                        .on_close(|_, _, _| {})
-                        .into_any_element()]),
                 ),
             ],
             cx,
@@ -1201,10 +1144,6 @@ impl Gallery {
                         .iter()
                         .map(|v| build().variant(*v))
                         .els()),
-                ),
-                (
-                    "Striped",
-                    col(vec![build().is_striped(true).into_any_element()]),
                 ),
                 (
                     "Selection",
@@ -1526,7 +1465,7 @@ impl Gallery {
                         .map(|c| {
                             h::Alert::new(format!("{} alert", c.label()))
                                 .description("Something worth reading happened.")
-                                .color(*c)
+                                .status(*c)
                         })
                         .els()),
                 ),
@@ -1535,7 +1474,7 @@ impl Gallery {
                     col(if self.alert_visible {
                         vec![h::Alert::new("Saved")
                             .description("Your changes are live.")
-                            .color(Color::Success)
+                            .status(Color::Success)
                             .is_closable(cx.listener(|this, _, _, cx| {
                                 this.alert_visible = false;
                                 cx.notify();
@@ -1613,15 +1552,11 @@ impl Gallery {
                         .els()),
                 ),
                 (
-                    "Sizes & striped",
+                    "Sizes",
                     col(vec![
                         h::ProgressBar::new().value(40.0).size(Size::Sm).into_any_element(),
                         h::ProgressBar::new().value(60.0).size(Size::Md).into_any_element(),
                         h::ProgressBar::new().value(80.0).size(Size::Lg).into_any_element(),
-                        h::ProgressBar::new()
-                            .value(50.0)
-                            .is_striped(true)
-                            .into_any_element(),
                     ]),
                 ),
             ],
@@ -1653,15 +1588,15 @@ impl Gallery {
                     row(vec![
                         h::ProgressCircle::new()
                             .value(70.0)
-                            .size(px(32.))
+                            .size(Size::Sm)
                             .into_any_element(),
                         h::ProgressCircle::new()
                             .value(70.0)
-                            .size(px(48.))
+                            .size(Size::Md)
                             .into_any_element(),
                         h::ProgressCircle::new()
                             .value(70.0)
-                            .size(px(64.))
+                            .size(Size::Lg)
                             .show_value_label(true)
                             .into_any_element(),
                     ]),
@@ -1684,14 +1619,6 @@ impl Gallery {
                         h::Skeleton::new().w(px(260.)).h(px(16.)).into_any_element(),
                         h::Skeleton::new().w(px(180.)).h(px(16.)).into_any_element(),
                     ]),
-                ),
-                (
-                    "Loaded",
-                    col(vec![h::Skeleton::new()
-                        .w(px(320.))
-                        .h(px(16.))
-                        .is_loaded(true)
-                        .into_any_element()]),
                 ),
             ],
             cx,
@@ -1750,7 +1677,7 @@ impl Gallery {
                     "Usage",
                     col(vec![
                         h::Checkbox::new("cb-1")
-                            .checked(basic)
+                            .is_selected(basic)
                             .label(gpui::div().child("Accept the terms"))
                             .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                 this.cb_basic = *v;
@@ -1758,8 +1685,8 @@ impl Gallery {
                             })))
                             .into_any_element(),
                         h::Checkbox::new("cb-2")
-                            .checked(colored)
-                            .color(Color::Success)
+                            .is_selected(colored)
+                            .variant(h::FieldVariant::Secondary)
                             .label(gpui::div().child("Subscribe to updates"))
                             .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                 this.cb_color = *v;
@@ -1775,21 +1702,10 @@ impl Gallery {
                             .is_indeterminate(true)
                             .into_any_element(),
                         h::Checkbox::new("cb-dis")
-                            .checked(true)
+                            .is_selected(true)
                             .is_disabled(true)
                             .into_any_element(),
                     ]),
-                ),
-                (
-                    "Sizes",
-                    row(Size::ALL
-                        .iter()
-                        .map(|s| {
-                            h::Checkbox::new(el_id(format!("cb-{s:?}")))
-                                .checked(true)
-                                .size(*s)
-                        })
-                        .els()),
                 ),
             ],
             cx,
@@ -1798,11 +1714,14 @@ impl Gallery {
 
     pub fn page_checkbox_group(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let selected = self.checkbox_group.clone();
-        let options = vec![
-            h::CheckboxOption::new("email", "Email").description("Product news and offers"),
-            h::CheckboxOption::new("sms", "SMS"),
-            h::CheckboxOption::new("push", "Push").is_disabled(true),
-        ];
+        let group_options = || {
+            vec![
+                h::CheckboxOption::new("email", "Email").description("Product news and offers"),
+                h::CheckboxOption::new("sms", "SMS"),
+                h::CheckboxOption::new("push", "Push").is_disabled(true),
+            ]
+        };
+        let options = group_options();
         doc_page(
             "Checkbox Group",
             crate::pages::Page::CheckboxGroup.description(),
@@ -1835,6 +1754,13 @@ impl Gallery {
                                 cx.notify();
                             },
                         ))
+                        .into_any_element()]),
+                ),
+                (
+                    "Uncontrolled",
+                    col(vec![h::CheckboxGroup::new("cbg-unc", group_options())
+                        .label("Channels")
+                        .default_value(vec![SharedString::from("email")])
                         .into_any_element()]),
                 ),
             ],
@@ -1978,17 +1904,6 @@ impl Gallery {
                         .els()),
                 ),
                 (
-                    "Sizes",
-                    col(Size::ALL
-                        .iter()
-                        .map(|s| {
-                            h::Input::new(self.input_email.clone())
-                                .placeholder(s.label())
-                                .size(*s)
-                        })
-                        .els()),
-                ),
-                (
                     "States",
                     col(vec![
                         h::Input::new(self.input_name.clone())
@@ -2121,7 +2036,7 @@ impl Gallery {
                 (
                     "Vertical",
                     col(vec![h::RadioGroup::new("rg-v", options.clone())
-                        .selected(selected)
+                        .value(selected)
                         .on_change(usize_cb(cx.listener(|this, i: &usize, _, cx| {
                             this.radio_sel = Some(*i);
                             cx.notify();
@@ -2129,9 +2044,15 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "Uncontrolled",
+                    col(vec![h::RadioGroup::new("rg-unc", options.clone())
+                        .default_value(Some(1))
+                        .into_any_element()]),
+                ),
+                (
                     "Horizontal",
                     col(vec![h::RadioGroup::new("rg-h", options.clone())
-                        .selected(selected)
+                        .value(selected)
                         .orientation(Orientation::Horizontal)
                         .on_change(usize_cb(cx.listener(|this, i: &usize, _, cx| {
                             this.radio_sel = Some(*i);
@@ -2142,7 +2063,7 @@ impl Gallery {
                 (
                     "Disabled",
                     col(vec![h::RadioGroup::new("rg-d", options)
-                        .selected(selected)
+                        .value(selected)
                         .is_disabled(true)
                         .into_any_element()]),
                 ),
@@ -2253,17 +2174,6 @@ impl Gallery {
                     "Variants",
                     row(h::CardVariant::ALL.iter().map(|v| card(*v)).els()),
                 ),
-                (
-                    "Pressable & hoverable",
-                    row(vec![
-                        card(h::CardVariant::Default)
-                            .is_pressable(true)
-                            .into_any_element(),
-                        card(h::CardVariant::Secondary)
-                            .is_hoverable(true)
-                            .into_any_element(),
-                    ]),
-                ),
             ],
             cx,
         )
@@ -2311,10 +2221,9 @@ impl Gallery {
     }
 
     pub fn page_surface(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let panel = |variant: h::SurfaceVariant, bordered: bool| {
+        let panel = |variant: h::SurfaceVariant| {
             h::Surface::new()
                 .variant(variant)
-                .bordered(bordered)
                 .child(
                     h::Typography::heading(6, "Surface content")
                         .into_any_element(),
@@ -2333,10 +2242,10 @@ impl Gallery {
                 (
                     "Variants",
                     col(vec![
-                        panel(h::SurfaceVariant::Default, false).into_any_element(),
-                        panel(h::SurfaceVariant::Secondary, false).into_any_element(),
-                        panel(h::SurfaceVariant::Tertiary, false).into_any_element(),
-                        panel(h::SurfaceVariant::Transparent, true).into_any_element(),
+                        panel(h::SurfaceVariant::Default).into_any_element(),
+                        panel(h::SurfaceVariant::Secondary).into_any_element(),
+                        panel(h::SurfaceVariant::Tertiary).into_any_element(),
+                        panel(h::SurfaceVariant::Transparent).into_any_element(),
                     ]),
                 ),
                 (
@@ -2439,10 +2348,7 @@ impl Gallery {
                     row(Color::ALL
                         .iter()
                         .map(|c| {
-                            h::Avatar::new()
-                                .name("HG")
-                                .color(*c)
-                                .is_bordered(true)
+                            h::Avatar::new().name("HG").color(*c)
                         })
                         .els()),
                 ),
@@ -2566,13 +2472,6 @@ impl Gallery {
                             .into_any_element(),
                     ]),
                 ),
-                (
-                    "Sizes",
-                    col(Size::ALL
-                        .iter()
-                        .map(|s| h::Breadcrumbs::new(crumbs()).size(*s))
-                        .els()),
-                ),
             ],
             cx,
         )
@@ -2590,7 +2489,7 @@ impl Gallery {
                     "Single",
                     col(vec![h::Disclosure::new("Shipping details")
                         .is_expanded(expanded)
-                        .on_toggle(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                        .on_expanded_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                             this.disclosure_expanded = *v;
                             cx.notify();
                         })))
@@ -2629,31 +2528,10 @@ impl Gallery {
             crate::pages::Page::Link.import_line(),
             vec![
                 (
-                    "Underline",
-                    col(vec![
-                        h::Link::new("ln-always")
-                            .label("Always underlined")
-                            .href("#")
-                            .underline(h::Underline::Always)
-                            .into_any_element(),
-                        h::Link::new("ln-hover")
-                            .label("Underline on hover")
-                            .href("#")
-                            .underline(h::Underline::Hover)
-                            .into_any_element(),
-                        h::Link::new("ln-none")
-                            .label("Never underlined")
-                            .href("#")
-                            .underline(h::Underline::None)
-                            .into_any_element(),
-                    ]),
-                ),
-                (
-                    "External",
-                    col(vec![h::Link::new("ln-ext")
-                        .label("heroui.com")
-                        .href("https://heroui.com")
-                        .is_external(true)
+                    "Usage",
+                    col(vec![h::Link::new("ln-hover")
+                        .label("Hover to see the underline")
+                        .href("#")
                         .into_any_element()]),
                 ),
             ],
@@ -2671,7 +2549,6 @@ impl Gallery {
                 (
                     "Usage",
                     col(vec![h::Pagination::new("pg-main", page, 10)
-                        .show_controls(true)
                         .on_change(usize_cb(cx.listener(|this, p: &usize, _, cx| {
                             this.pagination_page = *p;
                             cx.notify();
@@ -2713,7 +2590,7 @@ impl Gallery {
                 (
                     "Primary",
                     col(vec![h::Tabs::new("tabs-primary", items(), primary)
-                        .on_change(cx.listener(|this, key: &SharedString, _, cx| {
+                        .on_selection_change(cx.listener(|this, key: &SharedString, _, cx| {
                             this.tab_solid = key.clone();
                             cx.notify();
                         }))
@@ -2723,18 +2600,7 @@ impl Gallery {
                     "Secondary",
                     col(vec![h::Tabs::new("tabs-secondary", items(), secondary.clone())
                         .variant(h::TabsVariant::Secondary)
-                        .on_change(cx.listener(|this, key: &SharedString, _, cx| {
-                            this.tab_underline = key.clone();
-                            cx.notify();
-                        }))
-                        .into_any_element()]),
-                ),
-                (
-                    "Hidden separator",
-                    col(vec![h::Tabs::new("tabs-nosep", items(), secondary)
-                        .variant(h::TabsVariant::Secondary)
-                        .hide_separator(true)
-                        .on_change(cx.listener(|this, key: &SharedString, _, cx| {
+                        .on_selection_change(cx.listener(|this, key: &SharedString, _, cx| {
                             this.tab_underline = key.clone();
                             cx.notify();
                         }))
@@ -3109,7 +2975,7 @@ impl Gallery {
                     col(vec![h::Select::new("sel-main", languages())
                         .label("Language")
                         .placeholder("Choose one")
-                        .selected(selected)
+                        .value(selected)
                         .is_open(is_open)
                         .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
                             this.select_open = *open;
@@ -3125,13 +2991,20 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "Uncontrolled",
+                    col(vec![h::Select::new("sel-unc", languages())
+                        .label("Language")
+                        .default_value(Some(0))
+                        .into_any_element()]),
+                ),
+                (
                     "Variants",
                     col(FieldVariant::ALL
                         .iter()
                         .map(|v| {
                             h::Select::new(el_id(format!("sel-{v:?}")), languages())
                                 .label(v.label())
-                                .selected(selected)
+                                .value(selected)
                                 .variant(*v)
                         })
                         .els()),
@@ -3140,7 +3013,7 @@ impl Gallery {
                     "Full width",
                     col(vec![h::Select::new("sel-full", languages())
                         .label("Language")
-                        .selected(selected)
+                        .value(selected)
                         .full_width(true)
                         .into_any_element()]),
                 ),
@@ -3195,13 +3068,6 @@ impl Gallery {
                         .iter()
                         .map(|v| spec(v.label(), h::Kbd::new().variant(*v).child("Esc"), cx))
                         .collect()),
-                ),
-                (
-                    "Sizes",
-                    row(Size::ALL
-                        .iter()
-                        .map(|s| h::Kbd::new().size(*s).child("Esc"))
-                        .els()),
                 ),
             ],
             cx,
@@ -3322,7 +3188,7 @@ impl Gallery {
                 (
                     "Horizontal",
                     col(vec![h::ScrollShadow::new("ss-h")
-                        .horizontal()
+                        .orientation(Orientation::Horizontal)
                         .max_w(px(520.))
                         .size(px(56.))
                         .children((1..=14).map(|i| {

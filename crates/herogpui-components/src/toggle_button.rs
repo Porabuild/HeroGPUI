@@ -179,41 +179,47 @@ impl RenderOnce for ToggleButton {
                     .border_color(gpui::transparent_black()),
             });
 
-        // sizing
-        el = match self.size {
-            Size::Sm => {
-                if self.is_icon_only {
-                    el.w(px(32.)).h(px(32.))
-                } else {
-                    el.px(px(12.)).h(px(32.)).gap(px(6.))
-                }
-                .text_size(px(12.))
-            }
-            Size::Md => {
-                if self.is_icon_only {
-                    el.w(px(40.)).h(px(40.))
-                } else {
-                    el.px(px(16.)).h(px(40.)).gap(px(8.))
-                }
-                .text_size(px(14.))
-            }
-            Size::Lg => {
-                if self.is_icon_only {
-                    el.w(px(48.)).h(px(48.))
-                } else {
-                    el.px(px(20.)).h(px(48.)).gap(px(8.))
-                }
-                .text_size(px(16.))
-            }
+        // sizing — kept in locals so the press geometry below scales exactly
+        // what was applied here.
+        let (height, pad_x, gap) = match self.size {
+            Size::Sm => (px(32.), px(12.), px(6.)),
+            Size::Md => (px(40.), px(16.), px(8.)),
+            Size::Lg => (px(48.), px(20.), px(8.)),
+        };
+        let text = self.size.text_size();
+        let line = self.size.line_height();
+        let radius = crate::util::control_radius(cx);
+        el = el.h(height).text_size(text).line_height(line);
+        el = if self.is_icon_only {
+            el.w(height)
+        } else {
+            el.px(pad_x).gap(gap)
         };
 
-        el = el.rounded(crate::util::control_radius(cx));
+        el = el.rounded(radius);
 
         if self.is_disabled {
             el = el.opacity(layout.disabled_opacity);
         } else {
             let hover_bg = colors.default.color;
             el = el.cursor_pointer().hover(move |s| s.bg(hover_bg));
+            // v3 documents ToggleButton's pressed state as including the same
+            // `scale(0.97)` transform as Button.
+            el = crate::anim::pressed(
+                el,
+                crate::anim::PressBox {
+                    height,
+                    padding_x: (!self.is_icon_only).then_some(pad_x),
+                    width: self.is_icon_only.then_some(height),
+                    min_width: None,
+                    text_size: text,
+                    line_height: line,
+                    gap,
+                    radius,
+                    shrink_x: true,
+                },
+                cx,
+            );
         }
 
         if let Some(label) = self.label {
@@ -266,9 +272,10 @@ pub struct ToggleButtonGroup {
 }
 
 impl ToggleButtonGroup {
-    /// `orientation` — the v3 name for [`ToggleButtonGroup::is_vertical`].
-    pub fn orientation(self, orientation: SelectionOrientation) -> Self {
-        self.is_vertical(orientation == SelectionOrientation::Vertical)
+    /// `orientation` — lays the group out along the given axis.
+    pub fn orientation(mut self, orientation: SelectionOrientation) -> Self {
+        self.is_vertical = orientation == SelectionOrientation::Vertical;
+        self
     }
 
     /// `disallowEmptySelection` — keeps at least one member selected.
@@ -305,11 +312,6 @@ impl ToggleButtonGroup {
 
     pub fn is_detached(mut self, v: bool) -> Self {
         self.is_detached = v;
-        self
-    }
-
-    pub fn is_vertical(mut self, v: bool) -> Self {
-        self.is_vertical = v;
         self
     }
 

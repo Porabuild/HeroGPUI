@@ -15,10 +15,8 @@ use herogpui_theme::{ActiveTheme, SkeletonAnimation};
 #[derive(IntoElement)]
 pub struct Skeleton {
     id: ElementId,
-    is_loaded: bool,
     w: Option<Pixels>,
     h: Option<Pixels>,
-    radius: Pixels,
     /// `animationType`. `None` defers to `--skeleton-animation`.
     animation_type: Option<SkeletonAnimation>,
     children: Vec<AnyElement>,
@@ -28,10 +26,8 @@ impl Skeleton {
     pub fn new() -> Self {
         Self {
             id: "skeleton".into(),
-            is_loaded: false,
             w: None,
             h: Some(px(24.)),
-            radius: px(8.),
             animation_type: None,
             children: Vec::new(),
         }
@@ -43,11 +39,6 @@ impl Skeleton {
         self
     }
 
-    /// When true, renders the real content instead of the placeholder.
-    pub fn is_loaded(mut self, v: bool) -> Self {
-        self.is_loaded = v;
-        self
-    }
 
     pub fn w(mut self, v: impl Into<Pixels>) -> Self {
         self.w = Some(v.into());
@@ -56,11 +47,6 @@ impl Skeleton {
 
     pub fn h(mut self, v: impl Into<Pixels>) -> Self {
         self.h = Some(v.into());
-        self
-    }
-
-    pub fn radius(mut self, v: impl Into<Pixels>) -> Self {
-        self.radius = v.into();
         self
     }
 
@@ -84,10 +70,6 @@ impl ParentElement for Skeleton {
 
 impl RenderOnce for Skeleton {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        if self.is_loaded && !self.children.is_empty() {
-            return div().children(self.children).into_any_element();
-        }
-
         let colors = cx.colors();
         let base_color = colors.surface_tertiary;
         // Reduced motion collapses every animation type to `None`.
@@ -100,7 +82,7 @@ impl RenderOnce for Skeleton {
 
         let base = div()
             .bg(base_color)
-            .rounded(self.radius)
+            .rounded(crate::util::control_radius(cx))
             .overflow_hidden()
             .when_some(self.w, |el, w| el.w(w))
             .when_some(self.h, |el, h| el.h(h))

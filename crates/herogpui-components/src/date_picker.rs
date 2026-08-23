@@ -8,7 +8,6 @@ use gpui::{
     prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString,
     StatefulInteractiveElement, Styled, Window,
 };
-use herogpui_core::Size;
 use herogpui_theme::ActiveTheme;
 
 use crate::{
@@ -33,7 +32,6 @@ pub struct DatePicker {
     default_open: bool,
     label: Option<SharedString>,
     placeholder: SharedString,
-    size: Size,
     on_change: Option<OnChange>,
 }
 
@@ -104,7 +102,6 @@ impl DatePicker {
             default_open: false,
             label: None,
             placeholder: "Select a date".into(),
-            size: Size::Md,
             on_change: None,
         }
     }
@@ -132,10 +129,6 @@ impl DatePicker {
         self
     }
 
-    pub fn size(mut self, s: Size) -> Self {
-        self.size = s;
-        self
-    }
 
 
 
@@ -161,11 +154,7 @@ impl RenderOnce for DatePicker {
         let layout = cx.layout();
 
         let selected = self.state.read(cx).selected;
-        let h = match self.size {
-            Size::Sm => px(32.),
-            Size::Md => px(40.),
-            Size::Lg => px(48.),
-        };
+        let h = px(40.);
 
         let mut field = gpui::div()
             .id(gpui::ElementId::Name(
@@ -354,7 +343,6 @@ pub struct DateRangePicker {
     default_open: bool,
     label: Option<SharedString>,
     placeholder: SharedString,
-    size: Size,
     is_disabled: bool,
     is_invalid: bool,
     constraints: DateConstraints,
@@ -370,7 +358,6 @@ impl DateRangePicker {
             default_open: false,
             label: None,
             placeholder: "Select range".into(),
-            size: Size::Md,
             is_disabled: false,
             is_invalid: false,
             constraints: DateConstraints::new(),
@@ -390,10 +377,6 @@ impl DateRangePicker {
         self
     }
 
-    pub fn size(mut self, size: Size) -> Self {
-        self.size = size;
-        self
-    }
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
@@ -505,9 +488,9 @@ impl RenderOnce for DateRangePicker {
             .items_center()
             .gap(px(8.))
             .w_full()
-            .h(self.size.control_height())
+            .h(crate::util::FIELD_HEIGHT)
             .px(px(12.))
-            .text_size(self.size.text_size())
+            .text_size(crate::util::FIELD_TEXT)
             .rounded(crate::util::field_radius(cx))
             .bg(colors.default.soft());
 

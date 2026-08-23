@@ -34,9 +34,12 @@ impl AvatarVariant {
 pub struct Avatar {
     name: SharedString,
     src: Option<SharedString>,
+    /// Edge length, set by [`Avatar::size`]. v3 has no custom-pixel prop.
     size_px: gpui::Pixels,
     color: Color,
     variant: AvatarVariant,
+    /// Set by [`AvatarGroup`], which rings each member so the stack reads as
+    /// separate avatars. v3 does this in the group's CSS, not with a prop.
     is_bordered: bool,
 }
 
@@ -77,22 +80,18 @@ impl Avatar {
         self
     }
 
-    pub fn size_px(mut self, px: impl Into<gpui::Pixels>) -> Self {
-        self.size_px = px.into();
+
+
+    fn with_border(mut self, v: bool) -> Self {
+        self.is_bordered = v;
         self
     }
-
 
     pub fn color(mut self, c: Color) -> Self {
         self.color = c;
         self
     }
 
-    /// Ring border around the avatar (`isBordered`).
-    pub fn is_bordered(mut self, v: bool) -> Self {
-        self.is_bordered = v;
-        self
-    }
 }
 
 impl Default for Avatar {
@@ -205,7 +204,7 @@ impl RenderOnce for AvatarGroup {
                         gpui::div()
                             .when(i > 0, |d| d.ml(gpui::px(-8.)))
                             .rounded_full()
-                            .child(a.is_bordered(true))
+                            .child(a.with_border(true))
                     })),
             )
             .when(count > self.max || self.total.map(|t| t > self.max).unwrap_or(false), |el| {

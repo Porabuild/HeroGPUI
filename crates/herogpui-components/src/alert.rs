@@ -21,8 +21,10 @@ pub struct Alert {
 impl Alert {
     /// `status` — the v3 name for [`Alert::color`]; the values are the same
     /// semantic roles.
-    pub fn status(self, status: Color) -> Self {
-        self.color(status)
+    /// `status` — the alert's visual status.
+    pub fn status(mut self, status: Color) -> Self {
+        self.color = status;
+        self
     }
 
     pub fn new(title: impl Into<SharedString>) -> Self {
@@ -37,11 +39,6 @@ impl Alert {
 
     pub fn description(mut self, d: impl Into<SharedString>) -> Self {
         self.description = Some(d.into());
-        self
-    }
-
-    pub fn color(mut self, c: Color) -> Self {
-        self.color = c;
         self
     }
 

@@ -203,6 +203,16 @@ pub fn apply_button_variant(
     }
 }
 
+/// The minimum width a labelled button holds, so a short label still reads as a
+/// button. Shared with the press geometry, which has to scale it.
+fn min_width(size: Size) -> gpui::Pixels {
+    match size {
+        Size::Sm => px(64.),
+        Size::Md => px(80.),
+        Size::Lg => px(96.),
+    }
+}
+
 /// The text colour `variant` paints. Needed because gpui svgs never inherit
 /// `text_color`, so a pending spinner has to be told what "current" means.
 pub fn button_foreground(variant: Variant, cx: &App) -> gpui::Hsla {
@@ -242,11 +252,7 @@ impl RenderOnce for Button {
         } else {
             el.px(self.size.padding_x())
                 .gap(self.size.gap())
-                .min_w(match self.size {
-                    Size::Sm => px(64.),
-                    Size::Md => px(80.),
-                    Size::Lg => px(96.),
-                })
+                .min_w(min_width(self.size))
         };
 
         if self.full_width {
@@ -265,7 +271,6 @@ impl RenderOnce for Button {
             let spinner_id = ElementId::Name(format!("{:?}-spinner", self.id).into());
             el = el.child(
                 Spinner::new(spinner_id)
-                    .size(self.size)
                     .current_color(button_foreground(self.variant, cx)),
             );
         } else if let Some(start) = self.start_content {
@@ -284,22 +289,21 @@ impl RenderOnce for Button {
         // v3's `[data-pressed]` scale. Applied last so the press geometry sits
         // on top of whatever the variant did to padding.
         if interactive {
-            el = if self.is_icon_only {
-                crate::anim::pressed_fixed(
-                    el,
-                    self.size.control_height(),
-                    self.size.icon_control_size(),
-                    cx,
-                )
-            } else {
-                crate::anim::pressed_padded(
-                    el,
-                    self.size.control_height(),
-                    self.size.padding_x(),
-                    !self.full_width,
-                    cx,
-                )
-            };
+            el = crate::anim::pressed(
+                el,
+                crate::anim::PressBox {
+                    height: self.size.control_height(),
+                    padding_x: (!self.is_icon_only).then(|| self.size.padding_x()),
+                    width: self.is_icon_only.then(|| self.size.icon_control_size()),
+                    min_width: (!self.is_icon_only).then(|| min_width(self.size)),
+                    text_size: self.size.text_size(),
+                    line_height: self.size.line_height(),
+                    gap: self.size.gap(),
+                    radius: util::control_radius(cx),
+                    shrink_x: !self.full_width,
+                },
+                cx,
+            );
         }
 
         if let Some(on_press) = self.on_press {

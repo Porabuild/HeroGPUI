@@ -7,7 +7,7 @@ use gpui::{
     prelude::*, px, App, Bounds, IntoElement, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
     RenderOnce, Styled, Window,
 };
-use herogpui_core::{Color, Orientation, Size};
+use herogpui_core::{Color, Orientation};
 use herogpui_theme::ActiveTheme;
 
 type OnChange = std::sync::Arc<dyn Fn(f32, &mut Window, &mut App) + 'static>;
@@ -20,8 +20,6 @@ pub struct Slider {
     min: f32,
     max: f32,
     step: f32,
-    size: Size,
-    color: Color,
     is_disabled: bool,
     orientation: Orientation,
     label: Option<String>,
@@ -50,8 +48,6 @@ impl Slider {
             min: 0.0,
             max: 100.0,
             step: 1.0,
-            size: Size::Md,
-            color: Color::Accent,
             is_disabled: false,
             orientation: Orientation::Horizontal,
             label: None,
@@ -78,15 +74,6 @@ impl Slider {
         self
     }
 
-    pub fn size(mut self, s: Size) -> Self {
-        self.size = s;
-        self
-    }
-
-    pub fn color(mut self, c: Color) -> Self {
-        self.color = c;
-        self
-    }
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
@@ -124,7 +111,7 @@ impl Slider {
 
 impl RenderOnce for Slider {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let sem = cx.role(self.color);
+        let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
 
@@ -142,16 +129,8 @@ impl RenderOnce for Slider {
         }));
         let dragging: Rc<Cell<bool>> = Rc::new(Cell::new(false));
 
-        let rail_h = match self.size {
-            Size::Sm => px(3.),
-            Size::Md => px(4.),
-            Size::Lg => px(6.),
-        };
-        let thumb_px = match self.size {
-            Size::Sm => px(14.),
-            Size::Md => px(18.),
-            Size::Lg => px(22.),
-        };
+        let rail_h = px(4.);
+        let thumb_px = px(18.);
         let range_span = self.max - self.min;
 
         let mut el = gpui::div().flex().flex_col().gap(px(4.));

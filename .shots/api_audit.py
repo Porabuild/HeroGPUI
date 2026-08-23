@@ -40,7 +40,7 @@ ALIAS = {
     'hideSeparator': 'hide_separator', 'hideSteppers': 'hide_steppers',
     'selectionMode': 'selection_mode', 'selectedKeys': 'selected_keys',
     'defaultSelectedKeys': 'selected_keys', 'disabledKeys': 'disabled_keys',
-    'selectedKey': 'selected_key', 'defaultValue': 'value', 'errorMessage': 'error_message',
+    'selectedKey': 'selected_key', 'errorMessage': 'error_message',
     'colorSpace': 'color_space', 'xChannel': 'x_channel', 'yChannel': 'y_channel',
     'showDots': 'show_dots', 'colorName': 'color_name', 'hourCycle': 'hour_cycle',
     'placeholderValue': 'placeholder_value', 'minValue': 'min_value', 'maxValue': 'max_value',
@@ -50,6 +50,8 @@ ALIAS = {
     'showValueLabel': 'show_value_label', 'weeksInMonth': 'weeks_in_month',
     'firstDayOfWeek': 'first_day_of_week', 'isDateUnavailable': 'is_date_unavailable',
     'focusedValue': 'focused_value', 'defaultSelectedKey': 'selected_key',
+    # Tabs is the one component with a separate uncontrolled builder.
+    'Tabs.defaultSelectedKey': 'default_selected_key',
     'renderEmptyState': 'empty_state', 'onInputChange': 'on_input_change',
     'defaultFilter': 'filter', 'autoFocus': 'auto_focus',
     # `Dropdown.ItemIndicator`'s type is our `indicator` builder.
@@ -90,10 +92,30 @@ SKIP = {
 # Deliberately not ported, with the reason. These are reported separately so
 # the "real gap" number stays meaningful.
 WONT_PORT = {
-    # Every component here is controlled; there is no uncontrolled mode.
-    'defaultValue': 'controlled-only', 'defaultSelected': 'controlled-only',
-    'defaultOpen': 'controlled-only', 'defaultSelectedKey': 'controlled-only',
-    'defaultSelectedKeys': 'controlled-only', 'defaultInputValue': 'controlled-only',
+    # Uncontrolled mode exists (`util::controlled` + `use_keyed_state`), so
+    # `defaultOpen`, `defaultSelected`, `defaultExpanded*` and
+    # `defaultYearPickerOpen` are implemented, not omitted. What is left here is
+    # the collection-valued seed: `Vec`/`Selection` state that the caller owns
+    # as an entity, where a one-shot initial value has nothing to seed.
+    'defaultSelectedKeys': 'caller-owns-collection',
+    # The value lives in a caller-owned entity (`InputState::with_value`,
+    # `CalendarState::with_selected`, `NumberState::with_value`), which *is* the
+    # uncontrolled seed: there is nothing for a one-shot prop to initialise that
+    # the entity has not already set.
+    'defaultValue': 'state-entity-seeds-it',
+    # These take the value as a constructor argument -- `ColorArea::new(id,
+    # value)` -- so the caller re-supplies it each render and owns it outright;
+    # `value` itself is recorded as `constructor-arg` below.
+    'ColorArea.defaultValue': 'constructor-arg',
+    'ColorField.defaultValue': 'constructor-arg',
+    'ColorPicker.defaultValue': 'constructor-arg',
+    'ColorSlider.defaultValue': 'constructor-arg',
+    'ColorSwatchPicker.defaultValue': 'constructor-arg',
+    'Slider.defaultValue': 'constructor-arg',
+    'defaultInputValue': 'caller-owns-collection',
+    # Tabs has a real `default_selected_key`; ComboBox's selection lives in the
+    # caller's `InputState`, so there is nothing separate to seed.
+    'ComboBox.defaultSelectedKey': 'state-entity-seeds-it',
    
     # React Aria validation plumbing; callers validate and pass `is_invalid`.
     # 'native' blocks HTML form submission, which does not exist here, so
@@ -155,7 +177,6 @@ WONT_PORT = {
     'Dropdown.isSelected': 'render-prop-arg',
     'Dropdown.isIndeterminate': 'render-prop-arg',
     'Table.sortDirection': 'render-prop-arg',
-    'Table.columns': 'render-prop-arg',
     'Pagination.isActive': 'render-prop-arg',
     # Custom element slots: our builders take strings/elements positionally
     # rather than an override hook.
@@ -168,8 +189,10 @@ WONT_PORT = {
     # gpui's img() reports no load or error events, so a fallback delay has
     # nothing to key off.
     'Avatar.delayMs': 'no-image-load-events',
-    # A checkbox's `value` is its form-submission value.
+    # A checkbox's or switch's `value` is its form-submission value, not its
+    # state -- `isSelected` is the state.
     'Checkbox.value': 'no-html-forms',
+    'Switch.value': 'no-html-forms',
     # Column resizing does not exist here, so its width hints have no meaning.
     'Table.defaultWidth': 'no-column-resize',
     'Table.minWidth': 'no-column-resize',
@@ -180,7 +203,6 @@ WONT_PORT = {
     'onVisibilityChange': 'no-scroll-offset',
     # OtpState::with_length owns the cell count.
     'InputOTP.maxLength': 'state-owns-length',
-    'defaultExpandedKeys': 'controlled-only', 'defaultExpanded': 'controlled-only',
     # A single-date Calendar; RangeCalendar covers the range case and there is
     # no v3-shaped multi-date state here.
 
@@ -295,51 +317,56 @@ def props_for(component):
     return found
 
 
-gap_total = 0
-wont_total = 0
-documented = 0
-unattributed = []
-for comp in sorted(FILES):
-    f = FILES[comp]
-    # Prefer the component's own impl block; fall back to the whole file (and
-    # report it) when the Rust struct carries a different name.
-    if comp in impl_methods:
-        have = set(impl_methods[comp])
-    else:
-        have = set(methods.get(f, set()))
-        unattributed.append(comp)
-    for part in COMPANIONS.get(comp, ()):
-        have |= impl_methods.get(part, set())
-    props = props_for(comp)
-    if not props:
-        continue
-    missing = []
-    for p in sorted(props):
-        if p in SKIP:
+def main():
+    gap_total = 0
+    wont_total = 0
+    documented = 0
+    unattributed = []
+    for comp in sorted(FILES):
+        f = FILES[comp]
+        # Prefer the component's own impl block; fall back to the whole file (and
+        # report it) when the Rust struct carries a different name.
+        if comp in impl_methods:
+            have = set(impl_methods[comp])
+        else:
+            have = set(methods.get(f, set()))
+            unattributed.append(comp)
+        for part in COMPANIONS.get(comp, ()):
+            have |= impl_methods.get(part, set())
+        props = props_for(comp)
+        if not props:
             continue
-        documented += 1
-        # A scoped alias (`Component.prop`) wins over the global one, so a
-        # name that means different things in different components can be
-        # mapped per component.
-        rust = ALIAS.get('%s.%s' % (comp, p)) or ALIAS.get(
-            p, re.sub(r'(?<!^)(?=[A-Z])', '_', p).lower())
-        if rust in have or p.lower() in have:
-            continue
-        # A reason may be global (`prop`) or scoped (`Component.prop`); the
-        # scoped form keeps a blanket name from hiding a real gap elsewhere.
-        if ('%s.%s' % (comp, p)) in WONT_PORT or p in WONT_PORT:
-            wont_total += 1
-            continue
-        missing.append(p)
-    if missing:
-        gap_total += len(missing)
-        print('%-20s %s' % (comp, ', '.join(missing)))
+        missing = []
+        for p in sorted(props):
+            if p in SKIP:
+                continue
+            documented += 1
+            # A scoped alias (`Component.prop`) wins over the global one, so a
+            # name that means different things in different components can be
+            # mapped per component.
+            rust = ALIAS.get('%s.%s' % (comp, p)) or ALIAS.get(
+                p, re.sub(r'(?<!^)(?=[A-Z])', '_', p).lower())
+            if rust in have or p.lower() in have:
+                continue
+            # A reason may be global (`prop`) or scoped (`Component.prop`); the
+            # scoped form keeps a blanket name from hiding a real gap elsewhere.
+            if ('%s.%s' % (comp, p)) in WONT_PORT or p in WONT_PORT:
+                wont_total += 1
+                continue
+            missing.append(p)
+        if missing:
+            gap_total += len(missing)
+            print('%-20s %s' % (comp, ', '.join(missing)))
 
-print()
-print('documented props considered : %d' % documented)
-print('implemented                 : %d' % (documented - gap_total - wont_total))
-print('deliberately not ported     : %d  (see WONT_PORT)' % wont_total)
-print('REAL GAPS                   : %d' % gap_total)
-if unattributed:
     print()
-    print('no impl block matched (checked file-wide): %s' % ', '.join(unattributed))
+    print('documented props considered : %d' % documented)
+    print('implemented                 : %d' % (documented - gap_total - wont_total))
+    print('deliberately not ported     : %d  (see WONT_PORT)' % wont_total)
+    print('REAL GAPS                   : %d' % gap_total)
+    if unattributed:
+        print()
+        print('no impl block matched (checked file-wide): %s' % ', '.join(unattributed))
+
+
+if __name__ == '__main__':
+    main()

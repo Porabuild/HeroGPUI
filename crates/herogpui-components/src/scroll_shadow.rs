@@ -101,11 +101,6 @@ impl ScrollShadow {
         self
     }
 
-    /// Shorthand for `orientation(Orientation::Horizontal)`.
-    pub fn horizontal(mut self) -> Self {
-        self.orientation = Orientation::Horizontal;
-        self
-    }
 
 
     /// Gradient depth in pixels.

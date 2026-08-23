@@ -10,7 +10,7 @@ use gpui::{
     div, prelude::*, px, App, ElementId, Entity, Hsla, InteractiveElement, IntoElement,
     MouseDownEvent, Pixels, RenderOnce, SharedString, Styled, Window,
 };
-use herogpui_core::{FieldVariant, Placement, Size, SizeXl};
+use herogpui_core::{FieldVariant, Placement, SizeXl};
 use herogpui_theme::ActiveTheme;
 
 use crate::{input::Input, util};
@@ -925,7 +925,6 @@ pub struct ColorField {
     label: Option<SharedString>,
     description: Option<SharedString>,
     variant: FieldVariant,
-    size: Size,
     full_width: bool,
     is_disabled: bool,
     is_invalid: bool,
@@ -960,7 +959,6 @@ impl ColorField {
             label: None,
             description: None,
             variant: FieldVariant::Primary,
-            size: Size::Md,
             full_width: false,
             is_disabled: false,
             is_invalid: false,
@@ -1055,11 +1053,6 @@ impl ColorField {
         self
     }
 
-    pub fn size(mut self, size: Size) -> Self {
-        self.size = size;
-        self
-    }
-
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
         self
@@ -1129,7 +1122,6 @@ impl RenderOnce for ColorField {
         // keystroke, so `onChange` reports exactly what v3's does.
         if let Some(state) = self.state.clone() {
             let mut input = Input::new(state)
-                .size(self.size)
                 .variant(self.variant)
                 .is_disabled(self.is_disabled)
                 .is_read_only(self.is_read_only)
@@ -1171,9 +1163,9 @@ impl RenderOnce for ColorField {
             .items_center()
             .gap(px(8.))
             .px(px(12.))
-            .h(self.size.control_height())
+            .h(util::FIELD_HEIGHT)
             .rounded(util::field_radius(cx))
-            .text_size(self.size.text_size())
+            .text_size(util::FIELD_TEXT)
             .text_color(colors.field.foreground)
             .child(ColorSwatch::new(self.value).size(SizeXl::Xs))
             .child(div().flex_1().child(text));

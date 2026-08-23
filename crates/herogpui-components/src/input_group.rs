@@ -5,10 +5,10 @@
 //! read as a single control.
 
 use gpui::{
-    div, prelude::*, px, AnyElement, App, IntoElement, ParentElement, Pixels, RenderOnce,
+    div, prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce,
     SharedString, Styled, Window,
 };
-use herogpui_core::{FieldVariant, Size};
+use herogpui_core::FieldVariant;
 use herogpui_theme::ActiveTheme;
 
 use crate::util;
@@ -41,7 +41,6 @@ impl RenderOnce for InputAddon {
 #[derive(IntoElement)]
 pub struct InputGroup {
     variant: FieldVariant,
-    size: Size,
     full_width: bool,
     is_disabled: bool,
     is_invalid: bool,
@@ -55,7 +54,6 @@ impl InputGroup {
     pub fn new() -> Self {
         Self {
             variant: FieldVariant::Primary,
-            size: Size::Md,
             full_width: false,
             is_disabled: false,
             is_invalid: false,
@@ -71,10 +69,6 @@ impl InputGroup {
         self
     }
 
-    pub fn size(mut self, size: Size) -> Self {
-        self.size = size;
-        self
-    }
 
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
@@ -106,9 +100,6 @@ impl InputGroup {
         self
     }
 
-    fn height(size: Size) -> Pixels {
-        size.control_height()
-    }
 }
 
 impl Default for InputGroup {
@@ -135,8 +126,8 @@ impl RenderOnce for InputGroup {
             .items_center()
             .gap(px(8.))
             .px(px(12.))
-            .h(Self::height(self.size))
-            .text_size(self.size.text_size())
+            .h(util::FIELD_HEIGHT)
+            .text_size(util::FIELD_TEXT)
             .rounded(util::field_radius(cx))
             .text_color(colors.field.foreground);
 

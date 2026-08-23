@@ -7,7 +7,7 @@ use gpui::{
     prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString,
     StatefulInteractiveElement, Styled, Window,
 };
-use herogpui_core::{FieldVariant, Placement, SelectionMode, Size};
+use herogpui_core::{FieldVariant, Placement, SelectionMode};
 use herogpui_theme::ActiveTheme;
 
 use crate::{
@@ -27,7 +27,6 @@ pub struct Autocomplete {
     placeholder: Option<SharedString>,
     description: Option<SharedString>,
     error_message: Option<SharedString>,
-    size: Size,
     variant: FieldVariant,
     full_width: bool,
     is_disabled: bool,
@@ -45,6 +44,7 @@ pub struct Autocomplete {
         Option<std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>>,
     /// `isOpen`. `None` follows focus, which is the v3 default behaviour.
     is_open: Option<bool>,
+    default_open: bool,
     placement: Placement,
     on_open_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
     on_selection_change: Option<OnSelectionChange>,
@@ -88,6 +88,15 @@ impl Autocomplete {
     /// `placement` on `Autocomplete.Popover`.
     pub fn placement(mut self, placement: Placement) -> Self {
         self.placement = placement;
+        self
+    }
+
+    /// `defaultOpen` — the popover starts open, until the field takes focus.
+    ///
+    /// After the first focus the popover follows focus, so a blur closes it;
+    /// the seed only covers the render before the user has engaged.
+    pub fn default_open(mut self, v: bool) -> Self {
+        self.default_open = v;
         self
     }
 
@@ -155,7 +164,6 @@ impl Autocomplete {
             placeholder: None,
             description: None,
             error_message: None,
-            size: Size::Md,
             variant: FieldVariant::Primary,
             full_width: false,
             is_disabled: false,
@@ -172,6 +180,7 @@ impl Autocomplete {
             on_input_change: None,
             on_clear: None,
             is_open: None,
+            default_open: false,
             placement: Placement::BottomStart,
             on_open_change: None,
             on_selection_change: None,
@@ -193,10 +202,6 @@ impl Autocomplete {
         self
     }
 
-    pub fn size(mut self, s: Size) -> Self {
-        self.size = s;
-        self
-    }
 
     pub fn description(mut self, text: impl Into<SharedString>) -> Self {
         self.description = Some(text.into());
@@ -266,10 +271,29 @@ fn el_name(s: String) -> gpui::ElementId {
 
 impl RenderOnce for Autocomplete {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // The `defaultOpen` seed: `isOpen` wins over it, then focus, and the
+        // first focus spends the seed so a later blur closes the popover
+        // instead of leaving it pinned open. `use_keyed_state` takes `cx`
+        // mutably, so this precedes the theme tokens.
+        let focused = self.state.read(cx).focus_handle.is_focused(window);
+        let seed = window.use_keyed_state(
+            gpui::ElementId::Name(
+                format!("autocomplete-{:?}-default-open", self.state.entity_id()).into(),
+            ),
+            cx,
+            {
+                let default_open = self.default_open;
+                move |_, _| default_open
+            },
+        );
+        let seeded = *seed.read(cx);
+        if focused && seeded {
+            seed.update(cx, |v, _| *v = false);
+        }
+
         let colors = cx.colors();
         let layout = cx.layout();
 
-        let focused = self.state.read(cx).focus_handle.is_focused(window);
         // A controlled `inputValue` wins over whatever the entity holds.
         let raw_query = match &self.input_value {
             Some(v) => v.clone(),
@@ -277,8 +301,7 @@ impl RenderOnce for Autocomplete {
         };
         let query = raw_query.to_lowercase();
 
-        // Filtered suggestions (only while focused)
-        let open = self.is_open.unwrap_or(focused);
+        let open = self.is_open.unwrap_or(focused || seeded);
         let multiple = self.selection_mode == SelectionMode::Multiple;
         let matches: Vec<SharedString> = if open {
             let custom = self.filter.clone();
@@ -300,7 +323,6 @@ impl RenderOnce for Autocomplete {
         let is_invalid = self.is_invalid || self.error_message.is_some();
         let hover_bg = colors.default.soft_hover();
         let mut input = Input::new(self.state.clone())
-            .size(self.size)
             .variant(self.variant)
             .is_disabled(self.is_disabled)
             .is_read_only(self.is_read_only)
@@ -473,7 +495,7 @@ impl RenderOnce for Autocomplete {
                     gpui::div()
                         .px(px(12.))
                         .py(px(6.))
-                        .text_size(self.size.text_size())
+                        .text_size(crate::util::FIELD_TEXT)
                         .text_color(colors.muted)
                         .child("No matching options"),
                 );

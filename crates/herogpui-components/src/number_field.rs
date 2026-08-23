@@ -5,7 +5,7 @@ use std::sync::Arc;
 use gpui::{
     prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, Styled, Window,
 };
-use herogpui_core::{FieldVariant, Size};
+use herogpui_core::FieldVariant;
 use herogpui_theme::ActiveTheme;
 
 use crate::{icons, input::InputState};
@@ -103,7 +103,6 @@ type OnChange = Arc<dyn Fn(f64, &mut Window, &mut App) + 'static>;
 pub struct NumberField {
     state: Entity<NumberState>,
     label: Option<SharedString>,
-    size: Size,
     hide_steppers: bool,
     is_disabled: bool,
     variant: FieldVariant,
@@ -190,7 +189,6 @@ impl NumberField {
         Self {
             state,
             label: None,
-            size: Size::Md,
             hide_steppers: false,
             is_disabled: false,
             variant: FieldVariant::Primary,
@@ -212,10 +210,6 @@ impl NumberField {
         self
     }
 
-    pub fn size(mut self, s: Size) -> Self {
-        self.size = s;
-        self
-    }
 
 
 
@@ -242,11 +236,7 @@ impl RenderOnce for NumberField {
         let _ = window;
         let layout = cx.layout().clone();
 
-        let h = match self.size {
-            Size::Sm => px(32.),
-            Size::Md => px(40.),
-            Size::Lg => px(48.),
-        };
+        let h = px(40.);
         // v3 order: the controlled flag, then server errors, then `validate`.
         let value_now = self.state.read(cx).value();
         let validity = crate::validation::resolve(
@@ -256,11 +246,7 @@ impl RenderOnce for NumberField {
             None,
         );
 
-        let btn_px = match self.size {
-            Size::Sm => px(22.),
-            Size::Md => px(26.),
-            Size::Lg => px(30.),
-        };
+        let btn_px = px(26.);
 
         // Component-level `minValue`/`maxValue`/`step` win over whatever the
         // state was seeded with. Only write when something actually differs,
@@ -286,7 +272,6 @@ impl RenderOnce for NumberField {
         let text_state = self.state.clone();
         let on_text_change = self.on_change.clone();
         let mut field = crate::input::Input::new(self.state.read(cx).input.clone())
-            .size(self.size)
             .variant(self.variant)
             .is_disabled(self.is_disabled)
             .is_read_only(self.is_read_only)

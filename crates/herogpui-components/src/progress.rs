@@ -15,8 +15,6 @@ pub struct ProgressBar {
     max_value: f32,
     size: Size,
     color: Color,
-    radius: gpui::Pixels,
-    is_striped: bool,
     is_indeterminate: bool,
     label: Option<String>,
     show_value: bool,
@@ -31,8 +29,6 @@ impl ProgressBar {
             max_value: 100.0,
             size: Size::Md,
             color: Color::Accent,
-            radius: gpui::px(9999.),
-            is_striped: false,
             is_indeterminate: false,
             label: None,
             show_value: false,
@@ -78,16 +74,6 @@ impl ProgressBar {
         self
     }
 
-    pub fn radius(mut self, r: impl Into<gpui::Pixels>) -> Self {
-        self.radius = r.into();
-        self
-    }
-
-    /// Striped fill (`isStriped`).
-    pub fn is_striped(mut self, v: bool) -> Self {
-        self.is_striped = v;
-        self
-    }
 
     /// Label rendered above the track (`label` + `showValueLabel`).
     pub fn label(mut self, l: impl Into<String>) -> Self {
@@ -143,13 +129,12 @@ impl RenderOnce for ProgressBar {
             .w_full()
             .h(h)
             .overflow_hidden()
-            .rounded(self.radius)
+            .rounded_full()
             .bg(colors.default.soft_hover());
 
         // Indeterminate bars sweep a short segment; reduced motion falls back
         // to a static two-thirds fill so the state is still legible.
         let track = if self.is_indeterminate && !cx.reduce_motion() {
-            let radius = self.radius;
             let fill = sem.color;
             track
                 .child(
@@ -157,7 +142,7 @@ impl RenderOnce for ProgressBar {
                         .relative()
                         .h_full()
                         .w(gpui::relative(0.35))
-                        .rounded(radius)
+                        .rounded_full()
                         .bg(fill)
                         .with_animation(
                             "progress-indeterminate",
@@ -171,20 +156,17 @@ impl RenderOnce for ProgressBar {
                 .child(
                     gpui::div()
                         .h_full()
-                        .rounded(self.radius)
+                        .rounded_full()
                         .bg(sem.color)
                         .w(gpui::relative(0.66)),
                 )
                 .into_any_element()
         } else {
-            let mut indicator = gpui::div()
+            let indicator = gpui::div()
                 .h_full()
-                .rounded(self.radius)
+                .rounded_full()
                 .bg(sem.color)
                 .w(gpui::relative(fraction));
-            if self.is_striped {
-                indicator = indicator.opacity(0.92);
-            }
             track.child(indicator).into_any_element()
         };
 
@@ -210,7 +192,6 @@ pub struct ProgressCircle {
     max_value: f32,
     color: Color,
     size_px: gpui::Pixels,
-    stroke_width: gpui::Pixels,
     is_indeterminate: bool,
     show_value: bool,
 }
@@ -222,8 +203,7 @@ impl ProgressCircle {
             min_value: 0.0,
             max_value: 100.0,
             color: Color::Accent,
-            size_px: px(64.),
-            stroke_width: px(3.),
+            size_px: px(48.),
             is_indeterminate: false,
             show_value: false,
         }
@@ -255,15 +235,18 @@ impl ProgressCircle {
         self
     }
 
-    pub fn size(mut self, s: impl Into<gpui::Pixels>) -> Self {
-        self.size_px = s.into();
+    /// `size` — the ring's diameter: 32 / 48 / 64px for `sm` / `md` / `lg`.
+    ///
+    /// v3 documents the three-step scale, not a pixel value.
+    pub fn size(mut self, s: Size) -> Self {
+        self.size_px = match s {
+            Size::Sm => px(32.),
+            Size::Md => px(48.),
+            Size::Lg => px(64.),
+        };
         self
     }
 
-    pub fn stroke_width(mut self, w: impl Into<gpui::Pixels>) -> Self {
-        self.stroke_width = w.into();
-        self
-    }
 
     pub fn show_value_label(mut self, v: bool) -> Self {
         self.show_value = v;
@@ -287,7 +270,8 @@ impl RenderOnce for ProgressCircle {
         } else {
             fraction_of(self.value, self.min_value, self.max_value)
         };
-        let stroke_w = self.stroke_width;
+        // v3 scales the ring weight with the circle, ~10% of the diameter.
+        let stroke_w = self.size_px * 0.1;
 
         gpui::div()
             .relative()

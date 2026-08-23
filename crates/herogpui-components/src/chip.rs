@@ -1,13 +1,12 @@
 //! Chip — port of `@heroui/chip`.
 
 use gpui::{
-    prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
+    px, AnyElement, App, IntoElement, ParentElement, RenderOnce,
     SharedString, Styled, Window,
 };
 use herogpui_core::{Color, Size};
 use herogpui_theme::ActiveTheme;
 
-use crate::icons;
 
 /// Chip visual style (`solid|bordered|light|flat|dot|faded|shadow`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -49,7 +48,6 @@ pub struct Chip {
     color: Color,
     size: Size,
     start_content: Option<AnyElement>,
-    on_close: Option<Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>,
 }
 
 impl Chip {
@@ -60,7 +58,6 @@ impl Chip {
             color: Color::Default,
             size: Size::Md,
             start_content: None,
-            on_close: None,
         }
     }
 
@@ -85,14 +82,6 @@ impl Chip {
         self
     }
 
-    /// Shows a close button (`onClose`).
-    pub fn on_close(
-        mut self,
-        f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
-    ) -> Self {
-        self.on_close = Some(Box::new(f));
-        self
-    }
 }
 
 impl RenderOnce for Chip {
@@ -148,27 +137,6 @@ impl RenderOnce for Chip {
         }
         el = el.child(self.label.to_string());
 
-        if let Some(on_close) = self.on_close {
-            let icon_color = cx.colors().foreground;
-            el = el.child(
-                gpui::div()
-                    .id("chip-close")
-                    .cursor_pointer()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .size(height - px(6.))
-                    .rounded_full()
-                    .hover(|s| s.bg(gpui::black().alpha(0.12)))
-                    .on_click(move |ev: &ClickEvent, window, cx| on_close(ev, window, cx))
-                    .child(
-                        gpui::svg()
-                            .size(px(10.))
-                            .path(icons::CLOSE)
-                            .text_color(icon_color),
-                    ),
-            );
-        }
 
         el
     }

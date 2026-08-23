@@ -1,7 +1,7 @@
 //! RadioGroup — port of `@heroui/radio`.
 
 use gpui::{prelude::*, px, App, IntoElement, RenderOnce, SharedString, Styled, Window};
-use herogpui_core::{FieldVariant, Color, Orientation, Size};
+use herogpui_core::{Color, FieldVariant, Orientation};
 use herogpui_theme::ActiveTheme;
 
 /// HeroUI RadioGroup.
@@ -10,8 +10,10 @@ pub struct RadioGroup {
     id: gpui::ElementId,
     options: Vec<SharedString>,
     selected: Option<usize>,
-    color: Color,
-    size: Size,
+    /// Whether `value` was supplied. `Option<usize>` cannot distinguish
+    /// "controlled, nothing selected" from "uncontrolled" on its own.
+    is_controlled: bool,
+    default_value: Option<usize>,
     orientation: Orientation,
     is_disabled: bool,
     variant: FieldVariant,
@@ -22,10 +24,6 @@ pub struct RadioGroup {
 }
 
 impl RadioGroup {
-    /// `value` — the v3 name for [`RadioGroup::selected`].
-    pub fn value(self, index: Option<usize>) -> Self {
-        self.selected(index)
-    }
 
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
@@ -53,8 +51,8 @@ impl RadioGroup {
             id: id.into(),
             options,
             selected: None,
-            color: Color::Accent,
-            size: Size::Md,
+            is_controlled: false,
+            default_value: None,
             orientation: Orientation::Vertical,
             is_disabled: false,
             variant: FieldVariant::Primary,
@@ -65,20 +63,23 @@ impl RadioGroup {
         }
     }
 
-    pub fn selected(mut self, i: Option<usize>) -> Self {
+    /// `value` — the selected option, by index. Supplying it makes the group
+    /// controlled, even with `None`.
+    pub fn value(mut self, i: Option<usize>) -> Self {
         self.selected = i;
+        self.is_controlled = true;
         self
     }
 
-    pub fn color(mut self, c: Color) -> Self {
-        self.color = c;
+    /// `defaultValue` — the uncontrolled initial selection.
+    ///
+    /// Only consulted when `value` is not supplied; the group then owns the
+    /// selection and a press moves it.
+    pub fn default_value(mut self, i: Option<usize>) -> Self {
+        self.default_value = i;
         self
     }
 
-    pub fn size(mut self, s: Size) -> Self {
-        self.size = s;
-        self
-    }
 
     pub fn orientation(mut self, o: Orientation) -> Self {
         self.orientation = o;
@@ -100,15 +101,20 @@ impl RadioGroup {
 }
 
 impl RenderOnce for RadioGroup {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let sem = cx.role(self.color);
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `controlled` takes `cx` mutably, so it precedes the theme tokens.
+        let (selected, own) = crate::util::controlled(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("{:?}-value", self.id).into()),
+            self.is_controlled.then_some(self.selected),
+            self.default_value,
+        );
+
+        let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
-        let (circle, dot, text, gap) = match self.size {
-            Size::Sm => (px(14.), px(5.), px(13.), px(8.)),
-            Size::Md => (px(18.), px(7.), px(14.), px(10.)),
-            Size::Lg => (px(22.), px(9.), px(16.), px(12.)),
-        };
+        let (circle, dot, text, gap) = (px(18.), px(7.), px(14.), px(10.));
 
         let mut group = match self.orientation {
             Orientation::Horizontal => gpui::div().flex().items_center().gap(gap * 3.),
@@ -124,7 +130,7 @@ impl RenderOnce for RadioGroup {
         }
 
         for (i, label) in self.options.into_iter().enumerate() {
-            let is_selected = self.selected == Some(i);
+            let is_selected = selected == Some(i);
             let mut circle_el = gpui::div()
                 .flex()
                 .items_center()
@@ -168,13 +174,25 @@ impl RenderOnce for RadioGroup {
                 .child(circle_el)
                 .child(label.to_string());
 
-            if !self.is_disabled && !self.is_read_only {
-                if let Some(on_change) = &self.on_change {
-                    row = row.on_click({
-                        let on_change = on_change.clone();
-                        move |_, window, cx| on_change(i, window, cx)
-                    });
-                }
+            if !self.is_disabled
+                && !self.is_read_only
+                && (self.on_change.is_some() || own.is_some())
+            {
+                let on_change = self.on_change.clone();
+                let own = own.clone();
+                row = row.on_click(move |_, window, cx| {
+                    // Uncontrolled: move our own selection, or pressing a
+                    // radio would do nothing.
+                    if let Some(held) = &own {
+                        held.update(cx, |v, cx| {
+                            *v = Some(i);
+                            cx.notify();
+                        });
+                    }
+                    if let Some(f) = &on_change {
+                        f(i, window, cx);
+                    }
+                });
             }
 
             group = group.child(row);

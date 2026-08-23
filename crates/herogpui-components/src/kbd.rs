@@ -1,7 +1,6 @@
 //! Kbd — port of `@heroui/kbd`.
 
 use gpui::{prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Styled, Window};
-use herogpui_core::Size;
 use herogpui_theme::ActiveTheme;
 
 
@@ -29,7 +28,6 @@ impl KbdVariant {
 /// Keyboard key display (`<Kbd>`).
 #[derive(IntoElement)]
 pub struct Kbd {
-    size: Size,
     variant: KbdVariant,
     children: Vec<AnyElement>,
 }
@@ -37,16 +35,11 @@ pub struct Kbd {
 impl Kbd {
     pub fn new() -> Self {
         Self {
-            size: Size::Md,
             variant: KbdVariant::Default,
             children: Vec::new(),
         }
     }
 
-    pub fn size(mut self, s: Size) -> Self {
-        self.size = s;
-        self
-    }
 
     pub fn variant(mut self, v: KbdVariant) -> Self {
         self.variant = v;
@@ -73,11 +66,7 @@ impl RenderOnce for Kbd {
         let colors = cx.colors();
         let layout = cx.layout();
 
-        let (h, min_w, text) = match self.size {
-            Size::Sm => (px(20.), px(20.), px(12.)),
-            Size::Md => (px(24.), px(24.), px(14.)),
-            Size::Lg => (px(28.), px(28.), px(16.)),
-        };
+        let (h, min_w, text) = (px(24.), px(24.), px(14.));
 
         let mut el = gpui::div()
             .flex()

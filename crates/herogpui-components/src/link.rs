@@ -5,38 +5,12 @@
 //! colour role — v3 removed the `color` prop.
 
 use gpui::{
-    div, prelude::*, px, App, ClickEvent, ElementId, InteractiveElement, IntoElement, Pixels,
+    div, prelude::*, px, App, ClickEvent, ElementId, InteractiveElement, IntoElement,
     RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_theme::ActiveTheme;
 
-use crate::icons;
-
-/// When the underline is drawn.
-///
-/// Not a v3 prop — v3 expresses this with Tailwind utilities, which have no
-/// gpui equivalent, so it is exposed here instead.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Underline {
-    None,
-    #[default]
-    Hover,
-    Always,
-}
-
-impl Underline {
-    pub const ALL: [Underline; 3] = [Underline::None, Underline::Hover, Underline::Always];
-
-    pub fn label(self) -> &'static str {
-        match self {
-            Underline::None => "None",
-            Underline::Hover => "Hover",
-            Underline::Always => "Always",
-        }
-    }
-}
-
-type OnClick = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+type OnPress = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
 /// HeroUI Link.
 #[derive(IntoElement)]
@@ -44,35 +18,21 @@ pub struct Link {
     id: ElementId,
     label: Option<SharedString>,
     href: Option<String>,
-    underline: Underline,
-    size: Pixels,
     is_disabled: bool,
-    is_external: bool,
     /// `autoFocus` — take focus on the first render.
     auto_focus: bool,
-    on_click: Option<OnClick>,
+    on_press: Option<OnPress>,
 }
 
 impl Link {
-    /// `onPress` — the v3 name for [`Link::on_click`].
-    pub fn on_press(
-        self,
-        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
-    ) -> Self {
-        self.on_click(handler)
-    }
-
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
             label: None,
             href: None,
-            underline: Underline::default(),
-            size: px(14.),
             is_disabled: false,
-            is_external: false,
             auto_focus: false,
-            on_click: None,
+            on_press: None,
         }
     }
 
@@ -89,15 +49,7 @@ impl Link {
 
 
 
-    pub fn underline(mut self, underline: Underline) -> Self {
-        self.underline = underline;
-        self
-    }
 
-    pub fn text_size(mut self, size: impl Into<Pixels>) -> Self {
-        self.size = size.into();
-        self
-    }
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
@@ -112,18 +64,13 @@ impl Link {
         self
     }
 
-    /// Appends an external-link glyph.
-    pub fn is_external(mut self, v: bool) -> Self {
-        self.is_external = v;
-        self
-    }
 
-    /// Extra click behaviour, in addition to opening `href`.
-    pub fn on_click(
+    /// `onPress` — extra behaviour, in addition to opening `href`.
+    pub fn on_press(
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.on_click = Some(Box::new(handler));
+        self.on_press = Some(Box::new(handler));
         self
     }
 }
@@ -158,10 +105,10 @@ impl RenderOnce for Link {
             .gap(px(3.))
             .w_auto()
             .text_color(color)
-            .text_size(self.size)
+            // `.link { @apply font-semibold no-underline hover:underline; }`
+            .font_weight(gpui::FontWeight::SEMIBOLD)
             .border_color(color)
             .pb(px(1.))
-            .when(self.underline == Underline::Always, |el| el.border_b_1())
             .when_some(focus, |el, handle| el.track_focus(&handle));
 
         if self.is_disabled {
@@ -169,15 +116,9 @@ impl RenderOnce for Link {
         } else {
             // gpui panics on a second `hover` call, so the underline and the
             // colour shift have to share one closure.
-            let underline_on_hover = self.underline == Underline::Hover;
             let hover_color = colors.accent.color;
             el = el.cursor_pointer().hover(move |s| {
-                let s = s.text_color(hover_color).border_color(hover_color);
-                if underline_on_hover {
-                    s.border_b_1()
-                } else {
-                    s
-                }
+                s.text_color(hover_color).border_color(hover_color).border_b_1()
             });
         }
 
@@ -185,19 +126,9 @@ impl RenderOnce for Link {
             el = el.child(label.to_string());
         }
 
-        if self.is_external {
-            el = el.child(
-                gpui::svg()
-                    .size(px(12.))
-                    .path(icons::EXTERNAL_LINK)
-                    .flex_shrink_0()
-                    .text_color(color),
-            );
-        }
-
         if !self.is_disabled {
             let href = self.href.clone();
-            let user_click = self.on_click;
+            let user_click = self.on_press;
             el = el.on_click(move |ev: &ClickEvent, window, cx| {
                 if let Some(f) = &user_click {
                     f(ev, window, cx);

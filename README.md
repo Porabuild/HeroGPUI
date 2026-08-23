@@ -43,29 +43,48 @@ the builders this crate exposes:
 | | |
 |---|---|
 | documented props considered | 592 |
-| implemented | 496 |
-| deliberately not ported | 96 |
+| implemented | 478 |
+| deliberately not ported | 114 |
 | real gaps | 0 |
 
-Every omission carries a reason (`controlled-only`, `no-intl`, `no-html-forms`,
-`caller-validates`, `render-prop-arg`, `constructor-arg`, `single-valued`, …) in
-the audit's `WONT_PORT` table, so nothing hides behind a blanket claim. Reasons
-can be scoped per component, so a name that is genuinely absent in one place
-cannot be excused by a blanket entry made for another.
+Every omission carries a reason (`no-intl`, `no-html-forms`, `render-prop-arg`,
+`constructor-arg`, `single-valued`, `state-entity-seeds-it`, …) in the audit's
+`WONT_PORT` table, so nothing hides behind a blanket claim. Reasons can be
+scoped per component, so a name that is genuinely absent in one place cannot be
+excused by a blanket entry made for another.
 
-`python .shots/write_only.py` additionally checks that no builder stores a value
-nothing ever reads — a prop that is accepted and ignored is worse than one that
-is missing. `python .shots/reason_audit.py` prints every recorded omission
-beside the v3 row that documents it, so an excuse written once cannot quietly
-outlive the reason for it.
+Three more scripts keep the measurement honest in the directions a
+prop-by-prop diff cannot see:
 
-Components work **controlled or uncontrolled**, as they do in v3: pass `checked`
-/ `is_open` / `selected_key` to own the state, or `default_selected` /
-`default_open` / `default_selected_key` and let the component keep it.
+- `python .shots/extra_audit.py` runs the diff **backwards** — every builder we
+  expose that v3 does not document. Asking only "is every documented prop
+  implemented?" cannot catch a prop held over from v2, which is how
+  `Card::is_pressable`, `ProgressBar::is_striped`, `RadioGroup::size` and the
+  `radius` prop survived four audits. It separates names v3 documents on a
+  sibling component (its per-component tables are incomplete: `Input` lists no
+  `isInvalid` though every sibling field does) from names v3 documents nowhere,
+  and every one of the latter is either deleted or recorded in `EXTRA_OK` with a
+  reason.
+- `python .shots/write_only.py` checks that no builder stores a value nothing
+  ever reads — a prop that is accepted and ignored is worse than one that is
+  missing.
+- `python .shots/reason_audit.py` prints every recorded omission beside the v3
+  row that documents it, so an excuse written once cannot quietly outlive the
+  reason for it.
 
-This library tracks **v3 only**. The v2 token names (`content1..4`, numbered
-50–900 scales, `primary`/`secondary` as colors) and the v2-only components
-(`Navbar`, `Image`, `User`, `Spacer`, `Code`, `Snippet`) have been removed.
+Components work **controlled or uncontrolled**, as they do in v3: pass
+`is_selected` / `is_open` / `selected_key` to own the state, or
+`default_selected` / `default_open` / `default_selected_key` / `default_value`
+and let the component keep it.
+
+This library tracks **v3 only**. Removed with the v2 token names
+(`content1..4`, numbered 50–900 scales, `primary`/`secondary` as colors) and the
+v2-only components (`Navbar`, `Image`, `User`, `Spacer`, `Code`, `Snippet`) are
+the v2 props v3 deleted: `radius` everywhere, `color` on everything but the ten
+components that still document it, `size` on every form field (v3 gives them one
+height), and `isStriped`, `isBordered`, `isPressable`, `isHoverable`,
+`isBlurred`, `isLoaded`, `isExternal`, `underline`, `showOutline`, `isInvisible`,
+`strokeWidth` and `hideSeparator`.
 
 | Category | Components |
 |---|---|

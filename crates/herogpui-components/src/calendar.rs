@@ -249,7 +249,6 @@ type OnChange = std::sync::Arc<dyn Fn(Option<Date>, &mut Window, &mut App) + 'st
 pub struct Calendar {
     id: gpui::ElementId,
     state: Entity<CalendarState>,
-    show_controls: bool,
     constraints: DateConstraints,
     is_disabled: bool,
     is_read_only: bool,
@@ -295,7 +294,6 @@ impl Calendar {
         Self {
             id: gpui::ElementId::Name(format!("cal-{}", state.entity_id().as_u64()).into()),
             state,
-            show_controls: true,
             constraints: DateConstraints::new(),
             is_disabled: false,
             is_read_only: false,
@@ -424,10 +422,6 @@ impl Calendar {
         self
     }
 
-    pub fn show_controls(mut self, v: bool) -> Self {
-        self.show_controls = v;
-        self
-    }
 
     pub fn on_change(
         mut self,
@@ -843,28 +837,26 @@ impl RenderOnce for Calendar {
         if year_picker_open {
             // The picker replaces the grid area in every view.
             root = root.w(column_width);
-            if self.show_controls {
-                root = root.child(
-                    gpui::div()
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .child(nav_btn(
-                            icons::CHEVRON_LEFT,
-                            Date::new(anchor.year - 12, anchor.month, anchor.day),
-                            format!("{base}-yprev"),
-                        ))
-                        .child(heading(
-                            format!("{} {}", month_name(anchor.month), anchor.year),
-                            format!("{base}-yheading"),
-                        ))
-                        .child(nav_btn(
-                            icons::CHEVRON_RIGHT,
-                            Date::new(anchor.year + 12, anchor.month, anchor.day),
-                            format!("{base}-ynext"),
-                        )),
-                );
-            }
+            root = root.child(
+                gpui::div()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .child(nav_btn(
+                        icons::CHEVRON_LEFT,
+                        Date::new(anchor.year - 12, anchor.month, anchor.day),
+                        format!("{base}-yprev"),
+                    ))
+                    .child(heading(
+                        format!("{} {}", month_name(anchor.month), anchor.year),
+                        format!("{base}-yheading"),
+                    ))
+                    .child(nav_btn(
+                        icons::CHEVRON_RIGHT,
+                        Date::new(anchor.year + 12, anchor.month, anchor.day),
+                        format!("{base}-ynext"),
+                    )),
+            );
             root = root.child(self.year_grid(anchor, &base, cx));
         } else if self.duration.is_month_view() {
             let mut row = gpui::div().flex().gap(px(20.));
@@ -876,41 +868,39 @@ impl RenderOnce for Calendar {
                     .flex()
                     .flex_col()
                     .gap(px(8.));
-                if self.show_controls {
-                    // Only the outer columns carry nav buttons; the others keep
-                    // a same-size spacer so every heading lines up.
-                    let spacer = || gpui::div().size(px(28.)).into_any_element();
-                    col = col.child(
-                        gpui::div()
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .child(if first {
-                                nav_btn(
-                                    icons::CHEVRON_LEFT,
-                                    nav_target(-1),
-                                    format!("{base}-prev"),
-                                )
-                                .into_any_element()
-                            } else {
-                                spacer()
-                            })
-                            .child(heading(
-                                format!("{} {}", month_name(m), y),
-                                format!("{base}-heading{i}"),
-                            ))
-                            .child(if last {
-                                nav_btn(
-                                    icons::CHEVRON_RIGHT,
-                                    nav_target(1),
-                                    format!("{base}-next"),
-                                )
-                                .into_any_element()
-                            } else {
-                                spacer()
-                            }),
-                    );
-                }
+                // Only the outer columns carry nav buttons; the others keep
+                // a same-size spacer so every heading lines up.
+                let spacer = || gpui::div().size(px(28.)).into_any_element();
+                col = col.child(
+                    gpui::div()
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .child(if first {
+                            nav_btn(
+                                icons::CHEVRON_LEFT,
+                                nav_target(-1),
+                                format!("{base}-prev"),
+                            )
+                            .into_any_element()
+                        } else {
+                            spacer()
+                        })
+                        .child(heading(
+                            format!("{} {}", month_name(m), y),
+                            format!("{base}-heading{i}"),
+                        ))
+                        .child(if last {
+                            nav_btn(
+                                icons::CHEVRON_RIGHT,
+                                nav_target(1),
+                                format!("{base}-next"),
+                            )
+                            .into_any_element()
+                        } else {
+                            spacer()
+                        }),
+                );
                 col = col.child(self.weekday_header(cx));
                 col = col.child(self.month_grid(y, m, &frame, cx));
                 row = row.child(col);
@@ -925,28 +915,26 @@ impl RenderOnce for Calendar {
                 linear.len().max(1)
             };
             root = root.w(px(292.));
-            if self.show_controls {
-                root = root.child(
-                    gpui::div()
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .child(nav_btn(
-                            icons::CHEVRON_LEFT,
-                            nav_target(-1),
-                            format!("{base}-prev"),
-                        ))
-                        .child(heading(
-                            calendar_view::range_heading(&linear),
-                            format!("{base}-heading"),
-                        ))
-                        .child(nav_btn(
-                            icons::CHEVRON_RIGHT,
-                            nav_target(1),
-                            format!("{base}-next"),
-                        )),
-                );
-            }
+            root = root.child(
+                gpui::div()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .child(nav_btn(
+                        icons::CHEVRON_LEFT,
+                        nav_target(-1),
+                        format!("{base}-prev"),
+                    ))
+                    .child(heading(
+                        calendar_view::range_heading(&linear),
+                        format!("{base}-heading"),
+                    ))
+                    .child(nav_btn(
+                        icons::CHEVRON_RIGHT,
+                        nav_target(1),
+                        format!("{base}-next"),
+                    )),
+            );
             if per_row == 7 {
                 root = root.child(self.weekday_header(cx));
             } else {

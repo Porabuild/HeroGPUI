@@ -180,8 +180,6 @@ pub struct Table {
     columns: Vec<TableColumn>,
     rows: Vec<TableRow>,
     variant: TableVariant,
-    is_striped: bool,
-    has_borders: bool,
     selection_mode: SelectionMode,
     selected_keys: Vec<SharedString>,
     sort_descriptor: Option<SortDescriptor>,
@@ -200,8 +198,6 @@ impl Table {
             columns: columns.into_iter().map(TableColumn::new).collect(),
             rows: Vec::new(),
             variant: TableVariant::Primary,
-            is_striped: false,
-            has_borders: true,
             selection_mode: SelectionMode::None,
             selected_keys: Vec::new(),
             sort_descriptor: None,
@@ -244,15 +240,7 @@ impl Table {
         self
     }
 
-    pub fn is_striped(mut self, v: bool) -> Self {
-        self.is_striped = v;
-        self
-    }
 
-    pub fn has_borders(mut self, v: bool) -> Self {
-        self.has_borders = v;
-        self
-    }
 
     /// `selectionMode` — adds the selection column when not `None`.
     pub fn selection_mode(mut self, mode: SelectionMode) -> Self {
@@ -361,12 +349,10 @@ impl RenderOnce for Table {
 
         // `primary` sits in a surface container; `secondary` is flat.
         if !secondary {
-            wrapper = wrapper.bg(colors.surface.background);
-            if self.has_borders {
-                wrapper = wrapper
-                    .border(cx.layout().border_width)
-                    .border_color(colors.border);
-            }
+            wrapper = wrapper
+                .bg(colors.surface.background)
+                .border(cx.layout().border_width)
+                .border_color(colors.border);
         }
 
         let mut table = gpui::div().flex().flex_col().w_full().text_size(px(14.));
@@ -392,7 +378,7 @@ impl RenderOnce for Table {
                 let none_selected = selected_count == 0;
                 let all_selected = !all.is_empty() && selected_count == all.len();
                 let mut box_el = Checkbox::new("table-select-all")
-                    .checked(all_selected)
+                    .is_selected(all_selected)
                     .is_indeterminate(!all_selected && !none_selected);
                 if let Some(cb) = self.on_selection_change.clone() {
                     box_el = box_el.on_change(move |_next, window, cx| {
@@ -490,7 +476,7 @@ impl RenderOnce for Table {
                 let mut box_el = Checkbox::new(gpui::ElementId::Name(
                     format!("table-select-{i}").into(),
                 ))
-                .checked(is_selected);
+                .is_selected(is_selected);
                 if let Some(cb) = self.on_selection_change.clone() {
                     let current = self.selected_keys.clone();
                     let key2 = key.clone();
@@ -524,10 +510,6 @@ impl RenderOnce for Table {
             // screen, and outranks striping.
             if is_selected {
                 row = row.bg(accent.soft());
-            } else if self.is_striped && !secondary && !i.is_multiple_of(2) {
-                // Striping is a `primary`-only affordance: `secondary` rows are
-                // transparent by definition.
-                row = row.bg(colors.surface_secondary);
             }
 
             if let Some(on_click) = &self.on_row_click {

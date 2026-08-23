@@ -9,7 +9,7 @@ use gpui::{
     div, prelude::*, px, App, ElementId, Entity, InteractiveElement, IntoElement, RenderOnce,
     SharedString, Styled, Window,
 };
-use herogpui_core::{FieldVariant, Size};
+use herogpui_core::FieldVariant;
 use herogpui_theme::ActiveTheme;
 
 use crate::{icons, util};
@@ -148,7 +148,6 @@ pub struct TimeField {
     /// `validationErrors` — messages from a server round-trip.
     validation_errors: Vec<SharedString>,
     variant: FieldVariant,
-    size: Size,
     hour_cycle: HourCycle,
     /// `granularity="second"` in React.
     show_seconds: bool,
@@ -178,7 +177,6 @@ impl TimeField {
             description: None,
             error_message: None,
             variant: FieldVariant::Primary,
-            size: Size::Md,
             hour_cycle: HourCycle::H24,
             show_seconds: false,
             full_width: false,
@@ -215,10 +213,6 @@ impl TimeField {
         self
     }
 
-    pub fn size(mut self, size: Size) -> Self {
-        self.size = size;
-        self
-    }
 
     pub fn hour_cycle(mut self, cycle: HourCycle) -> Self {
         self.hour_cycle = cycle;
@@ -360,9 +354,9 @@ impl RenderOnce for TimeField {
             .items_center()
             .gap(px(2.))
             .px(px(12.))
-            .h(self.size.control_height())
+            .h(util::FIELD_HEIGHT)
             .rounded(util::field_radius(cx))
-            .text_size(self.size.text_size())
+            .text_size(util::FIELD_TEXT)
             .font_family("Consolas")
             .text_color(colors.field.foreground);
 

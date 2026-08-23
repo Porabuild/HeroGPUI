@@ -25,10 +25,8 @@ pub enum SurfaceVariant {
 #[derive(IntoElement)]
 pub struct Surface {
     variant: SurfaceVariant,
-    radius: Pixels,
     padding: Pixels,
     gap: Pixels,
-    bordered: bool,
     children: Vec<AnyElement>,
 }
 
@@ -36,21 +34,14 @@ impl Surface {
     pub fn new() -> Self {
         Self {
             variant: SurfaceVariant::default(),
-            radius: px(24.),
             padding: px(24.),
             gap: px(12.),
-            bordered: false,
             children: Vec::new(),
         }
     }
 
     pub fn variant(mut self, variant: SurfaceVariant) -> Self {
         self.variant = variant;
-        self
-    }
-
-    pub fn radius(mut self, radius: impl Into<Pixels>) -> Self {
-        self.radius = radius.into();
         self
     }
 
@@ -64,11 +55,6 @@ impl Surface {
         self
     }
 
-    /// Draws a 1px border — the documented pairing for the transparent variant.
-    pub fn bordered(mut self, v: bool) -> Self {
-        self.bordered = v;
-        self
-    }
 }
 
 impl Default for Surface {
@@ -91,19 +77,19 @@ impl RenderOnce for Surface {
             .flex_col()
             .gap(self.gap)
             .p(self.padding)
-            .rounded(self.radius)
+            .rounded(crate::util::container_radius(cx))
             .text_color(colors.foreground);
 
         el = match self.variant {
-            SurfaceVariant::Transparent => el,
+            // No fill, so the outline is what marks the surface out — the same
+            // treatment `Card`'s `transparent` variant gets.
+            SurfaceVariant::Transparent => {
+                el.border(cx.layout().border_width).border_color(colors.border)
+            }
             SurfaceVariant::Default => el.bg(colors.surface.background),
             SurfaceVariant::Secondary => el.bg(colors.surface_secondary),
             SurfaceVariant::Tertiary => el.bg(colors.surface_tertiary),
         };
-
-        if self.bordered {
-            el = el.border_1().border_color(colors.border);
-        }
 
         el.children(self.children)
     }

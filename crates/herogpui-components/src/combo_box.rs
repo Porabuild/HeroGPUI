@@ -12,7 +12,7 @@ use gpui::{
     div, prelude::*, px, App, Entity, InteractiveElement, IntoElement, RenderOnce, SharedString,
     Styled, Window,
 };
-use herogpui_core::{FieldVariant, Placement, SelectionMode, Size};
+use herogpui_core::{FieldVariant, Placement, SelectionMode};
 use herogpui_theme::ActiveTheme;
 
 use crate::{
@@ -51,7 +51,6 @@ pub struct ComboBox {
     description: Option<SharedString>,
     error_message: Option<SharedString>,
     variant: FieldVariant,
-    size: Size,
     menu_trigger: MenuTrigger,
     /// `defaultFilter` — decides whether an item matches the query.
     filter: Option<std::sync::Arc<dyn Fn(&str, &str) -> bool + 'static>>,
@@ -152,7 +151,6 @@ impl ComboBox {
             description: None,
             error_message: None,
             variant: FieldVariant::Primary,
-            size: Size::Md,
             menu_trigger: MenuTrigger::Input,
             filter: None,
             allows_custom_value: false,
@@ -216,10 +214,6 @@ impl ComboBox {
         self
     }
 
-    pub fn size(mut self, size: Size) -> Self {
-        self.size = size;
-        self
-    }
 
     pub fn menu_trigger(mut self, trigger: MenuTrigger) -> Self {
         self.menu_trigger = trigger;
@@ -347,7 +341,7 @@ impl RenderOnce for ComboBox {
             .text_color(colors.muted)
             .child(
                 gpui::svg()
-                    .size(self.size.icon_size())
+                    .size(util::FIELD_ICON)
                     .path(icons::CHEVRON_DOWN)
                     .text_color(colors.muted),
             );
@@ -374,7 +368,6 @@ impl RenderOnce for ComboBox {
 
         let mut input = Input::new(self.state.clone())
             .variant(self.variant)
-            .size(self.size)
             .is_disabled(self.is_disabled)
             .is_invalid(is_invalid)
             .is_required(self.is_required)
@@ -447,7 +440,7 @@ impl RenderOnce for ComboBox {
                     div()
                         .px(px(8.))
                         .py(px(6.))
-                        .text_size(self.size.text_size())
+                        .text_size(util::FIELD_TEXT)
                         .text_color(colors.muted)
                         .child(message),
                 );
@@ -466,7 +459,7 @@ impl RenderOnce for ComboBox {
                     .flex()
                     .items_center()
                     .justify_between()
-                    .text_size(self.size.text_size())
+                    .text_size(util::FIELD_TEXT)
                     .child(item.to_string());
 
                 if item_disabled {

@@ -72,17 +72,7 @@ impl ButtonGroup {
         self
     }
 
-    /// Keeps each button's own radius instead of merging into one shape.
-    pub fn disable_radius_merge(mut self, v: bool) -> Self {
-        self.disable_radius_merge = v;
-        self
-    }
 
-    /// `hideSeparator` — removes the hairlines between members.
-    pub fn hide_separator(mut self, v: bool) -> Self {
-        self.hide_separator = v;
-        self
-    }
 
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;

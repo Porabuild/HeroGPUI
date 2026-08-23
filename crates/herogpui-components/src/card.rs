@@ -1,7 +1,7 @@
 //! Card — port of `@heroui/card`.
 
 use gpui::{
-    prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce, Window,
+    prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Window,
 };
 use herogpui_theme::ActiveTheme;
 
@@ -41,12 +41,7 @@ impl CardVariant {
 #[derive(IntoElement)]
 pub struct Card {
     variant: CardVariant,
-    radius: gpui::Pixels,
     width: Option<gpui::Pixels>,
-    is_pressable: bool,
-    is_hoverable: bool,
-    is_blurred: bool,
-    on_press: Option<Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>>,
     children: Vec<AnyElement>,
 }
 
@@ -54,12 +49,7 @@ impl Card {
     pub fn new() -> Self {
         Self {
             variant: CardVariant::Default,
-            radius: px(14.0),
             width: None,
-            is_pressable: false,
-            is_hoverable: false,
-            is_blurred: false,
-            on_press: None,
             children: Vec::new(),
         }
     }
@@ -69,41 +59,9 @@ impl Card {
         self
     }
 
-    pub fn radius(mut self, radius: impl Into<gpui::Pixels>) -> Self {
-        self.radius = radius.into();
-        self
-    }
-
     /// Fixed card width.
     pub fn w(mut self, v: impl Into<gpui::Pixels>) -> Self {
         self.width = Some(v.into());
-        self
-    }
-
-    /// Makes the card interactive (`isPressable`).
-    pub fn is_pressable(mut self, v: bool) -> Self {
-        self.is_pressable = v;
-        self
-    }
-
-    /// Hoverable without press (`isHoverable` — v3).
-    pub fn is_hoverable(mut self, v: bool) -> Self {
-        self.is_hoverable = v;
-        self
-    }
-
-    /// Blurred background (`isBlurred` — v3, e.g., footer blur).
-    pub fn is_blurred(mut self, v: bool) -> Self {
-        self.is_blurred = v;
-        self
-    }
-
-    pub fn on_press(
-        mut self,
-        f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
-    ) -> Self {
-        self.on_press = Some(Box::new(f));
-        self.is_pressable = true;
         self
     }
 }
@@ -131,12 +89,8 @@ impl RenderOnce for Card {
             .flex()
             .flex_col()
             .overflow_hidden()
-            .rounded(self.radius)
-            .bg(if self.is_blurred {
-                gpui::hsla(surface_bg.h, surface_bg.s, surface_bg.l, 0.8)
-            } else {
-                surface_bg
-            })
+            .rounded(crate::util::container_radius(cx))
+            .bg(surface_bg)
             .text_color(surface_fg)
             .children(self.children);
 
@@ -159,27 +113,7 @@ impl RenderOnce for Card {
             el = el.border(layout.border_width).border_color(colors.border);
         }
 
-        if self.is_blurred {
-            el = el.border_1().border_color(colors.separator.alpha(0.5));
-        }
-
-        let needs_hover = self.is_pressable || self.is_hoverable;
-        if needs_hover {
-            let lifted = layout.overlay_shadow.clone();
-            let mut stateful = el
-                .id("pressable-card")
-                .cursor_pointer()
-                .hover(move |s| s.shadow(lifted.clone()));
-            if let Some(on_press) = self.on_press {
-                stateful =
-                    stateful.on_click(move |ev: &ClickEvent, window, cx| on_press(ev, window, cx));
-            } else if self.is_pressable {
-                // is_pressable without handler still shows hover affordance
-            }
-            stateful.into_any_element()
-        } else {
-            el.into_any_element()
-        }
+        el
     }
 }
 

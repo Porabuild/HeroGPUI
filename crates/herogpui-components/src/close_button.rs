@@ -6,9 +6,8 @@
 
 use gpui::{
     div, prelude::*, px, AnyElement, App, ClickEvent, ElementId, InteractiveElement, IntoElement,
-    ParentElement, Pixels, RenderOnce, Styled, Window,
+    ParentElement, RenderOnce, Styled, Window,
 };
-use herogpui_core::Size;
 use herogpui_theme::ActiveTheme;
 
 use crate::icons;
@@ -26,7 +25,6 @@ type OnPress = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 #[derive(IntoElement)]
 pub struct CloseButton {
     id: ElementId,
-    size: Size,
     is_disabled: bool,
     /// Replaces the default close glyph (`children` in React).
     icon: Option<AnyElement>,
@@ -37,7 +35,6 @@ impl CloseButton {
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            size: Size::Md,
             is_disabled: false,
             icon: None,
             on_press: None,
@@ -45,10 +42,6 @@ impl CloseButton {
     }
 
 
-    pub fn size(mut self, size: Size) -> Self {
-        self.size = size;
-        self
-    }
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
@@ -69,20 +62,13 @@ impl CloseButton {
         self
     }
 
-    fn metrics(size: Size) -> (Pixels, Pixels) {
-        match size {
-            Size::Sm => (px(24.), px(14.)),
-            Size::Md => (px(28.), px(16.)),
-            Size::Lg => (px(32.), px(18.)),
-        }
-    }
 }
 
 impl RenderOnce for CloseButton {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
         let layout = cx.layout();
-        let (box_size, icon_size) = Self::metrics(self.size);
+        let (box_size, icon_size) = (px(28.), px(16.));
         let hover_bg = colors.default.with_alpha(0.15);
 
         let mut el = div()

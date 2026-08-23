@@ -249,8 +249,7 @@ impl Render for Gallery {
 
         let github_link = h::Link::new("gh-link")
             .label("GitHub")
-            .href("https://github.com/heroui-inc/heroui")
-            .underline(h::Underline::None);
+            .href("https://github.com/heroui-inc/heroui");
 
         let navbar = gpui::div()
             .flex()

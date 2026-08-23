@@ -27,7 +27,7 @@ impl Gallery {
                         .gap(px(8.))
                         .child(para("Beautiful — every component follows the HeroUI design language: soft radii, semantic colors and subtle shadows.", cx))
                         .child(para("Fast — components are plain data rendered through GPUI's immediate-mode pipeline on the GPU; no DOM, no layout thrash.", cx))
-                        .child(para("Modern — a builder API that feels like React props: Button::new(\"save\").color(Color::Accent).on_press(...)", cx))
+                        .child(para("Modern — a builder API that feels like React props: Button::new(\"save\").variant(Variant::Primary).on_press(...)", cx))
                         .child(para("Cross-platform — one codebase for Windows, macOS and Linux.", cx))
                         .into_any_element(),
                 ),
@@ -62,7 +62,7 @@ impl Render for HelloWorld {
             .child(
                 herogpui::Button::new("hi")
                     .label("Hello HeroGPUI")
-                    .color(Color::Accent)
+                    .variant(Variant::Primary)
             )
     }
 }

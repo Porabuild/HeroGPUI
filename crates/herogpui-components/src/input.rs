@@ -7,7 +7,7 @@ use gpui::{
     prelude::*, px, App, Entity, FocusHandle, Focusable, IntoElement, KeyDownEvent,
     RenderOnce, SharedString, Styled, Window,
 };
-use herogpui_core::{FieldVariant, Size};
+use herogpui_core::FieldVariant;
 use herogpui_theme::ActiveTheme;
 
 
@@ -353,7 +353,6 @@ pub struct Input {
     validate: Option<crate::validation::Validator<str>>,
     /// `validationErrors` — messages from a server round-trip.
     validation_errors: Vec<SharedString>,
-    size: Size,
     variant: FieldVariant,
     input_type: InputType,
     max_length: Option<usize>,
@@ -400,7 +399,6 @@ impl Input {
             error_message: None,
             validate: None,
             validation_errors: Vec::new(),
-            size: Size::Md,
             variant: FieldVariant::Primary,
             input_type: InputType::Text,
             max_length: None,
@@ -471,10 +469,6 @@ impl Input {
         self
     }
 
-    pub fn size(mut self, s: Size) -> Self {
-        self.size = s;
-        self
-    }
 
 
     /// The `type` attribute — `password` masks, `number` filters keystrokes.
@@ -619,11 +613,7 @@ impl RenderOnce for Input {
         let accent = colors.accent;
         let focused = focus_handle.is_focused(window);
 
-        let (h, text) = match self.size {
-            Size::Sm => (px(32.), px(13.)),
-            Size::Md => (px(40.), px(14.)),
-            Size::Lg => (px(48.), px(16.)),
-        };
+        let (h, text) = (px(40.), px(14.));
 
         // v3 order: the controlled flag, then server errors, then `validate`,
         // with `errorMessage` as the fallback.
@@ -1032,11 +1022,6 @@ impl TextField {
         self
     }
 
-    pub fn size(mut self, size: Size) -> Self {
-        self.inner = self.inner.size(size);
-        self
-    }
-
     pub fn full_width(mut self) -> Self {
         self.inner = self.inner.full_width();
         self
@@ -1097,7 +1082,6 @@ pub struct SearchField {
     placeholder: SharedString,
     description: Option<SharedString>,
     variant: FieldVariant,
-    size: Size,
     full_width: bool,
     is_disabled: bool,
     is_read_only: bool,
@@ -1122,7 +1106,6 @@ impl SearchField {
             placeholder: "Search".into(),
             description: None,
             variant: FieldVariant::Primary,
-            size: Size::Md,
             full_width: false,
             is_disabled: false,
             is_read_only: false,
@@ -1157,10 +1140,6 @@ impl SearchField {
         self
     }
 
-    pub fn size(mut self, size: Size) -> Self {
-        self.size = size;
-        self
-    }
 
     pub fn full_width(mut self) -> Self {
         self.full_width = true;
@@ -1244,7 +1223,6 @@ impl RenderOnce for SearchField {
         let mut input = Input::new(self.state)
             .placeholder(self.placeholder)
             .variant(self.variant)
-            .size(self.size)
             .is_disabled(self.is_disabled)
             .is_read_only(self.is_read_only)
             .is_required(self.is_required)
@@ -1255,7 +1233,7 @@ impl RenderOnce for SearchField {
             .is_clearable(true)
             .start_content(
                 gpui::svg()
-                    .size(self.size.icon_size())
+                    .size(crate::util::FIELD_ICON)
                     .path(crate::icons::SEARCH)
                     .flex_shrink_0()
                     .text_color(colors.muted),

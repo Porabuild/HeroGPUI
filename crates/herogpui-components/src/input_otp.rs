@@ -4,7 +4,7 @@ use gpui::{
     prelude::*, px, App, Entity, FocusHandle, Focusable, IntoElement, KeyDownEvent, RenderOnce,
     SharedString, Styled, Window,
 };
-use herogpui_core::{FieldVariant, Color, Size};
+use herogpui_core::{FieldVariant, Color};
 use herogpui_theme::ActiveTheme;
 
 /// Editable state for an OTP field: one char per cell.
@@ -135,8 +135,6 @@ pub struct InputOTP {
     pattern: OtpPattern,
     on_change: Option<std::sync::Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>>,
     state: Entity<OtpState>,
-    size: Size,
-    color: Color,
     is_disabled: bool,
     separator: Option<SharedString>,
     on_complete: Option<OnComplete>,
@@ -163,18 +161,12 @@ impl InputOTP {
             pattern: OtpPattern::Digits,
             on_change: None,
             state,
-            size: Size::Md,
-            color: Color::Accent,
             is_disabled: false,
             separator: None,
             on_complete: None,
         }
     }
 
-    pub fn size(mut self, s: Size) -> Self {
-        self.size = s;
-        self
-    }
 
     pub fn variant(mut self, variant: FieldVariant) -> Self {
         self.variant = variant;
@@ -253,11 +245,6 @@ impl InputOTP {
         self
     }
 
-    pub fn color(mut self, c: Color) -> Self {
-        self.color = c;
-        self
-    }
-
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -293,15 +280,11 @@ impl RenderOnce for InputOTP {
             );
         }
 
-        let sem = cx.role(self.color);
+        let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
 
-        let (cell_px, text) = match self.size {
-            Size::Sm => (px(34.), px(16.)),
-            Size::Md => (px(40.), px(18.)),
-            Size::Lg => (px(46.), px(20.)),
-        };
+        let (cell_px, text) = (px(40.), px(18.));
 
         let focused = focused_handle.is_focused(window);
         let (cells_snapshot, cursor) = {

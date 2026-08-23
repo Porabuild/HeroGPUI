@@ -15,7 +15,6 @@ pub struct Switch {
     /// from `defaultSelected`.
     checked: Option<bool>,
     default_checked: bool,
-    color: Color,
     size: Size,
     is_disabled: bool,
     is_invalid: bool,
@@ -30,21 +29,12 @@ pub struct Switch {
 }
 
 impl Switch {
-    /// `value` — the v3 name for [`Switch::checked`].
-    pub fn value(self, v: bool) -> Self {
-        self.checked(v)
-    }
-
     /// `onPress` — the v3 name for [`Switch::on_change`], which already
     /// reports the next state.
     pub fn on_press(self, handler: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_change(handler)
     }
 
-    /// `isSelected` — the v3 name for [`Switch::checked`].
-    pub fn is_selected(self, v: bool) -> Self {
-        self.checked(v)
-    }
 
     /// `validate` — returns the message to show, or `None` when the state is fine.
     ///
@@ -88,7 +78,6 @@ impl Switch {
             id: id.into(),
             checked: None,
             default_checked: false,
-            color: Color::Accent,
             size: Size::Md,
             is_disabled: false,
             is_invalid: false,
@@ -102,7 +91,9 @@ impl Switch {
     }
 
     /// Controlled checked state.
-    pub fn checked(mut self, v: bool) -> Self {
+    /// `isSelected` — the controlled state; `None` leaves the component
+    /// holding it, seeded from `defaultSelected`.
+    pub fn is_selected(mut self, v: bool) -> Self {
         self.checked = Some(v);
         self
     }
@@ -113,11 +104,6 @@ impl Switch {
     /// state and toggles itself.
     pub fn default_selected(mut self, v: bool) -> Self {
         self.default_checked = v;
-        self
-    }
-
-    pub fn color(mut self, c: Color) -> Self {
-        self.color = c;
         self
     }
 
@@ -157,7 +143,7 @@ impl RenderOnce for Switch {
             self.default_checked,
         );
 
-        let sem = cx.role(self.color);
+        let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
 

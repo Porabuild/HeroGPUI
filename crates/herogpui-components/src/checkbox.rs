@@ -4,7 +4,7 @@ use gpui::{
     prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce,
     StatefulInteractiveElement, Styled, Window,
 };
-use herogpui_core::{Color, Size};
+use herogpui_core::Color;
 use herogpui_theme::ActiveTheme;
 
 use crate::icons;
@@ -18,8 +18,6 @@ pub struct Checkbox {
     checked: Option<bool>,
     default_checked: bool,
     is_indeterminate: bool,
-    color: Color,
-    size: Size,
     is_disabled: bool,
     is_read_only: bool,
     is_required: bool,
@@ -34,10 +32,6 @@ pub struct Checkbox {
 }
 
 impl Checkbox {
-    /// `isSelected` — the v3 name for [`Checkbox::checked`].
-    pub fn is_selected(self, v: bool) -> Self {
-        self.checked(v)
-    }
 
     /// `isReadOnly` — shows the value but refuses changes.
     /// `validate` — returns the message to show, or `None` when the state is fine.
@@ -90,8 +84,6 @@ impl Checkbox {
             checked: None,
             default_checked: false,
             is_indeterminate: false,
-            color: Color::Accent,
-            size: Size::Md,
             is_disabled: false,
             is_read_only: false,
             is_required: false,
@@ -104,7 +96,9 @@ impl Checkbox {
         }
     }
 
-    pub fn checked(mut self, v: bool) -> Self {
+    /// `isSelected` — the controlled state; `None` leaves the component
+    /// holding it, seeded from `defaultSelected`.
+    pub fn is_selected(mut self, v: bool) -> Self {
         self.checked = Some(v);
         self
     }
@@ -124,15 +118,6 @@ impl Checkbox {
         self
     }
 
-    pub fn color(mut self, c: Color) -> Self {
-        self.color = c;
-        self
-    }
-
-    pub fn size(mut self, s: Size) -> Self {
-        self.size = s;
-        self
-    }
 
 
     pub fn is_disabled(mut self, v: bool) -> Self {
@@ -184,16 +169,12 @@ impl RenderOnce for Checkbox {
         let sem = if validity.is_invalid {
             cx.role(Color::Danger)
         } else {
-            cx.role(self.color)
+            cx.role(Color::Accent)
         };
         let colors = cx.colors();
         let layout = cx.layout();
 
-        let (box_px, icon_px, text) = match self.size {
-            Size::Sm => (px(16.), px(10.), px(14.)),
-            Size::Md => (px(18.), px(12.), px(14.)),
-            Size::Lg => (px(22.), px(14.), px(16.)),
-        };
+        let (box_px, icon_px, text) = (px(18.), px(12.), px(14.));
 
         let active = checked || self.is_indeterminate;
 
@@ -331,10 +312,10 @@ pub struct CheckboxGroup {
     label: Option<gpui::SharedString>,
     description: Option<gpui::SharedString>,
     error_message: Option<gpui::SharedString>,
-    value: std::collections::HashSet<gpui::SharedString>,
+    value: Option<std::collections::HashSet<gpui::SharedString>>,
+    default_value: std::collections::HashSet<gpui::SharedString>,
     orientation: herogpui_core::Orientation,
     variant: herogpui_core::FieldVariant,
-    size: Size,
     is_disabled: bool,
     is_read_only: bool,
     is_invalid: bool,
@@ -350,10 +331,10 @@ impl CheckboxGroup {
             label: None,
             description: None,
             error_message: None,
-            value: std::collections::HashSet::new(),
+            value: None,
+            default_value: std::collections::HashSet::new(),
             orientation: herogpui_core::Orientation::Vertical,
             variant: herogpui_core::FieldVariant::Primary,
-            size: Size::Md,
             is_disabled: false,
             is_read_only: false,
             is_invalid: false,
@@ -377,9 +358,21 @@ impl CheckboxGroup {
         self
     }
 
-    /// The selected keys (`value` in React).
+    /// `value` — the selected keys, controlled.
     pub fn value(mut self, keys: impl IntoIterator<Item = gpui::SharedString>) -> Self {
-        self.value = keys.into_iter().collect();
+        self.value = Some(keys.into_iter().collect());
+        self
+    }
+
+    /// `defaultValue` — the uncontrolled initial selection.
+    ///
+    /// Only consulted when `value` is not supplied; the group then owns the
+    /// selection and each checkbox toggles its own key in it.
+    pub fn default_value(
+        mut self,
+        keys: impl IntoIterator<Item = gpui::SharedString>,
+    ) -> Self {
+        self.default_value = keys.into_iter().collect();
         self
     }
 
@@ -393,10 +386,6 @@ impl CheckboxGroup {
         self
     }
 
-    pub fn size(mut self, size: Size) -> Self {
-        self.size = size;
-        self
-    }
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
@@ -431,7 +420,16 @@ impl CheckboxGroup {
 }
 
 impl RenderOnce for CheckboxGroup {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `controlled` takes `cx` mutably, so it precedes the theme tokens.
+        let (value, own) = crate::util::controlled(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("{:?}-value", self.id).into()),
+            self.value.clone(),
+            self.default_value.clone(),
+        );
+
         let colors = cx.colors();
         let is_invalid = self.is_invalid || self.error_message.is_some();
 
@@ -454,7 +452,7 @@ impl RenderOnce for CheckboxGroup {
 
         for (index, option) in self.options.iter().enumerate() {
             let key = option.key.clone();
-            let checked = self.value.contains(&key);
+            let checked = value.contains(&key);
             let disabled = self.is_disabled || option.is_disabled;
 
             let mut label_el = gpui::div()
@@ -470,25 +468,33 @@ impl RenderOnce for CheckboxGroup {
                 );
             }
 
-            let selection = self.value.clone();
+            let selection = value.clone();
             let on_change = self.on_change.clone();
+            let own = own.clone();
             list = list.child(
                 Checkbox::new(gpui::ElementId::Name(
                     format!("{:?}-opt-{index}", self.id).into(),
                 ))
-                .checked(checked)
-                .size(self.size)
+                .is_selected(checked)
                 .is_disabled(disabled)
                 .is_read_only(self.is_read_only)
                 .is_invalid(is_invalid)
                 .variant(self.variant)
                 .label(label_el)
                 .on_change(move |_next, window, cx| {
+                    let mut set = selection.clone();
+                    if !set.remove(&key) {
+                        set.insert(key.clone());
+                    }
+                    // Uncontrolled: keep the new set, or ticking a box would
+                    // do nothing.
+                    if let Some(held) = &own {
+                        held.update(cx, |v, cx| {
+                            *v = set.clone();
+                            cx.notify();
+                        });
+                    }
                     if let Some(cb) = &on_change {
-                        let mut set = selection.clone();
-                        if !set.remove(&key) {
-                            set.insert(key.clone());
-                        }
                         cb(&set, window, cx);
                     }
                 }),

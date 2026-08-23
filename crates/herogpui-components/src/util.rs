@@ -4,6 +4,16 @@ use gpui::{App, Div, Hsla, Pixels, Styled};
 use herogpui_core::{FieldVariant, Prominence};
 use herogpui_theme::ActiveTheme;
 
+/// The one height every v3 form field has. v3 removed `size` from the field
+/// components (Input, Select, ComboBox, DateField, ...), keeping it only on the
+/// nineteen where a scale is documented, so a field's metrics are constants
+/// rather than a [`herogpui_core::Size`] lookup.
+pub const FIELD_HEIGHT: Pixels = gpui::px(40.);
+/// Type size inside a form field.
+pub const FIELD_TEXT: Pixels = gpui::px(14.);
+/// Glyph size for an icon inside a form field.
+pub const FIELD_ICON: Pixels = gpui::px(16.);
+
 /// Corner radius of a standard control (buttons, chips, menu items) —
 /// `--radius-lg`.
 pub fn control_radius(cx: &App) -> Pixels {

@@ -20,12 +20,13 @@ pub struct Disclosure {
 }
 
 impl Disclosure {
-    /// `onExpandedChange` — the v3 name for [`Disclosure::on_toggle`].
+    /// `onExpandedChange` — reports the expansion the press moves to.
     pub fn on_expanded_change(
-        self,
+        mut self,
         handler: impl Fn(bool, &mut Window, &mut App) + 'static,
     ) -> Self {
-        self.on_toggle(handler)
+        self.on_toggle = Some(std::sync::Arc::new(handler));
+        self
     }
 
     pub fn new(title: impl Into<SharedString>) -> Self {
@@ -48,10 +49,6 @@ impl Disclosure {
         self
     }
 
-    pub fn on_toggle(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
-        self.on_toggle = Some(std::sync::Arc::new(f));
-        self
-    }
 }
 
 impl ParentElement for Disclosure {

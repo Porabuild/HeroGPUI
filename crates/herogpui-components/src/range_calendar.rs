@@ -28,7 +28,6 @@ type OnRangeChange =
 pub struct RangeCalendar {
     id: ElementId,
     state: Entity<DateRangeState>,
-    show_controls: bool,
     constraints: DateConstraints,
     is_disabled: bool,
     is_read_only: bool,
@@ -78,7 +77,6 @@ impl RangeCalendar {
         Self {
             id: ElementId::Name(format!("range-cal-{}", state.entity_id().as_u64()).into()),
             state,
-            show_controls: true,
             constraints: DateConstraints::new(),
             is_disabled: false,
             is_read_only: false,
@@ -142,10 +140,6 @@ impl RangeCalendar {
         self
     }
 
-    pub fn show_controls(mut self, v: bool) -> Self {
-        self.show_controls = v;
-        self
-    }
 
     pub fn min_value(mut self, date: Date) -> Self {
         self.constraints.min_value = Some(date);
@@ -607,29 +601,27 @@ impl RenderOnce for RangeCalendar {
 
         if year_picker_open {
             root = root.w(px(292.));
-            if self.show_controls {
-                root = root.child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .w_full()
-                        .child(nav_btn(
-                            icons::CHEVRON_LEFT,
-                            Date::new(anchor.year - 12, anchor.month, anchor.day),
-                            format!("{base}-yprev"),
-                        ))
-                        .child(heading(
-                            format!("{} {}", month_name(anchor.month), anchor.year),
-                            format!("{base}-yheading"),
-                        ))
-                        .child(nav_btn(
-                            icons::CHEVRON_RIGHT,
-                            Date::new(anchor.year + 12, anchor.month, anchor.day),
-                            format!("{base}-ynext"),
-                        )),
-                );
-            }
+            root = root.child(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .w_full()
+                    .child(nav_btn(
+                        icons::CHEVRON_LEFT,
+                        Date::new(anchor.year - 12, anchor.month, anchor.day),
+                        format!("{base}-yprev"),
+                    ))
+                    .child(heading(
+                        format!("{} {}", month_name(anchor.month), anchor.year),
+                        format!("{base}-yheading"),
+                    ))
+                    .child(nav_btn(
+                        icons::CHEVRON_RIGHT,
+                        Date::new(anchor.year + 12, anchor.month, anchor.day),
+                        format!("{base}-ynext"),
+                    )),
+            );
             root = root.child(self.year_grid(anchor, &base, cx));
         } else if self.duration.is_month_view() {
             let mut row = div().flex().gap(px(20.));
@@ -637,35 +629,33 @@ impl RenderOnce for RangeCalendar {
                 let first = i == 0;
                 let last = i + 1 == columns;
                 let mut col = div().flex().flex_col().gap(px(8.)).w(px(266.));
-                if self.show_controls {
-                    // Only the outer columns carry nav buttons; the rest keep a
-                    // same-size spacer so every heading lines up.
-                    let spacer = || div().size(px(28.)).into_any_element();
-                    col = col.child(
-                        div()
-                            .flex()
-                            .flex_row()
-                            .items_center()
-                            .justify_between()
-                            .w_full()
-                            .child(if first {
-                                nav_btn(icons::CHEVRON_LEFT, nav_target(-1), format!("{base}-prev"))
-                                    .into_any_element()
-                            } else {
-                                spacer()
-                            })
-                            .child(heading(
-                                format!("{} {}", month_name(m), y),
-                                format!("{base}-heading{i}"),
-                            ))
-                            .child(if last {
-                                nav_btn(icons::CHEVRON_RIGHT, nav_target(1), format!("{base}-next"))
-                                    .into_any_element()
-                            } else {
-                                spacer()
-                            }),
-                    );
-                }
+                // Only the outer columns carry nav buttons; the rest keep a
+                // same-size spacer so every heading lines up.
+                let spacer = || div().size(px(28.)).into_any_element();
+                col = col.child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .justify_between()
+                        .w_full()
+                        .child(if first {
+                            nav_btn(icons::CHEVRON_LEFT, nav_target(-1), format!("{base}-prev"))
+                                .into_any_element()
+                        } else {
+                            spacer()
+                        })
+                        .child(heading(
+                            format!("{} {}", month_name(m), y),
+                            format!("{base}-heading{i}"),
+                        ))
+                        .child(if last {
+                            nav_btn(icons::CHEVRON_RIGHT, nav_target(1), format!("{base}-next"))
+                                .into_any_element()
+                        } else {
+                            spacer()
+                        }),
+                );
                 col = col.child(self.weekday_header(cx));
                 col = col.child(self.month_grid(y, m, &frame, cx));
                 row = row.child(col);
@@ -679,30 +669,28 @@ impl RenderOnce for RangeCalendar {
                 linear.len().max(1)
             };
             root = root.w(px(292.));
-            if self.show_controls {
-                root = root.child(
-                    div()
-                        .flex()
-                        .flex_row()
-                        .items_center()
-                        .justify_between()
-                        .w_full()
-                        .child(nav_btn(
-                            icons::CHEVRON_LEFT,
-                            nav_target(-1),
-                            format!("{base}-prev"),
-                        ))
-                        .child(heading(
-                            calendar_view::range_heading(&linear),
-                            format!("{base}-heading"),
-                        ))
-                        .child(nav_btn(
-                            icons::CHEVRON_RIGHT,
-                            nav_target(1),
-                            format!("{base}-next"),
-                        )),
-                );
-            }
+            root = root.child(
+                div()
+                    .flex()
+                    .flex_row()
+                    .items_center()
+                    .justify_between()
+                    .w_full()
+                    .child(nav_btn(
+                        icons::CHEVRON_LEFT,
+                        nav_target(-1),
+                        format!("{base}-prev"),
+                    ))
+                    .child(heading(
+                        calendar_view::range_heading(&linear),
+                        format!("{base}-heading"),
+                    ))
+                    .child(nav_btn(
+                        icons::CHEVRON_RIGHT,
+                        nav_target(1),
+                        format!("{base}-next"),
+                    )),
+            );
             if per_row == 7 {
                 root = root.child(self.weekday_header(cx));
             } else {

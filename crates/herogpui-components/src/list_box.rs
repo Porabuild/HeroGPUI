@@ -12,7 +12,7 @@ use gpui::{
     div, prelude::*, px, App, ElementId, InteractiveElement, IntoElement, RenderOnce, SharedString,
     Styled, Window,
 };
-use herogpui_core::{SelectionMode, Size};
+use herogpui_core::SelectionMode;
 use herogpui_theme::ActiveTheme;
 
 use crate::{icons, util};
@@ -129,7 +129,6 @@ pub struct ListBox {
     selection_mode: SelectionMode,
     selected_keys: HashSet<SharedString>,
     disabled_keys: HashSet<SharedString>,
-    size: Size,
     /// Applies to every item unless the item overrides it.
     variant: ListBoxItemVariant,
     max_h: Option<gpui::Pixels>,
@@ -145,7 +144,6 @@ impl ListBox {
             selection_mode: SelectionMode::Single,
             selected_keys: HashSet::new(),
             disabled_keys: HashSet::new(),
-            size: Size::Md,
             variant: ListBoxItemVariant::Default,
             max_h: None,
             on_selection_change: None,
@@ -174,10 +172,6 @@ impl ListBox {
         self
     }
 
-    pub fn size(mut self, size: Size) -> Self {
-        self.size = size;
-        self
-    }
 
     pub fn variant(mut self, variant: ListBoxItemVariant) -> Self {
         self.variant = variant;
@@ -212,12 +206,8 @@ impl ListBox {
 impl RenderOnce for ListBox {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
-        let row_h = match self.size {
-            Size::Sm => px(28.),
-            Size::Md => px(34.),
-            Size::Lg => px(40.),
-        };
-        let text_size = self.size.text_size();
+        let row_h = px(34.);
+        let text_size = util::FIELD_TEXT;
 
         let mut list = div()
             .id(self.id.clone())
@@ -311,7 +301,7 @@ impl RenderOnce for ListBox {
                     if let Some(path) = icon {
                         row = row.child(
                             gpui::svg()
-                                .size(self.size.icon_size())
+                                .size(util::FIELD_ICON)
                                 .path(path.clone())
                                 .flex_shrink_0()
                                 .text_color(fg),

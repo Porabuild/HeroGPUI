@@ -22,12 +22,15 @@ pub enum DrawerPlacement {
     Bottom,
 }
 
+/// The drawer panel's extent along its axis. v3 sets this in `drawer.css`
+/// rather than with a prop, capped at 90% of the window by `max-w`/`max-h`.
+const PANEL_EXTENT: gpui::Pixels = gpui::px(320.);
+
 /// HeroUI Drawer (controlled).
 #[derive(IntoElement)]
 pub struct Drawer {
     is_open: bool,
     placement: DrawerPlacement,
-    size: gpui::Pixels,
     is_dismissible: bool,
     backdrop: Backdrop,
     is_keyboard_dismiss_disabled: bool,
@@ -44,7 +47,6 @@ impl Drawer {
         Self {
             is_open: false,
             placement: DrawerPlacement::Right,
-            size: px(320.),
             is_dismissible: true,
             backdrop: Backdrop::Opaque,
             is_keyboard_dismiss_disabled: false,
@@ -67,11 +69,6 @@ impl Drawer {
         self
     }
 
-    /// Panel extent along its axis.
-    pub fn size(mut self, s: impl Into<gpui::Pixels>) -> Self {
-        self.size = s.into();
-        self
-    }
 
     /// `isKeyboardDismissDisabled` — stops Escape from closing the drawer.
     pub fn is_keyboard_dismiss_disabled(mut self, v: bool) -> Self {
@@ -231,10 +228,10 @@ impl RenderOnce for Drawer {
 
         // anchor to the requested edge
         let anchored = match self.placement {
-            DrawerPlacement::Left => panel.w(self.size).max_w(gpui::relative(0.9)).h_full().absolute().left(px(0.)).top(px(0.)).bottom(px(0.)),
-            DrawerPlacement::Right => panel.w(self.size).max_w(gpui::relative(0.9)).h_full().absolute().right(px(0.)).top(px(0.)).bottom(px(0.)),
-            DrawerPlacement::Top => panel.h(self.size).max_h(gpui::relative(0.9)).w_full().absolute().top(px(0.)).left(px(0.)).right(px(0.)),
-            DrawerPlacement::Bottom => panel.h(self.size).max_h(gpui::relative(0.9)).w_full().absolute().bottom(px(0.)).left(px(0.)).right(px(0.)),
+            DrawerPlacement::Left => panel.w(PANEL_EXTENT).max_w(gpui::relative(0.9)).h_full().absolute().left(px(0.)).top(px(0.)).bottom(px(0.)),
+            DrawerPlacement::Right => panel.w(PANEL_EXTENT).max_w(gpui::relative(0.9)).h_full().absolute().right(px(0.)).top(px(0.)).bottom(px(0.)),
+            DrawerPlacement::Top => panel.h(PANEL_EXTENT).max_h(gpui::relative(0.9)).w_full().absolute().top(px(0.)).left(px(0.)).right(px(0.)),
+            DrawerPlacement::Bottom => panel.h(PANEL_EXTENT).max_h(gpui::relative(0.9)).w_full().absolute().bottom(px(0.)).left(px(0.)).right(px(0.)),
         };
 
         // v3 backdrop variants; gpui has no backdrop-filter, so `Blur` renders a
@@ -307,7 +304,7 @@ impl RenderOnce for Drawer {
             anchored,
             "drawer-panel",
             edge,
-            self.size,
+            PANEL_EXTENT,
             cx,
         ));
 

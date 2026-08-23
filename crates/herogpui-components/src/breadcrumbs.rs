@@ -1,7 +1,6 @@
 //! Breadcrumbs — port of `@heroui/breadcrumbs`.
 
 use gpui::{prelude::*, px, App, ClickEvent, IntoElement, InteractiveElement, RenderOnce, SharedString, Styled, Window};
-use herogpui_core::{Color, Size};
 use herogpui_theme::ActiveTheme;
 
 use crate::icons;
@@ -42,8 +41,6 @@ type OnNavigate = std::sync::Arc<dyn Fn(usize, &Crumb, &ClickEvent, &mut Window,
 #[derive(IntoElement)]
 pub struct Breadcrumbs {
     items: Vec<Crumb>,
-    size: Size,
-    color: Color,
     separator: BreadcrumbSeparator,
     is_disabled: bool,
     on_navigate: Option<OnNavigate>,
@@ -58,23 +55,12 @@ impl Breadcrumbs {
     pub fn new(items: Vec<Crumb>) -> Self {
         Self {
             items,
-            size: Size::Md,
-            color: Color::Default,
             separator: BreadcrumbSeparator::Chevron,
             is_disabled: false,
             on_navigate: None,
         }
     }
 
-    pub fn size(mut self, s: Size) -> Self {
-        self.size = s;
-        self
-    }
-
-    pub fn color(mut self, c: Color) -> Self {
-        self.color = c;
-        self
-    }
 
     pub fn separator(mut self, s: BreadcrumbSeparator) -> Self {
         self.separator = s;
@@ -94,20 +80,11 @@ impl Breadcrumbs {
 impl RenderOnce for Breadcrumbs {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
-        let sem = cx.role(self.color);
-        let text_size = match self.size {
-            Size::Sm => px(12.),
-            Size::Md => px(14.),
-            Size::Lg => px(16.),
-        };
+        let text_size = px(14.);
         let muted = colors.muted;
         let disabled = self.is_disabled;
         let disabled_opacity = cx.layout().disabled_opacity;
-        let active_color = if self.color == Color::Default {
-            colors.foreground
-        } else {
-            sem.color
-        };
+        let active_color = colors.foreground;
         let sep_icon = match self.separator {
             BreadcrumbSeparator::Slash => "/",
             BreadcrumbSeparator::Dash => "-",

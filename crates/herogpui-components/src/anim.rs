@@ -36,61 +36,83 @@ fn shrink(value: gpui::Pixels, by: gpui::Pixels) -> gpui::Pixels {
     gpui::px((f32::from(value) - f32::from(by)).max(0.0))
 }
 
-/// Applies v3's `[data-pressed]` press to a control that sizes to its content.
-///
-/// gpui 0.2.2 has no transform for a div — only `paint_svg` takes a
-/// transformation matrix, so quads and text cannot be scaled. The box is
-/// therefore shrunk geometrically: horizontal padding gives way to an equal
-/// margin, and the height loses what the vertical margin gains. The outer
-/// footprint is identical, so pressing never moves a neighbour, and the visible
-/// control contracts about its centre. The glyphs keep their size, which is the
-/// one visible difference from `scale(0.97)`.
-///
-/// `shrink_x` should be false for a full-width control, whose width is already
-/// its parent's: adding a horizontal margin there would overflow instead of
-/// inset.
-///
-/// Returns `el` untouched under reduced motion.
-pub fn pressed_padded(
-    el: gpui::Stateful<gpui::Div>,
-    height: gpui::Pixels,
-    padding_x: gpui::Pixels,
-    shrink_x: bool,
-    cx: &App,
-) -> gpui::Stateful<gpui::Div> {
-    if cx.reduce_motion() {
-        return el;
-    }
-    let inset = pressed_inset(height);
-    el.active(move |s: StyleRefinement| {
-        let s = s.h(shrink(height, inset + inset)).mt(inset).mb(inset);
-        if shrink_x {
-            s.px(shrink(padding_x, inset)).ml(inset).mr(inset)
-        } else {
-            s
-        }
-    })
+/// `value` scaled by [`PRESSED_SCALE`].
+fn scaled(value: gpui::Pixels) -> gpui::Pixels {
+    gpui::px(f32::from(value) * PRESSED_SCALE)
 }
 
-/// Applies the press to a control with a fixed size, such as a square
-/// icon-only button. See [`pressed_padded`] for why this is geometric.
-pub fn pressed_fixed(
+/// Everything a pressed control scales down.
+#[derive(Clone, Copy, Debug)]
+pub struct PressBox {
+    pub height: gpui::Pixels,
+    /// Horizontal padding for a control that sizes to its content, or `None`
+    /// for one with a fixed width.
+    pub padding_x: Option<gpui::Pixels>,
+    /// Fixed width, for a square icon-only control.
+    pub width: Option<gpui::Pixels>,
+    /// Minimum width, which has to scale too or it pins the box at full size.
+    pub min_width: Option<gpui::Pixels>,
+    pub text_size: gpui::Pixels,
+    pub line_height: gpui::Pixels,
+    pub gap: gpui::Pixels,
+    pub radius: gpui::Pixels,
+    /// False for a full-width control, whose width is its parent's: a
+    /// horizontal margin there would overflow rather than inset.
+    pub shrink_x: bool,
+}
+
+/// Applies v3's `[data-pressed]` press.
+///
+/// gpui 0.2.2 has no transform for a div — only `paint_svg` takes a
+/// transformation matrix — so `scale(0.97)` is reproduced by scaling everything
+/// the control is made of: its height, padding, gap, corner radius **and type
+/// size**, with margins absorbing what the box gives up so the outer footprint
+/// is unchanged and a press never reflows its neighbours.
+///
+/// Scaling the type is what makes this a real scale rather than an inset: gpui
+/// takes fractional font sizes, so the glyphs shrink with the box. Two
+/// differences from a CSS transform remain: a label wider than the control's
+/// `min_w` narrows the control by ~3% of that overflow, because gpui cannot
+/// shrink text without affecting layout; and an icon child keeps its size,
+/// since its dimensions belong to the caller.
+///
+/// Returns `el` untouched under reduced motion.
+pub fn pressed(
     el: gpui::Stateful<gpui::Div>,
-    height: gpui::Pixels,
-    width: gpui::Pixels,
+    b: PressBox,
     cx: &App,
 ) -> gpui::Stateful<gpui::Div> {
     if cx.reduce_motion() {
         return el;
     }
-    let inset = pressed_inset(height);
+    let inset = pressed_inset(b.height);
     el.active(move |s: StyleRefinement| {
-        s.h(shrink(height, inset + inset))
-            .w(shrink(width, inset + inset))
+        let s = s
+            .h(shrink(b.height, inset + inset))
             .mt(inset)
             .mb(inset)
-            .ml(inset)
-            .mr(inset)
+            .text_size(scaled(b.text_size))
+            .line_height(scaled(b.line_height))
+            .gap(scaled(b.gap))
+            .rounded(scaled(b.radius));
+        match (b.width, b.shrink_x) {
+            // Fixed width: shrink it directly.
+            (Some(w), _) => s.w(shrink(w, inset + inset)).ml(inset).mr(inset),
+            // Content width: the padding gives way to the margin, and any
+            // minimum width scales with it.
+            (None, true) => {
+                let s = match b.padding_x {
+                    Some(px_) => s.px(shrink(px_, inset)).ml(inset).mr(inset),
+                    None => s.ml(inset).mr(inset),
+                };
+                match b.min_width {
+                    Some(w) => s.min_w(shrink(w, inset + inset)),
+                    None => s,
+                }
+            }
+            // Full width: leave the horizontal axis alone.
+            (None, false) => s,
+        }
     })
 }
 

@@ -143,7 +143,7 @@ Every component takes the controlled prop as an `Option`, so leaving it unset
 hands the state to the component, seeded from the matching `default*`:
 
 ```rust
-Checkbox::new("terms").checked(self.agreed)        // controlled
+Checkbox::new("terms").is_selected(self.agreed)    // controlled
 Checkbox::new("terms").default_selected(true)      // uncontrolled
 
 Select::new("lang", opts).is_open(self.open)       // controlled
@@ -154,11 +154,14 @@ Dropdown::uncontrolled(trigger, items)             // no `is_open` at all
 The uncontrolled value lives in `Window::use_keyed_state`, keyed on the
 component's id — so two uncontrolled components that share an id share their
 state. `Popover`, `Accordion` and `Tooltip` therefore take an `id` purely to
-tell instances apart. Pairs available: `checked`/`default_selected` (Checkbox,
-Switch, ToggleButton), `is_open`/`default_open` (Popover, Select, ComboBox,
-Dropdown, DatePicker, DateRangePicker), `selected_key`/`default_selected_key`
+tell instances apart. Pairs available: `is_selected`/`default_selected`
+(Checkbox, Switch, ToggleButton), `is_open`/`default_open` (Popover, Select, ComboBox,
+Autocomplete, Dropdown, DatePicker, DateRangePicker), `selected_key`/`default_selected_key`
 (Tabs), `expanded_keys`/`default_expanded_keys` (Accordion),
-`is_year_picker_open`/`default_year_picker_open` (Calendar, RangeCalendar).
+`is_year_picker_open`/`default_year_picker_open` (Calendar, RangeCalendar),
+`value`/`default_value` (RadioGroup, Select, CheckboxGroup). Where the
+controlled prop is itself an `Option` — `RadioGroup::value(None)` — supplying it
+at all is what makes the component controlled.
 
 For components whose value lives in a state entity, the entity constructor *is*
 the uncontrolled seed: `InputState::with_value`, `NumberState::with_value`,
@@ -210,15 +213,23 @@ Fields cloned into closures must be `Arc`.
 
 ## Components (69)
 
+v3 keeps `size` on nineteen components (Button, ButtonGroup, ToggleButton*,
+Chip, TagGroup, Badge, Avatar, Switch, Meter, ProgressBar, ProgressCircle,
+Spinner, Pagination, Modal, AlertDialog, ScrollShadow, ColorSwatch*) and gives
+every form field one height instead — `util::FIELD_HEIGHT` / `FIELD_TEXT` /
+`FIELD_ICON`. `color` survives only on Avatar, Badge, Chip, ColorSwatch*, Meter,
+ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
+`status`, on Alert) is the whole visual vocabulary. `CloseButton` has neither.
+
 ### Buttons
 - **Button** — `variant(Variant)`, `size`, `full_width`, `is_icon_only`, `is_disabled`, `is_pending`, `start_content`/`end_content`, `on_press`
-- **ButtonGroup** — `variant`, `size`, `orientation`, `button(Button)` (members inherit), `is_disabled`, `hide_separator`, `disable_radius_merge`, `full_width`
-- **CloseButton** — `size`, `is_disabled`, `icon(el)`, `on_press` (v3's `variant` has one value, so there is nothing to select and no builder for it)
-- **ToggleButton / ToggleButtonGroup** — `is_selected`, `variant(ToggleVariant::{Default,Ghost})`, `selection_mode`, `is_detached`, `is_vertical`, `full_width`, `ToggleSeparator`
+- **ButtonGroup** — `variant`, `size`, `orientation`, `button(Button)` (members inherit), `is_disabled`, `full_width`
+- **CloseButton** — `is_disabled`, `icon(el)`, `on_press` (v3's `variant` has one value, so there is nothing to select and no builder for it)
+- **ToggleButton / ToggleButtonGroup** — `is_selected`, `variant(ToggleVariant::{Default,Ghost})`, `size`, `selection_mode`, `is_detached`, `orientation`, `full_width`, `ToggleSeparator`. Both apply v3's `scale(0.97)` press.
   - `ToggleButton::on_change(bool)` reports the selection a press moves to, alongside `on_press`. A button's selection key is `key()` when given, otherwise its element id, so a group can namespace child ids without breaking selection.
 
 ### Collections
-- **Dropdown** — `Dropdown::new(trigger, items, is_open).placement(Placement).on_toggle().on_select()`, `MenuItem::new(key,label).shortcut().icon().danger()`, `MenuItem::SectionLabel`, `MenuItem::Separator`
+- **Dropdown** — `Dropdown::new(trigger, items, is_open).placement(Placement).on_open_change(bool).on_action(&str)`, `MenuItem::new(key,label).shortcut().icon().danger()`, `MenuItem::SectionLabel`, `MenuItem::Separator`
   - selection: `selection_mode(SelectionMode)`, `selected_keys`, `disabled_keys`, `on_selection_change(&[SharedString])`, `on_action(&str)`. Selected items draw a check; disabled ones are muted and inert. The next selection comes from `selection::next_selection`, shared with ToggleButtonGroup and Table.
 - **ListBox** — `ListBox::new(id, items).selection_mode().selected_keys().disabled_keys().max_h().on_selection_change().on_action()`, `ListBoxItem::new(key,label).description().icon().shortcut().danger()`, `::section()`, `::separator()`
 - **TagGroup** — `TagGroup::new(id, tags).label().selection_mode().selected_keys().size().variant(TagVariant::{Default,Surface}).empty_state().on_remove().on_selection_change()`, `Tag::new(key,label)`
@@ -226,7 +237,7 @@ Fields cloned into closures must be `Arc`.
 ### Colors
 - **PickerColor** — shared value: `from_hex`, `to_hex`, `from_rgb`, `to_rgb`, `to_hsla`, `channel()`, `with_channel()`, `with_alpha()`
 - **ColorArea** — `ColorArea::new(id, value)`; `color_space(ColorSpace)` sets both axes to that space's channel pair, `x_channel` / `y_channel` override either, `size(w,h)`, `show_dots` (the dot-grid overlay), `is_disabled`, `on_change`, `on_change_end`
-- **ColorField** — `ColorField::new(id, value)`; `channel(ColorChannel)`, `color_space(ColorSpace)`, `label`, `description`, `variant`, `size`, `full_width`, the validity flags
+- **ColorField** — `ColorField::new(id, value)`; `channel(ColorChannel)`, `color_space(ColorSpace)`, `label`, `description`, `variant`, `full_width`, the validity flags
   - `state(Entity<InputState>)` makes it **editable**; without one it is a read-only display of `value`. `placeholder`, and `on_change(Option<PickerColor>)` reporting `None` when the text is not a colour, exactly as v3 types it. With a `channel` the text is that channel's number rather than a hex value.
 - **ColorPicker** — `label`, `is_open`, `show_alpha`, `on_change`, `on_open_change`
 - **ColorSlider** — `ColorSlider::new(id, value, channel).color_space(ColorSpace).orientation().length().show_label().on_change().on_change_end()`
@@ -236,12 +247,12 @@ Fields cloned into closures must be `Arc`.
 
 ### Controls
 - **Slider** — `Slider::new(id, value).value().min_value().max_value().step().size().orientation().label().show_value().on_change(f32).on_change_end(f32)`
-- **Switch** — `checked` / `is_selected`, `size`, `is_disabled`, `is_read_only`, `is_invalid`, `is_required`, `label(el)`, `on_change(bool)` / `on_press`
+- **Switch** — `is_selected`, `size`, `is_disabled`, `is_read_only`, `is_invalid`, `is_required`, `label(el)`, `on_change(bool)` / `on_press`. v3's `value` is the form-submission value, not the state, so there is no builder for it.
 
 ### Data Display
-- **Badge** — `variant(BadgeVariant::{Primary,Secondary,Soft})`, `color`, `size`, `count(n)`, `dot()`, `placement(Placement)`, `show_outline`, `invisible`, `content(el)`
-- **Chip** — `variant(ChipVariant::{Primary,Secondary,Tertiary,Soft})`, `color`, `size`, `start_content`, `on_close`
-- **Table** — `Table::new(columns).row(cells).variant(TableVariant::{Primary,Secondary}).is_striped().has_borders().on_row_click(usize)`
+- **Badge** — `variant(BadgeVariant::{Primary,Secondary,Soft})`, `color`, `size`, `placement(BadgePlacement)`, `content(el)`. One struct stands in for v3's `Badge.Anchor` + `Badge`: the [`ParentElement`] children are the anchor, `content` is the badge's own content, and no content is v3's dot badge. The ring against the page background is unconditional, as it is in v3.
+- **Chip** — `variant(ChipVariant::{Primary,Secondary,Tertiary,Soft})`, `color`, `size`, `start_content`. A removable chip is `TagGroup`, which is where v3 puts `onRemove`.
+- **Table** — `Table::new(columns).row(cells).variant(TableVariant::{Primary,Secondary}).on_row_click(usize)` — `variant` is the whole visual story in v3; `isStriped`/`isBordered` were v2
   - columns: `column(TableColumn::new("Name").allows_sorting(true).is_row_header(true))`. `is_row_header` has no a11y layer to reach, so it renders that column's cells in medium weight.
   - selection: `selection_mode`, `selected_keys`, `on_selection_change(&[SharedString])`, `keyed_row(key, cells)` (a row's key defaults to its index). Adds a checkbox column, with select-all in the header for `Multiple`.
   - sorting: `sort_descriptor(SortDescriptor::new(col, SortDirection::Ascending))`, `on_sort_change`, `show_indicator`. `SortDescriptor::next` gives the descriptor a header click should produce — flip the sorted column, start any other ascending. **The table never reorders its own rows**: a row is already-rendered cells, so the caller sorts its data and rebuilds.
@@ -249,7 +260,7 @@ Fields cloned into closures must be `Arc`.
 
 ### Date and Time
 - **DateConstraints** — shared by all five: `min_value`, `max_value`, `is_date_unavailable(fn)`, `first_day_of_week(Weekday)`, `weeks_in_month`. Each component takes them individually, or a whole set via `.constraints(..)`.
-- **Calendar** — `CalendarState::new(cx)`, `Calendar::new(state).value(..).show_controls().is_disabled().is_read_only().is_invalid().focused_value().on_focus_change().on_change(Option<Date>)` plus the constraints
+- **Calendar** — `CalendarState::new(cx)`, `Calendar::new(state).value(..).is_disabled().is_read_only().is_invalid().focused_value().on_focus_change().on_change(Option<Date>)` plus the constraints
 - **DateField** — `DateField::new(InputState).label().full_width().is_required().is_invalid().variant().placeholder_value().value(Option<Date>, cx).on_change(Option<Date>)` (ISO parse)
   - constraints: `min_value`, `max_value`, `is_date_unavailable`, or `constraints(DateConstraints)`. The three ways a typed date can be wrong — unparseable, out of range, unavailable — report as distinct messages, and `on_change` yields `None` for a date the constraints reject, so a caller never receives a value it said it would not accept.
 - **DatePicker** — `DatePicker::new(CalendarState).label().is_open().on_open_change().value().is_disabled().is_invalid().on_change()` plus the constraints
@@ -259,11 +270,11 @@ Fields cloned into closures must be `Arc`.
 - **TimeField** — `TimeState::with_value(cx, Time::new(9,30))`, `TimeField::new(state).value().min_value().max_value().placeholder_value().hour_cycle(HourCycle::{H12,H24}).show_seconds().on_change(Option<Time>)`
 
 ### Feedback
-- **Alert** — `Alert::new(title).description().color().is_closable()` (v3 removed `variant`/`radius`)
+- **Alert** — `Alert::new(title).description().status(Color).is_closable()` (v3 spells it `status`, and removed `variant`/`radius`)
 - **Meter** — `Meter::new(value).value().min_value().max_value().value_label().label().show_value().color().size()`
-- **ProgressBar** — `value`, `min_value`, `max_value`, `value_label`, `is_indeterminate`, `size`, `color`, `is_striped`, `label`, `show_value_label`
-- **ProgressCircle** — `value`, `min_value`, `max_value`, `is_indeterminate`, `color`, `size(px)`, `stroke_width`, `show_value_label`
-- **Skeleton** — `id`, `w`, `h`, `radius`, `is_loaded(bool)`, `animation_type(SkeletonAnimation::{Shimmer,Pulse,None})` (defaults to `--skeleton-animation`)
+- **ProgressBar** — `value`, `min_value`, `max_value`, `value_label`, `is_indeterminate`, `size`, `color`, `label`, `show_value_label`
+- **ProgressCircle** — `value`, `min_value`, `max_value`, `is_indeterminate`, `color`, `size(Size)` (32/48/64px), `show_value_label`. The ring weight is 10% of the diameter, as v3 scales it with `size`.
+- **Skeleton** — `id`, `w`, `h`, `animation_type(SkeletonAnimation::{Shimmer,Pulse,None})` (defaults to `--skeleton-animation`). v3 renders the skeleton *or* the content, so there is no `isLoaded`.
 - **Spinner** — `size(SpinnerSize::{Sm,Md,Lg,Xl})`, `color`, `current_color(Hsla)` for `color="current"` (gpui svgs do not inherit text colour)
 
 ### Calendar view model (`calendar_view`)
@@ -285,38 +296,38 @@ The geometry is pure and testable: `calendar_view::{page, aligned_anchor,
 week_start, month_headings, linear_cells, range_heading, year_page}`.
 
 ### Forms
-- **Input** — `InputState {value,cursor,anchor,focus_handle}`, `variant(FieldVariant)`, `size`, `label`, `placeholder`, `description`, `error_message`, `start/end_content`, `full_width`, `is_clearable`, `is_required`, `is_disabled`, `is_read_only`, `is_invalid`, `on_change(&str)`, `on_submit(&str)`
+- **Input** — `InputState {value,cursor,anchor,focus_handle}`, `variant(FieldVariant)`, `label`, `placeholder`, `description`, `error_message`, `start/end_content`, `full_width`, `is_clearable`, `is_required`, `is_disabled`, `is_read_only`, `is_invalid`, `on_change(&str)`, `on_submit(&str)`
   - `input_type(InputType::{Text,Password,Email,Number,Tel,Url,Search})` — `Password` masks, `Number` filters keystrokes
   - `max_length` (enforced while typing), `min_length`, `min`, `max`, `step`, `pattern(fn)`
   - `validity(&str) -> InputValidity` — a pure query; feed the result back through `is_invalid` / `error_message`
 - **TextField** — the labelled wrapper around `Input`
-- **TextArea** — tall variant of Input; `rows`, `variant`, `size`, `full_width`, `max_length`, `min_length`, the validation flags, `on_change`
+- **TextArea** — tall variant of Input; `rows`, `variant`, `full_width`, `max_length`, `min_length`, the validation flags, `on_change`
 - **SearchField** — Input with a magnifier and clear action; `on_clear`, `is_required`, `is_read_only`, `is_invalid`
 - **NumberField** — `NumberState {value,min,max,step,input}`, `hide_steppers`, `on_change(f64)`
 - **InputOTP** — `OtpState::with_length(cx, n)`, `separator`, `on_complete(&str)`
-- **InputGroup** — `variant`, `size`, `label`, `description`, `error_message` + children; `InputAddon::new("$")`
-- **Checkbox** — `checked`, `is_indeterminate`, `is_disabled`, `is_read_only`, `is_required`, `is_invalid` (outranks `color`), `variant(FieldVariant)`, `size`, `color`, `label(el)`, `on_change(bool)`
+- **InputGroup** — `variant`, `label`, `description`, `error_message` + children; `InputAddon::new("$")`
+- **Checkbox** — `is_selected`, `is_indeterminate`, `is_disabled`, `is_read_only`, `is_required`, `is_invalid`, `variant(FieldVariant)`, `label(el)`, `on_change(bool)`
 - **CheckboxGroup** — `CheckboxGroup::new(id, options).label().value(keys).orientation().variant().is_read_only().error_message().on_change(HashSet)`, `CheckboxOption::new(key,label).description()`
 - **RadioGroup** — `RadioGroup::new(id, options).selected(Option<usize>).orientation().on_change(usize)`
 - **Form** — `is_disabled`, `validation_behavior`, `on_submit`
 - **Label / Description / ErrorMessage / FieldError / Fieldset** — the composition slots; `Label::new(t).is_required().is_disabled().is_invalid()`, `FieldError::new().message(t)`, `Fieldset` + `FieldsetLegend` / `FieldsetGroup` / `FieldsetActions`
 
 ### Layout
-- **Card** — `variant(CardVariant::{Transparent,Default,Secondary,Tertiary})`, `w`, `radius`, `is_pressable`, `is_hoverable`, `is_blurred`, `CardHeader/Body/Footer`
-- **Separator** — `orientation`, `variant(SeparatorVariant::{Default,Secondary,Tertiary})`, `thickness`
-- **Surface** — `variant(SurfaceVariant::{Transparent,Default,Secondary,Tertiary})`, `radius`, `padding`, `gap`, `bordered`
+- **Card** — `variant(CardVariant::{Transparent,Default,Secondary,Tertiary})`, `w`, `CardHeader/Body/Footer`. v3's Card is presentational: `isPressable`/`isHoverable`/`isBlurred` were v2, and an interactive card composes a `Button`.
+- **Separator** — `orientation`, `variant(SeparatorVariant::{Default,Secondary,Tertiary})`, `mx`/`my`. The weight is `--border-width`; v3 has no per-instance override.
+- **Surface** — `variant(SurfaceVariant::{Transparent,Default,Secondary,Tertiary})`, `padding`, `gap`. `transparent` is the outlined variant, as it is on `Card`.
 - **Toolbar** — `orientation`, `is_attached`, `gap`
 
 ### Media
 - **Avatar / AvatarGroup** — `Avatar::new().name().src().size().color().variant(AvatarVariant::{Default,Soft}).is_bordered()`, `AvatarGroup::new(Vec<Avatar>).max(n).total(n)`
 
 ### Navigation
-- **Accordion** — `Accordion::new(items).expanded_keys(HashSet).variant(AccordionVariant::{Default,Surface}).show_divider().on_toggle(&SharedString)`, `AccordionItem::new(key,title).subtitle().content(el)`
+- **Accordion** — `Accordion::new(items).expanded_keys(HashSet).variant(AccordionVariant::{Default,Surface}).hide_separator().on_toggle(&SharedString)`, `AccordionItem::new(key,title).subtitle().content(el)`
 - **Breadcrumbs** — `Breadcrumbs::new(vec![Crumb::new("Home").href("#")]).separator(BreadcrumbSeparator::{Slash,Chevron,Dash}).size()`
-- **Disclosure / DisclosureGroup** — `Disclosure::new(title).is_expanded().on_toggle(bool)`, `DisclosureGroup::new().item(key,title,content).expanded_keys().on_toggle()`
-- **Link** — `Link::new(id).label().href().underline(Underline::{None,Hover,Always}).is_external().is_disabled().on_press()`. Opening goes through the OS handler, so v3's `target` / `rel` / `download` have no meaning and are not offered.
-- **Pagination** — `Pagination::new(id, page, total).siblings(n).show_controls().on_change(usize)`
-- **Tabs** — `Tabs::new(id, items, selected_key).variant(TabsVariant::{Primary,Secondary}).orientation().hide_separator().selected_key().on_selection_change()`, `TabItem::new(key,label).content(el)`
+- **Disclosure / DisclosureGroup** — `Disclosure::new(title).is_expanded().on_expanded_change(bool)`, `DisclosureGroup::new().item(key,title,content).expanded_keys().on_toggle()`
+- **Link** — `Link::new(id).label().href().auto_focus().is_disabled().on_press()`. v3's `.link` is `font-semibold no-underline hover:underline`, with no prop to change it. Opening goes through the OS handler, so v3's `target` / `rel` / `download` have no meaning and are not offered.
+- **Pagination** — `Pagination::new(id, page, total).siblings(n).size().on_change(usize)`
+- **Tabs** — `Tabs::new(id, items, selected_key).variant(TabsVariant::{Primary,Secondary}).orientation().selected_key().default_selected_key().on_selection_change()`, `TabItem::new(key,label).content(el)`
 
 ### Overlays
 - **AlertDialog** — `AlertDialog::new(title).description().is_open().size(AlertDialogSize).backdrop().placement(ModalPlacement).status(Color).is_destructive().is_pending().confirm_label().cancel_label().on_confirm().on_cancel().on_open_change(bool)`
@@ -370,8 +381,9 @@ is the gpui equivalent and the single place the timings live.
   by every overlay (Modal, Drawer, AlertDialog, Popover, Dropdown, Select,
   ComboBox, ColorPicker, Toast).
 - `anim::entering_from(el, id, edge, travel, cx)` — adds the slide `Drawer` uses.
-- `anim::pressed_padded(el, height, padding_x, shrink_x, cx)` and
-  `anim::pressed_fixed(el, height, width, cx)` — v3's `[data-pressed]` press.
+- `anim::pressed(el, PressBox { .. }, cx)` — v3's `[data-pressed]`
+  `scale(0.97)`, applied by `Button` and `ToggleButton`, the two components v3
+  documents it for.
 - `anim::ENTERING_MS`, `TRANSITION_MS`, `PRESSED_SCALE`, `anim::pressed_inset`.
 - **Reduced motion:** `cx.reduce_motion()` gates every animation with no opt-in
   from the caller. Set it with `theme::set_reduce_motion(bool, cx)` or
@@ -382,12 +394,16 @@ is the gpui equivalent and the single place the timings live.
 `paint_svg` alone, so quads and text cannot be scaled or rotated. Two
 consequences:
 
-- The press is **geometric** rather than a transform: horizontal padding gives
-  way to an equal margin and the height loses what the vertical margin gains, so
-  the outer footprint is identical (pressing never nudges a neighbour) while the
-  visible box contracts about its centre by `pressed_inset(height)`. Glyphs keep
-  their size, and the inset is uniform in pixels rather than in ratio, so a wide
-  button contracts proportionally less than the web build. `Toast`'s
+- The press is **geometric** rather than a transform: `PressBox` scales the
+  height, padding, gap, corner radius, minimum width **and type size** by 0.97,
+  with margins absorbing exactly what the box gives up, so the outer footprint
+  is identical (pressing never nudges a neighbour) while the visible box
+  contracts about its centre. Scaling the type is what makes this a real scale
+  rather than an inset — gpui accepts fractional font sizes, so the glyphs
+  shrink with the box. Two differences from a CSS transform remain: a label
+  wider than the control's `min_w` narrows the control by ~3% of that overflow,
+  because gpui cannot shrink text without affecting layout; and an icon child
+  keeps its size, since its dimensions belong to the caller. `Toast`'s
   `scaleFactor` shrinks stacked toasts the same way, by insetting their width.
 - The `zoom-in-90` half of the overlay entry is absent; the fade is the whole of
   it.

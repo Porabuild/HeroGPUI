@@ -15,8 +15,6 @@ pub struct Pagination {
     page: usize,
     total: usize,
     siblings: usize,
-    color: Color,
-    show_controls: bool,
     is_disabled: bool,
     size: Size,
     on_change: Option<OnChange>,
@@ -34,24 +32,13 @@ impl Pagination {
             page: page.max(1),
             total: total.max(1),
             siblings: 1,
-            color: Color::Accent,
-            show_controls: true,
             is_disabled: false,
             size: Size::Md,
             on_change: None,
         }
     }
 
-    pub fn color(mut self, c: Color) -> Self {
-        self.color = c;
-        self
-    }
 
-
-    pub fn show_controls(mut self, v: bool) -> Self {
-        self.show_controls = v;
-        self
-    }
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
@@ -69,7 +56,7 @@ impl Pagination {
 
 impl RenderOnce for Pagination {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let sem = cx.role(self.color);
+        let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
         let base = format!("{:?}", self.id);
@@ -87,30 +74,28 @@ impl RenderOnce for Pagination {
 
         let mut row = gpui::div().flex().items_center().gap(px(4.));
 
-        if self.show_controls {
-            row = row.child(
-                nav_button(
-                    format!("{base}-prev"),
-                    icons::CHEVRON_LEFT,
-                    self.page > 1 && !self.is_disabled,
-                    NavStyle {
-                        foreground: colors.foreground,
-                        hover_bg: colors.default.color,
-                        border: colors.border,
-                        disabled_opacity: layout.disabled_opacity,
-                        cell,
-                    },
-                )
-                .on_click({
-                    let cb: Option<OnChange> = self.on_change.clone();
-                    move |_, w, cx| {
-                        if let Some(cb) = &cb {
-                            cb(self.page - 1, w, cx);
-                        }
+        row = row.child(
+            nav_button(
+                format!("{base}-prev"),
+                icons::CHEVRON_LEFT,
+                self.page > 1 && !self.is_disabled,
+                NavStyle {
+                    foreground: colors.foreground,
+                    hover_bg: colors.default.color,
+                    border: colors.border,
+                    disabled_opacity: layout.disabled_opacity,
+                    cell,
+                },
+            )
+            .on_click({
+                let cb: Option<OnChange> = self.on_change.clone();
+                move |_, w, cx| {
+                    if let Some(cb) = &cb {
+                        cb(self.page - 1, w, cx);
                     }
-                }),
-            );
-        }
+                }
+            }),
+        );
 
         for p in pages {
             match p {
@@ -161,30 +146,28 @@ impl RenderOnce for Pagination {
             }
         }
 
-        if self.show_controls {
-            row = row.child(
-                nav_button(
-                    format!("{base}-next"),
-                    icons::CHEVRON_RIGHT,
-                    self.page < self.total && !self.is_disabled,
-                    NavStyle {
-                        foreground: colors.foreground,
-                        hover_bg: colors.default.color,
-                        border: colors.border,
-                        disabled_opacity: layout.disabled_opacity,
-                        cell,
-                    },
-                )
-                .on_click({
-                    let cb: Option<OnChange> = self.on_change.clone();
-                    move |_, w, cx| {
-                        if let Some(cb) = &cb {
-                            cb(self.page + 1, w, cx);
-                        }
+        row = row.child(
+            nav_button(
+                format!("{base}-next"),
+                icons::CHEVRON_RIGHT,
+                self.page < self.total && !self.is_disabled,
+                NavStyle {
+                    foreground: colors.foreground,
+                    hover_bg: colors.default.color,
+                    border: colors.border,
+                    disabled_opacity: layout.disabled_opacity,
+                    cell,
+                },
+            )
+            .on_click({
+                let cb: Option<OnChange> = self.on_change.clone();
+                move |_, w, cx| {
+                    if let Some(cb) = &cb {
+                        cb(self.page + 1, w, cx);
                     }
-                }),
-            );
-        }
+                }
+            }),
+        );
 
         row
     }
