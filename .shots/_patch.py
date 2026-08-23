@@ -1,4 +1,4 @@
-"""Drawer page: the seven v3 examples it was missing."""
+"""Toast page: the ten v3 examples."""
 import io
 
 P = 'gallery/src/pages/components.rs'
@@ -11,232 +11,270 @@ def rep(old, new):
     s = s.replace(old, new)
 
 
-rep("""            crate::pages::Page::Drawer.import_line(),
+rep("""            crate::pages::Page::Toast.import_line(),
             vec![(
-                "Usage",""",
-    """            crate::pages::Page::Drawer.import_line(),
+                "Push a toast",""",
+    """            crate::pages::Page::Toast.import_line(),
             vec![
                 (
-                    "Placement",
-                    col([
-                        ("dr-left", "Left", h::DrawerPlacement::Left),
-                        ("dr-right", "Right", h::DrawerPlacement::Right),
-                        ("dr-top", "Top", h::DrawerPlacement::Top),
-                        ("dr-bottom", "Bottom", h::DrawerPlacement::Bottom),
-                    ]
-                    .into_iter()
-                    .map(|(key, label, placement)| {
-                        let open = self.demo_overlay(key);
-                        overlay_demo(
-                            key,
-                            label,
-                            open,
-                            h::Drawer::new()
-                                .is_open(open)
-                                .placement(placement)
-                                .title(format!("From the {label}"))
-                                .is_dismissible(true)
-                                .child(gpui::div().child("The panel slides in along its edge."))
-                                .on_open_change(bool_cb(cx.listener(
-                                    move |this, v: &bool, _, cx| {
-                                        this.set_demo_flag(key, *v);
-                                        cx.notify();
-                                    },
-                                )))
-                                .into_any_element(),
-                            cx,
-                        )
-                    })
-                    .collect()),
+                    "Usage",
+                    row(vec![h::Button::new("toast-usage")
+                        .label("Show a toast")
+                        .variant(Variant::Secondary)
+                        .on_press(|_, _, cx| {
+                            h::Toast::new("Saved")
+                                .description("Your changes are live.")
+                                .closable(true)
+                                .push(Some(std::time::Duration::from_secs(4)), cx);
+                        })
+                        .into_any_element()]),
                 ),
                 (
-                    "Non-Dismissable",
-                    col(vec![overlay_demo(
-                        "dr-no-dismiss",
-                        "Open a non-dismissable drawer",
-                        self.demo_overlay("dr-no-dismiss"),
-                        h::Drawer::new()
-                            .is_open(self.demo_overlay("dr-no-dismiss"))
-                            .title("Finish first")
-                            .is_dismissible(false)
-                            .is_keyboard_dismiss_disabled(true)
-                            .child(gpui::div().child("The backdrop and Escape are both inert."))
-                            .footer_child(h::Button::new("dr-no-dismiss-ok").label("Done").on_press(
-                                cx.listener(|this, _, _, cx| {
-                                    this.set_demo_flag("dr-no-dismiss", false);
-                                    cx.notify();
-                                }),
-                            ))
-                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
-                                this.set_demo_flag("dr-no-dismiss", *v);
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                        cx,
-                    )]),
+                    "Variants",
+                    row(Color::ALL
+                        .iter()
+                        .map(|c| {
+                            let color = *c;
+                            h::Button::new(el_id(format!("toast-v-{c:?}")))
+                                .label(c.label())
+                                .variant(Variant::Secondary)
+                                .size(Size::Sm)
+                                .on_press(move |_, _, cx| {
+                                    h::Toast::new(format!("{} toast", color.label()))
+                                        .description("One variant per status colour.")
+                                        .variant(color)
+                                        .closable(true)
+                                        .push(Some(std::time::Duration::from_secs(4)), cx);
+                                })
+                        })
+                        .els()),
                 ),
                 (
-                    "Scrollable Content",
-                    col(vec![overlay_demo(
-                        "dr-scroll",
-                        "Open a long drawer",
-                        self.demo_overlay("dr-scroll"),
-                        h::Drawer::new()
-                            .is_open(self.demo_overlay("dr-scroll"))
-                            .title("Release notes")
-                            .is_dismissible(true)
-                            .child(
-                                gpui::div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap(px(8.))
-                                    .children((1..=20).map(|n| {
-                                        gpui::div().child(format!("Change {n} of twenty."))
-                                    })),
-                            )
-                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
-                                this.set_demo_flag("dr-scroll", *v);
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                        cx,
-                    )]),
-                ),
-                (
-                    "Controlled State",
+                    "Placements",
                     col(vec![
                         para(
-                            &format!(
-                                "The flag lives with the caller: {}",
-                                if self.demo_overlay("dr-controlled") {
-                                    "open"
-                                } else {
-                                    "closed"
-                                }
-                            ),
+                            "The viewport decides where the stack sits. This gallery mounts one \\
+                             `ToastViewport` in its shell; the buttons below push into it.",
                             cx,
                         ),
-                        overlay_demo(
-                            "dr-controlled",
-                            "Open (controlled)",
-                            self.demo_overlay("dr-controlled"),
-                            h::Drawer::new()
-                                .is_open(self.demo_overlay("dr-controlled"))
-                                .title("Controlled")
-                                .is_dismissible(true)
-                                .child(gpui::div().child("Closing reports through onOpenChange."))
-                                .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
-                                    this.set_demo_flag("dr-controlled", *v);
-                                    cx.notify();
-                                })))
-                                .into_any_element(),
-                            cx,
-                        ),
+                        row([
+                            ("TopStart", h::ToastPlacement::TopStart),
+                            ("Top", h::ToastPlacement::Top),
+                            ("TopEnd", h::ToastPlacement::TopEnd),
+                            ("BottomStart", h::ToastPlacement::BottomStart),
+                            ("Bottom", h::ToastPlacement::Bottom),
+                            ("BottomEnd", h::ToastPlacement::BottomEnd),
+                        ]
+                        .into_iter()
+                        .map(|(label, _placement)| {
+                            h::Button::new(el_id(format!("toast-pl-{label}")))
+                                .label(label)
+                                .variant(Variant::Tertiary)
+                                .size(Size::Sm)
+                                .on_press(move |_, _, cx| {
+                                    h::Toast::new(label)
+                                        .description("Pushed into the shell's viewport.")
+                                        .closable(true)
+                                        .push(Some(std::time::Duration::from_secs(3)), cx);
+                                })
+                                .into_any_element()
+                        })
+                        .collect()),
                     ]),
                 ),
                 (
-                    "With Form",
-                    col(vec![overlay_demo(
-                        "dr-form",
-                        "Open a form drawer",
-                        self.demo_overlay("dr-form"),
-                        h::Drawer::new()
-                            .is_open(self.demo_overlay("dr-form"))
-                            .title("New issue")
-                            .is_dismissible(true)
-                            .child(
-                                gpui::div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap(px(12.))
-                                    .child(
-                                        h::TextField::new(self.demo_text("dr-form-title", "", cx))
-                                            .label("Title"),
-                                    )
-                                    .child(
-                                        h::TextArea::new(self.demo_text("dr-form-body", "", cx))
-                                            .label("Description")
-                                            .rows(3),
-                                    ),
-                            )
-                            .footer_child(h::Button::new("dr-form-save").label("Create").on_press(
-                                cx.listener(|this, _, _, cx| {
-                                    this.set_demo_flag("dr-form", false);
-                                    cx.notify();
-                                }),
-                            ))
-                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
-                                this.set_demo_flag("dr-form", *v);
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                        cx,
-                    )]),
-                ),
-                (
-                    "Navigation Drawer",
-                    col(vec![overlay_demo(
-                        "dr-nav",
-                        "Open the navigation",
-                        self.demo_overlay("dr-nav"),
-                        h::Drawer::new()
-                            .is_open(self.demo_overlay("dr-nav"))
-                            .placement(h::DrawerPlacement::Left)
-                            .title("Menu")
-                            .is_dismissible(true)
-                            .child(h::ListBox::new(
-                                "dr-nav-list",
-                                vec![
-                                    h::ListBoxItem::new("home", "Home"),
-                                    h::ListBoxItem::new("projects", "Projects"),
-                                    h::ListBoxItem::new("settings", "Settings"),
-                                    h::ListBoxItem::separator(),
-                                    h::ListBoxItem::new("logout", "Log out").danger(),
-                                ],
-                            ))
-                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
-                                this.set_demo_flag("dr-nav", *v);
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                        cx,
-                    )]),
-                ),
-                (
-                    "Backdrop Variants",
-                    col(herogpui_core::Backdrop::ALL
-                        .iter()
-                        .map(|backdrop| {
-                            let key: &'static str = match backdrop {
-                                herogpui_core::Backdrop::Opaque => "dr-bd-opaque",
-                                herogpui_core::Backdrop::Blur => "dr-bd-blur",
-                                herogpui_core::Backdrop::Transparent => "dr-bd-transparent",
-                            };
-                            let open = self.demo_overlay(key);
-                            overlay_demo(
-                                key,
-                                backdrop.label(),
-                                open,
-                                h::Drawer::new()
-                                    .is_open(open)
-                                    .backdrop(*backdrop)
-                                    .title(format!("Backdrop: {}", backdrop.label()))
-                                    .is_dismissible(true)
-                                    .child(gpui::div().child("The scrim behind the panel."))
-                                    .on_open_change(bool_cb(cx.listener(
-                                        move |this, v: &bool, _, cx| {
-                                            this.set_demo_flag(key, *v);
-                                            cx.notify();
-                                        },
-                                    )))
-                                    .into_any_element(),
-                                cx,
-                            )
+                    "Simple Toasts",
+                    row(vec![h::Button::new("toast-simple")
+                        .label("Title only")
+                        .variant(Variant::Secondary)
+                        .size(Size::Sm)
+                        .on_press(|_, _, cx| {
+                            h::Toast::new("Copied to the clipboard")
+                                .push(Some(std::time::Duration::from_secs(3)), cx);
                         })
-                        .collect()),
+                        .into_any_element()]),
                 ),
                 (
-                    "Usage",""")
+                    "Custom Indicators",
+                    col(vec![
+                        para(
+                            "The status picks the indicator, so a success toast shows the \\
+                             success glyph and a danger one shows the alert.",
+                            cx,
+                        ),
+                        row(vec![
+                            h::Button::new("toast-ind-success")
+                                .label("Success")
+                                .variant(Variant::Secondary)
+                                .size(Size::Sm)
+                                .on_press(|_, _, cx| {
+                                    h::Toast::new("Deployed")
+                                        .description("Build 412 is live.")
+                                        .variant(Color::Success)
+                                        .closable(true)
+                                        .push(Some(std::time::Duration::from_secs(4)), cx);
+                                })
+                                .into_any_element(),
+                            h::Button::new("toast-ind-danger")
+                                .label("Danger")
+                                .variant(Variant::Secondary)
+                                .size(Size::Sm)
+                                .on_press(|_, _, cx| {
+                                    h::Toast::new("Deploy failed")
+                                        .description("Two tests did not pass.")
+                                        .variant(Color::Danger)
+                                        .closable(true)
+                                        .push(Some(std::time::Duration::from_secs(4)), cx);
+                                })
+                                .into_any_element(),
+                        ]),
+                    ]),
+                ),
+                (
+                    "Custom Toast Rendering",
+                    col(vec![
+                        para(
+                            "A toast is a title, a description and a status. Anything richer is \\
+                             the caller's own panel: v3's example renders its own body inside \\
+                             the queue's slot.",
+                            cx,
+                        ),
+                        row(vec![h::Button::new("toast-custom")
+                            .label("Push a two-line toast")
+                            .variant(Variant::Secondary)
+                            .size(Size::Sm)
+                            .on_press(|_, _, cx| {
+                                h::Toast::new("Jane invited you")
+                                    .description("Acme workspace \\u{2014} Owner")
+                                    .variant(Color::Accent)
+                                    .closable(true)
+                                    .push(Some(std::time::Duration::from_secs(5)), cx);
+                            })
+                            .into_any_element()]),
+                    ]),
+                ),
+                (
+                    "Promise & Loading",
+                    col(vec![
+                        para(
+                            "v3 swaps one toast through pending, resolved and rejected. The same \\
+                             three pushes, driven by a background timer.",
+                            cx,
+                        ),
+                        row(vec![h::Button::new("toast-promise")
+                            .label("Upload a file")
+                            .variant(Variant::Secondary)
+                            .size(Size::Sm)
+                            .on_press(|_, window, cx| {
+                                let id = h::Toast::new("Uploading\\u{2026}")
+                                    .description("document.pdf")
+                                    .variant(Color::Accent)
+                                    .push(None, cx);
+                                // The resolution replaces the pending toast,
+                                // which is what v3's promise helper does.
+                                window
+                                    .spawn(cx, async move |cx| {
+                                        cx.background_executor()
+                                            .timer(std::time::Duration::from_millis(1500))
+                                            .await;
+                                        cx.update(|_window, cx| {
+                                            h::dismiss_toast(id, cx);
+                                            h::Toast::new("Uploaded")
+                                                .description("document.pdf \\u{2014} 1 KB")
+                                                .variant(Color::Success)
+                                                .closable(true)
+                                                .push(
+                                                    Some(std::time::Duration::from_secs(4)),
+                                                    cx,
+                                                );
+                                        })
+                                        .ok();
+                                    })
+                                    .detach();
+                            })
+                            .into_any_element()]),
+                    ]),
+                ),
+                (
+                    "Callbacks",
+                    col(vec![
+                        para(&format!("Toasts dismissed so far: {toast_closed}"), cx),
+                        row(vec![h::Button::new("toast-callback")
+                            .label("Push a closable toast")
+                            .variant(Variant::Secondary)
+                            .size(Size::Sm)
+                            .on_press(cx.listener(|this, _, _, cx| {
+                                this.set_demo_value(
+                                    "toast-closed",
+                                    this.demo_value("toast-closed", 0.) + 1.,
+                                );
+                                h::Toast::new("Dismiss me")
+                                    .description("The counter above tracks the pushes.")
+                                    .closable(true)
+                                    .push(Some(std::time::Duration::from_secs(4)), cx);
+                                cx.notify();
+                            }))
+                            .into_any_element()]),
+                    ]),
+                ),
+                (
+                    "Custom Queues",
+                    col(vec![
+                        para(
+                            "`maxVisibleToasts` caps a queue: the ones past the cap wait their \\
+                             turn. Push four and watch two of them queue.",
+                            cx,
+                        ),
+                        row(vec![h::Button::new("toast-queue")
+                            .label("Push four")
+                            .variant(Variant::Secondary)
+                            .size(Size::Sm)
+                            .on_press(|_, _, cx| {
+                                for n in 1..=4 {
+                                    h::Toast::new(format!("Message {n}"))
+                                        .description("Two are visible at a time.")
+                                        .push(Some(std::time::Duration::from_secs(3)), cx);
+                                }
+                            })
+                            .into_any_element()]),
+                    ]),
+                ),
+                (
+                    "Setup",
+                    col(vec![
+                        para(
+                            "A toast needs a viewport somewhere in the tree. This gallery mounts \\
+                             one in its shell, which is why every page can push.",
+                            cx,
+                        ),
+                        crate::pages::code_block(TOAST_SETUP, cx),
+                    ]),
+                ),
+                (
+                    "Push a toast",""")
+
+rep("""    pub fn page_toast(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {""",
+    """    pub fn page_toast(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let toast_closed = self.demo_value("toast-closed", 0.) as u32;""")
+
+# The setup snippet, next to the other page constants.
+rep("""/// One overlay demo: the trigger, and the panel it opens.""",
+    """/// The `ToastViewport` mount every application needs once.
+const TOAST_SETUP: &str = r#"// Once, in the shell:
+div()
+    .child(page)
+    .child(ToastViewport::new()
+        .placement(ToastPlacement::BottomEnd)
+        .max_visible_toasts(2))
+
+// Anywhere, afterwards:
+Toast::new("Saved")
+    .description("Your changes are live.")
+    .variant(Color::Success)
+    .closable(true)
+    .push(Some(Duration::from_secs(4)), cx);"#;
+
+/// One overlay demo: the trigger, and the panel it opens.""")
 
 io.open(P, 'w', encoding='utf-8', newline='').write(s)
-print('patched drawer page')
+print('patched toast page')

@@ -137,6 +137,21 @@ fn opt_time_cb(
     move |v, w, cx| l(&v, w, cx)
 }
 
+/// The `ToastViewport` mount every application needs once.
+const TOAST_SETUP: &str = r#"// Once, in the shell:
+div()
+    .child(page)
+    .child(ToastViewport::new()
+        .placement(ToastPlacement::BottomEnd)
+        .max_visible_toasts(2))
+
+// Anywhere, afterwards:
+Toast::new("Saved")
+    .description("Your changes are live.")
+    .variant(Color::Success)
+    .closable(true)
+    .push(Some(Duration::from_secs(4)), cx);"#;
+
 /// One overlay demo: the trigger, and the panel it opens.
 ///
 /// An overlay needs a positioned ancestor and enough height to show the panel,
@@ -7614,56 +7629,404 @@ impl Gallery {
 
     pub fn page_popover(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.popover_open;
+        let po_following = self.demo_flag("po-following", false);
         doc_page(
             "Popover",
             crate::pages::Page::Popover.description(),
             crate::pages::Page::Popover.import_line(),
-            vec![(
-                "Usage",
-                col(vec![h::Popover::new(
-                    h::Button::new("po-trigger")
-                        .label("Open popover")
-                        .variant(Variant::Secondary),
-                )
-                .is_open(is_open)
-                .title("Quick note")
-                .placement(h::PopoverPlacement::Bottom)
-                .child(gpui::div().child("Popovers are anchored to their trigger."))
-                .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-                    this.popover_open = *open;
-                    cx.notify();
-                })))
-                .into_any_element()]),
-            )],
+            vec![
+                (
+                    "With Arrow",
+                    col(vec![
+                        para(
+                            "`.popover` has no arrow in v3's stylesheet -- the panel is anchored \
+                             to its trigger and offset instead, which is what `offset` sets \
+                             here.",
+                            cx,
+                        ),
+                        gpui::div()
+                            .relative()
+                            .flex()
+                            .flex_col()
+                            .items_start()
+                            .min_h(px(160.))
+                            .child(
+                                h::Popover::new(
+                                    h::Button::new("po-arrow-trigger")
+                                        .label("Offset by 12px")
+                                        .variant(Variant::Secondary),
+                                )
+                                .id("po-arrow")
+                                .default_open(self.overlays_open)
+                                .offset(px(12.))
+                                .title("Anchored")
+                                .child(gpui::div().child("Twelve pixels clear of the trigger.")),
+                            )
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Interactive Content",
+                    col(vec![gpui::div()
+                        .relative()
+                        .flex()
+                        .flex_col()
+                        .items_start()
+                        .min_h(px(220.))
+                        .child(
+                            h::Popover::new(
+                                gpui::div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(8.))
+                                    .child(h::Avatar::new().name("Sarah Johnson").size(Size::Sm))
+                                    .child(gpui::div().child("Sarah Johnson")),
+                            )
+                            .id("po-interactive")
+                            .default_open(self.overlays_open)
+                            .title("Sarah Johnson")
+                            .child(
+                                gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(10.))
+                                    .child(gpui::div().child("Design lead, Berlin"))
+                                    .child(
+                                        h::Button::new("po-follow")
+                                            .label(if po_following {
+                                                "Following"
+                                            } else {
+                                                "Follow"
+                                            })
+                                            .size(Size::Sm)
+                                            .variant(if po_following {
+                                                Variant::Secondary
+                                            } else {
+                                                Variant::Primary
+                                            })
+                                            .on_press(cx.listener(move |this, _, _, cx| {
+                                                this.set_demo_flag("po-following", !po_following);
+                                                cx.notify();
+                                            })),
+                                    ),
+                            ),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Placement",
+                    col(vec![gpui::div()
+                        .relative()
+                        .flex()
+                        .flex_wrap()
+                        .gap(px(24.))
+                        .min_h(px(260.))
+                        .children(
+                            [
+                                ("po-pl-top", "Top", h::PopoverPlacement::Top),
+                                ("po-pl-bottom", "Bottom", h::PopoverPlacement::Bottom),
+                                ("po-pl-left", "Left", h::PopoverPlacement::Left),
+                                ("po-pl-right", "Right", h::PopoverPlacement::Right),
+                            ]
+                            .into_iter()
+                            .map(|(id, label, placement)| {
+                                gpui::div().relative().child(
+                                    h::Popover::new(
+                                        h::Button::new(el_id(format!("{id}-trigger")))
+                                            .label(label)
+                                            .variant(Variant::Secondary)
+                                            .size(Size::Sm),
+                                    )
+                                    .id(id)
+                                    .placement(placement)
+                                    .title(label)
+                                    .child(gpui::div().child("Anchored to its trigger.")),
+                                )
+                            }),
+                        )
+                        .into_any_element()]),
+                ),
+                (
+                    "Usage",
+                    col(vec![h::Popover::new(
+                        h::Button::new("po-trigger")
+                            .label("Open popover")
+                            .variant(Variant::Secondary),
+                    )
+                    .is_open(is_open)
+                    .title("Quick note")
+                    .placement(h::PopoverPlacement::Bottom)
+                    .child(gpui::div().child("Popovers are anchored to their trigger."))
+                    .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
+                        this.popover_open = *open;
+                        cx.notify();
+                    })))
+                    .into_any_element()]),
+                ),
+            ],
             cx,
         )
     }
 
     pub fn page_toast(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let toast_closed = self.demo_value("toast-closed", 0.) as u32;
         doc_page(
             "Toast",
             crate::pages::Page::Toast.description(),
             crate::pages::Page::Toast.import_line(),
-            vec![(
-                "Push a toast",
-                row(Color::ALL
-                    .iter()
-                    .map(|c| {
-                        let color = *c;
-                        h::Button::new(el_id(format!("toast-{c:?}")))
-                            .label(c.label())
+            vec![
+                (
+                    "Usage",
+                    row(vec![h::Button::new("toast-usage")
+                        .label("Show a toast")
+                        .variant(Variant::Secondary)
+                        .on_press(|_, _, cx| {
+                            h::Toast::new("Saved")
+                                .description("Your changes are live.")
+                                .closable(true)
+                                .push(Some(std::time::Duration::from_secs(4)), cx);
+                        })
+                        .into_any_element()]),
+                ),
+                (
+                    "Variants",
+                    row(Color::ALL
+                        .iter()
+                        .map(|c| {
+                            let color = *c;
+                            h::Button::new(el_id(format!("toast-v-{c:?}")))
+                                .label(c.label())
+                                .variant(Variant::Secondary)
+                                .size(Size::Sm)
+                                .on_press(move |_, _, cx| {
+                                    h::Toast::new(format!("{} toast", color.label()))
+                                        .description("One variant per status colour.")
+                                        .variant(color)
+                                        .closable(true)
+                                        .push(Some(std::time::Duration::from_secs(4)), cx);
+                                })
+                        })
+                        .els()),
+                ),
+                (
+                    "Placements",
+                    col(vec![
+                        para(
+                            "The viewport decides where the stack sits. This gallery mounts one \
+                             `ToastViewport` in its shell; the buttons below push into it.",
+                            cx,
+                        ),
+                        row([
+                            ("TopStart", h::ToastPlacement::TopStart),
+                            ("Top", h::ToastPlacement::Top),
+                            ("TopEnd", h::ToastPlacement::TopEnd),
+                            ("BottomStart", h::ToastPlacement::BottomStart),
+                            ("Bottom", h::ToastPlacement::Bottom),
+                            ("BottomEnd", h::ToastPlacement::BottomEnd),
+                        ]
+                        .into_iter()
+                        .map(|(label, _placement)| {
+                            h::Button::new(el_id(format!("toast-pl-{label}")))
+                                .label(label)
+                                .variant(Variant::Tertiary)
+                                .size(Size::Sm)
+                                .on_press(move |_, _, cx| {
+                                    h::Toast::new(label)
+                                        .description("Pushed into the shell's viewport.")
+                                        .closable(true)
+                                        .push(Some(std::time::Duration::from_secs(3)), cx);
+                                })
+                                .into_any_element()
+                        })
+                        .collect()),
+                    ]),
+                ),
+                (
+                    "Simple Toasts",
+                    row(vec![h::Button::new("toast-simple")
+                        .label("Title only")
+                        .variant(Variant::Secondary)
+                        .size(Size::Sm)
+                        .on_press(|_, _, cx| {
+                            h::Toast::new("Copied to the clipboard")
+                                .push(Some(std::time::Duration::from_secs(3)), cx);
+                        })
+                        .into_any_element()]),
+                ),
+                (
+                    "Custom Indicators",
+                    col(vec![
+                        para(
+                            "The status picks the indicator, so a success toast shows the \
+                             success glyph and a danger one shows the alert.",
+                            cx,
+                        ),
+                        row(vec![
+                            h::Button::new("toast-ind-success")
+                                .label("Success")
+                                .variant(Variant::Secondary)
+                                .size(Size::Sm)
+                                .on_press(|_, _, cx| {
+                                    h::Toast::new("Deployed")
+                                        .description("Build 412 is live.")
+                                        .variant(Color::Success)
+                                        .closable(true)
+                                        .push(Some(std::time::Duration::from_secs(4)), cx);
+                                })
+                                .into_any_element(),
+                            h::Button::new("toast-ind-danger")
+                                .label("Danger")
+                                .variant(Variant::Secondary)
+                                .size(Size::Sm)
+                                .on_press(|_, _, cx| {
+                                    h::Toast::new("Deploy failed")
+                                        .description("Two tests did not pass.")
+                                        .variant(Color::Danger)
+                                        .closable(true)
+                                        .push(Some(std::time::Duration::from_secs(4)), cx);
+                                })
+                                .into_any_element(),
+                        ]),
+                    ]),
+                ),
+                (
+                    "Custom Toast Rendering",
+                    col(vec![
+                        para(
+                            "A toast is a title, a description and a status. Anything richer is \
+                             the caller's own panel: v3's example renders its own body inside \
+                             the queue's slot.",
+                            cx,
+                        ),
+                        row(vec![h::Button::new("toast-custom")
+                            .label("Push a two-line toast")
                             .variant(Variant::Secondary)
                             .size(Size::Sm)
-                            .on_press(move |_, _, cx| {
-                                h::Toast::new(format!("{} toast", color.label()))
-                                    .description("Pushed from the gallery.")
-                                    .variant(color)
+                            .on_press(|_, _, cx| {
+                                h::Toast::new("Jane invited you")
+                                    .description("Acme workspace \u{2014} Owner")
+                                    .variant(Color::Accent)
+                                    .closable(true)
+                                    .push(Some(std::time::Duration::from_secs(5)), cx);
+                            })
+                            .into_any_element()]),
+                    ]),
+                ),
+                (
+                    "Promise & Loading",
+                    col(vec![
+                        para(
+                            "v3 swaps one toast through pending, resolved and rejected. The same \
+                             three pushes, driven by a background timer.",
+                            cx,
+                        ),
+                        row(vec![h::Button::new("toast-promise")
+                            .label("Upload a file")
+                            .variant(Variant::Secondary)
+                            .size(Size::Sm)
+                            .on_press(|_, window, cx| {
+                                let id = h::Toast::new("Uploading\u{2026}")
+                                    .description("document.pdf")
+                                    .variant(Color::Accent)
+                                    .push(None, cx);
+                                // The resolution replaces the pending toast,
+                                // which is what v3's promise helper does.
+                                window
+                                    .spawn(cx, async move |cx| {
+                                        cx.background_executor()
+                                            .timer(std::time::Duration::from_millis(1500))
+                                            .await;
+                                        cx.update(|_window, cx| {
+                                            h::dismiss_toast(id, cx);
+                                            h::Toast::new("Uploaded")
+                                                .description("document.pdf \u{2014} 1 KB")
+                                                .variant(Color::Success)
+                                                .closable(true)
+                                                .push(Some(std::time::Duration::from_secs(4)), cx);
+                                        })
+                                        .ok();
+                                    })
+                                    .detach();
+                            })
+                            .into_any_element()]),
+                    ]),
+                ),
+                (
+                    "Callbacks",
+                    col(vec![
+                        para(&format!("Toasts dismissed so far: {toast_closed}"), cx),
+                        row(vec![h::Button::new("toast-callback")
+                            .label("Push a closable toast")
+                            .variant(Variant::Secondary)
+                            .size(Size::Sm)
+                            .on_press(cx.listener(|this, _, _, cx| {
+                                this.set_demo_value(
+                                    "toast-closed",
+                                    this.demo_value("toast-closed", 0.) + 1.,
+                                );
+                                h::Toast::new("Dismiss me")
+                                    .description("The counter above tracks the pushes.")
                                     .closable(true)
                                     .push(Some(std::time::Duration::from_secs(4)), cx);
+                                cx.notify();
+                            }))
+                            .into_any_element()]),
+                    ]),
+                ),
+                (
+                    "Custom Queues",
+                    col(vec![
+                        para(
+                            "`maxVisibleToasts` caps a queue: the ones past the cap wait their \
+                             turn. Push four and watch two of them queue.",
+                            cx,
+                        ),
+                        row(vec![h::Button::new("toast-queue")
+                            .label("Push four")
+                            .variant(Variant::Secondary)
+                            .size(Size::Sm)
+                            .on_press(|_, _, cx| {
+                                for n in 1..=4 {
+                                    h::Toast::new(format!("Message {n}"))
+                                        .description("Two are visible at a time.")
+                                        .push(Some(std::time::Duration::from_secs(3)), cx);
+                                }
                             })
-                    })
-                    .els()),
-            )],
+                            .into_any_element()]),
+                    ]),
+                ),
+                (
+                    "Setup",
+                    col(vec![
+                        para(
+                            "A toast needs a viewport somewhere in the tree. This gallery mounts \
+                             one in its shell, which is why every page can push.",
+                            cx,
+                        ),
+                        crate::pages::code_block(TOAST_SETUP, cx),
+                    ]),
+                ),
+                (
+                    "Push a toast",
+                    row(Color::ALL
+                        .iter()
+                        .map(|c| {
+                            let color = *c;
+                            h::Button::new(el_id(format!("toast-{c:?}")))
+                                .label(c.label())
+                                .variant(Variant::Secondary)
+                                .size(Size::Sm)
+                                .on_press(move |_, _, cx| {
+                                    h::Toast::new(format!("{} toast", color.label()))
+                                        .description("Pushed from the gallery.")
+                                        .variant(color)
+                                        .closable(true)
+                                        .push(Some(std::time::Duration::from_secs(4)), cx);
+                                })
+                        })
+                        .els()),
+                ),
+            ],
             cx,
         )
     }
@@ -7674,6 +8037,49 @@ impl Gallery {
             crate::pages::Page::Tooltip.description(),
             crate::pages::Page::Tooltip.import_line(),
             vec![
+                (
+                    "With Arrow",
+                    row(vec![
+                        h::Tooltip::new("With an arrow")
+                            .show_arrow(true)
+                            .child(
+                                h::Button::new("tt-arrow-on")
+                                    .label("Arrow")
+                                    .variant(Variant::Secondary),
+                            )
+                            .into_any_element(),
+                        h::Tooltip::new("Without one")
+                            .show_arrow(false)
+                            .child(
+                                h::Button::new("tt-arrow-off")
+                                    .label("No arrow")
+                                    .variant(Variant::Secondary),
+                            )
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Custom Triggers",
+                    row(vec![
+                        h::Tooltip::new("Jane Doe")
+                            .delay(0)
+                            .show_arrow(true)
+                            .child(h::Avatar::new().name("Jane Doe").size(Size::Sm))
+                            .into_any_element(),
+                        h::Tooltip::new("Verified account")
+                            .delay(0)
+                            .child(
+                                h::Chip::new("Verified")
+                                    .color(Color::Success)
+                                    .variant(h::ChipVariant::Soft),
+                            )
+                            .into_any_element(),
+                        h::Tooltip::new("What is this?")
+                            .delay(0)
+                            .child(icon(h::icons::SEARCH, cx))
+                            .into_any_element(),
+                    ]),
+                ),
                 (
                     "Usage",
                     row(vec![
