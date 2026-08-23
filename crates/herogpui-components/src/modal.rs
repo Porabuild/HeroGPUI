@@ -369,35 +369,42 @@ impl RenderOnce for Modal {
             Backdrop::Blur => colors.backdrop.alpha(colors.backdrop.a * 0.6),
             Backdrop::Transparent => gpui::transparent_black(),
         };
-        let mut overlay = gpui::div()
-            // `overflow_y_scroll` needs a stateful element, so the id is set
-            // unconditionally and only the overflow is conditional.
-            .id("modal-scroll")
-            .track_focus(&focus_handle)
-            .on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
-                if ev.keystroke.key == "escape" {
-                    if let Some(f) = &keyboard_dismiss {
-                        f(&ClickEvent::default(), window, cx);
-                    }
+        // `Tab` cycles the dialog's own controls: v3 documents that, and gpui's
+        // tab order is the whole window's, so the dialog has to keep it.
+        let mut overlay = crate::util::trap_tab(
+            gpui::div()
+                // `overflow_y_scroll` needs a stateful element, so the id is set
+                // unconditionally and only the overflow is conditional.
+                .id("modal-scroll")
+                .track_focus(&focus_handle),
+            &focus_handle,
+        )
+        .on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
+            if ev.keystroke.key == "escape" {
+                if let Some(f) = &keyboard_dismiss {
+                    f(&ClickEvent::default(), window, cx);
                 }
-            })
-            .absolute()
-            .inset_0()
-            .flex()
-            .when(self.scroll == ModalScroll::Outside, |e| e.overflow_y_scroll())
-            .when(
-                matches!(
-                    self.placement,
-                    ModalPlacement::Center | ModalPlacement::Auto
-                ),
-                |e| e.items_center().justify_center(),
-            )
-            .when(self.placement == ModalPlacement::Top, |e| {
-                e.items_start().justify_center().pt(px(32.))
-            })
-            .when(self.placement == ModalPlacement::Bottom, |e| {
-                e.items_end().justify_center().pb(px(32.))
-            });
+            }
+        })
+        .absolute()
+        .inset_0()
+        .flex()
+        .when(self.scroll == ModalScroll::Outside, |e| {
+            e.overflow_y_scroll()
+        })
+        .when(
+            matches!(
+                self.placement,
+                ModalPlacement::Center | ModalPlacement::Auto
+            ),
+            |e| e.items_center().justify_center(),
+        )
+        .when(self.placement == ModalPlacement::Top, |e| {
+            e.items_start().justify_center().pt(px(32.))
+        })
+        .when(self.placement == ModalPlacement::Bottom, |e| {
+            e.items_end().justify_center().pb(px(32.))
+        });
         // v3 fades the backdrop in alongside the panel (`.backdrop[data-entering]`).
         match (self.is_dismissible && !exiting, backdrop_click.clone()) {
             (true, Some(on_close)) => {

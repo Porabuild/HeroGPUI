@@ -657,7 +657,24 @@ pub fn doc_page(
         el = el.child(code_block(import_line, cx));
     }
 
+    // `HEROGPUI_SECTION=Sorting` renders only the sections whose title contains
+    // that text, case-insensitively. A page is long, a window is at most a
+    // monitor tall, and scrolling to a section by wheel notches to photograph it
+    // is both slow and fragile -- naming it puts it at the top of an otherwise
+    // empty page instead. Several names can be given, comma separated.
+    let wanted = std::env::var("HEROGPUI_SECTION").unwrap_or_default();
+    let wanted: Vec<String> = wanted
+        .split(',')
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect();
     for (heading, body) in sections {
+        if !wanted.is_empty() {
+            let lower = heading.to_lowercase();
+            if !wanted.iter().any(|w| lower.contains(w.as_str())) {
+                continue;
+            }
+        }
         el = el
             .mt(px(4.))
             .child(section_heading(heading))

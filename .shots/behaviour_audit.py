@@ -159,9 +159,15 @@ EVIDENCE = {
     ('Drawer', 'escape'): ('drawer.rs', r'"escape"'),
     ('AlertDialog', 'escape'): ('alert_dialog.rs', r'"escape"'),
     ('Drawer', 'drag-dismiss'): ('drawer.rs', r'drag_dismiss|on_mouse_move'),
-    ('Modal', 'focus-trap'): ('modal.rs', r'track_focus'),
-    ('Drawer', 'focus-trap'): ('drawer.rs', r'track_focus'),
-    ('AlertDialog', 'focus-trap'): ('alert_dialog.rs', r'track_focus'),
+    ('Modal', 'focus-trap'): ('modal.rs', r'trap_tab'),
+    ('Drawer', 'focus-trap'): ('drawer.rs', r'trap_tab'),
+    ('AlertDialog', 'focus-trap'): ('alert_dialog.rs', r'trap_tab'),
+    # `Tab` cycles the dialog's own controls. gpui's tab order is the window's
+    # and a tab group only *orders* its children, so the trap is done by moving
+    # and checking -- see `util::trap_tab`.
+    ('Modal', 'tab-cycle'): ('modal.rs', r'trap_tab'),
+    ('Drawer', 'tab-cycle'): ('drawer.rs', r'trap_tab'),
+    ('AlertDialog', 'tab-cycle'): ('alert_dialog.rs', r'trap_tab'),
     ('Breadcrumbs', 'arrows'): ('breadcrumbs.rs', r'on_click'),
     # `onPress` is a press, not a click: Enter and Space run the same handler.
     # gpui does that itself -- a *focused* element's click listeners fire with
@@ -219,12 +225,6 @@ EVIDENCE = {
 
 # Documented behaviour this port does not implement, with the reason.
 WONT_DO = {
-    # gpui moves focus with its own Tab handling inside a focusable subtree;
-    # there is no page outside the window to cycle *out* of, and no way to trap
-    # what the platform routes.
-    ('Modal', 'tab-cycle'): 'no-focus-trap',
-    ('Drawer', 'tab-cycle'): 'no-focus-trap',
-    ('AlertDialog', 'tab-cycle'): 'no-focus-trap',
     # v3 locks the *document* scroll while an overlay is open. A gpui window has
     # no document: the scrollers are the app's own elements, and an overlay
     # cannot reach them.

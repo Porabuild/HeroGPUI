@@ -126,6 +126,46 @@ Read the diff.
   Windows clamps a window to the display, so asking for more height than the
   screen has silently gives less. `capture2.ps1` prints the size it actually
   captured for that reason.
+- **`.shots/drive.ps1` drives the app without taking the focus**, and it is the
+  loop to reach for first:
+
+  ```powershell
+  python .shots/sections.py Table                      # what sections exist
+  .shots/drive.ps1 -Page Table -Section Sorting -Do "click:353,387 key:enter"
+  ```
+
+  `capture2.ps1` injects *real* input, which Windows only delivers to the
+  foreground window, so every interactive capture raises the gallery and
+  interrupts whatever the user is doing — 73 times in a smoke run. `drive.ps1`
+  posts the input messages to the window instead (`PostMessage`), so the window
+  stays parked off-screen and unfocused throughout, and `PrintWindow` never
+  needed it on screen anyway. Steps are `click:X,Y`, `dblclick:`, `drag:X,Y>X,Y`,
+  `key:tab`, `key:down*15`, `type:hello_world`, `wheel:N`, `wait:400`;
+  coordinates are the ones you read off the PNG, converted to client space from
+  the window's own frame offset.
+
+  What a posted message cannot carry is a **modifier**: Windows keeps the
+  shift/ctrl state for real input and gpui asks it, so a capital, a shifted
+  symbol or a chord (`ctrl+a`, `shift+pageup`) still needs `capture2.ps1` and the
+  foreground. A posted `WM_CHAR` alone types nothing either — gpui reads the
+  character from the key event it is handling, so the key-down has to arrive
+  with it.
+- **`HEROGPUI_SECTION` is a deep link into a page**, and it replaces scrolling:
+  a page is far longer than any window, and wheeling down N notches to
+  photograph a section is both slow and fragile (the count changes whenever a
+  section above it does). `HEROGPUI_SECTION="Sorting"` renders only the sections
+  whose title contains that text, so the one under test sits at the top of an
+  otherwise empty page. `python .shots/sections.py <Page>` prints the names.
+- `HEROGPUI_WINDOW_SIZE=1200x2000` asks for a taller window, but **Windows
+  clamps it to the monitor** — a 2000px request comes back as ~1460 on a 1440p
+  screen, whether it is set at creation or by `SetWindowPos`. The default
+  `MaxTrackSize` is the work area and gpui only overrides `MinTrackSize`, so the
+  section deep link is the way to fit a subject in one capture, not a bigger
+  window.
+- `cx.activate(true)` in `gallery/src/main.rs` is gated on `HEROGPUI_UNFOCUSED`:
+  it raises *and focuses* the window, which is exactly what that variable exists
+  to prevent, so an unfocused launch no longer steals the foreground on the way
+  up.
 - Build with `.shots/rebuild.ps1`, not plain `cargo build`, after any capture or
   smoke run. Windows keeps `gallery.exe` locked for a while after the process
   exits, so the build fails with `Access is denied. (os error 5)` — and the next
@@ -669,6 +709,17 @@ v2 concepts that must **not** come back:
     it in, so gate it: v3 gives a disabled control `pointer-events-none` and
     nothing to move, and a Tab that lands on a disabled calendar looks like the
     keyboard is broken.
+  - **Tab cannot be trapped by a tab group, only by moving and checking.**
+    gpui's `tab_group` gives its children their own *ordering* and nothing else,
+    and there is no API for "the stops inside this subtree", so a dialog cannot
+    ask where Tab would go. `util::trap_tab` steps with `focus_next`, asks
+    whether the focus is still inside the dialog's handle, and re-enters from the
+    far end when it is not (backwards means walking forward until it leaves and
+    stepping back once, bounded so an empty dialog cannot spin). It also has to
+    `cx.stop_propagation()`, because `util::app_focus_root` binds Tab to
+    `focus_next` higher up and both firing moves twice — and then set
+    `focus_visible` itself, since that is what the root's handler would have
+    done and a trapped Tab that moves without ringing looks like it did nothing.
   - **A tab stop comes from the handle, not the element.** `.tab_index(0)`
     configures a handle the element creates for itself, which a component that
     reads its own focus state cannot use; `util::tab_stop_handle` marks the

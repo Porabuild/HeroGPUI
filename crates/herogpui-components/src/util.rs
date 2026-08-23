@@ -586,6 +586,55 @@ pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
     shadows
 }
 
+/// Keeps Tab inside `scope`, which is v3's `Tab` cycles elements.
+///
+/// gpui's tab order is the window's: a tab group only *orders* its children, so
+/// Tab walks straight out of a dialog and into the page behind it. There is no
+/// way to enumerate one subtree's stops either, so the trap is done by moving
+/// and checking: step, and if the focus left the scope, come back in from the
+/// far end. Reversing means walking forward until the focus leaves and stepping
+/// back once, which is bounded so a dialog with no stops of its own cannot spin.
+///
+/// The step has to be ours rather than the app root's, so this stops
+/// propagation: `util::app_focus_root` binds Tab to `focus_next` on a listener
+/// higher in the tree, and both firing would move twice.
+pub fn trap_tab<T: gpui::InteractiveElement>(el: T, scope: &gpui::FocusHandle) -> T {
+    let scope = scope.clone();
+    el.on_key_down(move |event: &gpui::KeyDownEvent, window, cx| {
+        if event.keystroke.key != "tab" {
+            return;
+        }
+        // Stopping propagation also skips the root's `set_focus_visible`, and a
+        // trapped Tab that moved the focus without turning the ring on looks
+        // like it did nothing at all.
+        cx.stop_propagation();
+        set_focus_visible(true, cx);
+        let back = event.keystroke.modifiers.shift;
+        if back {
+            window.focus_prev();
+        } else {
+            window.focus_next();
+        }
+        if scope.contains_focused(window, cx) {
+            return;
+        }
+        // Out of the scope: re-enter from the other side.
+        window.focus(&scope);
+        window.focus_next();
+        if !back {
+            return;
+        }
+        // Backwards: walk to the last stop inside, then stop one short.
+        for _ in 0..256 {
+            window.focus_next();
+            if !scope.contains_focused(window, cx) {
+                window.focus_prev();
+                return;
+            }
+        }
+    })
+}
+
 /// v3's *inset* focus ring, as an overlay to hang inside the focused element.
 ///
 /// A table is the exception to `status-focused`: `.table__cell` and

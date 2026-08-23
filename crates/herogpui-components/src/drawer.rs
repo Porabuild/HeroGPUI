@@ -343,17 +343,18 @@ impl RenderOnce for Drawer {
             dismiss.clone()
         };
 
-        let mut overlay = gpui::div()
-            .absolute()
-            .inset_0()
-            .track_focus(&focus_handle)
-            .on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
-                if ev.keystroke.key == "escape" {
-                    if let Some(f) = &keyboard_dismiss {
-                        f(&ClickEvent::default(), window, cx);
-                    }
+        // `Tab` cycles the drawer's own controls; see `util::trap_tab`.
+        let mut overlay = crate::util::trap_tab(
+            gpui::div().absolute().inset_0().track_focus(&focus_handle),
+            &focus_handle,
+        )
+        .on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
+            if ev.keystroke.key == "escape" {
+                if let Some(f) = &keyboard_dismiss {
+                    f(&ClickEvent::default(), window, cx);
                 }
-            });
+            }
+        });
 
         // `Drag to dismiss`: pull the panel toward its edge and let go. The
         // pointer leaves the header the moment it moves, so the move and the

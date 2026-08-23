@@ -422,55 +422,59 @@ impl RenderOnce for AlertDialog {
             )
         };
 
-        div()
-            .id("alert-dialog-root")
-            .absolute()
-            .inset_0()
-            .flex()
-            .track_focus(&focus_handle)
-            .on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
-                if ev.keystroke.key == "escape" {
-                    if let Some(f) = &keyboard_dismiss {
-                        f(&ClickEvent::default(), window, cx);
-                    }
+        // `Tab` cycles the dialog's own controls; see `util::trap_tab`.
+        util::trap_tab(
+            div()
+                .id("alert-dialog-root")
+                .absolute()
+                .inset_0()
+                .flex()
+                .track_focus(&focus_handle),
+            &focus_handle,
+        )
+        .on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
+            if ev.keystroke.key == "escape" {
+                if let Some(f) = &keyboard_dismiss {
+                    f(&ClickEvent::default(), window, cx);
                 }
-            })
-            .when(
-                matches!(
-                    self.placement,
-                    ModalPlacement::Center | ModalPlacement::Auto
-                ),
-                |e| e.items_center().justify_center(),
-            )
-            .when(self.placement == ModalPlacement::Top, |e| {
-                e.items_start().justify_center().pt(px(32.))
-            })
-            .when(self.placement == ModalPlacement::Bottom, |e| {
-                e.items_end().justify_center().pb(px(32.))
-            })
-            .child(backdrop)
-            .child({
-                let zoom = crate::anim::ZoomBox::panel(px(24.), util::container_radius(cx))
-                    .padding_x(px(24.))
-                    .sized(self.size.width());
-                if exiting {
-                    crate::anim::exiting(
-                        panel,
-                        "alert-dialog-panel-out",
-                        zoom,
-                        crate::anim::Motion::PANEL_OUT,
-                        cx,
-                    )
-                } else {
-                    crate::anim::entering_zoom(
-                        panel,
-                        "alert-dialog-panel",
-                        zoom,
-                        crate::anim::Motion::PANEL_IN,
-                        cx,
-                    )
-                }
-            })
-            .into_any_element()
+            }
+        })
+        .when(
+            matches!(
+                self.placement,
+                ModalPlacement::Center | ModalPlacement::Auto
+            ),
+            |e| e.items_center().justify_center(),
+        )
+        .when(self.placement == ModalPlacement::Top, |e| {
+            e.items_start().justify_center().pt(px(32.))
+        })
+        .when(self.placement == ModalPlacement::Bottom, |e| {
+            e.items_end().justify_center().pb(px(32.))
+        })
+        .child(backdrop)
+        .child({
+            let zoom = crate::anim::ZoomBox::panel(px(24.), util::container_radius(cx))
+                .padding_x(px(24.))
+                .sized(self.size.width());
+            if exiting {
+                crate::anim::exiting(
+                    panel,
+                    "alert-dialog-panel-out",
+                    zoom,
+                    crate::anim::Motion::PANEL_OUT,
+                    cx,
+                )
+            } else {
+                crate::anim::entering_zoom(
+                    panel,
+                    "alert-dialog-panel",
+                    zoom,
+                    crate::anim::Motion::PANEL_IN,
+                    cx,
+                )
+            }
+        })
+        .into_any_element()
     }
 }

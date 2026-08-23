@@ -60,7 +60,29 @@ fn main() {
         .run(move |cx: &mut App| {
             ThemeProvider::init_with(theme, cx);
 
-            let bounds = Bounds::centered(None, size(px(1280.), px(820.)), cx);
+            // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
+            // A capture is one PrintWindow of the whole window, so a taller
+            // window is more of a page per screenshot -- and a window created
+            // oversized keeps its size where a *resize* of a visible one is
+            // clamped to the monitor.
+            let (w, h) = std::env::var("HEROGPUI_WINDOW_SIZE")
+                .ok()
+                .and_then(|v| {
+                    let (w, h) = v.split_once(['x', 'X'])?;
+                    Some((w.trim().parse::<f32>().ok()?, h.trim().parse::<f32>().ok()?))
+                })
+                .unwrap_or((1280., 820.));
+            // Centring clamps to the display, which is exactly what a taller
+            // window is trying to escape, so an explicit size gets explicit
+            // bounds parked at the top-left.
+            let bounds = if std::env::var("HEROGPUI_WINDOW_SIZE").is_ok() {
+                Bounds {
+                    origin: gpui::point(px(0.), px(0.)),
+                    size: size(px(w), px(h)),
+                }
+            } else {
+                Bounds::centered(None, size(px(w), px(h)), cx)
+            };
             let start_page = page;
             // `HEROGPUI_UNFOCUSED=1` opens the window without taking focus, so
             // the screenshot and smoke scripts do not interrupt whatever you are
@@ -89,6 +111,11 @@ fn main() {
             )
             .unwrap();
 
-            cx.activate(true);
+            // Activating raises the window and takes the focus, which is the
+            // one thing `HEROGPUI_UNFOCUSED=1` is asked not to do: a capture run
+            // would interrupt whatever the user is doing, once per page.
+            if !unfocused {
+                cx.activate(true);
+            }
         });
 }
