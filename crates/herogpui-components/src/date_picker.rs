@@ -760,16 +760,6 @@ impl DateSegment {
         }
     }
 
-    /// The segment `delta` places along, clamped to the ends.
-    ///
-    /// v3 moves the caret between segments with the left and right arrows, so
-    /// this is what those keys walk.
-    fn shift(self, delta: i32) -> DateSegment {
-        let here = Self::ALL.iter().position(|s| *s == self).unwrap_or(0) as i32;
-        let next = (here + delta).clamp(0, Self::ALL.len() as i32 - 1) as usize;
-        Self::ALL[next]
-    }
-
     /// How many digits this segment holds — the point at which typing moves on.
     fn digits(self) -> usize {
         match self {
@@ -842,6 +832,57 @@ impl DateSegment {
     }
 }
 
+/// `granularity` — the smallest unit a date field shows.
+///
+/// v3 defaults a date to `day`; anything smaller adds the time segments, which
+/// is why its own example switches `defaultValue` from `parseDate` to
+/// `parseZonedDateTime` when the granularity drops below a day.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Granularity {
+    #[default]
+    Day,
+    Hour,
+    Minute,
+    Second,
+}
+
+impl Granularity {
+    pub const ALL: [Granularity; 4] = [
+        Granularity::Day,
+        Granularity::Hour,
+        Granularity::Minute,
+        Granularity::Second,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Granularity::Day => "Day",
+            Granularity::Hour => "Hour",
+            Granularity::Minute => "Minute",
+            Granularity::Second => "Second",
+        }
+    }
+
+    /// The time granularity this asks for, or `None` for a plain date.
+    fn time(self) -> Option<crate::time_field::TimeGranularity> {
+        use crate::time_field::TimeGranularity as T;
+        match self {
+            Granularity::Day => None,
+            Granularity::Hour => Some(T::Hour),
+            Granularity::Minute => Some(T::Minute),
+            Granularity::Second => Some(T::Second),
+        }
+    }
+}
+
+/// One editable slot of a date field: a date part, or -- below `day`
+/// granularity -- a time part.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FieldSegment {
+    Date(DateSegment),
+    Time(crate::time_field::TimeSegment),
+}
+
 type DateSegmentRender =
     std::sync::Arc<dyn Fn(DateSegment, SharedString) -> gpui::AnyElement + 'static>;
 
@@ -867,6 +908,11 @@ pub struct DateField {
     variant: herogpui_core::FieldVariant,
     constraints: DateConstraints,
     placeholder_value: Option<Date>,
+    /// `granularity` — `day`, or a time unit, in which case the field grows the
+    /// segments for it and the bound state holds an ISO date-and-time.
+    granularity: Granularity,
+    /// `hourCycle` — 12- or 24-hour, for the hour segment `granularity` adds.
+    hour_cycle: crate::time_field::HourCycle,
     /// `DateField.Prefix` — content before the segments, drawn in the
     /// placeholder colour and inert (`pointer-events-none`).
     prefix: Option<gpui::AnyElement>,
@@ -953,6 +999,23 @@ impl DateField {
         self
     }
 
+    /// `granularity` — the smallest unit the field shows.
+    ///
+    /// Below `day` the field grows the time segments and the bound state holds
+    /// an ISO date-and-time (`2025-02-03T08:45`), which is the value a form
+    /// submits; `on_change` still reports the date part.
+    pub fn granularity(mut self, granularity: Granularity) -> Self {
+        self.granularity = granularity;
+        self
+    }
+
+    /// `hourCycle` — whether the hour segment `granularity` adds is 12- or
+    /// 24-hour.
+    pub fn hour_cycle(mut self, cycle: crate::time_field::HourCycle) -> Self {
+        self.hour_cycle = cycle;
+        self
+    }
+
     /// `DateField.Prefix` — content before the segments.
     pub fn prefix(mut self, el: impl IntoElement) -> Self {
         self.prefix = Some(el.into_any_element());
@@ -1029,6 +1092,8 @@ impl DateField {
     pub fn new(state: Entity<crate::input::InputState>) -> Self {
         Self {
             segment: None,
+            granularity: Granularity::Day,
+            hour_cycle: crate::time_field::HourCycle::H24,
             validation_behavior: None,
             default_value: None,
             full_width: false,
@@ -1106,6 +1171,74 @@ fn parse_iso(text: &str) -> Option<Date> {
     Some(Date::new(y, m, d))
 }
 
+/// The format a field of this granularity accepts, which is the description v3
+/// shows when the caller supplies none of their own.
+fn format_hint(granularity: Granularity, twelve_hour: bool) -> String {
+    let mut hint = String::from("MM/DD/YYYY");
+    match granularity {
+        Granularity::Day => return hint,
+        Granularity::Hour => hint.push_str(", HH"),
+        Granularity::Minute => hint.push_str(", HH:MM"),
+        Granularity::Second => hint.push_str(", HH:MM:SS"),
+    }
+    if twelve_hour {
+        hint.push_str(" AM");
+    }
+    hint
+}
+
+/// A date field's value: the date, and the time when `granularity` asks for
+/// one. `T` or a space separates them, as ISO 8601 allows both.
+fn parse_value(text: &str) -> (Option<Date>, Option<crate::time_field::Time>) {
+    let text = text.trim();
+    let (date, time) = match text.split_once(['T', ' ']) {
+        Some((d, t)) => (d, Some(t)),
+        None => (text, None),
+    };
+    (parse_iso(date), time.and_then(parse_time))
+}
+
+/// `HH`, `HH:MM` or `HH:MM:SS`. A missing part is zero, which is what makes an
+/// hour-granularity value round-trip.
+fn parse_time(text: &str) -> Option<crate::time_field::Time> {
+    let mut parts = text.trim().split(':');
+    let hour: u32 = parts.next()?.parse().ok()?;
+    let minute: u32 = match parts.next() {
+        Some(m) => m.parse().ok()?,
+        None => 0,
+    };
+    let second: u32 = match parts.next() {
+        Some(sec) => sec.parse().ok()?,
+        None => 0,
+    };
+    if hour > 23 || minute > 59 || second > 59 {
+        return None;
+    }
+    Some(crate::time_field::Time::new(hour, minute).with_second(second))
+}
+
+/// The text the state holds, which is also what a form submits: an ISO date,
+/// widened by exactly as much time as the granularity shows.
+fn format_value(
+    date: Date,
+    time: Option<crate::time_field::Time>,
+    granularity: Granularity,
+) -> String {
+    let t = time.unwrap_or_default();
+    match granularity {
+        Granularity::Day => date.format_iso(),
+        Granularity::Hour => format!("{}T{:02}", date.format_iso(), t.hour),
+        Granularity::Minute => format!("{}T{:02}:{:02}", date.format_iso(), t.hour, t.minute),
+        Granularity::Second => format!(
+            "{}T{:02}:{:02}:{:02}",
+            date.format_iso(),
+            t.hour,
+            t.minute,
+            t.second
+        ),
+    }
+}
+
 impl RenderOnce for DateField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `validationBehavior` travels with the name, on the text state.
@@ -1139,9 +1272,9 @@ impl RenderOnce for DateField {
         let focused_seg = window.use_keyed_state(
             gpui::ElementId::Name(format!("datefield-{entity_id}-seg").into()),
             cx,
-            |_, _| DateSegment::Month,
+            |_, _| FieldSegment::Date(DateSegment::Month),
         );
-        let focused = *focused_seg.read(cx);
+        let mut focused = *focused_seg.read(cx);
         // Digits typed into the focused segment but not yet complete, so `1` in
         // the month segment can still become `12`. Cleared whenever focus moves.
         let typing = window.use_keyed_state(
@@ -1154,8 +1287,30 @@ impl RenderOnce for DateField {
         let _layout = cx.layout().clone();
 
         let text = self.state.read(cx).value().to_owned();
-        let parsed = parse_iso(&text);
+        let (parsed, parsed_time) = parse_value(&text);
         let non_empty = !text.trim().is_empty();
+
+        // The slots this field shows: the three date parts, then the time parts
+        // `granularity` asks for. `TimeSegment::order` is the time field's own,
+        // so a minute field looks the same wherever it appears.
+        let twelve_hour = self.hour_cycle == crate::time_field::HourCycle::H12;
+        let mut segments: Vec<FieldSegment> = DateSegment::ALL
+            .iter()
+            .copied()
+            .map(FieldSegment::Date)
+            .collect();
+        if let Some(time_granularity) = self.granularity.time() {
+            segments.extend(
+                crate::time_field::TimeSegment::order(time_granularity, twelve_hour)
+                    .into_iter()
+                    .map(FieldSegment::Time),
+            );
+        }
+        // A narrower granularity can leave the caret on a slot that is gone.
+        if !segments.contains(&focused) {
+            focused = segments[0];
+        }
+        let granularity = self.granularity;
 
         // The three ways a date can be wrong are reported separately, as the
         // calendar grids distinguish them too.
@@ -1196,16 +1351,37 @@ impl RenderOnce for DateField {
         let is_invalid = validity.is_invalid;
 
         let pad = self.should_force_leading_zeros;
-        let segment_text = move |segment: DateSegment| -> String {
-            let Some(d) = parsed else {
-                return segment.hint().to_owned();
-            };
+        let segment_text = move |segment: FieldSegment| -> String {
+            use crate::time_field::TimeSegment as T;
             match segment {
-                DateSegment::Month if pad => format!("{:02}", d.month),
-                DateSegment::Day if pad => format!("{:02}", d.day),
-                DateSegment::Month => d.month.to_string(),
-                DateSegment::Day => d.day.to_string(),
-                DateSegment::Year => format!("{:04}", d.year),
+                FieldSegment::Date(segment) => {
+                    let Some(d) = parsed else {
+                        return segment.hint().to_owned();
+                    };
+                    match segment {
+                        DateSegment::Month if pad => format!("{:02}", d.month),
+                        DateSegment::Day if pad => format!("{:02}", d.day),
+                        DateSegment::Month => d.month.to_string(),
+                        DateSegment::Day => d.day.to_string(),
+                        DateSegment::Year => format!("{:04}", d.year),
+                    }
+                }
+                FieldSegment::Time(segment) => {
+                    let Some(t) = parsed_time else {
+                        return if segment == T::Meridiem {
+                            "AM".to_owned()
+                        } else {
+                            "--".to_owned()
+                        };
+                    };
+                    match segment {
+                        T::Hour if twelve_hour => format!("{:02}", t.twelve_hour().0),
+                        T::Hour => format!("{:02}", t.hour),
+                        T::Minute => format!("{:02}", t.minute),
+                        T::Second => format!("{:02}", t.second),
+                        T::Meridiem => t.twelve_hour().1.to_owned(),
+                    }
+                }
             }
         };
 
@@ -1248,6 +1424,7 @@ impl RenderOnce for DateField {
             let held = focused_seg.clone();
             let buffer = typing;
             let fh = focus_handle.clone();
+            let slots = segments.clone();
             group = group
                 .track_focus(&focus_handle)
                 .key_context("DateField")
@@ -1256,35 +1433,64 @@ impl RenderOnce for DateField {
                 })
                 .on_key_down(move |event, window, cx| {
                     let key = event.keystroke.key.as_str();
-                    // A date is only ever written back as a whole date, so every
-                    // branch produces one and commits it the same way.
-                    let commit = |date: Date, window: &mut Window, cx: &mut App| {
+                    // A value is only ever written back whole, so every branch
+                    // produces a date -- and, below `day`, a time -- and commits
+                    // the pair the same way.
+                    let commit = |date: Date,
+                                  time: Option<crate::time_field::Time>,
+                                  window: &mut Window,
+                                  cx: &mut App| {
                         state.update(cx, |s, cx| {
-                            s.set_value(date.format_iso());
+                            s.set_value(format_value(date, time, granularity));
                             cx.notify();
                         });
                         if let Some(cb) = &on_change {
                             cb(Some(date).filter(|d| constraints.allows(*d)), window, cx);
                         }
                     };
+                    let seed_time = parsed_time.unwrap_or_default();
                     match key {
                         "up" | "down" => {
                             let delta = if key == "up" { 1 } else { -1 };
                             let base = parsed.unwrap_or(seed);
+                            buffer.update(cx, |b, _| b.clear());
                             // The first press on an empty field takes the seed
                             // itself rather than stepping past it.
-                            let next = match parsed {
-                                Some(_) => focused.bump(base, delta),
-                                None => base,
-                            };
-                            buffer.update(cx, |b, _| b.clear());
-                            commit(next, window, cx);
+                            match focused {
+                                FieldSegment::Date(segment) => {
+                                    let next = match parsed {
+                                        Some(_) => segment.bump(base, delta),
+                                        None => base,
+                                    };
+                                    commit(next, parsed_time, window, cx);
+                                }
+                                FieldSegment::Time(segment) => {
+                                    let next = match parsed_time {
+                                        Some(t) => t.bump(segment, delta),
+                                        None => seed_time,
+                                    };
+                                    commit(base, Some(next), window, cx);
+                                }
+                            }
+                        }
+                        // The meridiem answers its own letters, as v3's does.
+                        "a" | "p"
+                            if focused
+                                == FieldSegment::Time(crate::time_field::TimeSegment::Meridiem) =>
+                        {
+                            let hour = seed_time.hour % 12 + if key == "p" { 12 } else { 0 };
+                            let next = crate::time_field::Time::new(hour, seed_time.minute)
+                                .with_second(seed_time.second);
+                            commit(parsed.unwrap_or(seed), Some(next), window, cx);
                         }
                         "left" | "right" => {
                             let delta = if key == "right" { 1 } else { -1 };
                             buffer.update(cx, |b, _| b.clear());
+                            let here = slots.iter().position(|s| *s == focused).unwrap_or(0) as i32;
+                            let next = (here + delta).clamp(0, slots.len() as i32 - 1) as usize;
+                            let next = slots[next];
                             held.update(cx, |seg, cx| {
-                                *seg = seg.shift(delta);
+                                *seg = next;
                                 cx.notify();
                             });
                         }
@@ -1299,8 +1505,15 @@ impl RenderOnce for DateField {
                             }
                         }
                         digit if digit.len() == 1 && digit.chars().all(|c| c.is_ascii_digit()) => {
+                            let digits = match focused {
+                                FieldSegment::Date(segment) => segment.digits(),
+                                FieldSegment::Time(segment) => segment.digits(),
+                            };
+                            if digits == 0 {
+                                return;
+                            }
                             let text = buffer.update(cx, |b, _| {
-                                if b.len() >= focused.digits() {
+                                if b.len() >= digits {
                                     b.clear();
                                 }
                                 b.push_str(digit);
@@ -1309,17 +1522,30 @@ impl RenderOnce for DateField {
                             let Ok(value) = text.parse::<u32>() else {
                                 return;
                             };
-                            commit(
-                                focused.with_value(parsed.unwrap_or(seed), value),
-                                window,
-                                cx,
-                            );
+                            match focused {
+                                FieldSegment::Date(segment) => commit(
+                                    segment.with_value(parsed.unwrap_or(seed), value),
+                                    parsed_time,
+                                    window,
+                                    cx,
+                                ),
+                                FieldSegment::Time(segment) => commit(
+                                    parsed.unwrap_or(seed),
+                                    Some(segment.with_value(seed_time, value, twelve_hour)),
+                                    window,
+                                    cx,
+                                ),
+                            }
                             // A full segment hands the caret on, which is what
                             // makes `12252025` type a whole date.
-                            if text.len() >= focused.digits() {
+                            if text.len() >= digits {
                                 buffer.update(cx, |b, _| b.clear());
+                                let here =
+                                    slots.iter().position(|s| *s == focused).unwrap_or(0) as i32;
+                                let next = (here + 1).clamp(0, slots.len() as i32 - 1) as usize;
+                                let next = slots[next];
                                 held.update(cx, |seg, cx| {
-                                    *seg = seg.shift(1);
+                                    *seg = next;
                                     cx.notify();
                                 });
                             }
@@ -1349,9 +1575,25 @@ impl RenderOnce for DateField {
             );
         }
 
-        for (index, segment) in DateSegment::ALL.iter().copied().enumerate() {
-            if index > 0 {
-                group = group.child(gpui::div().text_color(colors.muted).child("/"));
+        for (index, segment) in segments.iter().copied().enumerate() {
+            // `/` between the date parts, `:` between the time parts, a comma
+            // where the two meet and a space before the meridiem -- the order
+            // v3 formats `02/03/2025, 08:45 AM` in.
+            use crate::time_field::TimeSegment as T;
+            let separator = match (index, segment) {
+                (0, _) => None,
+                (_, FieldSegment::Date(_)) => Some("/"),
+                (_, FieldSegment::Time(T::Hour)) => Some(","),
+                (_, FieldSegment::Time(T::Meridiem)) => Some(" "),
+                (_, FieldSegment::Time(_)) => Some(":"),
+            };
+            if let Some(separator) = separator {
+                group = group.child(
+                    gpui::div()
+                        .text_color(colors.muted)
+                        .child(separator)
+                        .when(separator == ",", |el| el.mr(px(2.))),
+                );
             }
 
             let mut seg = gpui::div()
@@ -1363,9 +1605,13 @@ impl RenderOnce for DateField {
                 .rounded(px(4.))
                 // `segment` is v3's render prop on `DateField.Segment`: the
                 // closure is handed which segment it is drawing.
-                .child(match &self.segment {
-                    Some(render) => render(segment, segment_text(segment).into()),
-                    None => segment_text(segment).into_any_element(),
+                .child(match (&self.segment, segment) {
+                    // v3's render prop names a *date* segment; a time slot has
+                    // none to hand over, so it draws itself.
+                    (Some(render), FieldSegment::Date(part)) => {
+                        render(part, segment_text(segment).into())
+                    }
+                    _ => segment_text(segment).into_any_element(),
                 });
 
             if parsed.is_none() {
@@ -1434,16 +1680,28 @@ impl RenderOnce for DateField {
                         let base = current.unwrap_or(seed);
                         // An empty field takes the seed itself on the first
                         // press, so one click does not jump a whole step.
-                        let next = match current {
-                            Some(_) => focused.bump(base, delta),
-                            None => base,
+                        let (date, time) = match focused {
+                            FieldSegment::Date(part) => (
+                                match current {
+                                    Some(_) => part.bump(base, delta),
+                                    None => base,
+                                },
+                                parsed_time,
+                            ),
+                            FieldSegment::Time(part) => (
+                                base,
+                                Some(match parsed_time {
+                                    Some(t) => t.bump(part, delta),
+                                    None => crate::time_field::Time::default(),
+                                }),
+                            ),
                         };
                         state.update(cx, |s, cx| {
-                            s.set_value(next.format_iso());
+                            s.set_value(format_value(date, time, granularity));
                             cx.notify();
                         });
                         if let Some(cb) = &on_change {
-                            cb(Some(next).filter(|d| constraints.allows(*d)), window, cx);
+                            cb(Some(date).filter(|d| constraints.allows(*d)), window, cx);
                         }
                     }),
             );
@@ -1474,7 +1732,7 @@ impl RenderOnce for DateField {
                 let description = self
                     .description
                     .clone()
-                    .unwrap_or_else(|| "MM/DD/YYYY".into());
+                    .unwrap_or_else(|| format_hint(granularity, twelve_hour).into());
                 el = el.child(crate::field::Description::new(description));
             }
         }
@@ -1482,5 +1740,92 @@ impl RenderOnce for DateField {
             el = el.opacity(cx.layout().disabled_opacity);
         }
         el.into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::time_field::{HourCycle, Time, TimeSegment};
+
+    #[test]
+    fn a_day_value_is_a_plain_iso_date() {
+        let date = Date::new(2025, 2, 3);
+        assert_eq!(format_value(date, None, Granularity::Day), "2025-02-03");
+        assert_eq!(parse_value("2025-02-03"), (Some(date), None));
+    }
+
+    #[test]
+    fn a_time_value_round_trips_at_every_granularity() {
+        let date = Date::new(2025, 2, 3);
+        let time = Time::new(8, 45).with_second(9);
+        for (granularity, text) in [
+            (Granularity::Hour, "2025-02-03T08"),
+            (Granularity::Minute, "2025-02-03T08:45"),
+            (Granularity::Second, "2025-02-03T08:45:09"),
+        ] {
+            assert_eq!(format_value(date, Some(time), granularity), text);
+            let (d, t) = parse_value(text);
+            assert_eq!(d, Some(date));
+            // Only as much of the time as the granularity wrote comes back.
+            let t = t.expect("a time");
+            assert_eq!(t.hour, 8);
+            assert_eq!(
+                (t.minute, t.second),
+                match granularity {
+                    Granularity::Hour => (0, 0),
+                    Granularity::Minute => (45, 0),
+                    _ => (45, 9),
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn a_space_separates_as_well_as_a_t() {
+        assert_eq!(
+            parse_value("2025-02-03 08:45"),
+            parse_value("2025-02-03T08:45")
+        );
+    }
+
+    #[test]
+    fn an_impossible_time_is_no_time() {
+        assert_eq!(parse_value("2025-02-03T24:00").1, None);
+        assert_eq!(parse_value("2025-02-03T08:60").1, None);
+        assert_eq!(parse_value("2025-02-03Tzz").1, None);
+    }
+
+    #[test]
+    fn granularity_picks_the_time_slots() {
+        let slots = |g: Granularity, twelve: bool| {
+            g.time()
+                .map(|t| TimeSegment::order(t, twelve))
+                .unwrap_or_default()
+        };
+        assert!(slots(Granularity::Day, false).is_empty());
+        assert_eq!(slots(Granularity::Hour, false), vec![TimeSegment::Hour]);
+        assert_eq!(
+            slots(Granularity::Second, false),
+            vec![TimeSegment::Hour, TimeSegment::Minute, TimeSegment::Second]
+        );
+        // A 12-hour clock adds the meridiem, wherever the granularity stops.
+        assert_eq!(
+            slots(Granularity::Hour, true),
+            vec![TimeSegment::Hour, TimeSegment::Meridiem]
+        );
+    }
+
+    #[test]
+    fn the_hint_says_what_the_field_takes() {
+        assert_eq!(format_hint(Granularity::Day, false), "MM/DD/YYYY");
+        assert_eq!(format_hint(Granularity::Minute, false), "MM/DD/YYYY, HH:MM");
+        assert_eq!(
+            format_hint(Granularity::Second, true),
+            "MM/DD/YYYY, HH:MM:SS AM"
+        );
+        // The cycle only shows where there is an hour to qualify.
+        assert_eq!(format_hint(Granularity::Day, true), "MM/DD/YYYY");
+        let _ = HourCycle::H12;
     }
 }

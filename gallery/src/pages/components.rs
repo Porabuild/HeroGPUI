@@ -3439,6 +3439,45 @@ impl Gallery {
             crate::pages::Page::DateField.import_line(),
             vec![
                 (
+                    "Granularity",
+                    col(vec![
+                        para(
+                            "`granularity` sets the smallest unit the field shows. Below `day` \
+                             it grows the time segments -- the same ones a `TimeField` has, so \
+                             the arrows step them and digits type into them -- and the bound \
+                             state holds an ISO date-and-time.",
+                            cx,
+                        ),
+                        row(h::Granularity::ALL
+                            .iter()
+                            .copied()
+                            .map(|granularity| {
+                                let key = match granularity {
+                                    h::Granularity::Day => "df-gran-day",
+                                    h::Granularity::Hour => "df-gran-hour",
+                                    h::Granularity::Minute => "df-gran-minute",
+                                    h::Granularity::Second => "df-gran-second",
+                                };
+                                spec(
+                                    granularity.label(),
+                                    h::DateField::new(self.demo_text(
+                                        key,
+                                        "2025-02-03T08:45:09",
+                                        cx,
+                                    ))
+                                    .granularity(granularity),
+                                    cx,
+                                )
+                            })
+                            .collect()),
+                        h::DateField::new(self.demo_text("df-gran-12h", "2025-02-03T20:45", cx))
+                            .label("Twelve-hour clock")
+                            .granularity(h::Granularity::Minute)
+                            .hour_cycle(h::HourCycle::H12)
+                            .into_any_element(),
+                    ]),
+                ),
+                (
                     "Usage",
                     col(vec![
                         h::DateField::new(self.date_input.clone())

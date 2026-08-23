@@ -257,10 +257,6 @@ WONT_PORT = {
     # There are no time zones in this port: `Time` is a wall clock, so there is
     # no abbreviation to hide.
     'hideTimeZone': 'no-time-zones',
-    # A date field shows no time, so it has neither a granularity below a day
-    # nor an hour cycle. `TimeField` implements both.
-    'DateField.granularity': 'date-only-field',
-    'DateField.hourCycle': 'date-only-field',
 
     # Choosing separators, digit systems and currency placement per locale needs
     # CLDR data; a partial table would be worse than not offering the prop.

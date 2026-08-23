@@ -124,7 +124,11 @@ pub enum TimeSegment {
 
 impl TimeSegment {
     /// The segments a field of this granularity shows, in reading order.
-    fn order(granularity: TimeGranularity, twelve_hour: bool) -> Vec<TimeSegment> {
+    ///
+    /// `pub(crate)` because a `DateField` below `day` granularity shows the same
+    /// segments, edited the same way: one implementation, so the two fields
+    /// cannot disagree about what a minute field looks like.
+    pub(crate) fn order(granularity: TimeGranularity, twelve_hour: bool) -> Vec<TimeSegment> {
         let mut out = vec![TimeSegment::Hour];
         if granularity != TimeGranularity::Hour {
             out.push(TimeSegment::Minute);
@@ -139,7 +143,7 @@ impl TimeSegment {
     }
 
     /// How many digits this segment holds — the point at which typing moves on.
-    fn digits(self) -> usize {
+    pub(crate) fn digits(self) -> usize {
         match self {
             TimeSegment::Meridiem => 0,
             _ => 2,
@@ -147,7 +151,7 @@ impl TimeSegment {
     }
 
     /// `time` with this segment set to `value`, clamped to its range.
-    fn with_value(self, time: Time, value: u32, twelve_hour: bool) -> Time {
+    pub(crate) fn with_value(self, time: Time, value: u32, twelve_hour: bool) -> Time {
         match self {
             TimeSegment::Hour => {
                 let hour = if twelve_hour {

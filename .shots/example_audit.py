@@ -92,12 +92,7 @@ WONT_DEMO = {
 #
 # These are not excused: they are counted separately so the number cannot hide
 # behind "unportable", and each one names the feature it is waiting on.
-NEEDS_FEATURE = {
-    # v3's `granularity` widens a date field to day/hour/minute/second, which
-    # needs a combined date-and-time value; this port's `DateField` is
-    # date-only and `TimeField` is time-only.
-    'DateField.Granularity': 'datetime-granularity',
-}
+NEEDS_FEATURE = {}
 
 SYNONYM = {
     'usage': 'basic',
