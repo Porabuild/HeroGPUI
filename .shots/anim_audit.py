@@ -178,6 +178,41 @@ def check_motions():
     return bad
 
 
+def check_switch_thumb():
+    """The Switch thumb's property transition against its component CSS."""
+    css_path = os.path.join(CACHE, 'switch.css')
+    src_path = os.path.join(SRC, 'switch.rs')
+    if not os.path.exists(css_path):
+        print('switch thumb motion: no stylesheet')
+        return 1
+    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    src = io.open(src_path, encoding='utf-8').read()
+    want = re.search(r'margin\s+(\d+)ms\s+var\(--ease-([\w-]+)\)', css)
+    got_ms = re.search(r'const THUMB_TRANSITION_MS:\s*u64\s*=\s*(\d+)', src)
+    got_curve = re.search(
+        r'THUMB_TRANSITION_MS\)\)\s*\.with_easing\(\|t\|\s*'
+        r'crate::anim::Curve::(\w+)\.at\(t\)\)',
+        src,
+        re.S,
+    )
+    if want is None or got_ms is None or got_curve is None:
+        print('switch thumb motion: unreadable')
+        return 1
+    want_curve = CURVES.get(want.group(2))
+    same = int(want.group(1)) == int(got_ms.group(1)) and want_curve == got_curve.group(1)
+    print('switch thumb motion (v3 CSS vs Switch):')
+    print('%s %-14s %-12s %-22s %s' % (
+        ' ' if same else '!',
+        'switch',
+        'thumb margin',
+        '%sms %s' % (want.group(1), want_curve),
+        '%sms %s' % (got_ms.group(1), got_curve.group(1)),
+    ))
+    print('SWITCH MISMATCHES : %d' % (0 if same else 1))
+    print()
+    return 0 if same else 1
+
+
 def corpus():
     """Everything v3 ships that could name an animation.
 
@@ -235,7 +270,7 @@ def main():
         print('no longer in the v3 docs (stale entry?): %s'
               % ', '.join(sorted(stale_docs)))
     print()
-    motion_bad = check_motions()
+    motion_bad = check_motions() + check_switch_thumb()
     print('UNIMPLEMENTED : %d' % len(missing_impl))
     print('MOTION BAD    : %d' % motion_bad)
 

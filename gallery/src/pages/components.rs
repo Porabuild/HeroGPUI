@@ -2917,22 +2917,46 @@ impl Gallery {
                 (
                     "Form Integration",
                     col(vec![
-                        h::Switch::new("sw-form")
-                            .name("terms")
-                            // `value` is what a checked switch submits.
-                            .value("accepted")
-                            .is_selected(terms)
-                            .is_required(true)
-                            .label(gpui::div().child("Accept the terms"))
-                            .is_invalid(!terms)
-                            .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
-                                this.set_demo_flag("sw-form", *v);
-                                cx.notify();
-                            })))
-                            .into_any_element(),
+                        {
+                            let switch = h::Switch::new("sw-form")
+                                .name("terms")
+                                // `value` is what a checked switch submits.
+                                .value("accepted")
+                                .is_selected(terms)
+                                .is_required(true)
+                                .label(gpui::div().child("Accept the terms"))
+                                .is_invalid(!terms)
+                                .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("sw-form", *v);
+                                    cx.notify();
+                                })));
+                            let form = h::Form::new()
+                                .field(switch.form_field().expect("named switch field"))
+                                .on_submit(cx.listener(|this, data: &h::FormData, _, cx| {
+                                    this.input_submitted =
+                                        format!("terms={}", data.text("terms").unwrap_or_default());
+                                    cx.notify();
+                                }))
+                                .on_invalid(cx.listener(|this, _: &h::FormData, _, cx| {
+                                    this.input_submitted =
+                                        "Accept the terms before submitting".to_owned();
+                                    cx.notify();
+                                }));
+                            let submit = form.submit_handler();
+                            form.child(switch)
+                                .child(
+                                    h::Button::new("sw-form-submit")
+                                        .label("Submit")
+                                        .on_press(move |_, window, cx| submit(window, cx)),
+                                )
+                                .into_any_element()
+                        },
                         para(
-                            "A `Switch` with a `name` produces a `FormField`, which is what a \
-                             `Form` reads back on submit.",
+                            if self.input_submitted.is_empty() {
+                                "Toggle the required switch, then submit the live form field."
+                            } else {
+                                &self.input_submitted
+                            },
                             cx,
                         ),
                     ]),

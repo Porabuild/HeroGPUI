@@ -1006,7 +1006,7 @@ CHECKS = [
      'Slider vertical inner thumb height', SRC + 'slider.rs',
      r'inner\.w\(px\(16\. \* scale\)\)\.h\(px\((\d+(?:\.\d*)?)\. \* scale\)\)', None),
     ('switch', '.switch', 'gap', 'Switch content/description gap', SRC + 'switch.rs',
-     r'so the text lines up under the label\.[\s\S]{0,300}?'
+     r'Description and FieldError are direct siblings of Switch\.Content\.[\s\S]{0,300}?'
      r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('autocomplete', '.autocomplete', 'gap', 'Autocomplete wrapper gap',
      SRC + 'autocomplete.rs',

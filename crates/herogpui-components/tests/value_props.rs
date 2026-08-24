@@ -527,7 +527,7 @@ fn switch_content_render_prop_sees_pointer_cycle(cx: &mut TestAppContext) {
         let record = record.clone();
         Switch::new("sw-vc-pointer")
             .default_selected(true)
-            .content(move |state: util::InteractiveState| {
+            .content(move |state: herogpui_components::SwitchState| {
                 *record.borrow_mut() = (state.is_hovered, state.is_pressed, state.is_selected);
                 gpui::div()
                     .w(px(48.))
@@ -589,6 +589,33 @@ fn switch_content_render_prop_sees_pointer_cycle(cx: &mut TestAppContext) {
     );
 }
 
+#[gpui::test]
+fn disabled_switch_content_never_reports_hover_or_press(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new((false, false, true)));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        Switch::new("sw-vc-disabled")
+            .is_disabled(true)
+            .content(move |state: herogpui_components::SwitchState| {
+                *record.borrow_mut() = (state.is_hovered, state.is_pressed, state.is_disabled);
+                gpui::div().w(px(48.)).child("disabled").into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let centre = point(px(20.), px(10.));
+    cx.simulate_mouse_move(centre, None::<MouseButton>, Modifiers::none());
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+
+    assert_eq!(
+        *seen.borrow(),
+        (false, false, true),
+        "disabled Switch.Content must not expose hover or press state"
+    );
+}
+
 /// The focus half of the switch's render props: the track is the page's only
 /// tab stop, so Tab focuses it; the keyboard flag (the app root sets it on a
 /// key event) turns `isFocusVisible` on; and Space — which gpui activates for
@@ -602,7 +629,7 @@ fn switch_content_sees_focus_and_keyboard_toggle(cx: &mut TestAppContext) {
         let record = record.clone();
         Switch::new("sw-vc-keys")
             .default_selected(true)
-            .content(move |state: util::InteractiveState| {
+            .content(move |state: herogpui_components::SwitchState| {
                 *record.borrow_mut() =
                     (state.is_focused, state.is_focus_visible, state.is_selected);
                 gpui::div()

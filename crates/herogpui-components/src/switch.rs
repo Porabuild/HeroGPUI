@@ -1,11 +1,118 @@
 //! Switch — port of `@heroui/switch`.
 
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    time::Duration,
+};
+
 use gpui::{
-    prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce,
-    StatefulInteractiveElement, Styled, Window,
+    prelude::*, px, Animation, AnimationExt, AnyElement, App, IntoElement, ParentElement,
+    RenderOnce, StatefulInteractiveElement, Styled, Window,
 };
 use herogpui_core::{Color, Size};
 use herogpui_theme::ActiveTheme;
+
+/// State handed to Switch's children render function.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SwitchState {
+    pub is_selected: bool,
+    pub is_hovered: bool,
+    pub is_pressed: bool,
+    pub is_focused: bool,
+    pub is_focus_visible: bool,
+    pub is_disabled: bool,
+    pub is_read_only: bool,
+    pub is_invalid: bool,
+    pub is_required: bool,
+}
+
+/// `.switch__thumb` transitions its margin for 300ms with
+/// `--ease-out-fluid`. The current fraction lives outside the animation
+/// element so reversing mid-flight starts from the rendered position rather
+/// than jumping back to the previous endpoint.
+const THUMB_TRANSITION_MS: u64 = 300;
+
+#[derive(Clone)]
+struct ThumbMotion {
+    selected: bool,
+    generation: usize,
+    from: f32,
+    position: Rc<Cell<f32>>,
+}
+
+struct ThumbMotionFrame {
+    generation: usize,
+    from: f32,
+    to: f32,
+    position: Rc<Cell<f32>>,
+    animate: bool,
+}
+
+impl ThumbMotionFrame {
+    fn render(self, thumb: gpui::Div, travel: gpui::Pixels) -> AnyElement {
+        if !self.animate {
+            self.position.set(self.to);
+            return thumb.ml(travel * self.to).into_any_element();
+        }
+
+        let position = self.position;
+        let from = self.from;
+        let to = self.to;
+        thumb
+            .with_animation(
+                gpui::ElementId::Name(format!("switch-thumb-slide-{}", self.generation).into()),
+                Animation::new(Duration::from_millis(THUMB_TRANSITION_MS))
+                    .with_easing(|t| crate::anim::Curve::OutFluid.at(t)),
+                move |thumb, delta| {
+                    let fraction = from + (to - from) * delta;
+                    position.set(fraction);
+                    thumb.ml(travel * fraction)
+                },
+            )
+            .into_any_element()
+    }
+}
+
+fn thumb_motion(
+    id: &gpui::ElementId,
+    selected: bool,
+    window: &mut Window,
+    cx: &mut App,
+) -> ThumbMotionFrame {
+    let state = window.use_keyed_state(
+        gpui::ElementId::Name(format!("{id:?}-thumb-motion").into()),
+        cx,
+        |_, _| ThumbMotion {
+            selected,
+            generation: 0,
+            from: if selected { 1.0 } else { 0.0 },
+            position: Rc::new(Cell::new(if selected { 1.0 } else { 0.0 })),
+        },
+    );
+    let mut current = state.read(cx).clone();
+    let to = if selected { 1.0 } else { 0.0 };
+    if current.selected != selected {
+        current.selected = selected;
+        current.generation = current.generation.wrapping_add(1);
+        current.from = current.position.get();
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    if cx.reduce_motion() && (current.position.get() - to).abs() > f32::EPSILON {
+        current.from = to;
+        current.position.set(to);
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    ThumbMotionFrame {
+        generation: current.generation,
+        from: current.from,
+        to,
+        position: current.position,
+        animate: current.generation != 0
+            && !cx.reduce_motion()
+            && (current.from - to).abs() > f32::EPSILON,
+    }
+}
 
 /// HeroUI Switch (`<Switch>`).
 #[derive(IntoElement)]
@@ -21,7 +128,7 @@ pub struct Switch {
     id: gpui::ElementId,
     /// v3's `children`-as-a-function: handed the interactive state and drawn in
     /// place of the label.
-    content: Option<std::sync::Arc<dyn Fn(crate::util::InteractiveState) -> AnyElement + 'static>>,
+    content: Option<std::sync::Arc<dyn Fn(SwitchState) -> AnyElement + 'static>>,
     /// `isSelected` — `None` leaves the component holding the state, seeded
     /// from `defaultSelected`.
     checked: Option<bool>,
@@ -49,6 +156,7 @@ pub struct Switch {
     /// `Arc` rather than `Box`: the handler is bound twice, once for the
     /// pointer and once for Enter and Space.
     on_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
+    form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
 }
 
 impl Switch {
@@ -114,6 +222,13 @@ impl Switch {
             thumb_on: None,
             label_first: false,
             on_change: None,
+            form_state: Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+                value: crate::form::FormValue::Flag(false),
+                is_invalid: false,
+                is_successful: true,
+                focus: None,
+                restore: None,
+            })),
         }
     }
 
@@ -152,13 +267,23 @@ impl Switch {
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
         let checked = self.checked.unwrap_or(self.default_checked);
-        let field = match (&self.value, checked) {
-            // A checked box with an explicit `value` submits that text.
-            (Some(v), true) => crate::form::FormField::text_value(name, v.clone()),
-            _ => crate::form::FormField::flag(name, checked),
-        };
+        let validity = crate::validation::resolve(
+            self.is_invalid,
+            &self.validation_errors,
+            self.validate.as_ref().and_then(|f| f(&checked)),
+            None,
+        );
+        {
+            let mut state = self.form_state.borrow_mut();
+            state.value = match (&self.value, checked) {
+                (Some(value), true) => crate::form::FormValue::Text(value.clone()),
+                _ => crate::form::FormValue::Flag(checked),
+            };
+            state.is_invalid = validity.is_invalid;
+            state.is_successful = !self.is_disabled;
+        }
         Some(
-            field
+            crate::form::FormField::live(name, self.form_state.clone())
                 .is_required(self.is_required)
                 .validation_behavior(self.validation_behavior),
         )
@@ -192,13 +317,10 @@ impl Switch {
     }
 
     /// Text shown next to the track (children slot in React).
-    /// v3's render function for a switch's children, handed `isHovered`,
-    /// `isPressed`, `isFocused`, `isFocusVisible` and `isSelected`. The hover and
-    /// the press are a frame behind the pointer: gpui reports both to a handler.
-    pub fn content(
-        mut self,
-        render: impl Fn(crate::util::InteractiveState) -> AnyElement + 'static,
-    ) -> Self {
+    /// v3's render function for a switch's children, handed its complete field
+    /// state. Hover and press are a frame behind the pointer because gpui
+    /// reports them to a handler.
+    pub fn content(mut self, render: impl Fn(SwitchState) -> AnyElement + 'static) -> Self {
         self.content = Some(std::sync::Arc::new(render));
         self
     }
@@ -247,6 +369,33 @@ impl RenderOnce for Switch {
             self.checked,
             self.default_checked,
         );
+        let reset_own = own.clone();
+        let reset_state = self.form_state.clone();
+        let reset_value = self.value.clone();
+        let reset_change = self
+            .checked
+            .is_some()
+            .then(|| self.on_change.clone())
+            .flatten();
+        self.form_state.borrow_mut().restore = (reset_own.is_some() || reset_change.is_some())
+            .then(|| {
+                let default_checked = self.default_checked;
+                crate::util::shared(move |window: &mut Window, cx: &mut App| {
+                    reset_state.borrow_mut().value = match (&reset_value, default_checked) {
+                        (Some(value), true) => crate::form::FormValue::Text(value.clone()),
+                        _ => crate::form::FormValue::Flag(default_checked),
+                    };
+                    if let Some(held) = &reset_own {
+                        held.update(cx, |checked, cx| {
+                            *checked = default_checked;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(on_change) = &reset_change {
+                        on_change(default_checked, window, cx);
+                    }
+                }) as std::sync::Arc<dyn Fn(&mut Window, &mut App)>
+            });
 
         // The keyboard's focus target. `use_keyed_state` takes `cx` mutably, so
         // it precedes every borrow of the theme.
@@ -255,6 +404,7 @@ impl RenderOnce for Switch {
             window,
             cx,
         );
+        self.form_state.borrow_mut().focus = Some(focus_handle.clone());
         // The hover and press a `content` closure is handed; only tracked when
         // one is set.
         let interaction = self.content.as_ref().map(|_| {
@@ -264,6 +414,7 @@ impl RenderOnce for Switch {
                 cx,
             )
         });
+        let thumb_motion = thumb_motion(&self.id, checked, window, cx);
         let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
@@ -275,6 +426,15 @@ impl RenderOnce for Switch {
             self.validate.as_ref().and_then(|f| f(&checked)),
             None,
         );
+        {
+            let mut state = self.form_state.borrow_mut();
+            state.value = match (&self.value, checked) {
+                (Some(value), true) => crate::form::FormValue::Text(value.clone()),
+                _ => crate::form::FormValue::Flag(checked),
+            };
+            state.is_invalid = validity.is_invalid;
+            state.is_successful = !self.is_disabled;
+        }
 
         // `.switch__control` and `.switch__thumb` state their sizes in `rem`,
         // so at a 16px root: track 32x16 / 40x20 / 48x24, and a thumb that is a
@@ -288,6 +448,7 @@ impl RenderOnce for Switch {
             Size::Lg => (px(48.), px(24.), px(27.5), px(20.), px(12.), px(12.)),
         };
         let thumb_inset = px(2.);
+        let thumb_travel = w - thumb_w - thumb_inset * 2.;
 
         // `default` is the v3 unchecked track. A soft (alpha) mix vanishes on
         // a white overlay, so the track uses the solid role colour.
@@ -308,10 +469,11 @@ impl RenderOnce for Switch {
             .flex()
             .items_center()
             .px(thumb_inset)
-            .when(self.is_disabled, |t| t.opacity(layout.disabled_opacity))
             .when(!self.is_disabled, |t| t.cursor_pointer());
-        if let Some(slot) = &interaction {
-            track = crate::util::track_interaction(track, slot);
+        if !self.is_disabled {
+            if let Some(slot) = &interaction {
+                track = crate::util::track_interaction(track, slot);
+            }
         }
         // v3's switch stylesheet has no invalid rule at all -- the state shows
         // in the field error below, not as a danger ring on the track, so the
@@ -332,10 +494,8 @@ impl RenderOnce for Switch {
         }
 
         // Thumb sits at the end when checked, start when unchecked. v3 moves it
-        // by margin rather than transform, which is what `ml_auto`/`mr_auto` do
-        // here. It is `bg-white` unchecked and `bg-accent-foreground` checked --
-        // not the page background and a soft grey, which is what this drew
-        // before.
+        // by margin rather than transform; `ThumbMotionFrame` animates that
+        // margin and preserves its current fraction across a reversal.
         let mut thumb_el = gpui::div()
             .w(thumb_w)
             .h(thumb_h)
@@ -352,10 +512,10 @@ impl RenderOnce for Switch {
         } {
             thumb_el = thumb_el.child(glyph);
         }
-        track = track.child(if checked {
+        let thumb_el = if checked {
             thumb_el
-                .ml_auto()
                 .bg(sem.foreground)
+                .when(self.is_disabled, |thumb| thumb.opacity(0.4))
                 // The checked thumb carries its own three-layer shadow.
                 .shadow(vec![
                     gpui::BoxShadow {
@@ -379,12 +539,16 @@ impl RenderOnce for Switch {
                 ])
         } else {
             thumb_el
-                .mr_auto()
-                .bg(herogpui_theme::white())
+                .bg(if self.is_disabled {
+                    colors.default.foreground.alpha(0.2)
+                } else {
+                    herogpui_theme::white()
+                })
                 .when(!layout.field_shadow.is_empty(), |t| {
                     t.shadow(layout.field_shadow.clone())
                 })
-        });
+        };
+        track = track.child(thumb_motion.render(thumb_el, thumb_travel));
 
         if !self.is_disabled && !self.is_read_only && (self.on_change.is_some() || own.is_some()) {
             let on_change = self.on_change;
@@ -420,14 +584,16 @@ impl RenderOnce for Switch {
                 .map(|slot| *slot.read(cx))
                 .unwrap_or_default();
             let focused = focus_handle.is_focused(window);
-            render(crate::util::InteractiveState {
+            render(SwitchState {
                 is_hovered,
                 is_pressed,
                 is_focused: focused,
                 is_focus_visible: focused && crate::util::focus_visible(cx),
                 is_selected: checked,
                 is_disabled: self.is_disabled,
-                is_indeterminate: false,
+                is_read_only: self.is_read_only,
+                is_invalid: validity.is_invalid,
+                is_required: self.is_required,
             })
         });
         let label_row = self.label.map(|label| {
@@ -453,42 +619,32 @@ impl RenderOnce for Switch {
             (_, None, None) => el = el.child(track),
         }
 
-        // `& > [data-slot="description"]` is indented by the track width plus
-        // the row's `gap-3`, so the text lines up under the label.
-        if let Some(description) = self.description {
-            let indent = w + px(12.);
-            return gpui::div()
-                .flex()
-                .flex_col()
-                .gap(px(4.))
-                .child(el)
-                .child(
+        // Description and FieldError are direct siblings of Switch.Content.
+        // Both use the size-specific track width plus the 12px content gap.
+        let indent = w + px(12.);
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(4.))
+            .when(self.is_disabled, |root| {
+                root.opacity(layout.disabled_opacity)
+            })
+            .child(el)
+            .when_some(self.description, |root, description| {
+                root.child(
                     gpui::div()
                         .pl(indent)
                         .child(crate::field::Description::new(description)),
                 )
-                .when_some(validity.first(), |c, message| {
-                    c.child(
-                        gpui::div()
-                            .pl(indent)
-                            .child(crate::field::ErrorMessage::new(message)),
-                    )
-                })
-                .into_any_element();
-        }
-
-        // A switch that can be invalid has to be able to say why, so the row
-        // becomes a column when there is a message.
-        match validity.first() {
-            None => el.into_any_element(),
-            Some(message) => gpui::div()
-                .flex()
-                .flex_col()
-                .gap(px(4.))
-                .child(el)
-                .child(crate::field::ErrorMessage::new(message))
-                .into_any_element(),
-        }
+            })
+            .when_some(validity.first(), |root, message| {
+                root.child(
+                    gpui::div()
+                        .pl(indent)
+                        .child(crate::field::ErrorMessage::new(message)),
+                )
+            })
+            .into_any_element()
     }
 }
 

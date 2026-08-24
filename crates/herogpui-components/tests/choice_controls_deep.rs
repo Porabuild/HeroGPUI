@@ -117,6 +117,263 @@ fn switch_read_only_stays_focusable_but_ignores_space(cx: &mut TestAppContext) {
     );
 }
 
+#[gpui::test]
+fn switch_content_receives_complete_field_state(cx: &mut TestAppContext) {
+    let states = events();
+    let recorded = states.clone();
+    let _cx = open_host(cx, move || {
+        let states = states.clone();
+        Switch::new("switch-complete-state")
+            .is_selected(true)
+            .is_read_only(true)
+            .is_required(true)
+            .validate(|_| Some("Invalid selection".into()))
+            .content(move |state| {
+                states.borrow_mut().push(format!(
+                    "selected={}:readonly={}:invalid={}:required={}",
+                    state.is_selected, state.is_read_only, state.is_invalid, state.is_required
+                ));
+                gpui::div().into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert!(recorded
+        .borrow()
+        .iter()
+        .any(|state| { state == "selected=true:readonly=true:invalid=true:required=true" }));
+}
+
+#[gpui::test]
+fn switch_field_error_is_outside_the_clickable_content(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        Switch::new("switch-field-error")
+            .validation_errors(["Selection is unavailable"])
+            .on_change(move |selected, _, _| changes.borrow_mut().push(selected.to_string()))
+            .into_any_element()
+    });
+
+    // The 16px FieldError line starts after the 20px track plus the 4px
+    // field gap. It is a sibling of Switch.Content and must not toggle it.
+    click(cx, 60., 31.);
+    assert!(recorded.borrow().is_empty());
+
+    click(cx, 20., 10.);
+    assert_eq!(recorded.borrow().as_slice(), ["true"]);
+}
+
+#[gpui::test]
+fn switch_form_reads_live_uncontrolled_value_and_reset(cx: &mut TestAppContext) {
+    let events = events();
+    let recorded = events.clone();
+    let cx = open_host(cx, move || {
+        let changes = events.clone();
+        let submits = events.clone();
+        let switch = Switch::new("live-switch-form")
+            .name("notifications")
+            .value("enabled")
+            .on_change(move |selected, _, _| {
+                changes.borrow_mut().push(format!("change:{selected}"));
+            });
+        let form = Form::new()
+            .field(switch.form_field().expect("named switch field"))
+            .on_submit(move |data, _, _| {
+                submits.borrow_mut().push(format!(
+                    "submit:{}",
+                    data.text("notifications")
+                        .map_or_else(|| "omitted".to_owned(), |value| value.to_string())
+                ));
+            });
+        let submit = form.submit_handler();
+        let reset = form.reset_handler();
+        form.child(switch)
+            .child(
+                Button::new("live-switch-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .child(
+                Button::new("live-switch-reset")
+                    .label("Reset")
+                    .on_press(move |_, window, cx| reset(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "space");
+    press(cx, "tab");
+    press(cx, "space");
+    press(cx, "tab");
+    press(cx, "space");
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "space");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["change:true", "submit:enabled", "submit:omitted"],
+        "submission must read the current uncontrolled state and reset must restore defaultSelected"
+    );
+}
+
+#[gpui::test]
+fn controlled_switch_reset_reports_default_selected(cx: &mut TestAppContext) {
+    let events = events();
+    let recorded = events.clone();
+    let cx = open_host(cx, move || {
+        let changes = events.clone();
+        let switch = Switch::new("controlled-switch-reset")
+            .name("notifications")
+            .is_selected(true)
+            .default_selected(false)
+            .on_change(move |selected, _, _| changes.borrow_mut().push(selected.to_string()));
+        let form = Form::new().field(switch.form_field().expect("named switch field"));
+        let reset = form.reset_handler();
+        form.child(switch)
+            .child(
+                Button::new("controlled-switch-reset-button")
+                    .label("Reset")
+                    .on_press(move |_, window, cx| reset(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "space");
+    assert_eq!(recorded.borrow().as_slice(), ["false"]);
+}
+
+#[gpui::test]
+fn controlled_switch_form_waits_for_owner_to_accept_change(cx: &mut TestAppContext) {
+    let events = events();
+    let recorded = events.clone();
+    let cx = open_host(cx, move || {
+        let changes = events.clone();
+        let submits = events.clone();
+        let switch = Switch::new("controlled-switch-form")
+            .name("notifications")
+            .value("enabled")
+            .is_selected(false)
+            .on_change(move |selected, _, _| {
+                changes.borrow_mut().push(format!("change:{selected}"));
+            });
+        let form = Form::new()
+            .field(switch.form_field().expect("named switch field"))
+            .on_submit(move |data, _, _| {
+                submits.borrow_mut().push(format!(
+                    "submit:{}",
+                    data.text("notifications")
+                        .map_or_else(|| "omitted".to_owned(), |value| value.to_string())
+                ));
+            });
+        let submit = form.submit_handler();
+        form.child(switch)
+            .child(
+                Button::new("controlled-switch-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "space");
+    press(cx, "tab");
+    press(cx, "space");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["change:true", "submit:omitted"],
+        "a controlled press only reports intent; form data changes after the owner renders it"
+    );
+}
+
+#[gpui::test]
+fn disabled_switch_is_not_a_successful_form_control(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        let switch = Switch::new("disabled-switch-snapshot")
+            .name("notifications")
+            .value("enabled")
+            .is_selected(true)
+            .is_disabled(true);
+        let form = Form::new().field(switch.form_field().expect("named switch field"));
+        assert!(
+            form.data(cx).get("notifications").is_none(),
+            "disabled omission must hold before first render"
+        );
+    });
+
+    let events = events();
+    let recorded = events.clone();
+    let cx = open_host(cx, move || {
+        let submits = events.clone();
+        let switch = Switch::new("disabled-switch-form")
+            .name("notifications")
+            .value("enabled")
+            .is_selected(true)
+            .is_disabled(true);
+        let form = Form::new()
+            .field(switch.form_field().expect("named switch field"))
+            .on_submit(move |data, _, _| {
+                submits.borrow_mut().push(
+                    data.text("notifications")
+                        .map_or_else(|| "omitted".to_owned(), |value| value.to_string()),
+                );
+            });
+        let submit = form.submit_handler();
+        form.child(switch)
+            .child(
+                Button::new("disabled-switch-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "space");
+    assert_eq!(recorded.borrow().as_slice(), ["omitted"]);
+}
+
+#[gpui::test]
+fn invalid_switch_blocks_form_and_receives_focus(cx: &mut TestAppContext) {
+    let events = events();
+    let recorded = events.clone();
+    let cx = open_host(cx, move || {
+        let changes = events.clone();
+        let invalids = events.clone();
+        let submits = events.clone();
+        let switch = Switch::new("invalid-switch-form")
+            .name("notifications")
+            .validate(|selected| (!selected).then(|| "Enable notifications".into()))
+            .on_change(move |selected, _, _| {
+                changes.borrow_mut().push(format!("change:{selected}"));
+            });
+        let form = Form::new()
+            .field(switch.form_field().expect("named switch field"))
+            .on_invalid(move |_, _, _| invalids.borrow_mut().push("invalid".to_owned()))
+            .on_submit(move |_, _, _| submits.borrow_mut().push("submit".to_owned()));
+        let submit = form.submit_handler();
+        form.child(switch)
+            .child(
+                Button::new("invalid-switch-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "space");
+    press(cx, "space");
+    assert_eq!(recorded.borrow().as_slice(), ["invalid", "change:true"]);
+}
+
 // ---------------------------------------------------------------------------
 // RadioGroup
 // ---------------------------------------------------------------------------
