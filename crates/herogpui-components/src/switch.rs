@@ -32,6 +32,10 @@ pub struct SwitchState {
 /// element so reversing mid-flight starts from the rendered position rather
 /// than jumping back to the previous endpoint.
 const THUMB_TRANSITION_MS: u64 = 300;
+/// `.switch__control` transitions its background color for 250ms with
+/// `--ease-smooth`. The changing animation id belongs to the listener-free
+/// fill child, so the track keeps its stable interaction path.
+const TRACK_TRANSITION_MS: u64 = 250;
 
 #[derive(Clone)]
 struct ThumbMotion {
@@ -74,6 +78,46 @@ impl ThumbMotionFrame {
     }
 }
 
+#[derive(Clone)]
+struct TrackMotion {
+    target: gpui::Hsla,
+    generation: usize,
+    from: gpui::Hsla,
+    color: Rc<Cell<gpui::Hsla>>,
+}
+
+struct TrackMotionFrame {
+    generation: usize,
+    from: gpui::Hsla,
+    to: gpui::Hsla,
+    color: Rc<Cell<gpui::Hsla>>,
+    animate: bool,
+}
+
+impl TrackMotionFrame {
+    fn render(self, fill: gpui::Div) -> AnyElement {
+        if !self.animate {
+            self.color.set(self.to);
+            return fill.bg(self.to).into_any_element();
+        }
+
+        let color = self.color;
+        let from = self.from;
+        let to = self.to;
+        fill.with_animation(
+            gpui::ElementId::Name(format!("switch-track-background-{}", self.generation).into()),
+            Animation::new(Duration::from_millis(TRACK_TRANSITION_MS))
+                .with_easing(|t| crate::anim::Curve::Smooth.at(t)),
+            move |fill, delta| {
+                let next = herogpui_core::mix_oklab(from, to, delta);
+                color.set(next);
+                fill.bg(next)
+            },
+        )
+        .into_any_element()
+    }
+}
+
 fn thumb_motion(
     id: &gpui::ElementId,
     selected: bool,
@@ -111,6 +155,45 @@ fn thumb_motion(
         animate: current.generation != 0
             && !cx.reduce_motion()
             && (current.from - to).abs() > f32::EPSILON,
+    }
+}
+
+fn track_motion(
+    id: &gpui::ElementId,
+    target: gpui::Hsla,
+    window: &mut Window,
+    cx: &mut App,
+) -> TrackMotionFrame {
+    let state = window.use_keyed_state(
+        gpui::ElementId::Name(format!("{id:?}-track-motion").into()),
+        cx,
+        |_, _| TrackMotion {
+            target,
+            generation: 0,
+            from: target,
+            color: Rc::new(Cell::new(target)),
+        },
+    );
+    let mut current = state.read(cx).clone();
+    if current.target != target {
+        current.target = target;
+        current.generation = current.generation.wrapping_add(1);
+        current.from = current.color.get();
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    let reduce_motion = cx.reduce_motion();
+    if reduce_motion && current.color.get() != target {
+        current.from = target;
+        current.color.set(target);
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    let animate = !reduce_motion && current.generation != 0 && current.color.get() != target;
+    TrackMotionFrame {
+        generation: current.generation,
+        from: current.from,
+        to: target,
+        color: current.color,
+        animate,
     }
 }
 
@@ -405,19 +488,14 @@ impl RenderOnce for Switch {
             cx,
         );
         self.form_state.borrow_mut().focus = Some(focus_handle.clone());
-        // The hover and press a `content` closure is handed; only tracked when
-        // one is set.
-        let interaction = self.content.as_ref().map(|_| {
-            crate::util::interaction(
-                gpui::ElementId::Name(format!("{:?}-interaction", self.id).into()),
-                window,
-                cx,
-            )
-        });
+        // The track's background transition and an optional `content` closure
+        // read the same one-frame-late hover/press state.
+        let interaction = crate::util::interaction(
+            gpui::ElementId::Name(format!("{:?}-interaction", self.id).into()),
+            window,
+            cx,
+        );
         let thumb_motion = thumb_motion(&self.id, checked, window, cx);
-        let sem = cx.role(Color::Accent);
-        let colors = cx.colors();
-        let layout = cx.layout();
 
         // v3 order: the controlled flag, then server errors, then `validate`.
         let validity = crate::validation::resolve(
@@ -450,13 +528,43 @@ impl RenderOnce for Switch {
         let thumb_inset = px(2.);
         let thumb_travel = w - thumb_w - thumb_inset * 2.;
 
+        let (
+            accent_color,
+            accent_hover,
+            accent_foreground,
+            default_color,
+            default_hover,
+            default_foreground,
+            danger_color,
+        ) = {
+            let sem = cx.role(Color::Accent);
+            let colors = cx.colors();
+            (
+                sem.color,
+                sem.hover(),
+                sem.foreground,
+                colors.default.color,
+                colors.default.hover(),
+                colors.default.foreground,
+                colors.danger.color,
+            )
+        };
+
         // `default` is the v3 unchecked track. A soft (alpha) mix vanishes on
         // a white overlay, so the track uses the solid role colour.
-        let track_bg = if checked {
-            sem.color
+        let track_bg = if checked { accent_color } else { default_color };
+        let hover_bg = if checked { accent_hover } else { default_hover };
+        let interaction_state = *interaction.read(cx);
+        let track_target = if !self.is_disabled
+            && !self.is_read_only
+            && (interaction_state.0 || interaction_state.1)
+        {
+            hover_bg
         } else {
-            colors.default.color
+            track_bg
         };
+        let track_motion_frame = track_motion(&self.id, track_target, window, cx);
+        let layout = cx.layout();
 
         let mut track = gpui::div()
             .id(self.id.clone())
@@ -471,27 +579,14 @@ impl RenderOnce for Switch {
             .px(thumb_inset)
             .when(!self.is_disabled, |t| t.cursor_pointer());
         if !self.is_disabled {
-            if let Some(slot) = &interaction {
-                track = crate::util::track_interaction(track, slot);
-            }
+            track = crate::util::track_interaction(track, &interaction);
         }
         // v3's switch stylesheet has no invalid rule at all -- the state shows
         // in the field error below, not as a danger ring on the track, so the
         // ring this used to draw was an invention.
 
-        if !self.is_disabled && !self.is_read_only {
-            let hover_bg = if checked {
-                sem.hover()
-            } else {
-                colors.default.hover()
-            };
-            // `--switch-control-bg-pressed` *is* `--switch-control-bg-hover`, and
-            // a checked switch presses to `--accent-hover`, which is what its
-            // hover already resolves to.
-            track = track
-                .hover(move |s| s.bg(hover_bg))
-                .active(move |s| s.bg(hover_bg));
-        }
+        track = track
+            .child(track_motion_frame.render(gpui::div().absolute().inset_0().rounded(track_r)));
 
         // Thumb sits at the end when checked, start when unchecked. v3 moves it
         // by margin rather than transform; `ThumbMotionFrame` animates that
@@ -514,7 +609,7 @@ impl RenderOnce for Switch {
         }
         let thumb_el = if checked {
             thumb_el
-                .bg(sem.foreground)
+                .bg(accent_foreground)
                 .when(self.is_disabled, |thumb| thumb.opacity(0.4))
                 // The checked thumb carries its own three-layer shadow.
                 .shadow(vec![
@@ -540,7 +635,7 @@ impl RenderOnce for Switch {
         } else {
             thumb_el
                 .bg(if self.is_disabled {
-                    colors.default.foreground.alpha(0.2)
+                    default_foreground.alpha(0.2)
                 } else {
                     herogpui_theme::white()
                 })
@@ -579,10 +674,7 @@ impl RenderOnce for Switch {
             .gap(px(12.))
             .text_size(px(14.));
         let content_row = self.content.clone().map(|render| {
-            let (is_hovered, is_pressed) = interaction
-                .as_ref()
-                .map(|slot| *slot.read(cx))
-                .unwrap_or_default();
+            let (is_hovered, is_pressed) = *interaction.read(cx);
             let focused = focus_handle.is_focused(window);
             render(SwitchState {
                 is_hovered,
@@ -606,7 +698,7 @@ impl RenderOnce for Switch {
                 .gap(px(4.))
                 .child(label)
                 .when(self.is_required, |r| {
-                    r.child(gpui::div().text_color(colors.danger.color).child("*"))
+                    r.child(gpui::div().text_color(danger_color).child("*"))
                 })
         });
         match (self.label_first, label_row, content_row) {

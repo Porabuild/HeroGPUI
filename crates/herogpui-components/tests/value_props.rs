@@ -587,6 +587,34 @@ fn switch_content_render_prop_sees_pointer_cycle(cx: &mut TestAppContext) {
         (false, false, false),
         "the frame after leaving must see the hover lifted"
     );
+
+    // A press cancelled by leaving the hitbox must not remain latched after
+    // the mouse-up is delivered elsewhere.
+    cx.simulate_mouse_move(centre, None::<MouseButton>, Modifiers::none());
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    cx.simulate_mouse_move(
+        point(px(400.), px(400.)),
+        Some(MouseButton::Left),
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (false, true, false),
+        "leaving during a press must clear hover but keep the press until release"
+    );
+    cx.simulate_mouse_up(
+        point(px(400.), px(400.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (false, false, false),
+        "releasing outside must clear the press"
+    );
 }
 
 #[gpui::test]

@@ -178,39 +178,111 @@ def check_motions():
     return bad
 
 
-def check_switch_thumb():
-    """The Switch thumb's property transition against its component CSS."""
+def check_switch_motion():
+    """The Switch property transitions against its component CSS."""
     css_path = os.path.join(CACHE, 'switch.css')
     src_path = os.path.join(SRC, 'switch.rs')
     if not os.path.exists(css_path):
-        print('switch thumb motion: no stylesheet')
+        print('switch motion: no stylesheet')
         return 1
     css = io.open(css_path, encoding='utf-8', errors='replace').read()
     src = io.open(src_path, encoding='utf-8').read()
-    want = re.search(r'margin\s+(\d+)ms\s+var\(--ease-([\w-]+)\)', css)
-    got_ms = re.search(r'const THUMB_TRANSITION_MS:\s*u64\s*=\s*(\d+)', src)
-    got_curve = re.search(
+    control = re.search(
+        r'\.switch__control\s*\{(.*?)(?=\n/\* Switch content)', css, re.S
+    )
+    thumb = re.search(
+        r'/\* Switch thumb \*/\s*\.switch__thumb\s*\{(.*?)(?=\n/\* Size-specific thumb dimensions)',
+        css,
+        re.S,
+    )
+    want_track = re.search(
+        r'background-color\s+(\d+)ms\s+var\(--ease-([\w-]+)\)',
+        control.group(1) if control else '',
+    )
+    want_thumb = re.search(
+        r'margin\s+(\d+)ms\s+var\(--ease-([\w-]+)\)',
+        thumb.group(1) if thumb else '',
+    )
+    got_track_ms = re.search(r'const TRACK_TRANSITION_MS:\s*u64\s*=\s*(\d+)', src)
+    got_track_curve = re.search(
+        r'TRACK_TRANSITION_MS\)\)\s*\.with_easing\(\|t\|\s*'
+        r'crate::anim::Curve::(\w+)\.at\(t\)\)',
+        src,
+        re.S,
+    )
+    got_thumb_ms = re.search(r'const THUMB_TRANSITION_MS:\s*u64\s*=\s*(\d+)', src)
+    got_thumb_curve = re.search(
         r'THUMB_TRANSITION_MS\)\)\s*\.with_easing\(\|t\|\s*'
         r'crate::anim::Curve::(\w+)\.at\(t\)\)',
         src,
         re.S,
     )
-    if want is None or got_ms is None or got_curve is None:
-        print('switch thumb motion: unreadable')
+    track_parts = src.split('fn track_motion(', 1)
+    track_source = (
+        track_parts[1].split('/// HeroUI Switch', 1)[0]
+        if len(track_parts) == 2
+        else ''
+    )
+    reduced = (
+        control is not None
+        and thumb is not None
+        and control.group(1).find('transition:')
+        < control.group(1).find('motion-reduce:transition-none')
+        and thumb.group(1).find('transition:')
+        < thumb.group(1).find('motion-reduce:transition-none')
+        and 'let reduce_motion = cx.reduce_motion();' in track_source
+        and 'if reduce_motion' in track_source
+        and 'let animate = !reduce_motion' in track_source
+    )
+    child_fill = bool(
+        re.search(
+            r'track\s*=\s*track\s*\.child\(\s*track_motion_frame\.render\(\s*'
+            r'gpui::div\(\)\s*'
+            r'\.absolute\(\)\s*\.inset_0\(\)\s*\.rounded\(track_r\)\s*\)\s*\)',
+            src,
+            re.S,
+        )
+        and re.search(
+            r'track\s*=\s*crate::util::track_interaction\(track,\s*&interaction\)',
+            src,
+        )
+    )
+    if (
+        want_track is None
+        or want_thumb is None
+        or got_track_ms is None
+        or got_track_curve is None
+        or got_thumb_ms is None
+        or got_thumb_curve is None
+    ):
+        print('switch motion: unreadable')
         return 1
-    want_curve = CURVES.get(want.group(2))
-    same = int(want.group(1)) == int(got_ms.group(1)) and want_curve == got_curve.group(1)
-    print('switch thumb motion (v3 CSS vs Switch):')
-    print('%s %-14s %-12s %-22s %s' % (
-        ' ' if same else '!',
-        'switch',
-        'thumb margin',
-        '%sms %s' % (want.group(1), want_curve),
-        '%sms %s' % (got_ms.group(1), got_curve.group(1)),
-    ))
-    print('SWITCH MISMATCHES : %d' % (0 if same else 1))
+    want_track_curve = CURVES.get(want_track.group(2))
+    want_thumb_curve = CURVES.get(want_thumb.group(2))
+    rows = [
+        (
+            int(want_track.group(1)) == int(got_track_ms.group(1))
+            and want_track_curve == got_track_curve.group(1),
+            'track background',
+            '%sms %s' % (want_track.group(1), want_track_curve),
+            '%sms %s' % (got_track_ms.group(1), got_track_curve.group(1)),
+        ),
+        (
+            int(want_thumb.group(1)) == int(got_thumb_ms.group(1))
+            and want_thumb_curve == got_thumb_curve.group(1),
+            'thumb margin',
+            '%sms %s' % (want_thumb.group(1), want_thumb_curve),
+            '%sms %s' % (got_thumb_ms.group(1), got_thumb_curve.group(1)),
+        ),
+        (reduced, 'reduced motion', 'transition-none', 'direct fill' if reduced else 'missing'),
+        (child_fill, 'animation owner', 'listener-free fill', 'child fill' if child_fill else 'track'),
+    ]
+    print('switch motion (v3 CSS vs Switch):')
+    for same, name, want, got in rows:
+        print('%s %-14s %-16s %-22s %s' % (' ' if same else '!', 'switch', name, want, got))
+    print('SWITCH MISMATCHES : %d' % sum(not same for same, _, _, _ in rows))
     print()
-    return 0 if same else 1
+    return sum(not same for same, _, _, _ in rows)
 
 
 def corpus():
@@ -270,10 +342,11 @@ def main():
         print('no longer in the v3 docs (stale entry?): %s'
               % ', '.join(sorted(stale_docs)))
     print()
-    motion_bad = check_motions() + check_switch_thumb()
+    motion_bad = check_motions() + check_switch_motion()
     print('UNIMPLEMENTED : %d' % len(missing_impl))
     print('MOTION BAD    : %d' % motion_bad)
+    return len(missing_impl) + len(stale_docs) + motion_bad
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

@@ -3047,10 +3047,9 @@ const SWITCH_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".switch__control",
         value: "background-color 250ms ease-smooth",
-        description:
-            "Track colors currently change on the interaction frame without interpolation.",
-        rust: "hover / active background styles",
-        status: ImplementationStatus::Partial,
+        description: "Track colors interpolate over 250ms and switch to an immediate fill under reduced motion.",
+        rust: "TrackMotionFrame + TRACK_TRANSITION_MS",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".switch > [data-slot=\"description\"]",

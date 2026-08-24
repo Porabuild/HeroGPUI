@@ -1,6 +1,6 @@
 //! Shared render helpers for HeroGPUI components.
 
-use gpui::{App, BorrowAppContext, Div, Hsla, Pixels, Styled};
+use gpui::{App, BorrowAppContext, Div, Hsla, ParentElement, Pixels, Styled};
 use herogpui_core::{FieldVariant, Prominence};
 use herogpui_theme::ActiveTheme;
 
@@ -830,11 +830,30 @@ pub fn interaction(id: gpui::ElementId, window: &mut gpui::Window, cx: &mut App)
 /// Wires the hover and press handlers that keep an [`Interaction`] current.
 pub fn track_interaction<T>(el: T, slot: &Interaction) -> T
 where
-    T: gpui::StatefulInteractiveElement,
+    T: gpui::StatefulInteractiveElement + ParentElement,
 {
     let hover = slot.clone();
     let down = slot.clone();
     let up = slot.clone();
+    let outside_up = slot.clone();
+    let release = gpui::canvas(
+        |bounds, _, _| bounds,
+        move |_, _, window, _| {
+            window.on_mouse_event(move |event: &gpui::MouseUpEvent, phase, _, cx| {
+                if phase == gpui::DispatchPhase::Capture && event.button == gpui::MouseButton::Left
+                {
+                    outside_up.update(cx, |state, cx| {
+                        if state.1 {
+                            state.1 = false;
+                            cx.notify();
+                        }
+                    });
+                }
+            });
+        },
+    )
+    .absolute()
+    .inset_0();
     el.on_hover(move |over, _, cx| {
         let over = *over;
         hover.update(cx, |state, cx| {
@@ -860,6 +879,7 @@ where
             }
         });
     })
+    .child(release)
 }
 
 pub fn focus_visible(cx: &App) -> bool {
