@@ -309,19 +309,10 @@ impl RenderOnce for DatePicker {
         root = root.child(wrapper);
 
         if is_open {
-            let mut cal = Calendar::new(self.state.clone())
-                .constraints(self.constraints.clone())
-                .is_disabled(self.is_disabled)
-                // React Aria moves the focus into the calendar as the popover
-                // opens, so the arrows work straight away.
-                .autofocus_grid(true)
-                .is_invalid(self.is_invalid);
-            if let Some(on_change) = self.on_change.clone() {
-                cal = cal.on_change(move |d, window, cx| on_change(d, window, cx));
-            }
-            // React Aria dismisses the panel on Escape and on a press outside
-            // it. Escape rides on the root, not the panel: focusing the panel
-            // would take the arrows away from the calendar grid inside it.
+            // React Aria dismisses the panel on Escape, on a press outside it
+            // and once a day is chosen; all three write the same flag. Escape
+            // rides on the root, not the panel: focusing the panel would take
+            // the arrows away from the calendar grid inside it.
             let close_own = open_own;
             let close_cb = self.on_open_change.clone();
             let close = crate::util::shared(move |window: &mut Window, cx: &mut App| {
@@ -334,6 +325,27 @@ impl RenderOnce for DatePicker {
                 if let Some(cb) = &close_cb {
                     cb(false, window, cx);
                 }
+            });
+
+            let mut cal = Calendar::new(self.state.clone())
+                .constraints(self.constraints.clone())
+                .is_disabled(self.is_disabled)
+                // React Aria moves the focus into the calendar as the popover
+                // opens, so the arrows work straight away.
+                .autofocus_grid(true)
+                .is_invalid(self.is_invalid);
+            // The calendar reports the chosen date; the picker owns the open
+            // flag, so closing belongs here, in the picker's own reaction to
+            // that report, not inside the calendar (a bare `Calendar` has
+            // nothing to close). The pick also fires the caller's `on_change`
+            // first, so both events read the same selection.
+            let pick_close = close.clone();
+            let user_change = self.on_change.clone();
+            cal = cal.on_change(move |d, window, cx| {
+                if let Some(cb) = &user_change {
+                    cb(d, window, cx);
+                }
+                pick_close(window, cx);
             });
             let esc = close.clone();
             root = crate::util::dismiss_on_escape(root, move |window, cx| esc(window, cx));
@@ -755,16 +767,6 @@ impl RenderOnce for DateRangePicker {
         root = root.child(field);
 
         if is_open && !self.is_disabled {
-            // Driving RangeCalendar keeps the hover preview, the constraints
-            // and the year picker in one place instead of a second grid.
-            let on_change = self.on_change.clone();
-            let mut calendar = crate::range_calendar::RangeCalendar::new(self.state.clone())
-                .constraints(self.constraints.clone())
-                .autofocus_grid(true)
-                .is_invalid(self.is_invalid);
-            if let Some(cb) = on_change {
-                calendar = calendar.on_change(move |_s, _e, window, cx| cb(window, cx));
-            }
             // A calendar has its own intrinsic width, so the panel must be
             // content-sized; `placed_field_panel` would clamp it to the
             // trigger and the grid would spill outside the surface.
@@ -781,6 +783,26 @@ impl RenderOnce for DateRangePicker {
                 }
                 if let Some(cb) = &close_cb {
                     cb(false, window, cx);
+                }
+            });
+
+            // Driving RangeCalendar keeps the hover preview, the constraints
+            // and the year picker in one place instead of a second grid. The
+            // picker closes only once the range is complete: the first pick
+            // leaves the panel open to choose the end, exactly as React Aria
+            // does. The caller's `on_change` still fires after every pick.
+            let pick_close = close.clone();
+            let user_change = self.on_change.clone();
+            let mut calendar = crate::range_calendar::RangeCalendar::new(self.state.clone())
+                .constraints(self.constraints.clone())
+                .autofocus_grid(true)
+                .is_invalid(self.is_invalid);
+            calendar = calendar.on_change(move |_s, end, window, cx| {
+                if let Some(cb) = &user_change {
+                    cb(window, cx);
+                }
+                if end.is_some() {
+                    pick_close(window, cx);
                 }
             });
             let esc = close.clone();

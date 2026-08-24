@@ -263,9 +263,10 @@ fn combo_box_typing_filters_and_click_selects(cx: &mut TestAppContext) {
     });
 
     // The chevron button sits at the right end of the 320px-wide field:
-    // 320 - 12px padding - half its 20px box. (See the module docs and the
-    // report: typing alone does not open the list, although the port's own
-    // `MenuTrigger::Input` documentation says it should.)
+    // 320 - 12px padding - half its 20px box. The chevron is used here to
+    // open deliberately -- typing would also open it under the default
+    // `MenuTrigger::Input` (combo_box_open.rs proves that path) -- and this
+    // test's point is the pick geometry, not the trigger.
     click(cx, 298., 18.);
     assert_eq!(
         opened.borrow().as_slice(),
@@ -293,10 +294,13 @@ fn combo_box_typing_filters_and_click_selects(cx: &mut TestAppContext) {
 fn dropdown_arrows_and_enter_activate(cx: &mut TestAppContext) {
     let actions = events();
     let fired = actions.clone();
+    let opens = events();
+    let opened = opens.clone();
 
     let cx = open_host(cx, move || {
         let actions = actions.clone();
         let skip_actions = actions.clone();
+        let opens = opens.clone();
         // Two dropdowns stacked 320px apart, so the first menu (which ends
         // near y 170) never overlaps the second trigger.
         gpui::div()
@@ -312,7 +316,10 @@ fn dropdown_arrows_and_enter_activate(cx: &mut TestAppContext) {
                     ],
                 )
                 .id("dd-open")
-                .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string())),
+                .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string()))
+                .on_open_change(move |open, _, _| {
+                    opens.borrow_mut().push(format!("open:{open}"));
+                }),
             )
             .child(
                 Dropdown::uncontrolled(
@@ -332,7 +339,7 @@ fn dropdown_arrows_and_enter_activate(cx: &mut TestAppContext) {
 
     // First menu: the trigger button is 36px tall at the origin, centre
     // (40, 18). Opening moves the focus into the panel, so the arrows work
-    // without a click first.
+    // without a click first. An Enter choice closes the menu, as v3's does.
     click(cx, 40., 18.);
     press(cx, "down");
     press(cx, "enter");
@@ -341,13 +348,21 @@ fn dropdown_arrows_and_enter_activate(cx: &mut TestAppContext) {
         ["open"],
         "Down then Enter must activate the first enabled item exactly once"
     );
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "the Enter pick must dismiss the menu"
+    );
 
     // Second menu: its root starts at 36px + the 320px gap, so its trigger
-    // centre is (40, 374). Down twice must step Cut -> Zoom, skipping the
-    // disabled Delete between them.
+    // centre is (40, 374). The cut pick closed the menu, so reopen it first;
+    // then Down twice must step Cut -> Zoom, skipping the disabled Delete
+    // between them.
     click(cx, 40., 374.);
     press(cx, "down");
     press(cx, "enter");
+    click(cx, 40., 374.);
+    press(cx, "down");
     press(cx, "down");
     press(cx, "enter");
     assert_eq!(

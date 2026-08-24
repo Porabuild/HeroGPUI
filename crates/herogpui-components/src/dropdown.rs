@@ -126,8 +126,12 @@ pub struct Menu {
     on_selection_change: Option<OnSelectionChange>,
     on_action: Option<OnSelect>,
     /// Set by `Dropdown`: the menu panel is where Escape and an outside press
-    /// land, and the open state belongs to the wrapper.
-    on_dismiss: Option<std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>>,
+    /// land, and the open state belongs to the wrapper. The `bool` says
+    /// whether the trigger should take the focus back: Escape, an outside
+    /// press and a mouse pick can, because no key-up follows them; an Enter
+    /// pick cannot, because gpui activates a focused element on key up and the
+    /// trigger's click listener would reopen the menu it just closed.
+    on_dismiss: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
 }
 
 impl Menu {
@@ -148,12 +152,15 @@ impl Menu {
         }
     }
 
-    /// What to run when Escape or a press outside the panel dismisses the menu.
+    /// What to run when the menu closes: an item activation, Escape, or a
+    /// press outside the panel.
     ///
     /// Not a v3 prop: v3's `Dropdown.Menu` is inside the `Dropdown` that owns
     /// `isOpen`, and React Aria's `useOverlay` closes it from there. Crate-only,
-    /// because only `Dropdown` can supply it.
-    pub(crate) fn on_dismiss(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+    /// because only `Dropdown` can supply it. The `bool` is whether to return
+    /// the focus to the trigger — see the field docs for why a key pick passes
+    /// `false`.
+    pub(crate) fn on_dismiss(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_dismiss = Some(std::sync::Arc::new(f));
         self
     }
@@ -282,13 +289,16 @@ impl RenderOnce for Menu {
             |_, _| crate::list_nav::Typeahead::default(),
         );
         // A menu takes focus when it opens, which is what makes the arrows work
-        // without a click first.
-        crate::util::focus_once(
-            window,
-            cx,
-            gpui::ElementId::Name(format!("{base}-autofocus").into()),
-            &focus_handle,
-        );
+        // without a click first. The one-shot re-arms while the menu plays its
+        // exit, so a menu that reopens after a dismissal -- a pick or Escape
+        // hands the focus back to the trigger -- is keyboard-driven again.
+        let autofocus = gpui::ElementId::Name(format!("{base}-autofocus").into());
+        if self.exiting {
+            let done = window.use_keyed_state(autofocus, cx, |_, _| false);
+            done.update(cx, |d, _| *d = false);
+        } else {
+            crate::util::focus_once(window, cx, autofocus, &focus_handle);
+        }
 
         // The rows a keyboard can land on -- an item that is not disabled -- and
         // the text a typed letter searches.
@@ -316,6 +326,17 @@ impl RenderOnce for Menu {
             .map(|item| match item {
                 MenuItem::Item { key, .. } => key.clone(),
                 _ => SharedString::default(),
+            })
+            .collect();
+        // Whether each row is a submenu trigger. Such a row opens a child
+        // panel instead of ending the menu, so activating it must not close
+        // the parent -- React Aria returns before the close for a trigger.
+        let item_has_submenu: Vec<bool> = self
+            .items
+            .iter()
+            .map(|item| match item {
+                MenuItem::Item { submenu, .. } => !submenu.is_empty(),
+                _ => false,
             })
             .collect();
 
@@ -363,6 +384,8 @@ impl RenderOnce for Menu {
             let mode = self.selection_mode;
             let selected_now = self.selected_keys.clone();
             let keys = item_keys;
+            let has_submenu = item_has_submenu;
+            let dismiss = self.on_dismiss.clone();
             panel = panel.on_key_down(move |event, window, cx| {
                 let key = event.keystroke.key.as_str();
                 let from = *held.read(cx);
@@ -377,7 +400,10 @@ impl RenderOnce for Menu {
                         key_scroll.scroll_to_item(next);
                     }
                     crate::list_nav::Move::Activate => {
-                        let Some(item_key) = from.and_then(|i| keys.get(i).cloned()) else {
+                        let Some(i) = from else {
+                            return;
+                        };
+                        let Some(item_key) = keys.get(i).cloned() else {
                             return;
                         };
                         // The same two callbacks a click fires, in the same
@@ -393,6 +419,20 @@ impl RenderOnce for Menu {
                                 false,
                             );
                             cb(&next, window, cx);
+                        }
+                        // v3 closes a menu when an item is actioned -- React
+                        // Aria runs the click's close from the action -- except
+                        // in multiple mode, which stays open for the next tick,
+                        // and on a submenu trigger, which opens a child panel
+                        // instead of ending the menu. The focus is deliberately
+                        // not sent back to the trigger from a key: gpui
+                        // activates a focused element on key up, so the
+                        // trigger's click listener would reopen the menu it
+                        // just closed.
+                        if mode != SelectionMode::Multiple && !has_submenu[i] {
+                            if let Some(cb) = &dismiss {
+                                cb(false, window, cx);
+                            }
                         }
                     }
                     crate::list_nav::Move::Ignore => {
@@ -606,22 +646,34 @@ impl RenderOnce for Menu {
                     if !is_item_disabled {
                         let on_action = self.on_action.clone();
                         let on_selection_change = self.on_selection_change.clone();
-                        if on_action.is_some() || on_selection_change.is_some() {
-                            let key2 = key.clone();
-                            let mode = self.selection_mode;
-                            let current = self.selected_keys.clone();
-                            row = row.on_click(move |_, window, cx| {
-                                if let Some(cb) = &on_action {
-                                    cb(&key2, window, cx);
+                        let dismiss = self.on_dismiss.clone();
+                        // Attached even with no callback to run, because v3's
+                        // close happens on the click, not in a handler.
+                        let key2 = key.clone();
+                        let mode = self.selection_mode;
+                        let current = self.selected_keys.clone();
+                        let close_on_pick = !has_submenu;
+                        row = row.on_click(move |_, window, cx| {
+                            if let Some(cb) = &on_action {
+                                cb(&key2, window, cx);
+                            }
+                            if let Some(cb) = &on_selection_change {
+                                let next =
+                                    crate::selection::next_selection(&current, &key2, mode, false);
+                                cb(&next, window, cx);
+                            }
+                            // v3 closes the menu when an item is actioned; a
+                            // multiple-mode choice stays open so several can
+                            // be ticked, and a submenu trigger hands the
+                            // pointer to its child panel instead. The trigger
+                            // gets the focus back, which a click may do --
+                            // only a key-up cannot (see the keyboard path).
+                            if mode != SelectionMode::Multiple && close_on_pick {
+                                if let Some(cb) = &dismiss {
+                                    cb(true, window, cx);
                                 }
-                                if let Some(cb) = &on_selection_change {
-                                    let next = crate::selection::next_selection(
-                                        &current, &key2, mode, false,
-                                    );
-                                    cb(&next, window, cx);
-                                }
-                            });
-                        }
+                            }
+                        });
                     }
 
                     // `Dropdown.SubmenuTrigger`: the child panel is anchored to
@@ -674,8 +726,9 @@ impl RenderOnce for Menu {
         }
 
         // React Aria dismisses the menu on Escape and on a press outside it.
+        // Both refocus the trigger afterwards -- no key-up follows either.
         let panel = match self.on_dismiss.clone() {
-            Some(cb) => crate::util::dismissable(panel, move |window, cx| cb(window, cx)),
+            Some(cb) => crate::util::dismissable(panel, move |window, cx| cb(true, window, cx)),
             None => panel,
         };
 
@@ -1020,7 +1073,7 @@ impl RenderOnce for Dropdown {
             let dismiss_cb = self.on_open_change.clone();
             if dismiss_cb.is_some() || dismiss_own.is_some() {
                 let back_to_trigger = trigger_handle;
-                menu = menu.on_dismiss(move |window, cx| {
+                menu = menu.on_dismiss(move |refocus, window, cx| {
                     if let Some(held) = &dismiss_own {
                         held.update(cx, |v, cx| {
                             *v = false;
@@ -1031,7 +1084,12 @@ impl RenderOnce for Dropdown {
                         cb(false, window, cx);
                     }
                     // The menu held the focus for its arrows; hand it back.
-                    window.focus(&back_to_trigger);
+                    // An Enter pick runs this inside the key event, where gpui
+                    // would activate the trigger on key up and reopen the menu
+                    // -- the keyboard path asks for no refocus for that reason.
+                    if refocus {
+                        window.focus(&back_to_trigger);
+                    }
                 });
             }
             let anchor = crate::util::placed_panel(self.placement, px(6.));

@@ -22,19 +22,35 @@ use crate::{
 };
 
 /// When the suggestion list opens.
+///
+/// v3's table reads `"focus" | "input" | "manual"` with **`"focus"`** as the
+/// default, so a v3 ComboBox shows its list as soon as the field is focused.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum MenuTrigger {
-    /// Open on input, and when the trigger button is pressed.
+    /// Open as soon as the field gains focus. v3's default.
     #[default]
+    Focus,
+    /// Open on input, and when the trigger button is pressed.
     Input,
     /// Open only when the trigger button is pressed.
     Manual,
-    /// Open as soon as the field gains focus.
-    Focus,
 }
 
 type OnSelectionChange = Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
 type OnOpenChange = Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>;
+
+/// The one-shot that keeps `MenuTrigger::Focus` from reopening a panel the
+/// user dismissed while the field still has the focus.
+///
+/// `can_open` is true while a fresh focus session may open the list; opening
+/// consumes it. `was_open` remembers the flag from the last frame, so a panel
+/// that closes while the field stays focused (Escape, a pick, the chevron, a
+/// press outside) reads as a dismissal rather than as a new focus to answer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct FocusOpen {
+    can_open: bool,
+    was_open: bool,
+}
 
 /// HeroUI ComboBox (controlled open state).
 #[derive(IntoElement)]
@@ -506,6 +522,60 @@ impl RenderOnce for ComboBox {
                 .collect(),
         };
 
+        // `MenuTrigger::Focus` opens the list when the field takes focus. The
+        // check reads the focus handle every frame; the keyed state is the
+        // one-shot that stops the panel from reopening behind a dismissal
+        // (Escape, a pick, the chevron, a press outside) while the field keeps
+        // the focus -- the frame after closing would otherwise re-answer the
+        // still-held focus. The focus leaving resets it, so the *next* focus
+        // session opens again.
+        if self.menu_trigger == MenuTrigger::Focus && !self.is_disabled {
+            let focus_open = window.use_keyed_state(
+                gpui::ElementId::Name(format!("combobox-{entity_id}-focus-open").into()),
+                cx,
+                |_, _| FocusOpen {
+                    can_open: true,
+                    was_open: false,
+                },
+            );
+            let focused = self.state.read(cx).focus_handle.is_focused(window);
+            let mut held = *focus_open.read(cx);
+            let mut now_open = open_state;
+            if focused && !open_state && held.can_open {
+                // A fresh focus session: the field taking focus is the
+                // gesture, when there is something to show -- the panel's own
+                // gate of a non-empty result or an allowed empty state.
+                let can_show =
+                    !matches.is_empty() || self.allows_empty_collection || self.allows_custom_value;
+                if can_show {
+                    // Opening from focus writes both halves, the way the
+                    // chevron's handler does: the uncontrolled flag, and the
+                    // report to a controlled caller.
+                    if let Some(open) = &open_own {
+                        open.update(cx, |v, cx| {
+                            *v = true;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &self.on_open_change {
+                        cb(true, window, cx);
+                    }
+                    held.can_open = false;
+                    now_open = true;
+                }
+            } else if focused && !open_state && held.was_open {
+                // The list closed while the field still has the focus: the
+                // user dismissed it, so it must not come back.
+                held.can_open = false;
+            }
+            if !focused {
+                // The focus left; the next focus session may open again.
+                held.can_open = true;
+            }
+            held.was_open = now_open;
+            focus_open.update(cx, |v, _| *v = held);
+        }
+
         let on_open_change = self.on_open_change.clone();
         let is_open = open_state;
         let mut trigger = div()
@@ -557,8 +627,36 @@ impl RenderOnce for ComboBox {
             .when_some(self.validation_behavior, |i, b| i.validation_behavior(b))
             .when_some(validate, |i, f| i.validate(move |v| f(v)))
             .end_content(trigger);
-        if let Some(cb) = self.on_input_change.clone() {
-            input = input.on_change(move |text, window, cx| cb(text, window, cx));
+        // `MenuTrigger::Input` opens the list when the field's text gains
+        // content, on the same `on_change` path a caller's handler rides:
+        // the first keystroke is what shows the suggestions. The open writes
+        // both halves, the way the chevron's handler does -- the uncontrolled
+        // flag and the report to a controlled caller -- and only when the
+        // list was closed, so editing an already-open list stays quiet. The
+        // Input's `on_change` fires only on a real edit, never on a picked
+        // item being written into the state, so a selection cannot reopen it.
+        if self.menu_trigger == MenuTrigger::Input || self.on_input_change.is_some() {
+            let input_change = self.on_input_change.clone();
+            let open_own_on_change = open_own.clone();
+            let open_change_cb = self.on_open_change.clone();
+            let was_open = open_state;
+            let open_on_typing = self.menu_trigger == MenuTrigger::Input;
+            input = input.on_change(move |text, window, cx| {
+                if let Some(cb) = &input_change {
+                    cb(text, window, cx);
+                }
+                if open_on_typing && !text.is_empty() && !was_open {
+                    if let Some(held) = &open_own_on_change {
+                        held.update(cx, |v, cx| {
+                            *v = true;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &open_change_cb {
+                        cb(true, window, cx);
+                    }
+                }
+            });
         }
 
         if self.full_width {
