@@ -257,6 +257,8 @@ pub struct Table {
     estimated_row_height: Option<Pixels>,
     /// `TableLayout`'s `loaderHeight` — the fixed height of the load-more row.
     loader_height: Option<Pixels>,
+    /// `scrollOffset` on `Table.LoadMore`, in viewport heights.
+    load_more_offset: f32,
     /// How tall the virtual body is. v3 sets it with a `className`.
     max_h: Option<Pixels>,
     /// `TableLayout`'s `gap` and `padding`, both 0 in v3: rows meet, separated
@@ -294,6 +296,7 @@ impl Table {
             row_height: None,
             estimated_row_height: None,
             loader_height: None,
+            load_more_offset: 1.0,
             max_h: None,
             gap: None,
             padding: None,
@@ -505,10 +508,15 @@ impl Table {
         self
     }
 
-    /// `onLoadMore` — the sentinel row was activated.
-    ///
-    /// gpui gives a `RenderOnce` element no scroll offset, so this fires on a
-    /// click rather than on the sentinel scrolling into view.
+    /// `scrollOffset` on `Table.LoadMore` — how many viewport heights before
+    /// the sentinel enters view the load should start. React Aria defaults to
+    /// one; v3's async example sets zero for an exact intersection.
+    pub fn scroll_offset(mut self, offset: f32) -> Self {
+        self.load_more_offset = offset;
+        self
+    }
+
+    /// `onLoadMore` — the sentinel row entered the scroll viewport.
     pub fn on_load_more(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.on_load_more = Some(std::sync::Arc::new(f));
         self
@@ -561,6 +569,11 @@ impl RenderOnce for Table {
             |_, _| None::<(usize, f32, f32)>,
         );
         let drag_now = *dragging.read(cx);
+        let load_more_state = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{}-load-more-state", self.id).into()),
+            cx,
+            |_, _| (false, None::<usize>),
+        );
         // The body is one tab stop with a cursor inside it, the way a list is.
         let table_focus = crate::util::tab_stop_handle(
             gpui::ElementId::Name(format!("{}-focus", self.id).into()),
@@ -610,7 +623,6 @@ impl RenderOnce for Table {
         // Copies of the tokens the tail needs: the row builder borrows `cx`
         // mutably, which ends the borrow `cx.colors()` holds.
         let muted = colors.muted;
-        let default_soft = colors.default.soft();
         let secondary = self.variant == TableVariant::Secondary;
         let selectable = self.selection_mode != SelectionMode::None;
         let row_keys = self.row_keys();
@@ -881,7 +893,6 @@ impl RenderOnce for Table {
         let _ = drag_now;
 
         // ---- rows --------------------------------------------------------
-        let column_count = self.columns.len();
         // Depth-first, and only through the parents that are open: a nested row
         // is not rendered at all until its parent is expanded.
         let mut flat: Vec<(TableRow, usize, bool, SharedString)> = Vec::new();
@@ -1089,7 +1100,46 @@ impl RenderOnce for Table {
 
         // ---- load-more sentinel ------------------------------------------
         if self.is_pending || self.on_load_more.is_some() {
-            let mut sentinel = gpui::div()
+            if let Some(cb) = self.on_load_more.clone() {
+                let state = load_more_state;
+                let scroll_offset = self.load_more_offset;
+                table = table.child(
+                    gpui::canvas(
+                        move |bounds, window, cx| {
+                            // Overflowing ancestors intersect their bounds into
+                            // the content mask before prepainting children. The
+                            // sentinel can therefore observe the same viewport
+                            // intersection v3's IntersectionObserver does,
+                            // without owning its parent's scroll handle.
+                            let mask = window.content_mask().bounds;
+                            let visible = bounds.right() >= mask.left()
+                                && bounds.left() <= mask.right()
+                                && bounds.bottom() >= mask.top()
+                                && bounds.top() <= mask.bottom() + mask.size.height * scroll_offset;
+                            let previous = *state.read(cx);
+                            let should_load =
+                                visible && (!previous.0 || previous.1 != Some(row_count));
+                            if previous.0 != visible || should_load {
+                                state.update(cx, |value, cx| {
+                                    value.0 = visible;
+                                    if should_load {
+                                        value.1 = Some(row_count);
+                                    }
+                                    cx.notify();
+                                });
+                            }
+                            if should_load {
+                                cb(window, cx);
+                            }
+                        },
+                        |_, _, _, _| {},
+                    )
+                    .size(px(1.)),
+                );
+            }
+
+            if self.is_pending {
+                let sentinel = gpui::div()
                 .id(gpui::ElementId::Name(
                     format!("{}-load-more", self.id).into(),
                 ))
@@ -1103,10 +1153,7 @@ impl RenderOnce for Table {
                 .py(px(8.))
                 .when_some(self.loader_height, |el, h| el.h(h))
                 .text_size(px(13.))
-                .text_color(muted);
-
-            if self.is_pending {
-                sentinel = sentinel
+                .text_color(muted)
                     .child(
                         crate::spinner::Spinner::new(gpui::ElementId::Name(
                             format!("{}-load-spinner", self.id).into(),
@@ -1114,16 +1161,8 @@ impl RenderOnce for Table {
                         .size(herogpui_core::Size::Sm),
                     )
                     .child("Loading\u{2026}");
-            } else if let Some(cb) = self.on_load_more.clone() {
-                let hover = default_soft;
-                sentinel = sentinel
-                    .cursor_pointer()
-                    .hover(move |s| s.bg(hover))
-                    .on_click(move |_, window, cx| cb(window, cx))
-                    .child("Load more");
+                table = table.child(sentinel);
             }
-            let _ = column_count;
-            table = table.child(sentinel);
         }
 
         if let Some(footer) = self.footer {

@@ -960,6 +960,12 @@ was a path the gallery never renders or a state no screenshot can show.
   delta to the offset cell *before* prepaint clamps it, and the render read the
   raw value. Anything reading a scroll offset outside prepaint has to clamp it
   itself.
+- **Table.LoadMore was replaced with a click because a `RenderOnce` child does
+  not own its parent's scroll handle.** It does not need one: a canvas receives
+  its laid-out bounds during prepaint, after every overflowing ancestor has
+  intersected its viewport into `window.content_mask()`. Comparing those two is
+  the intersection sentinel; keep keyed `(was_visible, row_count)` state so
+  continuous visibility fires once and appended rows re-arm it.
 - **A Select row closed its panel without reporting it**, so a controlled caller
   never learned; **the Toolbar's arrows walked the whole window** rather than
   staying inside it. Both were invisible with one component on a page, which is

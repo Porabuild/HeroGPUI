@@ -32,9 +32,9 @@
 //!   each row's checkbox centre sits 52px below the row top: row i's centre
 //!   is y = 52 + 105i below the header, which the fixed click points 90/195/
 //!   300 hit for any header height in 30..46px.
-//! - The load-more sentinel is the row after the body: with one 105px row it
-//!   starts at header + 105 and is `py-2` + a 13px text line tall (~34px), so
-//!   y = 160 lands inside it for any header height in 30..46px.
+//! - The load-more sentinel is driven inside a fixed 160px parent scroller.
+//!   Four 105px rows keep it outside the first content mask; a 400px wheel
+//!   brings it into view without relying on a clickable replacement row.
 //! - Sliders are wrapped in `w(600)`, which fixes the track at 600px because
 //!   a horizontal slider is `w_full`; the track is `h-size-5` (18px) at the
 //!   window origin, so a drag at y = 9 travels along it. A drop at x maps to
@@ -66,7 +66,7 @@ use std::rc::Rc;
 
 use gpui::{
     point, prelude::*, px, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
-    SharedString, TestAppContext, VisualTestContext,
+    ScrollDelta, ScrollWheelEvent, SharedString, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
     ColorArea, ColorChannel, ColorSlider, ColorSwatchPicker, PickerColor, SelectionMode, Slider,
@@ -138,6 +138,15 @@ fn drag(cx: &mut VisualTestContext, from: (f32, f32), to: (f32, f32)) {
         position: point(px(to.0), px(to.1)),
         modifiers: Modifiers::none(),
         click_count: 1,
+    });
+    flush_frame(cx);
+}
+
+fn wheel_v(cx: &mut VisualTestContext, x: f32, y: f32, dy: f32) {
+    cx.simulate_event(ScrollWheelEvent {
+        position: point(px(x), px(y)),
+        delta: ScrollDelta::Pixels(point(px(0.), px(dy))),
+        ..Default::default()
     });
     flush_frame(cx);
 }
@@ -418,37 +427,139 @@ fn table_column_resize_drag_changes_width(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn table_load_more_fires_once(cx: &mut TestAppContext) {
+fn table_load_more_fires_when_the_sentinel_enters_view(cx: &mut TestAppContext) {
     let recorded = events();
 
     let for_view = recorded.clone();
     let cx = open_host(cx, move || {
         let recorded = for_view.clone();
-        // One 105px row (80px filler + padding) below the ~37px header; the
-        // "Load more" sentinel is the next row, `py-2` around a 13px line
-        // (~34px tall), so y = 160 sits inside it for any header height in
-        // 30..46px.
-        Table::new(vec![])
+        // The four 105px rows put the sentinel below this 160px scroller on
+        // the first frame. v3's Table.LoadMore is an intersection sentinel:
+        // it reports when scrolling brings that row into the content mask.
+        let table = Table::new(vec![])
             .id("tbl-more")
             .columns(vec![TableColumn::new("Name").default_width(px(160.))])
             .row(vec![tall_cell("A")])
-            .on_load_more(move |_, _| recorded.borrow_mut().push("load-more".to_owned()))
+            .row(vec![tall_cell("B")])
+            .row(vec![tall_cell("C")])
+            .row(vec![tall_cell("D")])
+            .scroll_offset(0.)
+            .on_load_more(move |_, _| recorded.borrow_mut().push("load-more".to_owned()));
+        gpui::div()
+            .id("tbl-more-scroll")
+            .w(px(200.))
+            .h(px(160.))
+            .overflow_y_scroll()
+            .child(table)
             .into_any_element()
     });
+    flush_frame(cx);
+    assert!(
+        recorded.borrow().is_empty(),
+        "an offscreen sentinel must not ask for more rows"
+    );
 
-    click(cx, 100., 160.);
+    wheel_v(cx, 100., 80., -400.);
     assert_eq!(
         recorded.borrow().as_slice(),
         ["load-more"],
-        "one click on the sentinel must report exactly once"
+        "entering the scroll viewport must report exactly once"
     );
 
-    // And it stays live: a second click reports again.
-    click(cx, 100., 160.);
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["load-more"],
+        "remaining visible across redraws must not repeat the request"
+    );
+
+    wheel_v(cx, 100., 80., 400.);
+    wheel_v(cx, 100., 80., -400.);
     assert_eq!(
         recorded.borrow().as_slice(),
         ["load-more", "load-more"],
-        "the sentinel must answer every click"
+        "leaving and re-entering the viewport must make a new request"
+    );
+}
+
+/// React Aria's inherited `scrollOffset` defaults to one viewport, so a
+/// sentinel may prefetch before it is physically visible. Two 105px rows put
+/// this sentinel below a 160px mask but less than another 160px beyond it.
+#[gpui::test]
+fn table_load_more_defaults_to_one_viewport_of_prefetch(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        let table = Table::new(vec![])
+            .id("tbl-more-default-offset")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .row(vec![tall_cell("A")])
+            .row(vec![tall_cell("B")])
+            .on_load_more(move |_, _| recorded.borrow_mut().push("load-more".to_owned()));
+        gpui::div()
+            .id("tbl-more-default-scroll")
+            .w(px(200.))
+            .h(px(160.))
+            .overflow_y_scroll()
+            .child(table)
+            .into_any_element()
+    });
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["load-more"],
+        "the default one-viewport offset must prefetch before intersection"
+    );
+
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["load-more"],
+        "prefetch must remain one request while the sentinel stays in range"
+    );
+}
+
+/// React Aria tears down and re-observes the sentinel when the collection
+/// changes so a short result page can immediately request another page. The
+/// sentinel never leaves this tall viewport, so the row count is the only
+/// event that may re-arm it.
+#[gpui::test]
+fn table_load_more_rearms_when_the_row_collection_changes(cx: &mut TestAppContext) {
+    let recorded = events();
+    let row_count = Rc::new(RefCell::new(1usize));
+    let for_view = recorded.clone();
+    let count_for_view = row_count.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        let mut table = Table::new(vec![])
+            .id("tbl-more-collection")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .scroll_offset(0.)
+            .on_load_more(move |_, _| recorded.borrow_mut().push("load-more".to_owned()));
+        for index in 0..*count_for_view.borrow() {
+            table = table.row(vec![tall_cell(format!("row {index}"))]);
+        }
+        table.into_any_element()
+    });
+    flush_frame(cx);
+    assert_eq!(recorded.borrow().as_slice(), ["load-more"]);
+
+    *row_count.borrow_mut() = 2;
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["load-more", "load-more"],
+        "a changed collection must re-observe a still-visible sentinel"
+    );
+
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["load-more", "load-more"],
+        "an unchanged collection must remain silent on later frames"
     );
 }
 
