@@ -249,6 +249,7 @@ impl RenderOnce for ScrollShadow {
         } else {
             self.visibility
         };
+        let reports_visibility = self.visibility == ScrollShadowVisibility::Auto;
 
         // The fades are absolutely positioned siblings so they do not scroll
         // with the content.
@@ -285,26 +286,28 @@ impl RenderOnce for ScrollShadow {
             .when(resolved.shows_end(self.orientation), |el| {
                 el.child(fade(false))
             })
-            .child({
+            .when(reports_visibility, |el| {
                 // The offset is written during prepaint, so what changed is
                 // known here and reported from here.
                 let handler = self.on_visibility_change.clone();
-                canvas(
-                    move |_, window, cx| {
-                        if *reported.read(cx) != resolved {
-                            reported.update(cx, |value, cx| {
-                                *value = resolved;
-                                cx.notify();
-                            });
-                            if let Some(f) = &handler {
-                                f(resolved, window, cx);
+                el.child(
+                    canvas(
+                        move |_, window, cx| {
+                            if *reported.read(cx) != resolved {
+                                reported.update(cx, |value, cx| {
+                                    *value = resolved;
+                                    cx.notify();
+                                });
+                                if let Some(f) = &handler {
+                                    f(resolved, window, cx);
+                                }
                             }
-                        }
-                    },
-                    |_, _, _, _| {},
+                        },
+                        |_, _, _, _| {},
+                    )
+                    .absolute()
+                    .size(px(0.)),
                 )
-                .absolute()
-                .size(px(0.))
             })
             .into_any_element()
     }
