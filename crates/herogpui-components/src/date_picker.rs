@@ -424,7 +424,7 @@ impl DateRangeState {
         self.user_navigated = true;
     }
 
-    /// The range's moving edge while the user hovers before picking nd.
+    /// The range's moving edge while the user hovers before picking the end.
     pub fn preview_end(&self) -> Option<Date> {
         if self.end.is_some() {
             self.end
