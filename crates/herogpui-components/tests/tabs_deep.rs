@@ -80,6 +80,42 @@ fn tabs_disabled_item_is_skipped_by_keys_and_clicks(cx: &mut TestAppContext) {
     );
 }
 
+/// Theme changes rebuild every rendered element. The uncontrolled selection is
+/// keyed component state, so switching from light to dark must not reseed it
+/// from `defaultSelectedKey` between two arrow presses.
+#[gpui::test]
+fn tabs_uncontrolled_selection_survives_dark_mode_switch(cx: &mut TestAppContext) {
+    let recorded = events();
+    let selected = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        Tabs::new(
+            "tb-dark-state",
+            vec![
+                TabItem::new("first", "First"),
+                TabItem::new("second", "Second"),
+                TabItem::new("third", "Third"),
+            ],
+            "first",
+        )
+        .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "right");
+    cx.update(|window, cx| {
+        herogpui_theme::toggle_light_dark(cx);
+        window.refresh();
+    });
+    press(cx, "right");
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["second", "third"],
+        "a theme rebuild must not reseed uncontrolled component state"
+    );
+}
+
 /// Vertical orientation must move the selection with Down and descend back
 /// with Up — and a Right key, which belongs to the horizontal axis, must do
 /// nothing: React Aria's vertical tab list only roves along its own axis.
