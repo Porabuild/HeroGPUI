@@ -42,6 +42,17 @@ ALIAS = {
     # v3 hands a button's children a function with the interactive state in it;
     # `content` is that closure, so each render prop resolves to it.
     'RadioGroup.isSelected': 'option_content',
+    # v3 documents the per-option props under a `### Radio` heading on the
+    # RadioGroup page, and `FOLD_STRUCTS` answers its rows with the real
+    # option struct: `RadioOption` owns `value` and `is_disabled`, so those
+    # rows resolve against the option type and never the root's same-named
+    # builders (the root's `value`/`is_disabled` cover the whole group). One
+    # row still projects onto the group on purpose:
+    #
+    # * `Radio.name` is the option's submission name; every radio in one HTML
+    #   group submits under the same name, which is the one `form_field`
+    #   reads, so the per-option row is the group's `name` taken once.
+    'RadioGroup.Radio.name': 'name',
     'ListBox.isFocused': 'item_content', 'ListBox.isPressed': 'item_content',
     'Dropdown.isDisabled': 'item_content', 'Dropdown.isFocused': 'item_content',
     'Dropdown.isPressed': 'item_content',
@@ -106,9 +117,15 @@ ALIAS = {
     'selectionMode': 'selection_mode', 'selectedKeys': 'selected_keys',
     # `defaultSelectedKeys` is deliberately NOT mapped to `selected_keys`: one
     # seeds an uncontrolled control, the other is the controlled value a caller
-    # drives. The honest resolutions are the snake spelling where a real seed
-    # builder exists (`ToggleButtonGroup::default_selected_keys`) and a
-    # reported gap where none does (TagGroup, ListBox, Dropdown).
+    # drives. The honest resolution is the snake spelling, and every collection
+    # has the real seed builder now: `ToggleButtonGroup::default_selected_keys`
+    # first, then `ListBox::default_selected_keys`,
+    # `TagGroup::default_selected_keys` and `Dropdown::default_selected_keys`,
+    # each seeding keyed uncontrolled state behind `util::controlled` (the
+    # controlled-empty distinction is the `is_controlled` flag). The blanket
+    # `caller-owns-collection` reason died because a sibling implemented the
+    # very thing it claimed impossible, and a blanket reason contradicted by a
+    # row it covers cannot stand.
     'disabledKeys': 'disabled_keys',
     'selectedKey': 'selected_key', 'errorMessage': 'error_message',
     'colorSpace': 'color_space', 'xChannel': 'x_channel', 'yChannel': 'y_channel',
@@ -247,11 +264,13 @@ WONT_PORT = {
     # Uncontrolled mode exists (`util::controlled` + `use_keyed_state`), so
     # `defaultOpen`, `defaultSelected`, `defaultExpanded*` and
     # `defaultYearPickerOpen` are implemented, not omitted. The collection-
-    # valued seed `defaultSelectedKeys` is *not* excused here: the old blanket
-    # `caller-owns-collection` was disproved by `ToggleButtonGroup`, which
-    # implements the same shape as `default_selected_keys`, and TagGroup /
-    # ListBox / Dropdown have no seed at all -- those are real gaps, reported
-    # rather than filed under a reason a sibling contradicts.
+    # valued seed `defaultSelectedKeys` is implemented too, so it needs no
+    # reason here: the old blanket `caller-owns-collection` was disproved by
+    # `ToggleButtonGroup`, which implements the same shape as
+    # `default_selected_keys`, and a blanket reason contradicted by a row it
+    # covers cannot stand -- the siblings followed, and `ListBox`, `TagGroup`
+    # and `Dropdown` each seed keyed uncontrolled state behind
+    # `util::controlled` now, so the trio is answered rather than reported.
     # Tabs has a real `default_selected_key`; ComboBox's single selection lives
     # in the caller's `InputState`, which is its own uncontrolled seed
     # (`InputState::with_value`).
@@ -382,12 +401,6 @@ WONT_PORT = {
     # recorded as `no-image-load-events` for `delayMs` before either half
     # existed.
     'Avatar.onLoad': 'no-image-load-events',
-
-    # gpui gives a RenderOnce element no scroll offset, so there is nothing
-    # truthful to report.
-    # A single-date Calendar; RangeCalendar covers the range case and there is
-    # no v3-shaped multi-date state here.
-
 }
 
 # Which module(s) implement each documented component.
@@ -419,9 +432,9 @@ COMPANIONS = {
     # Not here: `ToggleButton`. ToggleButton is v3's own page (see `FILES`)
     # and a *child* of the group, not a split of it. Its builders used to
     # answer the group's root table -- `ToggleButtonGroup.size` was "green"
-    # through `ToggleButton::size`, and a caller cannot size the group. A
-    # companion with its own v3 table answers its own rows only; the group's
-    # `size` is a real gap (reported) rather than a satisfied row.
+    # through `ToggleButton::size`. A companion with its own v3 table answers
+    # its own rows only; the group has its own `size` now, inherited by the
+    # children that do not set one, so the row is satisfied by the group.
     'Calendar': ['CalendarState'],
     'RangeCalendar': ['DateRangeState'],
     'DatePicker': ['CalendarState'],
@@ -546,10 +559,11 @@ PART_STRUCTS = {
 # rather than against the component by default:
 #
 # * `### ToastQueue` / `### toast Function`, `### SwitchGroup`, `### useFilter
-#   Hook`, `### Render Props`, `### Tag`, `### ListLayout` / `### TableLayout`
-#   and `### Radio.*` are implemented on the component itself or on a
-#   same-component companion (`ToastStore`, `SwitchGroup`, `Filter`, `Tag`),
-#   which the component's own answer set already contains -- no entry needed;
+#   Hook`, `### Render Props`, `### Radio.*`, `### ListLayout` /
+#   `### TableLayout` and `### Tag.RemoveButton` are implemented on the
+#   component itself or on a same-component companion (`ToastStore`,
+#   `SwitchGroup`, `Filter`), which the component's own answer set already
+#   contains -- no entry needed;
 # * `### Composition Components` documents the *composed* v3 component
 #   (`InputGroup.Input`, `SearchField.Input`) by pointing at React Aria's
 #   Input, and the port composes the real `Input`/`TextArea` -- so the rows a
@@ -561,6 +575,16 @@ PART_STRUCTS = {
 # answered by the structs its own heading names.
 FOLD_STRUCTS = {
     ('InputGroup', 'Composition Components'): ['Input', 'TextArea'],
+    # Per-item tables of a monolithic component. `### Radio` documents the
+    # per-option props of a group that now has a real option type:
+    # `RadioOption` owns `value` and `is_disabled`, so its rows resolve
+    # against that struct and never against the root's same-named builders
+    # (the root's `value`/`is_disabled` cover the whole group); the one row
+    # the option struct cannot answer, `name`, keeps its fold-scoped alias
+    # in `ALIAS`. `### Tag` is the per-item half of `TagGroup`, and there the
+    # per-tag struct itself exists, so `Tag` answers its own rows.
+    ('RadioGroup', 'Radio'): ['RadioOption'],
+    ('TagGroup', 'Tag'): ['Tag'],
 }
 
 FILES = {
@@ -629,21 +653,24 @@ for path in glob.glob(SRC + '*.rs'):
                 name = param.split(':')[0].strip().lstrip('&').strip()
                 if re.fullmatch(r'[a-z_][a-z_0-9]*', name or ''):
                     constructor_args.setdefault(struct_name, set()).add(name)
-# Every struct a table names must be one the sources define. A phantom
-# companion contributes an empty method set, so the rows it answers for can
-# never fail: `Radio.isDisabled` hid behind a nonexistent `RadioOption`, and
-# `Tabs.Tab.isDisabled` hid behind the whole-list `Tabs::is_disabled` once the
-# real struct had been misspelled `Tab`. Fail loudly rather than audit a name
-# that is not there.
+# Every struct a table names must be one the sources define -- including the
+# fold owners, where a phantom would hand the fold's rows back to the root's
+# same-named builders. A phantom contributes an empty method set, so the rows
+# it answers for can never fail: `Radio.isDisabled` hid behind a nonexistent
+# `RadioOption` in `COMPANIONS`, and `Tabs.Tab.isDisabled` hid behind the
+# whole-list `Tabs::is_disabled` once the real struct had been misspelled
+# `Tab`. Fail loudly rather than audit a name that is not there.
 _phantom = sorted(({
     s for v in COMPANIONS.values() for s in v
 } | {
     s for v in PART_STRUCTS.values() for s in v
+} | {
+    s for v in FOLD_STRUCTS.values() for s in v
 }) - set(impl_methods))
 if _phantom:
     raise SystemExit(
-        'PHANTOM STRUCT IN COMPANIONS/PART_STRUCTS: %s -- every name must '
-        'resolve to a real struct' % ', '.join(_phantom))
+        'PHANTOM STRUCT IN COMPANIONS/PART_STRUCTS/FOLD_STRUCTS: %s -- every '
+        'name must resolve to a real struct' % ', '.join(_phantom))
 
 API_SECTIONS = None
 
@@ -901,13 +928,16 @@ def main():
             # whole component, and it is the per-part reading the fold used to
             # launder. The part-scoped aliases above are how the implemented
             # per-part readings are recorded. Folded headings sit between the
-            # two: `### ToastQueue` and `### Composition Components` are not
-            # `Comp.Part` tables, but their rows name a companion, so they
-            # answer through `FOLD_STRUCTS` rather than through the root
-            # table's set.
+            # two: `### ToastQueue`, `### Composition Components` and
+            # `### Radio` are not `Comp.Part` tables, so their rows hang off
+            # the heading itself -- answered through `FOLD_STRUCTS`, the
+            # component's own set, or a fold-scoped alias
+            # (`Comp.Heading.prop`), never through the root table's set by
+            # default when the heading names a different entity.
             part = next((pt for pt in part_docs if p in part_docs[pt]), None)
             fold = next((h for h in fold_docs if p in fold_docs[h]), None)
             part_key = '%s.%s.%s' % (comp, part, p) if part else None
+            fold_key = '%s.%s.%s' % (comp, fold, p) if fold else None
             comp_key = '%s.%s' % (comp, p)
             snake = re.sub(r'(?<!^)(?=[A-Z])', '_', p).lower()
             if part and part_key in ALIAS:
@@ -926,22 +956,53 @@ def main():
                     ok = rust in owned or p.lower() in owned
             elif fold is not None:
                 # A folded heading answers through the structs its own table
-                # describes -- `FOLD_STRUCTS` where the docs point at a
-                # composed component, otherwise the component's own answer set.
-                scope = set(have)
-                for struct in FOLD_STRUCTS.get((comp, fold), ()):
-                    scope |= impl_methods.get(struct, set())
-                    scope |= constructor_args.get(struct, set())
-                rust = ALIAS.get(comp_key) or ALIAS.get(p, snake)
-                ok = rust in scope or p.lower() in scope
+                # describes. The fold-scoped alias key `Comp.Heading.prop` is
+                # the third scoped tier: a table that documents per-item props
+                # of a monolithic component (`### Radio` on the RadioGroup
+                # page) can name a builder outside the fold's own structs --
+                # `RadioGroup.Radio.name` is the group's `name`, the shared
+                # submission name every option submits under, while the
+                # option's own `value` and `is_disabled` live on the
+                # `RadioOption` structs the fold names. A fold WITH a
+                # `FOLD_STRUCTS` entry is then a scoped table like a part:
+                # its rows are answered by that entry's own structs (or by an
+                # explicit alias, which may name any builder in the
+                # component's set), never by a same-named builder on the
+                # component root by default. A fold without an entry
+                # (`### Render Props`, `### ToastQueue`, `### ListLayout`)
+                # documents the component's own state or a companion it
+                # exposes, so the component's answer set stands.
+                if fold_key in ALIAS:
+                    rust = ALIAS[fold_key]
+                    ok = rust in have or p.lower() in have
+                elif (comp, fold) in FOLD_STRUCTS:
+                    owned = set()
+                    for struct in FOLD_STRUCTS[(comp, fold)]:
+                        owned |= impl_methods.get(struct, set())
+                        owned |= constructor_args.get(struct, set())
+                    if comp_key in ALIAS:
+                        rust = ALIAS[comp_key]
+                        ok = rust in have or rust in owned or p.lower() in have
+                    else:
+                        rust = ALIAS.get(p, snake)
+                        ok = rust in owned or p.lower() in owned
+                else:
+                    scope = set(have)
+                    for struct in FOLD_STRUCTS.get((comp, fold), ()):
+                        scope |= impl_methods.get(struct, set())
+                        scope |= constructor_args.get(struct, set())
+                    rust = ALIAS.get(comp_key) or ALIAS.get(p, snake)
+                    ok = rust in scope or p.lower() in scope
             else:
                 rust = ALIAS.get(comp_key) or ALIAS.get(p, snake)
                 ok = rust in have or p.lower() in have
             if ok:
                 continue
-            # A reason may be global (`prop`) or scoped (`Component.prop`); the
-            # scoped form keeps a blanket name from hiding a real gap elsewhere.
-            reason = WONT_PORT.get(comp_key) or WONT_PORT.get(p)
+            # A reason may be global (`prop`), component-scoped
+            # (`Component.prop`) or fold-scoped (`Component.Heading.prop`);
+            # the scoped forms keep a blanket name from hiding a real gap
+            # elsewhere.
+            reason = WONT_PORT.get(fold_key) or WONT_PORT.get(comp_key) or WONT_PORT.get(p)
             if reason:
                 wont_total += 1
                 by_reason[reason] = by_reason.get(reason, 0) + 1
