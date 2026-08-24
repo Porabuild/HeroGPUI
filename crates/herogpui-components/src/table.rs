@@ -982,14 +982,16 @@ impl RenderOnce for Table {
                             if let Some(cb) = &on_row_click {
                                 cb(index, &ClickEvent::default(), window, cx);
                             }
-                            if let (Some(cb), Some(key)) = (&selection, keys.get(index)) {
-                                let next = crate::selection::next_selection(
-                                    &selected_now,
-                                    key,
-                                    mode,
-                                    false,
-                                );
-                                cb(&next, window, cx);
+                            if crate::selection::reports_changes(mode) {
+                                if let (Some(cb), Some(key)) = (&selection, keys.get(index)) {
+                                    let next = crate::selection::next_selection(
+                                        &selected_now,
+                                        key,
+                                        mode,
+                                        false,
+                                    );
+                                    cb(&next, window, cx);
+                                }
                             }
                         }
                         crate::list_nav::Move::Ignore => {}

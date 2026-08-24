@@ -29,7 +29,9 @@ use std::collections::HashSet;
 use std::rc::Rc;
 
 use gpui::{prelude::*, px, TestAppContext};
-use herogpui_components::{util::FIELD_HEIGHT, ListBox, ListBoxItem, SelectionMode, Tag, TagGroup};
+use herogpui_components::{
+    util::FIELD_HEIGHT, ListBox, ListBoxItem, Menu, MenuItem, SelectionMode, Tag, TagGroup,
+};
 
 use harness::{click, events, open_host, press};
 
@@ -99,6 +101,51 @@ fn list_box_on_action_fires_when_selection_is_none(cx: &mut TestAppContext) {
         recorded.borrow().as_slice(),
         ["alpha", "beta", "beta"],
         "Enter must activate the row the arrows reached through onAction"
+    );
+}
+
+/// Dropdown.Menu has the same action-only `selectionMode="none"` contract as
+/// ListBox. Both pointer and Enter activation report `onAction`, while
+/// `onSelectionChange` must remain silent because no selection exists.
+#[gpui::test]
+fn menu_on_action_fires_without_selection_in_none_mode(cx: &mut TestAppContext) {
+    let events = events();
+    let recorded = events.clone();
+    let cx = open_host(cx, move || {
+        let actions = events.clone();
+        let selections = events.clone();
+        Menu::new(vec![
+            MenuItem::new("one", "One"),
+            MenuItem::new("two", "Two"),
+        ])
+        .id("menu-action-none")
+        .selection_mode(SelectionMode::None)
+        .disabled_keys(["two"])
+        .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string()))
+        .on_selection_change(move |keys, _, _| {
+            selections.borrow_mut().push(format!(
+                "selection:{}",
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ));
+        })
+        .into_any_element()
+    });
+
+    click(cx, 60., 58.);
+    assert!(
+        recorded.borrow().is_empty(),
+        "a disabled none-mode item must report neither action nor selection"
+    );
+    click(cx, 60., 22.);
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["one", "one"],
+        "none mode must report only the pointer and keyboard actions"
     );
 }
 

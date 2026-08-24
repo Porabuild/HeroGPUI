@@ -7,6 +7,11 @@
 use gpui::SharedString;
 use herogpui_core::SelectionMode;
 
+/// Whether activating an item in `mode` has a selection change to report.
+pub(crate) fn reports_changes(mode: SelectionMode) -> bool {
+    mode != SelectionMode::None
+}
+
 /// The selection after activating `key`.
 ///
 /// `Single` collapses to just `key` (or clears it, unless
@@ -51,6 +56,13 @@ mod tests {
             .iter()
             .map(|s| SharedString::from(s.to_string()))
             .collect()
+    }
+
+    #[test]
+    fn only_selection_modes_report_changes() {
+        assert!(!reports_changes(SelectionMode::None));
+        assert!(reports_changes(SelectionMode::Single));
+        assert!(reports_changes(SelectionMode::Multiple));
     }
 
     #[test]

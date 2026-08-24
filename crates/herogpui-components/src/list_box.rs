@@ -482,7 +482,7 @@ impl RenderOnce for ListBox {
                         if let Some(cb) = &on_action {
                             cb(&item_key, window, cx);
                         }
-                        if mode != SelectionMode::None {
+                        if crate::selection::reports_changes(mode) {
                             if let Some(cb) = &on_selection_change {
                                 // The same answer a click gives: `Single`
                                 // collapses to this key, `Multiple` toggles it.
@@ -789,7 +789,7 @@ impl ListBox {
                         if let Some(action) = &on_action {
                             action(&key, window, cx);
                         }
-                        if mode != SelectionMode::None {
+                        if crate::selection::reports_changes(mode) {
                             if let Some(change) = &on_selection_change {
                                 let next = match mode {
                                     SelectionMode::None => current.clone(),

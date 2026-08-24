@@ -428,14 +428,16 @@ impl RenderOnce for Menu {
                         if let Some(cb) = &on_action {
                             cb(&item_key, window, cx);
                         }
-                        if let Some(cb) = &on_selection_change {
-                            let next = crate::selection::next_selection(
-                                &selected_now,
-                                &item_key,
-                                mode,
-                                false,
-                            );
-                            cb(&next, window, cx);
+                        if crate::selection::reports_changes(mode) {
+                            if let Some(cb) = &on_selection_change {
+                                let next = crate::selection::next_selection(
+                                    &selected_now,
+                                    &item_key,
+                                    mode,
+                                    false,
+                                );
+                                cb(&next, window, cx);
+                            }
                         }
                         // v3 closes a menu when an item is actioned -- React
                         // Aria runs the click's close from the action -- except
@@ -689,10 +691,13 @@ impl RenderOnce for Menu {
                             if let Some(cb) = &on_action {
                                 cb(&key2, window, cx);
                             }
-                            if let Some(cb) = &on_selection_change {
-                                let next =
-                                    crate::selection::next_selection(&current, &key2, mode, false);
-                                cb(&next, window, cx);
+                            if crate::selection::reports_changes(mode) {
+                                if let Some(cb) = &on_selection_change {
+                                    let next = crate::selection::next_selection(
+                                        &current, &key2, mode, false,
+                                    );
+                                    cb(&next, window, cx);
+                                }
                             }
                             // v3 closes the menu when an item is actioned; a
                             // multiple-mode choice stays open so several can
