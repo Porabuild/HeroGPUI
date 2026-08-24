@@ -104,7 +104,12 @@ ALIAS = {
     'fullWidth': 'full_width', 'maxVisibleToasts': 'max_visible_toasts',
     'hideSeparator': 'hide_separator', 'hideSteppers': 'hide_steppers',
     'selectionMode': 'selection_mode', 'selectedKeys': 'selected_keys',
-    'defaultSelectedKeys': 'selected_keys', 'disabledKeys': 'disabled_keys',
+    # `defaultSelectedKeys` is deliberately NOT mapped to `selected_keys`: one
+    # seeds an uncontrolled control, the other is the controlled value a caller
+    # drives. The honest resolutions are the snake spelling where a real seed
+    # builder exists (`ToggleButtonGroup::default_selected_keys`) and a
+    # reported gap where none does (TagGroup, ListBox, Dropdown).
+    'disabledKeys': 'disabled_keys',
     'selectedKey': 'selected_key', 'errorMessage': 'error_message',
     'colorSpace': 'color_space', 'xChannel': 'x_channel', 'yChannel': 'y_channel',
     'showDots': 'show_dots', 'colorName': 'color_name', 'hourCycle': 'hour_cycle',
@@ -114,8 +119,11 @@ ALIAS = {
     'emptyState': 'empty_state', 'scaleFactor': 'scale_factor', 'htmlFor': 'label_for',
     'showValueLabel': 'show_value_label', 'weeksInMonth': 'weeks_in_month',
     'firstDayOfWeek': 'first_day_of_week', 'isDateUnavailable': 'is_date_unavailable',
-    'focusedValue': 'focused_value', 'defaultSelectedKey': 'selected_key',
+    'focusedValue': 'focused_value',
     # Tabs is the one component with a separate uncontrolled builder.
+    # `defaultSelectedKey` elsewhere (ComboBox) is seeded through the caller's
+    # `InputState` (`WONT_PORT`'s `state-entity-seeds-it`), not by an alias
+    # onto the controlled `selected_key`.
     'Tabs.defaultSelectedKey': 'default_selected_key',
     'renderEmptyState': 'empty_state', 'onInputChange': 'on_input_change',
     'defaultFilter': 'filter', 'autoFocus': 'auto_focus',
@@ -238,14 +246,15 @@ SKIP = {
 WONT_PORT = {
     # Uncontrolled mode exists (`util::controlled` + `use_keyed_state`), so
     # `defaultOpen`, `defaultSelected`, `defaultExpanded*` and
-    # `defaultYearPickerOpen` are implemented, not omitted. What is left here is
-    # the collection-valued seed: `Vec`/`Selection` state that the caller owns
-    # as an entity, where a one-shot initial value has nothing to seed.
-    'defaultSelectedKeys': 'caller-owns-collection',
-    # Tabs has a real `default_selected_key`; ComboBox's selection lives in the
-    # caller's `InputState`, so there is nothing separate to seed.
-    # ComboBox's single selection lives in the caller's `InputState`, which is
-    # its own uncontrolled seed (`InputState::with_value`).
+    # `defaultYearPickerOpen` are implemented, not omitted. The collection-
+    # valued seed `defaultSelectedKeys` is *not* excused here: the old blanket
+    # `caller-owns-collection` was disproved by `ToggleButtonGroup`, which
+    # implements the same shape as `default_selected_keys`, and TagGroup /
+    # ListBox / Dropdown have no seed at all -- those are real gaps, reported
+    # rather than filed under a reason a sibling contradicts.
+    # Tabs has a real `default_selected_key`; ComboBox's single selection lives
+    # in the caller's `InputState`, which is its own uncontrolled seed
+    # (`InputState::with_value`).
     'ComboBox.defaultSelectedKey': 'state-entity-seeds-it',
    
     # `ListLayout`/`TableLayout` describe a virtualizer told its geometry in
@@ -407,7 +416,12 @@ COMPANIONS = {
     # behind a phantom `RadioOption`, and how `Tabs.Tab.isDisabled` hid
     # behind the whole-list `Tabs::is_disabled`.
     'Tabs': ['TabItem'],
-    'ToggleButtonGroup': ['ToggleButton'],
+    # Not here: `ToggleButton`. ToggleButton is v3's own page (see `FILES`)
+    # and a *child* of the group, not a split of it. Its builders used to
+    # answer the group's root table -- `ToggleButtonGroup.size` was "green"
+    # through `ToggleButton::size`, and a caller cannot size the group. A
+    # companion with its own v3 table answers its own rows only; the group's
+    # `size` is a real gap (reported) rather than a satisfied row.
     'Calendar': ['CalendarState'],
     'RangeCalendar': ['DateRangeState'],
     'DatePicker': ['CalendarState'],
@@ -421,14 +435,13 @@ COMPANIONS = {
     # one value here: `Filter::new(sensitivity).contains(..)`.
     'Autocomplete': ['Filter'],
     'ComboBox': ['Filter'],
-    # v3's `### Composition Components` documents `InputGroup.Input` and
-    # `SearchField.Input` by pointing at React Aria's Input, and this port
-    # composes the real `Input` -- so its builders are what implement them. A
-    # missing `Input` prop still shows up under Input, which is audited on its
-    # own page.
-    'InputGroup': ['Input', 'TextArea'],
+    # Not here: `Input` / `TextArea` for `InputGroup`, nor `ColorSwatch` for
+    # `ColorSwatchPicker` -- each is v3's own page, so each answers its own
+    # rows, not the container's. The rows v3 composes onto them are preserved
+    # where the docs put them: `### Composition Components` on the InputGroup
+    # page is `FOLD_STRUCTS` below, and `### ColorSwatchPicker.Item` is the
+    # `PART_STRUCTS` entry that still names `ColorSwatch`.
     'TagGroup': ['Tag'],
-    'ColorSwatchPicker': ['ColorSwatch'],
 }
 
 # Which structs answer for each `### Comp.Part` table. A prop documented on a
@@ -524,6 +537,30 @@ PART_STRUCTS = {
     'Toast.Indicator': ['Toast'],
     'Toast.Provider': ['ToastViewport'],
     'Tooltip.Content': ['Tooltip'],
+}
+
+# Folded headings -- tables on a component's page that are neither the
+# component (`### Comp`) nor one of its parts (`### Comp.Part`) -- carry the
+# rows v3 documents for something else. `props_for_state` separates them from
+# the root table so the rows resolve against the struct that implements them
+# rather than against the component by default:
+#
+# * `### ToastQueue` / `### toast Function`, `### SwitchGroup`, `### useFilter
+#   Hook`, `### Render Props`, `### Tag`, `### ListLayout` / `### TableLayout`
+#   and `### Radio.*` are implemented on the component itself or on a
+#   same-component companion (`ToastStore`, `SwitchGroup`, `Filter`, `Tag`),
+#   which the component's own answer set already contains -- no entry needed;
+# * `### Composition Components` documents the *composed* v3 component
+#   (`InputGroup.Input`, `SearchField.Input`) by pointing at React Aria's
+#   Input, and the port composes the real `Input`/`TextArea` -- so the rows a
+#   group documents for the field it wraps resolve against those structs, the
+#   same composition `PART_STRUCTS` records for `Comp.Part` tables.
+#
+# The key is `(component, heading)`; `PART_STRUCTS` stays the table for
+# `Comp.Part` headings, so the two mechanisms describe one rule: a row is
+# answered by the structs its own heading names.
+FOLD_STRUCTS = {
+    ('InputGroup', 'Composition Components'): ['Input', 'TextArea'],
 }
 
 FILES = {
@@ -655,21 +692,25 @@ def props_for(component):
 
 
 def props_for_state(component):
-    """`(root props, {part: props})` for `component`, attributed per heading.
+    """`(root props, {part: props}, {heading: props})` for `component`.
 
     `props_for` reads the whole `## API Reference` section and folds every
     table into one set, which is what other audits want. This splits the same
     section per `###` heading so a row documented on `### Comp.Part` can be
     answered by the *part's* structs and not by a same-named builder on the
-    root. The union of the two halves is exactly `props_for`'s set, and the
+    root. The union of the three halves is exactly `props_for`'s set, and the
     section matching is the same assertion (`Comp` or `Comp.Part` resolved to
     exactly one section).
 
     A heading that is neither the component nor one of its parts (`ListLayout`,
     `SwitchGroup`, `Composition Components`, `ToastQueue`, `toast Function`,
-    `useFilter Hook`) carries the parts v3 composes, and folds into the root
-    half -- `PART_STRUCTS` only governs tables named `Comp.Part`, which is the
-    boundary the hole lived on.
+    `useFilter Hook`, `Render Props`) carries rows v3 documents for something
+    else -- a composed part or a sibling table -- so each is kept under its own
+    heading in the third half. `main` resolves those rows against
+    `FOLD_STRUCTS` (or the component's own answer set), the same way
+    `PART_STRUCTS` governs tables named `Comp.Part`. The fold is where the
+    old code turned `### Radio`'s and `### SwitchGroup`'s rows into root rows,
+    which is the laundering the split prevents.
     """
     anchor = r'^[ 	]*### %s(?:\.[A-Za-z]+)?[ 	]*$' % re.escape(component)
     owners = [s for s in api_sections() if re.search(anchor, s, re.M)]
@@ -678,6 +719,7 @@ def props_for_state(component):
         return None
     root = set()
     parts = {}
+    folds = {}
     heads = [(m.end(), m.group(1).strip())
              for m in re.finditer(r'^[ 	]*### (.+?)[ 	]*$', owners[0], re.M)]
     for i, (at, heading) in enumerate(heads):
@@ -693,7 +735,7 @@ def props_for_state(component):
                 part = part[:-len(' Render Props')]
             parts.setdefault(part, set()).update(chunk_props)
         else:
-            root |= chunk_props
+            folds.setdefault(heading, set()).update(chunk_props)
         # A `Component | Prop | ...` table names its owner per row, so its
         # rows carry an ownership the heading cannot: `### Year Picker Parts`
         # is not a `Comp.Part` heading, and the table attributes `visibleYears`
@@ -716,7 +758,7 @@ def props_for_state(component):
         if parts[part] - SKIP and '%s.%s' % (component, part) not in PART_STRUCTS:
             print('PART TABLE UNOWNED: %s.%s -- add a PART_STRUCTS entry'
                   % (component, part))
-    return root, parts
+    return root, parts, folds
 
 
 # The first header cell of a v3 prop table. Anything else is a table of
@@ -823,9 +865,11 @@ def main():
         state = props_for_state(comp)
         if state is None:
             continue
-        root_doc, part_docs = state
+        root_doc, part_docs, fold_docs = state
         props = set(root_doc)
         for chunk in part_docs.values():
+            props |= chunk
+        for chunk in fold_docs.values():
             props |= chunk
         if not props:
             continue
@@ -853,11 +897,16 @@ def main():
             # A name documented on both a root table and a part table
             # (`Calendar.isDisabled` and `Slider.isDisabled` appear on the
             # component *and* on `Cell`/`Thumb`) is one counted row, and the
-            # part reading governs it: the root builder answers the whole
-            # component, and it is the per-part reading the fold used to
+            # most specific reading governs it: the root builder answers the
+            # whole component, and it is the per-part reading the fold used to
             # launder. The part-scoped aliases above are how the implemented
-            # per-part readings are recorded.
+            # per-part readings are recorded. Folded headings sit between the
+            # two: `### ToastQueue` and `### Composition Components` are not
+            # `Comp.Part` tables, but their rows name a companion, so they
+            # answer through `FOLD_STRUCTS` rather than through the root
+            # table's set.
             part = next((pt for pt in part_docs if p in part_docs[pt]), None)
+            fold = next((h for h in fold_docs if p in fold_docs[h]), None)
             part_key = '%s.%s.%s' % (comp, part, p) if part else None
             comp_key = '%s.%s' % (comp, p)
             snake = re.sub(r'(?<!^)(?=[A-Z])', '_', p).lower()
@@ -875,6 +924,16 @@ def main():
                 else:
                     rust = ALIAS.get(p, snake)
                     ok = rust in owned or p.lower() in owned
+            elif fold is not None:
+                # A folded heading answers through the structs its own table
+                # describes -- `FOLD_STRUCTS` where the docs point at a
+                # composed component, otherwise the component's own answer set.
+                scope = set(have)
+                for struct in FOLD_STRUCTS.get((comp, fold), ()):
+                    scope |= impl_methods.get(struct, set())
+                    scope |= constructor_args.get(struct, set())
+                rust = ALIAS.get(comp_key) or ALIAS.get(p, snake)
+                ok = rust in scope or p.lower() in scope
             else:
                 rust = ALIAS.get(comp_key) or ALIAS.get(p, snake)
                 ok = rust in have or p.lower() in have
