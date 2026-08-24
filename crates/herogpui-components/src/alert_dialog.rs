@@ -240,11 +240,12 @@ impl ParentElement for AlertDialog {
 impl RenderOnce for AlertDialog {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // v3 keeps a closing panel on screen for its `[data-exiting]` run.
-        let phase = util::overlay_phase(
+        let (phase, dismissal_token) = util::overlay_scope(
             window,
             cx,
             crate::modal::dialog_key(&self.id, "phase"),
             self.is_open,
+            true,
         );
         if phase == util::OverlayPhase::Closed {
             return div().into_any_element();
@@ -427,11 +428,14 @@ impl RenderOnce for AlertDialog {
         // whole gate; the exit phase gets none — the dialog is already
         // closing.
         let panel = match (dismiss.clone(), exiting) {
-            (Some(on_dismiss), false) => {
-                util::dismiss_on_press_outside(panel, move |window, cx| {
+            (Some(on_dismiss), false) => util::dismiss_on_press_outside_with_token(
+                panel,
+                dismissal_token.clone(),
+                move |window, cx| {
                     on_dismiss(&ClickEvent::default(), window, cx);
-                })
-            }
+                    util::DismissResult::Handled
+                },
+            ),
             _ => panel,
         };
 
@@ -481,7 +485,7 @@ impl RenderOnce for AlertDialog {
         };
 
         // `Tab` cycles the dialog's own controls; see `util::trap_tab`.
-        util::trap_tab(
+        let mut overlay = util::trap_tab(
             div()
                 .id("alert-dialog-root")
                 .absolute()
@@ -492,13 +496,6 @@ impl RenderOnce for AlertDialog {
                 .track_focus(&focus_handle),
             &focus_handle,
         )
-        .on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
-            if ev.keystroke.key == "escape" {
-                if let Some(f) = &keyboard_dismiss {
-                    f(&ClickEvent::default(), window, cx);
-                }
-            }
-        })
         .when(
             matches!(
                 self.placement,
@@ -538,7 +535,14 @@ impl RenderOnce for AlertDialog {
                     cx,
                 )
             }
-        })
-        .into_any_element()
+        });
+        if let Some(on_escape) = keyboard_dismiss {
+            overlay =
+                util::dismiss_on_escape_with_token(overlay, dismissal_token, move |window, cx| {
+                    on_escape(&ClickEvent::default(), window, cx);
+                    util::DismissResult::Handled
+                });
+        }
+        overlay.into_any_element()
     }
 }

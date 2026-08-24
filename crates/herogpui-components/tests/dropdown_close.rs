@@ -82,6 +82,7 @@ fn click_activates_once_and_closes(cx: &mut TestAppContext) {
         let actions = actions.clone();
         let opens = opens.clone();
         Dropdown::uncontrolled(
+            "ddc",
             Button::new("ddc-trigger").label("Actions"),
             vec![MenuItem::new("one", "One"), MenuItem::new("two", "Two")],
         )
@@ -136,6 +137,7 @@ fn enter_activates_once_and_closes(cx: &mut TestAppContext) {
         let actions = actions.clone();
         let opens = opens.clone();
         Dropdown::uncontrolled(
+            "ddk",
             Button::new("ddk-trigger").label("Actions"),
             vec![MenuItem::new("one", "One"), MenuItem::new("two", "Two")],
         )
@@ -197,6 +199,7 @@ fn multiple_mode_stays_open_for_consecutive_picks(cx: &mut TestAppContext) {
         // statement and collides with the callback's write.
         let selected_now = held.borrow().clone();
         Dropdown::uncontrolled(
+            "ddm",
             Button::new("ddm-trigger").label("Fruits"),
             vec![
                 MenuItem::new("apple", "Apple"),
@@ -264,6 +267,7 @@ fn submenu_trigger_leaves_parent_open(cx: &mut TestAppContext) {
         let selections = selections.clone();
         let opens = opens.clone();
         Dropdown::uncontrolled(
+            "dds",
             Button::new("dds-trigger").label("Share"),
             vec![
                 MenuItem::new("share", "Other").submenu(vec![
@@ -344,6 +348,7 @@ fn submenu_opens_from_pointer_click_without_parent_callbacks(cx: &mut TestAppCon
         gpui::div()
             .child(
                 Dropdown::uncontrolled(
+                    "dd-sub-click",
                     Button::new("dd-sub-click-trigger").label("Share"),
                     vec![MenuItem::new("share", "Other")
                         .submenu(vec![MenuItem::new("sms", "SMS")])],
@@ -400,6 +405,7 @@ fn submenu_opens_from_keyboard_press_without_parent_callbacks(cx: &mut TestAppCo
         gpui::div()
             .child(
                 Dropdown::uncontrolled(
+                    "dd-sub-key",
                     Button::new("dd-sub-key-trigger").label("Share"),
                     vec![MenuItem::new("share", "Other")
                         .submenu(vec![MenuItem::new("sms", "SMS")])],
@@ -456,6 +462,7 @@ fn submenu_right_opens_focuses_first_item_and_left_returns(cx: &mut TestAppConte
         gpui::div()
             .child(
                 Dropdown::uncontrolled(
+                    "dd-sub-right",
                     Button::new("dd-sub-right-trigger").label("Share"),
                     vec![MenuItem::new("share", "Other").submenu(vec![
                         MenuItem::new("blocked", "Blocked"),
@@ -528,6 +535,7 @@ fn submenu_opens_from_hover(cx: &mut TestAppContext) {
         gpui::div()
             .child(
                 Dropdown::uncontrolled(
+                    "dd-sub-hover",
                     Button::new("dd-sub-hover-trigger").label("Share"),
                     vec![MenuItem::new("share", "Other")
                         .submenu(vec![MenuItem::new("sms", "SMS")])],
@@ -563,6 +571,7 @@ fn disabled_submenu_trigger_never_opens(cx: &mut TestAppContext) {
         gpui::div()
             .child(
                 Dropdown::uncontrolled(
+                    "dd-sub-disabled",
                     Button::new("dd-sub-disabled-trigger").label("Share"),
                     vec![MenuItem::new("share", "Other")
                         .submenu(vec![MenuItem::new("sms", "SMS")])],
@@ -615,9 +624,13 @@ fn low_row_tall_submenu_is_hit_testable_beyond_parent_scroll_mask(cx: &mut TestA
         );
         gpui::div()
             .child(
-                Dropdown::uncontrolled(Button::new("dd-sub-low-trigger").label("Actions"), items)
-                    .id("dd-sub-low")
-                    .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string())),
+                Dropdown::uncontrolled(
+                    "dd-sub-low",
+                    Button::new("dd-sub-low-trigger").label("Actions"),
+                    items,
+                )
+                .id("dd-sub-low")
+                .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string())),
             )
             .child(submenu_open_probe("dd-sub-low", submenu.clone()))
             .into_any_element()
@@ -631,7 +644,7 @@ fn low_row_tall_submenu_is_hit_testable_beyond_parent_scroll_mask(cx: &mut TestA
     assert_eq!(last(&opened), "open:true");
     assert!(fired.borrow().is_empty());
 
-    click(cx, 280., 746.);
+    click(cx, 280., 748.);
     assert_eq!(
         fired.borrow().as_slice(),
         ["sub-7"],
@@ -650,6 +663,7 @@ fn nested_leaf_enter_dismisses_the_root_dropdown(cx: &mut TestAppContext) {
         let actions = actions.clone();
         let opens = opens.clone();
         Dropdown::uncontrolled(
+            "dd-sub-nested",
             Button::new("dd-sub-nested-trigger").label("Share"),
             vec![MenuItem::new("share", "Share").submenu(vec![
                 MenuItem::new("send", "Send").submenu(vec![MenuItem::new("sms", "SMS")])
@@ -685,6 +699,7 @@ fn root_dismissal_clears_open_submenu_state(cx: &mut TestAppContext) {
         gpui::div()
             .child(
                 Dropdown::uncontrolled(
+                    "dd-sub-dismiss",
                     Button::new("dd-sub-dismiss-trigger").label("Share"),
                     vec![MenuItem::new("share", "Share")
                         .submenu(vec![MenuItem::new("sms", "SMS")])],
@@ -731,6 +746,7 @@ fn sibling_submenus_keep_independent_keyboard_cursors(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let actions = actions.clone();
         Dropdown::uncontrolled(
+            "dd-sub-siblings",
             Button::new("dd-sub-siblings-trigger").label("Actions"),
             vec![
                 MenuItem::new("first", "First").submenu(
@@ -793,6 +809,7 @@ fn keyed_submenu_stays_open_and_keeps_its_cursor_when_parent_rows_reorder(cx: &m
         gpui::div()
             .child(
                 Dropdown::uncontrolled(
+                    "dd-sub-reorder",
                     Button::new("dd-sub-reorder-trigger").label("Actions"),
                     items,
                 )
@@ -828,11 +845,16 @@ fn measured_trigger_bounds_anchor_custom_tall_and_wide_rows(cx: &mut TestAppCont
 
     let cx = open_host(cx, move || {
         let actions = actions.clone();
-        Menu::new(vec![
-            MenuItem::new("tall", "Tall")
-                .description("A described row whose custom content is much taller than default"),
-            MenuItem::new("more", "More").submenu(vec![MenuItem::new("child", "A submenu child")]),
-        ])
+        Menu::new(
+            "dd-measured-menu",
+            vec![
+                MenuItem::new("tall", "Tall").description(
+                    "A described row whose custom content is much taller than default",
+                ),
+                MenuItem::new("more", "More")
+                    .submenu(vec![MenuItem::new("child", "A submenu child")]),
+            ],
+        )
         .id("dd-sub-measured")
         .item_content(|key, _| {
             if key.as_ref() == "tall" {
@@ -870,6 +892,7 @@ fn blank_quadrant_between_panels_is_outside_the_dropdown(cx: &mut TestAppContext
     let cx = open_host(cx, move || {
         let opens = opens.clone();
         Dropdown::uncontrolled(
+            "dd-sub-blank",
             Button::new("dd-sub-blank-trigger").label("Actions"),
             std::iter::once(
                 MenuItem::new("more", "More").submenu(vec![MenuItem::new("child", "Child")]),

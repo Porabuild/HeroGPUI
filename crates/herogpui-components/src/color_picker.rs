@@ -2995,9 +2995,19 @@ impl RenderOnce for ColorPicker {
             window,
             cx,
         );
+        let base = format!("{:?}", self.id);
+        let overlay_open = self.is_open && !self.is_disabled;
+        let (phase, dismissal_token) = util::overlay_scope(
+            window,
+            cx,
+            ElementId::Name(format!("{base}-picker-overlay").into()),
+            overlay_open,
+            true,
+        );
+        let exiting = phase == util::OverlayPhase::Exiting;
         let colors = cx.colors();
         let layout = cx.layout();
-        let base = format!("{:?}", self.id);
+        let trigger_pressed = std::rc::Rc::new(std::cell::Cell::new(false));
 
         // Trigger: swatch plus the hex value.
         let mut trigger = div()
@@ -3020,35 +3030,52 @@ impl RenderOnce for ColorPicker {
             trigger = trigger.opacity(layout.disabled_opacity);
         } else {
             trigger = trigger.cursor_pointer();
+            let pressed = trigger_pressed.clone();
+            trigger = trigger.capture_any_mouse_down(move |_, _, cx| {
+                pressed.set(true);
+                let clear = pressed.clone();
+                cx.defer(move |_| clear.set(false));
+            });
             if let Some(cb) = self.on_open_change.clone() {
                 let next = !self.is_open;
-                trigger = trigger.on_click(move |_, window, cx| cb(next, window, cx));
+                let pressed = trigger_pressed.clone();
+                trigger = trigger.on_click(move |_, window, cx| {
+                    cb(next, window, cx);
+                    pressed.set(false);
+                });
             }
         }
 
         // The popover overlays the page rather than pushing it down.
         let mut root = div().relative().flex().flex_col().gap(px(8.));
-        // Set below, once the panel is known to be on screen.
-        let mut dismiss_outside: Option<Arc<dyn Fn(bool, &mut Window, &mut App)>> = None;
         if let Some(label) = self.label {
             root = root.child(crate::field::Label::new(label));
         }
         let trigger = util::ring_if_focused(trigger, &trigger_focus, true, Vec::new(), window, cx);
         root = root.child(trigger);
 
-        if !self.is_open || self.is_disabled {
+        if phase == util::OverlayPhase::Closed {
             return root;
         }
 
         // React Aria dismisses the panel on Escape and on a press outside it.
         // Escape rides on the root: the panel holding the focus would take the
         // arrows away from the area and the sliders inside it.
-        let dismiss = self.on_open_change.clone();
-        if let Some(cb) = dismiss {
-            let esc = cb.clone();
-            root = util::dismiss_on_escape(root, move |window, cx| esc(false, window, cx));
-            dismiss_outside = Some(cb);
-        }
+        let close = util::shared({
+            let cb = self.on_open_change.clone();
+            move |window: &mut Window, cx: &mut App| -> util::DismissResult {
+                let Some(cb) = &cb else {
+                    return util::DismissResult::Handled;
+                };
+                window.focus(&trigger_focus);
+                cb(false, window, cx);
+                util::DismissResult::Handled
+            }
+        });
+        root = util::dismiss_on_escape_with_token(root, dismissal_token.clone(), {
+            let close = close.clone();
+            move |window, cx| close(window, cx)
+        });
 
         // `.color-picker__popover` is `gap-3 min-w-62 px-2`: a minimum width,
         // not the fixed 264 this used to force.
@@ -3148,15 +3175,26 @@ impl RenderOnce for ColorPicker {
                 .child(self.value.to_hex()),
         );
 
-        let panel = match dismiss_outside {
-            Some(cb) => util::dismiss_on_press_outside(panel, move |window, cx| {
-                cb(false, window, cx);
-            }),
-            None => panel,
-        };
+        let panel =
+            util::dismiss_on_press_outside_with_token(panel, dismissal_token, move |window, cx| {
+                if trigger_pressed.get() {
+                    return util::DismissResult::Declined;
+                }
+                close(window, cx)
+            });
 
-        root.child(util::floating(
-            util::placed_panel(self.placement, px(6.)).child(crate::anim::entering_zoom(
+        let panel = if exiting {
+            crate::anim::exiting(
+                panel,
+                ElementId::Name(format!("{base}-panel-anim-out").into()),
+                crate::anim::ZoomBox::panel(px(12.), util::container_radius(cx))
+                    .padding_x(px(12.))
+                    .sized(px(264.)),
+                crate::anim::Motion::LIST_OUT,
+                cx,
+            )
+        } else {
+            crate::anim::entering_zoom(
                 panel,
                 ElementId::Name(format!("{base}-panel-anim").into()),
                 crate::anim::ZoomBox::panel(px(12.), util::container_radius(cx))
@@ -3164,7 +3202,10 @@ impl RenderOnce for ColorPicker {
                     .sized(px(264.)),
                 crate::anim::Motion::LIST_IN,
                 cx,
-            )),
+            )
+        };
+        root.child(util::floating(
+            util::placed_panel(self.placement, px(6.)).child(panel),
         ))
     }
 }

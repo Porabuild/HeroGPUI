@@ -46,14 +46,14 @@
 //!   covers it. The field caps at `max_w(320)`, so the chevron centre is
 //!   (298, 18).
 //! - Select: panel `py(6)` puts option *i*'s centre at y 66+36i.
-//! - Drawer (window 1920x1080, `PANEL_EXTENT` 320px — v3's `w-80`): the Right
-//!   panel is x 1600..1920, y 0..1080, `p-6` (24px). Inside it: the handle
+//! - Drawer (window 1920x1080, 384px desktop side width): the Right panel is
+//!   x 1536..1920, y 0..1080, `p-6` (24px). Inside it: the handle
 //!   (bar 4px + `pb-2` 8px) at y 24..36, the 24px title line (the drag
 //!   surface) at y 36..60, the close trigger (`absolute end-4 top-4` around
 //!   the 24px CloseButton) centred at (1892, 28), the body at 24+12+24+8 = 68
-//!   (probe centre (1644, 86)) and the footer after the 36px body probe plus
-//!   `mt-5` (20px); the footer is `justify_end`, so its probe sits at the
-//!   sheet's right edge, centre (1878, 142).
+//!   (probe centre (1580, 86)). The body is `flex_1`, so the footer stays at
+//!   the bottom of the full-height side sheet; its 40x36 probe centres at
+//!   (1876, 1038).
 //!
 //! The Drawer tests set reduced motion before the first frame (an entry slide
 //! would sit at its t=0 off-window pose for the whole test otherwise) and
@@ -199,9 +199,9 @@ fn autocomplete_allows_empty_collection_keeps_the_panel_up_with_no_matches(
 }
 
 /// Without `allowsEmptyCollection` the same no-match query unmounts the panel
-/// outright: the outside-press probe that dismissed the panel in the prop's
-/// presence records nothing here, because there is no mounted panel to hold
-/// the listener.
+/// body, but the still-open overlay scope keeps its outside boundary. A press
+/// away from the trigger must therefore report the close even though there is
+/// no empty-state row to draw.
 #[gpui::test]
 fn autocomplete_without_empty_collection_takes_the_panel_down(cx: &mut TestAppContext) {
     let changes = events();
@@ -231,9 +231,9 @@ fn autocomplete_without_empty_collection_takes_the_panel_down(cx: &mut TestAppCo
     click(cx, 600., 300.);
     assert_eq!(
         opened.borrow().as_slice(),
-        ["open:true"],
-        "the no-match query must unmount the panel, so the outside press \
-         records no dismissal"
+        ["open:true", "open:false"],
+        "the no-match query must unmount the panel body without making the \
+         still-open overlay impossible to dismiss"
     );
     assert!(recorded.borrow().is_empty());
 }
@@ -1249,13 +1249,13 @@ fn select_wrap_joins_both_ends(cx: &mut TestAppContext) {
 // ---------------------------------------------------------------------------
 //
 // v3's Drawer has no size prop (see the header); what has never been driven
-// is the rest of the Drawer's surface. Geometry (window 1920x1080, `PANEL_EXTENT`
-// 320px, `p-6` = 24px): the Right panel is x 1600..1920; the close trigger
+// is the rest of the Drawer's surface. Geometry (window 1920x1080, 384px
+// desktop side width, `p-6` = 24px): the Right panel is x 1536..1920; the close trigger
 // (`absolute end-4 top-4` around the 24px CloseButton) centres at (1892, 28)
 // — x = 1920 - 16 - 12, y = 16 + 12; the title row (the drag surface) spans y
-// 36..60; the body probe centre (1644, 86) comes from 24px padding + 12px
-// handle + 24px title + `mt-2` 8px + 18px half-probe; the footer probe centre
-// (1644, 202) adds the 36px body probe and the footer's `mt-5` (80px).
+// 36..60; the body probe centre (1580, 86) comes from 24px padding + 12px
+// handle + 24px title + `mt-2` 8px + 18px half-probe. The body is `flex_1`,
+// so the footer stays at the bottom; its 40x36 probe centres at (1876, 1038).
 
 /// Every dismissal path reports through `on_close` *and* `onOpenChange`, and
 /// the close button is a path of its own. The pointer press on the close
@@ -1310,7 +1310,7 @@ fn drawer_close_button_reports_on_close_and_open_change(cx: &mut TestAppContext)
         "the close button must report the dismissal through onOpenChange"
     );
     let_exit_finish(cx);
-    click(cx, 1644., 86.);
+    click(cx, 1580., 86.);
     assert!(
         probed.borrow().is_empty(),
         "the sheet must be gone after the exit"
@@ -1467,7 +1467,7 @@ fn drawer_not_dismissible_ignores_outside_press_and_drag(cx: &mut TestAppContext
     });
 
     // The panel is still there and usable.
-    click(cx, 1644., 86.);
+    click(cx, 1580., 86.);
     assert_eq!(
         probed.borrow().as_slice(),
         ["hit"],
@@ -1525,17 +1525,17 @@ fn drawer_footer_sits_after_the_body_and_both_answer(cx: &mut TestAppContext) {
     });
 
     // Body: 24 (p-6) + 12 (handle) + 24 (title) + 8 (mt-2) + 18 (half-probe).
-    click(cx, 1644., 86.);
+    click(cx, 1580., 86.);
     assert_eq!(
         hits.borrow().as_slice(),
         ["body"],
         "the body probe must be reachable"
     );
 
-    // Footer: body bottom 104 + 20 (`mt-5`, this port spells v3's 1.25rem as
-    // px(20)) + 18 (half-probe). The footer is `justify_end`, so its sole
-    // probe sits at the sheet's right edge: 1896 - 18 = 1878.
-    click(cx, 1878., 142.);
+    // The body is `flex_1`, so the footer consumes the bottom 36px of the
+    // panel's 24px inset: y 1020..1056. It is `justify_end`, so its 40px probe
+    // consumes x 1856..1896.
+    click(cx, 1876., 1038.);
     assert_eq!(
         hits.borrow().as_slice(),
         ["body", "footer"],

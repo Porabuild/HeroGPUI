@@ -545,16 +545,16 @@ fn color_field_typing_reports_a_colour(cx: &mut TestAppContext) {
 fn date_field_segments_answer_arrows_and_digits(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();
-    let state = cx.new(|cx| InputState::new(cx));
+    let state = cx.new(|cx| InputState::with_value(cx, "2025-01-15"));
     let state_for_view = state.clone();
     let cx = open_host(cx, move || {
         let changes = changes.clone();
-        // `placeholder_value` seeds the empty field's first arrow press, so
-        // the test never touches the wall clock; the bounds bracket it.
+        // Start from a complete value so this test isolates segment arrows,
+        // digits and bounds. `date_field_picker_deep` separately proves that
+        // an empty field fills only its active segment and defers onChange.
         DateField::new(state_for_view.clone())
             .min_value(Date::new(2025, 1, 10))
             .max_value(Date::new(2025, 1, 20))
-            .placeholder_value(Date::new(2025, 1, 15))
             .on_change(move |date, _, _| {
                 changes.borrow_mut().push(match date {
                     Some(d) => d.format_iso(),
@@ -569,18 +569,12 @@ fn date_field_segments_answer_arrows_and_digits(cx: &mut TestAppContext) {
     // no coordinates involved, exactly how fields.rs drives TimeField.
     press(cx, "tab");
     press(cx, "up");
-    assert_eq!(
-        recorded.borrow().as_slice(),
-        ["2025-01-15"],
-        "the first Up on an empty field must commit the placeholder date"
-    );
-    press(cx, "up");
     press(cx, "down");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["2025-01-15", "none", "2025-01-15"],
-        "stepping past the bounds must report an out-of-range date as None, \
-         and stepping back must report the in-range date again"
+        ["none", "2025-01-15"],
+        "stepping the month past the bounds must report None, and stepping \
+         back must report the in-range date again"
     );
 
     // Right walks to the Day segment; digits type into it. `1` alone is
@@ -591,7 +585,7 @@ fn date_field_segments_answer_arrows_and_digits(cx: &mut TestAppContext) {
     press(cx, "5");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["2025-01-15", "none", "2025-01-15", "none", "2025-01-15"],
+        ["none", "2025-01-15", "none", "2025-01-15"],
         "digits must type into the focused day segment and report each step's \
          date, filtering any out-of-range value"
     );
@@ -604,15 +598,7 @@ fn date_field_segments_answer_arrows_and_digits(cx: &mut TestAppContext) {
     press(cx, "5");
     assert_eq!(
         recorded.borrow().as_slice(),
-        [
-            "2025-01-15",
-            "none",
-            "2025-01-15",
-            "none",
-            "2025-01-15",
-            "none",
-            "none"
-        ],
+        ["none", "2025-01-15", "none", "2025-01-15", "none", "none"],
         "an over-`maxValue` day must report None, never the out-of-range date"
     );
     let text = cx.update(|_, cx| state.read(cx).value().to_owned());

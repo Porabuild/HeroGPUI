@@ -437,14 +437,14 @@ fn number_field_steppers_and_bounds(cx: &mut TestAppContext) {
 
     // The group is 220px wide and 36px tall with a 40px (`w-10`) increment
     // cell at the end: centre (200, 18) (number_field.rs). From 90, one step
-    // hits the 100 maximum and a second step must stay there, not climb to
-    // 110.
+    // hits the 100 maximum and a second step must stay there without reporting
+    // a duplicate change.
     click(cx, 200., 18.);
     click(cx, 200., 18.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["100", "100"],
-        "stepping from 90 by 10 must stop at the 100 maximum"
+        ["100"],
+        "a bound no-op must not synthesize a duplicate on_change callback"
     );
     let value = cx.update(|_, cx| state.read(cx).value().to_string());
     assert_eq!(value, "100", "the NumberState must hold the clamped value");

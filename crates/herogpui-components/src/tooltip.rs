@@ -389,7 +389,14 @@ impl RenderOnce for Tooltip {
         // The latch is per focus session — it is dropped when the focus
         // leaves (see the render gate) — so the next focus shows the tip
         // again, and `focus_visible` is deliberately left untouched.
-        wrapper = util::dismiss_on_escape(wrapper, move |_window, cx| {
+        let (phase, overlay_token) = util::overlay_scope(
+            window,
+            cx,
+            ElementId::Name(format!("{key:?}-tip-phase").into()),
+            open,
+            true,
+        );
+        wrapper = util::dismiss_on_escape_with_token(wrapper, overlay_token, move |_window, cx| {
             escape_state.update(cx, |s, cx| {
                 if s.open {
                     s.open = false;
@@ -400,17 +407,12 @@ impl RenderOnce for Tooltip {
                     cx.notify();
                 }
             });
+            util::DismissResult::Handled
         });
 
-        // A tooltip leaves the way every other overlay does: `overlay_phase`
+        // A tooltip leaves the way every other overlay does: `overlay_scope`
         // keeps it for its exit run, which is what `[data-exiting]` needs to
-        // have something to play.
-        let phase = util::overlay_phase(
-            window,
-            cx,
-            ElementId::Name(format!("{key:?}-tip-phase").into()),
-            open,
-        );
+        // have something to play and gives Escape a stack position.
         if phase != util::OverlayPhase::Closed {
             // `absolute` does not lift the tip above later siblings in the page,
             // so it has to paint last.

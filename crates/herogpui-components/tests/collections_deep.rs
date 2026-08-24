@@ -115,10 +115,10 @@ fn menu_on_action_fires_without_selection_in_none_mode(cx: &mut TestAppContext) 
     let cx = open_host(cx, move || {
         let actions = events.clone();
         let selections = events.clone();
-        Menu::new(vec![
-            MenuItem::new("one", "One"),
-            MenuItem::new("two", "Two"),
-        ])
+        Menu::new(
+            "collections-action-menu",
+            vec![MenuItem::new("one", "One"), MenuItem::new("two", "Two")],
+        )
         .id("menu-action-none")
         .selection_mode(SelectionMode::None)
         .disabled_keys(["two"])

@@ -109,16 +109,14 @@ fn slider_disabled_thumb_answers_neither_drag_nor_keys(cx: &mut TestAppContext) 
     );
 
     // A drag aimed at the disabled thumb's own position (x = 120 is its value
-    // 20) must not move it: the nearest *enabled* thumb follows the pointer
-    // instead. The press reports the free thumb pulled onto the disabled
-    // spot, and the pull to x = 150 (value 25) takes the free thumb to 25 --
-    // slot 0 reads "20" in every single report.
+    // 20) is a no-op. React Aria chooses the geometrically nearest thumb
+    // first, then refuses the press when that thumb is disabled; it does not
+    // redirect the gesture to an enabled neighbour.
     drag(cx, (120., 9.), (150., 9.));
     assert_eq!(
         seen.borrow().as_slice(),
-        ["20,81", "20,80", "20,81", "20,20", "20,25"],
-        "the disabled thumb must stay put however the pointer aims, while \
-         the nearest enabled thumb follows"
+        ["20,81", "20,80", "20,81"],
+        "a track press whose nearest thumb is disabled must report no change"
     );
 
     // The contrast, stated once: the disabled value never changes.

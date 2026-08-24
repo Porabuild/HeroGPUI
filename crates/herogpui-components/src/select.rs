@@ -308,6 +308,14 @@ impl RenderOnce for Select {
             self.is_open,
             self.default_open,
         );
+        let (overlay_phase, dismissal_token) = util::overlay_scope(
+            window,
+            cx,
+            el_name(format!("select-{}-overlay", id_debug(&self.id))),
+            is_open,
+            false,
+        );
+        let overlay_active = overlay_phase != util::OverlayPhase::Closed;
         let (selected, value_own) = util::controlled(
             window,
             cx,
@@ -511,19 +519,6 @@ impl RenderOnce for Select {
                             }
                         }
                         crate::list_nav::Move::Ignore => {
-                            // Escape closes, which every overlay does.
-                            if key == "escape" {
-                                if let Some(held) = &open_own_keys {
-                                    held.update(cx, |v, cx| {
-                                        *v = false;
-                                        cx.notify();
-                                    });
-                                }
-                                if let Some(cb) = &on_open_change {
-                                    cb(false, window, cx);
-                                }
-                                return;
-                            }
                             // Typeahead moves the cursor over the open list.
                             if !crate::list_nav::is_typeahead_key(key) {
                                 return;
@@ -638,7 +633,11 @@ impl RenderOnce for Select {
             let open = is_open;
             let pressed = trigger_pressed.clone();
             field = field
-                .capture_any_mouse_down(move |_, _, _| pressed.set(true))
+                .capture_any_mouse_down(move |_, _, cx| {
+                    pressed.set(true);
+                    let pressed = pressed.clone();
+                    cx.defer(move |_| pressed.set(false));
+                })
                 .on_click(move |_, window, cx| {
                     // Uncontrolled: flip our own copy, or the trigger would be
                     // inert without a caller handler.
@@ -677,7 +676,44 @@ impl RenderOnce for Select {
             root = root.child(field);
         }
 
-        if is_open && !self.options.is_empty() {
+        let escape_own = open_own.clone();
+        let escape_cb = self.on_open_change.clone();
+        root =
+            util::dismiss_on_escape_with_token(root, dismissal_token.clone(), move |window, cx| {
+                if let Some(held) = &escape_own {
+                    held.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &escape_cb {
+                    cb(false, window, cx);
+                }
+                util::DismissResult::Handled
+            });
+
+        if overlay_active && self.options.is_empty() {
+            let dismiss_own = open_own.clone();
+            let dismiss_cb = self.on_open_change.clone();
+            root = util::dismiss_on_press_outside_with_token(
+                root,
+                dismissal_token.clone(),
+                move |window, cx| {
+                    if let Some(held) = &dismiss_own {
+                        held.update(cx, |v, cx| {
+                            *v = false;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &dismiss_cb {
+                        cb(false, window, cx);
+                    }
+                    util::DismissResult::Handled
+                },
+            );
+        }
+
+        if overlay_active && !self.options.is_empty() {
             let base = format!("select-list-{}", id_debug(&self.id));
             let options_len = self.options.len();
             let panel = gpui::div()
@@ -708,20 +744,25 @@ impl RenderOnce for Select {
             // click only fires because the down was not stolen as a dismissal).
             let dismiss_own = open_own.clone();
             let dismiss_cb = self.on_open_change.clone();
-            let mut panel = util::dismiss_on_press_outside(panel, move |window, cx| {
-                if trigger_pressed.get() {
-                    return;
-                }
-                if let Some(held) = &dismiss_own {
-                    held.update(cx, |v, cx| {
-                        *v = false;
-                        cx.notify();
-                    });
-                }
-                if let Some(cb) = &dismiss_cb {
-                    cb(false, window, cx);
-                }
-            });
+            let mut panel = util::dismiss_on_press_outside_with_token(
+                panel,
+                dismissal_token,
+                move |window, cx| {
+                    if trigger_pressed.get() {
+                        return util::DismissResult::Declined;
+                    }
+                    if let Some(held) = &dismiss_own {
+                        held.update(cx, |v, cx| {
+                            *v = false;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &dismiss_cb {
+                        cb(false, window, cx);
+                    }
+                    util::DismissResult::Handled
+                },
+            );
 
             // The theme tokens the row draws with, copied out: `cx.colors()`
             // hands back a borrow of the app, which a `'static` closure cannot
@@ -908,14 +949,15 @@ impl RenderOnce for Select {
                 }
             }
 
+            let panel = crate::anim::entering_zoom(
+                panel,
+                el_name(format!("{base}-panel")),
+                crate::anim::ZoomBox::panel(px(6.), util::container_radius(cx)),
+                crate::anim::Motion::LIST_IN,
+                cx,
+            );
             root = root.child(util::floating(
-                util::placed_field_panel(self.placement, px(6.)).child(crate::anim::entering_zoom(
-                    panel,
-                    el_name(format!("{base}-panel")),
-                    crate::anim::ZoomBox::panel(px(6.), util::container_radius(cx)),
-                    crate::anim::Motion::LIST_IN,
-                    cx,
-                )),
+                util::placed_field_panel(self.placement, px(6.)).child(panel),
             ));
         }
 

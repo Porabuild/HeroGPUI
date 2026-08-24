@@ -7,8 +7,10 @@
 //!
 //! Geometry is derived from the components' own constants, not guessed:
 //!
-//! - Every trigger field is a 36px row (`util::FIELD_HEIGHT`) at the window
-//!   origin, so its centre is (60, 18).
+//! - Picker trigger fields are 36px rows (`util::FIELD_HEIGHT`). Select,
+//!   ComboBox and Autocomplete open from the field at (60, 18); DatePicker
+//!   composes an editable DateField plus a separate 24px trigger whose centre
+//!   is (124, 18).
 //! - The pickers' panels hang from `placed_field_panel(BottomStart, 6px)`:
 //!   top = trigger bottom + 6 = 42.
 //! - Autocomplete: panel `pt(8)` + search wrapper `py(4)` + 36px field + list
@@ -309,6 +311,7 @@ fn dropdown_arrows_and_enter_activate(cx: &mut TestAppContext) {
             .gap(px(320.))
             .child(
                 Dropdown::uncontrolled(
+                    "dd-open",
                     Button::new("dd-open-trigger").label("Actions"),
                     vec![
                         MenuItem::new("open", "Open"),
@@ -323,6 +326,7 @@ fn dropdown_arrows_and_enter_activate(cx: &mut TestAppContext) {
             )
             .child(
                 Dropdown::uncontrolled(
+                    "dd-skip",
                     Button::new("dd-skip-trigger").label("Skipper"),
                     vec![
                         MenuItem::new("cut", "Cut"),
@@ -410,7 +414,7 @@ fn date_picker_opens_and_picks_a_day(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    click(cx, 60., 18.);
+    click(cx, 124., 18.);
     click(cx, day_x, day_y);
 
     assert_eq!(

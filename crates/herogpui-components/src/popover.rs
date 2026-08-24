@@ -6,8 +6,6 @@ use gpui::{
 };
 use herogpui_theme::ActiveTheme;
 
-use crate::icons;
-
 /// `placement` on `Popover.Content`.
 ///
 /// Shares the one placement vocabulary with the pickers and dropdown.
@@ -130,12 +128,9 @@ impl RenderOnce for Popover {
         );
         // v3 keeps a closing panel on screen for its `[data-exiting]` run.
         // `overlay_phase` takes `cx` mutably too, so it goes here.
-        let phase = crate::util::overlay_phase(
-            window,
-            cx,
-            gpui::ElementId::Name(format!("{:?}-popover-phase", self.id).into()),
-            is_open,
-        );
+        let phase_key = gpui::ElementId::Name(format!("{:?}-popover-phase", self.id).into());
+        let (phase, dismissal_token) =
+            crate::util::overlay_scope(window, cx, phase_key, is_open, true);
         let exiting = phase == crate::util::OverlayPhase::Exiting;
         // Escape is read on the root, and a key event only reaches an element
         // that is on the focused element's path -- so an open panel needs
@@ -156,12 +151,17 @@ impl RenderOnce for Popover {
             )
             .read(cx)
             .clone();
-        // Claim the focus only when nothing inside already holds it, so the
-        // trigger keeps its own ring on the pointer path (and keeps the ring
-        // it would lose if the panel stole focus on every open frame). This is
-        // the shape `alert_dialog.rs` uses for the same reason.
-        let claim = is_open && !root_focus.contains_focused(window, cx);
+        // A v3 popover is a dialog focus scope. It claims focus on every open
+        // transition, contains Tab inside the panel, and restores the handle
+        // that opened it when it closes.
+        let claim = is_open;
+        let trigger_focus = crate::util::panel_restore_focus(window, cx, &base);
         let panel_focus = crate::util::panel_focus(window, cx, &base, claim);
+        // The panel's outside-press capture runs on mouse-down, before the
+        // trigger's click listener runs on mouse-up. Keep this latch for one
+        // dispatch so an open trigger is owned by its own toggle, not by both
+        // dismissal paths.
+        let trigger_pressed = std::rc::Rc::new(std::cell::Cell::new(false));
         let colors = cx.colors();
         let layout = cx.layout();
 
@@ -170,24 +170,48 @@ impl RenderOnce for Popover {
                 format!("{:?}-trigger", self.id).into(),
             ))
             .flex()
+            .track_focus(&trigger_focus)
+            .on_key_down({
+                let trigger_focus = trigger_focus.clone();
+                move |event, window, cx| {
+                    if matches!(event.keystroke.key.as_str(), "enter" | "space")
+                        && trigger_focus.contains_focused(window, cx)
+                    {
+                        // A caller's Button owns the real trigger handle. Move
+                        // to this wrapper for the key-up click listener without
+                        // replacing the handle saved for close restoration.
+                        window.focus(&trigger_focus);
+                        cx.stop_propagation();
+                    }
+                }
+            })
             .cursor_pointer();
         if self.on_open_change.is_some() || open_own.is_some() {
             let on_open_change = self.on_open_change.clone();
             let own = open_own.clone();
             let open = is_open;
-            trigger_wrap = trigger_wrap.on_click(move |_: &ClickEvent, window, cx| {
-                // Uncontrolled: flip our own copy, or the trigger would be
-                // inert without a caller handler.
-                if let Some(held) = &own {
-                    held.update(cx, |v, cx| {
-                        *v = !open;
-                        cx.notify();
-                    });
-                }
-                if let Some(cb) = &on_open_change {
-                    cb(!open, window, cx);
-                }
-            });
+            let capture_pressed = trigger_pressed.clone();
+            let click_pressed = trigger_pressed.clone();
+            trigger_wrap = trigger_wrap
+                .capture_any_mouse_down(move |_, _, cx| {
+                    capture_pressed.set(true);
+                    let clear = capture_pressed.clone();
+                    cx.defer(move |_| clear.set(false));
+                })
+                .on_click(move |_: &ClickEvent, window, cx| {
+                    // Uncontrolled: flip our own copy, or the trigger would be
+                    // inert without a caller handler.
+                    if let Some(held) = &own {
+                        held.update(cx, |v, cx| {
+                            *v = !open;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &on_open_change {
+                        cb(!open, window, cx);
+                    }
+                    click_pressed.set(false);
+                });
         }
 
         let mut root = gpui::div()
@@ -201,6 +225,23 @@ impl RenderOnce for Popover {
         if phase == crate::util::OverlayPhase::Closed {
             return root;
         }
+
+        let close = crate::util::shared({
+            let own = open_own;
+            let cb = self.on_open_change.clone();
+            move |window: &mut Window, cx: &mut App| -> crate::util::DismissResult {
+                if let Some(held) = &own {
+                    held.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &cb {
+                    cb(false, window, cx);
+                }
+                crate::util::DismissResult::Handled
+            }
+        });
 
         // Panel
         // `.popover__heading` is the title beside the close button.
@@ -217,40 +258,15 @@ impl RenderOnce for Popover {
             header_row = header_row.child("");
         }
         if self.show_close_button {
-            let close_own = open_own.clone();
-            if self.on_open_change.is_some() || close_own.is_some() {
-                let on_open_change = self.on_open_change.clone();
-                let mut btn = gpui::div()
-                    .id("popover-close")
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .size(px(24.))
-                    .rounded_full()
-                    .cursor_pointer();
-                let hover_bg = colors.default.soft_hover();
-                btn = btn.hover(move |s| s.bg(hover_bg));
-                btn = btn.on_click(move |_, window, cx| {
-                    // Uncontrolled: clear our own copy as well.
-                    if let Some(held) = &close_own {
-                        held.update(cx, |v, cx| {
-                            *v = false;
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &on_open_change {
-                        cb(false, window, cx);
-                    }
-                });
-                header_row = header_row.child(
-                    btn.child(
-                        gpui::svg()
-                            .size(px(12.))
-                            .path(icons::CLOSE)
-                            .text_color(colors.muted),
-                    ),
-                );
-            }
+            let close_button = close.clone();
+            header_row = header_row.child(
+                crate::close_button::CloseButton::new(gpui::ElementId::Name(
+                    format!("{base}-close").into(),
+                ))
+                .on_press(move |_, window, cx| {
+                    close_button(window, cx);
+                }),
+            );
         }
 
         let mut panel = gpui::div()
@@ -278,37 +294,31 @@ impl RenderOnce for Popover {
         }
         panel = panel.children(self.children);
 
-        // The panel tracks the handle above: on the controlled path it now holds
-        // the focus, so Escape reaches the root's handler by bubbling; on the
-        // pointer path the trigger still holds it and this is inert.
-        let panel = panel.track_focus(&panel_focus);
+        // The panel owns the dialog scope. Its handle is not a tab stop, but
+        // the close affordance and child controls are, and Tab wraps among
+        // those descendants without reaching the trigger or the page behind.
+        let panel = crate::util::trap_tab(panel.track_focus(&panel_focus), &panel_focus);
 
         // React Aria dismisses a popover on Escape and on a press outside it.
         //
-        // The panel takes the focus only when nothing inside the popover already
-        // holds it (see the `claim` above): a click on the trigger leaves the
-        // ring where the user put it, while a controlled open -- which focuses
-        // nothing -- would otherwise leave a panel the keyboard cannot reach.
-        let close = crate::util::shared({
-            let own = open_own;
-            let cb = self.on_open_change.clone();
-            move |window: &mut Window, cx: &mut App| {
-                if let Some(held) = &own {
-                    held.update(cx, |v, cx| {
-                        *v = false;
-                        cx.notify();
-                    });
+        let outside_close = close.clone();
+        let trigger_pressed_for_dismissal = trigger_pressed;
+        let panel = crate::util::dismiss_on_press_outside_with_token(
+            panel,
+            dismissal_token.clone(),
+            move |window, cx| {
+                if trigger_pressed_for_dismissal.get() {
+                    return crate::util::DismissResult::Declined;
                 }
-                if let Some(cb) = &cb {
-                    cb(false, window, cx);
-                }
-            }
-        });
-        let out = close.clone();
-        let panel = crate::util::dismiss_on_press_outside(panel, move |window, cx| {
-            out(window, cx);
-        });
-        root = crate::util::dismiss_on_escape(root, move |window, cx| close(window, cx));
+                outside_close(window, cx);
+                crate::util::DismissResult::Handled
+            },
+        );
+        root =
+            crate::util::dismiss_on_escape_with_token(root, dismissal_token, move |window, cx| {
+                close(window, cx);
+                crate::util::DismissResult::Handled
+            });
 
         let placed = crate::util::placed_panel(self.placement, self.offset);
 

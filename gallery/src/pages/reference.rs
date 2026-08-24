@@ -3,6 +3,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use gpui::{prelude::*, px, AnyElement, App};
 use herogpui_theme::ActiveTheme;
 
+#[path = "reference_metadata.rs"]
+mod reference_metadata;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ApiMethod {
     owner: String,
@@ -17,6 +20,10 @@ pub fn panels(
     examples: &[(&str, AnyElement, &str)],
     cx: &App,
 ) -> Vec<(&'static str, AnyElement)> {
+    if let Some(metadata) = reference_metadata::for_import(import_line) {
+        return metadata_panels(metadata, cx);
+    }
+
     let Some(source) = source_for(import_line) else {
         return Vec::new();
     };
@@ -60,6 +67,122 @@ pub fn panels(
             } else {
                 method_table(&composition, cx)
             },
+        ),
+    ]
+}
+
+#[derive(Clone, Debug)]
+struct DetailRow {
+    cells: [String; 4],
+}
+
+fn metadata_panels(
+    metadata: &reference_metadata::ReferenceMetadata,
+    cx: &App,
+) -> Vec<(&'static str, AnyElement)> {
+    let source_count = [
+        metadata.docs_source,
+        metadata.api_source,
+        metadata.style_source,
+    ]
+    .iter()
+    .filter(|source| !source.is_empty())
+    .count();
+    let contract = format!(
+        "{} · HeroUI v{} · source module {} · {} official source links checked in · {} required compound parts",
+        metadata.page,
+        metadata.version,
+        metadata.source_module,
+        source_count,
+        metadata.required_parts.len()
+    );
+
+    vec![
+        (
+            "API Reference",
+            detail_table(
+                [
+                    "Part / prop",
+                    "Type",
+                    "Rust implementation",
+                    "Default / description",
+                ],
+                metadata.api.iter().map(|entry| DetailRow {
+                    cells: [
+                        format!("{}::{}", entry.owner, entry.prop),
+                        entry.ty.to_owned(),
+                        format!(
+                            "{}::{} · {}",
+                            entry.rust_owner,
+                            entry.rust,
+                            entry.status.label()
+                        ),
+                        format!("Default: {} — {}", entry.default, entry.description),
+                    ],
+                }),
+                cx,
+            ),
+        ),
+        (
+            "Parts & Slots",
+            detail_table(
+                ["Part", "Slot", "Rust owner / status", "Description"],
+                metadata.parts.iter().map(|entry| DetailRow {
+                    cells: [
+                        entry.name.to_owned(),
+                        entry.slot.to_owned(),
+                        format!("{} · {}", entry.rust_owner, entry.status.label()),
+                        entry.description.to_owned(),
+                    ],
+                }),
+                cx,
+            ),
+        ),
+        (
+            "States",
+            detail_table(
+                ["State", "v3 selector", "Rust implementation", "Description"],
+                metadata.states.iter().map(|entry| DetailRow {
+                    cells: [
+                        entry.state.to_owned(),
+                        entry.selector.to_owned(),
+                        format!("{} · {}", entry.rust, entry.status.label()),
+                        entry.description.to_owned(),
+                    ],
+                }),
+                cx,
+            ),
+        ),
+        (
+            "Styling Reference",
+            detail_table(
+                [
+                    "CSS class / token",
+                    "v3 value",
+                    "Rust implementation",
+                    "Description",
+                ],
+                metadata
+                    .styling
+                    .iter()
+                    .map(|entry| DetailRow {
+                        cells: [
+                            entry.class_or_token.to_owned(),
+                            entry.value.to_owned(),
+                            format!("{} · {}", entry.rust, entry.status.label()),
+                            entry.description.to_owned(),
+                        ],
+                    })
+                    .chain(std::iter::once(DetailRow {
+                        cells: [
+                            "Contract".to_owned(),
+                            format!("HeroUI v{}", metadata.version),
+                            format!("{source_count} source links"),
+                            contract,
+                        ],
+                    })),
+                cx,
+            ),
         ),
     ]
 }
@@ -467,6 +590,79 @@ fn method_table(methods: &[ApiMethod], cx: &App) -> AnyElement {
         .into_any_element()
 }
 
+fn detail_table(
+    headers: [&'static str; 4],
+    rows: impl Iterator<Item = DetailRow>,
+    cx: &App,
+) -> AnyElement {
+    let colors = cx.colors();
+    let header = gpui::div()
+        .flex()
+        .w_full()
+        .px(px(14.))
+        .py(px(10.))
+        .rounded_t(px(12.))
+        .bg(colors.surface_secondary)
+        .text_size(px(12.))
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .gap(px(12.))
+        .child(gpui::div().w(px(180.)).flex_shrink_0().child(headers[0]))
+        .child(gpui::div().w(px(220.)).flex_shrink_0().child(headers[1]))
+        .child(gpui::div().w(px(220.)).flex_shrink_0().child(headers[2]))
+        .child(gpui::div().flex_1().min_w_0().child(headers[3]));
+
+    gpui::div()
+        .w_full()
+        .rounded(px(12.))
+        .border_1()
+        .border_color(colors.border)
+        .overflow_hidden()
+        .child(header)
+        .children(rows.map(|row| {
+            gpui::div()
+                .flex()
+                .w_full()
+                .px(px(14.))
+                .py(px(11.))
+                .border_t_1()
+                .border_color(colors.border)
+                .text_size(px(12.5))
+                .line_height(px(20.))
+                .gap(px(12.))
+                .child(
+                    gpui::div()
+                        .w(px(180.))
+                        .flex_shrink_0()
+                        .font_family(crate::app::MONO_FONT)
+                        .text_color(colors.foreground)
+                        .child(row.cells[0].clone()),
+                )
+                .child(
+                    gpui::div()
+                        .w(px(220.))
+                        .flex_shrink_0()
+                        .font_family(crate::app::MONO_FONT)
+                        .text_color(colors.foreground)
+                        .child(row.cells[1].clone()),
+                )
+                .child(
+                    gpui::div()
+                        .w(px(220.))
+                        .flex_shrink_0()
+                        .text_color(colors.foreground)
+                        .child(row.cells[2].clone()),
+                )
+                .child(
+                    gpui::div()
+                        .flex_1()
+                        .min_w_0()
+                        .text_color(colors.muted)
+                        .child(row.cells[3].clone()),
+                )
+        }))
+        .into_any_element()
+}
+
 fn empty_panel(message: &str, cx: &App) -> AnyElement {
     let colors = cx.colors();
     gpui::div()
@@ -492,6 +688,10 @@ fn source_for(import_line: &str) -> Option<&'static str> {
             .split("::")
             .next()?
     };
+    source_for_module(module)
+}
+
+fn source_for_module(module: &str) -> Option<&'static str> {
     Some(match module {
         "accordion" => include_str!("../../../crates/herogpui-components/src/accordion.rs"),
         "alert" => include_str!("../../../crates/herogpui-components/src/alert.rs"),
@@ -551,6 +751,85 @@ fn source_for(import_line: &str) -> Option<&'static str> {
         "typography" => include_str!("../../../crates/herogpui-components/src/typography.rs"),
         _ => return None,
     })
+}
+
+#[cfg(test)]
+fn mapping_method_name(mapping: &str) -> Option<&str> {
+    let prefix = mapping.split_once('(')?.0.trim();
+    let name = prefix.rsplit("::").next()?.trim();
+    (!name.is_empty()
+        && name
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_'))
+    .then_some(name)
+}
+
+#[cfg(test)]
+fn mapping_matches_method(methods: &[ApiMethod], owner: &str, mapping: &str) -> bool {
+    let Some(name) = mapping_method_name(mapping) else {
+        return false;
+    };
+    methods.iter().any(|method| {
+        method.owner == owner
+            && method.name == name
+            && method.signature.contains('(')
+            && argument_count(mapping)
+                .is_some_and(|count| method_argument_count(&method.signature) == Some(count))
+    })
+}
+
+#[cfg(test)]
+fn argument_count(signature: &str) -> Option<usize> {
+    let start = signature.find('(')?;
+    let mut depth = 0;
+    let mut count = 0;
+    let mut has_argument = false;
+    for ch in signature[start + 1..].chars() {
+        match ch {
+            '(' | '[' | '<' => depth += 1,
+            ')' if depth == 0 => {
+                return Some(count + usize::from(has_argument));
+            }
+            ')' | ']' | '>' if depth > 0 => depth -= 1,
+            ',' if depth == 0 => {
+                count += 1;
+                has_argument = false;
+            }
+            ch if !ch.is_whitespace() => has_argument = true,
+            _ => {}
+        }
+    }
+    None
+}
+
+#[cfg(test)]
+fn method_argument_count(signature: &str) -> Option<usize> {
+    let count = argument_count(signature)?;
+    let start = signature.find('(')? + 1;
+    let mut depth = 0;
+    let mut end = signature.len();
+    for (offset, ch) in signature[start..].char_indices() {
+        match ch {
+            '(' | '[' | '<' => depth += 1,
+            ')' if depth == 0 => {
+                end = start + offset;
+                break;
+            }
+            ',' if depth == 0 => {
+                end = start + offset;
+                break;
+            }
+            ')' | ']' | '>' => depth -= 1,
+            _ => {}
+        }
+    }
+    let first = &signature[start..end];
+    Some(count.saturating_sub(usize::from(
+        first.trim_start().starts_with("self")
+            || first.trim_start().starts_with("mut self")
+            || first.trim_start().starts_with("&self")
+            || first.trim_start().starts_with("&mut self"),
+    )))
 }
 
 #[cfg(test)]
@@ -649,6 +928,169 @@ impl Widget {
     #[test]
     fn state_change_callbacks_are_not_styling_builders() {
         assert!(!is_styling_method("on_open_change"));
+    }
+
+    #[test]
+    fn dropdown_metadata_keeps_compound_part_ownership() {
+        let metadata = reference_metadata::for_import(
+            "use herogpui::components::dropdown::{Dropdown, MenuItem};",
+        )
+        .expect("Dropdown metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for required in metadata.required_parts {
+            assert!(
+                metadata.parts.iter().any(|part| part.name == *required),
+                "registered Dropdown part disappeared: {required}"
+            );
+        }
+        assert_eq!(
+            metadata
+                .parts
+                .iter()
+                .find(|part| part.name == "Dropdown.Menu")
+                .expect("Dropdown.Menu is registered")
+                .rust_owner,
+            "Menu"
+        );
+        assert_eq!(
+            metadata
+                .parts
+                .iter()
+                .find(|part| part.name == "Dropdown.Item")
+                .expect("Dropdown.Item is registered")
+                .rust_owner,
+            "MenuItem"
+        );
+    }
+
+    #[test]
+    fn dropdown_metadata_does_not_classify_behavior_as_styling() {
+        let metadata = reference_metadata::for_import(
+            "use herogpui::components::dropdown::{Dropdown, MenuItem};",
+        )
+        .expect("Dropdown metadata is registered");
+
+        assert!(metadata
+            .api
+            .iter()
+            .any(|entry| entry.prop == "onOpenChange"));
+        assert!(metadata
+            .styling
+            .iter()
+            .all(|entry| !entry.class_or_token.contains("onOpenChange")));
+        assert!(metadata
+            .styling
+            .iter()
+            .all(|entry| !entry.class_or_token.contains("onSelectionChange")));
+    }
+
+    #[test]
+    fn dropdown_metadata_records_contextual_css_overrides_as_implemented() {
+        let metadata = reference_metadata::for_import(
+            "use herogpui::components::dropdown::{Dropdown, MenuItem};",
+        )
+        .expect("Dropdown metadata is registered");
+
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".dropdown__popover [data-slot=\"dropdown-menu\"]"
+                && entry.value == "p-1.5"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".dropdown__popover [data-slot=\"menu-item\"]"
+                && entry.value == "px-2.5"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata
+            .styling
+            .iter()
+            .filter(|entry| { entry.class_or_token == ".dropdown__trigger" })
+            .all(|entry| entry.status == reference_metadata::ImplementationStatus::Partial));
+    }
+
+    #[test]
+    fn registered_metadata_has_inputs_and_resolvable_rust_owners() {
+        for metadata in reference_metadata::ALL {
+            assert!(
+                !metadata.api.is_empty(),
+                "{} has no API metadata",
+                metadata.page
+            );
+            assert!(!metadata.parts.is_empty(), "{} has no parts", metadata.page);
+            assert!(
+                !metadata.styling.is_empty(),
+                "{} has no styling",
+                metadata.page
+            );
+
+            let source = source_for_module(metadata.source_module)
+                .expect("metadata source module is embedded");
+            let owners = metadata
+                .parts
+                .iter()
+                .map(|part| part.rust_owner)
+                .chain(metadata.api.iter().map(|entry| entry.rust_owner))
+                .map(str::to_owned)
+                .collect();
+            let methods = methods_for(source, &owners);
+            for owner in metadata
+                .parts
+                .iter()
+                .map(|part| part.rust_owner)
+                .chain(metadata.api.iter().map(|entry| entry.rust_owner))
+            {
+                assert!(
+                    source.contains(&format!("pub struct {owner}"))
+                        || source.contains(&format!("pub enum {owner}"))
+                        || source.contains(&format!("impl {owner}")),
+                    "{} has unresolved Rust owner {owner}",
+                    metadata.page
+                );
+            }
+            for entry in metadata.api.iter().filter(|entry| {
+                entry.status != reference_metadata::ImplementationStatus::Unavailable
+            }) {
+                if mapping_method_name(entry.rust).is_some() {
+                    assert!(
+                        mapping_matches_method(&methods, entry.rust_owner, entry.rust),
+                        "{}::{} has unresolved Rust mapping {}",
+                        entry.owner,
+                        entry.prop,
+                        entry.rust
+                    );
+                } else {
+                    assert_eq!(
+                        entry.status,
+                        reference_metadata::ImplementationStatus::Partial,
+                        "{}::{} needs a method mapping or Partial status",
+                        entry.owner,
+                        entry.prop
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn metadata_validation_rejects_bogus_method_owner_and_page() {
+        let metadata = reference_metadata::for_route(
+            "Dropdown",
+            "use herogpui::components::dropdown::{Dropdown, MenuItem};",
+        )
+        .expect("Dropdown route is registered");
+        let source = source_for_module(metadata.source_module).expect("Dropdown source exists");
+        let owners = BTreeSet::from(["Menu".to_owned()]);
+        let methods = methods_for(source, &owners);
+
+        assert!(!mapping_matches_method(&methods, "Menu", "made_up()"));
+        assert!(!mapping_matches_method(
+            &methods,
+            "NotMenu",
+            "selection_mode(SelectionMode)"
+        ));
+        assert!(reference_metadata::for_route("NotADropdown", metadata.import_line).is_none());
+        assert!(reference_metadata::for_route("Dropdown", "use wrong::import;").is_none());
     }
 
     #[test]

@@ -37,10 +37,13 @@ fn menu_default_selected_keys_reaches_the_initial_render(cx: &mut TestAppContext
 
     let _cx = open_host(cx, move || {
         let recorded = recorded.clone();
-        Menu::new(vec![
-            MenuItem::new("apple", "Apple"),
-            MenuItem::new("banana", "Banana"),
-        ])
+        Menu::new(
+            "dds-menu-seed",
+            vec![
+                MenuItem::new("apple", "Apple"),
+                MenuItem::new("banana", "Banana"),
+            ],
+        )
         .selection_mode(SelectionMode::Multiple)
         .default_selected_keys(["apple"])
         .item_content(move |key, state| {
@@ -68,6 +71,7 @@ fn dropdown_uncontrolled_selection_accumulates_without_callback_feedback(cx: &mu
     let cx = open_host(cx, move || {
         let selections = selections.clone();
         Dropdown::uncontrolled(
+            "dds-accumulate",
             Button::new("dds-accumulate-trigger").label("Fruits"),
             vec![
                 MenuItem::new("apple", "Apple"),
@@ -103,6 +107,7 @@ fn dropdown_controlled_empty_stays_controlled(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let selections = selections.clone();
         Dropdown::uncontrolled(
+            "dds-controlled",
             Button::new("dds-controlled-trigger").label("Fruits"),
             vec![
                 MenuItem::new("apple", "Apple"),
@@ -140,6 +145,7 @@ fn dropdown_uncontrolled_selection_survives_close_and_reopen(cx: &mut TestAppCon
     let cx = open_host(cx, move || {
         let selections = selections.clone();
         Dropdown::uncontrolled(
+            "dds-reopen",
             Button::new("dds-reopen-trigger").label("Fruits"),
             vec![
                 MenuItem::new("apple", "Apple"),
@@ -178,10 +184,13 @@ fn disallow_empty_selection_keeps_uncontrolled_single_seed(cx: &mut TestAppConte
     let cx = open_host(cx, move || {
         let selections = selections.clone();
         let rendered = rendered.clone();
-        Menu::new(vec![
-            MenuItem::new("apple", "Apple"),
-            MenuItem::new("banana", "Banana"),
-        ])
+        Menu::new(
+            "dds-menu-controlled",
+            vec![
+                MenuItem::new("apple", "Apple"),
+                MenuItem::new("banana", "Banana"),
+            ],
+        )
         .id("dds-single-own")
         .selection_mode(SelectionMode::Single)
         .default_selected_keys(["apple"])
@@ -220,6 +229,7 @@ fn disallow_empty_selection_keeps_controlled_single_value(cx: &mut TestAppContex
     let cx = open_host(cx, move || {
         let selections = selections.clone();
         Dropdown::uncontrolled(
+            "dds-single-controlled",
             Button::new("dds-single-controlled-trigger").label("Fruits"),
             vec![
                 MenuItem::new("apple", "Apple"),
@@ -250,6 +260,7 @@ fn disallow_empty_selection_keeps_last_uncontrolled_multiple_key(cx: &mut TestAp
     let cx = open_host(cx, move || {
         let selections = selections.clone();
         Dropdown::uncontrolled(
+            "dds-multi-own",
             Button::new("dds-multi-own-trigger").label("Fruits"),
             vec![
                 MenuItem::new("apple", "Apple"),
@@ -286,6 +297,7 @@ fn disallow_empty_selection_keeps_controlled_multiple_value(cx: &mut TestAppCont
     let cx = open_host(cx, move || {
         let selections = selections.clone();
         Dropdown::uncontrolled(
+            "dds-multi-controlled",
             Button::new("dds-multi-controlled-trigger").label("Fruits"),
             vec![
                 MenuItem::new("apple", "Apple"),
@@ -320,6 +332,7 @@ fn pointer_reports_selection_then_action_then_close(cx: &mut TestAppContext) {
         let action_order = order.clone();
         let open_order = order.clone();
         Dropdown::uncontrolled(
+            "dds-pointer-order",
             Button::new("dds-pointer-order-trigger").label("Actions"),
             vec![MenuItem::new("one", "One")],
         )
@@ -359,6 +372,7 @@ fn enter_reports_selection_then_action_and_closes_multiple_menu(cx: &mut TestApp
         let action_order = order.clone();
         let open_order = order.clone();
         Dropdown::uncontrolled(
+            "dds-enter-order",
             Button::new("dds-enter-order-trigger").label("Actions"),
             vec![MenuItem::new("one", "One"), MenuItem::new("two", "Two")],
         )
@@ -399,6 +413,7 @@ fn space_reports_selection_then_action_and_keeps_multiple_menu_open(cx: &mut Tes
         let action_order = order.clone();
         let open_order = order.clone();
         Dropdown::uncontrolled(
+            "dds-space-order",
             Button::new("dds-space-order-trigger").label("Actions"),
             vec![MenuItem::new("one", "One"), MenuItem::new("two", "Two")],
         )
@@ -452,6 +467,7 @@ fn action_only_menu_skips_disabled_items_without_selection_reports(cx: &mut Test
         let actions = actions.clone();
         let selections = selections.clone();
         Dropdown::uncontrolled(
+            "dds-action",
             Button::new("dds-action-trigger").label("Actions"),
             vec![
                 MenuItem::new("one", "One"),

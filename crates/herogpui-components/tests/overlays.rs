@@ -9,7 +9,7 @@
 //! that changed, and probe clicks that record nothing.
 //!
 //! Geometry is derived from the port's own constants, never measured:
-//! `ModalSize::Md` is `max-w-md` = 448px, `Drawer::PANEL_EXTENT` is 320px, the
+//! `ModalSize::Md` is `max-w-md` = 448px, the desktop side Drawer is 384px, the
 //! harness window is 1920x1080 and `util::FIELD_HEIGHT` is 36px. The entry and
 //! exit animations run on wall time, which the test clock does not drive, so
 //! they are suppressed by [still] and the clock is still advanced past
@@ -90,6 +90,15 @@ fn drag(cx: &mut VisualTestContext, from: (f32, f32), to: (f32, f32)) {
     cx.simulate_mouse_up(point(px(to.0), px(to.1)), MouseButton::Left, modifiers);
 }
 
+fn slow_drag(cx: &mut VisualTestContext, from: (f32, f32), to: (f32, f32)) {
+    let modifiers = Modifiers::none();
+    cx.simulate_mouse_down(point(px(from.0), px(from.1)), MouseButton::Left, modifiers);
+    std::thread::sleep(Duration::from_millis(100));
+    cx.simulate_mouse_move(point(px(to.0), px(to.1)), MouseButton::Left, modifiers);
+    std::thread::sleep(Duration::from_millis(100));
+    cx.simulate_mouse_up(point(px(to.0), px(to.1)), MouseButton::Left, modifiers);
+}
+
 // Geometry, all derived from port constants:
 // - The Md modal panel spans the window centre (960, 540) plus half of
 //   `max-w-md` (448 / 2 = 224): x [736..1184]. With no title and a single
@@ -98,10 +107,10 @@ fn drag(cx: &mut VisualTestContext, from: (f32, f32), to: (f32, f32)) {
 //   1184 - 16 - 12 = 1156, but the stretched inside button still covers
 //   x [760..1160], so the press clears it at x = 1164 (still inside the
 //   24px button at [1144..1168]).
-// - The right drawer spans x [1600..1920] (PANEL_EXTENT = 320) and the full
+// - The right drawer spans x [1536..1920] (desktop width 384) and the full
 //   window height; its p(24) top padding puts the 12px handle at y [24..36]
 //   and the 24px title row (the drag surface) at y [36..60], centre
-//   (1760, 48).
+//   (1728, 48).
 
 #[gpui::test]
 fn modal_escape_closes(cx: &mut TestAppContext) {
@@ -492,11 +501,10 @@ fn drawer_escape_and_drag_dismiss(cx: &mut TestAppContext) {
     );
 }
 
-/// The 80px drag threshold, reachable because the press that starts the pull
-/// lands inside the panel: the panel's `on_mouse_down_out` (which owns the
-/// backdrop dismissal) does not fire for it, so a sub-threshold release
-/// springs the drawer back and nothing records a close — the release handler's
-/// own threshold is the only thing consulted.
+/// The distance threshold is 30% of the measured panel, and a fast flick may
+/// dismiss before reaching it. This case deliberately moves slowly so the
+/// 40px pull exercises the distance path and springs back. It starts inside
+/// the title row, so outside-press dismissal is not involved.
 #[gpui::test]
 fn drawer_small_pull_springs_back(cx: &mut TestAppContext) {
     still();
@@ -523,13 +531,9 @@ fn drawer_small_pull_springs_back(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    // A 40px pull is under the threshold (80px): the drawer must spring back
-    // instead of reporting a close. The pull starts on the title row so the
-    // drag record exists and the release handler's threshold is genuinely
-    // consulted; before the fix, the backdrop's click fired through the panel
-    // and closed the drawer on any pull at all, and the press landed on the
-    // panel body so the threshold was never even reached.
-    drag(cx, (1760., 48.), (1800., 48.));
+    // A slow 40px pull is above the 8px activation distance but below 30% of
+    // the 384px panel, and below the flick velocity threshold.
+    slow_drag(cx, (1728., 48.), (1768., 48.));
     assert!(
         recorded.borrow().is_empty(),
         "a sub-threshold pull must not dismiss the drawer"

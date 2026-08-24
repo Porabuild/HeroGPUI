@@ -203,8 +203,9 @@ fn vertical_slider_keyboard_steps_up_and_clamps(cx: &mut TestAppContext) {
     press(cx, "down");
     assert_eq!(
         seen.borrow().as_slice(),
-        ["60", "70", "60", "100", "100", "0", "0"],
-        "up must raise the value, down lower it, and both ends must clamp"
+        ["60", "70", "60", "100", "0"],
+        "up must raise the value, down lower it, both ends must clamp, and a \
+         clamped no-op must not report a change"
     );
 }
 
@@ -252,8 +253,8 @@ fn vertical_slider_drag_is_derived_from_track_height(cx: &mut TestAppContext) {
     drag(cx, (9., 120.), (9., 40.));
     assert_eq!(
         seen.borrow().as_slice(),
-        ["25", "25", "75"],
-        "the drag's own press reports again, then the pull up reports 75"
+        ["25", "75"],
+        "the unchanged drag press must stay silent, then the pull up reports 75"
     );
 }
 
@@ -261,10 +262,9 @@ fn vertical_slider_drag_is_derived_from_track_height(cx: &mut TestAppContext) {
 ///
 /// A horizontal slider is `w_full`, so the 600px wrapper is what makes the
 /// track's length knowable: with min 0, max 100 and step 25 the marks sit
-/// every 150px. Two facts that cost the first attempt at this test: a drag's
-/// *press* reports a value of its own before the move does, and a drag whose
-/// end point leaves the track's hitbox never delivers the move at all -- 620
-/// on a 600px track silently did nothing.
+/// every 150px. A drag's press only reports when it changes the value, and a
+/// drag whose end point leaves the track's hitbox never delivers the move at
+/// all -- 620 on a 600px track silently did nothing.
 #[gpui::test]
 fn slider_step_snaps_pointer_to_marks_and_clamps_both_ends(cx: &mut TestAppContext) {
     let seen = events();
@@ -285,14 +285,15 @@ fn slider_step_snaps_pointer_to_marks_and_clamps_both_ends(cx: &mut TestAppConte
     });
 
     // x = 5 is 0.8 on the range and snaps to the 0 mark; the first drag runs
-    // 80 (13.3 -> 25) to 460 (76.7 -> 75); the second starts on the 75 mark, so
-    // its press reports 75 again before the pull to 590 (98.3) clamps at 100.
+    // 80 (13.3 -> 25) to 460 (76.7 -> 75); the second starts on the current
+    // 75 mark, so its unchanged press stays silent before the pull to 590
+    // (98.3) clamps at 100.
     press_at(cx, 5., 9.);
     drag(cx, (80., 9.), (460., 9.));
     drag(cx, (460., 9.), (590., 9.));
     assert_eq!(
         seen.borrow().as_slice(),
-        ["0", "25", "75", "75", "100"],
+        ["0", "25", "75", "100"],
         "every pointer position must snap to the nearest mark and clamp at \
          both ends of the range"
     );

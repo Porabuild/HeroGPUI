@@ -418,6 +418,9 @@ impl RenderOnce for Autocomplete {
             self.default_open,
         );
         let open = is_open && !self.is_disabled;
+        let (overlay_phase, dismissal_token) =
+            util::overlay_scope(window, cx, el_name(format!("{base}-overlay")), open, false);
+        let overlay_active = overlay_phase != util::OverlayPhase::Closed;
 
         // The trigger is what holds focus, so the open list can be walked with
         // the arrows. A disabled control leaves the tab order.
@@ -489,7 +492,7 @@ impl RenderOnce for Autocomplete {
             .collect();
 
         let is_invalid = self.is_invalid || self.error_message.is_some();
-        let can_open = !self.is_disabled && !self.is_read_only;
+        let can_open = !self.is_disabled;
 
         // --- the trigger ----------------------------------------------------
         // Whether the pointer went down on the trigger (or on the clear
@@ -605,7 +608,7 @@ impl RenderOnce for Autocomplete {
         // `.autocomplete__clear-button` — only when a handler backs it, and only
         // when there is a selection to clear (`data-empty` hides it otherwise).
         if let Some(cb) = self.on_clear.clone() {
-            if !is_placeholder && can_open {
+            if !is_placeholder && !self.is_disabled && !self.is_read_only {
                 let own = selection_own.clone();
                 let hover_bg = colors.default.soft_hover();
                 field = field.child(
@@ -682,7 +685,11 @@ impl RenderOnce for Autocomplete {
             let was_open = open;
             let pressed = trigger_pressed.clone();
             field = field
-                .capture_any_mouse_down(move |_, _, _| pressed.set(true))
+                .capture_any_mouse_down(move |_, _, cx| {
+                    pressed.set(true);
+                    let pressed = pressed.clone();
+                    cx.defer(move |_| pressed.set(false));
+                })
                 .when_some(focus_handle.as_ref(), |el, handle| el.track_focus(handle))
                 .on_click(move |_, window, cx| {
                     if let Some(held) = &own {
@@ -746,27 +753,9 @@ impl RenderOnce for Autocomplete {
             let on_change_one = self.on_selection_change.clone();
             let key_selection_own = selection_own.clone();
             let selected_now = self.selected_keys.clone();
-            let trigger_focus = focus_handle.clone();
             let was_open = open;
             root = root.on_key_down(move |event, window, cx| {
                 let key = event.keystroke.key.as_str();
-                if key == "escape" {
-                    if let Some(held) = &key_open_own {
-                        held.update(cx, |v, cx| {
-                            *v = false;
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &key_open_change {
-                        cb(false, window, cx);
-                    }
-                    // The focus goes back to the trigger, or Tab would resume
-                    // from a field that is no longer on screen.
-                    if let Some(handle) = &trigger_focus {
-                        window.focus(handle);
-                    }
-                    return;
-                }
                 if !was_open {
                     // Closed: Down and Up open it. Enter and Space are *not*
                     // handled here -- the trigger has a click listener and gpui
@@ -849,9 +838,49 @@ impl RenderOnce for Autocomplete {
             });
         }
 
+        let escape_own = open_own.clone();
+        let escape_cb = self.on_open_change.clone();
+        let escape_focus = focus_handle.clone();
+        root =
+            util::dismiss_on_escape_with_token(root, dismissal_token.clone(), move |window, cx| {
+                if let Some(held) = &escape_own {
+                    held.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &escape_cb {
+                    cb(false, window, cx);
+                }
+                if let Some(handle) = &escape_focus {
+                    window.focus(handle);
+                }
+                util::DismissResult::Handled
+            });
+
         // --- the popover ----------------------------------------------------
         // `allowsEmptyCollection` keeps it up with an empty state.
-        let show_panel = open && (!matches.is_empty() || self.allows_empty_collection);
+        let show_panel = overlay_active && (!matches.is_empty() || self.allows_empty_collection);
+        if !show_panel && overlay_active {
+            let dismiss_own = open_own.clone();
+            let dismiss_cb = self.on_open_change.clone();
+            root = util::dismiss_on_press_outside_with_token(
+                root,
+                dismissal_token.clone(),
+                move |window, cx| {
+                    if let Some(held) = &dismiss_own {
+                        held.update(cx, |v, cx| {
+                            *v = false;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &dismiss_cb {
+                        cb(false, window, cx);
+                    }
+                    util::DismissResult::Handled
+                },
+            );
+        }
         if show_panel {
             let panel = gpui::div()
                 .w_full()
@@ -877,27 +906,33 @@ impl RenderOnce for Autocomplete {
             // because the down was not stolen as a dismissal.
             let dismiss_own = open_own.clone();
             let dismiss_cb = self.on_open_change.clone();
-            let mut panel = util::dismiss_on_press_outside(panel, move |window, cx| {
-                if trigger_pressed.get() {
-                    return;
-                }
-                if let Some(held) = &dismiss_own {
-                    held.update(cx, |v, cx| {
-                        *v = false;
-                        cx.notify();
-                    });
-                }
-                if let Some(cb) = &dismiss_cb {
-                    cb(false, window, cx);
-                }
-            });
+            let mut panel = util::dismiss_on_press_outside_with_token(
+                panel,
+                dismissal_token,
+                move |window, cx| {
+                    if trigger_pressed.get() {
+                        return util::DismissResult::Declined;
+                    }
+                    if let Some(held) = &dismiss_own {
+                        held.update(cx, |v, cx| {
+                            *v = false;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &dismiss_cb {
+                        cb(false, window, cx);
+                    }
+                    util::DismissResult::Handled
+                },
+            );
 
             // The search field: v3's `[data-slot="search-field"]` inside the
             // popover is `shrink-0 px-3 py-1`, and `variant="secondary"` so it
             // reads as part of the panel rather than as a second field.
             let mut search = SearchField::new(self.state.clone())
                 .variant(FieldVariant::Secondary)
-                .placeholder("Search...");
+                .placeholder("Search...")
+                .is_read_only(self.is_read_only);
             if let Some(cb) = self.on_input_change.clone() {
                 search = search.on_change(move |text, window, cx| cb(text, window, cx));
             }
@@ -1126,14 +1161,15 @@ impl RenderOnce for Autocomplete {
                 );
             }
 
+            let panel = crate::anim::entering_zoom(
+                panel,
+                el_name(format!("{base}-panel")),
+                crate::anim::ZoomBox::panel(px(6.), util::container_radius(cx)),
+                crate::anim::Motion::FLUID_IN,
+                cx,
+            );
             root = root.child(util::floating(
-                util::placed_field_panel(self.placement, px(6.)).child(crate::anim::entering_zoom(
-                    panel,
-                    el_name(format!("{base}-panel")),
-                    crate::anim::ZoomBox::panel(px(6.), util::container_radius(cx)),
-                    crate::anim::Motion::FLUID_IN,
-                    cx,
-                )),
+                util::placed_field_panel(self.placement, px(6.)).child(panel),
             ));
         }
 

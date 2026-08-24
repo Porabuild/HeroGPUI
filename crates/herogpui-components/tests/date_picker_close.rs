@@ -11,8 +11,9 @@
 //! Geometry is derived from the components' own constants, reusing the
 //! DatePicker derivation from `pickers.rs` verbatim:
 //!
-//! - The trigger field is a 36px row at the window origin, so its centre is
-//!   (60, 18).
+//! - Each picker composes editable date segments and a separate 24px trigger.
+//!   The single trigger centres at (124, 18), and the range trigger at
+//!   (300, 18).
 //! - The DatePicker panel hangs from `placed_panel(BottomStart, 6px)`: top =
 //!   36 + 6 = 42, then `picker_panel` padding p-3 (12) brings the calendar to
 //!   y = 54. A 24px header, gap 8, one ~16px weekday line and gap 8 later the
@@ -80,7 +81,7 @@ fn date_picker_closes_when_a_day_is_picked(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    click(cx, 60., 18.);
+    click(cx, 124., 18.);
     assert_eq!(
         opened.borrow().as_slice(),
         ["open:true"],
@@ -135,7 +136,7 @@ fn date_picker_change_records_the_pick_once(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    click(cx, 60., 18.);
+    click(cx, 124., 18.);
     click(cx, day_x, day_y);
 
     assert_eq!(
@@ -193,7 +194,7 @@ fn date_range_picker_stays_open_until_the_end_is_chosen(cx: &mut TestAppContext)
             .into_any_element()
     });
 
-    click(cx, 60., 18.);
+    click(cx, 300., 18.);
     assert_eq!(opened.borrow().as_slice(), ["open:true"]);
 
     // Choosing the start leaves the panel open to choose the end.

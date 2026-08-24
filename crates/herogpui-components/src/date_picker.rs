@@ -5,10 +5,15 @@
 //! `isDateUnavailable` / `firstDayOfWeek`.
 
 use gpui::{
-    prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, StatefulInteractiveElement,
-    Styled, Window,
+    prelude::*, px, App, Entity, Focusable, IntoElement, RenderOnce, SharedString,
+    StatefulInteractiveElement, Styled, Window,
 };
 use herogpui_theme::ActiveTheme;
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+    rc::Rc,
+};
 
 use crate::{
     calendar::{days_from_civil, Calendar, CalendarState, Date},
@@ -17,6 +22,102 @@ use crate::{
 };
 
 type OnChange = std::sync::Arc<dyn Fn(Option<Date>, &mut Window, &mut App) + 'static>;
+
+type DateFieldFormState = Rc<RefCell<crate::form::LiveFormFieldState>>;
+
+thread_local! {
+    static DATE_FIELD_FORM_STATES: RefCell<HashMap<u64, std::rc::Weak<RefCell<crate::form::LiveFormFieldState>>>> =
+        RefCell::new(HashMap::new());
+    static DATE_PICKER_FORM_STATES: RefCell<HashMap<u64, std::rc::Weak<RefCell<crate::form::LiveFormFieldState>>>> =
+        RefCell::new(HashMap::new());
+    static DATE_RANGE_PICKER_FORM_STATES: RefCell<HashMap<(u64, bool), std::rc::Weak<RefCell<crate::form::LiveFormFieldState>>>> =
+        RefCell::new(HashMap::new());
+}
+
+fn registered_date_field_form_state(entity_id: u64) -> Option<DateFieldFormState> {
+    DATE_FIELD_FORM_STATES.with(|states| {
+        states
+            .borrow()
+            .get(&entity_id)
+            .and_then(|state| state.upgrade())
+    })
+}
+
+fn date_field_form_state(entity_id: u64) -> DateFieldFormState {
+    DATE_FIELD_FORM_STATES.with(|states| {
+        let mut states = states.borrow_mut();
+        if let Some(state) = states.get(&entity_id).and_then(|state| state.upgrade()) {
+            return state;
+        }
+        let state = Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+            value: crate::form::FormValue::Text(SharedString::default()),
+            is_invalid: false,
+            is_successful: true,
+            focus: None,
+            restore: None,
+        }));
+        states.insert(entity_id, Rc::downgrade(&state));
+        state
+    })
+}
+
+fn date_picker_form_state(entity_id: u64) -> DateFieldFormState {
+    DATE_PICKER_FORM_STATES.with(|states| {
+        let mut states = states.borrow_mut();
+        if let Some(state) = states.get(&entity_id).and_then(|state| state.upgrade()) {
+            return state;
+        }
+        let state = Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+            value: crate::form::FormValue::Text(SharedString::default()),
+            is_invalid: false,
+            is_successful: true,
+            focus: None,
+            restore: None,
+        }));
+        states.insert(entity_id, Rc::downgrade(&state));
+        state
+    })
+}
+
+fn date_range_picker_form_state(entity_id: u64, end: bool) -> DateFieldFormState {
+    DATE_RANGE_PICKER_FORM_STATES.with(|states| {
+        let mut states = states.borrow_mut();
+        if let Some(state) = states
+            .get(&(entity_id, end))
+            .and_then(|state| state.upgrade())
+        {
+            return state;
+        }
+        let state = Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+            value: crate::form::FormValue::Text(SharedString::default()),
+            is_invalid: false,
+            is_successful: true,
+            focus: None,
+            restore: None,
+        }));
+        states.insert((entity_id, end), Rc::downgrade(&state));
+        state
+    })
+}
+
+#[allow(clippy::arc_with_non_send_sync)]
+fn install_date_field_restore(
+    form_state: &DateFieldFormState,
+    input_state: Entity<crate::input::InputState>,
+    default_text: SharedString,
+) {
+    let restore_state = form_state.clone();
+    form_state.borrow_mut().restore = Some(std::sync::Arc::new(move |_, cx| {
+        let value = default_text.clone();
+        input_state.update(cx, |state, cx| {
+            state.set_value(value.to_string());
+            cx.notify();
+        });
+        let mut state = restore_state.borrow_mut();
+        state.value = crate::form::FormValue::Text(value);
+        state.is_invalid = false;
+    }));
+}
 
 /// HeroUI DatePicker (controlled open state; selection lives in the entity).
 #[derive(IntoElement)]
@@ -27,6 +128,7 @@ pub struct DatePicker {
     default_value: Option<Date>,
     constraints: DateConstraints,
     is_disabled: bool,
+    is_read_only: bool,
     is_invalid: bool,
     on_open_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
     state: Entity<CalendarState>,
@@ -35,14 +137,26 @@ pub struct DatePicker {
     is_open: Option<bool>,
     default_open: bool,
     label: Option<SharedString>,
-    placeholder: SharedString,
     on_change: Option<OnChange>,
+    form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
+    form_is_disabled: Rc<Cell<bool>>,
+    form_default: Rc<RefCell<Option<Date>>>,
+    form_on_change: Rc<RefCell<Option<OnChange>>>,
+    form_field_state: Rc<RefCell<Option<Entity<crate::input::InputState>>>>,
 }
 
 impl DatePicker {
     /// `value` — writes the selection through to the bound state.
     pub fn value(self, date: Option<Date>, cx: &mut App) -> Self {
-        self.state.update(cx, |s, _| s.selected = date);
+        self.state.update(cx, |s, _| {
+            s.selected = date;
+            s.selected_dates = date.into_iter().collect();
+            if let Some(date) = date {
+                s.view_year = date.year;
+                s.view_month = date.month;
+                s.view_day = date.day;
+            }
+        });
         self
     }
 
@@ -81,6 +195,12 @@ impl DatePicker {
         self
     }
 
+    /// `isReadOnly` — keeps the field focusable but blocks edits, selection and opening.
+    pub fn is_read_only(mut self, v: bool) -> Self {
+        self.is_read_only = v;
+        self
+    }
+
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
         self
@@ -93,19 +213,71 @@ impl DatePicker {
     }
 
     pub fn new(state: Entity<CalendarState>) -> Self {
+        let form_state = date_picker_form_state(state.entity_id().as_u64());
+        let form_is_disabled = Rc::new(Cell::new(false));
+        let form_default = Rc::new(RefCell::new(None));
+        let form_on_change: Rc<RefCell<Option<OnChange>>> = Rc::new(RefCell::new(None));
+        let form_field_state = Rc::new(RefCell::new(None::<Entity<crate::input::InputState>>));
+        let restore_form_state = form_state.clone();
+        let restore_is_disabled = form_is_disabled.clone();
+        let restore_default = form_default.clone();
+        let restore_callback = form_on_change.clone();
+        let restore_state = state.clone();
+        let restore_field_state = form_field_state.clone();
+        // FormField's restore slot is an Arc, but this callback is intentionally
+        // confined to the single-threaded GPUI app and captures its live state.
+        #[allow(clippy::arc_with_non_send_sync)]
+        let restore: std::sync::Arc<dyn Fn(&mut Window, &mut App)> =
+            std::sync::Arc::new(move |window, cx| {
+                let date = *restore_default.borrow();
+                restore_state.update(&mut *cx, |state, cx| {
+                    state.selected = date;
+                    state.selected_dates = date.into_iter().collect();
+                    if let Some(date) = date {
+                        state.view_year = date.year;
+                        state.view_month = date.month;
+                        state.view_day = date.day;
+                    }
+                    cx.notify();
+                });
+                if let Some(field_state) = restore_field_state.borrow().clone() {
+                    let text = date.map(|date| date.format_iso()).unwrap_or_default();
+                    field_state.update(cx, |state, cx| {
+                        state.set_value(text);
+                        cx.notify();
+                    });
+                }
+                let mut form_state = restore_form_state.borrow_mut();
+                form_state.value = crate::form::FormValue::Text(
+                    date.map(|date| date.format_iso())
+                        .unwrap_or_default()
+                        .into(),
+                );
+                form_state.is_invalid = false;
+                form_state.is_successful = !restore_is_disabled.get();
+                if let Some(callback) = restore_callback.borrow().as_ref() {
+                    callback(date, window, cx);
+                }
+            });
+        form_state.borrow_mut().restore = Some(restore);
         Self {
             name: None,
             default_value: None,
             constraints: DateConstraints::new(),
             is_disabled: false,
+            is_read_only: false,
             is_invalid: false,
             on_open_change: None,
             state,
             is_open: None,
             default_open: false,
             label: None,
-            placeholder: "Select a date".into(),
             on_change: None,
+            form_state,
+            form_is_disabled,
+            form_default,
+            form_on_change,
+            form_field_state,
         }
     }
 
@@ -121,13 +293,26 @@ impl DatePicker {
     /// submits. Needs `cx` because the selection lives in the state entity.
     pub fn form_field(&self, cx: &App) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
+        self.form_is_disabled.set(self.is_disabled);
         let text = self
             .state
             .read(cx)
             .selected()
             .map(|d| d.format_iso())
             .unwrap_or_default();
-        Some(crate::form::FormField::text_value(name, text))
+        if self.form_default.borrow().is_none() {
+            *self.form_default.borrow_mut() = self.state.read(cx).selected;
+        }
+        let mut form_state = self.form_state.borrow_mut();
+        form_state.value = crate::form::FormValue::Text(text.into());
+        form_state.is_successful = !self.is_disabled;
+        form_state.is_invalid = self.is_invalid
+            || self
+                .state
+                .read(cx)
+                .selected
+                .is_some_and(|date| !self.constraints.allows(date));
+        Some(crate::form::FormField::live(name, self.form_state.clone()))
     }
 
     /// `defaultValue` — the uncontrolled initial selection.
@@ -136,6 +321,7 @@ impl DatePicker {
     /// component without fighting the user afterwards.
     pub fn default_value(mut self, value: Date) -> Self {
         self.default_value = Some(value);
+        *self.form_default.borrow_mut() = Some(value);
         self
     }
 
@@ -157,19 +343,17 @@ impl DatePicker {
         self
     }
 
-    pub fn placeholder(mut self, p: impl Into<SharedString>) -> Self {
-        self.placeholder = p.into();
-        self
-    }
-
     pub fn on_change(mut self, f: impl Fn(Option<Date>, &mut Window, &mut App) + 'static) -> Self {
-        self.on_change = Some(std::sync::Arc::new(f));
+        let callback = std::sync::Arc::new(f);
+        *self.form_on_change.borrow_mut() = Some(callback.clone());
+        self.on_change = Some(callback);
         self
     }
 }
 
 impl RenderOnce for DatePicker {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        self.form_is_disabled.set(self.is_disabled);
         // `defaultValue` seeds the state once, before anything reads it.
         if let Some(value) = self.default_value {
             let state = self.state.clone();
@@ -200,68 +384,123 @@ impl RenderOnce for DatePicker {
             self.is_open,
             self.default_open,
         );
-
-        // The trigger is a tab stop that rings. `use_keyed_state` takes `cx`
-        // mutably, so the handle precedes the theme.
+        let (overlay_phase, dismissal_token) = crate::util::overlay_scope(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("dp-{}-overlay", self.state.entity_id().as_u64()).into()),
+            is_open && !self.is_disabled,
+            // Pickers have no exit animation; remove the calendar immediately
+            // so a chosen cell cannot receive the same press again.
+            false,
+        );
+        let panel_visible = overlay_phase != crate::util::OverlayPhase::Closed;
+        let panel_open = overlay_phase == crate::util::OverlayPhase::Open;
+        let selected = self.state.read(cx).selected;
+        let selected_text = selected.map(|date| date.format_iso()).unwrap_or_default();
+        self.form_state.borrow_mut().value =
+            crate::form::FormValue::Text(selected_text.clone().into());
+        let initial_text = selected_text.clone();
+        let field_state = window
+            .use_keyed_state(
+                gpui::ElementId::Name(
+                    format!("dp-{}-field-state", self.state.entity_id().as_u64()).into(),
+                ),
+                cx,
+                move |_, cx| cx.new(|cx| crate::input::InputState::with_value(cx, initial_text)),
+            )
+            .read(cx)
+            .clone();
+        *self.form_field_state.borrow_mut() = Some(field_state.clone());
+        let field_sync = window.use_keyed_state(
+            gpui::ElementId::Name(
+                format!("dp-{}-field-sync", self.state.entity_id().as_u64()).into(),
+            ),
+            cx,
+            {
+                let selected_text = selected_text.clone();
+                move |_, _| selected_text
+            },
+        );
+        let field_value = field_state.read(cx).value().to_owned();
+        let last_field_value = field_sync.read(cx).clone();
+        let field_follows_selection =
+            field_value == last_field_value && field_value != selected_text;
+        if field_follows_selection {
+            field_state.update(cx, |state, _| state.set_value(selected_text.clone()));
+        }
+        let live_field_value = if field_follows_selection {
+            selected_text.clone()
+        } else {
+            field_value
+        };
+        if live_field_value == selected_text {
+            field_sync.update(cx, |value, _| *value = selected_text.clone());
+        }
+        let field_invalid = self.is_invalid
+            || if live_field_value.trim().is_empty() {
+                false
+            } else {
+                let (parsed, _) = parse_value(&live_field_value);
+                parsed.is_none_or(|date| !self.constraints.allows(date))
+            };
+        {
+            let mut state = self.form_state.borrow_mut();
+            state.value = crate::form::FormValue::Text(live_field_value.into());
+            state.is_successful = !self.is_disabled;
+            state.is_invalid = field_invalid;
+        }
+        let field_focus = field_state.read(cx).focus_handle(cx);
+        self.form_state.borrow_mut().focus = Some(field_focus.clone());
         let trigger_focus = crate::util::tab_stop_handle(
-            gpui::ElementId::Name(format!("dp-{}-focus", self.state.entity_id().as_u64()).into()),
+            gpui::ElementId::Name(
+                format!("dp-{}-trigger-focus", self.state.entity_id().as_u64()).into(),
+            ),
             window,
             cx,
         );
-
+        let initiator = window.use_keyed_state(
+            gpui::ElementId::Name(
+                format!("dp-{}-initiator", self.state.entity_id().as_u64()).into(),
+            ),
+            cx,
+            |_, _| 0usize,
+        );
         let colors = cx.colors();
-        let layout = cx.layout();
+        let trigger_pressed = Rc::new(Cell::new(false));
 
-        let selected = self.state.read(cx).selected;
-        // `.date-input-group` is `h-9`.
-        let h = crate::util::FIELD_HEIGHT;
+        let open_own_keys = open_own.clone();
+        let open_cb_keys = self.on_open_change.clone();
+        let open_picker = crate::util::shared(move |window: &mut Window, cx: &mut App| {
+            if is_open {
+                return;
+            }
+            if let Some(held) = &open_own_keys {
+                held.update(cx, |open, cx| {
+                    *open = true;
+                    cx.notify();
+                });
+            }
+            if let Some(cb) = &open_cb_keys {
+                cb(true, window, cx);
+            }
+        });
 
-        let mut field = gpui::div()
+        let selected_state = self.state.clone();
+        let user_change = self.on_change.clone();
+        let form_state = self.form_state.clone();
+        let field_forced_invalid = self.is_invalid;
+        let was_open = is_open;
+        let trigger_pressed_for_capture = trigger_pressed.clone();
+        let trigger_open_own = open_own.clone();
+        let trigger_open_cb = self.on_open_change.clone();
+        let mut trigger = gpui::div()
             .id(gpui::ElementId::Name(
-                format!("dp-{}", self.state.entity_id().as_u64()).into(),
+                format!("dp-{}-trigger", self.state.entity_id().as_u64()).into(),
             ))
-            .when(!self.is_disabled, |el| el.track_focus(&trigger_focus))
             .flex()
             .items_center()
-            .justify_between()
-            .gap(px(8.))
-            .w_full()
-            .h(h)
-            .px(px(12.))
-            .text_size(px(14.))
-            .cursor_pointer();
-
-        // `.date-picker__trigger:focus-visible` is `status-focused` -- the offset
-        // ring, which is why the chrome is not told about the focus: it draws a
-        // field's flush one.
-        field = crate::util::apply_field_chrome(
-            field,
-            herogpui_core::FieldVariant::Primary,
-            self.is_invalid,
-            false,
-            cx,
-        );
-        field = crate::util::ring_if_focused(field, &trigger_focus, true, Vec::new(), window, cx);
-        if !is_open {
-            let hover_bg = colors.field.hover();
-            field = field.hover(move |s| s.bg(hover_bg));
-        }
-
-        field = field
-            .child(
-                gpui::div()
-                    .flex_1()
-                    .truncate()
-                    .text_color(if selected.is_some() {
-                        colors.foreground
-                    } else {
-                        colors.muted
-                    })
-                    .child(match selected {
-                        Some(d) => d.format_iso(),
-                        None => self.placeholder.to_string(),
-                    }),
-            )
+            .justify_center()
+            .size(px(24.))
             .child(
                 gpui::svg()
                     // `.date-picker__trigger-indicator` is `size-4`.
@@ -269,32 +508,90 @@ impl RenderOnce for DatePicker {
                     .path(icons::ELLIPSIS)
                     .text_color(colors.muted),
             );
-
-        if self.is_invalid {
-            field = field.border_2().border_color(colors.danger.color);
+        trigger =
+            crate::util::ring_if_focused(trigger, &trigger_focus, true, Vec::new(), window, cx);
+        if !self.is_disabled && !self.is_read_only {
+            let focus_on_press = trigger_focus.clone();
+            let trigger_initiator = initiator.clone();
+            trigger = trigger
+                .capture_any_mouse_down(move |_, _, cx| {
+                    trigger_pressed_for_capture.set(true);
+                    let pressed = trigger_pressed_for_capture.clone();
+                    cx.defer(move |_| pressed.set(false));
+                })
+                .track_focus(&trigger_focus)
+                .cursor_pointer()
+                .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                    window.focus(&focus_on_press);
+                    cx.stop_propagation();
+                })
+                .on_click(move |_, window, cx| {
+                    trigger_initiator.update(cx, |part, _| *part = 1);
+                    if let Some(held) = &trigger_open_own {
+                        held.update(cx, |open, cx| {
+                            *open = !was_open;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &trigger_open_cb {
+                        cb(!was_open, window, cx);
+                    }
+                });
         }
-
-        // The trigger owns opening the popover.
-        if self.is_disabled {
-            field = field.opacity(layout.disabled_opacity);
-        } else if self.on_open_change.is_some() || open_own.is_some() {
-            let cb = self.on_open_change.clone();
-            let own = open_own.clone();
-            let next = !is_open;
-            field = field.on_click(move |_, window, cx| {
-                // Uncontrolled: flip our own copy, or the trigger would be
-                // inert without a caller handler.
-                if let Some(held) = &own {
-                    held.update(cx, |v, cx| {
-                        *v = next;
-                        cx.notify();
-                    });
+        let mut date_field = DateField::new(field_state)
+            .embedded(false)
+            .full_width(true)
+            .is_disabled(self.is_disabled)
+            .is_read_only(self.is_read_only)
+            .is_invalid(self.is_invalid)
+            .constraints(self.constraints.clone())
+            .report_invalid_changes()
+            .suffix(trigger);
+        let open_from_field = open_picker.clone();
+        let field_initiator = initiator.clone();
+        let field_constraints = self.constraints.clone();
+        date_field = date_field
+            .on_picker_open(move |window, cx| {
+                field_initiator.update(cx, |part, _| *part = 0);
+                open_from_field(window, cx);
+            })
+            .on_change(move |date, window, cx| {
+                let valid_date = date.filter(|date| field_constraints.allows(*date));
+                form_state.borrow_mut().is_invalid =
+                    field_forced_invalid || (date.is_some() && valid_date.is_none());
+                selected_state.update(cx, |state, cx| {
+                    if date.is_none() || valid_date.is_some() {
+                        state.selected = valid_date;
+                        state.selected_dates = valid_date.into_iter().collect();
+                    }
+                    if let Some(date) = valid_date {
+                        state.view_year = date.year;
+                        state.view_month = date.month;
+                        state.view_day = date.day;
+                    }
+                    cx.notify();
+                });
+                if date.is_none() || valid_date.is_some() {
+                    form_state.borrow_mut().value = crate::form::FormValue::Text(
+                        valid_date
+                            .map(|date| date.format_iso())
+                            .unwrap_or_default()
+                            .into(),
+                    );
                 }
-                if let Some(f) = &cb {
-                    f(next, window, cx);
+                if date.is_none() || valid_date.is_some() {
+                    if let Some(cb) = &user_change {
+                        cb(valid_date, window, cx);
+                    }
                 }
             });
-        }
+
+        let field = gpui::div()
+            .id(gpui::ElementId::Name(
+                format!("dp-{}", self.state.entity_id().as_u64()).into(),
+            ))
+            .w_full()
+            .child(date_field);
 
         let mut root = gpui::div().relative().max_w(px(320.));
         let mut wrapper = gpui::div().flex().flex_col().gap(px(4.)).w_full();
@@ -308,13 +605,16 @@ impl RenderOnce for DatePicker {
         wrapper = wrapper.child(field);
         root = root.child(wrapper);
 
-        if is_open {
+        if panel_visible {
             // React Aria dismisses the panel on Escape, on a press outside it
             // and once a day is chosen; all three write the same flag. Escape
             // rides on the root, not the panel: focusing the panel would take
             // the arrows away from the calendar grid inside it.
             let close_own = open_own;
             let close_cb = self.on_open_change.clone();
+            let restore_field = field_focus;
+            let restore_trigger = trigger_focus;
+            let restore_part = initiator;
             let close = crate::util::shared(move |window: &mut Window, cx: &mut App| {
                 if let Some(held) = &close_own {
                     held.update(cx, |v, cx| {
@@ -325,14 +625,20 @@ impl RenderOnce for DatePicker {
                 if let Some(cb) = &close_cb {
                     cb(false, window, cx);
                 }
+                if *restore_part.read(cx) == 1 {
+                    window.focus(&restore_trigger);
+                } else {
+                    window.focus(&restore_field);
+                }
             });
 
             let mut cal = Calendar::new(self.state.clone())
                 .constraints(self.constraints.clone())
                 .is_disabled(self.is_disabled)
+                .is_read_only(self.is_read_only)
                 // React Aria moves the focus into the calendar as the popover
                 // opens, so the arrows work straight away.
-                .autofocus_grid(true)
+                .autofocus_grid(panel_open)
                 .is_invalid(self.is_invalid);
             // The calendar reports the chosen date; the picker owns the open
             // flag, so closing belongs here, in the picker's own reaction to
@@ -341,19 +647,42 @@ impl RenderOnce for DatePicker {
             // first, so both events read the same selection.
             let pick_close = close.clone();
             let user_change = self.on_change.clone();
+            let form_state = self.form_state.clone();
+            let calendar_forced_invalid = self.is_invalid;
             cal = cal.on_change(move |d, window, cx| {
+                let mut form_state = form_state.borrow_mut();
+                form_state.value = crate::form::FormValue::Text(
+                    d.map(|date| date.format_iso()).unwrap_or_default().into(),
+                );
+                form_state.is_invalid = calendar_forced_invalid;
                 if let Some(cb) = &user_change {
                     cb(d, window, cx);
                 }
                 pick_close(window, cx);
             });
             let esc = close.clone();
-            root = crate::util::dismiss_on_escape(root, move |window, cx| esc(window, cx));
+            root = crate::util::dismiss_on_escape_with_token(
+                root,
+                dismissal_token.clone(),
+                move |window, cx| {
+                    esc(window, cx);
+                    crate::util::DismissResult::Handled
+                },
+            );
+            let outside_close = close.clone();
             root = root.child(crate::util::floating(
                 crate::util::placed_panel(herogpui_core::Placement::BottomStart, px(6.)).child(
-                    crate::util::dismiss_on_press_outside(picker_panel(cx), move |window, cx| {
-                        close(window, cx);
-                    })
+                    crate::util::dismiss_on_press_outside_with_token(
+                        picker_panel(cx),
+                        dismissal_token,
+                        move |window, cx| {
+                            if trigger_pressed.get() {
+                                return crate::util::DismissResult::Declined;
+                            }
+                            outside_close(window, cx);
+                            crate::util::DismissResult::Handled
+                        },
+                    )
                     .child(cal),
                 ),
             ));
@@ -482,16 +811,98 @@ pub struct DateRangePicker {
     is_open: Option<bool>,
     default_open: bool,
     label: Option<SharedString>,
-    placeholder: SharedString,
     is_disabled: bool,
+    is_read_only: bool,
     is_invalid: bool,
     constraints: DateConstraints,
     on_open_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
     on_change: Option<std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>>,
+    start_form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
+    end_form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
+    form_is_disabled: Rc<Cell<bool>>,
+    form_default: Rc<RefCell<Option<(Date, Date)>>>,
+    form_on_change: Rc<RefCell<Option<std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>>>>,
+    start_field_state: Rc<RefCell<Option<Entity<crate::input::InputState>>>>,
+    end_field_state: Rc<RefCell<Option<Entity<crate::input::InputState>>>>,
+    form_restore: std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>,
 }
 
 impl DateRangePicker {
     pub fn new(state: Entity<DateRangeState>) -> Self {
+        let entity_id = state.entity_id().as_u64();
+        let start_form_state = date_range_picker_form_state(entity_id, false);
+        let end_form_state = date_range_picker_form_state(entity_id, true);
+        let form_is_disabled = Rc::new(Cell::new(false));
+        let form_default = Rc::new(RefCell::new(None));
+        let form_on_change: Rc<RefCell<Option<std::sync::Arc<dyn Fn(&mut Window, &mut App)>>>> =
+            Rc::new(RefCell::new(None));
+        let start_field_state = Rc::new(RefCell::new(None::<Entity<crate::input::InputState>>));
+        let end_field_state = Rc::new(RefCell::new(None::<Entity<crate::input::InputState>>));
+        let restore_start = start_form_state.clone();
+        let restore_end = end_form_state.clone();
+        let restore_is_disabled = form_is_disabled.clone();
+        let restore_default = form_default.clone();
+        let restore_callback = form_on_change.clone();
+        let restore_state = state.clone();
+        let restore_start_field = start_field_state.clone();
+        let restore_end_field = end_field_state.clone();
+        // FormField's restore slot is an Arc, but this callback is intentionally
+        // confined to the single-threaded GPUI app and captures its live state.
+        #[allow(clippy::arc_with_non_send_sync)]
+        let restore: std::sync::Arc<dyn Fn(&mut Window, &mut App)> =
+            std::sync::Arc::new(move |window, cx| {
+                let (start, end) = restore_default
+                    .borrow()
+                    .map(|range: (Date, Date)| (Some(range.0), Some(range.1)))
+                    .unwrap_or((None, None));
+                restore_state.update(&mut *cx, |state, cx| {
+                    state.start = start;
+                    state.end = end;
+                    if let Some(date) = start {
+                        state.view_year = date.year;
+                        state.view_month = date.month;
+                        state.view_day = date.day;
+                    }
+                    cx.notify();
+                });
+                if let Some(field_state) = restore_start_field.borrow().clone() {
+                    let text = start.map(|date| date.format_iso()).unwrap_or_default();
+                    field_state.update(cx, |state, cx| {
+                        state.set_value(text);
+                        cx.notify();
+                    });
+                }
+                if let Some(field_state) = restore_end_field.borrow().clone() {
+                    let text = end.map(|date| date.format_iso()).unwrap_or_default();
+                    field_state.update(cx, |state, cx| {
+                        state.set_value(text);
+                        cx.notify();
+                    });
+                }
+                {
+                    let mut state = restore_start.borrow_mut();
+                    state.value = crate::form::FormValue::Text(
+                        start
+                            .map(|date| date.format_iso())
+                            .unwrap_or_default()
+                            .into(),
+                    );
+                    state.is_invalid = false;
+                    state.is_successful = !restore_is_disabled.get();
+                }
+                {
+                    let mut state = restore_end.borrow_mut();
+                    state.value = crate::form::FormValue::Text(
+                        end.map(|date| date.format_iso()).unwrap_or_default().into(),
+                    );
+                    state.is_invalid = false;
+                    state.is_successful = !restore_is_disabled.get();
+                }
+                if let Some(callback) = restore_callback.borrow().as_ref() {
+                    callback(window, cx);
+                }
+            });
+        start_form_state.borrow_mut().restore = Some(restore.clone());
         Self {
             start_name: None,
             end_name: None,
@@ -500,12 +911,20 @@ impl DateRangePicker {
             is_open: None,
             default_open: false,
             label: None,
-            placeholder: "Select range".into(),
             is_disabled: false,
+            is_read_only: false,
             is_invalid: false,
             constraints: DateConstraints::new(),
             on_open_change: None,
             on_change: None,
+            start_form_state,
+            end_form_state,
+            form_is_disabled,
+            form_default,
+            form_on_change,
+            start_field_state,
+            end_field_state,
+            form_restore: restore,
         }
     }
 
@@ -524,15 +943,44 @@ impl DateRangePicker {
     /// The `Form` fields this picker submits: one per named end of the range,
     /// each written ISO-8601.
     pub fn form_fields(&self, cx: &App) -> Vec<crate::form::FormField> {
+        self.form_is_disabled.set(self.is_disabled);
+        self.start_form_state.borrow_mut().restore =
+            self.start_name.as_ref().map(|_| self.form_restore.clone());
+        self.end_form_state.borrow_mut().restore = (self.start_name.is_none()
+            && self.end_name.is_some())
+        .then(|| self.form_restore.clone());
         let state = self.state.read(cx);
+        if self.form_default.borrow().is_none() {
+            if let (Some(start), Some(end)) = (state.start, state.end) {
+                *self.form_default.borrow_mut() = Some((start, end));
+            }
+        }
         let mut out = Vec::new();
         if let Some(name) = self.start_name.clone() {
             let text = state.start.map(|d| d.format_iso()).unwrap_or_default();
-            out.push(crate::form::FormField::text_value(name, text));
+            let mut form_state = self.start_form_state.borrow_mut();
+            form_state.value = crate::form::FormValue::Text(text.into());
+            form_state.is_successful = !self.is_disabled;
+            form_state.is_invalid = self.is_invalid
+                || state
+                    .start
+                    .is_some_and(|date| !self.constraints.allows(date));
+            out.push(crate::form::FormField::live(
+                name,
+                self.start_form_state.clone(),
+            ));
         }
         if let Some(name) = self.end_name.clone() {
             let text = state.end.map(|d| d.format_iso()).unwrap_or_default();
-            out.push(crate::form::FormField::text_value(name, text));
+            let mut form_state = self.end_form_state.borrow_mut();
+            form_state.value = crate::form::FormValue::Text(text.into());
+            form_state.is_successful = !self.is_disabled;
+            form_state.is_invalid =
+                self.is_invalid || state.end.is_some_and(|date| !self.constraints.allows(date));
+            out.push(crate::form::FormField::live(
+                name,
+                self.end_form_state.clone(),
+            ));
         }
         out
     }
@@ -543,6 +991,7 @@ impl DateRangePicker {
     /// component without fighting the user afterwards.
     pub fn default_value(mut self, value: (Date, Date)) -> Self {
         self.default_value = Some(value);
+        *self.form_default.borrow_mut() = Some(value);
         self
     }
 
@@ -551,14 +1000,14 @@ impl DateRangePicker {
         self
     }
 
-    /// The trigger text shown before a range is picked.
-    pub fn placeholder(mut self, text: impl Into<SharedString>) -> Self {
-        self.placeholder = text.into();
+    pub fn is_disabled(mut self, v: bool) -> Self {
+        self.is_disabled = v;
         self
     }
 
-    pub fn is_disabled(mut self, v: bool) -> Self {
-        self.is_disabled = v;
+    /// `isReadOnly` — keeps both fields focusable but blocks edits, selection and opening.
+    pub fn is_read_only(mut self, v: bool) -> Self {
+        self.is_read_only = v;
         self
     }
 
@@ -572,6 +1021,11 @@ impl DateRangePicker {
         self.state.update(cx, |st, _| {
             st.start = start;
             st.end = end;
+            if let Some(start) = start {
+                st.view_year = start.year;
+                st.view_month = start.month;
+                st.view_day = start.day;
+            }
         });
         self
     }
@@ -621,13 +1075,16 @@ impl DateRangePicker {
 
     /// Fired after any pick (read `start`/`end` from the entity).
     pub fn on_change(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
-        self.on_change = Some(std::sync::Arc::new(f));
+        let callback = std::sync::Arc::new(f);
+        *self.form_on_change.borrow_mut() = Some(callback.clone());
+        self.on_change = Some(callback);
         self
     }
 }
 
 impl RenderOnce for DateRangePicker {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        self.form_is_disabled.set(self.is_disabled);
         // `defaultValue` seeds the state once, before anything reads it.
         if let Some(value) = self.default_value {
             let state = self.state.clone();
@@ -662,18 +1119,254 @@ impl RenderOnce for DateRangePicker {
             self.is_open,
             self.default_open,
         );
-
-        let colors = cx.colors();
+        let (overlay_phase, dismissal_token) = crate::util::overlay_scope(
+            window,
+            cx,
+            gpui::ElementId::Name(
+                format!("drp-{}-overlay", self.state.entity_id().as_u64()).into(),
+            ),
+            is_open && !self.is_disabled,
+            // Pickers have no exit animation; remove the calendar immediately
+            // so a chosen cell cannot receive the same press again.
+            false,
+        );
+        let panel_visible = overlay_phase != crate::util::OverlayPhase::Closed;
+        let panel_open = overlay_phase == crate::util::OverlayPhase::Open;
         let (start, end) = {
             let st = self.state.read(cx);
             (st.start, st.end)
         };
-        let (start_text, end_text) = match (start, end) {
-            (Some(s), Some(e)) => (s.format_iso(), e.format_iso()),
-            (Some(s), None) => (s.format_iso(), "\u{2026}".to_owned()),
-            _ => (self.placeholder.to_string(), String::new()),
+        let start_text = start.map(|date| date.format_iso()).unwrap_or_default();
+        let end_text = end.map(|date| date.format_iso()).unwrap_or_default();
+        let start_initial = start_text.clone();
+        let start_field_state = window
+            .use_keyed_state(
+                gpui::ElementId::Name(
+                    format!("drp-{}-start-field", self.state.entity_id().as_u64()).into(),
+                ),
+                cx,
+                move |_, cx| cx.new(|cx| crate::input::InputState::with_value(cx, start_initial)),
+            )
+            .read(cx)
+            .clone();
+        let end_initial = end_text.clone();
+        let end_field_state = window
+            .use_keyed_state(
+                gpui::ElementId::Name(
+                    format!("drp-{}-end-field", self.state.entity_id().as_u64()).into(),
+                ),
+                cx,
+                move |_, cx| cx.new(|cx| crate::input::InputState::with_value(cx, end_initial)),
+            )
+            .read(cx)
+            .clone();
+        *self.start_field_state.borrow_mut() = Some(start_field_state.clone());
+        *self.end_field_state.borrow_mut() = Some(end_field_state.clone());
+        let start_sync = window.use_keyed_state(
+            gpui::ElementId::Name(
+                format!("drp-{}-start-sync", self.state.entity_id().as_u64()).into(),
+            ),
+            cx,
+            {
+                let start_text = start_text.clone();
+                move |_, _| start_text
+            },
+        );
+        let end_sync = window.use_keyed_state(
+            gpui::ElementId::Name(
+                format!("drp-{}-end-sync", self.state.entity_id().as_u64()).into(),
+            ),
+            cx,
+            {
+                let end_text = end_text.clone();
+                move |_, _| end_text
+            },
+        );
+        let start_value = start_field_state.read(cx).value().to_owned();
+        let end_value = end_field_state.read(cx).value().to_owned();
+        let last_start = start_sync.read(cx).clone();
+        let last_end = end_sync.read(cx).clone();
+        let start_follows_selection = start_value == last_start && start_value != start_text;
+        let end_follows_selection = end_value == last_end && end_value != end_text;
+        if start_follows_selection {
+            start_field_state.update(cx, |state, _| state.set_value(start_text.clone()));
+        }
+        if end_follows_selection {
+            end_field_state.update(cx, |state, _| state.set_value(end_text.clone()));
+        }
+        let live_start_value = if start_follows_selection {
+            start_text.clone()
+        } else {
+            start_value
         };
-        let has_range = start.is_some();
+        let live_end_value = if end_follows_selection {
+            end_text.clone()
+        } else {
+            end_value
+        };
+        if live_start_value == start_text {
+            start_sync.update(cx, |value, _| *value = start_text.clone());
+        }
+        if live_end_value == end_text {
+            end_sync.update(cx, |value, _| *value = end_text.clone());
+        }
+        let field_invalid = |text: &str, forced: bool| {
+            forced
+                || (!text.trim().is_empty()
+                    && parse_value(text)
+                        .0
+                        .is_none_or(|date| !self.constraints.allows(date)))
+        };
+        {
+            let mut state = self.start_form_state.borrow_mut();
+            state.value = crate::form::FormValue::Text(live_start_value.clone().into());
+            state.is_successful = !self.is_disabled;
+            state.is_invalid = field_invalid(&live_start_value, self.is_invalid);
+        }
+        {
+            let mut state = self.end_form_state.borrow_mut();
+            state.value = crate::form::FormValue::Text(live_end_value.clone().into());
+            state.is_successful = !self.is_disabled;
+            state.is_invalid = field_invalid(&live_end_value, self.is_invalid);
+        }
+        let start_focus = start_field_state.read(cx).focus_handle(cx);
+        let end_focus = end_field_state.read(cx).focus_handle(cx);
+        {
+            let mut state = self.start_form_state.borrow_mut();
+            state.focus = Some(start_focus.clone());
+        }
+        {
+            let mut state = self.end_form_state.borrow_mut();
+            state.focus = Some(end_focus.clone());
+        }
+        let initiator = window.use_keyed_state(
+            gpui::ElementId::Name(
+                format!("drp-{}-initiator", self.state.entity_id().as_u64()).into(),
+            ),
+            cx,
+            |_, _| 0usize,
+        );
+        let trigger_focus = crate::util::tab_stop_handle(
+            gpui::ElementId::Name(
+                format!("drp-{}-trigger-focus", self.state.entity_id().as_u64()).into(),
+            ),
+            window,
+            cx,
+        );
+        let colors = cx.colors();
+        let trigger_pressed = Rc::new(Cell::new(false));
+
+        let open_from_start_own = open_own.clone();
+        let open_from_start_cb = self.on_open_change.clone();
+        let start_initiator = initiator.clone();
+        let open_from_start = crate::util::shared(move |window: &mut Window, cx: &mut App| {
+            start_initiator.update(cx, |part, _| *part = 0);
+            if !is_open {
+                if let Some(held) = &open_from_start_own {
+                    held.update(cx, |open, cx| {
+                        *open = true;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &open_from_start_cb {
+                    cb(true, window, cx);
+                }
+            }
+        });
+        let open_from_end_own = open_own.clone();
+        let open_from_end_cb = self.on_open_change.clone();
+        let end_initiator = initiator.clone();
+        let open_from_end = crate::util::shared(move |window: &mut Window, cx: &mut App| {
+            end_initiator.update(cx, |part, _| *part = 1);
+            if !is_open {
+                if let Some(held) = &open_from_end_own {
+                    held.update(cx, |open, cx| {
+                        *open = true;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &open_from_end_cb {
+                    cb(true, window, cx);
+                }
+            }
+        });
+
+        let start_state = self.state.clone();
+        let start_change = self.on_change.clone();
+        let start_open = open_from_start.clone();
+        let start_constraints = self.constraints.clone();
+        let start_forced_invalid = self.is_invalid;
+        let start_form_state = self.start_form_state.clone();
+        let start_field = DateField::new(start_field_state)
+            .embedded(true)
+            .is_disabled(self.is_disabled)
+            .is_invalid(self.is_invalid)
+            .constraints(self.constraints.clone())
+            .is_read_only(self.is_read_only)
+            .report_invalid_changes()
+            .on_picker_open(move |window, cx| start_open(window, cx))
+            .on_change(move |date, window, cx| {
+                let valid_date = date.filter(|date| start_constraints.allows(*date));
+                start_form_state.borrow_mut().is_invalid =
+                    start_forced_invalid || (date.is_some() && valid_date.is_none());
+                start_state.update(cx, |state, cx| {
+                    if date.is_none() || valid_date.is_some() {
+                        state.start = valid_date;
+                    }
+                    cx.notify();
+                });
+                if date.is_none() || valid_date.is_some() {
+                    start_form_state.borrow_mut().value = crate::form::FormValue::Text(
+                        valid_date
+                            .map(|date| date.format_iso())
+                            .unwrap_or_default()
+                            .into(),
+                    );
+                }
+                if date.is_none() || valid_date.is_some() {
+                    if let Some(cb) = &start_change {
+                        cb(window, cx);
+                    }
+                }
+            });
+        let end_state = self.state.clone();
+        let end_change = self.on_change.clone();
+        let end_open = open_from_end.clone();
+        let end_constraints = self.constraints.clone();
+        let end_forced_invalid = self.is_invalid;
+        let end_form_state = self.end_form_state.clone();
+        let end_field = DateField::new(end_field_state)
+            .embedded(true)
+            .is_disabled(self.is_disabled)
+            .is_invalid(self.is_invalid)
+            .constraints(self.constraints.clone())
+            .is_read_only(self.is_read_only)
+            .report_invalid_changes()
+            .on_picker_open(move |window, cx| end_open(window, cx))
+            .on_change(move |date, window, cx| {
+                let valid_date = date.filter(|date| end_constraints.allows(*date));
+                end_form_state.borrow_mut().is_invalid =
+                    end_forced_invalid || (date.is_some() && valid_date.is_none());
+                end_state.update(cx, |state, cx| {
+                    if date.is_none() || valid_date.is_some() {
+                        state.end = valid_date;
+                    }
+                    cx.notify();
+                });
+                if date.is_none() || valid_date.is_some() {
+                    end_form_state.borrow_mut().value = crate::form::FormValue::Text(
+                        valid_date
+                            .map(|date| date.format_iso())
+                            .unwrap_or_default()
+                            .into(),
+                    );
+                }
+                if date.is_none() || valid_date.is_some() {
+                    if let Some(cb) = &end_change {
+                        cb(window, cx);
+                    }
+                }
+            });
 
         let mut field = gpui::div()
             .id(gpui::ElementId::Name(
@@ -681,7 +1374,7 @@ impl RenderOnce for DateRangePicker {
             ))
             .flex()
             .items_center()
-            .gap(px(8.))
+            .gap(px(4.))
             .w_full()
             .h(crate::util::FIELD_HEIGHT)
             .px(px(12.))
@@ -691,61 +1384,27 @@ impl RenderOnce for DateRangePicker {
             field,
             herogpui_core::FieldVariant::Primary,
             self.is_invalid,
-            is_open,
+            start_focus.is_focused(window)
+                || end_focus.is_focused(window)
+                || trigger_focus.is_focused(window),
             cx,
         );
 
-        if !self.is_disabled {
+        if !self.is_disabled && !self.is_read_only {
             let hover_bg = colors.field.hover();
-            field = field.cursor_pointer();
             if !is_open {
                 field = field.hover(move |s| s.bg(hover_bg));
             }
-            // The trigger previously had no click handler at all, so nothing
-            // could open the popover.
-            if self.on_open_change.is_some() || open_own.is_some() {
-                let cb = self.on_open_change.clone();
-                let own = open_own.clone();
-                let next = !is_open;
-                field = field.on_click(move |_, window, cx| {
-                    // Uncontrolled: flip our own copy too.
-                    if let Some(held) = &own {
-                        held.update(cx, |v, cx| {
-                            *v = next;
-                            cx.notify();
-                        });
-                    }
-                    if let Some(f) = &cb {
-                        f(next, window, cx);
-                    }
-                });
-            }
         }
 
-        field = field
-            .child(
-                gpui::div()
-                    .flex_1()
-                    .flex()
-                    .items_center()
-                    .text_color(if has_range {
-                        colors.foreground
-                    } else {
-                        colors.default.color
-                    })
-                    .child(start_text)
-                    .when(has_range, |el| {
-                        el.child(
-                            // `.date-range-picker__range-separator` is `px-1`
-                            // in `--field-placeholder`.
-                            gpui::div()
-                                .px(px(4.))
-                                .text_color(colors.field.placeholder)
-                                .child("\u{2013}"),
-                        )
-                        .child(end_text.clone())
-                    }),
-            )
+        let mut trigger = gpui::div()
+            .id(gpui::ElementId::Name(
+                format!("drp-{}-trigger", self.state.entity_id().as_u64()).into(),
+            ))
+            .flex()
+            .items_center()
+            .justify_center()
+            .size(px(24.))
             .child(
                 gpui::svg()
                     // `.date-range-picker__trigger-indicator` is `size-4`.
@@ -753,6 +1412,51 @@ impl RenderOnce for DateRangePicker {
                     .path(icons::ARROW_RIGHT)
                     .text_color(colors.default.color),
             );
+        if !self.is_disabled && !self.is_read_only {
+            let focus_on_press = trigger_focus.clone();
+            let trigger_initiator = initiator.clone();
+            let open_own_trigger = open_own.clone();
+            let open_cb_trigger = self.on_open_change.clone();
+            let trigger_pressed_for_capture = trigger_pressed.clone();
+            let was_open = is_open;
+            trigger = trigger
+                .capture_any_mouse_down(move |_, _, cx| {
+                    trigger_pressed_for_capture.set(true);
+                    let pressed = trigger_pressed_for_capture.clone();
+                    cx.defer(move |_| pressed.set(false));
+                })
+                .track_focus(&trigger_focus)
+                .cursor_pointer()
+                .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                    window.focus(&focus_on_press);
+                    cx.stop_propagation();
+                })
+                .on_click(move |_, window, cx| {
+                    trigger_initiator.update(cx, |part, _| *part = 2);
+                    if let Some(held) = &open_own_trigger {
+                        held.update(cx, |open, cx| {
+                            *open = !was_open;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &open_cb_trigger {
+                        cb(!was_open, window, cx);
+                    }
+                });
+        }
+
+        field = field
+            .child(start_field)
+            .child(
+                // `.date-range-picker__range-separator` is `px-1` in
+                // `--field-placeholder`.
+                gpui::div()
+                    .px(px(4.))
+                    .text_color(colors.field.placeholder)
+                    .child("\u{2013}"),
+            )
+            .child(end_field)
+            .child(trigger);
 
         let mut root = gpui::div()
             .relative()
@@ -766,7 +1470,7 @@ impl RenderOnce for DateRangePicker {
         }
         root = root.child(field);
 
-        if is_open && !self.is_disabled {
+        if panel_visible {
             // A calendar has its own intrinsic width, so the panel must be
             // content-sized; `placed_field_panel` would clamp it to the
             // trigger and the grid would spill outside the surface.
@@ -774,6 +1478,10 @@ impl RenderOnce for DateRangePicker {
             // `DatePicker` above.
             let close_own = open_own;
             let close_cb = self.on_open_change.clone();
+            let restore_start = start_focus;
+            let restore_end = end_focus;
+            let restore_trigger = trigger_focus;
+            let restore_part = initiator;
             let close = crate::util::shared(move |window: &mut Window, cx: &mut App| {
                 if let Some(held) = &close_own {
                     held.update(cx, |v, cx| {
@@ -784,6 +1492,11 @@ impl RenderOnce for DateRangePicker {
                 if let Some(cb) = &close_cb {
                     cb(false, window, cx);
                 }
+                match *restore_part.read(cx) {
+                    1 => window.focus(&restore_end),
+                    2 => window.focus(&restore_trigger),
+                    _ => window.focus(&restore_start),
+                }
             });
 
             // Driving RangeCalendar keeps the hover preview, the constraints
@@ -793,11 +1506,36 @@ impl RenderOnce for DateRangePicker {
             // does. The caller's `on_change` still fires after every pick.
             let pick_close = close.clone();
             let user_change = self.on_change.clone();
+            let start_form_state = self.start_form_state.clone();
+            let end_form_state = self.end_form_state.clone();
+            let calendar_forced_invalid = self.is_invalid;
+            let range_state = self.state.clone();
             let mut calendar = crate::range_calendar::RangeCalendar::new(self.state.clone())
                 .constraints(self.constraints.clone())
-                .autofocus_grid(true)
+                .autofocus_grid(panel_open)
+                .is_read_only(self.is_read_only)
                 .is_invalid(self.is_invalid);
             calendar = calendar.on_change(move |_s, end, window, cx| {
+                let state = range_state.read(cx);
+                let mut start_form_state = start_form_state.borrow_mut();
+                start_form_state.value = crate::form::FormValue::Text(
+                    state
+                        .start
+                        .map(|date| date.format_iso())
+                        .unwrap_or_default()
+                        .into(),
+                );
+                start_form_state.is_invalid = calendar_forced_invalid;
+                drop(start_form_state);
+                let mut end_form_state = end_form_state.borrow_mut();
+                end_form_state.value = crate::form::FormValue::Text(
+                    state
+                        .end
+                        .map(|date| date.format_iso())
+                        .unwrap_or_default()
+                        .into(),
+                );
+                end_form_state.is_invalid = calendar_forced_invalid;
                 if let Some(cb) = &user_change {
                     cb(window, cx);
                 }
@@ -806,12 +1544,28 @@ impl RenderOnce for DateRangePicker {
                 }
             });
             let esc = close.clone();
-            root = crate::util::dismiss_on_escape(root, move |window, cx| esc(window, cx));
+            root = crate::util::dismiss_on_escape_with_token(
+                root,
+                dismissal_token.clone(),
+                move |window, cx| {
+                    esc(window, cx);
+                    crate::util::DismissResult::Handled
+                },
+            );
+            let outside_close = close.clone();
             root = root.child(crate::util::floating(
                 crate::util::placed_panel(herogpui_core::Placement::BottomStart, px(6.)).child(
-                    crate::util::dismiss_on_press_outside(picker_panel(cx), move |window, cx| {
-                        close(window, cx);
-                    })
+                    crate::util::dismiss_on_press_outside_with_token(
+                        picker_panel(cx),
+                        dismissal_token,
+                        move |window, cx| {
+                            if trigger_pressed.get() {
+                                return crate::util::DismissResult::Declined;
+                            }
+                            outside_close(window, cx);
+                            crate::util::DismissResult::Handled
+                        },
+                    )
                     .child(calendar),
                 ),
             ));
@@ -866,6 +1620,14 @@ impl DateSegment {
         }
     }
 
+    fn page_step(self) -> i32 {
+        match self {
+            DateSegment::Year => 5,
+            DateSegment::Month => 2,
+            DateSegment::Day => 7,
+        }
+    }
+
     /// `date` with this segment set to `value`, clamped to what the calendar
     /// allows (February 31st becomes the 28th or 29th).
     fn with_value(self, date: Date, value: u32) -> Date {
@@ -897,37 +1659,59 @@ impl DateSegment {
     fn bump(self, date: Date, delta: i32) -> Date {
         match self {
             DateSegment::Year => {
-                let year = date.year + delta;
+                let year = cycle_value(date.year, delta, 1, 9999);
                 let day = date
                     .day
                     .min(crate::calendar::days_in_month(year, date.month));
                 Date::new(year, date.month, day)
             }
             DateSegment::Month => {
-                // Months are 1..=12, so wrap through a zero-based index.
-                let zero = date.month as i32 - 1 + delta;
-                let year = date.year + zero.div_euclid(12);
-                let month = zero.rem_euclid(12) as u32 + 1;
-                let day = date.day.min(crate::calendar::days_in_month(year, month));
-                Date::new(year, month, day)
+                let month = cycle_value(date.month as i32, delta, 1, 12) as u32;
+                let day = date
+                    .day
+                    .min(crate::calendar::days_in_month(date.year, month));
+                Date::new(date.year, month, day)
             }
             DateSegment::Day => {
-                // Stepping past either end of the month rolls into the next.
                 let days = crate::calendar::days_in_month(date.year, date.month);
-                let target = date.day as i32 + delta;
-                if target < 1 {
-                    let prev = DateSegment::Month.bump(Date::new(date.year, date.month, 1), -1);
-                    let last = crate::calendar::days_in_month(prev.year, prev.month);
-                    Date::new(prev.year, prev.month, last)
-                } else if target > days as i32 {
-                    let next = DateSegment::Month.bump(Date::new(date.year, date.month, 1), 1);
-                    Date::new(next.year, next.month, 1)
-                } else {
-                    Date::new(date.year, date.month, target as u32)
-                }
+                let day = cycle_value(date.day as i32, delta, 1, days as i32) as u32;
+                Date::new(date.year, date.month, day)
             }
         }
     }
+
+    fn bound(self, date: Date, maximum: bool) -> Date {
+        match (self, maximum) {
+            (DateSegment::Year, false) => {
+                let day = date.day.min(crate::calendar::days_in_month(1, date.month));
+                Date::new(1, date.month, day)
+            }
+            (DateSegment::Year, true) => {
+                let day = date
+                    .day
+                    .min(crate::calendar::days_in_month(9999, date.month));
+                Date::new(9999, date.month, day)
+            }
+            (DateSegment::Month, false) => {
+                let day = date.day.min(crate::calendar::days_in_month(date.year, 1));
+                Date::new(date.year, 1, day)
+            }
+            (DateSegment::Month, true) => {
+                let day = date.day.min(crate::calendar::days_in_month(date.year, 12));
+                Date::new(date.year, 12, day)
+            }
+            (DateSegment::Day, false) => Date::new(date.year, date.month, 1),
+            (DateSegment::Day, true) => Date::new(
+                date.year,
+                date.month,
+                crate::calendar::days_in_month(date.year, date.month),
+            ),
+        }
+    }
+}
+
+fn cycle_value(value: i32, delta: i32, min: i32, max: i32) -> i32 {
+    (value - min + delta).rem_euclid(max - min + 1) + min
 }
 
 /// `granularity` — the smallest unit a date field shows.
@@ -981,6 +1765,92 @@ pub enum FieldSegment {
     Time(crate::time_field::TimeSegment),
 }
 
+#[derive(Clone)]
+struct DateFieldDisplay {
+    date: Option<Date>,
+    time: Option<crate::time_field::Time>,
+    cleared: Vec<FieldSegment>,
+    committed: String,
+}
+
+impl DateFieldDisplay {
+    fn new(committed: &str, segments: &[FieldSegment]) -> Self {
+        let (date, time) = parse_value(committed);
+        let mut this = Self {
+            date,
+            time,
+            cleared: Vec::new(),
+            committed: committed.to_owned(),
+        };
+        this.sync_visible_segments(segments);
+        this
+    }
+
+    fn sync(&mut self, committed: &str, segments: &[FieldSegment]) {
+        if self.committed != committed {
+            let (date, time) = parse_value(committed);
+            self.date = date;
+            self.time = time;
+            self.cleared.clear();
+            self.committed = committed.to_owned();
+        }
+        self.sync_visible_segments(segments);
+    }
+
+    fn sync_visible_segments(&mut self, segments: &[FieldSegment]) {
+        self.cleared.retain(|segment| segments.contains(segment));
+        for segment in segments {
+            let missing = match segment {
+                FieldSegment::Date(_) => self.date.is_none(),
+                FieldSegment::Time(_) => self.time.is_none(),
+            };
+            if missing && !self.cleared.contains(segment) {
+                self.cleared.push(*segment);
+            }
+        }
+    }
+
+    fn edit(
+        &mut self,
+        focused: FieldSegment,
+        date: Date,
+        time: Option<crate::time_field::Time>,
+        segments: &[FieldSegment],
+        granularity: Granularity,
+    ) -> Option<(Date, Option<crate::time_field::Time>, String)> {
+        self.date = Some(date);
+        self.time = time;
+        self.cleared.retain(|segment| *segment != focused);
+        if segments
+            .iter()
+            .any(|segment| self.cleared.contains(segment))
+        {
+            return None;
+        }
+
+        let committed = format_value(date, time, granularity);
+        self.committed.clone_from(&committed);
+        Some((date, time, committed))
+    }
+
+    fn clear(&mut self, focused: FieldSegment, segments: &[FieldSegment]) -> bool {
+        if !self.cleared.contains(&focused) {
+            self.cleared.push(focused);
+        }
+        if !segments
+            .iter()
+            .all(|segment| self.cleared.contains(segment))
+        {
+            return false;
+        }
+
+        self.date = None;
+        self.time = None;
+        self.committed.clear();
+        true
+    }
+}
+
 type DateSegmentRender =
     std::sync::Arc<dyn Fn(DateSegment, SharedString) -> gpui::AnyElement + 'static>;
 
@@ -1031,6 +1901,10 @@ pub struct DateField {
     is_disabled: bool,
     is_read_only: bool,
     on_change: Option<OnChange>,
+    embedded: bool,
+    bare: bool,
+    on_picker_open: Option<std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>>,
+    report_invalid_changes: bool,
 }
 
 impl DateField {
@@ -1056,11 +1930,21 @@ impl DateField {
     /// The `Form` field this control submits, when it has a `name`.
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
-        Some(
-            crate::form::FormField::text(self.state.clone())
-                .name(name)
-                .is_required(self.is_required),
-        )
+        let form_state = date_field_form_state(self.state.entity_id().as_u64());
+        form_state.borrow_mut().is_successful = !self.is_disabled;
+        if let Some(default) = self.default_value {
+            install_date_field_restore(
+                &form_state,
+                self.state.clone(),
+                default.format_iso().into(),
+            );
+        }
+        let mut field =
+            crate::form::FormField::live(name, form_state).is_required(self.is_required);
+        if let Some(behavior) = self.validation_behavior {
+            field = field.validation_behavior(behavior);
+        }
+        Some(field)
     }
 
     /// `autoFocus` — take focus on the first render.
@@ -1227,7 +2111,27 @@ impl DateField {
             is_disabled: false,
             is_read_only: false,
             on_change: None,
+            embedded: false,
+            bare: false,
+            on_picker_open: None,
+            report_invalid_changes: false,
         }
+    }
+
+    fn embedded(mut self, bare: bool) -> Self {
+        self.embedded = true;
+        self.bare = bare;
+        self
+    }
+
+    fn on_picker_open(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
+        self.on_picker_open = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    fn report_invalid_changes(mut self) -> Self {
+        self.report_invalid_changes = true;
+        self
     }
 
     /// `segment` — replaces the contents of each editable segment.
@@ -1352,6 +2256,23 @@ fn format_value(
 
 impl RenderOnce for DateField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let entity_id = self.state.entity_id().as_u64();
+        let form_state = registered_date_field_form_state(entity_id);
+        if let Some(form_state) = form_state.as_ref() {
+            let mut state = form_state.borrow_mut();
+            state.value =
+                crate::form::FormValue::Text(self.state.read(cx).value().to_owned().into());
+            state.is_successful = !self.is_disabled;
+            state.focus = Some(self.state.read(cx).focus_handle.clone());
+            if let Some(default) = self.default_value {
+                drop(state);
+                install_date_field_restore(
+                    form_state,
+                    self.state.clone(),
+                    default.format_iso().into(),
+                );
+            }
+        }
         if let Some(render) = self.content.clone() {
             // v3's field children-as-a-function: the caller builds the parts.
             let handle = self.state.read(cx).focus_handle.clone();
@@ -1388,7 +2309,6 @@ impl RenderOnce for DateField {
             );
         }
 
-        let entity_id = self.state.entity_id().as_u64();
         // Which segment the arrows and typing act on. `use_keyed_state` takes
         // `cx` mutably, so this precedes the theme tokens.
         let focused_seg = window.use_keyed_state(
@@ -1406,12 +2326,11 @@ impl RenderOnce for DateField {
         );
 
         let colors = cx.colors().clone();
-        let _layout = cx.layout().clone();
         let navigable = !self.is_disabled;
         let editable = navigable && !self.is_read_only;
 
         let text = self.state.read(cx).value().to_owned();
-        let (parsed, parsed_time) = parse_value(&text);
+        let (parsed, _) = parse_value(&text);
         let non_empty = !text.trim().is_empty();
 
         // The slots this field shows: the three date parts, then the time parts
@@ -1435,6 +2354,16 @@ impl RenderOnce for DateField {
             focused = segments[0];
         }
         let granularity = self.granularity;
+        let display = window.use_keyed_state(
+            gpui::ElementId::Name(format!("datefield-{entity_id}-display").into()),
+            cx,
+            |_, _| DateFieldDisplay::new(&text, &segments),
+        );
+        display.update(cx, |display, _| display.sync(&text, &segments));
+        let (display_date, display_time, cleared) = {
+            let display = display.read(cx);
+            (display.date, display.time, display.cleared.clone())
+        };
 
         // The three ways a date can be wrong are reported separately, as the
         // calendar grids distinguish them too.
@@ -1473,13 +2402,27 @@ impl RenderOnce for DateField {
             rejection.map(Into::into),
         );
         let is_invalid = validity.is_invalid;
+        let validity_state = self.state.clone();
+        if validity_state.read(cx).validity() != &validity {
+            validity_state.update(cx, |state, _| state.set_validity(validity.clone()));
+        }
+        if let Some(form_state) = form_state.as_ref() {
+            let mut state = form_state.borrow_mut();
+            state.value = crate::form::FormValue::Text(text.clone().into());
+            state.is_invalid = is_invalid;
+            state.is_successful = !self.is_disabled;
+            state.focus = Some(self.state.read(cx).focus_handle.clone());
+        }
 
         let pad = self.should_force_leading_zeros;
         let segment_text = move |segment: FieldSegment| -> String {
             use crate::time_field::TimeSegment as T;
             match segment {
                 FieldSegment::Date(segment) => {
-                    let Some(d) = parsed else {
+                    if cleared.contains(&FieldSegment::Date(segment)) {
+                        return segment.hint().to_owned();
+                    }
+                    let Some(d) = display_date else {
                         return segment.hint().to_owned();
                     };
                     match segment {
@@ -1491,12 +2434,15 @@ impl RenderOnce for DateField {
                     }
                 }
                 FieldSegment::Time(segment) => {
-                    let Some(t) = parsed_time else {
+                    if cleared.contains(&FieldSegment::Time(segment)) {
                         return if segment == T::Meridiem {
                             "AM".to_owned()
                         } else {
                             "--".to_owned()
                         };
+                    }
+                    let Some(t) = display_time else {
+                        return "--".to_owned();
                     };
                     match segment {
                         T::Hour if twelve_hour => format!("{:02}", t.twelve_hour().0),
@@ -1528,15 +2474,18 @@ impl RenderOnce for DateField {
             .flex_row()
             .items_center()
             .gap(px(2.))
-            // `.date-input-group` is `h-9 items-center overflow-hidden` with the
-            // segments inside it and `ms-3`/`me-3` on the prefix and suffix.
-            .px(px(12.))
-            .h(crate::util::FIELD_HEIGHT)
-            .overflow_hidden()
-            .rounded(crate::util::field_radius(cx))
             .text_size(crate::util::FIELD_TEXT)
             .font_family("Consolas")
-            .text_color(colors.field.foreground);
+            .text_color(colors.field.foreground)
+            .when(!self.bare, |el| {
+                // `.date-input-group` is `h-9 items-center overflow-hidden`
+                // with the segments inside it.
+                el.px(px(12.))
+                    .h(crate::util::FIELD_HEIGHT)
+                    .overflow_hidden()
+                    .rounded(crate::util::field_radius(cx))
+            })
+            .when(self.bare, |el| el.flex_1().min_w_0());
 
         // v3 drives a date field from the keyboard: the arrows step the focused
         // segment and walk between segments, and digits type into it. Without
@@ -1545,11 +2494,14 @@ impl RenderOnce for DateField {
             let state = self.state.clone();
             let on_change = self.on_change.clone();
             let constraints = self.constraints.clone();
+            let display = display.clone();
             let held = focused_seg.clone();
             let buffer = typing;
             let fh = focus_handle.clone();
             let slots = segments.clone();
             let is_read_only = self.is_read_only;
+            let on_picker_open = self.on_picker_open.clone();
+            let report_invalid_changes = self.report_invalid_changes;
             group = group
                 .track_focus(&focus_handle)
                 .key_context("DateField")
@@ -1558,22 +2510,49 @@ impl RenderOnce for DateField {
                 })
                 .on_key_down(move |event, window, cx| {
                     let key = event.keystroke.key.as_str();
-                    // A value is only ever written back whole, so every branch
-                    // produces a date -- and, below `day`, a time -- and commits
-                    // the pair the same way.
-                    let commit = |date: Date,
+                    if ((event.keystroke.modifiers.alt && matches!(key, "down" | "up"))
+                        || key == "space")
+                        && on_picker_open.is_some()
+                        && !is_read_only
+                    {
+                        if let Some(open) = &on_picker_open {
+                            open(window, cx);
+                        }
+                        return;
+                    }
+                    let commit = |focused: FieldSegment,
+                                  date: Date,
                                   time: Option<crate::time_field::Time>,
                                   window: &mut Window,
                                   cx: &mut App| {
-                        state.update(cx, |s, cx| {
-                            s.set_value(format_value(date, time, granularity));
+                        let complete = display.update(cx, |display, cx| {
+                            let complete = display.edit(focused, date, time, &slots, granularity);
                             cx.notify();
+                            complete
                         });
-                        if let Some(cb) = &on_change {
-                            cb(Some(date).filter(|d| constraints.allows(*d)), window, cx);
+                        if let Some((date, _, committed)) = complete {
+                            state.update(cx, |s, cx| {
+                                s.set_value(committed);
+                                cx.notify();
+                            });
+                            if let Some(cb) = &on_change {
+                                cb(
+                                    if report_invalid_changes {
+                                        Some(date)
+                                    } else {
+                                        Some(date).filter(|d| constraints.allows(*d))
+                                    },
+                                    window,
+                                    cx,
+                                );
+                            }
                         }
                     };
-                    let seed_time = parsed_time.unwrap_or_default();
+                    let (display_date, display_time) = {
+                        let display = display.read(cx);
+                        (display.date, display.time)
+                    };
+                    let seed_time = display_time.unwrap_or_default();
                     match key {
                         "left" | "right" => {
                             let delta = if key == "right" { 1 } else { -1 };
@@ -1587,26 +2566,69 @@ impl RenderOnce for DateField {
                             });
                         }
                         _ if is_read_only => {}
-                        "up" | "down" => {
-                            let delta = if key == "up" { 1 } else { -1 };
-                            let base = parsed.unwrap_or(seed);
+                        "up" | "down" | "pageup" | "pagedown" => {
+                            let direction = if matches!(key, "up" | "pageup") {
+                                1
+                            } else {
+                                -1
+                            };
+                            let delta = match focused {
+                                FieldSegment::Date(segment)
+                                    if matches!(key, "pageup" | "pagedown") =>
+                                {
+                                    direction * segment.page_step()
+                                }
+                                _ => direction,
+                            };
+                            let base = display_date.unwrap_or(seed);
                             buffer.update(cx, |b, _| b.clear());
                             // The first press on an empty field takes the seed
                             // itself rather than stepping past it.
                             match focused {
                                 FieldSegment::Date(segment) => {
-                                    let next = match parsed {
+                                    let next = match display_date {
                                         Some(_) => segment.bump(base, delta),
                                         None => base,
                                     };
-                                    commit(next, parsed_time, window, cx);
+                                    commit(focused, next, display_time, window, cx);
                                 }
                                 FieldSegment::Time(segment) => {
-                                    let next = match parsed_time {
+                                    let next = match display_time {
                                         Some(t) => t.bump(segment, delta),
                                         None => seed_time,
                                     };
-                                    commit(base, Some(next), window, cx);
+                                    commit(focused, base, Some(next), window, cx);
+                                }
+                            }
+                        }
+                        "home" | "end" => {
+                            let maximum = key == "end";
+                            let base = display_date.unwrap_or(seed);
+                            buffer.update(cx, |b, _| b.clear());
+                            match focused {
+                                FieldSegment::Date(segment) => commit(
+                                    focused,
+                                    segment.bound(base, maximum),
+                                    display_time,
+                                    window,
+                                    cx,
+                                ),
+                                FieldSegment::Time(segment) => {
+                                    use crate::time_field::TimeSegment as T;
+                                    let next = match segment {
+                                        T::Meridiem => {
+                                            let hour =
+                                                seed_time.hour % 12 + if maximum { 12 } else { 0 };
+                                            crate::time_field::Time::new(hour, seed_time.minute)
+                                                .with_second(seed_time.second)
+                                        }
+                                        _ => segment.with_value(
+                                            seed_time,
+                                            if maximum { u32::MAX } else { 0 },
+                                            twelve_hour,
+                                        ),
+                                    };
+                                    commit(focused, base, Some(next), window, cx);
                                 }
                             }
                         }
@@ -1618,16 +2640,29 @@ impl RenderOnce for DateField {
                             let hour = seed_time.hour % 12 + if key == "p" { 12 } else { 0 };
                             let next = crate::time_field::Time::new(hour, seed_time.minute)
                                 .with_second(seed_time.second);
-                            commit(parsed.unwrap_or(seed), Some(next), window, cx);
+                            commit(
+                                focused,
+                                display_date.unwrap_or(seed),
+                                Some(next),
+                                window,
+                                cx,
+                            );
                         }
                         "backspace" | "delete" => {
                             buffer.update(cx, |b, _| b.clear());
-                            state.update(cx, |s, cx| {
-                                s.set_value(String::new());
+                            let emptied = display.update(cx, |display, cx| {
+                                let emptied = display.clear(focused, &slots);
                                 cx.notify();
+                                emptied
                             });
-                            if let Some(cb) = &on_change {
-                                cb(None, window, cx);
+                            if emptied {
+                                state.update(cx, |s, cx| {
+                                    s.set_value(String::new());
+                                    cx.notify();
+                                });
+                                if let Some(cb) = &on_change {
+                                    cb(None, window, cx);
+                                }
                             }
                         }
                         digit if digit.len() == 1 && digit.chars().all(|c| c.is_ascii_digit()) => {
@@ -1649,14 +2684,19 @@ impl RenderOnce for DateField {
                                 return;
                             };
                             match focused {
-                                FieldSegment::Date(segment) => commit(
-                                    segment.with_value(parsed.unwrap_or(seed), value),
-                                    parsed_time,
-                                    window,
-                                    cx,
-                                ),
+                                FieldSegment::Date(segment) => {
+                                    let base = display_date.unwrap_or(seed);
+                                    commit(
+                                        focused,
+                                        segment.with_value(base, value),
+                                        display_time,
+                                        window,
+                                        cx,
+                                    );
+                                }
                                 FieldSegment::Time(segment) => commit(
-                                    parsed.unwrap_or(seed),
+                                    focused,
+                                    display_date.unwrap_or(seed),
                                     Some(segment.with_value(seed_time, value, twelve_hour)),
                                     window,
                                     cx,
@@ -1681,13 +2721,15 @@ impl RenderOnce for DateField {
                 });
         }
 
-        group = crate::util::apply_field_chrome(
-            group,
-            self.variant,
-            is_invalid,
-            focus_handle.is_focused(window),
-            cx,
-        );
+        if !self.bare {
+            group = crate::util::apply_field_chrome(
+                group,
+                self.variant,
+                is_invalid,
+                focus_handle.is_focused(window),
+                cx,
+            );
+        }
         if self.full_width {
             group = group.w_full();
         }
@@ -1781,6 +2823,13 @@ impl RenderOnce for DateField {
             );
         }
 
+        if self.embedded {
+            if self.is_disabled {
+                group = group.opacity(cx.layout().disabled_opacity);
+            }
+            return group.into_any_element();
+        }
+
         // Steppers move whichever segment is focused. v3 has no stepper on a
         // date field -- it expects the arrow keys, which now work -- so these
         // are a pointer affordance, kept inside the shell where v3 puts its
@@ -1809,8 +2858,14 @@ impl RenderOnce for DateField {
                 let state = self.state.clone();
                 let on_change = self.on_change.clone();
                 let constraints = self.constraints.clone();
-                let current = parsed;
+                let display = display.clone();
+                let slots = segments.clone();
+                let report_invalid_changes = self.report_invalid_changes;
                 stepper = stepper.cursor_pointer().on_click(move |_, window, cx| {
+                    let (current, current_time) = {
+                        let display = display.read(cx);
+                        (display.date, display.time)
+                    };
                     let base = current.unwrap_or(seed);
                     // An empty field takes the seed itself on the first
                     // press, so one click does not jump a whole step.
@@ -1820,22 +2875,37 @@ impl RenderOnce for DateField {
                                 Some(_) => part.bump(base, delta),
                                 None => base,
                             },
-                            parsed_time,
+                            current_time,
                         ),
                         FieldSegment::Time(part) => (
                             base,
-                            Some(match parsed_time {
+                            Some(match current_time {
                                 Some(t) => t.bump(part, delta),
                                 None => crate::time_field::Time::default(),
                             }),
                         ),
                     };
-                    state.update(cx, |s, cx| {
-                        s.set_value(format_value(date, time, granularity));
+                    let complete = display.update(cx, |display, cx| {
+                        let complete = display.edit(focused, date, time, &slots, granularity);
                         cx.notify();
+                        complete
                     });
-                    if let Some(cb) = &on_change {
-                        cb(Some(date).filter(|d| constraints.allows(*d)), window, cx);
+                    if let Some((date, _, committed)) = complete {
+                        state.update(cx, |s, cx| {
+                            s.set_value(committed);
+                            cx.notify();
+                        });
+                        if let Some(cb) = &on_change {
+                            cb(
+                                if report_invalid_changes {
+                                    Some(date)
+                                } else {
+                                    Some(date).filter(|d| constraints.allows(*d))
+                                },
+                                window,
+                                cx,
+                            );
+                        }
                     }
                 });
             }

@@ -1,8 +1,11 @@
 //! NumberField — port of `@heroui/number-field` (v3).
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
-use gpui::{prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, Styled, Window};
+use gpui::{
+    prelude::*, px, App, Entity, IntoElement, MouseDownEvent, MouseUpEvent, RenderOnce,
+    SharedString, Styled, Window,
+};
 use herogpui_core::{FieldVariant, NumberFormat};
 use herogpui_theme::ActiveTheme;
 
@@ -116,7 +119,11 @@ impl NumberState {
     }
 
     pub fn set_step(&mut self, step: f64) {
-        self.step = step.max(0.0001);
+        self.step = if step.is_finite() && step > 0.0 {
+            step
+        } else {
+            1.0
+        };
     }
 
     /// Re-reads the text field and updates the numeric value (or restores the
@@ -134,10 +141,72 @@ impl NumberState {
         }
     }
 
-    fn bump(&mut self, dir: f64, cx: &mut App) {
-        let next = (self.value + dir * self.step).clamp(self.min, self.max);
+    fn bump(&mut self, dir: f64, cx: &mut App) -> Option<f64> {
+        let min = self.has_min.then_some(self.min);
+        let max = self.has_max.then_some(self.max);
+        let snapped = snap_to_step(self.value, min, max, self.step);
+        let next = if (dir > 0.0 && snapped > self.value) || (dir < 0.0 && snapped < self.value) {
+            snapped
+        } else {
+            snap_to_step(self.value + dir * self.step, min, max, self.step)
+        };
+        if next.to_bits() == self.value.to_bits() {
+            return None;
+        }
         self.set_value(next, cx);
+        Some(next)
     }
+
+    fn snap(&self, value: f64) -> f64 {
+        let snapped = snap_to_step(
+            value,
+            self.has_min.then_some(self.min),
+            self.has_max.then_some(self.max),
+            self.step,
+        );
+        if snapped.is_finite() {
+            snapped
+        } else {
+            value.clamp(self.min, self.max)
+        }
+    }
+}
+
+fn snap_to_step(value: f64, min: Option<f64>, max: Option<f64>, step: f64) -> f64 {
+    let anchor = min.unwrap_or(0.0);
+    let mut snapped = ((value - anchor) / step).round() * step + anchor;
+    if let Some(min) = min {
+        snapped = snapped.max(min);
+    }
+    if let Some(max) = max {
+        if snapped > max {
+            snapped = anchor + ((max - anchor) / step).floor() * step;
+        }
+    }
+    round_to_step_precision(snapped, step)
+}
+
+fn round_to_step_precision(value: f64, step: f64) -> f64 {
+    let step_text = step.to_string().to_ascii_lowercase();
+    let precision = if let Some((mantissa, exponent)) = step_text.split_once('e') {
+        let exponent = exponent.parse::<i32>().unwrap_or(0);
+        let fraction = mantissa
+            .split_once('.')
+            .map_or(0, |(_, fraction)| fraction.len() as i32);
+        (fraction - exponent).max(0)
+    } else {
+        step_text
+            .split_once('.')
+            .map_or(0, |(_, fraction)| fraction.len() as i32)
+    };
+    if precision == 0 {
+        return value;
+    }
+    let scale = 10_f64.powi(precision);
+    if !scale.is_finite() {
+        return value;
+    }
+    (value * scale).round() / scale
 }
 
 /// Reads a number back out of formatted text: `$1,200.00` -> `1200.0`,
@@ -204,6 +273,8 @@ pub struct NumberField {
     is_invalid: bool,
     is_required: bool,
     is_read_only: bool,
+    /// `isWheelDisabled` — suppress focused wheel stepping.
+    is_wheel_disabled: bool,
     /// `autoFocus` — take focus on the first render.
     auto_focus: bool,
     on_change: Option<OnChange>,
@@ -311,6 +382,12 @@ impl NumberField {
         self
     }
 
+    /// `isWheelDisabled` — whether focused wheel input may step the value.
+    pub fn is_wheel_disabled(mut self, v: bool) -> Self {
+        self.is_wheel_disabled = v;
+        self
+    }
+
     /// v3's field `children`-as-a-function, handed `{isFocused, isFocusWithin,
     /// isFocusVisible}`; see [`crate::input::Input::content`].
     pub fn content(
@@ -343,6 +420,7 @@ impl NumberField {
             is_invalid: false,
             is_required: false,
             is_read_only: false,
+            is_wheel_disabled: false,
             auto_focus: false,
             on_change: None,
         }
@@ -460,12 +538,16 @@ impl RenderOnce for NumberField {
             .is_invalid(validity.is_invalid)
             .on_change(move |_text: &str, w, cx| {
                 // The Input already wrote its own text; re-parse here.
-                text_state.update(cx, |s, sc| {
+                let before = text_state.read(cx).value();
+                let after = text_state.update(cx, |s, sc| {
                     s.sync_from_input(sc);
                     sc.notify();
+                    s.value()
                 });
-                if let Some(cb) = &on_text_change {
-                    cb(text_state.read(cx).value(), w, cx);
+                if before.to_bits() != after.to_bits() {
+                    if let Some(cb) = &on_text_change {
+                        cb(after, w, cx);
+                    }
                 }
             });
 
@@ -515,6 +597,8 @@ impl RenderOnce for NumberField {
                     icons::MINUS,
                     -1.0,
                     self.is_disabled || self.is_read_only,
+                    window,
+                    cx,
                 )
                 .border_r_1()
                 .border_color(seam),
@@ -532,6 +616,8 @@ impl RenderOnce for NumberField {
                     icons::PLUS,
                     1.0,
                     self.is_disabled || self.is_read_only,
+                    window,
+                    cx,
                 )
                 .border_l_1()
                 .border_color(seam),
@@ -553,9 +639,10 @@ impl RenderOnce for NumberField {
                         let Some(min) = min_value else {
                             return;
                         };
-                        key_state.update(cx, |s, cx| s.set_value(min, cx));
-                        if let Some(cb) = &key_change {
-                            cb(key_state.read(cx).value(), window, cx);
+                        if set_number_value(&key_state, min, cx) {
+                            if let Some(cb) = &key_change {
+                                cb(key_state.read(cx).value(), window, cx);
+                            }
                         }
                         return;
                     }
@@ -563,18 +650,44 @@ impl RenderOnce for NumberField {
                         let Some(max) = max_value else {
                             return;
                         };
-                        key_state.update(cx, |s, cx| s.set_value(max, cx));
-                        if let Some(cb) = &key_change {
-                            cb(key_state.read(cx).value(), window, cx);
+                        if set_number_value(&key_state, max, cx) {
+                            if let Some(cb) = &key_change {
+                                cb(key_state.read(cx).value(), window, cx);
+                            }
                         }
                         return;
                     }
                     _ => return,
                 };
-                key_state.update(cx, |s, cx| s.bump(dir, cx));
-                if let Some(cb) = &key_change {
-                    cb(key_state.read(cx).value(), window, cx);
+                report_bump(&key_state, dir, &key_change, window, cx);
+            });
+        }
+        if !self.is_disabled && !self.is_read_only && !self.is_wheel_disabled {
+            let wheel_state = self.state.clone();
+            let wheel_change = self.on_change.clone();
+            let wheel_focus = self.state.read(cx).input.read(cx).focus_handle.clone();
+            group = group.on_scroll_wheel(move |event, window, cx| {
+                if !wheel_focus.contains_focused(window, cx) {
+                    return;
                 }
+                let (dx, dy) = match event.delta {
+                    gpui::ScrollDelta::Pixels(point) => (f32::from(point.x), f32::from(point.y)),
+                    gpui::ScrollDelta::Lines(point) => (point.x, point.y),
+                };
+                if event.modifiers.control || event.modifiers.platform {
+                    return;
+                }
+                let direction = if dy != 0.0 { dy.signum() } else { dx.signum() };
+                if direction != 0.0 {
+                    report_bump(
+                        &wheel_state,
+                        f64::from(direction),
+                        &wheel_change,
+                        window,
+                        cx,
+                    );
+                }
+                cx.stop_propagation();
             });
         }
         if self.is_disabled {
@@ -617,10 +730,18 @@ fn stepper_btn(
     icon: &'static str,
     dir: f64,
     is_disabled: bool,
+    window: &mut Window,
+    cx: &mut App,
 ) -> gpui::Stateful<gpui::Div> {
     let st = state.clone();
     let on_change = on_change.clone();
     let id = gpui::ElementId::Name(format!("num-{}-{dir}", state.entity_id().as_u64()).into());
+    let press = window.use_keyed_state(
+        gpui::ElementId::Name(format!("num-{}-{dir}-press", state.entity_id().as_u64()).into()),
+        cx,
+        |_, _| StepperPress::default(),
+    );
+    let focus_handle = state.read(cx).input.read(cx).focus_handle.clone();
     let mut b = gpui::div()
         .id(id)
         .flex()
@@ -630,19 +751,85 @@ fn stepper_btn(
         .w(btn_px)
         .h(h);
     if !is_disabled {
+        let release = press.clone();
+        b = b.child(
+            gpui::canvas(
+                |bounds, _, _| bounds,
+                move |_, _, window, _| {
+                    window.on_mouse_event(move |event: &MouseUpEvent, phase, _, cx| {
+                        if phase == gpui::DispatchPhase::Capture
+                            && event.button == gpui::MouseButton::Left
+                        {
+                            release.update(cx, |press, _| press.active = false);
+                        }
+                    });
+                },
+            )
+            .absolute()
+            .inset_0(),
+        );
         let pressed_bg = colors.field.foreground.alpha(0.1);
         b = b
             .cursor_pointer()
             .hover(move |s| s.bg(pressed_bg))
-            .on_click(move |_, window, cx| {
-                st.update(cx, |s, sc| {
-                    s.bump(dir, sc);
-                    sc.notify();
-                });
-                if let Some(cb) = &on_change {
-                    cb(st.read(cx).value(), window, cx);
-                }
-            });
+            .on_mouse_down(
+                gpui::MouseButton::Left,
+                move |_: &MouseDownEvent, window, cx| {
+                    window.focus(&focus_handle);
+                    let generation = press.update(cx, |press, _| {
+                        press.active = true;
+                        press.generation = press.generation.wrapping_add(1);
+                        press.generation
+                    });
+                    report_bump(&st, dir, &on_change, window, cx);
+
+                    let repeat_press = press.downgrade();
+                    let repeat_state = st.clone();
+                    let repeat_change = on_change.clone();
+                    window
+                        .spawn(cx, async move |cx| {
+                            cx.background_executor()
+                                .timer(Duration::from_millis(400))
+                                .await;
+                            loop {
+                                let keep_repeating = cx
+                                    .update(|window, cx| {
+                                        let Some(press) = repeat_press.upgrade() else {
+                                            return false;
+                                        };
+                                        let active = {
+                                            let press = press.read(cx);
+                                            press.active && press.generation == generation
+                                        };
+                                        if !active {
+                                            return false;
+                                        }
+                                        let changed = report_bump(
+                                            &repeat_state,
+                                            dir,
+                                            &repeat_change,
+                                            window,
+                                            cx,
+                                        );
+                                        if !changed {
+                                            if let Some(press) = repeat_press.upgrade() {
+                                                press.update(cx, |press, _| press.active = false);
+                                            }
+                                        }
+                                        changed
+                                    })
+                                    .unwrap_or(false);
+                                if !keep_repeating {
+                                    break;
+                                }
+                                cx.background_executor()
+                                    .timer(Duration::from_millis(60))
+                                    .await;
+                            }
+                        })
+                        .detach();
+                },
+            );
     }
     b.child(
         gpui::svg()
@@ -650,4 +837,44 @@ fn stepper_btn(
             .path(icon)
             .text_color(colors.field.foreground),
     )
+}
+
+#[derive(Default)]
+struct StepperPress {
+    active: bool,
+    generation: u64,
+}
+
+fn set_number_value(state: &Entity<NumberState>, value: f64, cx: &mut App) -> bool {
+    state.update(cx, |state, cx| {
+        let before = state.value();
+        let value = state.snap(value);
+        state.set_value(value, cx);
+        let changed = before.to_bits() != state.value().to_bits();
+        if changed {
+            cx.notify();
+        }
+        changed
+    })
+}
+
+fn report_bump(
+    state: &Entity<NumberState>,
+    dir: f64,
+    on_change: &Option<OnChange>,
+    window: &mut Window,
+    cx: &mut App,
+) -> bool {
+    let next = state.update(cx, |state, cx| {
+        let next = state.bump(dir, cx);
+        if next.is_some() {
+            cx.notify();
+        }
+        next
+    });
+    let Some(next) = next else { return false };
+    if let Some(callback) = on_change {
+        callback(next, window, cx);
+    }
+    true
 }

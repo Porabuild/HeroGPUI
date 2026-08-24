@@ -245,8 +245,13 @@ impl ParentElement for Modal {
 impl RenderOnce for Modal {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // v3 keeps a closing panel on screen for its `[data-exiting]` run.
-        let phase =
-            crate::util::overlay_phase(window, cx, dialog_key(&self.id, "phase"), self.is_open);
+        let (phase, dismissal_token) = crate::util::overlay_scope(
+            window,
+            cx,
+            dialog_key(&self.id, "phase"),
+            self.is_open,
+            true,
+        );
         if phase == crate::util::OverlayPhase::Closed {
             return gpui::div().into_any_element();
         }
@@ -448,9 +453,14 @@ impl RenderOnce for Modal {
         // the dialog is already closing.
         let panel = if self.is_dismissible && !exiting {
             if let Some(on_close) = dismiss.clone() {
-                crate::util::dismiss_on_press_outside(panel, move |window, cx| {
-                    on_close(&ClickEvent::default(), window, cx);
-                })
+                crate::util::dismiss_on_press_outside_with_token(
+                    panel,
+                    dismissal_token.clone(),
+                    move |window, cx| {
+                        on_close(&ClickEvent::default(), window, cx);
+                        crate::util::DismissResult::Handled
+                    },
+                )
             } else {
                 panel
             }
@@ -476,13 +486,6 @@ impl RenderOnce for Modal {
                 .track_focus(&focus_handle),
             &focus_handle,
         )
-        .on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
-            if ev.keystroke.key == "escape" {
-                if let Some(f) = &keyboard_dismiss {
-                    f(&ClickEvent::default(), window, cx);
-                }
-            }
-        })
         .absolute()
         .inset_0()
         .flex()
@@ -510,6 +513,16 @@ impl RenderOnce for Modal {
         .when(self.placement == ModalPlacement::Bottom, |e| {
             e.items_end().justify_center()
         });
+        if let Some(on_escape) = keyboard_dismiss {
+            overlay = crate::util::dismiss_on_escape_with_token(
+                overlay,
+                dismissal_token,
+                move |window, cx| {
+                    on_escape(&ClickEvent::default(), window, cx);
+                    crate::util::DismissResult::Handled
+                },
+            );
+        }
         // `.modal__backdrop` is a bare scrim — `--opaque`/`--blur`/
         // `--transparent` are the Backdrop enum above: it must look dimmed
         // but never grab presses, because the panel's `on_mouse_down_out`

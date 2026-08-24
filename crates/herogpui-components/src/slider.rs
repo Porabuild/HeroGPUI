@@ -1,4 +1,6 @@
-//! Slider — port of `@heroui/slider` (single value).
+//! Slider — port of `@heroui/slider` (single or multi-thumb).
+
+use std::{cell::RefCell, rc::Rc};
 
 use gpui::{
     prelude::*, px, App, Bounds, IntoElement, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
@@ -12,7 +14,7 @@ type OnChangeAll = std::sync::Arc<dyn Fn(&[f32], &mut Window, &mut App) + 'stati
 
 type OnChange = std::sync::Arc<dyn Fn(f32, &mut Window, &mut App) + 'static>;
 
-/// HeroUI Slider (single thumb).
+/// HeroUI Slider.
 #[derive(IntoElement)]
 pub struct Slider {
     /// `name` — the name this control submits under; read back by
@@ -32,6 +34,9 @@ pub struct Slider {
     /// `defaultValue` — set it to hand the slider its own state; the
     /// constructor's value then only seeds it.
     default_value: Option<f32>,
+    /// `defaultValue`'s range form. This is the uncontrolled counterpart to
+    /// [`Self::values`], which is the controlled multi-thumb value.
+    default_values: Option<Vec<f32>>,
     /// `value: number[]` — a multi-thumb slider. `None` is the single-thumb
     /// form, which is `Slider::new`'s value.
     values: Option<Vec<f32>>,
@@ -41,12 +46,17 @@ pub struct Slider {
     on_change_all: Option<OnChangeAll>,
     on_change: Option<OnChange>,
     on_change_end: Option<OnChange>,
+    on_change_end_all: Option<OnChangeAll>,
     /// `Slider.Thumb.isDisabled` — thumbs that cannot move, by index.
     disabled_keys: std::collections::HashSet<usize>,
     /// `startName` / `endName` on the range — read back by
     /// [`Self::form_fields`].
     start_name: Option<gpui::SharedString>,
     end_name: Option<gpui::SharedString>,
+    /// Per-thumb `Slider.Thumb.name`, in thumb-index order.
+    thumb_names: Vec<gpui::SharedString>,
+    form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
+    form_thumb_states: Rc<RefCell<Vec<Rc<RefCell<crate::form::LiveFormFieldState>>>>>,
 }
 
 impl Slider {
@@ -76,14 +86,19 @@ impl Slider {
             show_value: false,
             format: None,
             default_value: None,
+            default_values: None,
             values: None,
             thumb: None,
             on_change_all: None,
             on_change: None,
             on_change_end: None,
+            on_change_end_all: None,
             disabled_keys: std::collections::HashSet::new(),
             start_name: None,
             end_name: None,
+            thumb_names: Vec::new(),
+            form_state: live_form_state(),
+            form_thumb_states: Rc::new(RefCell::new(Vec::new())),
         }
     }
 
@@ -97,7 +112,7 @@ impl Slider {
     /// the keys, or reached by Tab, by thumb index — the same addressing
     /// [`Slider::values`] uses, and the same shape as a `Select`'s
     /// `disabledKeys` for its options. A disabled thumb stays put: the
-    /// pointer's nearest-thumb choice skips it, the arrows and the slider's
+    /// pointer's nearest-thumb choice can land on it but then does nothing; the
     /// own Tab cycle skip it, it leaves the tab order, and its field is not
     /// submitted. Disabling the whole *slider* is still
     /// [`Slider::is_disabled`].
@@ -122,6 +137,19 @@ impl Slider {
         self
     }
 
+    /// `Slider.Thumb.name` in thumb-index order.
+    ///
+    /// Entries override the compatibility [`Slider::start_name`] and
+    /// [`Slider::end_name`] values at the same index. Names beyond the number
+    /// of rendered thumbs are ignored; unnamed middle thumbs submit nothing.
+    pub fn thumb_names(
+        mut self,
+        names: impl IntoIterator<Item = impl Into<gpui::SharedString>>,
+    ) -> Self {
+        self.thumb_names = names.into_iter().map(Into::into).collect();
+        self
+    }
+
     /// The `Form` field this control submits, when it has a `name`.
     ///
     /// v3 discovers a field through the DOM; gpui gives a child no way to reach
@@ -139,39 +167,68 @@ impl Slider {
         if self.disabled_keys.contains(&0) {
             return None;
         }
-        Some(
-            crate::form::FormField::number_value(
-                name,
-                self.default_value.unwrap_or(self.value) as f64,
-            )
-            .is_required(false),
-        )
+        sync_form_value(
+            &self.form_state,
+            self.default_value.unwrap_or(self.value),
+            !self.is_disabled,
+        );
+        Some(crate::form::FormField::live(name, self.form_state.clone()))
     }
 
     /// The `Form` fields this slider submits: one per named end of the range,
     /// read from the current thumb values. A disabled thumb's field is
     /// omitted, exactly as an HTML form skips a disabled `<input>`.
     pub fn form_fields(&self) -> Vec<crate::form::FormField> {
+        if self.is_disabled {
+            return Vec::new();
+        }
         let thumbs: Vec<f32> = match &self.values {
             Some(v) if !v.is_empty() => v.clone(),
-            _ => vec![self.default_value.unwrap_or(self.value)],
+            _ => self
+                .default_values
+                .clone()
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| vec![self.default_value.unwrap_or(self.value)]),
         };
         let mut out = Vec::new();
-        if let Some(name) = self.start_name.clone() {
-            if !self.disabled_keys.contains(&0) {
-                if let Some(v) = thumbs.first() {
-                    out.push(crate::form::FormField::number_value(name, f64::from(*v)));
-                }
-            }
-        }
-        if let Some(name) = self.end_name.clone() {
-            if !thumbs.is_empty() && !self.disabled_keys.contains(&(thumbs.len() - 1)) {
-                if let Some(v) = thumbs.last() {
-                    out.push(crate::form::FormField::number_value(name, f64::from(*v)));
+        for (index, name) in self.names_for(thumbs.len()).into_iter().enumerate() {
+            if let Some(name) = name {
+                if !self.disabled_keys.contains(&index) {
+                    let state = self.form_thumb_state(index);
+                    if let Some(value) = thumbs.get(index).copied() {
+                        sync_form_value(&state, value, true);
+                    }
+                    out.push(crate::form::FormField::live(name, state));
                 }
             }
         }
         out
+    }
+
+    fn names_for(&self, count: usize) -> Vec<Option<gpui::SharedString>> {
+        (0..count)
+            .map(|index| {
+                self.thumb_names.get(index).cloned().or_else(|| {
+                    if count == 1 && index == 0 {
+                        self.name.clone()
+                    } else if index == 0 {
+                        self.start_name.clone()
+                    } else if index + 1 == count {
+                        self.end_name.clone()
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect()
+    }
+
+    fn form_thumb_state(&self, index: usize) -> Rc<RefCell<crate::form::LiveFormFieldState>> {
+        let mut states = self.form_thumb_states.borrow_mut();
+        if states.len() <= index {
+            states.resize_with(index + 1, live_form_state);
+        }
+        states[index].clone()
     }
 
     /// `minValue`
@@ -187,7 +244,7 @@ impl Slider {
     }
 
     pub fn step(mut self, v: f32) -> Self {
-        self.step = v.max(0.0001);
+        self.step = if v.is_finite() && v > 0.0 { v } else { 1.0 };
         self
     }
 
@@ -219,6 +276,15 @@ impl Slider {
     /// with nothing to store can leave `on_change` off entirely.
     pub fn default_value(mut self, value: f32) -> Self {
         self.default_value = Some(value);
+        self
+    }
+
+    /// `defaultValue` for an uncontrolled multi-thumb slider.
+    ///
+    /// This is the range form of [`Slider::default_value`]. The values seed
+    /// the slider's own keyed state; they do not make it controlled.
+    pub fn default_values(mut self, values: impl IntoIterator<Item = f32>) -> Self {
+        self.default_values = Some(values.into_iter().collect());
         self
     }
 
@@ -258,6 +324,15 @@ impl Slider {
         self.on_change_end = Some(std::sync::Arc::new(f));
         self
     }
+
+    /// `onChangeEnd` for the multi-thumb form — reports every final value.
+    pub fn on_change_end_all(
+        mut self,
+        f: impl Fn(&[f32], &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_change_end_all = Some(std::sync::Arc::new(f));
+        self
+    }
 }
 
 impl RenderOnce for Slider {
@@ -275,14 +350,116 @@ impl RenderOnce for Slider {
             self.default_value.unwrap_or(self.value),
         );
 
+        let range_mode = self.values.is_some() || self.default_values.is_some();
+        let range_default = self
+            .default_values
+            .clone()
+            .filter(|values| !values.is_empty())
+            .unwrap_or_else(|| vec![self.default_value.unwrap_or(self.value)]);
+        let range_controlled = self
+            .values
+            .clone()
+            .filter(|values| !values.is_empty())
+            .map(|values| normalize_values(&values, self.min, self.max, self.step));
+        let range_default = normalize_values(&range_default, self.min, self.max, self.step);
+        let (range_values, range_own) = crate::util::controlled(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("{:?}-values", self.id).into()),
+            range_controlled,
+            range_default,
+        );
+
         // One thumb or many: the single-value form is a set of one, so the rest
         // of the render does not branch. Computed before the keyed states
         // because the roving stop's starting position has to skip a disabled
         // thumb.
-        let thumbs: Vec<f32> = match &self.values {
-            Some(v) if !v.is_empty() => v.clone(),
-            _ => vec![value],
+        let thumbs: Vec<f32> = if range_mode {
+            range_values
+        } else {
+            vec![value]
         };
+        let form_defaults = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{:?}-form-defaults", self.id).into()),
+            cx,
+            |_, _| None::<Vec<f32>>,
+        );
+        if form_defaults.read(cx).is_none() {
+            let initial = thumbs.clone();
+            form_defaults.update(cx, |slot, cx| {
+                *slot = Some(initial);
+                cx.notify();
+            });
+        }
+        sync_form_values(
+            &self.form_state,
+            &self.form_thumb_states,
+            &thumbs,
+            self.is_disabled,
+            &self.disabled_keys,
+        );
+
+        // Form reset is a live operation: the hidden range inputs in v3 read
+        // the current thumb values, and reset restores the initial values. A
+        // range registers one restore callback for the pair so its controlled
+        // onChange callback fires exactly once per reset.
+        let restore_defaults = form_defaults
+            .read(cx)
+            .clone()
+            .unwrap_or_else(|| thumbs.clone());
+        let restore_form_state = self.form_state.clone();
+        let restore_thumb_states = self.form_thumb_states.clone();
+        let restore_own = own.clone();
+        let restore_range_own = range_own.clone();
+        let restore_on_change = self.on_change.clone();
+        let restore_on_change_all = self.on_change_all.clone();
+        let restore_is_disabled = self.is_disabled;
+        let restore_disabled_keys = self.disabled_keys.clone();
+        let restore: std::sync::Arc<dyn Fn(&mut Window, &mut App)> =
+            crate::util::shared(move |window, cx| {
+                if restore_defaults.len() > 1 {
+                    if let Some(own) = &restore_range_own {
+                        own.update(cx, |current, cx| {
+                            *current = restore_defaults.clone();
+                            cx.notify();
+                        });
+                    }
+                    if let Some(callback) = &restore_on_change_all {
+                        callback(&restore_defaults, window, cx);
+                    }
+                } else if let Some(value) = restore_defaults.first().copied() {
+                    if let Some(own) = &restore_own {
+                        own.update(cx, |current, cx| {
+                            *current = value;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(callback) = &restore_on_change {
+                        callback(value, window, cx);
+                    }
+                }
+                sync_form_values(
+                    &restore_form_state,
+                    &restore_thumb_states,
+                    &restore_defaults,
+                    restore_is_disabled,
+                    &restore_disabled_keys,
+                );
+            });
+        self.form_state.borrow_mut().restore = Some(restore.clone());
+        let named_indices: Vec<usize> = self
+            .names_for(thumbs.len())
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, name)| {
+                (name.is_some() && !self.disabled_keys.contains(&index)).then_some(index)
+            })
+            .collect();
+        let restore = self.form_state.borrow().restore.clone();
+        for (position, index) in named_indices.into_iter().enumerate() {
+            let state = self.form_thumb_state(index);
+            state.borrow_mut().restore = if position == 0 { restore.clone() } else { None };
+        }
         // `Slider.Thumb.isDisabled` — which thumbs may move, by index. A
         // disabled thumb is never the pointer's target, is skipped by the
         // arrows and by the slider's own Tab cycle, and does not take the
@@ -333,7 +510,7 @@ impl RenderOnce for Slider {
         let dragging = window.use_keyed_state(
             gpui::ElementId::Name(format!("{:?}-dragging", self.id).into()),
             cx,
-            |_, _| false,
+            |_, _| DragState::default(),
         );
 
         let sem = cx.role(Color::Accent);
@@ -510,8 +687,14 @@ impl RenderOnce for Slider {
             let on_change_keys = self.on_change.clone();
             let all_keys = self.on_change_all.clone();
             let end_keys = self.on_change_end.clone();
+            let end_all_keys = self.on_change_end_all.clone();
             let own_keys = own.clone();
-            let held_thumb = active_thumb;
+            let range_own_keys = range_own.clone();
+            let form_state_keys = self.form_state.clone();
+            let form_thumb_states_keys = self.form_thumb_states.clone();
+            let form_disabled_keys = self.disabled_keys.clone();
+            let form_is_disabled = self.is_disabled;
+            let held_thumb = active_thumb.clone();
             let keys_enabled = thumb_enabled.clone();
             let (min, max, step) = (self.min, self.max, self.step);
             // A tenth of the range, but never less than one step.
@@ -568,21 +751,33 @@ impl RenderOnce for Slider {
                     };
                     // Snapped and clamped the same way a drag is, so the two
                     // cannot land on different values.
-                    let next = ((next / step).round() * step).clamp(min, max);
-                    set_thumb(
+                    let next = snap_to_step(next, min, max, step);
+                    let next_values = set_thumb(
                         index,
                         next,
                         &keys_thumbs,
+                        &range_own_keys,
                         &on_change_keys,
                         &all_keys,
                         &own_keys,
                         window,
                         cx,
                     );
+                    sync_form_values(
+                        &form_state_keys,
+                        &form_thumb_states_keys,
+                        &next_values,
+                        form_is_disabled,
+                        &form_disabled_keys,
+                    );
                     // A keystroke is a finished change, so `onChangeEnd` fires
                     // with it rather than waiting for a release that never comes.
-                    if let Some(cb) = &end_keys {
-                        cb(next, window, cx);
+                    if next_values.len() > 1 {
+                        if let Some(cb) = &end_all_keys {
+                            cb(&next_values, window, cx);
+                        }
+                    } else if let Some(cb) = &end_keys {
+                        cb(next_values[0], window, cx);
                     }
                 });
 
@@ -596,26 +791,58 @@ impl RenderOnce for Slider {
             let on_change_down = self.on_change.clone();
             let all_down = self.on_change_all.clone();
             let focus_for_press = focus_handle;
+            let active_for_press = active_thumb;
             let own_down = own.clone();
+            let range_own_down = range_own.clone();
+            let form_state_down = self.form_state.clone();
+            let form_thumb_states_down = self.form_thumb_states.clone();
+            let form_disabled_keys_down = self.disabled_keys.clone();
+            let form_is_disabled_down = self.is_disabled;
             let b_down = bounds_slot.clone();
             let d_down = dragging.clone();
             track = track.on_mouse_down(
                 gpui::MouseButton::Left,
                 move |ev: &MouseDownEvent, window, cx| {
-                    d_down.update(cx, |v, _| *v = true);
-                    // The keys have to land somewhere after a pointer grab.
+                    let Some(value) =
+                        value_from_pointer(&b_down, ev.position, vertical, &target_down, cx)
+                    else {
+                        return;
+                    };
+                    let Some(index) =
+                        nearest_thumb(&target_down.thumbs, &target_down.enabled, value)
+                    else {
+                        return;
+                    };
+                    // React Aria focuses and activates the chosen thumb before
+                    // it writes the track press, so the following keys and
+                    // pointer moves keep that thumb's identity.
                     window.focus(&focus_for_press);
-                    set_from_pointer(
-                        &b_down,
-                        ev.position,
-                        vertical,
-                        &target_down,
+                    active_for_press.update(cx, |active, cx| {
+                        *active = index;
+                        cx.notify();
+                    });
+                    let next = set_thumb(
+                        index,
+                        value,
+                        &target_down.thumbs,
+                        &range_own_down,
                         &on_change_down,
                         &all_down,
                         &own_down,
                         window,
                         cx,
                     );
+                    sync_form_values(
+                        &form_state_down,
+                        &form_thumb_states_down,
+                        &next,
+                        form_is_disabled_down,
+                        &form_disabled_keys_down,
+                    );
+                    d_down.update(cx, |drag, _| {
+                        drag.active = Some(index);
+                        drag.values = next;
+                    });
                 },
             );
 
@@ -623,74 +850,151 @@ impl RenderOnce for Slider {
                 min: self.min,
                 span: range_span,
                 step: self.step,
-                thumbs: thumbs.clone(),
-                enabled: thumb_enabled.clone(),
+                thumbs,
+                enabled: thumb_enabled,
             };
             let on_change_move = self.on_change.clone();
             let all_move = self.on_change_all.clone();
             let own_move = own;
-            let b_move = bounds_slot.clone();
-            let d_move = dragging.clone();
-            track = track.on_mouse_move(move |ev: &MouseMoveEvent, window, cx| {
-                // The flag survives the press's own repaint because it lives
-                // in keyed state; a per-render cell read as a fresh `false`
-                // here and dropped every move.
-                if *d_move.read(cx) {
-                    set_from_pointer(
-                        &b_move,
-                        ev.position,
-                        vertical,
-                        &target_move,
-                        &on_change_move,
-                        &all_move,
-                        &own_move,
-                        window,
-                        cx,
-                    );
-                }
-            });
-
-            let d_up = dragging;
+            let range_own_move = range_own;
+            let form_state_move = self.form_state.clone();
+            let form_thumb_states_move = self.form_thumb_states.clone();
+            let form_disabled_keys_move = self.disabled_keys.clone();
+            let form_is_disabled_move = self.is_disabled;
+            let b_move = bounds_slot;
             let on_change_end = self.on_change_end.clone();
-            let b_up = bounds_slot;
-            let target_up = DragTarget {
-                min: self.min,
-                span: range_span,
-                step: self.step,
-                thumbs,
-                enabled: thumb_enabled,
-            };
-            track = track.on_mouse_up(
-                gpui::MouseButton::Left,
-                move |ev: &MouseUpEvent, window, cx| {
-                    let was_dragging = *d_up.read(cx);
-                    d_up.update(cx, |v, cx| {
-                        *v = false;
-                        cx.notify();
-                    });
-                    if was_dragging {
-                        if let Some(cb) = &on_change_end {
-                            set_from_pointer(
-                                &b_up,
-                                ev.position,
-                                vertical,
-                                &target_up,
-                                &Some(cb.clone()),
-                                &None,
-                                // The final value is already in our own copy;
-                                // `onChangeEnd` only reports it.
-                                &None,
-                                window,
-                                cx,
-                            );
-                        }
-                    }
-                },
+            let on_change_end_all = self.on_change_end_all.clone();
+            track = track.child(
+                gpui::canvas(
+                    |bounds, _, _| bounds,
+                    move |_, _, window, _| {
+                        let d_move = dragging.clone();
+                        window.on_mouse_event(move |ev: &MouseMoveEvent, phase, window, cx| {
+                            if phase != gpui::DispatchPhase::Capture
+                                || ev.pressed_button != Some(gpui::MouseButton::Left)
+                            {
+                                return;
+                            }
+                            let (Some(index), values) = ({
+                                let drag = d_move.read(cx);
+                                (drag.active, drag.values.clone())
+                            }) else {
+                                return;
+                            };
+                            if let Some(value) =
+                                value_from_pointer(&b_move, ev.position, vertical, &target_move, cx)
+                            {
+                                let next = set_thumb(
+                                    index,
+                                    value,
+                                    &values,
+                                    &range_own_move,
+                                    &on_change_move,
+                                    &all_move,
+                                    &own_move,
+                                    window,
+                                    cx,
+                                );
+                                sync_form_values(
+                                    &form_state_move,
+                                    &form_thumb_states_move,
+                                    &next,
+                                    form_is_disabled_move,
+                                    &form_disabled_keys_move,
+                                );
+                                d_move.update(cx, |drag, _| drag.values = next);
+                            }
+                        });
+
+                        let d_up = dragging;
+                        window.on_mouse_event(move |event: &MouseUpEvent, phase, window, cx| {
+                            if phase != gpui::DispatchPhase::Capture
+                                || event.button != gpui::MouseButton::Left
+                            {
+                                return;
+                            }
+                            let final_values = d_up.update(cx, |drag, cx| {
+                                let values = drag.active.take().map(|_| drag.values.clone());
+                                cx.notify();
+                                values
+                            });
+                            if let Some(values) = final_values {
+                                if values.len() > 1 {
+                                    if let Some(cb) = &on_change_end_all {
+                                        cb(&values, window, cx);
+                                    }
+                                } else if let Some(cb) = &on_change_end {
+                                    cb(values[0], window, cx);
+                                }
+                            }
+                        });
+                    },
+                )
+                .absolute()
+                .inset_0(),
             );
         }
 
         el.child(track)
     }
+}
+
+fn live_form_state() -> Rc<RefCell<crate::form::LiveFormFieldState>> {
+    Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+        value: crate::form::FormValue::Number(0.0),
+        is_invalid: false,
+        is_successful: true,
+        focus: None,
+        restore: None,
+    }))
+}
+
+fn sync_form_value(
+    state: &Rc<RefCell<crate::form::LiveFormFieldState>>,
+    value: f32,
+    is_successful: bool,
+) {
+    let mut state = state.borrow_mut();
+    state.value = crate::form::FormValue::Number(f64::from(value));
+    state.is_successful = is_successful;
+    state.is_invalid = false;
+}
+
+fn sync_form_values(
+    single: &Rc<RefCell<crate::form::LiveFormFieldState>>,
+    thumbs_state: &Rc<RefCell<Vec<Rc<RefCell<crate::form::LiveFormFieldState>>>>>,
+    values: &[f32],
+    is_disabled: bool,
+    disabled_keys: &std::collections::HashSet<usize>,
+) {
+    if let Some(value) = values.first().copied() {
+        sync_form_value(single, value, !is_disabled && !disabled_keys.contains(&0));
+    }
+    let mut states = thumbs_state.borrow_mut();
+    if states.len() < values.len() {
+        states.resize_with(values.len(), live_form_state);
+    }
+    for (index, value) in values.iter().copied().enumerate() {
+        sync_form_value(
+            &states[index],
+            value,
+            !is_disabled && !disabled_keys.contains(&index),
+        );
+    }
+}
+
+fn normalize_values(values: &[f32], min: f32, max: f32, step: f32) -> Vec<f32> {
+    let mut previous = min;
+    values
+        .iter()
+        .enumerate()
+        .map(|(index, value)| {
+            let upper = values.get(index + 1).copied().unwrap_or(max).min(max);
+            let normalized = snap_to_step(*value, previous, upper.max(previous), step);
+            previous = normalized;
+            normalized
+        })
+        .collect()
 }
 
 /// Everything a drag needs to turn a pointer position into a value.
@@ -705,32 +1009,61 @@ struct DragTarget {
     enabled: Vec<bool>,
 }
 
+#[derive(Default)]
+struct DragState {
+    active: Option<usize>,
+    values: Vec<f32>,
+}
+
 /// Writes one thumb's value through the uncontrolled copy and both callbacks.
 ///
-/// The pointer path reaches this through `set_from_pointer`, which turns a position
+/// The pointer path reaches this through `value_from_pointer`, which turns a position
 /// into a value first; the keyboard already has the value.
 #[allow(clippy::too_many_arguments)]
 fn set_thumb(
     index: usize,
     value: f32,
     thumbs: &[f32],
+    range_own: &Option<gpui::Entity<Vec<f32>>>,
     on_change: &Option<OnChange>,
     on_change_all: &Option<OnChangeAll>,
     own: &Option<gpui::Entity<f32>>,
     window: &mut Window,
     cx: &mut App,
-) {
+) -> Vec<f32> {
     if thumbs.len() > 1 {
         let mut next = thumbs.to_vec();
         if let Some(slot) = next.get_mut(index) {
-            *slot = value;
+            let min = index
+                .checked_sub(1)
+                .and_then(|i| thumbs.get(i))
+                .copied()
+                .unwrap_or(f32::NEG_INFINITY);
+            let max = thumbs.get(index + 1).copied().unwrap_or(f32::INFINITY);
+            *slot = value.clamp(min, max);
         }
-        // A range keeps its ends in order, as v3's does.
-        next.sort_by(f32::total_cmp);
-        if let Some(cb) = on_change_all {
-            cb(&next, window, cx);
+        if next
+            .iter()
+            .zip(thumbs)
+            .any(|(next, current)| next.to_bits() != current.to_bits())
+        {
+            if let Some(own) = range_own {
+                own.update(cx, |current, cx| {
+                    *current = next.clone();
+                    cx.notify();
+                });
+            }
+            if let Some(cb) = on_change_all {
+                cb(&next, window, cx);
+            }
         }
-        return;
+        return next;
+    }
+    if thumbs
+        .first()
+        .is_some_and(|current| current.to_bits() == value.to_bits())
+    {
+        return vec![value];
     }
     if let Some(held) = own {
         held.update(cx, |v, cx| {
@@ -741,20 +1074,16 @@ fn set_thumb(
     if let Some(cb) = on_change {
         cb(value, window, cx);
     }
+    vec![value]
 }
 
-#[allow(clippy::too_many_arguments)] // one struct per call site would be worse
-fn set_from_pointer(
+fn value_from_pointer(
     slot: &gpui::Entity<Bounds<f32>>,
     pos: gpui::Point<gpui::Pixels>,
     vertical: bool,
     target: &DragTarget,
-    on_change: &Option<OnChange>,
-    on_change_all: &Option<OnChangeAll>,
-    own: &Option<gpui::Entity<f32>>,
-    window: &mut Window,
-    cx: &mut App,
-) {
+    cx: &App,
+) -> Option<f32> {
     let b = *slot.read(cx);
     let extent = if vertical {
         b.size.height
@@ -762,54 +1091,63 @@ fn set_from_pointer(
         b.size.width
     };
     if extent <= 0.0 || target.span <= 0.0 {
-        return;
+        return None;
     }
     let frac = axis_fraction(pos, b, vertical);
     let raw = target.min + frac * target.span;
-    let snapped =
-        ((raw / target.step).round() * target.step).clamp(target.min, target.min + target.span);
+    Some(snap_to_step(
+        raw,
+        target.min,
+        target.min + target.span,
+        target.step,
+    ))
+}
 
-    if target.thumbs.len() > 1 {
-        // Multi-thumb: whichever *enabled* thumb is nearest the pointer
-        // follows it, so a range slider does not swap ends under the cursor
-        // and a disabled thumb stays put however the pointer aims. A drag
-        // landing on the disabled thumb's own position therefore pulls the
-        // nearest movable thumb instead, which is what "refuses the pointer"
-        // means for a control with no hitbox of its own.
-        let mut next = target.thumbs.clone();
-        let nearest = next
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| target.enabled.get(*i).copied().unwrap_or(false))
-            .min_by(|(_, a), (_, b)| (**a - snapped).abs().total_cmp(&(**b - snapped).abs()));
-        // No enabled thumb: nothing may follow the pointer.
-        let Some((nearest, _)) = nearest else { return };
-        next[nearest] = snapped;
-        next.sort_by(f32::total_cmp);
-        if let Some(cb) = on_change_all {
-            cb(&next, window, cx);
-        }
-        return;
-    }
+fn nearest_thumb(thumbs: &[f32], enabled: &[bool], value: f32) -> Option<usize> {
+    thumbs
+        .iter()
+        .enumerate()
+        .min_by(|(a_i, a), (b_i, b)| {
+            (**a - value)
+                .abs()
+                .total_cmp(&(**b - value).abs())
+                .then_with(|| b_i.cmp(a_i))
+        })
+        .map(|(i, _)| i)
+        .filter(|index| enabled.get(*index).copied().unwrap_or(true))
+}
 
-    // Single-thumb form: a disabled thumb answers no pointer either.
-    if !target.enabled.first().copied().unwrap_or(true) {
-        return;
+fn snap_to_step(value: f32, min: f32, max: f32, step: f32) -> f32 {
+    let mut snapped = ((value - min) / step).round() * step + min;
+    if snapped < min {
+        snapped = min;
+    } else if snapped > max {
+        snapped = min + ((max - min) / step).floor() * step;
     }
+    round_to_step_precision(snapped, step)
+}
 
-    // Uncontrolled: move our own copy, or dragging would do nothing.
-    if let Some(held) = own {
-        held.update(cx, |v, cx| {
-            *v = snapped;
-            cx.notify();
-        });
+fn round_to_step_precision(value: f32, step: f32) -> f32 {
+    let step_text = step.to_string().to_ascii_lowercase();
+    let precision = if let Some((mantissa, exponent)) = step_text.split_once('e') {
+        let exponent = exponent.parse::<i32>().unwrap_or(0);
+        let fraction = mantissa
+            .split_once('.')
+            .map_or(0, |(_, fraction)| fraction.len() as i32);
+        (fraction - exponent).max(0)
+    } else {
+        step_text
+            .split_once('.')
+            .map_or(0, |(_, fraction)| fraction.len() as i32)
+    };
+    if precision == 0 {
+        return value;
     }
-    if let Some(cb) = on_change {
-        cb(snapped, window, cx);
+    let scale = 10_f32.powi(precision);
+    if !scale.is_finite() {
+        return value;
     }
-    if let Some(cb) = on_change_all {
-        cb(&[snapped], window, cx);
-    }
+    (value * scale).round() / scale
 }
 
 /// Where the pointer sits along the slider's own axis, as a 0..1 fraction of

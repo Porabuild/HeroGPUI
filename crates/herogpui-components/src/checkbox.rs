@@ -1,5 +1,7 @@
 //! Checkbox — port of `@heroui/checkbox`.
 
+use std::{cell::RefCell, rc::Rc};
+
 use gpui::{
     prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce,
     StatefulInteractiveElement, Styled, Window,
@@ -42,7 +44,9 @@ pub struct Checkbox {
     /// does it with `className="rounded-full"` on `Checkbox.Control`.
     is_round: bool,
     children: Vec<AnyElement>,
-    on_change: Option<Box<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
+    on_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
+    form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
+    form_focus_target: Option<Rc<RefCell<crate::form::LiveFormFieldState>>>,
 }
 
 impl Checkbox {
@@ -122,6 +126,14 @@ impl Checkbox {
             is_round: false,
             children: Vec::new(),
             on_change: None,
+            form_state: Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+                value: crate::form::FormValue::Flag(false),
+                is_invalid: false,
+                is_successful: true,
+                focus: None,
+                restore: None,
+            })),
+            form_focus_target: None,
         }
     }
 
@@ -160,13 +172,23 @@ impl Checkbox {
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
         let checked = self.checked.unwrap_or(self.default_checked);
-        let field = match (&self.value, checked) {
-            // A checked box with an explicit `value` submits that text.
-            (Some(v), true) => crate::form::FormField::text_value(name, v.clone()),
-            _ => crate::form::FormField::flag(name, checked),
-        };
+        let validity = crate::validation::resolve(
+            self.is_invalid,
+            &self.validation_errors,
+            self.validate.as_ref().and_then(|f| f(&checked)),
+            None,
+        );
+        {
+            let mut state = self.form_state.borrow_mut();
+            state.value = match (&self.value, checked) {
+                (Some(value), true) => crate::form::FormValue::Text(value.clone()),
+                _ => crate::form::FormValue::Flag(checked),
+            };
+            state.is_invalid = validity.is_invalid;
+            state.is_successful = !self.is_disabled;
+        }
         Some(
-            field
+            crate::form::FormField::live(name, self.form_state.clone())
                 .is_required(self.is_required)
                 .validation_behavior(self.validation_behavior),
         )
@@ -206,7 +228,12 @@ impl Checkbox {
     }
 
     pub fn on_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
-        self.on_change = Some(Box::new(f));
+        self.on_change = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    fn form_focus_target(mut self, state: Rc<RefCell<crate::form::LiveFormFieldState>>) -> Self {
+        self.form_focus_target = Some(state);
         self
     }
 }
@@ -227,6 +254,34 @@ impl RenderOnce for Checkbox {
             self.checked,
             self.default_checked,
         );
+        let reset_own = own.clone();
+        let reset_state = self.form_state.clone();
+        let reset_value = self.value.clone();
+        let reset_change = self
+            .checked
+            .is_some()
+            .then(|| self.on_change.clone())
+            .flatten();
+        self.form_state.borrow_mut().restore = (reset_own.is_some() || reset_change.is_some())
+            .then(|| {
+                let default_checked = self.default_checked;
+                let reset_state = reset_state.clone();
+                crate::util::shared(move |window: &mut Window, cx: &mut App| {
+                    reset_state.borrow_mut().value = match (&reset_value, default_checked) {
+                        (Some(value), true) => crate::form::FormValue::Text(value.clone()),
+                        _ => crate::form::FormValue::Flag(default_checked),
+                    };
+                    if let Some(held) = &reset_own {
+                        held.update(cx, |checked, cx| {
+                            *checked = default_checked;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(on_change) = &reset_change {
+                        on_change(default_checked, window, cx);
+                    }
+                }) as std::sync::Arc<dyn Fn(&mut Window, &mut App)>
+            });
 
         // v3 order: the controlled flag, then server errors, then `validate`.
         let validity = crate::validation::resolve(
@@ -235,6 +290,15 @@ impl RenderOnce for Checkbox {
             self.validate.as_ref().and_then(|f| f(&checked)),
             None,
         );
+        {
+            let mut state = self.form_state.borrow_mut();
+            state.value = match (&self.value, checked) {
+                (Some(value), true) => crate::form::FormValue::Text(value.clone()),
+                _ => crate::form::FormValue::Flag(checked),
+            };
+            state.is_invalid = validity.is_invalid;
+            state.is_successful = !self.is_disabled;
+        }
 
         // `isInvalid` outranks the colour role, as it does on every field.
         // v3 focuses the checkbox and rings `.checkbox__control`, so the two sit
@@ -245,6 +309,10 @@ impl RenderOnce for Checkbox {
             window,
             cx,
         );
+        self.form_state.borrow_mut().focus = Some(focus_handle.clone());
+        if let Some(target) = &self.form_focus_target {
+            target.borrow_mut().focus = Some(focus_handle.clone());
+        }
         let sem = if validity.is_invalid {
             cx.role(Color::Danger)
         } else {
@@ -361,7 +429,14 @@ impl RenderOnce for Checkbox {
         if !self.is_disabled && !self.is_read_only && (self.on_change.is_some() || own.is_some()) {
             let on_change = self.on_change;
             return row
-                .on_click(move |_, window, cx| {
+                .on_click(move |event, window, cx| {
+                    if matches!(
+                        event,
+                        gpui::ClickEvent::Keyboard(event)
+                            if event.button == gpui::KeyboardButton::Enter
+                    ) {
+                        return;
+                    }
                     // Uncontrolled: flip our own copy, or nothing could ever
                     // change it.
                     if let Some(held) = &own {
@@ -444,6 +519,7 @@ pub struct CheckboxGroup {
     is_invalid: bool,
     is_required: bool,
     on_change: Option<OnGroupChange>,
+    form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
 }
 
 impl CheckboxGroup {
@@ -464,6 +540,13 @@ impl CheckboxGroup {
             is_invalid: false,
             is_required: false,
             on_change: None,
+            form_state: Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+                value: crate::form::FormValue::Keys(Vec::new()),
+                is_invalid: false,
+                is_successful: true,
+                focus: None,
+                restore: None,
+            })),
         }
     }
 
@@ -485,14 +568,25 @@ impl CheckboxGroup {
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
+        let selected = self.value.as_ref().unwrap_or(&self.default_value);
+        let values = self
+            .options
+            .iter()
+            .filter(|option| {
+                !self.is_disabled && !option.is_disabled && selected.contains(&option.key)
+            })
+            .map(|option| option.key.clone())
+            .collect();
+        {
+            let mut state = self.form_state.borrow_mut();
+            state.value = crate::form::FormValue::Keys(values);
+            state.is_invalid = self.is_invalid || self.error_message.is_some();
+            state.is_successful = !self.is_disabled;
+            state.focus = None;
+        }
         Some(
-            crate::form::FormField::keys(
-                name,
-                self.value
-                    .clone()
-                    .unwrap_or_else(|| self.default_value.clone()),
-            )
-            .is_required(self.is_required),
+            crate::form::FormField::live(name, self.form_state.clone())
+                .is_required(self.is_required),
         )
     }
 
@@ -578,9 +672,62 @@ impl RenderOnce for CheckboxGroup {
             self.value.clone(),
             self.default_value.clone(),
         );
+        let reset_own = own.clone();
+        let reset_state = self.form_state.clone();
+        let reset_options = self.options.clone();
+        let reset_change = self
+            .value
+            .is_some()
+            .then(|| self.on_change.clone())
+            .flatten();
+        self.form_state.borrow_mut().restore = (reset_own.is_some() || reset_change.is_some())
+            .then(|| {
+                let default_value = self.default_value.clone();
+                let reset_state = reset_state.clone();
+                let reset_options = reset_options.clone();
+                crate::util::shared(move |window: &mut Window, cx: &mut App| {
+                    reset_state.borrow_mut().value = crate::form::FormValue::Keys(
+                        reset_options
+                            .iter()
+                            .filter(|option| {
+                                default_value.contains(&option.key) && !option.is_disabled
+                            })
+                            .map(|option| option.key.clone())
+                            .collect(),
+                    );
+                    if let Some(held) = &reset_own {
+                        held.update(cx, |value, cx| {
+                            *value = default_value.clone();
+                            cx.notify();
+                        });
+                    }
+                    if let Some(on_change) = &reset_change {
+                        on_change(&default_value, window, cx);
+                    }
+                }) as std::sync::Arc<dyn Fn(&mut Window, &mut App)>
+            });
+        let form_values = self
+            .options
+            .iter()
+            .filter(|option| {
+                !self.is_disabled && !option.is_disabled && value.contains(&option.key)
+            })
+            .map(|option| option.key.clone())
+            .collect();
 
         let colors = cx.colors();
         let is_invalid = self.is_invalid || self.error_message.is_some();
+        {
+            let mut state = self.form_state.borrow_mut();
+            state.value = crate::form::FormValue::Keys(form_values);
+            state.is_invalid = is_invalid;
+            state.is_successful = !self.is_disabled;
+            state.focus = None;
+        }
+        let first_enabled = self
+            .options
+            .iter()
+            .position(|option| !self.is_disabled && !option.is_disabled);
 
         let mut root = gpui::div().flex().flex_col().gap(px(16.));
 
@@ -623,34 +770,36 @@ impl RenderOnce for CheckboxGroup {
             let selection = value.clone();
             let on_change = self.on_change.clone();
             let own = own.clone();
-            list = list.child(
-                Checkbox::new(gpui::ElementId::Name(
-                    format!("{:?}-opt-{index}", self.id).into(),
-                ))
-                .is_selected(checked)
-                .is_disabled(disabled)
-                .is_read_only(self.is_read_only)
-                .is_invalid(is_invalid)
-                .variant(self.variant)
-                .label(label_el)
-                .on_change(move |_next, window, cx| {
-                    let mut set = selection.clone();
-                    if !set.remove(&key) {
-                        set.insert(key.clone());
-                    }
-                    // Uncontrolled: keep the new set, or ticking a box would
-                    // do nothing.
-                    if let Some(held) = &own {
-                        held.update(cx, |v, cx| {
-                            *v = set.clone();
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &on_change {
-                        cb(&set, window, cx);
-                    }
-                }),
-            );
+            let mut checkbox = Checkbox::new(gpui::ElementId::Name(
+                format!("{:?}-opt-{index}", self.id).into(),
+            ))
+            .is_selected(checked)
+            .is_disabled(disabled)
+            .is_read_only(self.is_read_only)
+            .is_invalid(is_invalid)
+            .variant(self.variant)
+            .label(label_el)
+            .on_change(move |_next, window, cx| {
+                let mut set = selection.clone();
+                if !set.remove(&key) {
+                    set.insert(key.clone());
+                }
+                // Uncontrolled: keep the new set, or ticking a box would
+                // do nothing.
+                if let Some(held) = &own {
+                    held.update(cx, |v, cx| {
+                        *v = set.clone();
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &on_change {
+                    cb(&set, window, cx);
+                }
+            });
+            if first_enabled == Some(index) {
+                checkbox = checkbox.form_focus_target(self.form_state.clone());
+            }
+            list = list.child(checkbox);
         }
 
         root = root.child(list);

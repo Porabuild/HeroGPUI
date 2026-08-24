@@ -1,6 +1,6 @@
 //! Shared render helpers for HeroGPUI components.
 
-use gpui::{App, Div, Hsla, Pixels, Styled};
+use gpui::{App, BorrowAppContext, Div, Hsla, Pixels, Styled};
 use herogpui_core::{FieldVariant, Prominence};
 use herogpui_theme::ActiveTheme;
 
@@ -157,6 +157,91 @@ pub fn floating(el: impl gpui::IntoElement) -> gpui::Deferred {
     gpui::deferred(el)
 }
 
+/// The result of an explicit overlay dismissal attempt.
+///
+/// Only `Handled` consumes the event. A declined outside press continues to
+/// the control under the pointer, matching React Aria's `useOverlay`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DismissResult {
+    Handled,
+    Declined,
+}
+
+#[derive(Default)]
+struct OverlayStack {
+    entries: Vec<gpui::WeakEntity<OverlayRegistration>>,
+    next_order: u64,
+}
+
+impl gpui::Global for OverlayStack {}
+
+#[derive(Clone)]
+struct OverlayRegistration {
+    window_id: gpui::WindowId,
+    order: u64,
+    phase: OverlayPhase,
+    keep_exiting: bool,
+    exit_generation: u64,
+}
+
+/// A direct handle to one registration returned by [`overlay_scope`].
+///
+/// The token is intentionally not inferred from an element or a render-local
+/// variable. It becomes inert when its registration is unmounted.
+#[derive(Clone)]
+pub struct OverlayToken {
+    registration: gpui::WeakEntity<OverlayRegistration>,
+    window_id: gpui::WindowId,
+}
+
+fn ensure_overlay_stack(cx: &mut App) {
+    if cx.try_global::<OverlayStack>().is_none() {
+        cx.set_global(OverlayStack::default());
+    }
+}
+
+fn prune_overlay_stack(stack: &mut OverlayStack, cx: &App) {
+    stack.entries.retain(|entry| {
+        let Some(entry) = entry.upgrade() else {
+            return false;
+        };
+        entry.read(cx).phase == OverlayPhase::Open
+    });
+}
+
+fn sync_overlay_stack(registration: &gpui::Entity<OverlayRegistration>, cx: &mut App) {
+    ensure_overlay_stack(cx);
+    let weak = registration.downgrade();
+    let active = registration.read(cx).phase == OverlayPhase::Open;
+    cx.update_global::<OverlayStack, _>(|stack, cx| {
+        prune_overlay_stack(stack, cx);
+        if active && !stack.entries.iter().any(|entry| entry == &weak) {
+            stack.entries.push(weak);
+        }
+    });
+}
+
+fn is_topmost(token: &OverlayToken, cx: &mut App) -> bool {
+    ensure_overlay_stack(cx);
+    cx.update_global::<OverlayStack, _>(|stack, cx| {
+        prune_overlay_stack(stack, cx);
+        let Some(registration) = token.registration.upgrade() else {
+            return false;
+        };
+        let state = registration.read(cx);
+        if state.window_id != token.window_id || state.phase != OverlayPhase::Open {
+            return false;
+        }
+        stack
+            .entries
+            .iter()
+            .filter_map(|entry| entry.upgrade())
+            .filter(|entry| entry.read(cx).window_id == token.window_id)
+            .max_by_key(|entry| entry.read(cx).order)
+            .is_some_and(|entry| entry == registration)
+    })
+}
+
 /// Closes a floating panel on Escape and on a press outside it.
 ///
 /// No prop table asks for this: React Aria gives every popover-like surface
@@ -177,11 +262,7 @@ pub fn dismissable<E: gpui::InteractiveElement>(
 ) -> E {
     let close = shared(close);
     let on_escape = close.clone();
-    let el = el.on_key_down(move |event: &gpui::KeyDownEvent, window, cx| {
-        if event.keystroke.key == "escape" {
-            on_escape(window, cx);
-        }
-    });
+    let el = dismiss_on_escape(el, move |window, cx| on_escape(window, cx));
     dismiss_on_press_outside(el, move |window, cx| close(window, cx))
 }
 
@@ -197,9 +278,26 @@ pub fn dismiss_on_escape<E: gpui::InteractiveElement>(
     el: E,
     close: impl Fn(&mut gpui::Window, &mut App) + 'static,
 ) -> E {
+    // Legacy helper: callers not yet migrated to `overlay_scope` retain their
+    // old unconditional dismissal semantics, without render-local inference.
     el.on_key_down(move |event: &gpui::KeyDownEvent, window, cx| {
         if event.keystroke.key == "escape" {
             close(window, cx);
+        }
+    })
+}
+
+pub fn dismiss_on_escape_with_token<E: gpui::InteractiveElement>(
+    el: E,
+    token: OverlayToken,
+    close: impl Fn(&mut gpui::Window, &mut App) -> DismissResult + 'static,
+) -> E {
+    el.on_key_down(move |event: &gpui::KeyDownEvent, window, cx| {
+        if event.keystroke.key == "escape"
+            && is_topmost(&token, cx)
+            && close(window, cx) == DismissResult::Handled
+        {
+            cx.stop_propagation();
         }
     })
 }
@@ -212,7 +310,36 @@ pub fn dismiss_on_press_outside<E: gpui::InteractiveElement>(
     el: E,
     close: impl Fn(&mut gpui::Window, &mut App) + 'static,
 ) -> E {
-    el.on_mouse_down_out(move |_, window, cx| close(window, cx))
+    // Legacy helper: callers not yet migrated to `overlay_scope` retain their
+    // old unconditional dismissal semantics, without render-local inference.
+    el.on_mouse_down_out(move |_, window, cx| {
+        close(window, cx);
+    })
+}
+
+pub fn dismiss_on_press_outside_with_token<E: gpui::InteractiveElement>(
+    el: E,
+    token: OverlayToken,
+    close: impl Fn(&mut gpui::Window, &mut App) -> DismissResult + 'static,
+) -> E {
+    dismiss_on_press_outside_with_token_event(el, token, move |_, window, cx| close(window, cx))
+}
+
+/// The event-aware form of [`dismiss_on_press_outside_with_token`].
+///
+/// Compound surfaces such as a menu and its deferred submenu use the pointer
+/// position to treat the union of both panels as inside, while the token still
+/// prevents a lower overlay from answering the same press.
+pub fn dismiss_on_press_outside_with_token_event<E: gpui::InteractiveElement>(
+    el: E,
+    token: OverlayToken,
+    close: impl Fn(&gpui::MouseDownEvent, &mut gpui::Window, &mut App) -> DismissResult + 'static,
+) -> E {
+    el.on_mouse_down_out(move |event, window, cx| {
+        if is_topmost(&token, cx) && close(event, window, cx) == DismissResult::Handled {
+            cx.stop_propagation();
+        }
+    })
 }
 
 /// A focus handle for a floating panel, focused as the panel opens.
@@ -221,10 +348,37 @@ pub fn dismiss_on_press_outside<E: gpui::InteractiveElement>(
 /// the arrows work at all. It is not a tab stop: the panel is transient, and Tab
 /// inside it should reach the controls it contains.
 ///
-/// `open` is not optional. Claiming the focus while the panel is closed spends
-/// the one-shot on a frame that draws nothing -- the popover's Escape did
-/// nothing at all until this was gated, because the handle had already been
-/// "focused" on the first closed render and the flag was set.
+/// The open transition saves the previously focused handle and claims the
+/// panel. The close transition restores that handle only when focus is still
+/// inside the panel, so an intentional move elsewhere wins. Both transitions
+/// are remembered in keyed state derived from `base`; a per-render flag would
+/// forget ownership on the repaint caused by the opening press.
+#[derive(Clone, Debug, Default)]
+struct PanelFocusState {
+    was_open: bool,
+    restore: Option<gpui::WeakFocusHandle>,
+}
+
+/// A stable handle for the control that opens a [`panel_focus`] scope.
+///
+/// Track this on the trigger wrapper. It is deliberately not a tab stop: the
+/// trigger's own control owns that position, while this handle gives the panel
+/// a stable restoration target even when the trigger is a rebuilt child.
+pub fn panel_restore_focus(
+    window: &mut gpui::Window,
+    cx: &mut App,
+    base: &str,
+) -> gpui::FocusHandle {
+    window
+        .use_keyed_state(
+            gpui::ElementId::Name(format!("{base}-panel-restore-focus").into()),
+            cx,
+            |_, cx| cx.focus_handle(),
+        )
+        .read(cx)
+        .clone()
+}
+
 pub fn panel_focus(
     window: &mut gpui::Window,
     cx: &mut App,
@@ -237,13 +391,39 @@ pub fn panel_focus(
         |_, cx| cx.focus_handle(),
     );
     let handle = held.read(cx).clone();
-    if open {
-        focus_once(
-            window,
-            cx,
-            gpui::ElementId::Name(format!("{base}-panel-autofocus").into()),
-            &handle,
-        );
+    let state = window.use_keyed_state(
+        gpui::ElementId::Name(format!("{base}-panel-focus-state").into()),
+        cx,
+        |_, _| PanelFocusState::default(),
+    );
+    let current = state.read(cx).clone();
+
+    if open && !current.was_open {
+        let trigger = panel_restore_focus(window, cx, base);
+        // `focused` is the actual control that opened the panel. The wrapper
+        // is only a fallback for a programmatic open with no focused control;
+        // restoring it when it merely contains the Button loses the Button's
+        // own focus-visible state and keyboard activation.
+        let restore = window
+            .focused(cx)
+            .filter(|focused| focused.tab_stop)
+            .map(|focused| focused.downgrade())
+            .or_else(|| Some(trigger.downgrade()));
+        window.focus(&handle);
+        state.update(cx, |state, _| {
+            state.was_open = true;
+            state.restore = restore;
+        });
+    } else if !open && current.was_open {
+        if handle.contains_focused(window, cx) {
+            if let Some(restore) = current.restore.and_then(|handle| handle.upgrade()) {
+                window.focus(&restore);
+            }
+        }
+        state.update(cx, |state, _| {
+            state.was_open = false;
+            state.restore = None;
+        });
     }
     handle
 }
@@ -354,9 +534,100 @@ pub enum OverlayPhase {
 struct PhaseState {
     was_open: bool,
     exiting: bool,
+    exit_generation: u64,
+}
+
+/// Registers one overlay in the app-global, window-scoped dismissal stack.
+///
+/// The returned token is the only handle accepted by the explicit dismissal
+/// helpers. An overlay receives a new order only when it transitions from
+/// `Closed` or `Exiting` to `Open`; repainting an open overlay is stable.
+pub fn overlay_scope(
+    window: &mut gpui::Window,
+    cx: &mut App,
+    key: impl Into<gpui::ElementId>,
+    is_open: bool,
+    keep_exiting: bool,
+) -> (OverlayPhase, OverlayToken) {
+    let key = key.into();
+    let window_id = window.window_handle().window_id();
+    let registration = window.use_keyed_state(key, cx, |_, _| OverlayRegistration {
+        window_id,
+        order: 0,
+        phase: OverlayPhase::Closed,
+        keep_exiting,
+        exit_generation: 0,
+    });
+    let current = registration.read(cx).clone();
+
+    let phase = if is_open {
+        if current.phase != OverlayPhase::Open {
+            ensure_overlay_stack(cx);
+            let order = cx.update_global::<OverlayStack, _>(|stack, _| {
+                stack.next_order = stack.next_order.saturating_add(1);
+                stack.next_order
+            });
+            registration.update(cx, |state, _| {
+                state.order = order;
+                state.phase = OverlayPhase::Open;
+                state.keep_exiting = keep_exiting;
+            });
+        }
+        OverlayPhase::Open
+    } else if current.phase == OverlayPhase::Open && keep_exiting {
+        let exit_generation = current.exit_generation.saturating_add(1);
+        registration.update(cx, |state, _| {
+            state.phase = OverlayPhase::Exiting;
+            state.keep_exiting = keep_exiting;
+            state.exit_generation = exit_generation;
+        });
+        let held = registration.downgrade();
+        cx.spawn(async move |cx: &mut gpui::AsyncApp| {
+            cx.background_executor()
+                .timer(std::time::Duration::from_millis(crate::anim::EXITING_MS))
+                .await;
+            let _ = cx.update(|cx| {
+                let _ = held.update(cx, |state, cx| {
+                    if state.phase == OverlayPhase::Exiting
+                        && state.exit_generation == exit_generation
+                    {
+                        state.phase = OverlayPhase::Closed;
+                        cx.notify();
+                    }
+                });
+            });
+        })
+        .detach();
+        OverlayPhase::Exiting
+    } else if current.phase == OverlayPhase::Open {
+        registration.update(cx, |state, _| {
+            state.phase = OverlayPhase::Closed;
+            state.keep_exiting = keep_exiting;
+        });
+        OverlayPhase::Closed
+    } else if current.phase == OverlayPhase::Exiting {
+        OverlayPhase::Exiting
+    } else {
+        if current.keep_exiting != keep_exiting {
+            registration.update(cx, |state, _| state.keep_exiting = keep_exiting);
+        }
+        OverlayPhase::Closed
+    };
+
+    sync_overlay_stack(&registration, cx);
+    (
+        phase,
+        OverlayToken {
+            registration: registration.downgrade(),
+            window_id,
+        },
+    )
 }
 
 /// Resolves `isOpen` into a phase that includes v3's `[data-exiting]`.
+///
+/// Legacy non-stack helper for components not yet migrated. New overlays must
+/// use [`overlay_scope`] and pass its token to the explicit dismissal helpers.
 ///
 /// A `RenderOnce` component drops out of the tree the moment `isOpen` goes
 /// false, which leaves an exit animation nothing to play. This keeps the panel
@@ -371,24 +642,25 @@ pub fn overlay_phase(
     key: impl Into<gpui::ElementId>,
     is_open: bool,
 ) -> OverlayPhase {
-    let held = window.use_keyed_state(key.into(), cx, |_, _| PhaseState::default());
+    let key = key.into();
+    let held = window.use_keyed_state(key, cx, |_, _| PhaseState::default());
     let current = *held.read(cx);
 
-    if is_open {
+    let phase = if is_open {
         if !current.was_open {
             held.update(cx, |s, _| {
                 s.was_open = true;
                 s.exiting = false;
             });
         }
-        return OverlayPhase::Open;
-    }
-
-    if current.was_open {
+        OverlayPhase::Open
+    } else if current.was_open {
         // Just closed: hold the panel for its exit, then drop it.
+        let exit_generation = current.exit_generation.saturating_add(1);
         held.update(cx, |s, _| {
             s.was_open = false;
             s.exiting = true;
+            s.exit_generation = exit_generation;
         });
         let held = held.clone();
         cx.spawn(async move |cx: &mut gpui::AsyncApp| {
@@ -397,19 +669,22 @@ pub fn overlay_phase(
                 .await;
             let _ = cx.update(|cx| {
                 held.update(cx, |s, cx| {
-                    s.exiting = false;
-                    cx.notify();
+                    if s.exiting && s.exit_generation == exit_generation {
+                        s.exiting = false;
+                        cx.notify();
+                    }
                 });
             });
         })
         .detach();
-        return OverlayPhase::Exiting;
-    }
+        OverlayPhase::Exiting
+    } else if current.exiting {
+        OverlayPhase::Exiting
+    } else {
+        OverlayPhase::Closed
+    };
 
-    if current.exiting {
-        return OverlayPhase::Exiting;
-    }
-    OverlayPhase::Closed
+    phase
 }
 
 /// Runs `apply` on the first render only.
@@ -828,4 +1103,81 @@ pub fn ring_if_focused<T: Styled>(
 ) -> T {
     let focused = handle.is_focused(window) && focus_visible(cx);
     with_focus_ring(el, focused, offset, base, cx)
+}
+
+#[cfg(test)]
+mod overlay_stack_tests {
+    use super::*;
+    use gpui::AppContext;
+
+    fn registration(
+        cx: &mut gpui::TestAppContext,
+        window_id: gpui::WindowId,
+        order: u64,
+    ) -> gpui::Entity<OverlayRegistration> {
+        cx.new(|_| OverlayRegistration {
+            window_id,
+            order,
+            phase: OverlayPhase::Open,
+            keep_exiting: false,
+            exit_generation: 0,
+        })
+    }
+
+    #[gpui::test]
+    fn sibling_order_is_stable_when_open_registrations_repaint(cx: &mut gpui::TestAppContext) {
+        let outer = registration(cx, gpui::WindowId::from(1), 1);
+        let inner = registration(cx, gpui::WindowId::from(1), 2);
+        cx.update(|cx| {
+            sync_overlay_stack(&outer, cx);
+            sync_overlay_stack(&inner, cx);
+            sync_overlay_stack(&outer, cx);
+            sync_overlay_stack(&inner, cx);
+            let stack = cx.global::<OverlayStack>();
+            assert_eq!(stack.entries.len(), 2);
+            assert_eq!(stack.entries[0].upgrade().unwrap().read(cx).order, 1);
+            assert_eq!(stack.entries[1].upgrade().unwrap().read(cx).order, 2);
+        });
+    }
+
+    #[gpui::test]
+    fn topmost_registration_is_window_scoped(cx: &mut gpui::TestAppContext) {
+        let first = registration(cx, gpui::WindowId::from(1), 1);
+        let second = registration(cx, gpui::WindowId::from(2), 2);
+        let first_token = OverlayToken {
+            registration: first.downgrade(),
+            window_id: gpui::WindowId::from(1),
+        };
+        let second_token = OverlayToken {
+            registration: second.downgrade(),
+            window_id: gpui::WindowId::from(2),
+        };
+        cx.update(|cx| {
+            cx.set_global(OverlayStack {
+                entries: vec![first.downgrade(), second.downgrade()],
+                next_order: 2,
+            });
+            assert!(is_topmost(&first_token, cx));
+            assert!(is_topmost(&second_token, cx));
+        });
+    }
+
+    #[gpui::test]
+    fn dead_registration_is_pruned_from_the_stack(cx: &mut gpui::TestAppContext) {
+        let registration = registration(cx, gpui::WindowId::from(1), 1);
+        let weak = registration.downgrade();
+        cx.update(|cx| {
+            cx.set_global(OverlayStack {
+                entries: vec![weak.clone()],
+                next_order: 1,
+            });
+        });
+        drop(registration);
+        cx.update(|cx| {
+            cx.update_global::<OverlayStack, _>(|stack, cx| {
+                prune_overlay_stack(stack, cx);
+                assert!(stack.entries.is_empty());
+            });
+        });
+    }
 }

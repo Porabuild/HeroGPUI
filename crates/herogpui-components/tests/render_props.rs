@@ -461,10 +461,10 @@ fn menu_item_content_renders_at_all(cx: &mut TestAppContext) {
     let record = recorded.clone();
     let _cx = open_host(cx, move || {
         let record = record.clone();
-        Menu::new(vec![
-            MenuItem::new("one", "One"),
-            MenuItem::new("two", "Two"),
-        ])
+        Menu::new(
+            "render-props-menu-press",
+            vec![MenuItem::new("one", "One"), MenuItem::new("two", "Two")],
+        )
         .id("rp-menu-render")
         .item_content(move |key, state| {
             record_interactive(&record, key, state);
@@ -499,11 +499,14 @@ fn menu_item_content_tracks_selection_and_cursor(cx: &mut TestAppContext) {
         let record = record.clone();
         let changes = changes.clone();
         let selected_now = held.borrow().clone();
-        Menu::new(vec![
-            MenuItem::new("one", "One"),
-            MenuItem::new("two", "Two"),
-            MenuItem::new("three", "Three"),
-        ])
+        Menu::new(
+            "render-props-menu-selection",
+            vec![
+                MenuItem::new("one", "One"),
+                MenuItem::new("two", "Two"),
+                MenuItem::new("three", "Three"),
+            ],
+        )
         .id("rp-menu-state")
         .selection_mode(SelectionMode::Multiple)
         .selected_keys(selected_now)
@@ -611,10 +614,10 @@ fn menu_item_content_sees_the_press(cx: &mut TestAppContext) {
     let record = recorded.clone();
     let cx = open_host(cx, move || {
         let record = record.clone();
-        Menu::new(vec![
-            MenuItem::new("one", "One"),
-            MenuItem::new("two", "Two"),
-        ])
+        Menu::new(
+            "render-props-menu-disabled",
+            vec![MenuItem::new("one", "One"), MenuItem::new("two", "Two")],
+        )
         .id("rp-menu-press")
         .item_content(move |key, state| {
             record_interactive(&record, key, state);

@@ -3,10 +3,11 @@
 //! Edge-anchored overlay panel. Render from your root view like [`Modal`].
 
 use gpui::{
-    prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
+    prelude::*, px, AnyElement, App, Bounds, ClickEvent, IntoElement, ParentElement, RenderOnce,
     SharedString, Styled, Window,
 };
 use herogpui_theme::ActiveTheme;
+use std::time::Instant;
 
 use herogpui_core::Backdrop;
 
@@ -16,15 +17,30 @@ use crate::modal::{OnClose, OnOpenChange};
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum DrawerPlacement {
     Left,
-    #[default]
     Right,
     Top,
+    #[default]
     Bottom,
 }
 
-/// The drawer panel's extent along its axis. v3 sets this in `drawer.css`
-/// rather than with a prop, capped at 90% of the window by `max-w`/`max-h`.
-const PANEL_EXTENT: gpui::Pixels = px(320.);
+/// The desktop side drawer width in v3's `drawer.css`.
+const SIDE_EXTENT: gpui::Pixels = px(384.);
+
+const DRAG_ACTIVATION: f32 = 8.;
+
+const DRAG_DISMISS_FRACTION: f32 = 0.3;
+
+const DRAG_VELOCITY: f32 = 0.5;
+
+#[derive(Clone, Copy)]
+struct DragState {
+    start: f32,
+    offset: f32,
+    last: f32,
+    last_at: Instant,
+    velocity: f32,
+    active: bool,
+}
 
 /// HeroUI Drawer (controlled).
 #[derive(IntoElement)]
@@ -40,7 +56,7 @@ pub struct Drawer {
     hide_close_button: bool,
     title: Option<SharedString>,
     body: Vec<AnyElement>,
-    footer: Vec<AnyElement>,
+    footer: Vec<(AnyElement, bool)>,
     on_close: Option<OnClose>,
 }
 
@@ -60,7 +76,7 @@ impl Drawer {
         Self {
             id: gpui::ElementId::Name("drawer".into()),
             is_open: false,
-            placement: DrawerPlacement::Right,
+            placement: DrawerPlacement::Bottom,
             is_dismissible: true,
             backdrop: Backdrop::Opaque,
             is_keyboard_dismiss_disabled: false,
@@ -118,7 +134,11 @@ impl Drawer {
     }
 
     pub fn footer_child(mut self, el: impl IntoElement) -> Self {
-        self.footer.push(el.into_any_element());
+        let mut element = el.into_any_element();
+        let interactive = element
+            .downcast_mut::<gpui::Stateful<gpui::Div>>()
+            .is_some();
+        self.footer.push((element, interactive));
         self
     }
 
@@ -143,11 +163,12 @@ impl ParentElement for Drawer {
 impl RenderOnce for Drawer {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // v3 keeps a closing panel on screen for its `slide-out-to-*` run.
-        let phase = crate::util::overlay_phase(
+        let (phase, dismissal_token) = crate::util::overlay_scope(
             window,
             cx,
             crate::modal::dialog_key(&self.id, "phase"),
             self.is_open,
+            true,
         );
         if phase == crate::util::OverlayPhase::Closed {
             return gpui::div().into_any_element();
@@ -172,13 +193,18 @@ impl RenderOnce for Drawer {
         // the theme tokens.
         let drag =
             window.use_keyed_state(crate::modal::dialog_key(&self.id, "drag"), cx, |_, _| {
-                None::<(f32, f32)>
+                None::<DragState>
             });
         let drag_now = *drag.read(cx);
         // How far the panel has been pulled toward its edge, which is what the
         // panel is offset by while the pointer is down.
-        let drag_offset = drag_now.map_or(0.0, |(_, offset)| offset.max(0.0));
+        let drag_offset = drag_now.map_or(0.0, |state| state.offset.max(0.0));
 
+        let panel_bounds = window.use_keyed_state(
+            crate::modal::dialog_key(&self.id, "panel-bounds"),
+            cx,
+            |_, _| Bounds::default(),
+        );
         let colors = cx.colors();
 
         // Every dismissal path reports through both callbacks.
@@ -222,7 +248,14 @@ impl RenderOnce for Drawer {
                 move |ev: &gpui::MouseDownEvent, _window, cx| {
                     let at = drag_axis_position(axis, ev.position);
                     held_down.update(cx, |v, cx| {
-                        *v = Some((at, 0.0));
+                        *v = Some(DragState {
+                            start: at,
+                            offset: 0.,
+                            last: at,
+                            last_at: Instant::now(),
+                            velocity: 0.,
+                            active: false,
+                        });
                         cx.notify();
                     });
                 },
@@ -230,6 +263,39 @@ impl RenderOnce for Drawer {
         }
 
         let has_body = !self.body.is_empty();
+        let mut handle = gpui::div().flex().items_center().justify_center().child(
+            gpui::div()
+                .h(px(4.))
+                .w(px(36.))
+                .rounded(crate::util::hairline_radius(cx))
+                .bg(colors.separator),
+        );
+        if self.is_dismissible {
+            let axis = self.placement;
+            let held_down = drag.clone();
+            handle = handle.on_mouse_down(
+                gpui::MouseButton::Left,
+                move |ev: &gpui::MouseDownEvent, _window, cx| {
+                    let at = drag_axis_position(axis, ev.position);
+                    held_down.update(cx, |v, cx| {
+                        *v = Some(DragState {
+                            start: at,
+                            offset: 0.,
+                            last: at,
+                            last_at: Instant::now(),
+                            velocity: 0.,
+                            active: false,
+                        });
+                        cx.notify();
+                    });
+                },
+            );
+        }
+        let handle = match self.placement {
+            DrawerPlacement::Top => handle.pt(px(8.)),
+            _ => handle.pb(px(8.)),
+        };
+        let measured_bounds = panel_bounds.clone();
         let mut panel = gpui::div()
             .relative()
             .flex()
@@ -243,24 +309,31 @@ impl RenderOnce for Drawer {
             // an `h-1 w-9 rounded-xs bg-separator` bar: the affordance that says
             // the sheet can be dragged shut. `--top` moves it to the bottom
             // edge, which is the edge that moves.
-            .child({
-                let bar = gpui::div()
-                    .h(px(4.))
-                    .w(px(36.))
-                    .rounded(crate::util::hairline_radius(cx))
-                    .bg(colors.separator);
-                let handle = gpui::div().flex().items_center().justify_center().child(bar);
-                match self.placement {
-                    DrawerPlacement::Top => handle.pt(px(8.)),
-                    _ => handle.pb(px(8.)),
-                }
-            })
+            .child(
+                gpui::canvas(
+                    move |bounds, _, cx| {
+                        measured_bounds.update(cx, |value, cx| {
+                            if *value != bounds {
+                                *value = bounds;
+                                cx.notify();
+                            }
+                        });
+                    },
+                    |_, _, _, _| {},
+                )
+                .absolute()
+                .inset_0(),
+            )
+            .child(handle)
             .when(has_header, |p| p.child(header))
             .when(has_body, |p| {
                 p.child(
                     gpui::div()
+                        .id(crate::modal::dialog_key(&self.id, "body-scroll"))
                         .flex()
                         .flex_col()
+                        .flex_1()
+                        .min_h(px(0.))
                         .gap(px(10.))
                         // `.drawer__header + .drawer__body` is `mt-2`.
                         .when(has_header, |b| b.mt(px(8.)))
@@ -268,6 +341,10 @@ impl RenderOnce for Drawer {
                         // `leading-[1.43]` on `text-sm`.
                         .line_height(px(20.))
                         .text_color(colors.muted)
+                        // `.drawer__body` is the native scrolling surface;
+                        // keeping the drag start listeners on its siblings
+                        // leaves wheel and pointer scrolling conflict-free.
+                        .overflow_y_scroll()
                         .children(self.body),
                 )
             });
@@ -275,15 +352,54 @@ impl RenderOnce for Drawer {
         // `.drawer__footer` has no border: the separator this used to draw is
         // not in v3's sheet, and `+ .drawer__footer` is `mt-5`.
         if !self.footer.is_empty() {
-            panel = panel.child(
-                gpui::div()
-                    .flex()
-                    .items_center()
-                    .justify_end()
-                    .gap(px(8.))
-                    .when(has_header || has_body, |f| f.mt(px(20.)))
-                    .children(self.footer),
+            // GPUI's `id().on_click(...)` divs are `Stateful<Div>` elements,
+            // while a plain `Div` has no hitbox. Mark only that stateful div
+            // shape as an interactive footer descendant; ordinary full-width
+            // content remains on the drawer drag surface.
+            let footer_content = gpui::div().flex().items_center().gap(px(8.)).children(
+                self.footer.into_iter().map(|(child, interactive)| {
+                    if interactive {
+                        gpui::div()
+                            .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
+                                cx.stop_propagation();
+                            })
+                            .child(child)
+                            .into_any_element()
+                    } else {
+                        gpui::div().child(child).into_any_element()
+                    }
+                }),
             );
+            let mut footer = gpui::div()
+                .flex()
+                .items_center()
+                .justify_end()
+                .when(has_header || has_body, |f| f.mt(px(20.)));
+            if self.is_dismissible {
+                let axis = self.placement;
+                let held_down = drag.clone();
+                footer = footer.on_mouse_down(
+                    gpui::MouseButton::Left,
+                    move |ev: &gpui::MouseDownEvent, window, cx| {
+                        if window.default_prevented() {
+                            return;
+                        }
+                        let at = drag_axis_position(axis, ev.position);
+                        held_down.update(cx, |v, cx| {
+                            *v = Some(DragState {
+                                start: at,
+                                offset: 0.,
+                                last: at,
+                                last_at: Instant::now(),
+                                velocity: 0.,
+                                active: false,
+                            });
+                            cx.notify();
+                        });
+                    },
+                );
+            }
+            panel = panel.child(footer.child(footer_content));
         }
 
         // `.drawer__close-trigger` is `absolute end-4 top-4`.
@@ -301,36 +417,36 @@ impl RenderOnce for Drawer {
         // anchor to the requested edge, pulled out by however far the drag has
         // come: a div cannot be translated in this gpui, so the inset moves.
         let pulled = px(-drag_offset);
+        let viewport = window.viewport_size();
+        let side_extent = SIDE_EXTENT.min(viewport.width * 0.85);
         // `.drawer__content` is the positioned box the dialog slides in, and its
         // `--top`/`--bottom`/`--left`/`--right` variants are this match.
         let anchored = match self.placement {
             DrawerPlacement::Left => panel
-                .w(PANEL_EXTENT)
-                .max_w(gpui::relative(0.9))
+                .w(side_extent)
+                .max_w(viewport.width * 0.85)
                 .h_full()
                 .absolute()
                 .left(pulled)
                 .top(px(0.))
                 .bottom(px(0.)),
             DrawerPlacement::Right => panel
-                .w(PANEL_EXTENT)
-                .max_w(gpui::relative(0.9))
+                .w(side_extent)
+                .max_w(viewport.width * 0.85)
                 .h_full()
                 .absolute()
                 .right(pulled)
                 .top(px(0.))
                 .bottom(px(0.)),
             DrawerPlacement::Top => panel
-                .h(PANEL_EXTENT)
-                .max_h(gpui::relative(0.9))
+                .max_h(viewport.height * 0.85)
                 .w_full()
                 .absolute()
                 .top(pulled)
                 .left(px(0.))
                 .right(px(0.)),
             DrawerPlacement::Bottom => panel
-                .h(PANEL_EXTENT)
-                .max_h(gpui::relative(0.9))
+                .max_h(viewport.height * 0.85)
                 .w_full()
                 .absolute()
                 .bottom(pulled)
@@ -347,9 +463,14 @@ impl RenderOnce for Drawer {
         // and the exit phase gets none: the drawer is already closing.
         let anchored = if self.is_dismissible && !exiting {
             if let Some(on_close) = press_out_dismiss {
-                crate::util::dismiss_on_press_outside(anchored, move |window, cx| {
-                    on_close(&ClickEvent::default(), window, cx);
-                })
+                crate::util::dismiss_on_press_outside_with_token(
+                    anchored,
+                    dismissal_token.clone(),
+                    move |window, cx| {
+                        on_close(&ClickEvent::default(), window, cx);
+                        crate::util::DismissResult::Handled
+                    },
+                )
             } else {
                 anchored
             }
@@ -378,60 +499,118 @@ impl RenderOnce for Drawer {
         let mut overlay = crate::util::trap_tab(
             gpui::div().absolute().inset_0().track_focus(&focus_handle),
             &focus_handle,
-        )
-        .on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
-            if ev.keystroke.key == "escape" {
-                if let Some(f) = &keyboard_dismiss {
-                    f(&ClickEvent::default(), window, cx);
-                }
-            }
-        });
+        );
+        if let Some(on_escape) = keyboard_dismiss {
+            overlay = crate::util::dismiss_on_escape_with_token(
+                overlay,
+                dismissal_token,
+                move |window, cx| {
+                    on_escape(&ClickEvent::default(), window, cx);
+                    crate::util::DismissResult::Handled
+                },
+            );
+        }
 
-        // `Drag to dismiss`: pull the panel toward its edge and let go. The
-        // pointer leaves the header the moment it moves, so the move and the
-        // release are watched here, on the overlay that covers the window --
-        // the same reason a table's column resize is handled on the table.
+        let measured_extent = match self.placement {
+            DrawerPlacement::Left | DrawerPlacement::Right => {
+                f32::from(panel_bounds.read(cx).size.width)
+            }
+            DrawerPlacement::Top | DrawerPlacement::Bottom => {
+                f32::from(panel_bounds.read(cx).size.height)
+            }
+        };
+        let fallback_extent = match self.placement {
+            DrawerPlacement::Left | DrawerPlacement::Right => f32::from(side_extent),
+            DrawerPlacement::Top | DrawerPlacement::Bottom => f32::from(viewport.height * 0.85),
+        };
+        let dismiss_extent = if measured_extent > 0. {
+            measured_extent
+        } else {
+            fallback_extent
+        };
+
+        // GPUI's ordinary mouse-move listeners are bubble-phase and require
+        // their hitbox to remain hovered. Registering the move/up listeners in
+        // the canvas paint callback makes them capture-phase window listeners,
+        // so a pull can continue past the moving edge and release outside it.
         if self.is_dismissible {
             let axis = self.placement;
             let held_move = drag.clone();
             let held_up = drag;
             let release = dismiss.clone();
-            overlay = overlay
-                .on_mouse_move(move |ev: &gpui::MouseMoveEvent, _window, cx| {
-                    let Some((start, offset)) = *held_move.read(cx) else {
-                        return;
-                    };
-                    let at = drag_axis_position(axis, ev.position);
-                    // Toward the edge is positive, whichever edge that is.
-                    let next = match axis {
-                        DrawerPlacement::Left | DrawerPlacement::Top => start - at,
-                        DrawerPlacement::Right | DrawerPlacement::Bottom => at - start,
-                    }
-                    .max(0.0);
-                    // Redraw only when the pull actually changes.
-                    if (next - offset).abs() >= 1.0 {
-                        held_move.update(cx, |v, cx| {
-                            *v = Some((start, next));
+            let global_drag = gpui::canvas(
+                |_, _, _| (),
+                move |_, _, window, _| {
+                    let held_move = held_move.clone();
+                    window.on_mouse_event(move |ev: &gpui::MouseMoveEvent, phase, _window, cx| {
+                        if phase != gpui::DispatchPhase::Capture {
+                            return;
+                        }
+                        let Some(state) = *held_move.read(cx) else {
+                            return;
+                        };
+                        let at = drag_axis_position(axis, ev.position);
+                        let next = match axis {
+                            DrawerPlacement::Left | DrawerPlacement::Top => state.start - at,
+                            DrawerPlacement::Right | DrawerPlacement::Bottom => at - state.start,
+                        }
+                        .max(0.0);
+                        let now = Instant::now();
+                        let elapsed_ms = now.duration_since(state.last_at).as_secs_f32() * 1000.;
+                        let movement = (at - state.last).abs();
+                        let velocity = if next > state.offset && elapsed_ms > 0. {
+                            movement / elapsed_ms
+                        } else {
+                            0.
+                        };
+                        let active = state.active || next >= DRAG_ACTIVATION;
+                        let offset = if active { next } else { 0. };
+                        if (offset - state.offset).abs() >= 1.
+                            || active != state.active
+                            || velocity > 0.
+                        {
+                            held_move.update(cx, |value, cx| {
+                                *value = Some(DragState {
+                                    start: state.start,
+                                    offset,
+                                    last: at,
+                                    last_at: now,
+                                    velocity,
+                                    active,
+                                });
+                                cx.notify();
+                            });
+                        }
+                    });
+
+                    let held_up = held_up.clone();
+                    window.on_mouse_event(move |ev: &gpui::MouseUpEvent, phase, window, cx| {
+                        if phase != gpui::DispatchPhase::Capture
+                            || ev.button != gpui::MouseButton::Left
+                        {
+                            return;
+                        }
+                        let Some(state) = *held_up.read(cx) else {
+                            return;
+                        };
+                        held_up.update(cx, |value, cx| {
+                            *value = None;
                             cx.notify();
                         });
-                    }
-                })
-                .on_mouse_up(gpui::MouseButton::Left, move |_, window, cx| {
-                    let Some((_, offset)) = *held_up.read(cx) else {
-                        return;
-                    };
-                    held_up.update(cx, |v, cx| {
-                        *v = None;
-                        cx.notify();
-                    });
-                    // A quarter of the panel is far enough to mean it; anything
-                    // less springs back, which is what clearing the drag does.
-                    if offset >= f32::from(PANEL_EXTENT) * 0.25 {
-                        if let Some(f) = &release {
-                            f(&ClickEvent::default(), window, cx);
+                        if state.active
+                            && (state.offset >= dismiss_extent * DRAG_DISMISS_FRACTION
+                                || state.velocity > DRAG_VELOCITY)
+                        {
+                            if let Some(f) = &release {
+                                f(&ClickEvent::default(), window, cx);
+                            }
                         }
-                    }
-                });
+                    });
+                },
+            )
+            .absolute()
+            .inset_0();
+            overlay = overlay.child(global_drag);
         }
         // `.drawer__backdrop` (its `--opaque`/`--blur`/`--transparent`
         // variants are the Backdrop enum) is a bare scrim — dimmed but
@@ -474,7 +653,7 @@ impl RenderOnce for Drawer {
                 anchored,
                 "drawer-panel-out",
                 edge,
-                PANEL_EXTENT,
+                px(dismiss_extent),
                 crate::anim::Motion::DRAWER_OUT,
                 cx,
             )
@@ -483,7 +662,7 @@ impl RenderOnce for Drawer {
                 anchored,
                 "drawer-panel",
                 edge,
-                PANEL_EXTENT,
+                px(dismiss_extent),
                 crate::anim::Motion::DRAWER_IN,
                 cx,
             )

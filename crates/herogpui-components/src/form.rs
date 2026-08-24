@@ -13,8 +13,8 @@
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use gpui::{
-    px, AnyElement, App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled,
-    Window,
+    px, AnyElement, App, Entity, FocusHandle, IntoElement, ParentElement, RenderOnce, SharedString,
+    Styled, Window,
 };
 
 use crate::{input::InputState, number_field::NumberState};
@@ -75,6 +75,20 @@ impl FormData {
         self.get(name).map(FormValue::as_text)
     }
 
+    /// All values submitted under `name`, matching the browser `FormData`
+    /// `getAll` operation. Multi-selection fields contribute one value per
+    /// selected key.
+    pub fn get_all(&self, name: &str) -> Vec<SharedString> {
+        self.entries
+            .iter()
+            .filter(|(entry_name, _)| entry_name == name)
+            .flat_map(|(_, value)| match value {
+                FormValue::Keys(keys) => keys.clone(),
+                value => vec![value.as_text()],
+            })
+            .collect()
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = (&SharedString, &FormValue)> {
         self.entries.iter().map(|(n, v)| (n, v))
     }
@@ -98,15 +112,25 @@ impl FormData {
 }
 
 type Read = Arc<dyn Fn(&App) -> FormValue + 'static>;
-type Restore = Arc<dyn Fn(&mut App) + 'static>;
+type Restore = Arc<dyn Fn(&mut Window, &mut App) + 'static>;
 type ReadName = Arc<dyn Fn(&App) -> Option<SharedString> + 'static>;
 type ReadBehavior = Arc<dyn Fn(&App) -> ValidationBehavior + 'static>;
+type ReadSuccessful = Arc<dyn Fn(&App) -> bool + 'static>;
 /// Reads the field's stored validity — whether its own validation is in error,
 /// which blocks a native submission like a missing required value.
 type ReadInvalid = Arc<dyn Fn(&App) -> bool + 'static>;
 /// Moves the focus to this field, which a blocked submit uses for v3's
 /// "the first invalid field will be focused".
 type FocusField = Arc<dyn Fn(&mut Window, &mut App) + 'static>;
+
+/// Value, validity and focus owned by a rendered control without an entity.
+pub(crate) struct LiveFormFieldState {
+    pub(crate) value: FormValue,
+    pub(crate) is_invalid: bool,
+    pub(crate) is_successful: bool,
+    pub(crate) focus: Option<FocusHandle>,
+    pub(crate) restore: Option<Restore>,
+}
 
 /// A named field a [`Form`] reads on submit.
 ///
@@ -127,6 +151,9 @@ pub struct FormField {
     validation_behavior: ValidationBehavior,
     /// Reads `validationBehavior` off the field's own state entity.
     behavior_of: Option<ReadBehavior>,
+    /// Whether this field is a successful native form control. Disabled
+    /// checkbox inputs are neither submitted nor validated.
+    successful_of: Option<ReadSuccessful>,
     /// Reads the field's stored validity — whether the field considers itself
     /// in error, written by `Input::render`.
     invalid_of: Option<ReadInvalid>,
@@ -149,6 +176,7 @@ impl FormField {
             behavior_of: Some(Arc::new(move |cx: &App| {
                 behavior_state.read(cx).validation_behavior()
             })),
+            successful_of: None,
             invalid_of: Some(Arc::new(move |cx: &App| {
                 invalid_state.read(cx).validity().is_invalid
             })),
@@ -180,6 +208,7 @@ impl FormField {
             behavior_of: Some(Arc::new(move |cx: &App| {
                 behavior_state.read(cx).input.read(cx).validation_behavior()
             })),
+            successful_of: None,
             invalid_of: None,
             read: Arc::new(move |cx: &App| FormValue::Number(read_state.read(cx).value())),
             restore: None,
@@ -206,6 +235,7 @@ impl FormField {
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
             behavior_of: None,
+            successful_of: None,
             invalid_of: None,
             focus: Some(Arc::new(move |window, cx| {
                 let fh = focus_state.read(cx).focus_handle.clone();
@@ -226,6 +256,7 @@ impl FormField {
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
             behavior_of: None,
+            successful_of: None,
             invalid_of: None,
             focus: None,
         }
@@ -244,8 +275,43 @@ impl FormField {
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
             behavior_of: None,
+            successful_of: None,
             invalid_of: None,
             focus: None,
+        }
+    }
+
+    /// A live field owned by a single-threaded rendered control.
+    pub(crate) fn live(
+        name: impl Into<SharedString>,
+        state: Rc<RefCell<LiveFormFieldState>>,
+    ) -> Self {
+        let read_state = state.clone();
+        let invalid_state = state.clone();
+        let successful_state = state.clone();
+        let restore_state = state.clone();
+        let focus_state = state;
+        Self {
+            name: Some(name.into()),
+            name_of: None,
+            read: Arc::new(move |_| read_state.borrow().value.clone()),
+            restore: Some(Arc::new(move |window, cx| {
+                let restore = restore_state.borrow().restore.clone();
+                if let Some(restore) = restore {
+                    restore(window, cx);
+                }
+            })),
+            is_required: false,
+            validation_behavior: ValidationBehavior::Native,
+            behavior_of: None,
+            successful_of: Some(Arc::new(move |_| successful_state.borrow().is_successful)),
+            invalid_of: Some(Arc::new(move |_| invalid_state.borrow().is_invalid)),
+            focus: Some(Arc::new(move |window, _| {
+                let focus = focus_state.borrow().focus.clone();
+                if let Some(focus) = focus {
+                    window.focus(&focus);
+                }
+            })),
         }
     }
 
@@ -259,6 +325,7 @@ impl FormField {
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
             behavior_of: None,
+            successful_of: None,
             invalid_of: None,
             focus: None,
         }
@@ -274,6 +341,7 @@ impl FormField {
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
             behavior_of: None,
+            successful_of: None,
             invalid_of: None,
             focus: None,
         }
@@ -293,6 +361,7 @@ impl FormField {
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
             behavior_of: None,
+            successful_of: None,
             invalid_of: None,
             focus: None,
         }
@@ -311,7 +380,7 @@ impl FormField {
         value: impl Into<SharedString>,
     ) -> Self {
         let value = value.into();
-        self.restore = Some(Arc::new(move |cx: &mut App| {
+        self.restore = Some(Arc::new(move |_, cx: &mut App| {
             state.update(cx, |s, cx| {
                 s.set_value(value.to_string());
                 cx.notify();
@@ -322,7 +391,7 @@ impl FormField {
 
     /// The number a reset restores.
     pub fn default_number(mut self, state: Entity<NumberState>, value: f64) -> Self {
-        self.restore = Some(Arc::new(move |cx: &mut App| {
+        self.restore = Some(Arc::new(move |_, cx: &mut App| {
             state.update(cx, |s, cx| {
                 s.set_value(value, cx);
                 cx.notify();
@@ -365,6 +434,10 @@ impl FormField {
     /// the validation a native submit consults.
     fn is_invalid(&self, cx: &App) -> bool {
         self.invalid_of.as_ref().is_some_and(|f| f(cx))
+    }
+
+    fn is_successful(&self, cx: &App) -> bool {
+        self.successful_of.as_ref().is_none_or(|f| f(cx))
     }
 }
 
@@ -463,9 +536,22 @@ impl Form {
     pub fn data(&self, cx: &App) -> FormData {
         let mut entries = Vec::with_capacity(self.fields.len());
         for field in &self.fields {
+            if !field.is_successful(cx) {
+                continue;
+            }
             // An unnamed field is not submitted, exactly as in HTML.
             if let Some(name) = field.field_name(cx) {
-                entries.push((name, (field.read)(cx)));
+                let value = (field.read)(cx);
+                // Unchecked checkbox inputs and checkbox groups with no
+                // selected inputs are absent from native FormData.
+                let omitted = match &value {
+                    FormValue::Flag(false) => true,
+                    FormValue::Keys(keys) => keys.is_empty(),
+                    _ => false,
+                };
+                if !omitted {
+                    entries.push((name, value));
+                }
             }
         }
         FormData { entries }
@@ -476,7 +562,7 @@ impl Form {
     fn required_names(&self, cx: &App) -> Vec<SharedString> {
         self.fields
             .iter()
-            .filter(|f| f.is_required && f.blocks_submission(cx))
+            .filter(|f| f.is_successful(cx) && f.is_required && f.blocks_submission(cx))
             .filter_map(|f| f.field_name(cx))
             .collect()
     }
@@ -512,7 +598,7 @@ impl Form {
             // `validationErrors`, or an HTML5 attribute violation).
             let own_invalid: Vec<SharedString> = fields
                 .iter()
-                .filter(|f| f.blocks_submission(cx) && f.is_invalid(cx))
+                .filter(|f| f.is_successful(cx) && f.blocks_submission(cx) && f.is_invalid(cx))
                 .filter_map(|f| f.field_name(cx))
                 .collect();
             let blocked = behavior == ValidationBehavior::Native
@@ -528,7 +614,8 @@ impl Form {
                 // up (AGENTS.md); the tests below drive a submit with a
                 // button click and assert the field holds the focus after.
                 for field in &fields {
-                    let invalid = field.blocks_submission(cx)
+                    let invalid = field.is_successful(cx)
+                        && field.blocks_submission(cx)
                         && (field.is_invalid(cx)
                             || (field.is_required
                                 && field.field_name(cx).is_some_and(|name| {
@@ -562,7 +649,7 @@ impl Form {
         let on_reset = self.on_reset.clone();
         Arc::new(move |window: &mut Window, cx: &mut App| {
             for restore in &restores {
-                restore(cx);
+                restore(window, cx);
             }
             if let Some(f) = &on_reset {
                 f(window, cx);

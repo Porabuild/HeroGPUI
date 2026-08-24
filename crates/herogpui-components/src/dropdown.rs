@@ -143,10 +143,12 @@ pub struct Menu {
     /// pick cannot, because gpui activates a focused element on key up and the
     /// trigger's click listener would reopen the menu it just closed.
     on_dismiss: Option<OnDismiss>,
+    overlay_token: Option<crate::util::OverlayToken>,
+    dropdown_composition: bool,
 }
 
 impl Menu {
-    pub fn new(items: Vec<MenuItem>) -> Self {
+    pub fn new(id: impl Into<gpui::ElementId>, items: Vec<MenuItem>) -> Self {
         Self {
             exiting: false,
             deferred: true,
@@ -154,7 +156,7 @@ impl Menu {
             focus_first: None,
             on_back: None,
             item_content: None,
-            id: gpui::ElementId::Name("menu".into()),
+            id: id.into(),
             items,
             selected_key: None,
             selection_mode: SelectionMode::None,
@@ -167,6 +169,8 @@ impl Menu {
             on_selection_change: None,
             on_action: None,
             on_dismiss: None,
+            overlay_token: None,
+            dropdown_composition: false,
         }
     }
 
@@ -180,6 +184,16 @@ impl Menu {
     /// `false`.
     pub(crate) fn on_dismiss(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_dismiss = Some(std::rc::Rc::new(f));
+        self
+    }
+
+    pub(crate) fn overlay_token(mut self, token: crate::util::OverlayToken) -> Self {
+        self.overlay_token = Some(token);
+        self
+    }
+
+    pub(crate) fn dropdown_composition(mut self) -> Self {
+        self.dropdown_composition = true;
         self
     }
 
@@ -302,6 +316,20 @@ impl Menu {
 impl RenderOnce for Menu {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let base = format!("{:?}", self.id);
+        let overlay_token = if let Some(token) = self.overlay_token.clone() {
+            Some(token)
+        } else if self.on_dismiss.is_some() {
+            let (_, token) = crate::util::overlay_scope(
+                window,
+                cx,
+                gpui::ElementId::Name(format!("{base}-overlay").into()),
+                true,
+                self.exiting,
+            );
+            Some(token)
+        } else {
+            None
+        };
         let (selected_keys, selection_own) = crate::util::controlled(
             window,
             cx,
@@ -477,6 +505,7 @@ impl RenderOnce for Menu {
             .unwrap_or_else(|| std::rc::Rc::new(std::cell::RefCell::new(Vec::new())));
 
         let colors = cx.colors();
+        let dropdown_composition = self.dropdown_composition;
 
         let mut panel = gpui::div()
             .relative()
@@ -501,6 +530,11 @@ impl RenderOnce for Menu {
             .track_scroll(&menu_scroll_now)
             .track_focus(&focus_handle)
             .key_context("Menu");
+        if dropdown_composition {
+            // Dropdown's nested `[data-slot="dropdown-menu"]` overrides the
+            // standalone Menu p-1 inset with p-1.5.
+            panel = panel.p(px(6.));
+        }
 
         let recorded_panel_bounds = panel_bounds.clone();
         let registered_panel_bounds = all_panel_bounds.clone();
@@ -756,6 +790,11 @@ impl RenderOnce for Menu {
                     // `.menu-item` is `min-h-9 py-1.5`; a described row grows
                     // past the minimum instead of clipping its second line.
                     row = row.min_h(px(36.)).py(px(6.));
+                    if dropdown_composition {
+                        // Dropdown's nested `[data-slot="menu-item"]` uses
+                        // px-2.5, while standalone Menu remains px-2.
+                        row = row.px(px(10.));
+                    }
                     if is_item_disabled {
                         // `status-disabled` is `--disabled-opacity`; the muted
                         // text alone was this port's own idea of the state.
@@ -768,7 +807,11 @@ impl RenderOnce for Menu {
                             row,
                             crate::anim::PressBox {
                                 height: px(36.),
-                                padding_x: Some(px(8.)),
+                                padding_x: Some(if dropdown_composition {
+                                    px(10.)
+                                } else {
+                                    px(8.)
+                                }),
                                 width: None,
                                 min_width: None,
                                 text_size: px(14.),
@@ -1005,18 +1048,43 @@ impl RenderOnce for Menu {
         // and checks the union of the actual parent and descendant bounds.
         if self.deferred {
             if let Some(cb) = dismiss.clone() {
-                let panel_union = all_panel_bounds.clone();
-                panel = panel.on_mouse_down_out(move |event, window, cx| {
-                    let inside = panel_union.borrow().iter().any(|bounds| {
-                        event.position.x >= bounds.origin.x
-                            && event.position.x <= bounds.origin.x + bounds.size.width
-                            && event.position.y >= bounds.origin.y
-                            && event.position.y <= bounds.origin.y + bounds.size.height
-                    });
-                    if !inside {
-                        cb(true, window, cx);
+                if open_submenu.is_some() {
+                    // A submenu is a sibling of the parent panel. Keep the
+                    // union-boundary check so its real bounds remain inside
+                    // the menu surface; the shared token still gates Escape.
+                    let panel_union = all_panel_bounds.clone();
+                    if let Some(token) = overlay_token.clone() {
+                        panel = crate::util::dismiss_on_press_outside_with_token_event(
+                            panel,
+                            token,
+                            move |event, window, cx| {
+                                let inside = panel_union.borrow().iter().any(|bounds| {
+                                    event.position.x >= bounds.origin.x
+                                        && event.position.x <= bounds.origin.x + bounds.size.width
+                                        && event.position.y >= bounds.origin.y
+                                        && event.position.y <= bounds.origin.y + bounds.size.height
+                                });
+                                if inside {
+                                    crate::util::DismissResult::Declined
+                                } else {
+                                    cb(true, window, cx);
+                                    crate::util::DismissResult::Handled
+                                }
+                            },
+                        );
                     }
-                });
+                } else if let Some(token) = overlay_token.clone() {
+                    // The explicit token gates a simple menu against any
+                    // overlay above it.
+                    panel = crate::util::dismiss_on_press_outside_with_token(
+                        panel,
+                        token,
+                        move |window, cx| {
+                            cb(true, window, cx);
+                            crate::util::DismissResult::Handled
+                        },
+                    );
+                }
             }
         }
 
@@ -1040,12 +1108,15 @@ impl RenderOnce for Menu {
                 }
                 _ => px(0.),
             };
-            let mut sub = Menu::new(submenu)
+            let mut sub = Menu::new(submenu_id.clone(), submenu)
                 .id(gpui::ElementId::Name(format!("{submenu_id}-menu").into()))
                 .indicator(self.indicator)
                 .disabled_keys(self.disabled_keys)
                 .embedded(all_panel_bounds)
                 .focus_first(submenu_focus.clone());
+            if let Some(token) = overlay_token.clone() {
+                sub = sub.overlay_token(token);
+            }
             let close_state = submenu_state;
             let close_focus_state = submenu_focus;
             let parent_focus = focus_handle.clone();
@@ -1069,9 +1140,17 @@ impl RenderOnce for Menu {
         // Escape bubbles from the focused descendant to this root surface.
         let surface = if self.deferred {
             match dismiss {
-                Some(cb) => crate::util::dismiss_on_escape(surface, move |window, cx| {
-                    cb(true, window, cx);
-                }),
+                Some(cb) => match overlay_token {
+                    Some(token) => crate::util::dismiss_on_escape_with_token(
+                        surface,
+                        token,
+                        move |window, cx| {
+                            cb(true, window, cx);
+                            crate::util::DismissResult::Handled
+                        },
+                    ),
+                    None => surface,
+                },
                 None => surface,
             }
         } else {
@@ -1208,15 +1287,24 @@ impl Dropdown {
         self
     }
 
-    pub fn uncontrolled(trigger: impl IntoElement, items: Vec<MenuItem>) -> Self {
-        let mut dd = Self::new(trigger, items, false);
+    pub fn uncontrolled(
+        id: impl Into<gpui::ElementId>,
+        trigger: impl IntoElement,
+        items: Vec<MenuItem>,
+    ) -> Self {
+        let mut dd = Self::new(id, trigger, items, false);
         dd.is_open = None;
         dd
     }
 
-    pub fn new(trigger: impl IntoElement, items: Vec<MenuItem>, is_open: bool) -> Self {
+    pub fn new(
+        id: impl Into<gpui::ElementId>,
+        trigger: impl IntoElement,
+        items: Vec<MenuItem>,
+        is_open: bool,
+    ) -> Self {
         Self {
-            id: gpui::ElementId::Name("dropdown".into()),
+            id: id.into(),
             trigger: trigger.into_any_element(),
             trigger_kind: DropdownTrigger::default(),
             is_open: Some(is_open),
@@ -1326,12 +1414,13 @@ impl RenderOnce for Dropdown {
             self.default_selected_keys.clone(),
         );
         self.selected_keys = selected_keys;
-        // `overlay_phase` takes `cx` mutably too, so it goes here.
-        let phase = crate::util::overlay_phase(
+        // `overlay_scope` takes `cx` mutably too, so it goes here.
+        let (phase, overlay_token) = crate::util::overlay_scope(
             window,
             cx,
             gpui::ElementId::Name(format!("{wrap_base}-phase").into()),
             is_open,
+            true,
         );
 
         // `trigger="longPress"` needs to know whether the button is still down
@@ -1439,14 +1528,19 @@ impl RenderOnce for Dropdown {
 
         // v3 keeps a closing menu on screen for its `[data-exiting]` run.
         if phase != crate::util::OverlayPhase::Closed {
-            let mut menu = Menu::new(self.items)
-                .id(gpui::ElementId::Name(format!("{wrap_base}-menu").into()))
-                .exiting(phase == crate::util::OverlayPhase::Exiting)
-                .selection_mode(self.selection_mode)
-                .selected_keys(self.selected_keys.clone())
-                .disallow_empty_selection(self.disallow_empty_selection)
-                .disabled_keys(self.disabled_keys.clone())
-                .indicator(self.indicator);
+            let mut menu = Menu::new(
+                gpui::ElementId::Name(format!("{wrap_base}-menu-content").into()),
+                self.items,
+            )
+            .id(gpui::ElementId::Name(format!("{wrap_base}-menu").into()))
+            .dropdown_composition()
+            .exiting(phase == crate::util::OverlayPhase::Exiting)
+            .selection_mode(self.selection_mode)
+            .selected_keys(self.selected_keys.clone())
+            .disallow_empty_selection(self.disallow_empty_selection)
+            .disabled_keys(self.disabled_keys.clone())
+            .indicator(self.indicator);
+            menu = menu.overlay_token(overlay_token);
             if let Some(on_action) = self.on_action.clone() {
                 menu = menu.on_action(move |k, w, cx| on_action(k, w, cx));
             }

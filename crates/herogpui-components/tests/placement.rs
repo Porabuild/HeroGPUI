@@ -9,9 +9,10 @@
 //! gallery screenshot page shows one configuration, so nothing here was
 //! driven before.
 //!
-//! Geometry derives from the port's own constants: `Drawer::PANEL_EXTENT`
-//! (320px), the modal width preset (`max-w-xs`…`max-w-lg`), the 260px popover
-//! panel, fixed-size probe controls, and the 1920x1080 test window. The
+//! Geometry derives from the port's own constants: the Drawer's 384px desktop
+//! side width and intrinsic 85vh-capped sheets, the modal width preset
+//! (`max-w-xs`…`max-w-lg`), the 260px popover panel, fixed-size probe controls,
+//! and the 1920x1080 test window. The
 //! arithmetic for every click is written inline in the section that uses it.
 //!
 //! Two overlay facts this suite depends on (both learned by `overlays.rs`):
@@ -81,6 +82,15 @@ fn drag(cx: &mut VisualTestContext, from: (f32, f32), to: (f32, f32)) {
     cx.simulate_mouse_up(point(px(to.0), px(to.1)), MouseButton::Left, modifiers);
 }
 
+fn slow_drag(cx: &mut VisualTestContext, from: (f32, f32), to: (f32, f32)) {
+    let modifiers = Modifiers::none();
+    cx.simulate_mouse_down(point(px(from.0), px(from.1)), MouseButton::Left, modifiers);
+    std::thread::sleep(Duration::from_millis(100));
+    cx.simulate_mouse_move(point(px(to.0), px(to.1)), MouseButton::Left, modifiers);
+    std::thread::sleep(Duration::from_millis(100));
+    cx.simulate_mouse_up(point(px(to.0), px(to.1)), MouseButton::Left, modifiers);
+}
+
 /// One simulated wheel event at window coordinates (`x`, `y`) scrolling `dy`
 /// pixels: **negative moves down** (later content into view), matching the
 /// scrollable's `scroll_offset += delta` with negative offsets meaning
@@ -117,17 +127,18 @@ fn probe(id: impl Into<ElementId>, label: &'static str, recorded: Events) -> gpu
 // Drawer — all four placements
 // ---------------------------------------------------------------------------
 //
-// Geometry (window 1920x1080, `PANEL_EXTENT` 320px, `p-6` = 24px inset):
+// Geometry (window 1920x1080, 384px side drawers, `p-6` = 24px inset):
 //
-// - The panel is anchored to one edge and runs the full cross-axis: Right
-//   x [1600..1920], Left x [0..320], Top y [0..320], Bottom y [760..1080].
+// - Side panels are anchored to one edge and run the full height: Right
+//   x [1536..1920], Left x [0..384]. Top/bottom sheets size to their content
+//   and cap at 85vh.
 // - The drag surface is the title row. The panel's first child is the handle
 //   bar (`h-1` 4px + `pb-2`/`pt-2` 8px = 12px at y 24..36), then the 24px
 //   title line (16px text at `leading-6`), so the title row is y [36..60]
 //   measured from the panel's near edge — the Top drawer's row starts 36px
 //   below the window top, the Bottom drawer's 36px below y = 760.
 // - Dragging *toward the edge* accumulates a positive offset; the release
-//   dismisses when the offset reaches `PANEL_EXTENT * 0.25` = 80px.
+//   dismisses past 30% of the measured panel or on a fast flick.
 // - Each test's landing probe sits after the title row: panel padding 24 +
 //   handle 12 + title 24 + `mt-2` 8 = 68px from the near edge, so the body
 //   probe's centre is (near_edge + 24 + 20, far_edge + 68 + 18).
@@ -146,9 +157,9 @@ fn drawer_right_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext) 
         let rec = rec.clone();
         let hits = hits.clone();
         let is_open = *open_flag.borrow();
-        // Right drawer: x [1600..1920]. Title row (the drag surface)
-        // y [36..60], centre (1760, 48). Body probe centre (1644, 86):
-        // x = 1600 + 24 padding + 20 half-probe.
+        // Right drawer: x [1536..1920]. Title row (the drag surface)
+        // y [36..60], centre (1728, 48). Body probe centre (1580, 86):
+        // x = 1536 + 24 padding + 20 half-probe.
         Drawer::new()
             .id("pl-drawer-right")
             .is_open(is_open)
@@ -169,7 +180,7 @@ fn drawer_right_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext) 
     // Landing: a press where the panel's body is computed to be — 24px
     // padding + 20px half-probe across, 68px down — reaches the probe and
     // reports no dismissal: the panel truly sits at the right edge.
-    click(cx, 1644., 86.);
+    click(cx, 1580., 86.);
     assert_eq!(
         probed.borrow().as_slice(),
         ["hit"],
@@ -188,43 +199,42 @@ fn drawer_right_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext) 
         "escape must dismiss the drawer"
     );
     let_exit_finish(cx);
-    click(cx, 1644., 86.);
+    click(cx, 1580., 86.);
     assert_eq!(
         probed.borrow().as_slice(),
         ["hit"],
         "the panel must be gone after the exit: the probe spot records nothing"
     );
 
-    // A 40px pull (1760, 48) -> (1800, 48) is under the 80px threshold: the
-    // drawer springs back, adding no dismissal to the escape's one entry,
-    // and the probe is still there to press.
+    // A slow 40px pull is activated but below 30% of the measured 384px
+    // panel, so it springs back rather than taking the fast-flick path.
     *open.borrow_mut() = true;
     flush_frame(cx);
-    drag(cx, (1760., 48.), (1800., 48.));
+    slow_drag(cx, (1728., 48.), (1768., 48.));
     assert_eq!(
         recorded.borrow().as_slice(),
         ["open:false"],
         "a sub-threshold pull must spring back without dismissing; recorded: {:?}",
         recorded.borrow().as_slice()
     );
-    click(cx, 1644., 86.);
+    click(cx, 1580., 86.);
     assert_eq!(
         probed.borrow().as_slice(),
         ["hit", "hit"],
         "the drawer must still be open after the spring-back"
     );
 
-    // A 100px pull past the threshold dismisses exactly once on release.
+    // A 132px pull passes 30% of the measured panel.
     *open.borrow_mut() = true;
     flush_frame(cx);
-    drag(cx, (1760., 48.), (1860., 48.));
+    drag(cx, (1728., 48.), (1860., 48.));
     assert_eq!(
         recorded.borrow().as_slice(),
         ["open:false", "open:false"],
         "the far pull must report the close exactly once"
     );
     let_exit_finish(cx);
-    click(cx, 1644., 86.);
+    click(cx, 1580., 86.);
     assert_eq!(
         probed.borrow().as_slice(),
         ["hit", "hit"],
@@ -246,8 +256,8 @@ fn drawer_left_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext) {
         let rec = rec.clone();
         let hits = hits.clone();
         let is_open = *open_flag.borrow();
-        // Left drawer: x [0..320]. Title row (the drag surface) y [36..60],
-        // centre (160, 48). Body probe centre (44, 86).
+        // Left drawer: x [0..384]. Title row (the drag surface) y [36..60],
+        // centre (192, 48). Body probe centre (44, 86).
         Drawer::new()
             .id("pl-drawer-left")
             .is_open(is_open)
@@ -290,11 +300,10 @@ fn drawer_left_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext) {
         "the panel must be gone"
     );
 
-    // 40px pull toward the left edge: springs back, adding no dismissal to
-    // the escape's one entry.
+    // A slow 40px pull is below 30% of the measured panel and springs back.
     *open.borrow_mut() = true;
     flush_frame(cx);
-    drag(cx, (160., 48.), (120., 48.));
+    slow_drag(cx, (192., 48.), (152., 48.));
     assert_eq!(
         recorded.borrow().as_slice(),
         ["open:false"],
@@ -308,10 +317,10 @@ fn drawer_left_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext) {
         "the drawer must still be open after the spring-back"
     );
 
-    // 100px pull toward the left edge (to x = 60, inside the window).
+    // A 132px pull toward the left edge passes 30% of the panel.
     *open.borrow_mut() = true;
     flush_frame(cx);
-    drag(cx, (160., 48.), (60., 48.));
+    drag(cx, (192., 48.), (60., 48.));
     assert_eq!(
         recorded.borrow().as_slice(),
         ["open:false", "open:false"],
@@ -326,17 +335,11 @@ fn drawer_left_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext) {
     );
 }
 
-/// The Top drawer's drag-dismiss threshold is *unreachable*, and this test
-/// pins that down rather than pretending otherwise. The title row — the only
-/// surface that starts a drag record — sits at y [36..60], and the 80px
-/// threshold would need the pointer to reach y <= -32, outside the window.
-/// gpui refuses to deliver mouse events whose hit-test finds nothing (the
-/// overlay's move listener is gated on `hitbox.is_hovered`), so the largest
-/// in-window pull, to the very top edge, yields an offset of only 48px and
-/// the release always springs back. v3's `slide-out-to-top` dismissal is
-/// therefore physically impossible from a Top drawer in this port.
+/// The Top drawer registers its drag move/release on the window during paint,
+/// so the gesture remains live at the window edge instead of losing the
+/// header hitbox. A fast pull to y=0 dismisses through v3's velocity path.
 #[gpui::test]
-fn drawer_top_placement_lands_on_edge_and_maximal_pull_springs_back(cx: &mut TestAppContext) {
+fn drawer_top_placement_lands_on_edge_and_maximal_pull_dismisses(cx: &mut TestAppContext) {
     still();
     let rec = events();
     let recorded = rec.clone();
@@ -349,7 +352,8 @@ fn drawer_top_placement_lands_on_edge_and_maximal_pull_springs_back(cx: &mut Tes
         let rec = rec.clone();
         let hits = hits.clone();
         let is_open = *open_flag.borrow();
-        // Top drawer: y [0..320], full width. Handle at pt(8): y [24..36];
+        // Top drawer is intrinsic-height and full width. Handle at pt(8):
+        // y [24..36];
         // title row (the drag surface) y [36..60], centre (960, 48). Body
         // probe centre (44, 86).
         Drawer::new()
@@ -394,28 +398,24 @@ fn drawer_top_placement_lands_on_edge_and_maximal_pull_springs_back(cx: &mut Tes
         "the panel must be gone"
     );
 
-    // The maximal in-window pull: from the title-row centre at y = 48 up to
-    // the window's top edge (y = 0) moves the pointer 48px — under the 80px
-    // threshold, so the release springs the drawer back. No larger pull is
-    // expressible: the move would leave the window, gpui hit-tests the event
-    // against the last rendered frame, and no hitbox contains an off-window
-    // point, so the overlay's move listener never runs.
+    // Window-level capture preserves the gesture to the top edge. This one
+    // simulated move is a fast flick and dismisses even if 48px is below 30%
+    // of the measured intrinsic sheet.
     *open.borrow_mut() = true;
     flush_frame(cx);
     drag(cx, (960., 48.), (960., 0.));
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["open:false"],
-        "even the maximal in-window pull must spring back without adding a \
-         dismissal: the 80px threshold is unreachable from a Top drawer; \
-         recorded: {:?}",
+        ["open:false", "open:false"],
+        "the top-edge flick must add exactly one dismissal; recorded: {:?}",
         recorded.borrow().as_slice()
     );
+    let_exit_finish(cx);
     click(cx, 44., 86.);
     assert_eq!(
         probed.borrow().as_slice(),
-        ["hit", "hit"],
-        "the drawer must still be open after the maximal pull"
+        ["hit"],
+        "the top drawer must be gone after the captured flick"
     );
 }
 
@@ -433,9 +433,9 @@ fn drawer_bottom_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext)
         let rec = rec.clone();
         let hits = hits.clone();
         let is_open = *open_flag.borrow();
-        // Bottom drawer: y [760..1080], full width. Handle y [784..796];
-        // title row (the drag surface) y [796..820], centre (960, 808).
-        // Body probe centre (44, 846).
+        // This short Bottom drawer is 128px tall: y [952..1080]. Its handle
+        // sits at y [976..988], title row at y [988..1012], and the body
+        // probe's centre is (44, 1038).
         Drawer::new()
             .id("pl-drawer-bottom")
             .is_open(is_open)
@@ -453,7 +453,7 @@ fn drawer_bottom_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext)
             .into_any_element()
     });
 
-    click(cx, 44., 846.);
+    click(cx, 44., 1038.);
     assert_eq!(
         probed.borrow().as_slice(),
         ["hit"],
@@ -471,43 +471,42 @@ fn drawer_bottom_placement_lands_on_edge_and_drags_shut(cx: &mut TestAppContext)
         "escape must dismiss the drawer"
     );
     let_exit_finish(cx);
-    click(cx, 44., 846.);
+    click(cx, 44., 1038.);
     assert_eq!(
         probed.borrow().as_slice(),
         ["hit"],
         "the panel must be gone"
     );
 
-    // 40px pull toward the bottom edge: springs back, adding no dismissal to
-    // the escape's one entry.
+    // A slow 20px pull is activated but stays below 30% of the measured
+    // 128px sheet, so it springs back without taking the fast-flick path.
     *open.borrow_mut() = true;
     flush_frame(cx);
-    drag(cx, (960., 808.), (960., 848.));
+    slow_drag(cx, (960., 1000.), (960., 1020.));
     assert_eq!(
         recorded.borrow().as_slice(),
         ["open:false"],
         "a sub-threshold pull must spring back without dismissing; recorded: {:?}",
         recorded.borrow().as_slice()
     );
-    click(cx, 44., 846.);
+    click(cx, 44., 1038.);
     assert_eq!(
         probed.borrow().as_slice(),
         ["hit", "hit"],
         "the drawer must still be open after the spring-back"
     );
 
-    // 100px pull toward the bottom edge (to y = 908, inside the window):
-    // the release threshold is genuinely consulted and dismisses.
+    // A 50px pull passes 30% of the measured sheet.
     *open.borrow_mut() = true;
     flush_frame(cx);
-    drag(cx, (960., 808.), (960., 908.));
+    drag(cx, (960., 1000.), (960., 1050.));
     assert_eq!(
         recorded.borrow().as_slice(),
         ["open:false", "open:false"],
         "the far pull must report the close exactly once"
     );
     let_exit_finish(cx);
-    click(cx, 44., 846.);
+    click(cx, 44., 1038.);
     assert_eq!(
         probed.borrow().as_slice(),
         ["hit", "hit"],

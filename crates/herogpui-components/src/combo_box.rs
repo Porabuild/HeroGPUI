@@ -491,6 +491,16 @@ impl RenderOnce for ComboBox {
             self.is_open,
             self.default_open,
         );
+        let (overlay_phase, dismissal_token) = util::overlay_scope(
+            window,
+            cx,
+            gpui::ElementId::Name(
+                format!("combobox-{}-overlay", self.state.entity_id().as_u64()).into(),
+            ),
+            open_state,
+            false,
+        );
+        let overlay_active = overlay_phase != util::OverlayPhase::Closed;
 
         // Owned copies: `input.render` below needs `cx` mutably.
         let colors = cx.colors().clone();
@@ -615,7 +625,11 @@ impl RenderOnce for ComboBox {
                 let own = open_own.clone();
                 let pressed = trigger_pressed.clone();
                 trigger = trigger
-                    .capture_any_mouse_down(move |_, _, _| pressed.set(true))
+                    .capture_any_mouse_down(move |_, _, cx| {
+                        pressed.set(true);
+                        let pressed = pressed.clone();
+                        cx.defer(move |_| pressed.set(false));
+                    })
                     .on_click(move |_, window, cx| {
                         // Uncontrolled: flip our own copy, or the chevron would be
                         // inert without a caller handler.
@@ -887,27 +901,51 @@ impl RenderOnce for ComboBox {
                             cb(false, window, cx);
                         }
                     }
-                    crate::list_nav::Move::Ignore => {
-                        if key == "escape" {
-                            held.update(cx, |v, _| *v = None);
-                            if let Some(held) = &open_own_keys {
-                                held.update(cx, |v, cx| {
-                                    *v = false;
-                                    cx.notify();
-                                });
-                            }
-                            if let Some(cb) = &on_open_change {
-                                cb(false, window, cx);
-                            }
-                        }
-                    }
+                    crate::list_nav::Move::Ignore => {}
                 }
             });
         }
 
-        let show_list = open_state
+        let show_list = overlay_active
             && !self.is_disabled
             && (!matches.is_empty() || self.allows_empty_collection || self.allows_custom_value);
+
+        let escape_own = open_own.clone();
+        let escape_cb = self.on_open_change.clone();
+        let mut root = root;
+        root =
+            util::dismiss_on_escape_with_token(root, dismissal_token.clone(), move |window, cx| {
+                if let Some(held) = &escape_own {
+                    held.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &escape_cb {
+                    cb(false, window, cx);
+                }
+                util::DismissResult::Handled
+            });
+        if overlay_active && !show_list {
+            let dismiss_own = open_own.clone();
+            let dismiss_cb = self.on_open_change.clone();
+            root = util::dismiss_on_press_outside_with_token(
+                root,
+                dismissal_token.clone(),
+                move |window, cx| {
+                    if let Some(held) = &dismiss_own {
+                        held.update(cx, |v, cx| {
+                            *v = false;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &dismiss_cb {
+                        cb(false, window, cx);
+                    }
+                    util::DismissResult::Handled
+                },
+            );
+        }
         if show_list {
             let panel = div()
                 .id(gpui::ElementId::Name(
@@ -942,20 +980,25 @@ impl RenderOnce for ComboBox {
             // down was not stolen as a dismissal.
             let dismiss_own = open_own;
             let dismiss_cb = self.on_open_change.clone();
-            let mut panel = util::dismiss_on_press_outside(panel, move |window, cx| {
-                if trigger_pressed.get() {
-                    return;
-                }
-                if let Some(held) = &dismiss_own {
-                    held.update(cx, |v, cx| {
-                        *v = false;
-                        cx.notify();
-                    });
-                }
-                if let Some(cb) = &dismiss_cb {
-                    cb(false, window, cx);
-                }
-            });
+            let mut panel = util::dismiss_on_press_outside_with_token(
+                panel,
+                dismissal_token,
+                move |window, cx| {
+                    if trigger_pressed.get() {
+                        return util::DismissResult::Declined;
+                    }
+                    if let Some(held) = &dismiss_own {
+                        held.update(cx, |v, cx| {
+                            *v = false;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &dismiss_cb {
+                        cb(false, window, cx);
+                    }
+                    util::DismissResult::Handled
+                },
+            );
 
             if matches.is_empty() {
                 // `allowsCustomValue` means an unmatched query is still valid,
@@ -1160,14 +1203,15 @@ impl RenderOnce for ComboBox {
                 }
             }
 
+            let panel = crate::anim::entering_zoom(
+                panel,
+                gpui::ElementId::Name(format!("combobox-{entity_id}-anim").into()),
+                crate::anim::ZoomBox::panel(px(4.), container_radius).padding_x(px(4.)),
+                crate::anim::Motion::LIST_IN,
+                cx,
+            );
             input_group = input_group.child(util::floating(
-                util::placed_field_panel(self.placement, px(6.)).child(crate::anim::entering_zoom(
-                    panel,
-                    gpui::ElementId::Name(format!("combobox-{entity_id}-anim").into()),
-                    crate::anim::ZoomBox::panel(px(4.), container_radius).padding_x(px(4.)),
-                    crate::anim::Motion::LIST_IN,
-                    cx,
-                )),
+                util::placed_field_panel(self.placement, px(6.)).child(panel),
             ));
         }
 

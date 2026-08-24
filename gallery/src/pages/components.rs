@@ -968,6 +968,7 @@ impl Gallery {
                 (
                     "With Icons",
                     col(vec![h::Dropdown::uncontrolled(
+                        "dd-icons-dd",
                         h::Button::new("dd-icons")
                             .label("File")
                             .variant(Variant::Secondary),
@@ -985,6 +986,7 @@ impl Gallery {
                 (
                     "With Descriptions",
                     col(vec![h::Dropdown::uncontrolled(
+                        "dd-desc-dd",
                         h::Button::new("dd-desc")
                             .label("Merge")
                             .variant(Variant::Secondary),
@@ -1004,6 +1006,7 @@ impl Gallery {
                 (
                     "With Disabled Items",
                     col(vec![h::Dropdown::uncontrolled(
+                        "dd-disabled-dd",
                         h::Button::new("dd-disabled")
                             .label("Actions")
                             .variant(Variant::Secondary),
@@ -1016,6 +1019,7 @@ impl Gallery {
                 (
                     "With Sections",
                     col(vec![h::Dropdown::uncontrolled(
+                        "dd-sections-dd",
                         h::Button::new("dd-sections")
                             .label("Actions")
                             .variant(Variant::Secondary),
@@ -1035,6 +1039,7 @@ impl Gallery {
                     "Controlled",
                     col(vec![
                         h::Dropdown::new(
+                            "dd-controlled-dd",
                             h::Button::new("dd-controlled")
                                 .label("Actions")
                                 .variant(Variant::Secondary),
@@ -1070,6 +1075,7 @@ impl Gallery {
                             para(if is_open { "Open" } else { "Closed" }, cx),
                         ]),
                         h::Dropdown::new(
+                            "dd-open-dd",
                             h::Button::new("dd-open")
                                 .label("Actions")
                                 .variant(Variant::Secondary),
@@ -1087,6 +1093,7 @@ impl Gallery {
                 (
                     "With Single Selection",
                     col(vec![h::Dropdown::uncontrolled(
+                        "dd-single-dd",
                         h::Button::new("dd-single")
                             .label("Sort by")
                             .variant(Variant::Secondary),
@@ -1104,6 +1111,7 @@ impl Gallery {
                 (
                     "Single With Custom Indicator",
                     col(vec![h::Dropdown::uncontrolled(
+                        "dd-single-ind-dd",
                         h::Button::new("dd-single-ind")
                             .label("Sort by")
                             .variant(Variant::Secondary),
@@ -1121,6 +1129,7 @@ impl Gallery {
                 (
                     "With Section Level Selection",
                     col(vec![h::Dropdown::uncontrolled(
+                        "dd-section-sel-dd",
                         h::Button::new("dd-section-sel")
                             .label("View")
                             .variant(Variant::Secondary),
@@ -1145,6 +1154,7 @@ impl Gallery {
                 (
                     "With Keyboard Shortcuts",
                     col(vec![h::Dropdown::uncontrolled(
+                        "dd-shortcuts-dd",
                         h::Button::new("dd-shortcuts")
                             .label("Edit")
                             .variant(Variant::Secondary),
@@ -1160,6 +1170,7 @@ impl Gallery {
                 (
                     "With Submenus",
                     col(vec![h::Dropdown::uncontrolled(
+                        "dd-submenu-dd",
                         h::Button::new("dd-submenu")
                             .label("Share")
                             .variant(Variant::Secondary),
@@ -1185,6 +1196,7 @@ impl Gallery {
                             cx,
                         ),
                         h::Dropdown::uncontrolled(
+                            "dd-submenu-ind-dd",
                             h::Button::new("dd-submenu-ind")
                                 .label("More")
                                 .variant(Variant::Secondary),
@@ -1203,6 +1215,7 @@ impl Gallery {
                 (
                     "Custom Trigger",
                     col(vec![h::Dropdown::uncontrolled(
+                        "Jane Doe-dd",
                         h::Avatar::new().name("Jane Doe"),
                         vec![
                             h::MenuItem::new("profile", "Profile"),
@@ -1219,6 +1232,7 @@ impl Gallery {
                     col(vec![
                         para("Hold the button for half a second.", cx),
                         h::Dropdown::uncontrolled(
+                            "dd-long-dd",
                             h::Button::new("dd-long")
                                 .label("Long press")
                                 .variant(Variant::Secondary),
@@ -1233,6 +1247,7 @@ impl Gallery {
                     "Usage",
                     col(vec![
                         h::Dropdown::new(
+                            "dd-trigger-dd",
                             h::Button::new("dd-trigger")
                                 .label("Actions")
                                 .variant(Variant::Secondary),
@@ -1257,6 +1272,7 @@ impl Gallery {
                     "Multiple selection",
                     col(vec![
                         h::Dropdown::new(
+                            "dd-multi-dd",
                             h::Button::new("dd-multi-trigger")
                                 .label("Columns")
                                 .variant(Variant::Secondary),

@@ -596,12 +596,13 @@ fn slider_keyboard_steps_and_clamps(cx: &mut TestAppContext) {
     });
 
     // Pressing the track both focuses the handle (its `on_mouse_down` calls
-    // `window.focus`) and reports the pressed position: 300/600 of 0..10 is 5.
+    // `window.focus`) and lands on 5. Since 5 is already effective, the
+    // unchanged press is silent.
     click(cx, 300., 9.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["5"],
-        "pressing the track mid-way (x=300 of 600) must report 5"
+        &[] as &[String],
+        "pressing the track at the current value must suppress onChange"
     );
 
     // Right/Left step by `step`; Home/End jump to the bounds; the value never
@@ -615,7 +616,7 @@ fn slider_keyboard_steps_and_clamps(cx: &mut TestAppContext) {
     press(cx, "left");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["5", "6", "7", "6", "0", "10", "10", "9"],
+        ["6", "7", "6", "0", "10", "9"],
         "arrows must step by `step`, Home/End must land exactly on the \
          bounds, and a step past a bound must clamp to it"
     );
@@ -734,10 +735,8 @@ fn slider_range_two_thumbs_do_not_cross(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let recorded = for_view.clone();
         // Range support exists (`values` + `on_change_all`). The component is
-        // fully controlled: the reported set must stay ascending after every
-        // gesture, which is the "thumbs do not cross" invariant this port
-        // enforces by sorting each report (`set_thumb` / `set_from_x` both do
-        // `sort_by(total_cmp)`).
+        // fully controlled: each thumb keeps its identity and clamps against
+        // its neighbours rather than crossing and becoming another thumb.
         // The 600px wrapper fixes the track width, so a pointer x maps to
         // `x / 600 * 100`: x 90 is value 15, x 120 is 20, x 540 is 90.
         gpui::div()
@@ -772,12 +771,12 @@ fn slider_range_two_thumbs_do_not_cross(cx: &mut TestAppContext) {
     );
 
     // A press on the lower thumb's own position (x=120 maps to its value 20)
-    // reports the unchanged pair; a press far past the upper thumb (x=540
-    // maps to 90) moves the nearest thumb -- the upper -- to 90, giving
-    // [20, 90]. This is the same "nearest follows the pointer, the set never
-    // inverts" arithmetic a drag would run, per move. The range form drives
-    // it with presses here; the pointer drag itself is exercised, in the
-    // single-thumb form, by `slider_drag_moves_the_thumb` and
+    // is silent because the effective pair is unchanged; a press far past the
+    // upper thumb (x=540 maps to 90) moves the nearest thumb -- the upper --
+    // to 90, giving [20, 90]. This is the same "nearest follows the pointer,
+    // the set never inverts" arithmetic a drag would run. The range form
+    // drives it with presses here; the pointer drag itself is exercised, in
+    // the single-thumb form, by `slider_drag_moves_the_thumb` and
     // `two_sliders_do_not_share_a_drag`.
     click(cx, 120., 9.);
     flush_frame(cx);
@@ -785,18 +784,20 @@ fn slider_range_two_thumbs_do_not_cross(cx: &mut TestAppContext) {
     flush_frame(cx);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["15,80", "20,80", "20,90"],
+        ["15,80", "20,90"],
         "a pointer past the upper thumb must move the upper thumb, keeping \
          the set ascending"
     );
 
-    // Keyboard: End on the active (lower) thumb jumps to max; the reported
-    // pair sorts to [80, 100] instead of swapping roles.
+    // Re-activate the lower thumb, then press End. It clamps at the upper
+    // thumb; it does not cross to 100 and become the upper thumb.
+    click(cx, 120., 9.);
+    flush_frame(cx);
     press(cx, "end");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["15,80", "20,80", "20,90", "80,100"],
-        "pushing the lower thumb to the maximum must clamp the pair ordering"
+        ["15,80", "20,90", "80,80"],
+        "pushing the lower thumb toward the maximum must clamp at its neighbour"
     );
 
     // Every report, parsed back, is an ascending pair.
