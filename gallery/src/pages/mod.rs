@@ -412,7 +412,8 @@ impl Page {
             Page::Toast => "Transient notifications stacked in a corner.",
             Page::Tooltip => "Contextual information shown on hover or focus.",
             Page::Autocomplete => {
-                "An autocomplete combines a select with filtering, allowing users to search                  and select from a list of options."
+                "An autocomplete combines a select with filtering, allowing users \
+                 to search and select from a list of options."
             }
             Page::ComboBox => "A text input combined with a selectable list.",
             Page::Select => "Pick one value from a dropdown list.",
