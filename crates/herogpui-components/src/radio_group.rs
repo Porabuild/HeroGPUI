@@ -20,6 +20,13 @@ pub struct RadioGroup {
     /// same order. `.radio` is `flex flex-col gap-1` around its content and this
     /// text, indented under the label by `ps-7`.
     descriptions: Vec<Option<SharedString>>,
+    /// The group's own `<Label>`, `<Description>` and `<FieldError>`. v3
+    /// composes all three inside `<RadioGroup>` -- every documented example
+    /// opens with `<Label>Plan selection</Label>` -- and a monolithic group takes
+    /// them as props, the way `CheckboxGroup` does.
+    label: Option<SharedString>,
+    description: Option<SharedString>,
+    error_message: Option<SharedString>,
     selected: Option<usize>,
     /// Whether `value` was supplied. `Option<usize>` cannot distinguish
     /// "controlled, nothing selected" from "uncontrolled" on its own.
@@ -87,6 +94,9 @@ impl RadioGroup {
             options,
             option_content: None,
             descriptions: Vec::new(),
+            label: None,
+            description: None,
+            error_message: None,
             selected: None,
             is_controlled: false,
             default_value: None,
@@ -98,6 +108,25 @@ impl RadioGroup {
             is_read_only: false,
             on_change: None,
         }
+    }
+
+    /// The `<Label>` v3 composes inside the group.
+    pub fn label(mut self, text: impl Into<SharedString>) -> Self {
+        self.label = Some(text.into());
+        self
+    }
+
+    /// The `<Description>` v3 composes inside the group, below its options.
+    pub fn description(mut self, text: impl Into<SharedString>) -> Self {
+        self.description = Some(text.into());
+        self
+    }
+
+    /// The `<FieldError>` v3 composes inside the group; supplying it also marks
+    /// the group invalid, as every other field in this port does.
+    pub fn error_message(mut self, text: impl Into<SharedString>) -> Self {
+        self.error_message = Some(text.into());
+        self
     }
 
     /// `name` — the name this control submits under.
@@ -401,16 +430,34 @@ impl RenderOnce for RadioGroup {
             }
         }
 
-        if self.is_required {
-            group = group.child(
-                gpui::div()
-                    .text_size(px(12.))
-                    .text_color(colors.danger.color)
-                    .child("Required"),
+        // `.radio` is `flex flex-col gap-1`, and the group's own label,
+        // description and error are its siblings. v3 marks `isRequired` on the
+        // Label rather than adding a line of its own, which is what
+        // `field::Label` draws.
+        let is_invalid = self.is_invalid || self.error_message.is_some();
+        let mut root = gpui::div().flex().flex_col().gap(px(4.));
+        if let Some(label) = &self.label {
+            root = root.child(
+                crate::field::Label::new(label.clone())
+                    .is_required(self.is_required)
+                    .is_disabled(self.is_disabled)
+                    .is_invalid(is_invalid),
             );
         }
-
-        group
+        // v3's order, from its own examples: the group's `<Description>` sits
+        // between the label and the options, and its `<FieldError>` after them.
+        // (A *field*'s description is replaced by its error; `radio-group.css`
+        // has no rule hiding this one, so both can show.)
+        if let Some(description) = &self.description {
+            root = root.child(crate::field::Description::new(description.clone()));
+        }
+        root = root.child(group);
+        if is_invalid {
+            if let Some(message) = &self.error_message {
+                root = root.child(crate::field::ErrorMessage::new(message.clone()));
+            }
+        }
+        root
     }
 }
 

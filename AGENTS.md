@@ -770,9 +770,37 @@ its end). Every audit passed anyway, and each for its own reason:
   explained free-text entry.
 
 A prop diff cannot find this, and neither can a screenshot of a control that
-looks plausible. What finds it is reading the component's stylesheet as a
-*structure* -- which parts exist, and which part contains which -- before
-matching its props. The three pickers are the case to keep straight:
+looks plausible. What finds it is mechanical, because the stylesheets say it:
+v3 marks every component's root with `data-slot`, so a `[data-slot="X"]`
+selector *nested inside* sheet C is v3 stating that a C contains an X.
+
+```bash
+python .shots/anatomy_audit.py          # the report
+python .shots/anatomy_audit.py --all    # every claim, met or not
+```
+
+49 containment claims across the sheets, and it found two more the same day:
+**a `RadioGroup` had no label, description or error message at all** -- v3's every
+documented example opens with `<Label>Plan selection</Label>` and its Validation
+example closes with a `<FieldError>` -- and the `Input`'s clear affordance drew a
+literal `"×"` in a `rounded_full` box where v3 composes a `CloseButton`
+(`rounded-xl p-1 text-muted`, a `size-3` glyph at the search field's size). Three
+things worth keeping about how it reads:
+
+- **`:not(...)` is the opposite of containment.** `.button` sizes every svg
+  `:not([data-slot="link-icon"] svg)`, which says a Button does *not* hold a link
+  icon; reading that as a claim asked `button.rs` for something v3 excludes.
+- **A slot named after its own sheet is a part, not a component.**
+  `autocomplete-clear-button-icon` under `.autocomplete` is `part_audit.py`'s
+  business; only a *foreign* slot is an anatomy claim.
+- **Composing and drawing both count.** A `ComboBox` hands its label to the
+  `Input` it wraps, a `Meter` writes its own label element, and v3 nests
+  `[data-slot="label"]` in both. Which of the two it is, `design_audit.py`
+  measures; whether it exists at all is this audit's question.
+
+Reading order is part of the anatomy too: v3 puts a group's `<Description>`
+*between* the label and the options and its `<FieldError>` after them, which is
+where the RadioGroup now draws them. The three pickers are the case to keep straight:
 
 | v3 component | field | where the query is typed | selection shows in |
 |---|---|---|---|

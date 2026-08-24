@@ -324,7 +324,7 @@ CHECKS = [
      r'let \(cell_w, cell_h, text, slot_gap\) = \(px\(38\.\), px\(40\.\), px\(14\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('search-field', '.search-field__clear-button', 'size', 'Clear button box',
      SRC + 'input.rs',
-     r'input-clear-[\s\S]{0,200}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'input-clear-[\s\S]{0,560}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('range-calendar', '.range-calendar', 'w', 'RangeCalendar width',
      SRC + 'range_calendar.rs',
      r'crate::calendar::(CALENDAR_WIDTH)', lambda _: 252.0),

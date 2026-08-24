@@ -6411,7 +6411,10 @@ impl Gallery {
                     "Usage",
                     col(vec![h::RadioGroup::new("rg-usage", plans())
                         .default_value(Some(0))
-                        // v3 composes a `<Description>` inside each `<Radio>`.
+                        // v3's own example opens with the group's `<Label>` and
+                        // `<Description>`, then a `<Description>` per `<Radio>`.
+                        .label("Plan selection")
+                        .description("Choose the plan that suits you best")
                         .descriptions([
                             Some("Includes 100 messages per month"),
                             Some("Includes 200 messages per month"),
@@ -6446,8 +6449,11 @@ impl Gallery {
                     "Validation",
                     col(vec![h::RadioGroup::new("rg-validate", plans())
                         .value(None)
+                        .label("Plan")
                         .is_required(true)
-                        .is_invalid(true)
+                        // v3 composes a `<FieldError>` in the group; supplying
+                        // it is what marks the group invalid.
+                        .error_message("Choose a plan to continue")
                         .into_any_element()]),
                 ),
                 (

@@ -1295,11 +1295,17 @@ impl RenderOnce for Input {
                     .flex()
                     .items_center()
                     .justify_center()
+                    // `.search-field__clear-button` *is* a `CloseButton`
+                    // (`rounded-xl p-1 text-muted`, hover `bg-default`), sized
+                    // down by the search field's own rule: `size-5` with a
+                    // `size-3` glyph.
                     .size(px(20.))
-                    .rounded_full()
+                    .p(px(4.))
+                    .rounded(crate::util::small_radius(cx))
                     .cursor_pointer()
-                    .text_color(colors.default.color)
+                    .text_color(colors.muted)
                     .hover(|s| s.bg(colors.default.with_alpha(0.15)))
+                    .active(|s| s.opacity(0.7))
                     .on_click(move |_, window, cx| {
                         clear_state.update(cx, |s, cx| {
                             s.value.clear();
@@ -1311,7 +1317,12 @@ impl RenderOnce for Input {
                             cb("", window, cx);
                         }
                     })
-                    .child("×"),
+                    .child(
+                        gpui::svg()
+                            .size(px(12.))
+                            .path(crate::icons::CLOSE)
+                            .text_color(colors.muted),
+                    ),
             );
         }
         field = field.children(self.end_content);
