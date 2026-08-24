@@ -47,3 +47,8 @@ desktop.ini
 # Patch and merge leftovers.
 *.orig
 *.rej
+
+# Per-agent skill caches: Factory Droid mirrors its skill docs into the repo it
+# is working in, and Claude Code keeps its own settings there. Neither is part
+# of the port, and both are recreated on demand.
+/.factory
