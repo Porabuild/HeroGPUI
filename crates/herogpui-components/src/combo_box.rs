@@ -582,6 +582,15 @@ impl RenderOnce for ComboBox {
 
         let on_open_change = self.on_open_change.clone();
         let is_open = open_state;
+        // Whether the pointer went down on the chevron. The panel's
+        // outside-press dismissal treats the trigger as outside its own bounds,
+        // so a press on an *open* list's chevron would dismiss it on the
+        // mouse-down *and* toggle it back open through the chevron's own click
+        // on the mouse-up -- one press, two contradictory reports. The
+        // chevron's capture-phase handler runs before the panel's
+        // `on_mouse_down_out` in the same dispatch, so the dismissal can see it
+        // and leave the close to the chevron's click.
+        let trigger_pressed = std::rc::Rc::new(std::cell::Cell::new(false));
         let mut trigger = div()
             .id(gpui::ElementId::Name(
                 format!("combobox-{entity_id}-trigger").into(),
@@ -604,19 +613,22 @@ impl RenderOnce for ComboBox {
             trigger = trigger.cursor_pointer().hover(move |s| s.bg(hover_bg));
             if on_open_change.is_some() || open_own.is_some() {
                 let own = open_own.clone();
-                trigger = trigger.on_click(move |_, window, cx| {
-                    // Uncontrolled: flip our own copy, or the chevron would be
-                    // inert without a caller handler.
-                    if let Some(held) = &own {
-                        held.update(cx, |v, cx| {
-                            *v = !is_open;
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &on_open_change {
-                        cb(!is_open, window, cx);
-                    }
-                });
+                let pressed = trigger_pressed.clone();
+                trigger = trigger
+                    .capture_any_mouse_down(move |_, _, _| pressed.set(true))
+                    .on_click(move |_, window, cx| {
+                        // Uncontrolled: flip our own copy, or the chevron would be
+                        // inert without a caller handler.
+                        if let Some(held) = &own {
+                            held.update(cx, |v, cx| {
+                                *v = !is_open;
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &on_open_change {
+                            cb(!is_open, window, cx);
+                        }
+                    });
             }
         }
 
@@ -772,12 +784,55 @@ impl RenderOnce for ComboBox {
             let key_panel_scroll = panel_scroll_now.clone();
             let rows = matches.clone();
             let state = self.state.clone();
+            let allows_custom_value = self.allows_custom_value;
             let on_selection_change = self.on_selection_change.clone();
             let open_own_keys = open_own.clone();
             let on_open_change = self.on_open_change.clone();
             let key_selection_own = selection_own.clone();
             root = root.on_key_down(move |event, window, cx| {
                 let key = event.keystroke.key.as_str();
+                // `allowsCustomValue` is the promise behind the drawn hint
+                // "Press Enter to use this value": Enter selects the typed text
+                // when nothing is under the cursor. A no-match query has no
+                // cursor row at all (an empty stop list makes `resolve` report
+                // Ignore, so the Activate arm never runs), and React Aria
+                // commits the text and fires onSelectionChange either way. With
+                // a row under the cursor the normal Activate path owns Enter.
+                if allows_custom_value
+                    && key == "enter"
+                    && !state.read(cx).value().is_empty()
+                    && held.read(cx).and_then(|i| rows.get(i)).is_none()
+                {
+                    let text = SharedString::from(state.read(cx).value().to_owned());
+                    state.update(cx, |st, cx| {
+                        st.set_value(text.to_string());
+                        cx.notify();
+                    });
+                    // Uncontrolled: record the pick in the selection too, or
+                    // `ComboBox.Value` would never see it.
+                    if let Some(held) = &key_selection_own {
+                        let mut next = std::collections::BTreeSet::new();
+                        next.insert(text.clone());
+                        held.update(cx, |v, cx| {
+                            *v = next;
+                            cx.notify();
+                        });
+                    }
+                    held.update(cx, |v, _| *v = None);
+                    if let Some(held) = &open_own_keys {
+                        held.update(cx, |v, cx| {
+                            *v = false;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &on_selection_change {
+                        cb(&text, window, cx);
+                    }
+                    if let Some(cb) = &on_open_change {
+                        cb(false, window, cx);
+                    }
+                    return;
+                }
                 let from = *held.read(cx);
                 match crate::list_nav::resolve(&stops, from, key, wrap) {
                     crate::list_nav::Move::To(next) => {
@@ -881,10 +936,16 @@ impl RenderOnce for ComboBox {
                 );
 
             // React Aria dismisses the list on a press outside it; Escape is
-            // read in the field's own key handler above.
+            // read in the field's own key handler above. A press that started
+            // on the chevron trigger is not an outside press: the chevron's
+            // own click owns the close, and the click only fires because the
+            // down was not stolen as a dismissal.
             let dismiss_own = open_own;
             let dismiss_cb = self.on_open_change.clone();
             let mut panel = util::dismiss_on_press_outside(panel, move |window, cx| {
+                if trigger_pressed.get() {
+                    return;
+                }
                 if let Some(held) = &dismiss_own {
                     held.update(cx, |v, cx| {
                         *v = false;

@@ -709,9 +709,11 @@ fn tabs_disabled_list_answers_no_key_or_click(cx: &mut TestAppContext) {
 // Accordion
 // ---------------------------------------------------------------------------
 
-/// `allowsMultipleExpanded` defaults to true: expanding a second item must
+/// `allowsMultipleExpanded` opted in to true: expanding a second item must
 /// not collapse the first, and the reported set must contain both keys at
-/// once. The bodies are a fixed 40px so the second header's seat is exact.
+/// once. (The prop now has to be set explicitly — v3's default is `false`,
+/// which `nav_deep.rs` pins. The bodies are a fixed 40px so the second
+/// header's seat is exact.)
 #[gpui::test]
 fn accordion_multiple_expand_keeps_both_open(cx: &mut TestAppContext) {
     let recorded = events();
@@ -723,6 +725,7 @@ fn accordion_multiple_expand_keeps_both_open(cx: &mut TestAppContext) {
             AccordionItem::new("two", "Item two").content(gpui::div().h(px(40.))),
         ])
         .id("acc-multi")
+        .allows_multiple_expanded(true)
         .on_expanded_change(move |keys, _, _| recorded.borrow_mut().push(sorted_join(keys)))
         .into_any_element()
     });

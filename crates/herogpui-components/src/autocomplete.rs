@@ -492,6 +492,15 @@ impl RenderOnce for Autocomplete {
         let can_open = !self.is_disabled && !self.is_read_only;
 
         // --- the trigger ----------------------------------------------------
+        // Whether the pointer went down on the trigger (or on the clear
+        // button inside it). The panel's outside-press dismissal treats the
+        // trigger as outside its own bounds, so a press on an *open* popover's
+        // trigger would dismiss it on the mouse-down *and* toggle it back open
+        // through the trigger's own click on the mouse-up -- one press, two
+        // contradictory reports. The trigger's capture-phase handler runs
+        // before the panel's `on_mouse_down_out` in the same dispatch, so the
+        // dismissal can see it and leave the close to the trigger's click.
+        let trigger_pressed = std::rc::Rc::new(std::cell::Cell::new(false));
         // `.autocomplete__trigger` is `relative isolate inline-flex min-h-9
         // rounded-field border bg-field px-3 py-2 text-sm shadow-field`, plus
         // `pe-7` because the indicator sits inside it.
@@ -620,6 +629,13 @@ impl RenderOnce for Autocomplete {
                                 .text_color(colors.muted),
                         )
                         .on_click(move |_, window, cx| {
+                            // The button sits *inside* the trigger, so gpui
+                            // dispatches its click up to the trigger's own
+                            // `on_click` too -- and clearing is not an open
+                            // gesture (React Aria's trigger press is
+                            // pointer-bound, so a bubbled DOM click is inert
+                            // there).
+                            cx.stop_propagation();
                             // Uncontrolled: drop our own selection too, or the
                             // button would clear nothing.
                             if let Some(held) = &own {
@@ -664,7 +680,9 @@ impl RenderOnce for Autocomplete {
             let own = open_own.clone();
             let cb = self.on_open_change.clone();
             let was_open = open;
+            let pressed = trigger_pressed.clone();
             field = field
+                .capture_any_mouse_down(move |_, _, _| pressed.set(true))
                 .when_some(focus_handle.as_ref(), |el, handle| el.track_focus(handle))
                 .on_click(move |_, window, cx| {
                     if let Some(held) = &own {
@@ -853,10 +871,16 @@ impl RenderOnce for Autocomplete {
                 .shadow(layout.overlay_shadow.clone());
 
             // React Aria dismisses the popover on a press outside it; Escape is
-            // read by the key handler above.
+            // read by the key handler above. A press that started on the
+            // trigger (or its clear button) is not an outside press: the
+            // trigger's own click owns the close, and the click only fires
+            // because the down was not stolen as a dismissal.
             let dismiss_own = open_own.clone();
             let dismiss_cb = self.on_open_change.clone();
             let mut panel = util::dismiss_on_press_outside(panel, move |window, cx| {
+                if trigger_pressed.get() {
+                    return;
+                }
                 if let Some(held) = &dismiss_own {
                     held.update(cx, |v, cx| {
                         *v = false;

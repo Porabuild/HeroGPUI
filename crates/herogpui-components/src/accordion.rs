@@ -66,7 +66,7 @@ type OnToggle = std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 's
 #[derive(IntoElement)]
 pub struct Accordion {
     items: Vec<AccordionItem>,
-    /// Distinguishes this accordion's uncontrolled state from its neighbours'.
+    /// Scopes this instance's keyed state against its neighbours'.
     id: Option<gpui::ElementId>,
     /// `expandedKeys` — `None` leaves the accordion holding the set, seeded
     /// from `defaultExpandedKeys`.
@@ -109,7 +109,9 @@ impl Accordion {
             default_expanded_keys: HashSet::new(),
             is_disabled: false,
             disabled_keys: HashSet::new(),
-            allows_multiple_expanded: true,
+            // v3's API table documents `allowsMultipleExpanded` with default
+            // `false`: expanding one item collapses the others.
+            allows_multiple_expanded: false,
             on_expanded_change: None,
             variant: AccordionVariant::Default,
             hide_separator: false,
@@ -132,9 +134,12 @@ impl Accordion {
 
     /// Distinguishes this accordion from its neighbours.
     ///
-    /// Only matters in the uncontrolled mode, where the expanded set lives in
-    /// element state. The default is derived from the item keys, which is
-    /// unique unless two accordions hold the same items.
+    /// Scopes every keyed slot — the expanded set, the per-trigger focus
+    /// handles and the trigger element ids — because two instances of the
+    /// same `RenderOnce` type share gpui's keyed-state namespace, so keys
+    /// derived from the item keys alone collide whenever two accordions hold
+    /// the same items. The default is derived from the item keys, which is
+    /// unique unless two id-less accordions hold the same items.
     pub fn id(mut self, id: impl Into<gpui::ElementId>) -> Self {
         self.id = Some(id.into());
         self
@@ -181,6 +186,17 @@ impl Accordion {
 
 impl RenderOnce for Accordion {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // The instance's id scopes every keyed slot: gpui namespaces keyed
+        // state by the `RenderOnce` type name, not by the instance, so keys
+        // built from the item keys alone (`acc-one`, `acc-one-focus`) map to
+        // the same slot in every accordion holding those items and the second
+        // instance answers no clicks. The fallback is derived from the item
+        // keys, which is unique unless two id-less accordions hold the same
+        // items.
+        let id = self.id.clone().unwrap_or_else(|| {
+            let keys: Vec<&str> = self.items.iter().map(|i| i.key.as_ref()).collect();
+            gpui::ElementId::Name(format!("acc-{}-expanded", keys.join("-")).into())
+        });
         // One tab stop per trigger. `use_keyed_state` takes `cx` mutably, so the
         // handles come before anything borrows the theme.
         let trigger_focus: Vec<gpui::FocusHandle> = self
@@ -188,7 +204,7 @@ impl RenderOnce for Accordion {
             .iter()
             .map(|item| {
                 crate::util::tab_stop_handle(
-                    gpui::ElementId::Name(format!("acc-{}-focus", item.key).into()),
+                    gpui::ElementId::Name(format!("acc-{:?}-{}-focus", id, item.key).into()),
                     window,
                     cx,
                 )
@@ -200,10 +216,7 @@ impl RenderOnce for Accordion {
         let (expanded_keys, expanded_own) = crate::util::controlled(
             window,
             cx,
-            self.id.clone().unwrap_or_else(|| {
-                let keys: Vec<&str> = self.items.iter().map(|i| i.key.as_ref()).collect();
-                gpui::ElementId::Name(format!("acc-{}-expanded", keys.join("-")).into())
-            }),
+            id.clone(),
             self.expanded_keys.clone(),
             self.default_expanded_keys.clone(),
         );
@@ -237,7 +250,9 @@ impl RenderOnce for Accordion {
             // `.accordion__trigger:focus-visible` is `status-focused`.
             let header_focus = trigger_focus.get(i);
             let mut header = gpui::div()
-                .id(gpui::ElementId::Name(format!("acc-{}", item.key).into()))
+                .id(gpui::ElementId::Name(
+                    format!("acc-{:?}-{}", id, item.key).into(),
+                ))
                 .when_some(header_focus.filter(|_| !item_disabled), |h, handle| {
                     h.track_focus(handle)
                 })

@@ -102,12 +102,26 @@ impl RenderOnce for Toolbar {
         }
 
         el = el.track_focus(&scope);
-        el.on_key_down(
-            move |event: &KeyDownEvent, window, cx| match event.keystroke.key.as_str() {
+        // React Aria's `useToolbar` handles exactly the orientation's axis —
+        // ArrowRight/ArrowLeft when horizontal, ArrowDown/ArrowUp when
+        // vertical — and returns early for everything else. Resolve the key
+        // first, then act, which is the same shape Tabs uses; only a key the
+        // match actually consumed reaches `stop_propagation`, so Tab, the
+        // cross-axis arrows, Home/End and an enclosing scroller still see
+        // them.
+        let vertical = self.orientation == Orientation::Vertical;
+        el.on_key_down(move |event: &KeyDownEvent, window, cx| {
+            let key = match (vertical, event.keystroke.key.as_str()) {
+                (false, "right") | (true, "down") => "next",
+                (false, "left") | (true, "up") => "prev",
+                _ => return,
+            };
+            cx.stop_propagation();
+            match key {
                 // Next stop in the window's order; if that one left the
                 // toolbar, the focus was on the last control and wraps to
                 // the first (the step landed on the sibling that follows).
-                "right" | "down" => {
+                "next" => {
                     window.focus_next();
                     if !scope.contains_focused(window, cx) {
                         window.focus(&scope);
@@ -117,7 +131,7 @@ impl RenderOnce for Toolbar {
                 // Same backwards, re-entering from the far end: walk
                 // forward until the focus leaves the toolbar, then one
                 // back, bounded so an empty toolbar cannot spin.
-                "left" | "up" => {
+                "prev" => {
                     window.focus_prev();
                     if !scope.contains_focused(window, cx) {
                         window.focus(&scope);
@@ -131,8 +145,8 @@ impl RenderOnce for Toolbar {
                     }
                 }
                 _ => {}
-            },
-        )
+            }
+        })
         .children(self.children)
     }
 }

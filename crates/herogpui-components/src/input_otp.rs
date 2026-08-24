@@ -322,6 +322,17 @@ impl RenderOnce for InputOTP {
             );
         }
 
+        // Where the row's text starts, remembered from the last frame: a
+        // `canvas` is the only element that is told its own bounds, and a
+        // click has to be measured against something. `use_keyed_state` takes
+        // `cx` mutably, so it runs before the theme tokens — the same reason
+        // `focus_once` above runs before them.
+        let row_origin = window.use_keyed_state(
+            gpui::ElementId::Name(format!("otp-origin-{}", self.state.entity_id().as_u64()).into()),
+            cx,
+            |_, _| None::<gpui::Pixels>,
+        );
+
         let colors = cx.colors();
         let layout = cx.layout();
 
@@ -364,12 +375,61 @@ impl RenderOnce for InputOTP {
             .key_context("InputOTP")
             .on_mouse_down(gpui::MouseButton::Left, {
                 let fh = focused_handle.clone();
-                move |_, window, _| window.focus(&fh)
+                let origin = row_origin.clone();
+                let st = self.state.clone();
+                let disabled = self.is_disabled;
+                move |ev: &gpui::MouseDownEvent, window, cx| {
+                    // The click that *grants* the focus must not disturb a
+                    // caret the value placed (a seeded code parks it after
+                    // the last filled slot); only a click on an already
+                    // focused row re-homes it, which is what v3's input-otp
+                    // does when a slot is clicked.
+                    let was_focused = fh.is_focused(window);
+                    window.focus(&fh);
+                    if disabled || !was_focused {
+                        return;
+                    }
+                    // The caret lands on the slot the click hit, measured
+                    // from the row's remembered left edge. The gap after the
+                    // zero-width origin item shifts each cell 8px in;
+                    // flooring the pitch-scaled position still names the
+                    // right cell.
+                    let Some(left) = *origin.read(cx) else {
+                        return;
+                    };
+                    let pitch = f32::from(cell_w + slot_gap);
+                    let x = f32::from(ev.position.x) - f32::from(left);
+                    let len = st.read(cx).cells.len();
+                    let cell = (x / pitch).floor() as i32;
+                    st.update(cx, |s, cx| {
+                        s.cursor = cell.clamp(0, len as i32 - 1) as usize;
+                        cx.notify();
+                    });
+                }
             });
 
         if disabled {
             row = row.opacity(layout.disabled_opacity);
         }
+
+        // A zero-width item at the row's head: its bounds give the row's left
+        // edge, which the click handler above measures against (it took its
+        // own clone). A row starts with this, then its cells, so cell *i*
+        // spans `i*46 + 8` px in.
+        row = row.child(
+            gpui::canvas(
+                move |bounds, _window, cx| {
+                    let left = bounds.origin.x;
+                    if *row_origin.read(cx) != Some(left) {
+                        row_origin.update(cx, |v, _| *v = Some(left));
+                    }
+                },
+                |_, _, _, _| {},
+            )
+            .w(px(0.))
+            .h(px(0.))
+            .flex_shrink_0(),
+        );
 
         for (i, cell_ch) in cells_snapshot.iter().enumerate() {
             // group separator every 3 cells
@@ -498,11 +558,15 @@ impl RenderOnce for InputOTP {
                     };
                     state_entity.update(cx, |s, cx| {
                         // A paste replaces the code from the cursor onward.
+                        // Every pasted char goes through the same `pattern`
+                        // gate a keystroke does (the typing branch calls
+                        // `pattern.accepts`); a digits field used to take
+                        // letters simply because they were alphanumeric.
                         for ch in text.chars() {
                             if s.cursor >= s.cells.len() {
                                 break;
                             }
-                            if !ch.is_ascii_alphanumeric() {
+                            if !pattern.accepts(ch) {
                                 continue;
                             }
                             s.cells[s.cursor] = ch.to_ascii_uppercase();
@@ -527,18 +591,29 @@ impl RenderOnce for InputOTP {
 
             match key {
                 "backspace" => {
-                    state_entity.update(cx, |s, cx| {
-                        if s.cells[s.cursor] != ' ' {
+                    let changed = state_entity.update(cx, |s, cx| {
+                        let changed = if s.cells[s.cursor] != ' ' {
                             s.cells[s.cursor] = ' ';
+                            true
                         } else if s.cursor > 0 {
                             s.cursor -= 1;
                             s.cells[s.cursor] = ' ';
+                            true
+                        } else {
+                            false
+                        };
+                        if changed {
+                            cx.notify();
                         }
-                        cx.notify();
+                        changed
                     });
-                    if let Some(cb) = &on_change {
-                        let code = state_entity.read(cx).code();
-                        cb(&code, window, cx);
+                    // A backspace that clears nothing is not a change:
+                    // `onChange` reports what changed, never what it was told.
+                    if changed {
+                        if let Some(cb) = &on_change {
+                            let code = state_entity.read(cx).code();
+                            cb(&code, window, cx);
+                        }
                     }
                 }
                 "left" => state_entity.update(cx, |s, cx| {

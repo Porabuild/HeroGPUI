@@ -124,6 +124,16 @@ impl RenderOnce for ProgressBar {
             Size::Md => px(8.),
             Size::Lg => px(16.),
         };
+        // Clamp once at entry: the fill already clamps, but a non-percent
+        // label formats `self.value` raw, so an over-max Meter read "$1,500.00"
+        // beside a full bar. React Aria clamps *before* formatting, so the
+        // label is written from the clamped value. Guarded because
+        // `f32::clamp` panics when min > max, which `fraction_of` tolerates.
+        let value = if self.min_value <= self.max_value {
+            self.value.clamp(self.min_value, self.max_value)
+        } else {
+            self.value
+        };
         let fraction = fraction_of(self.value, self.min_value, self.max_value);
 
         let mut el = gpui::div().flex().flex_col().gap(px(4.)).w_full();
@@ -144,7 +154,7 @@ impl RenderOnce for ProgressBar {
                     let n = if format.style == herogpui_core::NumberStyle::Percent {
                         fraction as f64
                     } else {
-                        self.value as f64
+                        value as f64
                     };
                     SharedString::from(format.format(n))
                 }
@@ -326,6 +336,14 @@ impl RenderOnce for ProgressCircle {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
         let arc_color = cx.role(self.color).color;
+        // Clamp once at entry, like the bar: a non-percent label formats the
+        // clamped value, and the guard keeps `f32::clamp` from panicking on
+        // the inverted range `fraction_of` tolerates.
+        let value = if self.min_value <= self.max_value {
+            self.value.clamp(self.min_value, self.max_value)
+        } else {
+            self.value
+        };
         let fraction = if self.is_indeterminate {
             // An indeterminate ring shows a fixed quarter arc.
             0.25
@@ -393,14 +411,22 @@ impl RenderOnce for ProgressCircle {
                     .format
                     .clone()
                     .unwrap_or_else(herogpui_core::NumberFormat::percent);
-                let n = if format.style == herogpui_core::NumberStyle::Percent {
-                    fraction as f64
+                // The indeterminate quarter arc is geometry, not a value:
+                // React Aria generates no value label for indeterminate
+                // progress, so report an empty text and a 0% percentage,
+                // like the bar does. The arc keeps drawing regardless.
+                let (percentage, value_text) = if self.is_indeterminate {
+                    (0.0, String::new())
                 } else {
-                    self.value as f64
+                    let n = if format.style == herogpui_core::NumberStyle::Percent {
+                        fraction as f64
+                    } else {
+                        value as f64
+                    };
+                    (fraction * 100., format.format(n))
                 };
-                let value_text = format.format(n);
                 match &self.value_content {
-                    Some(render) => el.child(render(fraction * 100., &value_text)),
+                    Some(render) => el.child(render(percentage, &value_text)),
                     None => el.child(
                         gpui::div()
                             .text_size(px(12.))

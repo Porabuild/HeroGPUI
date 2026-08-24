@@ -362,6 +362,15 @@ impl RenderOnce for Select {
         let (h, text) = (util::FIELD_HEIGHT, util::FIELD_TEXT);
 
         let trigger_id = el_name(format!("select-{}", id_debug(&self.id)));
+        // Whether the pointer went down on the trigger. The panel's
+        // outside-press dismissal treats the trigger as outside its own bounds,
+        // so a press on the trigger of an *open* list would dismiss it on the
+        // mouse-down *and* toggle it through the trigger's own click on the
+        // mouse-up -- one press, two contradictory reports, and the list ended
+        // up open. The trigger's capture-phase handler runs before the panel's
+        // `on_mouse_down_out` in the same dispatch, so the dismissal can see it
+        // and leave the close to the trigger's click.
+        let trigger_pressed = std::rc::Rc::new(std::cell::Cell::new(false));
         let mut field = gpui::div()
             .id(trigger_id)
             .flex()
@@ -627,19 +636,22 @@ impl RenderOnce for Select {
             let on_open_change = self.on_open_change.clone();
             let own = open_own.clone();
             let open = is_open;
-            field = field.on_click(move |_, window, cx| {
-                // Uncontrolled: flip our own copy, or the trigger would be
-                // inert without a caller handler.
-                if let Some(held) = &own {
-                    held.update(cx, |v, cx| {
-                        *v = !open;
-                        cx.notify();
-                    });
-                }
-                if let Some(cb) = &on_open_change {
-                    cb(!open, window, cx);
-                }
-            });
+            let pressed = trigger_pressed.clone();
+            field = field
+                .capture_any_mouse_down(move |_, _, _| pressed.set(true))
+                .on_click(move |_, window, cx| {
+                    // Uncontrolled: flip our own copy, or the trigger would be
+                    // inert without a caller handler.
+                    if let Some(held) = &own {
+                        held.update(cx, |v, cx| {
+                            *v = !open;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &on_open_change {
+                        cb(!open, window, cx);
+                    }
+                });
         }
 
         // listbox panel
@@ -691,10 +703,15 @@ impl RenderOnce for Select {
 
             // React Aria dismisses the list on a press outside it. Escape is
             // already read by the trigger's key handler, so only the press half
-            // is added here.
+            // is added here. A press that started on the trigger is not an
+            // outside press: the trigger's own click owns the close (and the
+            // click only fires because the down was not stolen as a dismissal).
             let dismiss_own = open_own.clone();
             let dismiss_cb = self.on_open_change.clone();
             let mut panel = util::dismiss_on_press_outside(panel, move |window, cx| {
+                if trigger_pressed.get() {
+                    return;
+                }
                 if let Some(held) = &dismiss_own {
                     held.update(cx, |v, cx| {
                         *v = false;

@@ -7,6 +7,7 @@
 //! v3 names the colour prop `variant`, and its values are the semantic colour
 //! roles, so [`Color`] is the variant type here.
 
+use std::collections::HashSet;
 use std::time::Duration;
 
 use gpui::{
@@ -93,6 +94,10 @@ pub struct ToastStore {
     /// which is why the timer ticks rather than sleeping once: a gpui timer
     /// cannot be cancelled, so a paused toast is one whose clock stops moving.
     paused: bool,
+    /// Ids whose `onClose` has already been run. `dismiss_toast` and a
+    /// toast's own timer both report the close; whoever claims the id first is
+    /// the only one that does.
+    reported: HashSet<u64>,
 }
 
 impl ToastStore {
@@ -101,6 +106,7 @@ impl ToastStore {
             toasts: Vec::new(),
             next_id: 1,
             paused: false,
+            reported: HashSet::new(),
         }
     }
 
@@ -157,6 +163,16 @@ impl ToastStore {
             .iter()
             .find(|t| t.id == id)
             .and_then(|t| t.on_close.clone())
+    }
+
+    /// Claims the right to report a toast's close: `true` when this call is
+    /// the first to do so. Both `dismiss_toast` and the toast's own timer run
+    /// its `onClose`; the path that gets here second sees `false` and stays
+    /// silent, which is what stops a hand-dismissed timed toast from closing
+    /// twice — the timer wakes to find the toast already gone and would
+    /// otherwise fire the same handler again.
+    fn claim_close(&mut self, id: u64) -> bool {
+        self.reported.insert(id)
     }
 
     /// Pushes a toast, evicting the oldest beyond `max_visible`.
@@ -381,8 +397,18 @@ impl Toast {
                         break;
                     }
                 }
-                if let Some(cb) = on_close {
-                    let _ = cx.update(|cx| cb(cx));
+                // Whichever path reached the dismissal first is the one that
+                // reports: `dismiss_toast` claims the id when the toast is
+                // closed by hand, so the timer reports only when it is the
+                // first to claim — its own timeout, or a removal such as an
+                // eviction or `clear` that ran no handler.
+                let Ok(mine) = store.update(cx, |s, _| s.claim_close(id)) else {
+                    return;
+                };
+                if mine {
+                    if let Some(cb) = on_close {
+                        let _ = cx.update(|cx| cb(cx));
+                    }
                 }
             })
             .detach();
@@ -401,7 +427,13 @@ pub fn push_toast(toast: Toast, cx: &mut App) -> u64 {
 pub fn dismiss_toast(id: u64, cx: &mut App) {
     let store = toast_store(cx);
     let on_close = store.update(cx, |s, cx| {
-        let cb = s.on_close(id);
+        // Claim the report before dismissing: a later path — the timer waking
+        // to find the toast already gone — must not run the handler again.
+        let cb = if s.claim_close(id) {
+            s.on_close(id)
+        } else {
+            None
+        };
         s.dismiss(id);
         cx.notify();
         cb
@@ -563,7 +595,20 @@ struct ToastCardEl {
 }
 
 impl RenderOnce for ToastCardEl {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `.toast__close-button` is the CloseButton v3 composes, which is a
+        // real keyboard tab stop. The handle has to be created before the
+        // theme tokens are read: `use_keyed_state` takes `cx` mutably and
+        // `colors` borrows it.
+        let close_focus = if self.t.closable {
+            Some(crate::util::tab_stop_handle(
+                gpui::ElementId::Name(format!("toast-close-{}-focus", self.t.id).into()),
+                window,
+                cx,
+            ))
+        } else {
+            None
+        };
         let colors = cx.colors();
         let sem = cx.role(self.t.color);
 
@@ -683,6 +728,22 @@ impl RenderOnce for ToastCardEl {
             let hover_bg = colors.default.soft_hover();
             close_btn = close_btn.hover(move |s| s.bg(hover_bg));
             close_btn = close_btn.on_click(move |_, _, cx| dismiss_toast(id, cx));
+            // A keyboard tab stop that rings on focus-visible — gpui builds
+            // its tab order from `track_focus` handles, and the Enter/Space
+            // activation fires the click listener above on its own.
+            // (The branch implies `closable`, which is what created the
+            // handle.)
+            let close_focus = close_focus
+                .as_ref()
+                .expect("a closable toast created its close handle");
+            close_btn = crate::util::ring_if_focused(
+                close_btn.track_focus(close_focus),
+                close_focus,
+                true,
+                Vec::new(),
+                window,
+                cx,
+            );
             card = card.child(
                 close_btn.child(
                     gpui::svg()

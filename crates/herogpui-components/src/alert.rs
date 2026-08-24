@@ -1,7 +1,8 @@
 //! Alert — port of `@heroui/alert`.
 
 use gpui::{
-    prelude::*, px, App, ClickEvent, IntoElement, RenderOnce, SharedString, Styled, Window,
+    prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
+    SharedString, Styled, Window,
 };
 use herogpui_core::Color;
 use herogpui_theme::ActiveTheme;
@@ -18,6 +19,9 @@ pub struct Alert {
     color: Color,
     is_closable: bool,
     on_close: Option<OnClose>,
+    /// Composed children — v3's "Additional content like buttons, close
+    /// button, etc.", appended after the content column.
+    children: Vec<AnyElement>,
 }
 
 impl Alert {
@@ -36,6 +40,7 @@ impl Alert {
             color: Color::Accent,
             is_closable: false,
             on_close: None,
+            children: Vec::new(),
         }
     }
 
@@ -49,6 +54,16 @@ impl Alert {
         self.is_closable = true;
         self.on_close = Some(Box::new(f));
         self
+    }
+}
+
+impl ParentElement for Alert {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        // The children are the alert's end content: v3 composes `<Button>`
+        // and `<CloseButton>` as ordinary children after `Alert.Content`, and
+        // the migration guide's "With Action Button (End Content)" example is
+        // exactly that (EXTRA_OK's `composition` classification).
+        self.children.extend(elements);
     }
 }
 
@@ -132,6 +147,10 @@ impl RenderOnce for Alert {
                 );
             }
         }
+
+        // Composed children go last, the way an end-content `<Button>` or
+        // `<CloseButton>` follows `<Alert.Content>` in v3.
+        alert = alert.children(self.children);
 
         alert
     }

@@ -41,6 +41,12 @@ pub struct Slider {
     on_change_all: Option<OnChangeAll>,
     on_change: Option<OnChange>,
     on_change_end: Option<OnChange>,
+    /// `Slider.Thumb.isDisabled` — thumbs that cannot move, by index.
+    disabled_keys: std::collections::HashSet<usize>,
+    /// `startName` / `endName` on the range — read back by
+    /// [`Self::form_fields`].
+    start_name: Option<gpui::SharedString>,
+    end_name: Option<gpui::SharedString>,
 }
 
 impl Slider {
@@ -75,12 +81,44 @@ impl Slider {
             on_change_all: None,
             on_change: None,
             on_change_end: None,
+            disabled_keys: std::collections::HashSet::new(),
+            start_name: None,
+            end_name: None,
         }
     }
 
     /// `name` — the name this control submits under.
     pub fn name(mut self, name: impl Into<gpui::SharedString>) -> Self {
         self.name = Some(name.into());
+        self
+    }
+
+    /// `Slider.Thumb.isDisabled` — thumbs that cannot be dragged, stepped by
+    /// the keys, or reached by Tab, by thumb index — the same addressing
+    /// [`Slider::values`] uses, and the same shape as a `Select`'s
+    /// `disabledKeys` for its options. A disabled thumb stays put: the
+    /// pointer's nearest-thumb choice skips it, the arrows and the slider's
+    /// own Tab cycle skip it, it leaves the tab order, and its field is not
+    /// submitted. Disabling the whole *slider* is still
+    /// [`Slider::is_disabled`].
+    pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = usize>) -> Self {
+        self.disabled_keys = keys.into_iter().collect();
+        self
+    }
+
+    /// `startName` on the range — the name the first thumb submits under.
+    ///
+    /// A two-thumb slider submits one pair per named end, the way
+    /// `DateRangePicker`'s `startName`/`endName` do; [`Slider::form_fields`]
+    /// reads the pair back. A single-thumb slider uses [`Slider::name`].
+    pub fn start_name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+        self.start_name = Some(name.into());
+        self
+    }
+
+    /// `endName` on the range — the name the last thumb submits under.
+    pub fn end_name(mut self, name: impl Into<gpui::SharedString>) -> Self {
+        self.end_name = Some(name.into());
         self
     }
 
@@ -96,6 +134,11 @@ impl Slider {
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
+        // A disabled thumb submits nothing, the way a disabled input is
+        // skipped in HTML.
+        if self.disabled_keys.contains(&0) {
+            return None;
+        }
         Some(
             crate::form::FormField::number_value(
                 name,
@@ -103,6 +146,32 @@ impl Slider {
             )
             .is_required(false),
         )
+    }
+
+    /// The `Form` fields this slider submits: one per named end of the range,
+    /// read from the current thumb values. A disabled thumb's field is
+    /// omitted, exactly as an HTML form skips a disabled `<input>`.
+    pub fn form_fields(&self) -> Vec<crate::form::FormField> {
+        let thumbs: Vec<f32> = match &self.values {
+            Some(v) if !v.is_empty() => v.clone(),
+            _ => vec![self.default_value.unwrap_or(self.value)],
+        };
+        let mut out = Vec::new();
+        if let Some(name) = self.start_name.clone() {
+            if !self.disabled_keys.contains(&0) {
+                if let Some(v) = thumbs.first() {
+                    out.push(crate::form::FormField::number_value(name, f64::from(*v)));
+                }
+            }
+        }
+        if let Some(name) = self.end_name.clone() {
+            if !thumbs.is_empty() && !self.disabled_keys.contains(&(thumbs.len() - 1)) {
+                if let Some(v) = thumbs.last() {
+                    out.push(crate::form::FormField::number_value(name, f64::from(*v)));
+                }
+            }
+        }
+        out
     }
 
     /// `minValue`
@@ -206,6 +275,23 @@ impl RenderOnce for Slider {
             self.default_value.unwrap_or(self.value),
         );
 
+        // One thumb or many: the single-value form is a set of one, so the rest
+        // of the render does not branch. Computed before the keyed states
+        // because the roving stop's starting position has to skip a disabled
+        // thumb.
+        let thumbs: Vec<f32> = match &self.values {
+            Some(v) if !v.is_empty() => v.clone(),
+            _ => vec![value],
+        };
+        // `Slider.Thumb.isDisabled` — which thumbs may move, by index. A
+        // disabled thumb is never the pointer's target, is skipped by the
+        // arrows and by the slider's own Tab cycle, and does not take the
+        // focus ring.
+        let thumb_enabled: Vec<bool> = (0..thumbs.len())
+            .map(|i| !self.disabled_keys.contains(&i))
+            .collect();
+        let any_enabled = thumb_enabled.iter().any(|&enabled| enabled);
+
         // The keyboard's own state: the handle that receives the keys and which
         // thumb they move. React Aria focuses one thumb at a time, so a range
         // slider needs to know which.
@@ -215,10 +301,17 @@ impl RenderOnce for Slider {
             |_, cx| cx.focus_handle().tab_stop(true),
         );
         let focus_handle = focus_handle.read(cx).clone();
+        // The roving stop starts on the first *enabled* thumb, the radio
+        // group's rule for its single stop: a stop resting on a disabled
+        // thumb would have nothing to answer the keys.
+        let active_init = thumb_enabled
+            .iter()
+            .position(|&enabled| enabled)
+            .unwrap_or(0);
         let active_thumb = window.use_keyed_state(
             gpui::ElementId::Name(format!("{:?}-thumb", self.id).into()),
             cx,
-            |_, _| 0usize,
+            |_, _| active_init,
         );
         let active_at = *active_thumb.read(cx);
 
@@ -247,12 +340,6 @@ impl RenderOnce for Slider {
         let colors = cx.colors();
         let layout = cx.layout();
 
-        // One thumb or many: the single-value form is a set of one, so the rest
-        // of the render does not branch.
-        let thumbs: Vec<f32> = match &self.values {
-            Some(v) if !v.is_empty() => v.clone(),
-            _ => vec![value],
-        };
         let to_fraction = |v: f32| {
             if self.max > self.min {
                 ((v - self.min) / (self.max - self.min)).clamp(0.0, 1.0)
@@ -397,8 +484,11 @@ impl RenderOnce for Slider {
                     .shadow(layout.surface_shadow.clone()),
             };
             // `.slider__thumb` takes `status-focused` -- the thumb the keys
-            // move, while the slider holds a keyboard focus.
-            if index == active_at.min(fractions.len().saturating_sub(1)) {
+            // move, while the slider holds a keyboard focus. A disabled thumb
+            // never takes it: the roving stop skips disabled thumbs, and this
+            // guard also covers a stop stranded by `disabled_keys` changing
+            // between frames.
+            if index == active_at.min(fractions.len().saturating_sub(1)) && thumb_enabled[index] {
                 thumb_el = crate::util::ring_if_focused(
                     thumb_el,
                     &focus_handle,
@@ -422,22 +512,49 @@ impl RenderOnce for Slider {
             let end_keys = self.on_change_end.clone();
             let own_keys = own.clone();
             let held_thumb = active_thumb;
+            let keys_enabled = thumb_enabled.clone();
             let (min, max, step) = (self.min, self.max, self.step);
             // A tenth of the range, but never less than one step.
             let page = ((max - min) / 10.0).max(step);
+            // A slider whose per-thumb disabled set covers every thumb leaves
+            // the tab order, exactly as the group-wide flag does: the handle
+            // exists but nothing tracks it, so Tab walks past the control.
+            if any_enabled {
+                track = track.track_focus(&focus_handle);
+            }
             track = track
-                .track_focus(&focus_handle)
                 .key_context("Slider")
                 .on_key_down(move |event, window, cx| {
                     let key = event.keystroke.key.as_str();
                     let index = (*held_thumb.read(cx)).min(keys_thumbs.len().saturating_sub(1));
                     let current = keys_thumbs.get(index).copied().unwrap_or(min);
-                    // Tab-like movement between the thumbs of a range slider.
+                    // Tab-like movement between the thumbs of a range slider:
+                    // the roving stop advances to the next *enabled* thumb,
+                    // so it never lands on a disabled one (AGENTS.md's "a
+                    // disabled control must leave the tab order"). The scan
+                    // is bounded, so an all-disabled set cannot spin.
                     if key == "tab" && keys_thumbs.len() > 1 {
-                        held_thumb.update(cx, |v, cx| {
-                            *v = (index + 1) % keys_thumbs.len();
-                            cx.notify();
-                        });
+                        let mut next_i = index;
+                        for _ in 0..keys_thumbs.len() {
+                            next_i = (next_i + 1) % keys_thumbs.len();
+                            if keys_enabled[next_i] {
+                                break;
+                            }
+                        }
+                        // `next_i == index` only when no other thumb is
+                        // enabled; the stop stays where it is rather than
+                        // landing on a disabled thumb.
+                        if next_i != index {
+                            held_thumb.update(cx, |v, cx| {
+                                *v = next_i;
+                                cx.notify();
+                            });
+                        }
+                        return;
+                    }
+                    // A disabled thumb answers no key: v3 disables its input,
+                    // so the arrows never move it.
+                    if !keys_enabled.get(index).copied().unwrap_or(true) {
                         return;
                     }
                     let next = match key {
@@ -474,6 +591,7 @@ impl RenderOnce for Slider {
                 span: range_span,
                 step: self.step,
                 thumbs: thumbs.clone(),
+                enabled: thumb_enabled.clone(),
             };
             let on_change_down = self.on_change.clone();
             let all_down = self.on_change_all.clone();
@@ -506,6 +624,7 @@ impl RenderOnce for Slider {
                 span: range_span,
                 step: self.step,
                 thumbs: thumbs.clone(),
+                enabled: thumb_enabled.clone(),
             };
             let on_change_move = self.on_change.clone();
             let all_move = self.on_change_all.clone();
@@ -539,6 +658,7 @@ impl RenderOnce for Slider {
                 span: range_span,
                 step: self.step,
                 thumbs,
+                enabled: thumb_enabled,
             };
             track = track.on_mouse_up(
                 gpui::MouseButton::Left,
@@ -580,6 +700,9 @@ struct DragTarget {
     step: f32,
     /// The current thumb set. With more than one, the nearest moves.
     thumbs: Vec<f32>,
+    /// Which thumbs may follow the pointer — `Slider.Thumb.isDisabled`'s
+    /// index set, resolved per position.
+    enabled: Vec<bool>,
 }
 
 /// Writes one thumb's value through the uncontrolled copy and both callbacks.
@@ -647,19 +770,30 @@ fn set_from_pointer(
         ((raw / target.step).round() * target.step).clamp(target.min, target.min + target.span);
 
     if target.thumbs.len() > 1 {
-        // Multi-thumb: whichever thumb is nearest the pointer follows it, so a
-        // range slider does not swap ends under the cursor.
+        // Multi-thumb: whichever *enabled* thumb is nearest the pointer
+        // follows it, so a range slider does not swap ends under the cursor
+        // and a disabled thumb stays put however the pointer aims. A drag
+        // landing on the disabled thumb's own position therefore pulls the
+        // nearest movable thumb instead, which is what "refuses the pointer"
+        // means for a control with no hitbox of its own.
         let mut next = target.thumbs.clone();
         let nearest = next
             .iter()
             .enumerate()
-            .min_by(|(_, a), (_, b)| (**a - snapped).abs().total_cmp(&(**b - snapped).abs()))
-            .map_or(0, |(i, _)| i);
+            .filter(|(i, _)| target.enabled.get(*i).copied().unwrap_or(false))
+            .min_by(|(_, a), (_, b)| (**a - snapped).abs().total_cmp(&(**b - snapped).abs()));
+        // No enabled thumb: nothing may follow the pointer.
+        let Some((nearest, _)) = nearest else { return };
         next[nearest] = snapped;
         next.sort_by(f32::total_cmp);
         if let Some(cb) = on_change_all {
             cb(&next, window, cx);
         }
+        return;
+    }
+
+    // Single-thumb form: a disabled thumb answers no pointer either.
+    if !target.enabled.first().copied().unwrap_or(true) {
         return;
     }
 

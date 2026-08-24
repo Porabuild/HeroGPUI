@@ -24,6 +24,10 @@ pub struct InputState {
     name: Option<SharedString>,
     /// `validationBehavior` — travels with the name, for the same reason.
     validation_behavior: crate::form::ValidationBehavior,
+    /// The resolved validity, written by `Input::render` so a `Form` can see
+    /// whether this field blocks a native submission — the same reason `name`
+    /// rides on the state.
+    validity: crate::validation::Validity,
 }
 
 impl InputState {
@@ -36,6 +40,7 @@ impl InputState {
             focus_handle: cx.focus_handle().tab_stop(true),
             name: None,
             validation_behavior: crate::form::ValidationBehavior::Native,
+            validity: crate::validation::Validity::default(),
         }
     }
 
@@ -73,6 +78,18 @@ impl InputState {
     /// Set by the component's `validation_behavior` builder.
     pub fn set_validation_behavior(&mut self, behavior: crate::form::ValidationBehavior) {
         self.validation_behavior = behavior;
+    }
+
+    /// Records the resolved validity, written by `Input::render` so `Form`
+    /// can see why a native submission is blocked. The write is guarded at
+    /// the call site (only when the value differs), like `set_name`'s.
+    pub(crate) fn set_validity(&mut self, validity: crate::validation::Validity) {
+        self.validity = validity;
+    }
+
+    /// The resolved validity, as last written by `Input::render`.
+    pub(crate) fn validity(&self) -> &crate::validation::Validity {
+        &self.validity
     }
 
     pub fn set_value(&mut self, value: impl Into<String>) {
@@ -977,6 +994,31 @@ impl RenderOnce for Input {
             let name = self.name.clone();
             self.state.update(cx, |s, _| s.set_name(name));
         }
+        // v3 order: the controlled flag, then server errors, then `validate`,
+        // with `errorMessage` as the fallback. Resolved here, ahead of the
+        // theme borrow, because the write below needs `&mut cx`.
+        let value_now = self.state.read(cx).value().to_owned();
+        let mut validity = crate::validation::resolve(
+            self.is_invalid,
+            &self.validation_errors,
+            self.validate.as_ref().and_then(|f| f(&value_now)),
+            self.error_message.clone(),
+        );
+        // v3's native validation enforces the HTML5 attribute constraints too:
+        // a `minLength`/`pattern`/`min`/`max`/`step` violation is a field error
+        // even when the controlled flags and `validate` say nothing, and a
+        // native form must block on it. The merge touches only the flag — the
+        // message slot stays untouched, so no error line appears.
+        if !self.validity(&value_now).is_valid() {
+            validity.is_invalid = true;
+        }
+        // The form reads this back through `FormField::text`; written only
+        // when it differs, so the write cannot notify-re-render forever
+        // (`set_name` guards its state write the same way).
+        let validity_state = self.state.clone();
+        if validity_state.read(cx).validity() != &validity {
+            validity_state.update(cx, |s, _| s.set_validity(validity.clone()));
+        }
         let focus_handle = self.state.read(cx).focus_handle.clone();
         if self.auto_focus {
             crate::util::focus_once(
@@ -1023,15 +1065,6 @@ impl RenderOnce for Input {
         // This was 40, so every field in the port stood 4px taller than v3's.
         let (h, text) = (crate::util::FIELD_HEIGHT, crate::util::FIELD_TEXT);
 
-        // v3 order: the controlled flag, then server errors, then `validate`,
-        // with `errorMessage` as the fallback.
-        let value_now = self.state.read(cx).value().to_owned();
-        let validity = crate::validation::resolve(
-            self.is_invalid,
-            &self.validation_errors,
-            self.validate.as_ref().and_then(|f| f(&value_now)),
-            self.error_message.clone(),
-        );
         let is_invalid = validity.is_invalid;
         let _border_color = if is_invalid {
             colors.danger.color

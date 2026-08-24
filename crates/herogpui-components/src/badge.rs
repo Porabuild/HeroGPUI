@@ -57,8 +57,10 @@ pub struct Badge {
 
 impl Badge {
     pub fn new() -> Self {
+        // v3's table gives `color` a default of `"default"`, which is the
+        // gray `.badge--default`; the seed used to be `Danger`.
         Self {
-            color: Color::Danger,
+            color: Color::Default,
             variant: BadgeVariant::Primary,
             size: Size::Md,
             placement: BadgePlacement::TopRight,

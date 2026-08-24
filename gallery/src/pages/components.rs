@@ -2346,6 +2346,25 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "Disabled Item",
+                    col(vec![
+                        para(
+                            "`ColorSwatchPicker.Item.isDisabled` dims one swatch — unclickable \
+                             and out of the tab order — while the rest stay pickable: the \
+                             difference from the whole-picker `isDisabled` above.",
+                            cx,
+                        ),
+                        h::ColorSwatchPicker::new("csp-disabled-item", palette())
+                            .value(selected)
+                            .disabled_keys([2])
+                            .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
+                                this.swatch_selected = *c;
+                                cx.notify();
+                            })))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
                     "Stack Layout",
                     col(vec![h::ColorSwatchPicker::new("csp-stack", palette())
                         .value(selected)
@@ -2559,6 +2578,81 @@ impl Gallery {
                             cx.notify();
                         }))
                         .into_any_element()]),
+                ),
+                (
+                    "Disabled Thumb",
+                    col(vec![
+                        para(
+                            "`Slider.Thumb.isDisabled` fixes one thumb — dimmed, out of the \
+                             roving tab stop, answering no drag or keys — while the other \
+                             thumb keeps moving: the contrast a whole-slider `isDisabled` \
+                             cannot show.",
+                            cx,
+                        ),
+                        h::Slider::new("sl-lock", value)
+                            .label("Price range")
+                            .values(self.slider_range.clone())
+                            .disabled_keys([0])
+                            .on_change_all(cx.listener(|this, vs: &[f32], _, cx| {
+                                this.slider_range = vs.to_vec();
+                                cx.notify();
+                            }))
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Form Example",
+                    col(vec![
+                        para(
+                            "`Slider.Thumb.name` names each end of a range. `form_fields` \
+                             hands the pair to the `Form` — it is told its fields, with no \
+                             context propagation — so a submission carries one value per \
+                             named thumb.",
+                            cx,
+                        ),
+                        {
+                            // v3 renders one `<input name=…>` per thumb; the form reads
+                            // them back through `form_fields`, as DateRangePicker does.
+                            let slider = h::Slider::new("sl-form", value)
+                                .label("Price range")
+                                .values(self.slider_range.clone())
+                                .start_name("min")
+                                .end_name("max")
+                                .on_change_all(cx.listener(|this, vs: &[f32], _, cx| {
+                                    this.slider_range = vs.to_vec();
+                                    cx.notify();
+                                }));
+                            let mut form = h::Form::new();
+                            for field in slider.form_fields() {
+                                form = form.field(field);
+                            }
+                            let form =
+                                form.on_submit(cx.listener(|this, data: &h::FormData, _, cx| {
+                                    this.input_submitted = format!(
+                                        "min={}, max={}",
+                                        data.text("min").unwrap_or_default(),
+                                        data.text("max").unwrap_or_default(),
+                                    );
+                                    cx.notify();
+                                }));
+                            let submit = form.submit_handler();
+                            form.child(slider.into_any_element())
+                                .child(
+                                    h::Button::new("sl-form-submit")
+                                        .label("Save")
+                                        .on_press(move |_, window, cx| submit(window, cx)),
+                                )
+                                .into_any_element()
+                        },
+                        para(
+                            &if self.input_submitted.is_empty() {
+                                "Nothing submitted yet".to_owned()
+                            } else {
+                                format!("Submitted: {}", self.input_submitted)
+                            },
+                            cx,
+                        ),
+                    ]),
                 ),
                 (
                     "Vertical",
@@ -3358,6 +3452,8 @@ impl Gallery {
                         build("tbl-async-loading")
                             .is_pending(true)
                             .on_load_more(|_, _| {})
+                            // v3's Async Loading example writes `scrollOffset={0}`.
+                            .scroll_offset(0.)
                             .into_any_element(),
                     ]),
                 ),
@@ -3567,9 +3663,33 @@ impl Gallery {
                 ),
                 (
                     "Multiple Selection",
-                    col(vec![h::Calendar::new(self.demo_calendar("cal-multiple", cx))
-                        .selection_mode(SelectionMode::Multiple)
-                        .into_any_element()]),
+                    col({
+                        let cal = self.demo_calendar("cal-multiple", cx);
+                        // v3's `onChange` carries the whole selection in
+                        // multiple mode; the summary below re-reads the state,
+                        // and `window.refresh()` forces the repaint that makes
+                        // the new frame visible.
+                        let dates = cal.read(cx).selected_dates().to_vec();
+                        let summary = if dates.is_empty() {
+                            "No dates selected".to_owned()
+                        } else {
+                            format!(
+                                "Selected: {}",
+                                dates
+                                    .iter()
+                                    .map(|d| d.format_iso())
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            )
+                        };
+                        vec![
+                            h::Calendar::new(cal)
+                                .selection_mode(SelectionMode::Multiple)
+                                .on_change_all(|_, window, _| window.refresh())
+                                .into_any_element(),
+                            para(&summary, cx),
+                        ]
+                    }),
                 ),
                 (
                     "Focused Value",
@@ -3676,6 +3796,38 @@ impl Gallery {
                             },
                         )))
                         .into_any_element()]),
+                ),
+                (
+                    "Heading Offset",
+                    col({
+                        let august = h::Date::new(2026, 8, 10);
+                        vec![
+                            row(vec![
+                                spec(
+                                    "Grid: August 2026; heading: August 2026 (offset 0)",
+                                    h::Calendar::new(self.demo_calendar("cal-heading-anchor", cx))
+                                        .default_value(august)
+                                        .into_any_element(),
+                                    cx,
+                                ),
+                                spec(
+                                    "Grid: August 2026; heading: September 2026 (offset +1)",
+                                    h::Calendar::new(self.demo_calendar("cal-heading-offset", cx))
+                                        .default_value(august)
+                                        .offset(1)
+                                        .into_any_element(),
+                                    cx,
+                                ),
+                            ]),
+                            para(
+                                "`Calendar.YearPickerTriggerHeading.offset` shifts the month \
+                                 heading -- also the year-picker trigger -- while the grid stays \
+                                 on the visible month. Both grids above show August; only the \
+                                 headings differ.",
+                                cx,
+                            ),
+                        ]
+                    }),
                 ),
             ],
             cx,
@@ -4152,6 +4304,38 @@ impl Gallery {
                         // `firstDayOfWeek` reorders the seven columns.
                         .first_day_of_week(h::Weekday::Mon)
                         .into_any_element()]),
+                ),
+                (
+                    "Heading Offset",
+                    col({
+                        let august = (h::Date::new(2026, 8, 10), h::Date::new(2026, 8, 16));
+                        vec![
+                            row(vec![
+                                spec(
+                                    "Grid: August 2026; heading: August 2026 (offset 0)",
+                                    h::RangeCalendar::new(self.demo_range("rc-heading-anchor", cx))
+                                        .default_value(august)
+                                        .into_any_element(),
+                                    cx,
+                                ),
+                                spec(
+                                    "Grid: August 2026; heading: September 2026 (offset +1)",
+                                    h::RangeCalendar::new(self.demo_range("rc-heading-offset", cx))
+                                        .default_value(august)
+                                        .offset(1)
+                                        .into_any_element(),
+                                    cx,
+                                ),
+                            ]),
+                            para(
+                                "`RangeCalendar.YearPickerTriggerHeading.offset` shifts the month \
+                                 heading -- also the year-picker trigger -- while the grid stays \
+                                 on the visible month. Both grids above show August; only the \
+                                 headings differ.",
+                                cx,
+                            ),
+                        ]
+                    }),
                 ),
                 (
                     "Default Value",
@@ -7324,6 +7508,19 @@ impl Gallery {
                             cx,
                         ),
                         spec("No name at all", h::Avatar::new(), cx),
+                        // v3's own Fallback Content example drives a
+                        // deliberately broken URL with
+                        // `<Avatar.Fallback delayMs={600}>`; an unregistered
+                        // asset path fails identically here (no network), and
+                        // the initials replace the box once the delay elapses.
+                        spec(
+                            "Broken src, delayed fallback",
+                            h::Avatar::new()
+                                .name("NA")
+                                .src("images/avatar-broken.png")
+                                .delay_ms(600),
+                            cx,
+                        ),
                     ]),
                 ),
                 (
@@ -7774,6 +7971,16 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "Disabled Links",
+                    col(vec![h::Pagination::new("pg-disabled-links", page, 8)
+                        .disabled_keys([0, 5, 9])
+                        .on_change(usize_cb(cx.listener(|this, p: &usize, _, cx| {
+                            this.pagination_page = *p;
+                            cx.notify();
+                        })))
+                        .into_any_element()]),
+                ),
+                (
                     "Simple (Previous / Next)",
                     col(vec![row(vec![
                         h::Button::new("pg-prev")
@@ -7957,10 +8164,10 @@ impl Gallery {
                         vec![
                             h::TabItem::new("open", "Open")
                                 .content(gpui::div().child("Open items.")),
-                            // v3 disables one tab; the group-level flag is what
-                            // this port offers, so the demo shows a disabled
-                            // group beside the live one.
+                            // v3: `<Tabs.Tab isDisabled>` on a single tab; the
+                            // selected "open" tab stays live.
                             h::TabItem::new("closed", "Closed")
+                                .is_disabled(true)
                                 .content(gpui::div().child("Closed items.")),
                         ],
                         "open",
@@ -10089,12 +10296,21 @@ impl Gallery {
                     col(vec![
                         para(
                             "v3 fills the list from a request. The spinner beside the field is \
-                             what says one is in flight; the options are the caller's own data.",
+                             what says one is in flight; the options are the caller's own data. \
+                             `allowsEmptyCollection` keeps the panel up with its empty state \
+                             while a query has no matches instead of collapsing it.",
                             cx,
                         ),
                         row(vec![
                             h::ComboBox::new(self.demo_text("cb-async", "", cx), languages())
                                 .label("Language")
+                                .allows_empty_collection(true)
+                                // v3 pairs the flag with async loading: type a
+                                // query nothing matches and the panel stays up
+                                // with "No matching options" instead of closing.
+                                .filter(|query, item| {
+                                    h::Filter::new(h::Sensitivity::Base).contains(item, query)
+                                })
                                 .into_any_element(),
                             h::Spinner::new("cb-async-spinner")
                                 .size(h::SpinnerSize::Sm)

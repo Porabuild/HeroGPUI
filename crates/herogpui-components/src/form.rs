@@ -101,6 +101,12 @@ type Read = Arc<dyn Fn(&App) -> FormValue + 'static>;
 type Restore = Arc<dyn Fn(&mut App) + 'static>;
 type ReadName = Arc<dyn Fn(&App) -> Option<SharedString> + 'static>;
 type ReadBehavior = Arc<dyn Fn(&App) -> ValidationBehavior + 'static>;
+/// Reads the field's stored validity — whether its own validation is in error,
+/// which blocks a native submission like a missing required value.
+type ReadInvalid = Arc<dyn Fn(&App) -> bool + 'static>;
+/// Moves the focus to this field, which a blocked submit uses for v3's
+/// "the first invalid field will be focused".
+type FocusField = Arc<dyn Fn(&mut Window, &mut App) + 'static>;
 
 /// A named field a [`Form`] reads on submit.
 ///
@@ -121,6 +127,12 @@ pub struct FormField {
     validation_behavior: ValidationBehavior,
     /// Reads `validationBehavior` off the field's own state entity.
     behavior_of: Option<ReadBehavior>,
+    /// Reads the field's stored validity — whether the field considers itself
+    /// in error, written by `Input::render`.
+    invalid_of: Option<ReadInvalid>,
+    /// Focuses the field — the invalid-path step, when it has a reachable
+    /// handle.
+    focus: Option<FocusField>,
 }
 
 impl FormField {
@@ -128,12 +140,17 @@ impl FormField {
     pub fn text(state: Entity<InputState>) -> Self {
         let read_state = state.clone();
         let name_state = state.clone();
-        let behavior_state = state;
+        let behavior_state = state.clone();
+        let invalid_state = state.clone();
+        let focus_state = state;
         Self {
             name: None,
             name_of: Some(Arc::new(move |cx: &App| name_state.read(cx).name())),
             behavior_of: Some(Arc::new(move |cx: &App| {
                 behavior_state.read(cx).validation_behavior()
+            })),
+            invalid_of: Some(Arc::new(move |cx: &App| {
+                invalid_state.read(cx).validity().is_invalid
             })),
             read: Arc::new(move |cx: &App| {
                 FormValue::Text(SharedString::from(read_state.read(cx).value().to_owned()))
@@ -141,6 +158,10 @@ impl FormField {
             restore: None,
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
+            focus: Some(Arc::new(move |window, cx| {
+                let fh = focus_state.read(cx).focus_handle.clone();
+                window.focus(&fh);
+            })),
         }
     }
 
@@ -148,7 +169,8 @@ impl FormField {
     pub fn number(state: Entity<NumberState>) -> Self {
         let read_state = state.clone();
         let name_state = state.clone();
-        let behavior_state = state;
+        let behavior_state = state.clone();
+        let focus_state = state;
         Self {
             name: None,
             name_of: Some(Arc::new(move |cx: &App| {
@@ -158,25 +180,37 @@ impl FormField {
             behavior_of: Some(Arc::new(move |cx: &App| {
                 behavior_state.read(cx).input.read(cx).validation_behavior()
             })),
+            invalid_of: None,
             read: Arc::new(move |cx: &App| FormValue::Number(read_state.read(cx).value())),
             restore: None,
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
+            focus: Some(Arc::new(move |window, cx| {
+                let fh = focus_state.read(cx).input.read(cx).focus_handle.clone();
+                window.focus(&fh);
+            })),
         }
     }
 
     /// An OTP field, read from its [`crate::input_otp::OtpState`].
     pub fn code(name: impl Into<SharedString>, state: Entity<crate::input_otp::OtpState>) -> Self {
+        let read_state = state.clone();
+        let focus_state = state;
         Self {
             name: Some(name.into()),
             name_of: None,
             read: Arc::new(move |cx: &App| {
-                FormValue::Text(SharedString::from(state.read(cx).code()))
+                FormValue::Text(SharedString::from(read_state.read(cx).code()))
             }),
             restore: None,
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
             behavior_of: None,
+            invalid_of: None,
+            focus: Some(Arc::new(move |window, cx| {
+                let fh = focus_state.read(cx).focus_handle.clone();
+                window.focus(&fh);
+            })),
         }
     }
 
@@ -192,6 +226,8 @@ impl FormField {
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
             behavior_of: None,
+            invalid_of: None,
+            focus: None,
         }
     }
 
@@ -205,6 +241,8 @@ impl FormField {
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
             behavior_of: None,
+            invalid_of: None,
+            focus: None,
         }
     }
 
@@ -218,6 +256,8 @@ impl FormField {
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
             behavior_of: None,
+            invalid_of: None,
+            focus: None,
         }
     }
 
@@ -235,6 +275,8 @@ impl FormField {
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
             behavior_of: None,
+            invalid_of: None,
+            focus: None,
         }
     }
 
@@ -299,6 +341,12 @@ impl FormField {
         self.name
             .clone()
             .or_else(|| self.name_of.as_ref().and_then(|f| f(cx)))
+    }
+
+    /// Whether the field's stored validity is in error — the render-side of
+    /// the validation a native submit consults.
+    fn is_invalid(&self, cx: &App) -> bool {
+        self.invalid_of.as_ref().is_some_and(|f| f(cx))
     }
 }
 
@@ -383,9 +431,11 @@ impl Form {
 
     /// `onInvalid` — runs instead of `onSubmit` when validation blocks it.
     ///
-    /// Blocked means either a form-level `validationErrors` entry or a required
-    /// field with no value, and only under [`ValidationBehavior::Native`] —
-    /// `Allow` submits regardless, as v3's does.
+    /// Blocked means a form-level `validationErrors` entry, a required field
+    /// with no value, or a field whose own stored validity is in error
+    /// (`validate`, `isInvalid`, `validationErrors`, or an HTML5 attribute
+    /// violation) — and only under [`ValidationBehavior::Native`]; `Allow`
+    /// submits regardless, as v3's does.
     pub fn on_invalid(mut self, f: impl Fn(&FormData, &mut Window, &mut App) + 'static) -> Self {
         self.on_invalid = Some(Arc::new(f));
         self
@@ -438,13 +488,46 @@ impl Form {
             };
             let data = form.data(cx);
             let missing = data.missing_required(&form.required_names(cx));
+            // A field error blocks a native submit however it arose: a
+            // required field with no value, or a field whose stored validity
+            // says it is in error (`validate`, `isInvalid`,
+            // `validationErrors`, or an HTML5 attribute violation).
+            let own_invalid: Vec<SharedString> = fields
+                .iter()
+                .filter(|f| f.blocks_submission(cx) && f.is_invalid(cx))
+                .filter_map(|f| f.field_name(cx))
+                .collect();
             let blocked = behavior == ValidationBehavior::Native
-                && (!errors.is_empty() || !missing.is_empty());
-            match (blocked, &on_invalid, &on_submit) {
-                (true, Some(f), _) => f(&data, window, cx),
-                (true, None, _) => {}
-                (false, _, Some(f)) => f(&data, window, cx),
-                (false, _, None) => {}
+                && (!errors.is_empty() || !missing.is_empty() || !own_invalid.is_empty());
+            if blocked {
+                // v3, verbatim: "By default, the first invalid field will be
+                // focused." A blocked submit moves the focus to the first
+                // registered field whose error keeps the form from
+                // submitting — the same union the blocked condition above
+                // computes. This runs inside the submit *button's* click
+                // handler, not a keystroke, so moving the focus cannot
+                // re-activate the focused control's click listener on the way
+                // up (AGENTS.md); the tests below drive a submit with a
+                // button click and assert the field holds the focus after.
+                for field in &fields {
+                    let invalid = field.blocks_submission(cx)
+                        && (field.is_invalid(cx)
+                            || (field.is_required
+                                && field.field_name(cx).is_some_and(|name| {
+                                    data.get(&name).is_none_or(FormValue::is_empty)
+                                })));
+                    if invalid {
+                        if let Some(focus) = &field.focus {
+                            focus(window, cx);
+                        }
+                        break;
+                    }
+                }
+                if let Some(f) = &on_invalid {
+                    f(&data, window, cx);
+                }
+            } else if let Some(f) = &on_submit {
+                f(&data, window, cx);
             }
         })
     }

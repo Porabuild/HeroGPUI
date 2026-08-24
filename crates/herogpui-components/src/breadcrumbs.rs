@@ -81,7 +81,7 @@ impl Breadcrumbs {
 }
 
 impl RenderOnce for Breadcrumbs {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
         let text_size = px(14.);
         let muted = colors.muted;
@@ -108,8 +108,24 @@ impl RenderOnce for Breadcrumbs {
                 let is_last = i == item_count - 1;
                 let row = gpui::div().flex().items_center().gap(px(8.));
 
+                // v3's Accessibility section claims "Keyboard navigation
+                // support": every link crumb is a tab stop (React Aria link
+                // semantics) and gpui already activates a focused element's
+                // click listeners on Enter/Space, so no Enter handler of our
+                // own is bound. The last crumb — the current page, without
+                // `href` — stays inert, and a disabled crumb leaves the tab
+                // order like any other disabled control.
+                let focus = (!is_last && !disabled).then(|| {
+                    crate::util::tab_stop_handle(
+                        gpui::ElementId::Name(format!("crumb-{i}-focus").into()),
+                        window,
+                        cx,
+                    )
+                });
+
                 let mut label_el = gpui::div()
                     .id(gpui::ElementId::Name(format!("crumb-{i}").into()))
+                    .when_some(focus.as_ref(), |el, handle| el.track_focus(handle))
                     .text_size(text_size)
                     .line_height(text_size * 1.3)
                     .text_color(if is_last { active_color } else { muted })

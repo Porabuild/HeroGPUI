@@ -22,8 +22,13 @@ pub struct Pagination {
     id: gpui::ElementId,
     page: usize,
     total: usize,
-    siblings: usize,
     is_disabled: bool,
+    /// `Pagination.Link.isDisabled` / `Pagination.Previous.isDisabled` /
+    /// `Pagination.Next.isDisabled` — the links and nav buttons disabled
+    /// individually, keyed by the page each one navigates to: a page number
+    /// in `1..=total` disables that link, `0` names Previous and
+    /// `total + 1` names Next (the pages those two buttons point at).
+    disabled_keys: std::collections::HashSet<usize>,
     size: Size,
     on_change: Option<OnChange>,
 }
@@ -41,8 +46,8 @@ impl Pagination {
             id: id.into(),
             page: page.max(1),
             total: total.max(1),
-            siblings: 1,
             is_disabled: false,
+            disabled_keys: std::collections::HashSet::new(),
             size: Size::Md,
             on_change: None,
         }
@@ -66,6 +71,18 @@ impl Pagination {
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
+        self
+    }
+
+    /// `Pagination.Link.isDisabled`, `Pagination.Previous.isDisabled` and
+    /// `Pagination.Next.isDisabled` — the links a caller wants disabled
+    /// individually, keyed by the page each one navigates to. A page number
+    /// in `1..=total` disables that link; `0` names Previous and
+    /// `total + 1` names Next, the pages those buttons point at. A disabled
+    /// link renders dimmed, leaves the tab order and answers no press,
+    /// exactly like the whole-bar `is_disabled`.
+    pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = usize>) -> Self {
+        self.disabled_keys = keys.into_iter().collect();
         self
     }
 
@@ -108,7 +125,7 @@ impl RenderOnce for Pagination {
         let base = format!("{:?}", self.id);
 
         let self_on_change: Option<OnChange> = self.on_change.clone();
-        let pages = visible_pages(self.page, self.total, self.siblings);
+        let pages = visible_pages(self.page, self.total);
 
         // v3 sizes the items; the nav buttons and page cells share it.
         let cell = match self.size {
@@ -121,11 +138,18 @@ impl RenderOnce for Pagination {
         // `.pagination__content` is `gap-1`, not the 16px this used to leave.
         let mut row = gpui::div().flex().items_center().gap(px(4.));
 
+        // v3: "Disabled states properly communicated" — a disabled arrow is
+        // `pointer-events-none` and React Aria's press never fires for it, so
+        // the click handler is only attached when the arrow is enabled (the
+        // tab stop is gated the same way inside `nav_button`).
+        // `Pagination.Previous.isDisabled` force-disables the button beyond
+        // the page bounds: `0` names it, the page the arrow navigates to.
+        let prev_enabled = self.page > 1 && !self.is_disabled && !self.disabled_keys.contains(&0);
         row = row.child(
             nav_button(
                 format!("{base}-prev"),
                 icons::CHEVRON_LEFT,
-                self.page > 1 && !self.is_disabled,
+                prev_enabled,
                 NavStyle {
                     foreground: colors.foreground,
                     hover_bg: colors.default.color,
@@ -138,13 +162,15 @@ impl RenderOnce for Pagination {
                 (ring_visible && prev_focus.is_focused(window))
                     .then(|| crate::util::focus_ring_shadows(true, cx)),
             )
-            .on_click({
-                let cb: Option<OnChange> = self.on_change.clone();
-                move |_, w, cx| {
-                    if let Some(cb) = &cb {
-                        cb(self.page - 1, w, cx);
+            .when(prev_enabled, |b| {
+                b.on_click({
+                    let cb: Option<OnChange> = self.on_change.clone();
+                    move |_, w, cx| {
+                        if let Some(cb) = &cb {
+                            cb(self.page - 1, w, cx);
+                        }
                     }
-                }
+                })
             }),
         );
 
@@ -152,10 +178,16 @@ impl RenderOnce for Pagination {
             match p {
                 PageRef::Num(n) => {
                     let active = n == self.page;
+                    // `Pagination.Link.isDisabled` — a link whose page number
+                    // is in `disabled_keys` is disabled exactly like one under
+                    // the whole-bar flag: it leaves the tab order and answers
+                    // no press (v3's `status-disabled` is `pointer-events-none`
+                    // and React Aria's press never fires for it).
+                    let link_disabled = self.is_disabled || self.disabled_keys.contains(&n);
                     let mut btn = gpui::div()
                         .id(gpui::ElementId::Name(format!("{base}-page-{n}").into()))
                         .when_some(
-                            page_focus.get(n).filter(|_| !self.is_disabled),
+                            page_focus.get(n).filter(|_| !link_disabled),
                             |b, handle| b.track_focus(handle),
                         )
                         .flex()
@@ -167,7 +199,7 @@ impl RenderOnce for Pagination {
                         .h(cell)
                         .text_size(cell_text)
                         .rounded(crate::util::control_radius(cx))
-                        .when(!self.is_disabled, |b| b.cursor_pointer());
+                        .when(!link_disabled, |b| b.cursor_pointer());
 
                     if active {
                         btn = btn.bg(sem.color).text_color(sem.foreground);
@@ -176,7 +208,7 @@ impl RenderOnce for Pagination {
                             .text_color(colors.foreground)
                             .border_1()
                             .border_color(colors.default.soft_hover());
-                        if !self.is_disabled {
+                        if !link_disabled {
                             let hover_bg = colors.default.color;
                             let pressed_bg = colors.default.hover();
                             btn = btn.hover(move |s| s.bg(hover_bg));
@@ -199,10 +231,17 @@ impl RenderOnce for Pagination {
                                 cx,
                             )
                             .active(move |s| s.bg(pressed_bg));
+                            // A disabled link answers no press: the click
+                            // listener is gated the same way the tab stop is.
+                            if let Some(cb) = self_on_change.clone() {
+                                btn = btn.on_click(move |_, w, cx| cb(n, w, cx));
+                            }
                         }
-                        if let Some(cb) = self_on_change.clone() {
-                            btn = btn.on_click(move |_, w, cx| cb(n, w, cx));
-                        }
+                    }
+                    // `.pagination__link:disabled` is `status-disabled` —
+                    // dimmed, like the nav buttons at their own bounds.
+                    if link_disabled {
+                        btn = btn.opacity(layout.disabled_opacity);
                     }
                     // `link` is v3's render prop on `Pagination.Link`: it
                     // receives `isActive`, so a caller can style the current
@@ -237,11 +276,16 @@ impl RenderOnce for Pagination {
             }
         }
 
+        // `Pagination.Next.isDisabled` force-disables the button beyond the
+        // page bounds: `total + 1` names it, the page the arrow navigates to.
+        let next_enabled = self.page < self.total
+            && !self.is_disabled
+            && !self.disabled_keys.contains(&(self.total + 1));
         row = row.child(
             nav_button(
                 format!("{base}-next"),
                 icons::CHEVRON_RIGHT,
-                self.page < self.total && !self.is_disabled,
+                next_enabled,
                 NavStyle {
                     foreground: colors.foreground,
                     hover_bg: colors.default.color,
@@ -254,13 +298,15 @@ impl RenderOnce for Pagination {
                 (ring_visible && next_focus.is_focused(window))
                     .then(|| crate::util::focus_ring_shadows(true, cx)),
             )
-            .on_click({
-                let cb: Option<OnChange> = self.on_change.clone();
-                move |_, w, cx| {
-                    if let Some(cb) = &cb {
-                        cb(self.page + 1, w, cx);
+            .when(next_enabled, |b| {
+                b.on_click({
+                    let cb: Option<OnChange> = self.on_change.clone();
+                    move |_, w, cx| {
+                        if let Some(cb) = &cb {
+                            cb(self.page + 1, w, cx);
+                        }
                     }
-                }
+                })
             }),
         );
 
@@ -315,7 +361,10 @@ fn nav_button(
     } = style;
     let mut btn = gpui::div()
         .id(gpui::ElementId::Name(id.into()))
-        .track_focus(focus)
+        // A disabled control must leave the tab order — `track_focus` is what
+        // puts it in, so gate it (v3 gives a disabled arrow `pointer-events-none`
+        // and nothing for Tab to land on).
+        .when(enabled, |b| b.track_focus(focus))
         .when_some(ring, |b, shadows| b.shadow(shadows))
         .flex()
         .items_center()
@@ -343,7 +392,10 @@ enum PageRef {
     Ellipsis,
 }
 
-fn visible_pages(page: usize, total: usize, siblings: usize) -> Vec<PageRef> {
+fn visible_pages(page: usize, total: usize) -> Vec<PageRef> {
+    // v3 removed the v2 `siblings`/`boundaries` props ("Removed (compose items
+    // manually)"), so the window is fixed at one sibling either side.
+    let siblings = 1;
     // total numbers to show = 2*siblings + 5 (first, last, current, 2 ellipsis slots)
     let total_slots = 2 * siblings + 5;
     if total <= total_slots {

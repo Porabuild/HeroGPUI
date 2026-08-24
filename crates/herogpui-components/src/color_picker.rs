@@ -379,6 +379,9 @@ pub struct ColorSwatch {
     color: PickerColor,
     size: SizeXl,
     shape: SwatchShape,
+    /// `ColorSwatchPicker.Item.isDisabled` — the item's own flag, drawn on
+    /// the swatch it wraps.
+    is_disabled: bool,
 }
 
 impl ColorSwatch {
@@ -395,6 +398,7 @@ impl ColorSwatch {
             // own swatch scale (16/24/32/36/40).
             size: SizeXl::Md,
             shape: SwatchShape::Circle,
+            is_disabled: false,
         }
     }
 
@@ -407,11 +411,24 @@ impl ColorSwatch {
         self.shape = shape;
         self
     }
+
+    /// `ColorSwatchPicker.Item.isDisabled` — the swatch an item wraps when it
+    /// cannot be chosen.
+    ///
+    /// The picker draws each item around its swatch and the item's disabled
+    /// state is the part's prop; a standalone preview honours the same flag
+    /// by dimming — the reduced-opacity look the picker's sheet gives a
+    /// disabled item.
+    pub fn is_disabled(mut self, v: bool) -> Self {
+        self.is_disabled = v;
+        self
+    }
 }
 
 impl RenderOnce for ColorSwatch {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
+        let layout = cx.layout();
         let edge = self.size.swatch_px();
         // `.color-swatch--circle` names a radius per size -- `rounded-lg` at 16px
         // through `rounded-3xl` at 40 -- and every one of them is at least half
@@ -427,10 +444,11 @@ impl RenderOnce for ColorSwatch {
             .rounded(radius)
             .flex_shrink_0()
             .overflow_hidden()
-            .border(cx.layout().border_width)
+            .border(layout.border_width)
             .border_color(colors.border)
             // Checkerboard under the color reveals translucency.
             .bg(colors.surface_secondary)
+            .when(self.is_disabled, |el| el.opacity(layout.disabled_opacity))
             .child(
                 div()
                     .size_full()
@@ -1663,6 +1681,9 @@ pub struct ColorSwatchPicker {
     shape: SwatchShape,
     layout: SwatchLayout,
     is_disabled: bool,
+    /// `ColorSwatchPicker.Item.isDisabled` — swatches that cannot be chosen,
+    /// by index.
+    disabled_keys: std::collections::HashSet<usize>,
     on_change: Option<OnColorChange>,
 }
 
@@ -1679,6 +1700,7 @@ impl ColorSwatchPicker {
             shape: SwatchShape::Circle,
             layout: SwatchLayout::Grid,
             is_disabled: false,
+            disabled_keys: std::collections::HashSet::new(),
             on_change: None,
         }
     }
@@ -1717,6 +1739,19 @@ impl ColorSwatchPicker {
         self
     }
 
+    /// `ColorSwatchPicker.Item.isDisabled` — swatches that cannot be chosen,
+    /// by index.
+    ///
+    /// A disabled swatch draws dimmed (`status-disabled`'s reduced opacity),
+    /// answers no click, and leaves the tab order, exactly as a disabled
+    /// control must in this port. The dictionary is by palette position — the
+    /// same projection `RadioGroup::disabled_keys` gives `Radio.isDisabled` —
+    /// since the swatches are a plain list with no keys of their own.
+    pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = usize>) -> Self {
+        self.disabled_keys = keys.into_iter().collect();
+        self
+    }
+
     pub fn on_change(
         mut self,
         handler: impl Fn(PickerColor, &mut Window, &mut App) + 'static,
@@ -1742,17 +1777,44 @@ impl RenderOnce for ColorSwatchPicker {
         );
         self.value = resolved;
 
-        // One tab stop per swatch: `.color-swatch-picker__item:focus-visible` is
-        // `status-focused`. The handles precede the theme borrow.
-        let swatch_focus: Vec<gpui::FocusHandle> = (0..self.swatches.len())
-            .map(|index| {
-                util::tab_stop_handle(
-                    ElementId::Name(format!("{:?}-swatch-{index}-focus", self.id).into()),
-                    window,
-                    cx,
-                )
-            })
+        // One tab stop for the whole list: v3's picker sits on React Aria's
+        // ListBox, which roves a listbox's tabindex, so Tab enters the picker
+        // once and the arrows move inside it (AGENTS.md's roving tab stop).
+        // Which swatch claims the group's handle is held in keyed state,
+        // because a handle's `tab_stop` is fixed where the handle is made;
+        // the cursor never rests on a disabled swatch, so a stop stranded on
+        // one cannot take the picker out of the tab order. The state precedes
+        // the theme borrow.
+        let swatch_focus = util::tab_stop_handle(
+            ElementId::Name(format!("{:?}-focus", self.id).into()),
+            window,
+            cx,
+        );
+        let cursor = window.use_keyed_state(
+            ElementId::Name(format!("{:?}-cursor", self.id).into()),
+            cx,
+            |_, _| 0usize,
+        );
+        let enabled: Vec<usize> = (0..self.swatches.len())
+            .filter(|index| !(self.is_disabled || self.disabled_keys.contains(index)))
             .collect();
+        let at = *cursor.read(cx);
+        let cursor_index = enabled
+            .iter()
+            .copied()
+            .find(|i| *i >= at)
+            .or_else(|| enabled.first().copied());
+        // RAC's grid delegate moves Up and Down between the same column of the
+        // adjacent row. A grid row holds the most cells that fit under the
+        // picker's `max_w` (280px): 32px cells with an 8px gap give
+        // `32n + 8(n - 1) <= 280`, so 7 is the stride. A stack never wraps,
+        // so only the grid answers Up and Down, and a single-row grid has no
+        // second row -- which is what the geometric delegate reports too.
+        let grid_columns = if self.layout == SwatchLayout::Grid {
+            7
+        } else {
+            0
+        };
         let swatch_ring = util::focus_visible(cx);
 
         let mut row = div().flex().flex_row().items_center().gap(px(8.));
@@ -1762,15 +1824,17 @@ impl RenderOnce for ColorSwatchPicker {
 
         for (index, swatch) in self.swatches.iter().enumerate() {
             let selected = self.value.is_some_and(|v| v.to_hex() == swatch.to_hex());
+            // `ColorSwatchPicker.Item.isDisabled` — the item's own flag
+            // beside the group-wide one: dimmed, no press, and out of the tab
+            // order (`track_focus` below is gated on it, and a stop resting
+            // on nothing is what takes a control out of the order).
+            let item_disabled = self.is_disabled || self.disabled_keys.contains(&index);
 
             let mut cell = div()
                 .id(ElementId::Name(
                     format!("{:?}-swatch-{index}", self.id).into(),
                 ))
-                .when_some(
-                    swatch_focus.get(index).filter(|_| !self.is_disabled),
-                    |c, handle| c.track_focus(handle),
-                )
+                .when(cursor_index == Some(index), |c| c.track_focus(&swatch_focus))
                 .flex()
                 .items_center()
                 .justify_center()
@@ -1801,7 +1865,7 @@ impl RenderOnce for ColorSwatchPicker {
                         // The checkerboard that shows through a translucent
                         // colour, as on a plain `ColorSwatch`.
                         .bg(cx.colors().surface_secondary)
-                        .when(!self.is_disabled, |el| {
+                        .when(!item_disabled, |el| {
                             el.hover(move |st| st.size(grown).rounded(grown_radius))
                         })
                         .child(div().size_full().rounded(radius).bg(swatch.to_hsla()))
@@ -1840,7 +1904,10 @@ impl RenderOnce for ColorSwatchPicker {
                 cell = cell.border_color(gpui::transparent_black());
             }
 
-            if self.is_disabled {
+            if item_disabled {
+                // v3's sheet: `[data-disabled="true"]` is `status-disabled`,
+                // reduced opacity, and no press handler is attached here at
+                // all -- a disabled swatch cannot report a choice.
                 cell = cell.opacity(cx.layout().disabled_opacity);
             } else if self.on_change.is_some() || own.is_some() {
                 let on_change = self.on_change.clone();
@@ -1861,12 +1928,67 @@ impl RenderOnce for ColorSwatchPicker {
                 });
             }
 
+            // The collection keyboard, the ListBox's: the arrows rove the
+            // focus over the enabled swatches and Home and End jump, while a
+            // disabled swatch is never a stop. Enter and Space stay with gpui
+            // -- a focused element's press fires on key up, so the click
+            // handler above is the only path that selects; binding them again
+            // here would select twice. Disabled swatches never see this
+            // handler (they cannot hold the focus), so the cursor only moves
+            // between `enabled`.
+            if !item_disabled {
+                let stops = enabled.clone();
+                let moved = cursor.clone();
+                let columns = grid_columns;
+                cell = cell.on_key_down(move |event, _window, cx| {
+                    let key = event.keystroke.key.as_str();
+                    let next = match key {
+                        // Grid rows: same column, adjacent row. The strided
+                        // target must be a real enabled swatch; otherwise the
+                        // row does not exist, which is what the geometric
+                        // delegate reports for a ragged grid too.
+                        "up" | "down" if columns > 0 => {
+                            let j = index as isize
+                                + if key == "down" {
+                                    columns as isize
+                                } else {
+                                    -(columns as isize)
+                                };
+                            if j < 0 || !stops.contains(&(j as usize)) {
+                                return;
+                            }
+                            j as usize
+                        }
+                        // A stack is a single row: no second row to move to.
+                        "up" | "down" => return,
+                        key @ ("left" | "right" | "home" | "end") => {
+                            let key = match key {
+                                "right" => "down",
+                                "left" => "up",
+                                other => other,
+                            };
+                            let crate::list_nav::Move::To(next) =
+                                crate::list_nav::resolve(&stops, Some(index), key, false)
+                            else {
+                                return;
+                            };
+                            next
+                        }
+                        _ => return,
+                    };
+                    cx.stop_propagation();
+                    // No refocusing: the next render has the swatch at `next`
+                    // claim the group's handle, so the focus goes with it.
+                    moved.update(cx, |v, cx| {
+                        *v = next;
+                        cx.notify();
+                    });
+                });
+            }
+
             let cell = util::with_focus_ring(
                 cell,
-                swatch_ring
-                    && swatch_focus
-                        .get(index)
-                        .is_some_and(|h| h.is_focused(window)),
+                swatch_ring && cursor_index == Some(index) && swatch_focus.is_focused(window),
                 true,
                 Vec::new(),
                 cx,
