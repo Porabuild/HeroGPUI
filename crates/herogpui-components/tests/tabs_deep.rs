@@ -13,10 +13,72 @@
 
 mod harness;
 
-use gpui::{prelude::*, TestAppContext};
+use gpui::{
+    prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, TestAppContext, WindowTextSystem,
+};
 use herogpui_components::{Orientation, TabItem, Tabs};
 
-use harness::{events, open_host, press};
+use harness::{click, events, open_host, press};
+
+fn text_width(system: &WindowTextSystem, text: &str) -> f32 {
+    let run = gpui::TextRun {
+        len: text.len(),
+        font: Font {
+            family: ".SystemUIFont".into(),
+            features: FontFeatures::default(),
+            weight: FontWeight::MEDIUM,
+            style: FontStyle::default(),
+            fallbacks: None,
+        },
+        color: gpui::black(),
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+    let line = system.shape_line(text.to_owned().into(), px(14.), &[run], None);
+    f32::from(line.width)
+}
+
+/// `Tabs.Tab.isDisabled` is per item, not the root's disabled state. A dead
+/// tab takes neither a click nor a roving stop, while its siblings remain live.
+#[gpui::test]
+fn tabs_disabled_item_is_skipped_by_keys_and_clicks(cx: &mut TestAppContext) {
+    let recorded = events();
+    let selected = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        Tabs::new(
+            "tb-disabled-item",
+            vec![
+                TabItem::new("first", "First"),
+                TabItem::new("second", "Second").is_disabled(true),
+                TabItem::new("third", "Third"),
+            ],
+            "first",
+        )
+        .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+        .into_any_element()
+    });
+
+    let first = cx.update(|window, _| text_width(window.text_system(), "First")) + 32.;
+    let second = cx.update(|window, _| text_width(window.text_system(), "Second")) + 32.;
+    click(cx, 4. + first + second / 2., 20.);
+    assert!(
+        selected.borrow().is_empty(),
+        "a disabled tab must not answer the pointer"
+    );
+
+    press(cx, "tab");
+    press(cx, "right");
+    press(cx, "left");
+    press(cx, "end");
+    press(cx, "home");
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["third", "first", "third", "first"],
+        "arrows and Home/End must skip the disabled middle tab"
+    );
+}
 
 /// Vertical orientation must move the selection with Down and descend back
 /// with Up — and a Right key, which belongs to the horizontal axis, must do

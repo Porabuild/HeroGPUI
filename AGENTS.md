@@ -247,7 +247,7 @@ spell a prop differently. Both tables accept a scoped `Component.prop` key,
 which is the form to use whenever a bare name would mean different things in
 different components.
 
-**The audit is only as honest as its inputs**, and it has been wrong five
+**The audit is only as honest as its inputs**, and it has been wrong eight
 times:
 
 - v3 splits a component's API across the root table *and* one table per
@@ -260,6 +260,11 @@ times:
   several structs (`Toast`/`ToastViewport`, `Table`/`TableColumn`), list them in
   `COMPANIONS` — but never list a *different* component that happens to live in
   the same module, or a gap on one hides behind the other.
+- **A part prop cannot borrow the root's builder of the same name.** Folding
+  `Tabs.Tab.isDisabled` into the parent prop set let `Tabs::is_disabled` (the
+  whole list) count for a per-tab state `TabItem` could not express. Preserve
+  the table's part ownership when spellings collide; a name match alone proves
+  the wrong anatomy.
 - **The window truncated the widest tables.** `props_for` read 4000 characters
   after a `### Component` heading. ComboBox's type column is wide enough that
   the last six rows of its table fell outside it and were never compared:
@@ -954,6 +959,12 @@ press. Drive the gallery to confirm a fix, with `.shots/batch.ps1 -Steps
 
 Driving the rest of the library found six more, and the pattern held: every one
 was a path the gallery never renders or a state no screenshot can show.
+
+**Disabled, read-only and inert are different gates.** v3 removes a disabled
+control from activation and the tab order; a read-only control stays focusable
+and navigable while selection or editing is blocked. Calendar proved the mirror
+failure: treating read-only as wholly inert made its grid unreachable by
+keyboard even though every disabled/readOnly prop and state audit was green.
 
 - **`Button::content` panicked on its first frame.** Two helpers bound `on_hover`
   on one element and gpui refuses the second -- but the real fault was older: an

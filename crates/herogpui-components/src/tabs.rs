@@ -33,6 +33,9 @@ pub struct TabItem {
     pub key: SharedString,
     pub label: SharedString,
     pub content: Option<AnyElement>,
+    /// `Tabs.Tab.isDisabled` — removes this tab from activation and the roving
+    /// keyboard stops without disabling its siblings.
+    pub is_disabled: bool,
     /// `<Tabs.Separator />` inside this tab. v3 made the hairline between
     /// segments opt-in per tab in 3.0.0-beta.12, replacing the automatic
     /// pseudo-element and the `hideSeparator` prop it deleted.
@@ -45,12 +48,18 @@ impl TabItem {
             key: key.into(),
             label: label.into(),
             content: None,
+            is_disabled: false,
             separator: false,
         }
     }
 
     pub fn content(mut self, el: impl IntoElement) -> Self {
         self.content = Some(el.into_any_element());
+        self
+    }
+
+    pub fn is_disabled(mut self, value: bool) -> Self {
+        self.is_disabled = value;
         self
     }
 
@@ -194,6 +203,13 @@ impl RenderOnce for Tabs {
 
         let colors = cx.colors();
         let layout = cx.layout();
+        let key_stops: Vec<usize> = self
+            .items
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| (!item.is_disabled).then_some(index))
+            .collect();
+        let key_keys: Vec<SharedString> = self.items.iter().map(|item| item.key.clone()).collect();
 
         let vertical = self.orientation == Orientation::Vertical;
         // `.tabs__list` is `w-max min-w-full`: it grows with its content, which is
@@ -217,6 +233,7 @@ impl RenderOnce for Tabs {
                 let selected_index = self.items.iter().position(|item| item.key == selected_key);
                 for (index, item) in self.items.iter().enumerate() {
                     let active = item.key == selected_key;
+                    let disabled = self.is_disabled || item.is_disabled;
                     // `.tabs__separator` is a `w-px h-1/2 rounded-sm bg-muted/25`
                     // hairline between segments, hidden on either side of the
                     // selected one (`&[data-selected] .tabs__separator` and
@@ -242,7 +259,7 @@ impl RenderOnce for Tabs {
                         .id(gpui::ElementId::Name(
                             format!("{base_id}-tab-{}", item.key).into(),
                         ))
-                        .when(!self.is_disabled && active, |t| t.track_focus(&list_focus))
+                        .when(!disabled && active, |t| t.track_focus(&list_focus))
                         // `.tabs__tab` is `h-8 px-4 rounded-3xl text-sm
                         // font-medium`.
                         .h(px(32.))
@@ -258,11 +275,9 @@ impl RenderOnce for Tabs {
                         .rounded(crate::util::control_radius(cx))
                         .text_size(px(14.))
                         .font_weight(gpui::FontWeight::MEDIUM)
-                        .when(!self.is_disabled, |t| t.cursor_pointer())
+                        .when(!disabled, |t| t.cursor_pointer())
                         // `status-disabled` is `--disabled-opacity`.
-                        .when(self.is_disabled, |t| {
-                            t.opacity(cx.layout().disabled_opacity)
-                        });
+                        .when(disabled, |t| t.opacity(cx.layout().disabled_opacity));
                     if active {
                         tab = tab
                             .bg(colors.segment.background)
@@ -273,19 +288,17 @@ impl RenderOnce for Tabs {
                             });
                     } else {
                         tab = tab.text_color(colors.muted);
-                        if !self.is_disabled {
+                        if !disabled {
                             tab = tab.hover(move |s| s.text_color(colors.foreground));
                         }
                     }
-                    if !self.is_disabled
-                        && (self.on_selection_change.is_some() || selection_own.is_some())
+                    if !disabled && (self.on_selection_change.is_some() || selection_own.is_some())
                     {
                         // A tab list is one stop and the arrows move within
                         // it, selecting as they go -- React Aria's automatic
                         // activation, which is what v3 ships.
-                        let key_stops: Vec<usize> = (0..self.items.len()).collect();
-                        let key_keys: Vec<SharedString> =
-                            self.items.iter().map(|i| i.key.clone()).collect();
+                        let key_stops = key_stops.clone();
+                        let key_keys = key_keys.clone();
                         let key_cb = self.on_selection_change.clone();
                         let key_own = selection_own.clone();
                         tab = tab.on_key_down(move |event, window, cx| {
@@ -343,7 +356,7 @@ impl RenderOnce for Tabs {
                         active
                             && list_focus.is_focused(window)
                             && crate::util::focus_visible(cx)
-                            && !self.is_disabled,
+                            && !disabled,
                         true,
                         Vec::new(),
                         cx,
@@ -357,11 +370,12 @@ impl RenderOnce for Tabs {
                 list = list.border_b_1().border_color(colors.border);
                 for (index, item) in self.items.iter().enumerate() {
                     let active = item.key == selected_key;
+                    let disabled = self.is_disabled || item.is_disabled;
                     let mut tab = gpui::div()
                         .id(gpui::ElementId::Name(
                             format!("{base_id}-tab-{}", item.key).into(),
                         ))
-                        .when(!self.is_disabled && active, |t| t.track_focus(&list_focus))
+                        .when(!disabled && active, |t| t.track_focus(&list_focus))
                         // The same `h-8 px-4 text-sm` box, `rounded-none`, with
                         // the indicator as a 2px bar along the bottom.
                         .h(px(32.))
@@ -378,11 +392,9 @@ impl RenderOnce for Tabs {
                         .line_height(px(20.))
                         .font_weight(gpui::FontWeight::MEDIUM)
                         .border_b_2()
-                        .when(!self.is_disabled, |t| t.cursor_pointer())
+                        .when(!disabled, |t| t.cursor_pointer())
                         // `status-disabled` is `--disabled-opacity`.
-                        .when(self.is_disabled, |t| {
-                            t.opacity(cx.layout().disabled_opacity)
-                        });
+                        .when(disabled, |t| t.opacity(cx.layout().disabled_opacity));
                     tab = if active {
                         tab.border_color(colors.accent.color)
                             .text_color(colors.foreground)
@@ -391,15 +403,13 @@ impl RenderOnce for Tabs {
                         tab.border_color(gpui::transparent_black())
                             .text_color(colors.muted)
                     };
-                    if !self.is_disabled
-                        && (self.on_selection_change.is_some() || selection_own.is_some())
+                    if !disabled && (self.on_selection_change.is_some() || selection_own.is_some())
                     {
                         // A tab list is one stop and the arrows move within
                         // it, selecting as they go -- React Aria's automatic
                         // activation, which is what v3 ships.
-                        let key_stops: Vec<usize> = (0..self.items.len()).collect();
-                        let key_keys: Vec<SharedString> =
-                            self.items.iter().map(|i| i.key.clone()).collect();
+                        let key_stops = key_stops.clone();
+                        let key_keys = key_keys.clone();
                         let key_cb = self.on_selection_change.clone();
                         let key_own = selection_own.clone();
                         tab = tab.on_key_down(move |event, window, cx| {
@@ -457,7 +467,7 @@ impl RenderOnce for Tabs {
                         active
                             && list_focus.is_focused(window)
                             && crate::util::focus_visible(cx)
-                            && !self.is_disabled,
+                            && !disabled,
                         true,
                         Vec::new(),
                         cx,
