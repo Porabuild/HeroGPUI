@@ -526,8 +526,17 @@ python .shots/demo_audit.py Tabs       # one page
 It reads every JSX attribute in every ```tsx block under a page's `## Usage` and
 `## Examples`, keeps the ones v3 documents as props of that component *and* this
 port implements, and asks whether the gallery's page ever calls the builder that
-ports it. 308 props, and 51 of them were exercised by v3's docs and by nothing
-here -- which is how these were found:
+ports it. It reads 376 props now; the first pass read 308, and 51 of those were
+exercised by v3's docs and by nothing here -- which is how these were found:
+
+- **A boolean JSX prop has no equals sign.** Matching only `prop=` silently
+  skipped `<Tabs.Tab isDisabled>` and every other shorthand boolean. The parser
+  has a shorthand probe now; adding it exposed 63 previously unchecked uses.
+- **`llms-full` can omit a page's `ComponentPreview` sources.** Link and Tabs
+  kept their headings but no demo code, so Tabs reported a vacuous `0/0` while
+  `example_audit.py` still passed it at 8/8. A zero extraction falls back to the
+  official MDX and preview files (cached under `%TEMP%`); `--fetch` refreshes
+  them instead of treating missing input as a pass.
 
 - **Eleven pages had no uncontrolled demo at all.** v3's Usage examples are
   `defaultValue={...}` with a separate "Controlled" example below; ours were
@@ -885,6 +894,11 @@ exact React Aria/React Stately release rather than `main`: v3.2.4 pins
 Toolbar's Home/End handling and Calendar's adjacent-day navigation bounds both
 differ from plausible behaviour inferred from a newer source or from the prop
 table alone.
+
+An intentionally failing test is evidence only after its expectation is checked
+against that contract. A test authored around broken state can demand an output
+no correct implementation can produce; correct the expectation with the v3
+source stated, never distort the component merely to unignore it.
 
 `tests/harness/mod.rs` opens a window on the test platform with a host view that
 rebuilds one `RenderOnce` component per frame -- exactly as a gallery page does,

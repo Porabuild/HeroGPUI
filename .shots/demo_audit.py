@@ -25,11 +25,14 @@ looked at since it was written.
 
     python .shots/demo_audit.py            # the report
     python .shots/demo_audit.py Tabs       # one page, verbosely
+    python .shots/demo_audit.py --fetch    # refresh cached preview sources
 """
+import hashlib
 import io
 import os
 import re
 import sys
+import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -53,6 +56,9 @@ IGNORE = {
 # A prop v3's examples exercise that this port's gallery deliberately does not,
 # with the reason. Keyed `Component.prop`.
 WONT_DEMO_PROPS = {}
+
+PREVIEW_CACHE = os.path.join(os.environ.get('TEMP', '/tmp'),
+                             'herogpui-demo-audit')
 
 
 def camel_to_snake(name):
@@ -87,7 +93,80 @@ def props_used(chunk):
     used = set()
     for code in re.findall(r'```tsx(.*?)```', chunk, re.S):
         used |= set(re.findall(r'[\s{]([a-z][A-Za-z0-9]*)=', code))
+        # Boolean JSX props have no `=` (`<Tabs.Tab isDisabled id="x">`).
+        # Read them only inside opening component tags so prose and JavaScript
+        # identifiers cannot masquerade as exercised props.
+        for attrs in re.findall(r'<[A-Z][A-Za-z0-9.]*\b(.*?)/?>', code, re.S):
+            used |= set(re.findall(
+                r'(?:^|\s)([a-z][A-Za-z0-9]*)'
+                r'(?=\s+(?:[a-z][A-Za-z0-9]*)(?:\s*=|\s|$)|\s*$)',
+                attrs,
+            ))
     return used - IGNORE
+
+
+def fetch_text(url, refresh=False):
+    """Read one v3 source file, cached so the full gate stays fast."""
+    os.makedirs(PREVIEW_CACHE, exist_ok=True)
+    name = hashlib.sha256(url.encode('utf-8')).hexdigest() + '.txt'
+    path = os.path.join(PREVIEW_CACHE, name)
+    if refresh or not os.path.exists(path):
+        try:
+            with urllib.request.urlopen(url, timeout=20) as response:
+                text = response.read().decode('utf-8')
+        except Exception as error:
+            if not refresh and os.path.exists(path):
+                return io.open(path, encoding='utf-8', errors='replace').read()
+            raise RuntimeError('cannot read v3 demo source %s: %s' %
+                               (url, error)) from error
+        with io.open(path, 'w', encoding='utf-8', newline='\n') as cached:
+            cached.write(text)
+    return io.open(path, encoding='utf-8', errors='replace').read()
+
+
+def bundle_page(page):
+    """The English bundle body for `page`, including its source URL."""
+    for pm in re.finditer(r'^# (.+?)[ \t]*$', api_audit.bundle, re.M):
+        if pm.group(1).strip() != page:
+            continue
+        start = pm.end()
+        nxt = re.search(r'^# ', api_audit.bundle[start:], re.M)
+        return api_audit.bundle[start:start + nxt.start()] if nxt else api_audit.bundle[start:]
+    return ''
+
+
+def preview_props(page, refresh=False):
+    """Props in ComponentPreview sources omitted from the rendered bundle."""
+    body = bundle_page(page)
+    source = re.search(r'^\*\*Source\*\*: (https://\S+)[ \t]*$', body, re.M)
+    if not source:
+        return set()
+    mdx = fetch_text(source.group(1), refresh)
+    previews = re.findall(r'<ComponentPreview\b.*?\bname="([^"]+)".*?/>',
+                          mdx, re.S)
+    if not previews:
+        return set()
+
+    slug = ex.suffix_for(page).replace('_', '-')
+    used = set()
+    for preview in previews:
+        prefix = slug + '-'
+        if not preview.startswith(prefix):
+            raise RuntimeError('%s preview %s does not start with %s' %
+                               (page, preview, prefix))
+        demo = preview[len(prefix):]
+        url = ('https://raw.githubusercontent.com/heroui-inc/heroui/v3/'
+               'apps/docs/src/demos/en/%s/%s.tsx' % (slug, demo))
+        code = fetch_text(url, refresh)
+        used |= props_used('```tsx\n%s\n```' % code)
+    return used
+
+
+def check_jsx_parser():
+    """Keep boolean shorthand from silently falling out of the input set."""
+    probe = '```tsx\n<Tabs.Tab isDisabled id="disabled" />\n```'
+    if props_used(probe) != {'isDisabled'}:
+        raise RuntimeError('JSX prop reader lost boolean shorthand attributes')
 
 
 def our_pages():
@@ -102,7 +181,10 @@ def our_pages():
 
 
 def main():
-    only = sys.argv[1] if len(sys.argv) > 1 else None
+    check_jsx_parser()
+    refresh = '--fetch' in sys.argv[1:]
+    pages = [arg for arg in sys.argv[1:] if arg != '--fetch']
+    only = pages[0] if pages else None
     v3 = v3_pages()
     ours = our_pages()
 
@@ -129,6 +211,12 @@ def main():
         used = set()
         for chunk in v3[page].values():
             used |= props_used(chunk)
+        # llms-full normally expands ComponentPreview source into each example,
+        # but a missing expansion used to make Link and Tabs report a vacuous
+        # zero. Fall back to the page's real preview files rather than treating
+        # an empty extraction as a pass.
+        if not used:
+            used |= preview_props(page, refresh)
 
         pages_checked += 1
         missing = []
