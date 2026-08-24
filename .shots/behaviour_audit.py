@@ -217,7 +217,13 @@ EVIDENCE = {
     # The popover reads Escape on its *root* and the press on the panel: it
     # leaves the focus on whatever opened it, so there is nothing to hand back.
     ('Popover', 'dismiss'): ('popover.rs', r'dismiss_on_press_outside'),
-    ('Dropdown', 'dismiss'): ('dropdown.rs', r'util::dismissable'),
+    # Dropdown's submenu surface is a union of several measured panels, not
+    # one rectangular `dismissable` hitbox. Prove both halves of dismissal:
+    # outside presses test that union and Escape closes from the focused menu.
+    ('Dropdown', 'dismiss'): (
+        'dropdown.rs',
+        r'(?s)(?=.*panel_union.*on_mouse_down_out)(?=.*dismiss_on_escape)',
+    ),
     ('Select', 'dismiss'): ('select.rs', r'dismiss_on_press_outside'),
     ('ComboBox', 'dismiss'): ('combo_box.rs', r'dismiss_on_press_outside'),
     ('Autocomplete', 'dismiss'): ('autocomplete.rs', r'dismiss_on_press_outside'),

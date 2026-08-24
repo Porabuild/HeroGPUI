@@ -841,9 +841,9 @@ fn color_slider_keyboard_changes_channel(cx: &mut TestAppContext) {
     press(cx, "end");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["181", "182", "181", "0", "359"],
+        ["181", "182", "181", "0", "360"],
         "Right/Left must step the hue by one, Home must land on 0, and the \
-         cyclic hue's End must land on the last distinct value 359, not 360"
+         pinned hue range's End must preserve its maximum value 360"
     );
 }
 

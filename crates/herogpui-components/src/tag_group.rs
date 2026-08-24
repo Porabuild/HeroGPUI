@@ -83,6 +83,8 @@ pub struct TagGroup {
     description: Option<SharedString>,
     selection_mode: SelectionMode,
     selected_keys: HashSet<SharedString>,
+    default_selected_keys: HashSet<SharedString>,
+    is_controlled: bool,
     disabled_keys: HashSet<SharedString>,
     is_disabled: bool,
     size: Size,
@@ -106,6 +108,8 @@ impl TagGroup {
             description: None,
             selection_mode: SelectionMode::None,
             selected_keys: HashSet::new(),
+            default_selected_keys: HashSet::new(),
+            is_controlled: false,
             disabled_keys: HashSet::new(),
             is_disabled: false,
             size: Size::Md,
@@ -133,6 +137,13 @@ impl TagGroup {
 
     pub fn selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.selected_keys = keys.into_iter().collect();
+        self.is_controlled = true;
+        self
+    }
+
+    /// `defaultSelectedKeys` — seeds the group's own selection state.
+    pub fn default_selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
+        self.default_selected_keys = keys.into_iter().collect();
         self
     }
 
@@ -215,7 +226,7 @@ impl TagGroup {
 }
 
 impl RenderOnce for TagGroup {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // A tag group is *one* tab stop: React Aria roves the tabindex, so Tab
         // enters the group once and the arrows move inside it. Which tag claims
         // the handle is held here, because a handle's `tab_stop` is fixed where
@@ -231,6 +242,14 @@ impl RenderOnce for TagGroup {
             cx,
             |_, _| 0usize,
         );
+        let (selected_keys, selection_own) = crate::util::controlled(
+            window,
+            cx,
+            ElementId::Name(format!("{:?}-selected", self.id).into()),
+            self.is_controlled.then(|| self.selected_keys.clone()),
+            self.default_selected_keys.clone(),
+        );
+        self.selected_keys = selected_keys;
         // Removing a tag shortens the list and disabled tags take no focus, so
         // the stop lands on the first enabled tag at or after the cursor.
         let enabled: Vec<usize> = self
@@ -248,6 +267,7 @@ impl RenderOnce for TagGroup {
             .copied()
             .find(|i| *i >= at)
             .or_else(|| enabled.first().copied());
+        let owns_focus = window.is_window_active() && group_focus.is_focused(window);
         // One hover/press slot per tag, for a `tag_content` closure.
         let interaction: Vec<crate::util::Interaction> = if self.tag_content.is_some() {
             (0..self.tags.len())
@@ -363,7 +383,7 @@ impl RenderOnce for TagGroup {
                         .get(index)
                         .map(|slot| *slot.read(cx))
                         .unwrap_or_default();
-                    let focused = !disabled && cursor_index == Some(index);
+                    let focused = !disabled && owns_focus && cursor_index == Some(index);
                     chip.child(render(
                         tag,
                         crate::util::InteractiveState {
@@ -408,7 +428,13 @@ impl RenderOnce for TagGroup {
                     close = close
                         .cursor_pointer()
                         .hover(move |s| s.bg(hover_bg))
-                        .on_click(move |_, window, cx| on_remove(&key, window, cx));
+                        .on_click(move |_, window, cx| {
+                            // The remove button is an action inside a
+                            // selectable tag. Its press belongs to the button,
+                            // never to the tag behind it.
+                            cx.stop_propagation();
+                            on_remove(&key, window, cx);
+                        });
                 }
                 chip = chip.child(close);
             }
@@ -441,7 +467,7 @@ impl RenderOnce for TagGroup {
                                 // enclosing scroller.
                                 cx.stop_propagation();
                                 let crate::list_nav::Move::To(next) =
-                                    crate::list_nav::resolve(&stops, Some(index), key, false)
+                                    crate::list_nav::resolve(&stops, Some(index), key, true)
                                 else {
                                     return;
                                 };
@@ -463,25 +489,32 @@ impl RenderOnce for TagGroup {
                 let mode = self.selection_mode;
                 let current = self.selected_keys.clone();
                 let on_change = self.on_selection_change.clone();
+                let selection_own = selection_own.clone();
                 chip = chip.on_click(move |_, window, cx| {
+                    let next = match mode {
+                        SelectionMode::None => current.clone(),
+                        SelectionMode::Single => {
+                            if current.contains(&key) {
+                                HashSet::new()
+                            } else {
+                                HashSet::from([key.clone()])
+                            }
+                        }
+                        SelectionMode::Multiple => {
+                            let mut set = current.clone();
+                            if !set.remove(&key) {
+                                set.insert(key.clone());
+                            }
+                            set
+                        }
+                    };
+                    if let Some(held) = &selection_own {
+                        held.update(cx, |value, cx| {
+                            *value = next.clone();
+                            cx.notify();
+                        });
+                    }
                     if let Some(change) = &on_change {
-                        let next = match mode {
-                            SelectionMode::None => current.clone(),
-                            SelectionMode::Single => {
-                                if current.contains(&key) {
-                                    HashSet::new()
-                                } else {
-                                    HashSet::from([key.clone()])
-                                }
-                            }
-                            SelectionMode::Multiple => {
-                                let mut set = current.clone();
-                                if !set.remove(&key) {
-                                    set.insert(key.clone());
-                                }
-                                set
-                            }
-                        };
                         change(&next, window, cx);
                     }
                 });
@@ -490,10 +523,7 @@ impl RenderOnce for TagGroup {
             // `.tag:focus-visible` is `status-focused`.
             let chip = crate::util::with_focus_ring(
                 chip,
-                !disabled
-                    && ring_visible
-                    && cursor_index == Some(index)
-                    && group_focus.is_focused(window),
+                !disabled && ring_visible && cursor_index == Some(index) && owns_focus,
                 true,
                 Vec::new(),
                 cx,

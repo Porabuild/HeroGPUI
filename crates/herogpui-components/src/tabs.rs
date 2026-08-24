@@ -160,10 +160,17 @@ impl RenderOnce for Tabs {
         // from `defaultSelectedKey` (falling back to the first tab so something
         // is always active). `controlled` takes `cx` mutably, so it precedes
         // the theme tokens.
+        let first_enabled = self
+            .items
+            .iter()
+            .find(|item| !item.is_disabled)
+            .or_else(|| self.items.first())
+            .map(|item| item.key.clone());
         let fallback = self
             .default_selected_key
             .clone()
-            .or_else(|| self.items.first().map(|i| i.key.clone()))
+            .filter(|key| self.items.iter().any(|item| item.key == *key))
+            .or(first_enabled.clone())
             .unwrap_or_default();
         // One handle for the list: a tab list is one tab stop and the selected
         // tab claims it, which is how the stop roves. Flipping a handle's
@@ -173,13 +180,29 @@ impl RenderOnce for Tabs {
             window,
             cx,
         );
-        let (selected_key, selection_own) = crate::util::controlled(
+        let (mut selected_key, selection_own) = crate::util::controlled(
             window,
             cx,
             gpui::ElementId::Name(format!("{base_id}-selected").into()),
             self.selected_key.clone(),
             fallback,
         );
+        // Pinned `useTabListState` repairs an uncontrolled selection when its
+        // item disappears from the collection. Use the repaired key in this
+        // frame as well as storing it, so the replacement panel and roving
+        // stop are never absent for a frame.
+        if self.selected_key.is_none() && !self.items.iter().any(|item| item.key == selected_key) {
+            if let (Some(next), Some(held)) = (first_enabled, selection_own.as_ref()) {
+                selected_key = next.clone();
+                held.update(cx, |value, cx| {
+                    *value = next.clone();
+                    cx.notify();
+                });
+                if let Some(cb) = &self.on_selection_change {
+                    cb(&next, window, cx);
+                }
+            }
+        }
 
         // `.tabs__list-container__scroller` is the box `.tabs__list` scrolls
         // inside; the handle is what says how far it has, which is what decides

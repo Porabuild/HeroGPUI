@@ -735,9 +735,12 @@ CHECKS = [
      None),
     ('skeleton', '.skeleton', 'radius', 'Skeleton -> util::_radius', SRC + 'skeleton.rs',
      r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
-    # The menu row has no `rounded` call at all, so its radius is 0.
+    # Anchor the menu metrics to the row's own construction chain. A fixed
+    # window was outrun when the row gained a bounds-recording canvas.
     ('menu-item', '.menu-item', 'radius', 'Menu row -> util::_radius', SRC + 'dropdown.rs',
-     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)[\s\S]{0,400}?px\(36\.\)', helper_px),
+     r'let mut row = gpui::div\(\)[\s\S]*?\.relative\(\)\s*\.flex\(\)\s*'
+     r'\.items_center\(\)\s*\.gap\(px\(12\.\)\)\s*\.px\(px\(8\.\)\)\s*'
+     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
     ('menu-item', '.menu-item', 'px', 'Menu row padding_x', SRC + 'dropdown.rs',
      r'\.px\(px\((\d+(?:\.\d*)?)\)\)\s+\.rounded\(crate::util::\w+_radius\(cx\)\)',
      None),
@@ -967,7 +970,8 @@ CHECKS = [
 
     # --- a menu row ----------------------------------------------------------
     ('menu-item', '.menu-item', 'gap', 'Menu item gap', SRC + 'dropdown.rs',
-     r'let mut row = gpui::div\(\)[\s\S]{0,200}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'let mut row = gpui::div\(\)[\s\S]*?\.relative\(\)\s*\.flex\(\)\s*'
+     r'\.items_center\(\)\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('menu-item', '.menu-item', 'min_h', 'Menu item min height', SRC + 'dropdown.rs',
      r'`\.menu-item` is `min-h-9 py-1\.5`[\s\S]{0,160}?'
      r'\.min_h\(px\((\d+(?:\.\d*)?)\.\)\)', None),

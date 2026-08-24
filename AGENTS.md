@@ -265,13 +265,17 @@ read" and "nothing is missing" produced the same report.
   components share a module, and a file-level set let `ColorPicker`'s props
   count as `ColorField`'s. Where our port genuinely splits one component across
   several structs (`Toast`/`ToastViewport`, `Table`/`TableColumn`), list them in
-  `COMPANIONS` — but never list a *different* component that happens to live in
-  the same module, or a gap on one hides behind the other.
-- **A part prop cannot borrow the root's builder of the same name.** Folding
+  `COMPANIONS` — but never list a child component that has its own v3 page, or a
+  root gap borrows the child's same-named builder. `ToggleButtonGroup.size` and
+  `isDisabled` were both hidden by `ToggleButton` that way.
+- **A row cannot borrow a builder from a different owner.** Folding
   `Tabs.Tab.isDisabled` into the parent prop set let `Tabs::is_disabled` (the
-  whole list) count for a per-tab state `TabItem` could not express. Preserve
-  the table's part ownership when spellings collide; a name match alone proves
-  the wrong anatomy.
+  whole list) count for a per-tab state `TabItem` could not express; the reverse
+  companion union let a root borrow its child. Folded headings need ownership
+  too: `### Radio.value` belongs to the real `RadioOption`, not the group's
+  same-named controlled value. Preserve the heading owner when spellings
+  collide, and make every `COMPANIONS`, `PART_STRUCTS` and `FOLD_STRUCTS` name
+  resolve to a real `impl` at load time.
 - **The window truncated the widest tables.** `props_for` read 4000 characters
   after a `### Component` heading. ComboBox's type column is wide enough that
   the last six rows of its table fell outside it and were never compared:
@@ -310,6 +314,11 @@ read" and "nothing is missing" produced the same report.
   silently skipped `YearPickerGrid.visibleYears` and the trigger/grid format
   rows. When a `Component` column names a real root or part and the next column
   is `Prop`, preserve that per-row owner and read it as a prop table.
+
+A prose inheritance claim is still outside that mechanical surface. HeroUI's
+Dropdown table says all React Aria Menu props are supported but does not list
+`disallowEmptySelection`; only the pinned `MultipleSelection` source reveals
+it. A zero prop diff is not evidence that inherited behavior exists — drive it.
 
 Because one number cannot say what it covers, the report breaks the omissions
 down by reason. 61 of them are `drawn-not-delegated`: values v3 hands *into* a
@@ -1001,6 +1010,37 @@ control from activation and the tab order; a read-only control stays focusable
 and navigable while selection or editing is blocked. Calendar proved the mirror
 failure: treating read-only as wholly inert made its grid unreachable by
 keyboard even though every disabled/readOnly prop and state audit was green.
+
+- **Pointer positions are window-relative, and a drag outlives its hitbox.** A
+  ColorArea and ColorSlider divided the window point by their own size, so an
+  offset control selected the wrong colour. Record the laid-out bounds and
+  subtract their origin. Element mouse listeners stop when the pointer leaves;
+  a drag that must clamp outside uses frame-scoped `Window::on_mouse_event`
+  listeners plus keyed drag state, and releases exactly once anywhere.
+- **Paint and state must describe the same colour space.** Mutating HSL/RGB
+  channels under an HSB gradient makes the chosen colour differ from the pixel
+  beneath the pointer. Preserve the colour model through degenerate black/white
+  endpoints, keep hue 360 as the channel maximum, and build the area/slider
+  gradients from the same space and orientation the handlers mutate.
+- **Incomplete field display is not the committed form value.** TimeField keeps
+  a local display while one segment is empty, retains the last complete value
+  until every visible segment clears, and reports again only when every visible
+  segment is complete. One `Option<Time>` cannot represent controlled null,
+  incomplete display and committed value at once.
+- **A collection press has a primary behavior, not every callback at once.** In
+  toggle selection behavior, Space selects, Enter performs the action, and a
+  pointer chooses action or selection from the current selection state. The row
+  cursor must follow an eligible pointer press, while a focused interactive
+  descendant owns the event and prevents row selection.
+- **A virtual factory is not a collection iterator.** Calling it for every row
+  to fingerprint a LoadMore collection defeats virtualization. Carry an
+  explicit stable collection identity; expansion visibility is not identity,
+  and a same-count replacement must still re-arm the sentinel.
+- **A composite floating surface is a union, not its bounding rectangle.** A
+  parent menu plus submenu must measure the real trigger and panel bounds. Hard-
+  coded row heights misanchor custom content, a parent scroller clips an
+  embedded child, and attaching outside dismissal to the rectangular hull makes
+  blank quadrants count as inside.
 
 - **`Button::content` panicked on its first frame.** Two helpers bound `on_hover`
   on one element and gpui refuses the second -- but the real fault was older: an

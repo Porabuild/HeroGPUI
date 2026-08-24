@@ -130,6 +130,8 @@ pub struct ListBox {
     items: Vec<ListBoxItem>,
     selection_mode: SelectionMode,
     selected_keys: HashSet<SharedString>,
+    default_selected_keys: HashSet<SharedString>,
+    is_controlled: bool,
     disabled_keys: HashSet<SharedString>,
     /// Applies to every item unless the item overrides it.
     variant: ListBoxItemVariant,
@@ -166,6 +168,8 @@ impl ListBox {
             items,
             selection_mode: SelectionMode::Single,
             selected_keys: HashSet::new(),
+            default_selected_keys: HashSet::new(),
+            is_controlled: false,
             disabled_keys: HashSet::new(),
             variant: ListBoxItemVariant::Default,
             should_focus_wrap: false,
@@ -190,12 +194,20 @@ impl ListBox {
 
     pub fn selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.selected_keys = keys.into_iter().collect();
+        self.is_controlled = true;
         self
     }
 
     /// Convenience for `selectionMode="single"`.
     pub fn selected_key(mut self, key: impl Into<SharedString>) -> Self {
         self.selected_keys = HashSet::from([key.into()]);
+        self.is_controlled = true;
+        self
+    }
+
+    /// `defaultSelectedKeys` — seeds the list's own selection state.
+    pub fn default_selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
+        self.default_selected_keys = keys.into_iter().collect();
         self
     }
 
@@ -307,7 +319,7 @@ impl ListBox {
 }
 
 impl RenderOnce for ListBox {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // Which row the keyboard is on, and the handle that receives the keys.
         // `use_keyed_state` takes `cx` mutably, so both precede the tokens.
         let base = format!("{:?}", self.id);
@@ -322,7 +334,15 @@ impl RenderOnce for ListBox {
             cx,
             |_, _| None::<usize>,
         );
-        let cursor_at = *cursor.read(cx);
+        let mut cursor_at = *cursor.read(cx);
+        let (selected_keys, selection_own) = util::controlled(
+            window,
+            cx,
+            ElementId::Name(format!("{base}-selected").into()),
+            self.is_controlled.then(|| self.selected_keys.clone()),
+            self.default_selected_keys.clone(),
+        );
+        self.selected_keys = selected_keys;
         // React Aria keeps the focused row in view. Two handles, because the
         // virtual list owns its own scrolling and a plain one does not.
         let list_scroll = window.use_keyed_state(
@@ -429,8 +449,27 @@ impl RenderOnce for ListBox {
             .map(|(i, _)| i)
             .collect();
 
+        // React Aria moves collection focus on entry to the first selected
+        // option, falling back to the first enabled option. Keep the keyed
+        // cursor untouched until the user actually navigates, but use that
+        // entry stop for focus styling and immediate Enter/Space activation.
+        let has_focus = focus_handle.is_focused(window);
+        if cursor_at.is_none() && has_focus {
+            cursor_at = stops
+                .iter()
+                .copied()
+                .find(|index| match self.items.get(*index) {
+                    Some(ListBoxItem::Option { key, .. }) => self.selected_keys.contains(key),
+                    _ => false,
+                })
+                .or_else(|| stops.first().copied());
+        }
+        let focused_at = (window.is_window_active() && has_focus)
+            .then_some(cursor_at)
+            .flatten();
+
         if !stops.is_empty() {
-            let held = cursor;
+            let held = cursor.clone();
             let stops_for_keys = stops;
             let wrap = self.should_focus_wrap;
             let virtual_rows = self.row_height.is_some();
@@ -456,8 +495,10 @@ impl RenderOnce for ListBox {
             let selected_now = self.selected_keys.clone();
             let on_selection_change = self.on_selection_change.clone();
             let on_action = self.on_action.clone();
+            let selection_own_for_keys = selection_own.clone();
+            let entry_at = cursor_at;
             list = list.on_key_down(move |event, window, cx| {
-                let from = *held.read(cx);
+                let from = (*held.read(cx)).or(entry_at);
                 match crate::list_nav::resolve(
                     &stops_for_keys,
                     from,
@@ -479,24 +520,43 @@ impl RenderOnce for ListBox {
                         let Some(item_key) = from.and_then(|i| keys.get(i).cloned()) else {
                             return;
                         };
-                        if let Some(cb) = &on_action {
-                            cb(&item_key, window, cx);
+                        let action_key = event.keystroke.key == "enter";
+                        let has_primary_action = on_action.is_some()
+                            && (mode == SelectionMode::None || selected_now.is_empty());
+                        if action_key && has_primary_action {
+                            if let Some(cb) = &on_action {
+                                cb(&item_key, window, cx);
+                                return;
+                            }
+                        }
+                        if action_key && on_action.is_some() {
+                            return;
                         }
                         if crate::selection::reports_changes(mode) {
-                            if let Some(cb) = &on_selection_change {
-                                // The same answer a click gives: `Single`
-                                // collapses to this key, `Multiple` toggles it.
-                                let next = match mode {
-                                    SelectionMode::None => selected_now.clone(),
-                                    SelectionMode::Single => HashSet::from([item_key]),
-                                    SelectionMode::Multiple => {
-                                        let mut set = selected_now.clone();
-                                        if !set.remove(&item_key) {
-                                            set.insert(item_key.clone());
-                                        }
-                                        set
+                            let next = match mode {
+                                SelectionMode::None => selected_now.clone(),
+                                SelectionMode::Single => {
+                                    if selected_now.contains(&item_key) {
+                                        HashSet::new()
+                                    } else {
+                                        HashSet::from([item_key])
                                     }
-                                };
+                                }
+                                SelectionMode::Multiple => {
+                                    let mut set = selected_now.clone();
+                                    if !set.remove(&item_key) {
+                                        set.insert(item_key.clone());
+                                    }
+                                    set
+                                }
+                            };
+                            if let Some(held) = &selection_own_for_keys {
+                                held.update(cx, |value, cx| {
+                                    *value = next.clone();
+                                    cx.notify();
+                                });
+                            }
+                            if let Some(cb) = &on_selection_change {
                                 cb(&next, window, cx);
                             }
                         }
@@ -551,7 +611,15 @@ impl RenderOnce for ListBox {
             return list
                 .child(
                     gpui::list(state, move |index, _window, cx| {
-                        rows.row(index, cursor_at, None, interaction.get(index), cx)
+                        rows.row(
+                            index,
+                            focused_at,
+                            None,
+                            interaction.get(index),
+                            &cursor,
+                            selection_own.as_ref(),
+                            cx,
+                        )
                     })
                     .h(height)
                     .w_full(),
@@ -573,7 +641,15 @@ impl RenderOnce for ListBox {
                         move |range, _window, cx| {
                             range
                                 .map(|i| {
-                                    rows.row(i, cursor_at, Some(row_height), interaction.get(i), cx)
+                                    rows.row(
+                                        i,
+                                        focused_at,
+                                        Some(row_height),
+                                        interaction.get(i),
+                                        &cursor,
+                                        selection_own.as_ref(),
+                                        cx,
+                                    )
                                 })
                                 .collect::<Vec<_>>()
                         },
@@ -588,7 +664,15 @@ impl RenderOnce for ListBox {
 
         let mut items = Vec::with_capacity(self.items.len());
         for index in 0..self.items.len() {
-            items.push(self.row(index, cursor_at, None, interaction.get(index), cx));
+            items.push(self.row(
+                index,
+                focused_at,
+                None,
+                interaction.get(index),
+                &cursor,
+                selection_own.as_ref(),
+                cx,
+            ));
         }
         list.children(items).into_any_element()
     }
@@ -601,12 +685,15 @@ impl ListBox {
     /// `fixed_h` is `Some` only for the virtual one, where every row -- a
     /// heading and a separator included -- is one `rowHeight` tall because that
     /// is the number the scroll geometry is computed from.
+    #[allow(clippy::too_many_arguments)]
     fn row(
         &self,
         index: usize,
         cursor_at: Option<usize>,
         fixed_h: Option<gpui::Pixels>,
         interaction: Option<&util::Interaction>,
+        cursor: &gpui::Entity<Option<usize>>,
+        selection_own: Option<&gpui::Entity<HashSet<SharedString>>>,
         cx: &mut App,
     ) -> gpui::AnyElement {
         let colors = cx.colors();
@@ -785,15 +872,34 @@ impl ListBox {
                     let current = self.selected_keys.clone();
                     let on_selection_change = self.on_selection_change.clone();
                     let on_action = self.on_action.clone();
-                    row = row.on_click(move |_, window, cx| {
-                        if let Some(action) = &on_action {
-                            action(&key, window, cx);
-                        }
-                        if crate::selection::reports_changes(mode) {
-                            if let Some(change) = &on_selection_change {
+                    let moved = cursor.clone();
+                    let selection_own = selection_own.cloned();
+                    row = row
+                        .on_mouse_down(gpui::MouseButton::Left, move |_, _, cx| {
+                            moved.update(cx, |value, cx| {
+                                *value = Some(index);
+                                cx.notify();
+                            });
+                        })
+                        .on_click(move |_, window, cx| {
+                            let has_primary_action = on_action.is_some()
+                                && (mode == SelectionMode::None || current.is_empty());
+                            if has_primary_action {
+                                if let Some(action) = &on_action {
+                                    action(&key, window, cx);
+                                }
+                                return;
+                            }
+                            if crate::selection::reports_changes(mode) {
                                 let next = match mode {
                                     SelectionMode::None => current.clone(),
-                                    SelectionMode::Single => HashSet::from([key.clone()]),
+                                    SelectionMode::Single => {
+                                        if current.contains(&key) {
+                                            HashSet::new()
+                                        } else {
+                                            HashSet::from([key.clone()])
+                                        }
+                                    }
                                     SelectionMode::Multiple => {
                                         let mut set = current.clone();
                                         if !set.remove(&key) {
@@ -802,10 +908,17 @@ impl ListBox {
                                         set
                                     }
                                 };
-                                change(&next, window, cx);
+                                if let Some(held) = &selection_own {
+                                    held.update(cx, |value, cx| {
+                                        *value = next.clone();
+                                        cx.notify();
+                                    });
+                                }
+                                if let Some(change) = &on_selection_change {
+                                    change(&next, window, cx);
+                                }
                             }
-                        }
-                    });
+                        });
                 }
 
                 row.into_any_element()

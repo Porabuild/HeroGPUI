@@ -7,8 +7,8 @@
 use std::sync::Arc;
 
 use gpui::{
-    div, prelude::*, px, App, ElementId, Entity, Hsla, InteractiveElement, IntoElement,
-    MouseDownEvent, Pixels, RenderOnce, SharedString, Styled, Window,
+    div, prelude::*, px, App, Bounds, ElementId, Entity, Hsla, InteractiveElement, IntoElement,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::{FieldVariant, Placement, SizeXl};
 use herogpui_theme::ActiveTheme;
@@ -93,8 +93,18 @@ impl ColorChannel {
 
 /// The color value shared by every picker component — HSB plus alpha, matching
 /// React Aria's default working space.
-#[derive(Clone, Copy, Debug, PartialEq)]
+///
+/// HSB coordinates remain readable through dereferencing. Mutations go through
+/// `with_channel_in`, which preserves the selected color model's channels even
+/// at achromatic endpoints where converting through RGB/HSB would lose them.
+#[derive(Clone, Copy, Debug)]
 pub struct PickerColor {
+    coordinates: HsbCoordinates,
+    model: ColorModel,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HsbCoordinates {
     /// Hue in degrees, `0..360`.
     pub hue: f32,
     /// Saturation, `0..1`.
@@ -105,30 +115,48 @@ pub struct PickerColor {
     pub alpha: f32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum ColorModel {
+    Hsb,
+    Hsl { saturation: f32, lightness: f32 },
+}
+
+impl std::ops::Deref for PickerColor {
+    type Target = HsbCoordinates;
+
+    fn deref(&self) -> &Self::Target {
+        &self.coordinates
+    }
+}
+
+impl PartialEq for PickerColor {
+    fn eq(&self, other: &Self) -> bool {
+        self.coordinates == other.coordinates
+    }
+}
+
 impl Default for PickerColor {
     fn default() -> Self {
         // React Aria's documented default working color.
-        Self {
-            hue: 210.0,
-            saturation: 1.0,
-            brightness: 1.0,
-            alpha: 1.0,
-        }
+        Self::hsb(210.0, 1.0, 1.0)
     }
 }
 
 impl PickerColor {
     pub fn hsb(hue: f32, saturation: f32, brightness: f32) -> Self {
         Self {
-            hue: hue.rem_euclid(360.0),
-            saturation: saturation.clamp(0.0, 1.0),
-            brightness: brightness.clamp(0.0, 1.0),
-            alpha: 1.0,
+            coordinates: HsbCoordinates {
+                hue: normalize_hue(hue),
+                saturation: saturation.clamp(0.0, 1.0),
+                brightness: brightness.clamp(0.0, 1.0),
+                alpha: 1.0,
+            },
+            model: ColorModel::Hsb,
         }
     }
 
     pub fn with_alpha(mut self, alpha: f32) -> Self {
-        self.alpha = alpha.clamp(0.0, 1.0);
+        self.coordinates.alpha = alpha.clamp(0.0, 1.0);
         self
     }
 
@@ -190,14 +218,17 @@ impl PickerColor {
             60.0 * ((r - g) / delta + 4.0)
         };
         Self {
-            hue: hue.rem_euclid(360.0),
-            saturation: if max <= f32::EPSILON {
-                0.0
-            } else {
-                delta / max
+            coordinates: HsbCoordinates {
+                hue: normalize_hue(hue),
+                saturation: if max <= f32::EPSILON {
+                    0.0
+                } else {
+                    delta / max
+                },
+                brightness: max,
+                alpha: 1.0,
             },
-            brightness: max,
-            alpha: 1.0,
+            model: ColorModel::Hsb,
         }
     }
 
@@ -244,6 +275,9 @@ impl PickerColor {
     /// HSL saturation, which is a different quantity from the stored HSB
     /// saturation for every colour that is not fully saturated or achromatic.
     pub fn hsl_saturation(self) -> f32 {
+        if let ColorModel::Hsl { saturation, .. } = self.model {
+            return saturation;
+        }
         let l = self.brightness * (1.0 - self.saturation / 2.0);
         let denom = l.min(1.0 - l);
         if denom <= f32::EPSILON {
@@ -256,7 +290,15 @@ impl PickerColor {
     /// Replaces the HSL saturation, holding hue and HSL lightness.
     pub fn with_hsl_saturation(self, s: f32) -> Self {
         let s = s.clamp(0.0, 1.0);
-        let l = self.brightness * (1.0 - self.saturation / 2.0);
+        let l = self.hsl_lightness();
+        self.with_hsl_channels(s, l)
+    }
+
+    fn with_hsl_lightness(self, l: f32) -> Self {
+        self.with_hsl_channels(self.hsl_saturation(), l.clamp(0.0, 1.0))
+    }
+
+    fn with_hsl_channels(self, s: f32, l: f32) -> Self {
         let v = l + s * l.min(1.0 - l);
         let sv = if v <= f32::EPSILON {
             0.0
@@ -264,9 +306,22 @@ impl PickerColor {
             (2.0 * (1.0 - l / v)).clamp(0.0, 1.0)
         };
         Self {
-            saturation: sv,
-            brightness: v,
-            ..self
+            coordinates: HsbCoordinates {
+                saturation: sv,
+                brightness: v,
+                ..self.coordinates
+            },
+            model: ColorModel::Hsl {
+                saturation: s,
+                lightness: l,
+            },
+        }
+    }
+
+    fn hsl_lightness(self) -> f32 {
+        match self.model {
+            ColorModel::Hsl { lightness, .. } => lightness,
+            ColorModel::Hsb => self.brightness * (1.0 - self.saturation / 2.0),
         }
     }
 
@@ -274,6 +329,7 @@ impl PickerColor {
     pub fn channel_in(self, channel: ColorChannel, space: ColorSpace) -> f32 {
         match (channel, space) {
             (ColorChannel::Saturation, ColorSpace::Hsl) => self.hsl_saturation(),
+            (ColorChannel::Lightness, ColorSpace::Hsl) => self.hsl_lightness(),
             _ => self.channel(channel),
         }
     }
@@ -282,6 +338,15 @@ impl PickerColor {
     pub fn with_channel_in(self, channel: ColorChannel, space: ColorSpace, value: f32) -> Self {
         match (channel, space) {
             (ColorChannel::Saturation, ColorSpace::Hsl) => self.with_hsl_saturation(value),
+            (ColorChannel::Lightness, ColorSpace::Hsl) => self.with_hsl_lightness(value),
+            (ColorChannel::Hue, ColorSpace::Hsl) => Self {
+                coordinates: HsbCoordinates {
+                    hue: normalize_hue(value),
+                    ..self.coordinates
+                },
+                ..self
+            },
+            (ColorChannel::Alpha, ColorSpace::Hsl) => self.with_alpha(value),
             _ => self.with_channel(channel, value),
         }
     }
@@ -293,7 +358,7 @@ impl PickerColor {
             ColorChannel::Saturation => self.saturation,
             ColorChannel::Brightness => self.brightness,
             // HSB -> HSL lightness.
-            ColorChannel::Lightness => self.brightness * (1.0 - self.saturation / 2.0),
+            ColorChannel::Lightness => self.hsl_lightness(),
             ColorChannel::Alpha => self.alpha,
             ColorChannel::Red => r * 255.0,
             ColorChannel::Green => g * 255.0,
@@ -308,37 +373,49 @@ impl PickerColor {
         let (r, g, b) = self.to_rgb();
         match channel {
             ColorChannel::Hue => Self {
-                hue: value.rem_euclid(360.0),
-                ..self
+                coordinates: HsbCoordinates {
+                    hue: normalize_hue(value),
+                    ..self.coordinates
+                },
+                model: ColorModel::Hsb,
             },
             ColorChannel::Saturation => Self {
-                saturation: value,
-                ..self
+                coordinates: HsbCoordinates {
+                    saturation: value,
+                    ..self.coordinates
+                },
+                model: ColorModel::Hsb,
             },
             ColorChannel::Brightness => Self {
-                brightness: value,
-                ..self
+                coordinates: HsbCoordinates {
+                    brightness: value,
+                    ..self.coordinates
+                },
+                model: ColorModel::Hsb,
             },
-            ColorChannel::Lightness => {
-                // Keep hue and saturation, solve HSB brightness for this HSL L.
-                let denom = 1.0 - self.saturation / 2.0;
-                Self {
-                    brightness: if denom <= f32::EPSILON {
-                        self.brightness
-                    } else {
-                        (value / denom).clamp(0.0, 1.0)
-                    },
-                    ..self
-                }
-            }
+            ColorChannel::Lightness => self.with_hsl_lightness(value),
             ColorChannel::Alpha => Self {
-                alpha: value,
+                coordinates: HsbCoordinates {
+                    alpha: value,
+                    ..self.coordinates
+                },
                 ..self
             },
             ColorChannel::Red => Self::from_rgb(value / 255.0, g, b).with_alpha(self.alpha),
             ColorChannel::Green => Self::from_rgb(r, value / 255.0, b).with_alpha(self.alpha),
             ColorChannel::Blue => Self::from_rgb(r, g, value / 255.0).with_alpha(self.alpha),
         }
+    }
+}
+
+// React Stately preserves the exact endpoint 360 as a distinct slider
+// position even though it renders the same color as 0.
+#[allow(clippy::float_cmp)]
+fn normalize_hue(hue: f32) -> f32 {
+    if hue == 360.0 {
+        hue
+    } else {
+        hue.rem_euclid(360.0)
     }
 }
 
@@ -588,19 +665,38 @@ impl RenderOnce for ColorArea {
             window,
             cx,
         );
+        let bounds_slot = window.use_keyed_state(
+            ElementId::Name(format!("{:?}-area-bounds", self.id).into()),
+            cx,
+            |_, _| Bounds::<f32> {
+                origin: gpui::point(0., 0.),
+                size: gpui::size(0., 0.),
+            },
+        );
+        let dragging = window.use_keyed_state(
+            ElementId::Name(format!("{:?}-area-dragging", self.id).into()),
+            cx,
+            |_, _| false,
+        );
         let colors = cx.colors();
+        let border_width = f32::from(cx.layout().border_width);
         // `.color-area` is `rounded-2xl`, which is `soft_radius`.
         let radius = util::soft_radius(cx);
         let hue_color = PickerColor::hsb(self.value.hue, 1.0, 1.0).to_hsla();
 
         let (x_min, x_max) = self.x_channel.range();
         let (y_min, y_max) = self.y_channel.range();
-        let x_norm =
-            ((self.value.channel(self.x_channel) - x_min) / (x_max - x_min)).clamp(0.0, 1.0);
-        let y_norm =
-            ((self.value.channel(self.y_channel) - y_min) / (y_max - y_min)).clamp(0.0, 1.0);
+        let color_space = self.color_space.unwrap_or_default();
+        let x_norm = ((self.value.channel_in(self.x_channel, color_space) - x_min)
+            / (x_max - x_min))
+            .clamp(0.0, 1.0);
+        let y_norm = ((self.value.channel_in(self.y_channel, color_space) - y_min)
+            / (y_max - y_min))
+            .clamp(0.0, 1.0);
 
-        // Saturation left-to-right over the hue, brightness bottom-to-top.
+        // Saturation left-to-right over the hue, brightness/lightness
+        // bottom-to-top. RGB uses sampled vertical ramps because gpui has no
+        // screen blend mode, which React Aria uses to combine its axes.
         let mut area = div()
             .id(self.id.clone())
             .when(!self.is_disabled, |el| el.track_focus(&area_focus))
@@ -610,17 +706,95 @@ impl RenderOnce for ColorArea {
             .rounded(radius)
             .overflow_hidden()
             .border(cx.layout().border_width)
-            .border_color(colors.border)
-            .bg(gpui::linear_gradient(
-                90.0,
-                gpui::linear_color_stop(gpui::white(), 0.0),
-                gpui::linear_color_stop(hue_color, 1.0),
+            .border_color(colors.border);
+
+        area = if self.x_channel == ColorChannel::Hue || self.y_channel == ColorChannel::Hue {
+            area.child(color_area_hue_layers(
+                self.value,
+                color_space,
+                self.x_channel,
+                self.y_channel,
             ))
-            .child(div().absolute().inset_0().bg(gpui::linear_gradient(
-                180.0,
-                gpui::linear_color_stop(gpui::transparent_black(), 0.0),
-                gpui::linear_color_stop(gpui::black(), 1.0),
-            )));
+        } else {
+            match (color_space, self.x_channel, self.y_channel) {
+                (ColorSpace::Hsb, ColorChannel::Saturation, ColorChannel::Brightness) => area
+                    .bg(gpui::linear_gradient(
+                        90.0,
+                        gpui::linear_color_stop(gpui::white(), 0.0),
+                        gpui::linear_color_stop(hue_color, 1.0),
+                    ))
+                    .child(div().absolute().inset_0().bg(gpui::linear_gradient(
+                        180.0,
+                        gpui::linear_color_stop(gpui::transparent_black(), 0.0),
+                        gpui::linear_color_stop(gpui::black(), 1.0),
+                    ))),
+                (ColorSpace::Hsl, ColorChannel::Saturation, ColorChannel::Lightness) => {
+                    let gray = self.value.with_hsl_channels(0.0, 0.5).to_hsla();
+                    let hue = self.value.with_hsl_channels(1.0, 0.5).to_hsla();
+                    area.bg(gpui::linear_gradient(
+                        90.0,
+                        gpui::linear_color_stop(gray, 0.0),
+                        gpui::linear_color_stop(hue, 1.0),
+                    ))
+                    .child(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .left_0()
+                            .right_0()
+                            .h(px(f32::from(self.height) / 2.0))
+                            .bg(gpui::linear_gradient(
+                                180.0,
+                                gpui::linear_color_stop(gpui::white(), 0.0),
+                                gpui::linear_color_stop(gpui::transparent_white(), 1.0),
+                            )),
+                    )
+                    .child(
+                        div()
+                            .absolute()
+                            .bottom_0()
+                            .left_0()
+                            .right_0()
+                            .h(px(f32::from(self.height) / 2.0))
+                            .bg(gpui::linear_gradient(
+                                180.0,
+                                gpui::linear_color_stop(gpui::transparent_black(), 0.0),
+                                gpui::linear_color_stop(gpui::black(), 1.0),
+                            )),
+                    )
+                }
+                _ => area.child(color_area_channel_grid(
+                    self.value,
+                    color_space,
+                    self.x_channel,
+                    self.y_channel,
+                )),
+            }
+        };
+
+        let recorder_bounds = bounds_slot.clone();
+        area = area.child(
+            gpui::canvas(
+                move |bounds: Bounds<Pixels>, _, cx| {
+                    recorder_bounds.update(cx, |slot, _| {
+                        *slot = Bounds {
+                            origin: gpui::point(
+                                f32::from(bounds.origin.x) - border_width,
+                                f32::from(bounds.origin.y) - border_width,
+                            ),
+                            size: gpui::size(
+                                f32::from(bounds.size.width) + border_width * 2.0,
+                                f32::from(bounds.size.height) + border_width * 2.0,
+                            ),
+                        };
+                    });
+                    bounds
+                },
+                |_, _, _, _| {},
+            )
+            .absolute()
+            .inset_0(),
+        );
 
         // `showDots` — the dot-grid overlay. gpui has no repeating background,
         // so the grid is drawn as rows of small translucent dots.
@@ -689,6 +863,7 @@ impl RenderOnce for ColorArea {
         let end_keys = self.on_change_end.clone();
         let own_keys = own.clone();
         let (x_channel, y_channel) = (self.x_channel, self.y_channel);
+        let key_space = color_space;
         let (x_min, x_max) = x_channel.range();
         let (y_min, y_max) = y_channel.range();
         // One step per unit for a wide channel (hue, an 8-bit byte), a
@@ -702,8 +877,8 @@ impl RenderOnce for ColorArea {
         area = area
             .key_context("ColorArea")
             .on_key_down(move |event, window, cx| {
-                let x_now = keys_value.channel(x_channel);
-                let y_now = keys_value.channel(y_channel);
+                let x_now = keys_value.channel_in(x_channel, key_space);
+                let y_now = keys_value.channel_in(y_channel, key_space);
                 let (nx, ny) = match event.keystroke.key.as_str() {
                     "left" => (x_now - x_step, y_now),
                     "right" => (x_now + x_step, y_now),
@@ -716,8 +891,11 @@ impl RenderOnce for ColorArea {
                     _ => return,
                 };
                 let next = keys_value
-                    .with_channel(x_channel, nx.clamp(x_min, x_max))
-                    .with_channel(y_channel, ny.clamp(y_min, y_max));
+                    .with_channel_in(x_channel, key_space, nx.clamp(x_min, x_max))
+                    .with_channel_in(y_channel, key_space, ny.clamp(y_min, y_max));
+                if next == keys_value {
+                    return;
+                }
                 // Uncontrolled: move our own copy, as the pointer path does.
                 if let Some(held) = &own_keys {
                     held.update(cx, |v, cx| {
@@ -735,60 +913,336 @@ impl RenderOnce for ColorArea {
                 }
             });
 
-        if let Some(cb) = self.on_change_end {
-            let value = self.value;
+        if self.on_change.is_some() || self.on_change_end.is_some() || own.is_some() {
+            let down_bounds = bounds_slot.clone();
+            let down_dragging = dragging.clone();
+            let down_focus = area_focus;
+            let down_change = self.on_change.clone();
+            let down_own = own.clone();
+            let down_value = self.value;
             let (x_channel, y_channel) = (self.x_channel, self.y_channel);
-            let (w, h) = (self.width, self.height);
-            area = area.on_mouse_up(
-                gpui::MouseButton::Left,
-                move |event: &gpui::MouseUpEvent, window, cx| {
-                    let fx = (f32::from(event.position.x) / f32::from(w)).clamp(0.0, 1.0);
-                    let fy = (f32::from(event.position.y) / f32::from(h)).clamp(0.0, 1.0);
-                    let (x_min, x_max) = x_channel.range();
-                    let (y_min, y_max) = y_channel.range();
-                    let next = value
-                        .with_channel(x_channel, x_min + fx * (x_max - x_min))
-                        .with_channel(y_channel, y_min + (1.0 - fy) * (y_max - y_min));
-                    cb(next, window, cx);
-                },
-            );
-        }
-
-        if self.on_change.is_some() || own.is_some() {
-            let on_change = self.on_change.clone();
-            let value = self.value;
-            let (x_channel, y_channel) = (self.x_channel, self.y_channel);
-            let (w, h) = (self.width, self.height);
             area = area.cursor_pointer().on_mouse_down(
                 gpui::MouseButton::Left,
                 move |event: &MouseDownEvent, window, cx| {
-                    // `position` is window-relative; the element origin is not
-                    // available here, so treat the press as a fraction of the
-                    // element measured from its own bounds via the hit region.
-                    let local = event.position;
-                    let fx = (f32::from(local.x) / f32::from(w)).clamp(0.0, 1.0);
-                    let fy = (f32::from(local.y) / f32::from(h)).clamp(0.0, 1.0);
-                    let (x_min, x_max) = x_channel.range();
-                    let (y_min, y_max) = y_channel.range();
-                    let next = value
-                        .with_channel(x_channel, x_min + fx * (x_max - x_min))
-                        .with_channel(y_channel, y_min + (1.0 - fy) * (y_max - y_min));
-                    // Uncontrolled: move our own copy, or the press would do
-                    // nothing.
-                    if let Some(held) = &own {
-                        held.update(cx, |v, cx| {
-                            *v = next;
-                            cx.notify();
-                        });
+                    if event.modifiers.alt || event.modifiers.control || event.modifiers.platform {
+                        return;
                     }
-                    if let Some(cb) = &on_change {
-                        cb(next, window, cx);
+                    down_dragging.update(cx, |value, _| *value = true);
+                    window.focus(&down_focus);
+                    if let Some(next) = area_color_from_pointer(
+                        &down_bounds,
+                        event.position,
+                        down_value,
+                        color_space,
+                        x_channel,
+                        y_channel,
+                        cx,
+                    ) {
+                        if next.changed {
+                            report_color_change(next.value, &down_own, &down_change, window, cx);
+                        }
                     }
                 },
+            );
+
+            let global_bounds = bounds_slot;
+            let global_dragging = dragging;
+            let global_change = self.on_change;
+            let global_end = self.on_change_end;
+            let global_own = own;
+            let global_value = self.value;
+            area = area.child(
+                gpui::canvas(
+                    |bounds, _, _| bounds,
+                    move |_, _, window, _| {
+                        let move_bounds = global_bounds.clone();
+                        let move_dragging = global_dragging.clone();
+                        let move_change = global_change.clone();
+                        let move_own = global_own.clone();
+                        window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
+                            if phase == gpui::DispatchPhase::Capture
+                                && event.pressed_button == Some(gpui::MouseButton::Left)
+                                && *move_dragging.read(cx)
+                            {
+                                if let Some(next) = area_color_from_pointer(
+                                    &move_bounds,
+                                    event.position,
+                                    global_value,
+                                    color_space,
+                                    x_channel,
+                                    y_channel,
+                                    cx,
+                                ) {
+                                    if next.changed {
+                                        report_color_change(
+                                            next.value,
+                                            &move_own,
+                                            &move_change,
+                                            window,
+                                            cx,
+                                        );
+                                    }
+                                }
+                            }
+                        });
+
+                        let up_bounds = global_bounds.clone();
+                        let up_dragging = global_dragging.clone();
+                        let up_end = global_end.clone();
+                        window.on_mouse_event(move |event: &MouseUpEvent, phase, window, cx| {
+                            if phase == gpui::DispatchPhase::Capture
+                                && event.button == gpui::MouseButton::Left
+                            {
+                                finish_area_drag(
+                                    &up_dragging,
+                                    &up_bounds,
+                                    event.position,
+                                    global_value,
+                                    color_space,
+                                    x_channel,
+                                    y_channel,
+                                    &up_end,
+                                    window,
+                                    cx,
+                                );
+                            }
+                        });
+                    },
+                )
+                .absolute()
+                .inset_0(),
             );
         }
 
         area
+    }
+}
+
+#[allow(clippy::too_many_arguments)] // the two axes and callback are the color-area drag state
+fn finish_area_drag(
+    dragging: &Entity<bool>,
+    bounds: &Entity<Bounds<f32>>,
+    position: gpui::Point<Pixels>,
+    value: PickerColor,
+    color_space: ColorSpace,
+    x_channel: ColorChannel,
+    y_channel: ColorChannel,
+    on_change_end: &Option<OnColorChange>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    if !*dragging.read(cx) {
+        return;
+    }
+    dragging.update(cx, |value, cx| {
+        *value = false;
+        cx.notify();
+    });
+    if let (Some(callback), Some(next)) = (
+        on_change_end,
+        area_color_from_pointer(
+            bounds,
+            position,
+            value,
+            color_space,
+            x_channel,
+            y_channel,
+            cx,
+        ),
+    ) {
+        callback(next.value, window, cx);
+    }
+}
+
+fn color_area_hue_layers(
+    value: PickerColor,
+    color_space: ColorSpace,
+    x_channel: ColorChannel,
+    y_channel: ColorChannel,
+) -> gpui::Div {
+    let hue_is_vertical = y_channel == ColorChannel::Hue;
+    let other = if x_channel == ColorChannel::Hue {
+        y_channel
+    } else {
+        x_channel
+    };
+    let other_is_vertical = y_channel == other;
+    let base = match (color_space, other) {
+        (ColorSpace::Hsl, ColorChannel::Saturation) => value
+            .with_hsl_channels(1.0, value.hsl_lightness())
+            .with_alpha(1.0),
+        (ColorSpace::Hsl, ColorChannel::Lightness) => value
+            .with_hsl_channels(value.hsl_saturation(), 0.5)
+            .with_alpha(1.0),
+        (ColorSpace::Hsb, ColorChannel::Saturation) => PickerColor::hsb(0.0, 1.0, value.brightness),
+        (ColorSpace::Hsb, ColorChannel::Brightness) => PickerColor::hsb(0.0, value.saturation, 1.0),
+        _ => PickerColor::hsb(0.0, 1.0, 1.0),
+    };
+
+    let mut layers =
+        div()
+            .absolute()
+            .inset_0()
+            .child(hue_gradient(base, color_space, hue_is_vertical));
+    layers = match other {
+        ColorChannel::Saturation => {
+            let start = base
+                .with_channel_in(other, color_space, other.range().0)
+                .to_hsla();
+            layers.child(div().absolute().inset_0().bg(gpui::linear_gradient(
+                if other_is_vertical { 0.0 } else { 90.0 },
+                gpui::linear_color_stop(start, 0.0),
+                gpui::linear_color_stop(start.alpha(0.0), 1.0),
+            )))
+        }
+        ColorChannel::Brightness => {
+            layers.child(div().absolute().inset_0().bg(gpui::linear_gradient(
+                if other_is_vertical { 0.0 } else { 90.0 },
+                gpui::linear_color_stop(gpui::black(), 0.0),
+                gpui::linear_color_stop(gpui::transparent_black(), 1.0),
+            )))
+        }
+        ColorChannel::Lightness => layers.child(three_stop_gradient(
+            other_is_vertical,
+            gpui::black(),
+            gpui::transparent_black(),
+            gpui::white(),
+        )),
+        _ => layers,
+    };
+    layers
+}
+
+fn hue_gradient(value: PickerColor, color_space: ColorSpace, vertical: bool) -> gpui::Div {
+    let stops = hue_stop_colors(value, color_space);
+    let mut gradient = div().absolute().inset_0();
+    for index in 0..6 {
+        gradient = if vertical {
+            gradient.child(
+                div()
+                    .absolute()
+                    .left_0()
+                    .right_0()
+                    .top(gpui::relative(hue_band_offset(index, true)))
+                    .h(gpui::relative(1.0 / 6.0))
+                    .bg(gpui::linear_gradient(
+                        0.0,
+                        gpui::linear_color_stop(stops[index], 0.0),
+                        gpui::linear_color_stop(stops[index + 1], 1.0),
+                    )),
+            )
+        } else {
+            gradient.child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .bottom_0()
+                    .left(gpui::relative(hue_band_offset(index, false)))
+                    .w(gpui::relative(1.0 / 6.0))
+                    .bg(gpui::linear_gradient(
+                        90.0,
+                        gpui::linear_color_stop(stops[index], 0.0),
+                        gpui::linear_color_stop(stops[index + 1], 1.0),
+                    )),
+            )
+        };
+    }
+    gradient
+}
+
+fn hue_band_offset(index: usize, vertical: bool) -> f32 {
+    if vertical {
+        (5 - index) as f32 / 6.0
+    } else {
+        index as f32 / 6.0
+    }
+}
+
+fn hue_stop_colors(value: PickerColor, color_space: ColorSpace) -> [Hsla; 7] {
+    [0.0, 60.0, 120.0, 180.0, 240.0, 300.0, 360.0].map(|hue| {
+        value
+            .with_channel_in(ColorChannel::Hue, color_space, hue)
+            .to_hsla()
+    })
+}
+
+fn color_area_channel_grid(
+    value: PickerColor,
+    color_space: ColorSpace,
+    x_channel: ColorChannel,
+    y_channel: ColorChannel,
+) -> gpui::Div {
+    const STRIPS: usize = 64;
+    let (x_min, x_max) = x_channel.range();
+    let (y_min, y_max) = y_channel.range();
+    let mut grid = div().absolute().inset_0().flex().flex_row();
+    for index in 0..STRIPS {
+        let x = index as f32 / (STRIPS - 1) as f32;
+        let at_x = value.with_channel_in(x_channel, color_space, x_min + x * (x_max - x_min));
+        let bottom = at_x
+            .with_channel_in(y_channel, color_space, y_min)
+            .to_hsla();
+        let top = at_x
+            .with_channel_in(y_channel, color_space, y_max)
+            .to_hsla();
+        grid = grid.child(div().h_full().flex_1().bg(gpui::linear_gradient(
+            0.0,
+            gpui::linear_color_stop(bottom, 0.0),
+            gpui::linear_color_stop(top, 1.0),
+        )));
+    }
+    grid
+}
+
+struct PointerColor {
+    value: PickerColor,
+    changed: bool,
+}
+
+#[allow(clippy::float_cmp)] // snapped channel values are exact state coordinates
+fn area_color_from_pointer(
+    bounds: &Entity<Bounds<f32>>,
+    position: gpui::Point<Pixels>,
+    value: PickerColor,
+    color_space: ColorSpace,
+    x_channel: ColorChannel,
+    y_channel: ColorChannel,
+    cx: &App,
+) -> Option<PointerColor> {
+    let bounds = *bounds.read(cx);
+    if bounds.size.width <= 0.0 || bounds.size.height <= 0.0 {
+        return None;
+    }
+    let x = ((f32::from(position.x) - bounds.origin.x) / bounds.size.width).clamp(0.0, 1.0);
+    let y = ((f32::from(position.y) - bounds.origin.y) / bounds.size.height).clamp(0.0, 1.0);
+    let (x_min, x_max) = x_channel.range();
+    let (y_min, y_max) = y_channel.range();
+    let x_value = snap_color_channel(x_channel, x_min + x * (x_max - x_min));
+    let y_value = snap_color_channel(y_channel, y_min + (1.0 - y) * (y_max - y_min));
+    Some(PointerColor {
+        changed: x_value != value.channel_in(x_channel, color_space)
+            || y_value != value.channel_in(y_channel, color_space),
+        value: value
+            .with_channel_in(x_channel, color_space, x_value)
+            .with_channel_in(y_channel, color_space, y_value),
+    })
+}
+
+fn report_color_change(
+    next: PickerColor,
+    own: &Option<Entity<PickerColor>>,
+    on_change: &Option<OnColorChange>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    if let Some(held) = own {
+        held.update(cx, |value, cx| {
+            *value = next;
+            cx.notify();
+        });
+    }
+    if let Some(callback) = on_change {
+        callback(next, window, cx);
     }
 }
 
@@ -935,9 +1389,77 @@ impl ColorSlider {
     fn gradient_ends(&self) -> (Hsla, Hsla) {
         let (min, max) = self.channel.range();
         (
-            self.value.with_channel(self.channel, min).to_hsla(),
-            self.value.with_channel(self.channel, max).to_hsla(),
+            self.value
+                .with_channel_in(self.channel, self.color_space, min)
+                .to_hsla(),
+            self.value
+                .with_channel_in(self.channel, self.color_space, max)
+                .to_hsla(),
         )
+    }
+}
+
+fn three_stop_gradient(vertical: bool, start: Hsla, middle: Hsla, end: Hsla) -> gpui::Div {
+    if vertical {
+        div()
+            .absolute()
+            .inset_0()
+            .child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .left_0()
+                    .right_0()
+                    .h(gpui::relative(0.5))
+                    .bg(gpui::linear_gradient(
+                        0.0,
+                        gpui::linear_color_stop(middle, 0.0),
+                        gpui::linear_color_stop(end, 1.0),
+                    )),
+            )
+            .child(
+                div()
+                    .absolute()
+                    .bottom_0()
+                    .left_0()
+                    .right_0()
+                    .h(gpui::relative(0.5))
+                    .bg(gpui::linear_gradient(
+                        0.0,
+                        gpui::linear_color_stop(start, 0.0),
+                        gpui::linear_color_stop(middle, 1.0),
+                    )),
+            )
+    } else {
+        div()
+            .absolute()
+            .inset_0()
+            .child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .bottom_0()
+                    .left_0()
+                    .w(gpui::relative(0.5))
+                    .bg(gpui::linear_gradient(
+                        90.0,
+                        gpui::linear_color_stop(start, 0.0),
+                        gpui::linear_color_stop(middle, 1.0),
+                    )),
+            )
+            .child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .bottom_0()
+                    .right_0()
+                    .w(gpui::relative(0.5))
+                    .bg(gpui::linear_gradient(
+                        90.0,
+                        gpui::linear_color_stop(middle, 0.0),
+                        gpui::linear_color_stop(end, 1.0),
+                    )),
+            )
     }
 }
 
@@ -964,7 +1486,21 @@ impl RenderOnce for ColorSlider {
             |_, cx| cx.focus_handle().tab_stop(true),
         );
         let focus_handle = focus_handle.read(cx).clone();
+        let bounds_slot = window.use_keyed_state(
+            ElementId::Name(format!("{:?}-slider-bounds", self.id).into()),
+            cx,
+            |_, _| Bounds::<f32> {
+                origin: gpui::point(0., 0.),
+                size: gpui::size(0., 0.),
+            },
+        );
+        let dragging = window.use_keyed_state(
+            ElementId::Name(format!("{:?}-slider-dragging", self.id).into()),
+            cx,
+            |_, _| false,
+        );
         let colors = cx.colors();
+        let border_width = f32::from(cx.layout().border_width);
         let (min, max) = self.channel.range();
         // Read in the requested space: HSL and HSB saturation are different
         // numbers for the same colour.
@@ -988,32 +1524,77 @@ impl RenderOnce for ColorSlider {
             track.w(self.length).h(track_h)
         };
 
-        // Hue needs the full spectrum; every other channel is a two-stop ramp.
-        track = if self.channel == ColorChannel::Hue {
+        let recorder_bounds = bounds_slot.clone();
+        track = track.child(
+            gpui::canvas(
+                move |bounds: Bounds<Pixels>, _, cx| {
+                    recorder_bounds.update(cx, |slot, _| {
+                        *slot = Bounds {
+                            origin: gpui::point(
+                                f32::from(bounds.origin.x) - border_width,
+                                f32::from(bounds.origin.y) - border_width,
+                            ),
+                            size: gpui::size(
+                                f32::from(bounds.size.width) + border_width * 2.0,
+                                f32::from(bounds.size.height) + border_width * 2.0,
+                            ),
+                        };
+                    });
+                    bounds
+                },
+                |_, _, _, _| {},
+            )
+            .absolute()
+            .inset_0(),
+        );
+
+        // Hue needs the full spectrum, and lightness needs a midpoint so its
+        // hue survives between black and white.
+        track = if self.channel == ColorChannel::Lightness {
+            let (start, middle, end) =
+                lightness_gradient_colors(self.value, self.color_space, min, max);
+            track.child(three_stop_gradient(vertical, start, middle, end))
+        } else if self.channel == ColorChannel::Hue {
             let mut spectrum = track;
             // Six 60-degree bands approximate the continuous hue wheel.
             for i in 0..6 {
                 let from = PickerColor::hsb(i as f32 * 60.0, 1.0, 1.0).to_hsla();
                 let to = PickerColor::hsb((i as f32 + 1.0) * 60.0, 1.0, 1.0).to_hsla();
-                spectrum = spectrum.child(
-                    div()
-                        .absolute()
-                        .top_0()
-                        .bottom_0()
-                        .left(px(f32::from(self.length) * (i as f32 / 6.0)))
-                        .w(px(f32::from(self.length) / 6.0 + 1.0))
-                        .bg(gpui::linear_gradient(
-                            90.0,
-                            gpui::linear_color_stop(from, 0.0),
-                            gpui::linear_color_stop(to, 1.0),
-                        )),
-                );
+                spectrum = if vertical {
+                    spectrum.child(
+                        div()
+                            .absolute()
+                            .left_0()
+                            .right_0()
+                            .top(px(f32::from(self.length) * ((5 - i) as f32 / 6.0)))
+                            .h(px(f32::from(self.length) / 6.0 + 1.0))
+                            .bg(gpui::linear_gradient(
+                                0.0,
+                                gpui::linear_color_stop(from, 0.0),
+                                gpui::linear_color_stop(to, 1.0),
+                            )),
+                    )
+                } else {
+                    spectrum.child(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .bottom_0()
+                            .left(px(f32::from(self.length) * (i as f32 / 6.0)))
+                            .w(px(f32::from(self.length) / 6.0 + 1.0))
+                            .bg(gpui::linear_gradient(
+                                90.0,
+                                gpui::linear_color_stop(from, 0.0),
+                                gpui::linear_color_stop(to, 1.0),
+                            )),
+                    )
+                };
             }
             spectrum
         } else {
             let (from, to) = self.gradient_ends();
             track.bg(gpui::linear_gradient(
-                90.0,
+                if vertical { 0.0 } else { 90.0 },
                 gpui::linear_color_stop(from, 0.0),
                 gpui::linear_color_stop(to, 1.0),
             ))
@@ -1043,19 +1624,6 @@ impl RenderOnce for ColorSlider {
             let value = self.value;
             let channel = self.channel;
             let space = self.color_space;
-            let length = self.length;
-            let on_change = self.on_change.clone();
-            let on_change_end = self.on_change_end.clone();
-            let resolve = move |pos: gpui::Point<Pixels>| {
-                let along = if vertical { pos.y } else { pos.x };
-                let mut f = (f32::from(along) / f32::from(length)).clamp(0.0, 1.0);
-                if vertical {
-                    f = 1.0 - f;
-                }
-                let (min, max) = channel.range();
-                value.with_channel_in(channel, space, min + f * (max - min))
-            };
-            let resolve_up = resolve;
             track = track.cursor_pointer();
             // `.color-slider:focus-visible` is `status-focused`.
             track = util::ring_if_focused(track, &focus_handle, true, Vec::new(), window, cx);
@@ -1082,14 +1650,13 @@ impl RenderOnce for ColorSlider {
                         "pageup" => current + page,
                         "pagedown" => current - page,
                         "home" => min,
-                        // Hue is cyclic -- 360 degrees *is* zero -- so End lands
-                        // on the last distinct value rather than wrapping back to
-                        // the start of the track.
-                        "end" if channel == ColorChannel::Hue => max - step,
                         "end" => max,
                         _ => return,
                     };
                     let next = keys_value.with_channel_in(channel, space, next.clamp(min, max));
+                    if next == keys_value {
+                        return;
+                    }
                     if let Some(held) = &own_keys {
                         held.update(cx, |v, cx| {
                             *v = next;
@@ -1105,34 +1672,114 @@ impl RenderOnce for ColorSlider {
                         cb(next, window, cx);
                     }
                 });
-            if on_change.is_some() || own.is_some() {
-                let own = own;
+            if self.on_change.is_some() || self.on_change_end.is_some() || own.is_some() {
+                let down_bounds = bounds_slot.clone();
+                let down_dragging = dragging.clone();
+                let down_change = self.on_change.clone();
+                let down_own = own.clone();
                 let focus_for_press = focus_handle;
                 track = track.on_mouse_down(
                     gpui::MouseButton::Left,
                     move |event: &MouseDownEvent, window, cx| {
-                        window.focus(&focus_for_press);
-                        let next = resolve(event.position);
-                        // Uncontrolled: move our own copy, or dragging the
-                        // track would do nothing.
-                        if let Some(held) = &own {
-                            held.update(cx, |v, cx| {
-                                *v = next;
-                                cx.notify();
-                            });
+                        if event.modifiers.alt
+                            || event.modifiers.control
+                            || event.modifiers.platform
+                        {
+                            return;
                         }
-                        if let Some(cb) = &on_change {
-                            cb(next, window, cx);
+                        down_dragging.update(cx, |value, _| *value = true);
+                        window.focus(&focus_for_press);
+                        if let Some(next) = slider_color_from_pointer(
+                            &down_bounds,
+                            event.position,
+                            vertical,
+                            value,
+                            channel,
+                            space,
+                            cx,
+                        ) {
+                            if next.changed {
+                                report_color_change(
+                                    next.value,
+                                    &down_own,
+                                    &down_change,
+                                    window,
+                                    cx,
+                                );
+                            }
                         }
                     },
                 );
-            }
-            if let Some(cb) = on_change_end {
-                track = track.on_mouse_up(
-                    gpui::MouseButton::Left,
-                    move |event: &gpui::MouseUpEvent, window, cx| {
-                        cb(resolve_up(event.position), window, cx);
-                    },
+
+                let global_bounds = bounds_slot;
+                let global_dragging = dragging;
+                let global_change = self.on_change;
+                let global_end = self.on_change_end;
+                let global_own = own;
+                track = track.child(
+                    gpui::canvas(
+                        |bounds, _, _| bounds,
+                        move |_, _, window, _| {
+                            let move_bounds = global_bounds.clone();
+                            let move_dragging = global_dragging.clone();
+                            let move_change = global_change.clone();
+                            let move_own = global_own.clone();
+                            window.on_mouse_event(
+                                move |event: &MouseMoveEvent, phase, window, cx| {
+                                    if phase == gpui::DispatchPhase::Capture
+                                        && event.pressed_button == Some(gpui::MouseButton::Left)
+                                        && *move_dragging.read(cx)
+                                    {
+                                        if let Some(next) = slider_color_from_pointer(
+                                            &move_bounds,
+                                            event.position,
+                                            vertical,
+                                            value,
+                                            channel,
+                                            space,
+                                            cx,
+                                        ) {
+                                            if next.changed {
+                                                report_color_change(
+                                                    next.value,
+                                                    &move_own,
+                                                    &move_change,
+                                                    window,
+                                                    cx,
+                                                );
+                                            }
+                                        }
+                                    }
+                                },
+                            );
+
+                            let up_bounds = global_bounds.clone();
+                            let up_dragging = global_dragging.clone();
+                            let up_end = global_end.clone();
+                            window.on_mouse_event(
+                                move |event: &MouseUpEvent, phase, window, cx| {
+                                    if phase == gpui::DispatchPhase::Capture
+                                        && event.button == gpui::MouseButton::Left
+                                    {
+                                        finish_slider_drag(
+                                            &up_dragging,
+                                            &up_bounds,
+                                            event.position,
+                                            vertical,
+                                            value,
+                                            channel,
+                                            space,
+                                            &up_end,
+                                            window,
+                                            cx,
+                                        );
+                                    }
+                                },
+                            );
+                        },
+                    )
+                    .absolute()
+                    .inset_0(),
                 );
             }
         }
@@ -1179,6 +1826,84 @@ impl RenderOnce for ColorSlider {
                     }),
             )
             .child(track)
+    }
+}
+
+fn lightness_gradient_colors(
+    value: PickerColor,
+    color_space: ColorSpace,
+    min: f32,
+    max: f32,
+) -> (Hsla, Hsla, Hsla) {
+    (
+        value
+            .with_channel_in(ColorChannel::Lightness, color_space, min)
+            .to_hsla(),
+        value
+            .with_channel_in(ColorChannel::Lightness, color_space, (max - min) / 2.0)
+            .to_hsla(),
+        value
+            .with_channel_in(ColorChannel::Lightness, color_space, max)
+            .to_hsla(),
+    )
+}
+
+#[allow(clippy::float_cmp)] // snapped channel values are exact state coordinates
+fn slider_color_from_pointer(
+    bounds: &Entity<Bounds<f32>>,
+    position: gpui::Point<Pixels>,
+    vertical: bool,
+    value: PickerColor,
+    channel: ColorChannel,
+    color_space: ColorSpace,
+    cx: &App,
+) -> Option<PointerColor> {
+    let bounds = *bounds.read(cx);
+    let (reach, extent) = if vertical {
+        (
+            bounds.origin.y + bounds.size.height - f32::from(position.y),
+            bounds.size.height,
+        )
+    } else {
+        (f32::from(position.x) - bounds.origin.x, bounds.size.width)
+    };
+    if extent <= 0.0 {
+        return None;
+    }
+    let fraction = (reach / extent).clamp(0.0, 1.0);
+    let (min, max) = channel.range();
+    let next = snap_color_channel(channel, min + fraction * (max - min));
+    Some(PointerColor {
+        changed: next != value.channel_in(channel, color_space),
+        value: value.with_channel_in(channel, color_space, next),
+    })
+}
+
+#[allow(clippy::too_many_arguments)] // the channel and callback are the color-slider drag state
+fn finish_slider_drag(
+    dragging: &Entity<bool>,
+    bounds: &Entity<Bounds<f32>>,
+    position: gpui::Point<Pixels>,
+    vertical: bool,
+    value: PickerColor,
+    channel: ColorChannel,
+    color_space: ColorSpace,
+    on_change_end: &Option<OnColorChange>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    if !*dragging.read(cx) {
+        return;
+    }
+    dragging.update(cx, |value, cx| {
+        *value = false;
+        cx.notify();
+    });
+    if let (Some(callback), Some(next)) = (
+        on_change_end,
+        slider_color_from_pointer(bounds, position, vertical, value, channel, color_space, cx),
+    ) {
+        callback(next.value, window, cx);
     }
 }
 
@@ -1435,32 +2160,109 @@ impl ColorField {
     fn display_text(&self) -> String {
         match self.channel {
             None => self.value.to_hex(),
-            Some(ColorChannel::Hue) => format!("{}", self.value.hue.round()),
-            // Read in `colorSpace`: HSL and HSB saturation are different
-            // numbers for the same colour.
-            Some(channel) => format!(
-                "{}",
-                self.value.channel_in(channel, self.color_space).round()
-            ),
+            Some(channel) => format_color_channel_value(self.value, channel, self.color_space),
         }
     }
+}
 
-    /// Parses edited text back into a colour.
-    ///
-    /// Without a `channel` the text is a hex colour; with one it is that
-    /// channel's number, applied to the current value in `colorSpace`.
-    fn parse(&self, text: &str) -> Option<PickerColor> {
-        match self.channel {
-            None => PickerColor::from_hex(text),
-            Some(channel) => {
-                let n: f32 = text.trim().parse().ok()?;
-                let (min, max) = channel.range();
-                if n < min || n > max {
-                    return None;
-                }
-                Some(self.value.with_channel_in(channel, self.color_space, n))
+fn parse_color_field(
+    value: PickerColor,
+    channel: Option<ColorChannel>,
+    color_space: ColorSpace,
+    text: &str,
+) -> Option<PickerColor> {
+    match channel {
+        None => PickerColor::from_hex(text),
+        Some(channel) => {
+            let text = text.trim();
+            let mut number: f32 = text.trim_end_matches('%').trim().parse().ok()?;
+            if is_normalized_channel(channel) {
+                number /= 100.0;
             }
+            let (min, max) = channel.range();
+            if number < min || number > max {
+                return None;
+            }
+            Some(value.with_channel_in(channel, color_space, number))
         }
+    }
+}
+
+fn step_color_channel(
+    value: PickerColor,
+    channel: ColorChannel,
+    color_space: ColorSpace,
+    direction: f32,
+) -> PickerColor {
+    let (min, max) = channel.range();
+    let step = color_channel_step(channel);
+    let current = value.channel_in(channel, color_space);
+    let next = snap_color_channel(channel, (current + direction * step).clamp(min, max));
+    value.with_channel_in(channel, color_space, next)
+}
+
+fn color_channel_step(channel: ColorChannel) -> f32 {
+    let (min, max) = channel.range();
+    if max - min > 2.0 {
+        1.0
+    } else {
+        0.01
+    }
+}
+
+fn snap_color_channel(channel: ColorChannel, value: f32) -> f32 {
+    let (min, max) = channel.range();
+    let step = color_channel_step(channel);
+    (((value - min) / step).round() * step + min).clamp(min, max)
+}
+
+fn is_normalized_channel(channel: ColorChannel) -> bool {
+    matches!(
+        channel,
+        ColorChannel::Saturation
+            | ColorChannel::Brightness
+            | ColorChannel::Lightness
+            | ColorChannel::Alpha
+    )
+}
+
+fn format_color_channel_value(
+    value: PickerColor,
+    channel: ColorChannel,
+    color_space: ColorSpace,
+) -> String {
+    let value = value.channel_in(channel, color_space);
+    if is_normalized_channel(channel) {
+        format!("{}%", (value * 100.0).round())
+    } else {
+        format!("{}", value.round())
+    }
+}
+
+#[allow(clippy::too_many_arguments)] // mirrors the state, callback and field channels in one event
+fn report_color_field_change(
+    next: PickerColor,
+    channel: ColorChannel,
+    color_space: ColorSpace,
+    state: &Entity<crate::input::InputState>,
+    own: &Option<Entity<PickerColor>>,
+    on_change: &Option<OnColorFieldChange>,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let text = format_color_channel_value(next, channel, color_space);
+    state.update(cx, |state, cx| {
+        state.set_value(text);
+        cx.notify();
+    });
+    if let Some(held) = own {
+        held.update(cx, |value, cx| {
+            *value = next;
+            cx.notify();
+        });
+    }
+    if let Some(callback) = on_change {
+        callback(Some(next), window, cx);
     }
 }
 
@@ -1511,7 +2313,7 @@ impl RenderOnce for ColorField {
         // Editable mode: delegate the text handling to Input and parse on every
         // keystroke, so `onChange` reports exactly what v3's does.
         if let Some(state) = self.state.clone() {
-            let mut input = Input::new(state)
+            let mut input = Input::new(state.clone())
                 .variant(self.variant)
                 .is_disabled(self.is_disabled)
                 .is_read_only(self.is_read_only)
@@ -1539,10 +2341,12 @@ impl RenderOnce for ColorField {
             }
             if self.on_change.is_some() || own.is_some() {
                 let cb = self.on_change.clone();
-                let own = own;
-                let parser = self;
+                let own = own.clone();
+                let parse_value = self.value;
+                let parse_channel = self.channel;
+                let parse_space = self.color_space;
                 input = input.on_change(move |text, window, cx| {
-                    let next = parser.parse(text);
+                    let next = parse_color_field(parse_value, parse_channel, parse_space, text);
                     // Uncontrolled: keep what was typed, or the swatch would
                     // never follow the text.
                     if let (Some(held), Some(c)) = (&own, next) {
@@ -1556,7 +2360,85 @@ impl RenderOnce for ColorField {
                     }
                 });
             }
-            return input.render(window, cx).into_any_element();
+            let rendered = input.render(window, cx).into_any_element();
+            let Some(channel) = self.channel else {
+                return rendered;
+            };
+            if self.is_disabled || self.is_read_only {
+                return rendered;
+            }
+
+            let mut field = div()
+                .id(ElementId::Name(
+                    format!("{:?}-channel-events", self.id).into(),
+                ))
+                .child(rendered);
+            if self.on_change.is_some() || own.is_some() {
+                let key_value = self.value;
+                let key_space = self.color_space;
+                let key_state = state.clone();
+                let key_own = own.clone();
+                let key_change = self.on_change.clone();
+                field = field.on_key_down(move |event, window, cx| {
+                    let direction = match event.keystroke.key.as_str() {
+                        "up" => 1.0,
+                        "down" => -1.0,
+                        _ => return,
+                    };
+                    let next = step_color_channel(key_value, channel, key_space, direction);
+                    report_color_field_change(
+                        next,
+                        channel,
+                        key_space,
+                        &key_state,
+                        &key_own,
+                        &key_change,
+                        window,
+                        cx,
+                    );
+                    cx.stop_propagation();
+                });
+
+                if !self.is_wheel_disabled {
+                    let wheel_value = self.value;
+                    let wheel_space = self.color_space;
+                    let wheel_state = state;
+                    let wheel_own = own;
+                    let wheel_change = self.on_change;
+                    field = field.on_scroll_wheel(move |event, window, cx| {
+                        if !wheel_state
+                            .read(cx)
+                            .focus_handle
+                            .contains_focused(window, cx)
+                        {
+                            return;
+                        }
+                        let (dx, dy) = match event.delta {
+                            gpui::ScrollDelta::Pixels(point) => {
+                                (f32::from(point.x), f32::from(point.y))
+                            }
+                            gpui::ScrollDelta::Lines(point) => (point.x, point.y),
+                        };
+                        if dy == 0.0 || dy.abs() <= dx.abs() {
+                            return;
+                        }
+                        let next =
+                            step_color_channel(wheel_value, channel, wheel_space, dy.signum());
+                        report_color_field_change(
+                            next,
+                            channel,
+                            wheel_space,
+                            &wheel_state,
+                            &wheel_own,
+                            &wheel_change,
+                            window,
+                            cx,
+                        );
+                        cx.stop_propagation();
+                    });
+                }
+            }
+            return field.into_any_element();
         }
 
         let mut field = div()
@@ -2295,12 +3177,7 @@ mod tests {
     fn hsl_and_hsb_saturation_differ_and_round_trip() {
         // Mid-brightness, half-saturated: the two spaces disagree here, which
         // is exactly the case a colorSpace-unaware slider got wrong.
-        let c = PickerColor {
-            hue: 210.0,
-            saturation: 0.5,
-            brightness: 0.6,
-            alpha: 1.0,
-        };
+        let c = PickerColor::hsb(210.0, 0.5, 0.6);
         let hsl_s = c.hsl_saturation();
         assert!(
             (hsl_s - c.saturation).abs() > 0.05,
@@ -2322,14 +3199,41 @@ mod tests {
     }
 
     #[test]
+    fn equality_uses_public_hsb_coordinates_not_color_model_history() {
+        let hsl_black = PickerColor::hsb(40.0, 0.5, 0.5)
+            .with_channel_in(ColorChannel::Saturation, ColorSpace::Hsl, 0.75)
+            .with_channel_in(ColorChannel::Lightness, ColorSpace::Hsl, 0.0);
+        let hsb_black = PickerColor::hsb(hsl_black.hue, 0.0, 0.0);
+        assert_eq!(hsl_black, hsb_black);
+        assert_eq!(hsl_black.to_hex(), hsb_black.to_hex());
+    }
+
+    #[test]
+    fn hue_gradients_have_seven_stops_and_reverse_on_the_vertical_axis() {
+        let stops = hue_stop_colors(PickerColor::hsb(0.0, 1.0, 1.0), ColorSpace::Hsb);
+        assert_eq!(stops[0], stops[6]);
+        for pair in stops.windows(2).take(5) {
+            assert_ne!(pair[0], pair[1]);
+        }
+        assert!((hue_band_offset(0, false) - 0.0).abs() < f32::EPSILON);
+        assert!((hue_band_offset(5, false) - 5.0 / 6.0).abs() < f32::EPSILON);
+        assert!((hue_band_offset(0, true) - 5.0 / 6.0).abs() < f32::EPSILON);
+        assert!((hue_band_offset(5, true) - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn lightness_midpoint_preserves_the_current_hue() {
+        let value = PickerColor::hsb(0.0, 1.0, 1.0);
+        let (start, middle, end) = lightness_gradient_colors(value, ColorSpace::Hsl, 0.0, 1.0);
+        assert_eq!(start, gpui::black());
+        assert_eq!(middle, value.to_hsla());
+        assert_eq!(end, gpui::white());
+    }
+
+    #[test]
     #[allow(clippy::float_cmp)] // the two spaces must agree bit for bit
     fn channel_in_only_diverges_for_saturation() {
-        let c = PickerColor {
-            hue: 30.0,
-            saturation: 0.4,
-            brightness: 0.8,
-            alpha: 1.0,
-        };
+        let c = PickerColor::hsb(30.0, 0.4, 0.8);
         for ch in [
             ColorChannel::Hue,
             ColorChannel::Brightness,

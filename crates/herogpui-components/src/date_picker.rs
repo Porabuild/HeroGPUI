@@ -1407,6 +1407,8 @@ impl RenderOnce for DateField {
 
         let colors = cx.colors().clone();
         let _layout = cx.layout().clone();
+        let navigable = !self.is_disabled;
+        let editable = navigable && !self.is_read_only;
 
         let text = self.state.read(cx).value().to_owned();
         let (parsed, parsed_time) = parse_value(&text);
@@ -1539,7 +1541,7 @@ impl RenderOnce for DateField {
         // v3 drives a date field from the keyboard: the arrows step the focused
         // segment and walk between segments, and digits type into it. Without
         // this the steppers were the only way to change a value at all.
-        if !self.is_disabled && !self.is_read_only {
+        if navigable {
             let state = self.state.clone();
             let on_change = self.on_change.clone();
             let constraints = self.constraints.clone();
@@ -1547,6 +1549,7 @@ impl RenderOnce for DateField {
             let buffer = typing;
             let fh = focus_handle.clone();
             let slots = segments.clone();
+            let is_read_only = self.is_read_only;
             group = group
                 .track_focus(&focus_handle)
                 .key_context("DateField")
@@ -1572,6 +1575,18 @@ impl RenderOnce for DateField {
                     };
                     let seed_time = parsed_time.unwrap_or_default();
                     match key {
+                        "left" | "right" => {
+                            let delta = if key == "right" { 1 } else { -1 };
+                            buffer.update(cx, |b, _| b.clear());
+                            let here = slots.iter().position(|s| *s == focused).unwrap_or(0) as i32;
+                            let next = (here + delta).clamp(0, slots.len() as i32 - 1) as usize;
+                            let next = slots[next];
+                            held.update(cx, |seg, cx| {
+                                *seg = next;
+                                cx.notify();
+                            });
+                        }
+                        _ if is_read_only => {}
                         "up" | "down" => {
                             let delta = if key == "up" { 1 } else { -1 };
                             let base = parsed.unwrap_or(seed);
@@ -1604,17 +1619,6 @@ impl RenderOnce for DateField {
                             let next = crate::time_field::Time::new(hour, seed_time.minute)
                                 .with_second(seed_time.second);
                             commit(parsed.unwrap_or(seed), Some(next), window, cx);
-                        }
-                        "left" | "right" => {
-                            let delta = if key == "right" { 1 } else { -1 };
-                            buffer.update(cx, |b, _| b.clear());
-                            let here = slots.iter().position(|s| *s == focused).unwrap_or(0) as i32;
-                            let next = (here + delta).clamp(0, slots.len() as i32 - 1) as usize;
-                            let next = slots[next];
-                            held.update(cx, |seg, cx| {
-                                *seg = next;
-                                cx.notify();
-                            });
                         }
                         "backspace" | "delete" => {
                             buffer.update(cx, |b, _| b.clear());
@@ -1752,13 +1756,15 @@ impl RenderOnce for DateField {
                     .text_color(colors.accent.soft_foreground());
             }
 
-            let held = focused_seg.clone();
-            seg = seg.cursor_pointer().on_click(move |_, _, cx| {
-                held.update(cx, |s, cx| {
-                    *s = segment;
-                    cx.notify();
+            if navigable {
+                let held = focused_seg.clone();
+                seg = seg.cursor_pointer().on_click(move |_, _, cx| {
+                    held.update(cx, |s, cx| {
+                        *s = segment;
+                        cx.notify();
+                    });
                 });
-            });
+            }
 
             group = group.child(seg);
         }
@@ -1784,56 +1790,56 @@ impl RenderOnce for DateField {
             (icons::CHEVRON_UP, 1i32, "up"),
             (icons::CHEVRON_DOWN, -1i32, "down"),
         ] {
-            let state = self.state.clone();
-            let on_change = self.on_change.clone();
-            let constraints = self.constraints.clone();
-            let current = parsed;
-            steppers = steppers.child(
-                gpui::div()
-                    .id(gpui::ElementId::Name(
-                        format!("date-{entity_id}-{key}").into(),
-                    ))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .size(px(14.))
-                    .cursor_pointer()
-                    .text_color(colors.muted)
-                    .child(
-                        gpui::svg()
-                            .size(px(10.))
-                            .path(icon)
-                            .text_color(colors.muted),
-                    )
-                    .on_click(move |_, window, cx| {
-                        let base = current.unwrap_or(seed);
-                        // An empty field takes the seed itself on the first
-                        // press, so one click does not jump a whole step.
-                        let (date, time) = match focused {
-                            FieldSegment::Date(part) => (
-                                match current {
-                                    Some(_) => part.bump(base, delta),
-                                    None => base,
-                                },
-                                parsed_time,
-                            ),
-                            FieldSegment::Time(part) => (
-                                base,
-                                Some(match parsed_time {
-                                    Some(t) => t.bump(part, delta),
-                                    None => crate::time_field::Time::default(),
-                                }),
-                            ),
-                        };
-                        state.update(cx, |s, cx| {
-                            s.set_value(format_value(date, time, granularity));
-                            cx.notify();
-                        });
-                        if let Some(cb) = &on_change {
-                            cb(Some(date).filter(|d| constraints.allows(*d)), window, cx);
-                        }
-                    }),
-            );
+            let mut stepper = gpui::div()
+                .id(gpui::ElementId::Name(
+                    format!("date-{entity_id}-{key}").into(),
+                ))
+                .flex()
+                .items_center()
+                .justify_center()
+                .size(px(14.))
+                .text_color(colors.muted)
+                .child(
+                    gpui::svg()
+                        .size(px(10.))
+                        .path(icon)
+                        .text_color(colors.muted),
+                );
+            if editable {
+                let state = self.state.clone();
+                let on_change = self.on_change.clone();
+                let constraints = self.constraints.clone();
+                let current = parsed;
+                stepper = stepper.cursor_pointer().on_click(move |_, window, cx| {
+                    let base = current.unwrap_or(seed);
+                    // An empty field takes the seed itself on the first
+                    // press, so one click does not jump a whole step.
+                    let (date, time) = match focused {
+                        FieldSegment::Date(part) => (
+                            match current {
+                                Some(_) => part.bump(base, delta),
+                                None => base,
+                            },
+                            parsed_time,
+                        ),
+                        FieldSegment::Time(part) => (
+                            base,
+                            Some(match parsed_time {
+                                Some(t) => t.bump(part, delta),
+                                None => crate::time_field::Time::default(),
+                            }),
+                        ),
+                    };
+                    state.update(cx, |s, cx| {
+                        s.set_value(format_value(date, time, granularity));
+                        cx.notify();
+                    });
+                    if let Some(cb) = &on_change {
+                        cb(Some(date).filter(|d| constraints.allows(*d)), window, cx);
+                    }
+                });
+            }
+            steppers = steppers.child(stepper);
         }
         let row = group.child(steppers);
 

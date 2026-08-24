@@ -421,11 +421,10 @@ fn range_calendar_click_start_then_end_reports_a_range(cx: &mut TestAppContext) 
 // ---------------------------------------------------------------------------
 
 /// The trigger opens the panel, a press on the colour area reports a colour,
-/// and Escape closes it again. `ColorArea`'s press handler divides the
-/// *window* position by the area's size (`color_picker.rs` treats the press
-/// as a fraction of the element), so the expected hex is derived from the
-/// same formula and compared as strings — never as floats (`float_cmp` is
-/// denied).
+/// and Escape closes it again. React Aria resolves a pointer against the
+/// area's own bounds, so the expected hex subtracts the area origin before
+/// deriving the fractions and compares strings — never floats (`float_cmp`
+/// is denied).
 #[gpui::test]
 fn color_picker_trigger_opens_and_area_reports(cx: &mut TestAppContext) {
     let colors = events();
@@ -434,10 +433,10 @@ fn color_picker_trigger_opens_and_area_reports(cx: &mut TestAppContext) {
     let opened = opens.clone();
     let open = Rc::new(RefCell::new(false));
 
-    // The port's own math, in the test's terms: clicking at window (120, 80)
-    // on the area computes fx = 120/240, fy = 80/160, so the reported colour
-    // is hsb(210, 0.5, 0.5) whatever the area's offset.
-    let expected_hex = PickerColor::hsb(210.0, 0.5, 0.5).to_hex();
+    // The component's recorded border-box turns this panel-relative point into
+    // the pinned local-coordinate colour. The direct offset tests derive the
+    // fractions independently; this integration keeps the resulting hex.
+    let expected_hex = "#6B96C2";
 
     let cx = open_host(cx, move || {
         let colors = colors.clone();
@@ -468,12 +467,11 @@ fn color_picker_trigger_opens_and_area_reports(cx: &mut TestAppContext) {
 
     // The area: panel top (24 trigger + 6) + p-3 (12) puts the 160px-tall
     // area at y 42..202; the ZoomBox's px-3 and the panel's px-2 put it at
-    // x 20..260. The press reports window 120 / size 240 by width and
-    // window 80 / size 160 by height, which is the point of the formula.
+    // x 20..260. The press reports its local fractions within those bounds.
     click(cx, 120., 80.);
     assert_eq!(
         reported.borrow().as_slice(),
-        [expected_hex.as_str()],
+        [expected_hex],
         "a press on the area must report the colour it derives from the position"
     );
 
@@ -492,7 +490,7 @@ fn color_picker_trigger_opens_and_area_reports(cx: &mut TestAppContext) {
     click(cx, 120., 80.);
     assert_eq!(
         reported.borrow().as_slice(),
-        [expected_hex.as_str()],
+        [expected_hex],
         "the popover must be gone after escape"
     );
 }

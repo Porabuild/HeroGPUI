@@ -759,7 +759,7 @@ impl Gallery {
                 ),
                 (
                     "Single selection",
-                    row(vec![h::ToggleButtonGroup::new()
+                    row(vec![h::ToggleButtonGroup::new("toggle-single")
                         .selection_mode(SelectionMode::Single)
                         .selected_keys(single.into_iter().collect::<Vec<_>>())
                         .child_toggle(h::ToggleButton::new("tb-left").key("left").label("Left"))
@@ -777,7 +777,7 @@ impl Gallery {
                 ),
                 (
                     "Multiple selection",
-                    row(vec![h::ToggleButtonGroup::new()
+                    row(vec![h::ToggleButtonGroup::new("toggle-multiple")
                         .selection_mode(SelectionMode::Multiple)
                         .selected_keys(multiple.iter().cloned().collect::<Vec<_>>())
                         .child_toggle(h::ToggleButton::new("tb-bold").key("bold").label("Bold"))
@@ -814,12 +814,12 @@ impl Gallery {
                 (
                     "Orientation",
                     row(vec![
-                        h::ToggleButtonGroup::new()
+                        h::ToggleButtonGroup::new("toggle-orientation-horizontal")
                             .child_toggle(h::ToggleButton::new("tbo-h-1").label("Day"))
                             .child_toggle(h::ToggleButton::new("tbo-h-2").label("Week"))
                             .child_toggle(h::ToggleButton::new("tbo-h-3").label("Month"))
                             .into_any_element(),
-                        h::ToggleButtonGroup::new()
+                        h::ToggleButtonGroup::new("toggle-orientation-vertical")
                             .orientation(Orientation::Vertical)
                             .child_toggle(h::ToggleButton::new("tbo-v-1").label("Day"))
                             .child_toggle(h::ToggleButton::new("tbo-v-2").label("Week"))
@@ -832,7 +832,7 @@ impl Gallery {
                     col(vec![gpui::div()
                         .w_full()
                         .child(
-                            h::ToggleButtonGroup::new()
+                            h::ToggleButtonGroup::new("toggle-full-width")
                                 .full_width(true)
                                 .child_toggle(h::ToggleButton::new("tbf-1").label("Left"))
                                 .child_toggle(h::ToggleButton::new("tbf-2").label("Center"))
@@ -842,7 +842,7 @@ impl Gallery {
                 ),
                 (
                     "Without Separator",
-                    row(vec![h::ToggleButtonGroup::new()
+                    row(vec![h::ToggleButtonGroup::new("toggle-without-separator")
                         .separators(false)
                         .child_toggle(h::ToggleButton::new("tbn-1").label("One"))
                         .child_toggle(h::ToggleButton::new("tbn-2").label("Two"))
@@ -853,14 +853,14 @@ impl Gallery {
                     "Selection Mode",
                     col(vec![
                         para("Single: exactly one member stays selected.", cx),
-                        h::ToggleButtonGroup::new()
+                        h::ToggleButtonGroup::new("toggle-selection-single")
                             .selection_mode(SelectionMode::Single)
                             .child_toggle(h::ToggleButton::new("tbsm-s-1").key("a").label("A"))
                             .child_toggle(h::ToggleButton::new("tbsm-s-2").key("b").label("B"))
                             .child_toggle(h::ToggleButton::new("tbsm-s-3").key("c").label("C"))
                             .into_any_element(),
                         para("Multiple: any number of members can be selected.", cx),
-                        h::ToggleButtonGroup::new()
+                        h::ToggleButtonGroup::new("toggle-selection-multiple")
                             .selection_mode(SelectionMode::Multiple)
                             .child_toggle(h::ToggleButton::new("tbsm-m-1").key("a").label("A"))
                             .child_toggle(h::ToggleButton::new("tbsm-m-2").key("b").label("B"))
@@ -869,14 +869,60 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Default Selected Keys",
+                    col(vec![
+                        para(
+                            "Uncontrolled: `defaultSelectedKeys` seeds the group's own \
+                             selection, and the group keeps ownership from there — clicking \
+                             a member still toggles it.",
+                            cx,
+                        ),
+                        h::ToggleButtonGroup::new("toggle-default-single")
+                            .selection_mode(SelectionMode::Single)
+                            .default_selected_keys(["center"])
+                            .child_toggle(
+                                h::ToggleButton::new("tbu-s-left").key("left").label("Left")
+                            )
+                            .child_toggle(
+                                h::ToggleButton::new("tbu-s-center")
+                                    .key("center")
+                                    .label("Center"),
+                            )
+                            .child_toggle(
+                                h::ToggleButton::new("tbu-s-right")
+                                    .key("right")
+                                    .label("Right"),
+                            )
+                            .into_any_element(),
+                        para("Multiple: any number of members can be selected.", cx),
+                        h::ToggleButtonGroup::new("toggle-default-multiple")
+                            .selection_mode(SelectionMode::Multiple)
+                            .default_selected_keys(["bold", "underline"])
+                            .child_toggle(
+                                h::ToggleButton::new("tbu-m-bold").key("bold").label("Bold")
+                            )
+                            .child_toggle(
+                                h::ToggleButton::new("tbu-m-italic")
+                                    .key("italic")
+                                    .label("Italic"),
+                            )
+                            .child_toggle(
+                                h::ToggleButton::new("tbu-m-underline")
+                                    .key("underline")
+                                    .label("Underline"),
+                            )
+                            .into_any_element(),
+                    ]),
+                ),
+                (
                     "Vertical & detached",
                     row(vec![
-                        h::ToggleButtonGroup::new()
+                        h::ToggleButtonGroup::new("toggle-vertical")
                             .orientation(Orientation::Vertical)
                             .child_toggle(h::ToggleButton::new("tbv-1").label("Top"))
                             .child_toggle(h::ToggleButton::new("tbv-2").label("Bottom"))
                             .into_any_element(),
-                        h::ToggleButtonGroup::new()
+                        h::ToggleButtonGroup::new("toggle-detached")
                             .is_detached(true)
                             .child_toggle(h::ToggleButton::new("tbd-1").label("A"))
                             .child_toggle(h::ToggleButton::new("tbd-2").label("B"))
@@ -1421,7 +1467,7 @@ impl Gallery {
                                         h::ListBoxItem::new("delete", "Delete").danger(),
                                     ],
                                 )
-                                .selected_key("keep"),
+                                .default_selected_keys([SharedString::from("keep")]),
                             )
                             .into_any_element(),
                     ]),
@@ -3282,7 +3328,7 @@ impl Gallery {
                             .column("Email")
                             .row_height(px(40.))
                             .max_h(px(320.))
-                            .virtual_rows(1000, |i| {
+                            .virtual_rows(1000, "virtual-users", |i| {
                                 let (name, email) = virtual_user(i);
                                 h::TableRow::new(vec![
                                     gpui::div().child(name).into_any_element(),
@@ -3304,7 +3350,7 @@ impl Gallery {
                             .loader_height(px(44.))
                             .max_h(px(320.))
                             .is_pending(true)
-                            .virtual_rows(1000, |i| {
+                            .virtual_rows(1000, "virtual-variable-users", |i| {
                                 let (name, email) = virtual_user(i);
                                 let mut cells = vec![gpui::div()
                                     .flex()
@@ -6583,9 +6629,15 @@ impl Gallery {
 
     pub fn page_radio_group(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let selected = self.radio_sel;
-        let options: Vec<SharedString> = vec!["Free".into(), "Pro".into(), "Enterprise".into()];
+        let options: Vec<h::RadioOption> = vec!["Free".into(), "Pro".into(), "Enterprise".into()];
+        let selected_value = SharedString::from(match selected {
+            Some(0) => "Free",
+            Some(1) => "Pro",
+            Some(2) => "Enterprise",
+            _ => "",
+        });
         let plans =
-            || -> Vec<SharedString> { vec!["Free".into(), "Pro".into(), "Enterprise".into()] };
+            || -> Vec<h::RadioOption> { vec!["Free".into(), "Pro".into(), "Enterprise".into()] };
         component_doc_page!(
             "Radio Group",
             crate::pages::Page::RadioGroup.description(),
@@ -6594,7 +6646,7 @@ impl Gallery {
                 (
                     "Usage",
                     col(vec![h::RadioGroup::new("rg-usage", plans())
-                        .default_value(Some(0))
+                        .default_value("Free")
                         // v3's own example opens with the group's `<Label>` and
                         // `<Description>`, then a `<Description>` per `<Radio>`.
                         .label("Plan selection")
@@ -6610,10 +6662,10 @@ impl Gallery {
                     "Variants",
                     col(vec![
                         h::RadioGroup::new("rg-v-primary", plans())
-                            .default_value(Some(0))
+                            .default_value("Free")
                             .into_any_element(),
                         h::RadioGroup::new("rg-v-secondary", plans())
-                            .default_value(Some(1))
+                            .default_value("Pro")
                             .variant(FieldVariant::Secondary)
                             .into_any_element(),
                     ]),
@@ -6624,7 +6676,7 @@ impl Gallery {
                         .padding(px(24.))
                         .child(
                             h::RadioGroup::new("rg-surface", plans())
-                                .default_value(Some(0))
+                                .default_value("Free")
                                 .variant(FieldVariant::Secondary),
                         )
                         .into_any_element()]),
@@ -6632,7 +6684,7 @@ impl Gallery {
                 (
                     "Validation",
                     col(vec![h::RadioGroup::new("rg-validate", plans())
-                        .value(None)
+                        .default_value("")
                         .label("Plan")
                         .is_required(true)
                         // v3 composes a `<FieldError>` in the group; supplying
@@ -6651,14 +6703,14 @@ impl Gallery {
                                 "Overnight".into(),
                             ],
                         )
-                        .default_value(Some(0))
+                        .default_value("Standard — 5 to 7 days")
                         .into_any_element(),
                         h::Separator::new().into_any_element(),
                         h::RadioGroup::new(
                             "rg-payment",
                             vec!["Card".into(), "Bank transfer".into(), "Invoice".into()],
                         )
-                        .default_value(Some(0))
+                        .default_value("Card")
                         .orientation(Orientation::Horizontal)
                         .into_any_element(),
                     ]),
@@ -6672,35 +6724,45 @@ impl Gallery {
                             cx,
                         ),
                         h::RadioGroup::new("rg-indicator", plans())
-                            .default_value(Some(2))
+                            .default_value("Enterprise")
                             .into_any_element(),
                     ]),
                 ),
                 (
                     "Vertical",
                     col(vec![h::RadioGroup::new("rg-v", options.clone())
-                        .value(selected)
-                        .on_change(usize_cb(cx.listener(|this, i: &usize, _, cx| {
-                            this.radio_sel = Some(*i);
+                        .value(selected_value.clone())
+                        .on_change(cx.listener(|this, value: &SharedString, _, cx| {
+                            this.radio_sel = match value.as_ref() {
+                                "Free" => Some(0),
+                                "Pro" => Some(1),
+                                "Enterprise" => Some(2),
+                                _ => None,
+                            };
                             cx.notify();
-                        })))
+                        }))
                         .into_any_element()]),
                 ),
                 (
                     "Uncontrolled",
                     col(vec![h::RadioGroup::new("rg-unc", options.clone())
-                        .default_value(Some(1))
+                        .default_value("Pro")
                         .into_any_element()]),
                 ),
                 (
                     "Horizontal",
                     col(vec![h::RadioGroup::new("rg-h", options.clone())
-                        .value(selected)
+                        .value(selected_value.clone())
                         .orientation(Orientation::Horizontal)
-                        .on_change(usize_cb(cx.listener(|this, i: &usize, _, cx| {
-                            this.radio_sel = Some(*i);
+                        .on_change(cx.listener(|this, value: &SharedString, _, cx| {
+                            this.radio_sel = match value.as_ref() {
+                                "Free" => Some(0),
+                                "Pro" => Some(1),
+                                "Enterprise" => Some(2),
+                                _ => None,
+                            };
                             cx.notify();
-                        })))
+                        }))
                         .into_any_element()]),
                 ),
                 (
@@ -6711,13 +6773,19 @@ impl Gallery {
                         // instead disables one option — dimmed, unclickable,
                         // skipped by the arrows.
                         h::RadioGroup::new("rg-d", options)
-                            .value(selected)
+                            .value(selected_value)
                             .is_disabled(true)
                             .into_any_element(),
-                        h::RadioGroup::new("rg-d-opt", plans())
-                            .default_value(Some(2))
-                            .disabled_keys([0])
-                            .into_any_element(),
+                        h::RadioGroup::new(
+                            "rg-d-opt",
+                            vec![
+                                h::RadioOption::new("Free").is_disabled(true),
+                                "Pro".into(),
+                                "Enterprise".into(),
+                            ],
+                        )
+                        .default_value("Enterprise")
+                        .into_any_element(),
                     ]),
                 ),
             ],
@@ -7393,7 +7461,7 @@ impl Gallery {
                 .is_attached(attached)
                 .orientation(orientation)
                 .child(
-                    h::ToggleButtonGroup::new()
+                    h::ToggleButtonGroup::new(el_id(format!("toolbar-toggle-{key}")))
                         .selection_mode(SelectionMode::Multiple)
                         .child_toggle(
                             h::ToggleButton::new(el_id(format!("tbar-{key}-b"))).label("B"),

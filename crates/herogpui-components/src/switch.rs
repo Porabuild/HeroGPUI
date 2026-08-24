@@ -386,7 +386,7 @@ impl RenderOnce for Switch {
                 })
         });
 
-        if !self.is_disabled && (self.on_change.is_some() || own.is_some()) {
+        if !self.is_disabled && !self.is_read_only && (self.on_change.is_some() || own.is_some()) {
             let on_change = self.on_change;
             track = track.on_click(move |_, window, cx| {
                 // Uncontrolled: flip our own copy, or nothing could change it.

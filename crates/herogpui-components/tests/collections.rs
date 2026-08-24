@@ -136,16 +136,14 @@ fn list_box_click_selects_and_arrows_move(cx: &mut TestAppContext) {
         "clicking the first row must select it"
     );
 
-    // The click's mouse-down moved the window's focus onto the list, so the
-    // arrows reach it. The cursor starts at "nowhere": the first Down lands it
-    // on the top row and the second moves it to the second row, which Enter
-    // then takes.
+    // The click's mouse-down focused Alpha, so the arrows walk from that row.
+    // Two Downs reach Gamma, which Enter then takes.
     press(cx, "down down");
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["alpha", "beta"],
-        "Down Down Enter must move the keyboard to the second row and choose it"
+        ["alpha", "gamma"],
+        "Down Down Enter must move from Alpha to Gamma and choose it"
     );
 }
 

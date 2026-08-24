@@ -52,7 +52,8 @@ use std::collections::HashSet;
 use gpui::{prelude::*, px, SharedString, TestAppContext};
 use herogpui_components::{
     Button, Checkbox, CheckboxGroup, CheckboxOption, Form, FormData, FormField, Input, InputState,
-    NumberField, NumberState, RadioGroup, Switch, SwitchGroup, Time, TimeField, TimeState,
+    NumberField, NumberState, RadioGroup, RadioOption, Switch, SwitchGroup, Time, TimeField,
+    TimeState,
 };
 
 use harness::{click, events, open_host, press};
@@ -172,8 +173,8 @@ fn radio_group_arrows_move_and_select(cx: &mut TestAppContext) {
                     "rg-roving",
                     vec!["One".into(), "Two".into(), "Three".into()],
                 )
-                .default_value(Some(0))
-                .on_change(move |index, _, _| picks.borrow_mut().push(index.to_string())),
+                .default_value("One")
+                .on_change(move |value, _, _| picks.borrow_mut().push(value.to_string())),
             )
             // A second tab stop after the group, so "Tab leaves the group"
             // is observable: Tab must move past the radios to this switch,
@@ -197,7 +198,7 @@ fn radio_group_arrows_move_and_select(cx: &mut TestAppContext) {
     press(cx, "up");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["1", "2", "1"],
+        ["Two", "Three", "Two"],
         "Down Down Up must move AND select within the one tab stop"
     );
 
@@ -208,7 +209,7 @@ fn radio_group_arrows_move_and_select(cx: &mut TestAppContext) {
     press(cx, "down");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["1", "2", "1"],
+        ["Two", "Three", "Two"],
         "the group must not answer the arrows after Tab leaves it"
     );
 
@@ -238,11 +239,14 @@ fn radio_group_disabled_option_is_skipped(cx: &mut TestAppContext) {
         let picks = picks.clone();
         RadioGroup::new(
             "rg-disabled-opt",
-            vec!["One".into(), "Two".into(), "Three".into()],
+            vec![
+                "One".into(),
+                RadioOption::new("Two").is_disabled(true),
+                "Three".into(),
+            ],
         )
-        .default_value(Some(0))
-        .disabled_keys([1])
-        .on_change(move |index, _, _| picks.borrow_mut().push(index.to_string()))
+        .default_value("One")
+        .on_change(move |value, _, _| picks.borrow_mut().push(value.to_string()))
         .into_any_element()
     });
 
@@ -254,7 +258,7 @@ fn radio_group_disabled_option_is_skipped(cx: &mut TestAppContext) {
     press(cx, "up");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["2", "0"],
+        ["Three", "One"],
         "Down and Up must skip the disabled option and land on the enabled \
          ones around it"
     );
@@ -266,7 +270,7 @@ fn radio_group_disabled_option_is_skipped(cx: &mut TestAppContext) {
     click(cx, 8., 46.);
     assert_eq!(
         picked.borrow().as_slice(),
-        ["2", "0"],
+        ["Three", "One"],
         "the disabled option must not answer a click"
     );
 
@@ -274,7 +278,7 @@ fn radio_group_disabled_option_is_skipped(cx: &mut TestAppContext) {
     click(cx, 8., 11.);
     assert_eq!(
         picked.borrow().as_slice(),
-        ["2", "0", "0"],
+        ["Three", "One", "One"],
         "an enabled option beside a disabled one must still answer a click"
     );
 }
@@ -284,20 +288,22 @@ fn radio_group_first_option_disabled_stays_reachable(cx: &mut TestAppContext) {
     // AGENTS.md's roving tab stop: a stop that rests on a disabled option
     // takes the group out of the tab order. With row 0 disabled and nothing
     // selected, the group's one stop must fall on the first *enabled* option,
-    // so Tab still reaches the group — and the first Down, moving from
-    // nowhere, selects that same first enabled option (React Aria's radio
-    // group starts a keyboard walk at the top of the enabled list).
+    // so Tab still reaches the group. React Aria then walks from that focused
+    // option, so Down advances to the following enabled option.
     let picks = events();
     let picked = picks.clone();
     let cx = open_host(cx, move || {
         let picks = picks.clone();
         RadioGroup::new(
             "rg-first-disabled",
-            vec!["One".into(), "Two".into(), "Three".into()],
+            vec![
+                RadioOption::new("One").is_disabled(true),
+                "Two".into(),
+                "Three".into(),
+            ],
         )
-        .default_value(None)
-        .disabled_keys([0])
-        .on_change(move |index, _, _| picks.borrow_mut().push(index.to_string()))
+        .default_value("")
+        .on_change(move |value, _, _| picks.borrow_mut().push(value.to_string()))
         .into_any_element()
     });
 
@@ -305,9 +311,9 @@ fn radio_group_first_option_disabled_stays_reachable(cx: &mut TestAppContext) {
     press(cx, "down");
     assert_eq!(
         picked.borrow().as_slice(),
-        ["1"],
+        ["Three"],
         "Tab must reach the group with the first option disabled, and the \
-         first Down must select the first enabled option"
+         first Down must advance from the focused option"
     );
 }
 

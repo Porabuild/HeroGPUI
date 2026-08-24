@@ -14,6 +14,8 @@ pub struct NumberState {
     value: f64,
     min: f64,
     max: f64,
+    has_min: bool,
+    has_max: bool,
     step: f64,
     /// `formatOptions`, written in by [`NumberField::format_options`]. The
     /// state owns it because the state is what turns a value into text.
@@ -32,6 +34,8 @@ impl NumberState {
             value: initial,
             min: f64::MIN,
             max: f64::MAX,
+            has_min: false,
+            has_max: false,
             step: 1.0,
             format: None,
         }
@@ -81,10 +85,30 @@ impl NumberState {
     pub fn set_range(&mut self, min: f64, max: f64) {
         self.min = min;
         self.max = max;
+        self.has_min = true;
+        self.has_max = true;
     }
 
     pub fn range(&self) -> (f64, f64) {
         (self.min, self.max)
+    }
+
+    fn set_component_range(&mut self, min: Option<f64>, max: Option<f64>) {
+        if let Some(min) = min {
+            self.min = min;
+            self.has_min = true;
+        }
+        if let Some(max) = max {
+            self.max = max;
+            self.has_max = true;
+        }
+    }
+
+    fn bounds(&self) -> (Option<f64>, Option<f64>) {
+        (
+            self.has_min.then_some(self.min),
+            self.has_max.then_some(self.max),
+        )
     }
 
     pub fn step_size(&self) -> f64 {
@@ -384,27 +408,16 @@ impl RenderOnce for NumberField {
         let btn_px = px(40.);
 
         // Component-level `minValue`/`maxValue`/`step` win over whatever the
-        // state was seeded with. Only write when something actually differs,
-        // so this does not loop through `notify`.
-        if self.min_value.is_some() || self.max_value.is_some() || self.step.is_some() {
-            let (cur_min, cur_max, cur_step) = {
-                let st = self.state.read(cx);
-                let (lo, hi) = st.range();
-                (lo, hi, st.step_size())
-            };
-            let min = self.min_value.unwrap_or(cur_min);
-            let max = self.max_value.unwrap_or(cur_max);
-            let step = self.step.unwrap_or(cur_step);
-            // Exact comparison on purpose: these are the same values round-
-            // tripped through the state entity, so anything but bit equality
-            // means the caller passed a new prop and the state must be written.
-            #[allow(clippy::float_cmp)]
-            let changed = min != cur_min || max != cur_max || step != cur_step;
-            if changed {
-                self.state.update(cx, |s, _| {
-                    s.set_range(min, max);
-                    s.set_step(step);
-                });
+        // state was seeded with. Bound presence is stored separately from its
+        // number, because f64::MIN/MAX are also legitimate explicit bounds.
+        if self.min_value.is_some() || self.max_value.is_some() {
+            self.state.update(cx, |s, _| {
+                s.set_component_range(self.min_value, self.max_value);
+            });
+        }
+        if let Some(step) = self.step {
+            if step.to_bits() != self.state.read(cx).step_size().to_bits() {
+                self.state.update(cx, |s, _| s.set_step(step));
             }
         }
 
@@ -501,7 +514,7 @@ impl RenderOnce for NumberField {
                     btn_px,
                     icons::MINUS,
                     -1.0,
-                    self.is_disabled,
+                    self.is_disabled || self.is_read_only,
                 )
                 .border_r_1()
                 .border_color(seam),
@@ -518,7 +531,7 @@ impl RenderOnce for NumberField {
                     btn_px,
                     icons::PLUS,
                     1.0,
-                    self.is_disabled,
+                    self.is_disabled || self.is_read_only,
                 )
                 .border_l_1()
                 .border_color(seam),
@@ -531,12 +544,15 @@ impl RenderOnce for NumberField {
         if !self.is_disabled && !self.is_read_only {
             let key_state = self.state.clone();
             let key_change = self.on_change.clone();
+            let (min_value, max_value) = self.state.read(cx).bounds();
             group = group.on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
-                let (min, max) = key_state.read(cx).range();
                 let dir = match ev.keystroke.key.as_str() {
                     "up" | "pageup" => 1.0,
                     "down" | "pagedown" => -1.0,
                     "home" => {
+                        let Some(min) = min_value else {
+                            return;
+                        };
                         key_state.update(cx, |s, cx| s.set_value(min, cx));
                         if let Some(cb) = &key_change {
                             cb(key_state.read(cx).value(), window, cx);
@@ -544,6 +560,9 @@ impl RenderOnce for NumberField {
                         return;
                     }
                     "end" => {
+                        let Some(max) = max_value else {
+                            return;
+                        };
                         key_state.update(cx, |s, cx| s.set_value(max, cx));
                         if let Some(cb) = &key_change {
                             cb(key_state.read(cx).value(), window, cx);

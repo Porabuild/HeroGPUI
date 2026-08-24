@@ -10,7 +10,7 @@
 //! What is deliberately absent is the HTTP half — `action`, `method`, `encType`
 //! and `target`. There is no browser to navigate.
 
-use std::sync::Arc;
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use gpui::{
     px, AnyElement, App, Entity, IntoElement, ParentElement, RenderOnce, SharedString, Styled,
@@ -222,6 +222,24 @@ impl FormField {
             name: Some(name.into()),
             name_of: None,
             read: Arc::new(move |_| FormValue::Text(value.clone())),
+            restore: None,
+            is_required: false,
+            validation_behavior: ValidationBehavior::Native,
+            behavior_of: None,
+            invalid_of: None,
+            focus: None,
+        }
+    }
+
+    /// A plain text value owned by a single-threaded rendered control.
+    pub(crate) fn live_text_value(
+        name: impl Into<SharedString>,
+        value: Rc<RefCell<SharedString>>,
+    ) -> Self {
+        Self {
+            name: Some(name.into()),
+            name_of: None,
+            read: Arc::new(move |_| FormValue::Text(value.borrow().clone())),
             restore: None,
             is_required: false,
             validation_behavior: ValidationBehavior::Native,

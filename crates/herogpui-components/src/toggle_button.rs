@@ -21,6 +21,14 @@ pub enum ToggleVariant {
     Ghost,
 }
 
+#[derive(Clone, Default)]
+struct ToggleGroupFocusState {
+    last_key: Option<SharedString>,
+    was_inside: bool,
+    restore_on_entry: bool,
+    edge_exit: bool,
+}
+
 #[derive(IntoElement)]
 pub struct ToggleButton {
     id: ElementId,
@@ -33,11 +41,17 @@ pub struct ToggleButton {
     content: Option<std::sync::Arc<dyn Fn(crate::util::InteractiveState) -> AnyElement + 'static>>,
     variant: ToggleVariant,
     size: Size,
+    /// Whether the child explicitly set `size`. HeroUI's group context only
+    /// supplies a size when the child did not override it.
+    size_explicit: bool,
     /// `isSelected` — `None` leaves the button holding the state, seeded from
     /// `defaultSelected`.
     is_selected: Option<bool>,
     default_selected: bool,
     is_icon_only: bool,
+    /// Supplied by a toggle group so it can navigate its typed children
+    /// without falling through to the window-wide tab order.
+    group_focus_handle: Option<gpui::FocusHandle>,
     /// Set by [`ToggleButtonGroup`]: which end of the group this member is,
     /// and whether the group stacks. `.toggle-button-group .toggle-button` is
     /// `rounded-none` with the outer radius on the first and last member.
@@ -75,9 +89,11 @@ impl ToggleButton {
             label: None,
             variant: ToggleVariant::Default,
             size: Size::Md,
+            size_explicit: false,
             is_selected: None,
             default_selected: false,
             is_icon_only: false,
+            group_focus_handle: None,
             group_edge: None,
             is_disabled: false,
             children: Vec::new(),
@@ -110,6 +126,14 @@ impl ToggleButton {
 
     pub fn size(mut self, s: Size) -> Self {
         self.size = s;
+        self.size_explicit = true;
+        self
+    }
+
+    fn group_size(mut self, size: Size) -> Self {
+        if !self.size_explicit {
+            self.size = size;
+        }
         self
     }
 
@@ -140,8 +164,32 @@ impl ToggleButton {
         self
     }
 
+    fn group_focus_handle(mut self, handle: gpui::FocusHandle) -> Self {
+        self.group_focus_handle = Some(handle);
+        self
+    }
+
+    fn group_on_press(
+        mut self,
+        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        let child = self.on_press.take();
+        self.on_press = Some(std::sync::Arc::new(move |event, window, cx| {
+            handler(event, window, cx);
+            if let Some(child) = &child {
+                child(event, window, cx);
+            }
+        }));
+        self
+    }
+
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
+        self
+    }
+
+    fn group_disabled(mut self, v: bool) -> Self {
+        self.is_disabled |= v;
         self
     }
 
@@ -182,11 +230,13 @@ impl RenderOnce for ToggleButton {
         );
 
         // `.toggle-button:focus-visible` is `status-focused`.
-        let focus_handle = crate::util::tab_stop_handle(
-            ElementId::Name(format!("{:?}-focus", self.id).into()),
-            window,
-            cx,
-        );
+        let focus_handle = self.group_focus_handle.clone().unwrap_or_else(|| {
+            crate::util::tab_stop_handle(
+                ElementId::Name(format!("{:?}-focus", self.id).into()),
+                window,
+                cx,
+            )
+        });
         // Where the hover and press a `content` closure is handed come from.
         let interaction = self.content.as_ref().map(|_| {
             crate::util::interaction(
@@ -338,8 +388,14 @@ impl RenderOnce for ToggleButton {
 
 #[derive(IntoElement)]
 pub struct ToggleButtonGroup {
+    id: ElementId,
     selected: Vec<SharedString>,
+    default_selected: Vec<SharedString>,
+    /// `Vec` alone cannot distinguish controlled empty from uncontrolled.
+    is_controlled: bool,
     selection_mode: SelectionMode,
+    size: Size,
+    is_disabled: bool,
     is_detached: bool,
     /// Whether a `ToggleButtonGroup.Separator` sits before each member after
     /// the first. v3 composes it as a child, and hides it when detached.
@@ -372,10 +428,15 @@ impl ToggleButtonGroup {
         self.on_change(handler)
     }
 
-    pub fn new() -> Self {
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
+            id: id.into(),
             selected: Vec::new(),
-            selection_mode: SelectionMode::Multiple,
+            default_selected: Vec::new(),
+            is_controlled: false,
+            selection_mode: SelectionMode::Single,
+            size: Size::Md,
+            is_disabled: false,
             is_detached: false,
             separators: true,
             is_vertical: false,
@@ -388,6 +449,18 @@ impl ToggleButtonGroup {
 
     pub fn selection_mode(mut self, m: SelectionMode) -> Self {
         self.selection_mode = m;
+        self
+    }
+
+    /// `size` — inherited by children that do not set their own size.
+    pub fn size(mut self, size: Size) -> Self {
+        self.size = size;
+        self
+    }
+
+    /// `isDisabled` — disables every child, matching React Aria's group state.
+    pub fn is_disabled(mut self, v: bool) -> Self {
+        self.is_disabled = v;
         self
     }
 
@@ -412,6 +485,16 @@ impl ToggleButtonGroup {
         keys: impl IntoIterator<Item = impl Into<SharedString>>,
     ) -> Self {
         self.selected = keys.into_iter().map(Into::into).collect();
+        self.is_controlled = true;
+        self
+    }
+
+    /// `defaultSelectedKeys` — seeds the group's own selection state.
+    pub fn default_selected_keys(
+        mut self,
+        keys: impl IntoIterator<Item = impl Into<SharedString>>,
+    ) -> Self {
+        self.default_selected = keys.into_iter().map(Into::into).collect();
         self
     }
 
@@ -429,26 +512,21 @@ impl ToggleButtonGroup {
     }
 }
 
-impl Default for ToggleButtonGroup {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl ParentElement for ToggleButtonGroup {
-    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
-        // Direct AnyElement children are wrapped as generic — for typed ToggleButton use child_toggle
-        let _ = elements;
-    }
-}
-
 impl RenderOnce for ToggleButtonGroup {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let (selected, selection_own) = crate::util::controlled(
+            window,
+            cx,
+            ElementId::Name(format!("{:?}-selected", self.id).into()),
+            self.is_controlled.then_some(self.selected),
+            self.default_selected,
+        );
         // `.toggle-button-group` is `inline-flex items-center justify-center
         // gap-0`; `--detached` is `gap-1` and restores each member's full
         // radius.
         let gap = if self.is_detached { px(4.) } else { px(0.) };
         let mut row = div()
+            .id(self.id.clone())
             .flex()
             .items_center()
             .justify_center()
@@ -467,24 +545,173 @@ impl RenderOnce for ToggleButtonGroup {
         let separator_color = cx.colors().foreground.alpha(0.15);
         let separator_radius = crate::util::hairline_radius(cx);
 
-        let selected = self.selected.clone();
         let mode = self.selection_mode;
         let disallow_empty = self.disallow_empty_selection;
 
-        for (i, btn) in self.children.into_iter().enumerate() {
+        let mut children = self
+            .children
+            .into_iter()
+            .map(|button| {
+                button
+                    .group_disabled(self.is_disabled)
+                    .group_size(self.size)
+            })
+            .collect::<Vec<_>>();
+        let members = children
+            .iter()
+            .filter(|button| !button.is_disabled)
+            .map(|button| {
+                (
+                    button.selection_key(),
+                    crate::util::tab_stop_handle(
+                        ElementId::Name(
+                            format!("{:?}-member-{:?}-focus", self.id, button.id).into(),
+                        ),
+                        window,
+                        cx,
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
+        let focus_state = window.use_keyed_state(
+            ElementId::Name(format!("{:?}-focus-state", self.id).into()),
+            cx,
+            |_, _| ToggleGroupFocusState::default(),
+        );
+        let current = members
+            .iter()
+            .position(|(_, handle)| handle.is_focused(window));
+        let snapshot = focus_state.read(cx).clone();
+        if let Some(current) = current {
+            let mut effective = current;
+            if !snapshot.was_inside && snapshot.restore_on_entry {
+                if let Some(last) = &snapshot.last_key {
+                    if let Some(restored) = members.iter().position(|(key, _)| key == last) {
+                        effective = restored;
+                        if restored != current {
+                            window.focus(&members[restored].1);
+                        }
+                    }
+                }
+            }
+            let key = members[effective].0.clone();
+            focus_state.update(cx, |state, _| {
+                state.last_key = Some(key);
+                state.was_inside = true;
+                state.restore_on_entry = false;
+                state.edge_exit = false;
+            });
+        } else if snapshot.was_inside {
+            focus_state.update(cx, |state, _| {
+                state.was_inside = false;
+                state.restore_on_entry = !state.edge_exit;
+                state.edge_exit = false;
+            });
+        } else if snapshot.edge_exit {
+            focus_state.update(cx, |state, _| state.edge_exit = false);
+        }
+
+        let vertical = self.is_vertical;
+        let key_focuses = members
+            .iter()
+            .map(|(_, handle)| handle.clone())
+            .collect::<Vec<_>>();
+        let key_focus_state = focus_state.clone();
+        row = row.on_key_down(move |event: &gpui::KeyDownEvent, window, cx| {
+            let movement = match (vertical, event.keystroke.key.as_str()) {
+                (false, "right") | (true, "down") => Some("next"),
+                (false, "left") | (true, "up") => Some("prev"),
+                _ => None,
+            };
+
+            if let Some(movement) = movement {
+                // Cross-axis arrows return above unconsumed. The group owns
+                // only its axis, matching the pinned `useToolbar` handler.
+                let Some(index) = key_focuses
+                    .iter()
+                    .position(|handle| handle.is_focused(window))
+                else {
+                    return;
+                };
+                let next = if movement == "next" {
+                    index
+                        .checked_add(1)
+                        .filter(|next| *next < key_focuses.len())
+                } else {
+                    index.checked_sub(1)
+                };
+                if let Some(next) = next {
+                    cx.stop_propagation();
+                    window.focus(&key_focuses[next]);
+                } else {
+                    key_focus_state.update(cx, |state, _| state.edge_exit = true);
+                    window.refresh();
+                }
+                return;
+            }
+
+            if matches!(
+                event.keystroke.key.as_str(),
+                "up" | "down" | "left" | "right"
+            ) {
+                // A cross-axis arrow may belong to an enclosing toolbar. If it
+                // moves focus out, do not restore the inner group's last item.
+                key_focus_state.update(cx, |state, _| state.edge_exit = true);
+                window.refresh();
+                return;
+            }
+
+            if event.keystroke.key != "tab" {
+                return;
+            }
+            // `useToolbar` moves to the edge and deliberately leaves Tab
+            // unconsumed. The app root then performs its ordinary one step,
+            // which exits the whole group instead of walking another member.
+            let edge = if event.keystroke.modifiers.shift {
+                key_focuses.first()
+            } else {
+                key_focuses.last()
+            };
+            if let Some(edge) = edge {
+                window.focus(edge);
+            }
+        });
+
+        let mut member_focuses = members.into_iter().map(|(_, handle)| handle);
+        for (i, btn) in children.drain(..).enumerate() {
             // Reflect the group's selection into the child, and let the child
             // report the next selection back through the group's callback.
             let key = btn.selection_key();
             let is_selected = selected.iter().any(|k| k == &key);
-            let mut btn = btn.is_selected(is_selected);
+            let mut btn = if btn.is_disabled {
+                btn.is_selected(is_selected)
+            } else {
+                btn.group_focus_handle(
+                    member_focuses
+                        .next()
+                        .expect("every enabled toggle has a group focus handle"),
+                )
+                .is_selected(is_selected)
+            };
 
-            if let Some(on_change) = self.on_change.clone() {
+            if self.on_change.is_some() || selection_own.is_some() {
+                let on_change = self.on_change.clone();
+                let own = selection_own.clone();
                 let current = selected.clone();
                 let key = key.clone();
-                btn = btn.on_press(move |_, window, cx| {
+                btn = btn.group_on_press(move |_, window, cx| {
                     let next =
                         crate::selection::next_selection(&current, &key, mode, disallow_empty);
-                    on_change(&next, window, cx);
+                    if let Some(held) = &own {
+                        let held_next = next.clone();
+                        held.update(cx, |value, cx| {
+                            *value = held_next;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(change) = &on_change {
+                        change(&next, window, cx);
+                    }
                 });
             }
 

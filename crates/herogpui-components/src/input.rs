@@ -525,6 +525,7 @@ impl InputType {
 }
 
 type TextCallback = std::sync::Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>;
+type ClearCallback = std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>;
 
 /// The character Enter inserts in a multi-line field.
 const NEWLINE: char = '\n';
@@ -667,6 +668,10 @@ pub struct Input {
     /// `defaultValue` — seeds the state on the first render only.
     default_value: Option<SharedString>,
     is_clearable: bool,
+    /// SearchField-only: Escape clears a non-empty query.
+    clear_on_escape: bool,
+    /// SearchField-only: the clear affordance and Escape report this action.
+    on_clear: Option<ClearCallback>,
     on_change: Option<TextCallback>,
     on_submit: Option<TextCallback>,
 }
@@ -731,6 +736,8 @@ impl Input {
             default_value: None,
             multiline: false,
             is_clearable: false,
+            clear_on_escape: false,
+            on_clear: None,
             on_change: None,
             on_submit: None,
         }
@@ -936,6 +943,20 @@ impl Input {
     /// Shows a clear button when there is a value.
     pub fn is_clearable(mut self, v: bool) -> Self {
         self.is_clearable = v;
+        self
+    }
+
+    /// SearchField's Escape shortcut, kept internal because plain Input has no
+    /// clear-on-Escape contract.
+    pub(crate) fn clear_on_escape(mut self, v: bool) -> Self {
+        self.clear_on_escape = v;
+        self
+    }
+
+    /// SearchField's dedicated clear action, separate from an edit that merely
+    /// produces an empty value.
+    pub(crate) fn on_clear(mut self, f: ClearCallback) -> Self {
+        self.on_clear = Some(f);
         self
     }
 
@@ -1320,6 +1341,7 @@ impl RenderOnce for Input {
         if self.is_clearable && !is_empty && !self.is_disabled && !self.is_read_only {
             let clear_state = self.state.clone();
             let clear_on_change = self.on_change.clone();
+            let on_clear = self.on_clear.clone();
             field = field.child(
                 gpui::div()
                     .id(gpui::ElementId::Name(
@@ -1349,6 +1371,9 @@ impl RenderOnce for Input {
                         if let Some(cb) = &clear_on_change {
                             cb("", window, cx);
                         }
+                        if let Some(cb) = &on_clear {
+                            cb(window, cx);
+                        }
                     })
                     .child(
                         gpui::svg()
@@ -1364,6 +1389,8 @@ impl RenderOnce for Input {
         let state_entity = self.state.clone();
         let on_change = self.on_change.clone();
         let on_submit = self.on_submit.clone();
+        let on_clear = self.on_clear.clone();
+        let clear_on_escape = self.clear_on_escape;
         let is_read_only = self.is_read_only;
         let is_disabled = self.is_disabled;
         field = field.on_key_down(move |ev: &KeyDownEvent, window, cx| {
@@ -1376,6 +1403,7 @@ impl RenderOnce for Input {
             let max_length = self.max_length;
             let multiline = self.multiline;
             let mut changed = false;
+            let mut cleared = false;
             let mut submit = false;
 
             if key == "a" && (mods.control || mods.platform) {
@@ -1513,11 +1541,19 @@ impl RenderOnce for Input {
                         changed = true;
                     }
                     "escape" => {
-                        // Clear selection or dismiss.
+                        let had_value = !state_entity.read(cx).is_empty();
                         state_entity.update(cx, |s, cx| {
                             s.anchor = None;
+                            if clear_on_escape && !is_read_only {
+                                s.value.clear();
+                                s.cursor = 0;
+                            }
                             cx.notify();
                         });
+                        if clear_on_escape && !is_read_only && had_value {
+                            changed = true;
+                            cleared = true;
+                        }
                     }
                     single if single.chars().count() == 1 && !single.is_empty() => {
                         if is_read_only {
@@ -1551,6 +1587,11 @@ impl RenderOnce for Input {
                         let v = state_entity.read(cx).value().to_owned();
                         cb(&v, window, cx);
                     }
+                }
+            }
+            if cleared {
+                if let Some(cb) = &on_clear {
+                    cb(window, cx);
                 }
             }
             if submit {
@@ -2005,20 +2046,14 @@ impl RenderOnce for SearchField {
             input = input.description(description);
         }
 
-        // `isClearable` empties the state and reports "" through `on_change`;
-        // `on_clear` is the dedicated notification for that transition.
-        let on_clear = self.on_clear.clone();
-        let on_change = self.on_change.clone();
-        input = input.on_change(move |text, window, cx| {
-            if let Some(cb) = &on_change {
-                cb(text, window, cx);
-            }
-            if text.is_empty() {
-                if let Some(cb) = &on_clear {
-                    cb(window, cx);
-                }
-            }
-        });
+        // React Aria reports `onClear` only for the clear affordance or its
+        // Escape shortcut, never because ordinary editing reached "".
+        input = input
+            .clear_on_escape(true)
+            .when_some(self.on_clear, |input, on_clear| input.on_clear(on_clear));
+        if let Some(on_change) = self.on_change {
+            input = input.on_change(move |text, window, cx| on_change(text, window, cx));
+        }
 
         if let Some(on_submit) = self.on_submit {
             input = input.on_submit(move |text, window, cx| on_submit(text, window, cx));

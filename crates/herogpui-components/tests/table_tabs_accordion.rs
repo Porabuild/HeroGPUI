@@ -169,8 +169,8 @@ fn wheel_h(cx: &mut VisualTestContext, x: f32, y: f32, dx: f32) {
 /// single stop over the rows, and this port's `list_nav` resolver walks the
 /// same four keys every list-shaped control does. The cursor itself is
 /// internal, so the proof is behavioural: Tab reaches the table, arrows move
-/// the cursor without reporting, and Enter/Space activate the row the cursor
-/// sits on (Home/End jump the cursor).
+/// the cursor without reporting, Enter performs the row action, and Space is
+/// reserved for selection (Home/End jump the cursor).
 #[gpui::test]
 fn table_keyboard_rows_rove_and_activate(cx: &mut TestAppContext) {
     let recorded = events();
@@ -190,8 +190,9 @@ fn table_keyboard_rows_rove_and_activate(cx: &mut TestAppContext) {
     });
 
     // Tab: root -> wrapper (the only stop). Down moves the cursor to row 0;
-    // Enter activates it. Down again to row 1; Space activates it. Home jumps
-    // the cursor back to row 0; End jumps it to the last row.
+    // Enter activates it. Down again to row 1; Space is inert because this
+    // action-only table has no selection. Home jumps the cursor back to row 0;
+    // End jumps it to the last row.
     press(cx, "tab");
     press(cx, "down");
     press(cx, "enter");
@@ -203,10 +204,9 @@ fn table_keyboard_rows_rove_and_activate(cx: &mut TestAppContext) {
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["row:0", "row:1", "row:0", "row:2"],
-        "Enter and Space must activate the row the cursor sits on, and Home \
-         and End must jump the cursor — with `from = None` an activation must \
-         be ignored, so no key before the first arrow can report anything"
+        ["row:0", "row:0", "row:2"],
+        "Enter must activate the row action, Space must remain reserved for \
+         selection, and Home and End must jump the cursor"
     );
 }
 

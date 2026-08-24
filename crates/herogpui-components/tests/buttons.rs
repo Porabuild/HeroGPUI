@@ -414,7 +414,7 @@ fn toggle_button_group_single_and_multiple(cx: &mut TestAppContext) {
             .flex_col()
             .gap(px(320.))
             .child(
-                ToggleButtonGroup::new()
+                ToggleButtonGroup::new("buttons-single-group")
                     .full_width(true)
                     .selection_mode(SelectionMode::Single)
                     .selected_keys(single_selected)
@@ -436,7 +436,7 @@ fn toggle_button_group_single_and_multiple(cx: &mut TestAppContext) {
                     ),
             )
             .child(
-                ToggleButtonGroup::new()
+                ToggleButtonGroup::new("buttons-multiple-group")
                     .full_width(true)
                     .selection_mode(SelectionMode::Multiple)
                     .selected_keys(multi_selected)

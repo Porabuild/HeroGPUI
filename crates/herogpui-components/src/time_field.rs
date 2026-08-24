@@ -177,8 +177,18 @@ impl TimeSegment {
 
 /// State entity for [`TimeField`].
 pub struct TimeState {
+    /// The complete value exposed to callbacks, validation and forms.
     pub value: Option<Time>,
     pub focused: TimeSegment,
+    /// The local value used to draw segments while an edit is incomplete.
+    display_value: Option<Time>,
+    /// Segments cleared from an otherwise complete display. React Stately
+    /// keeps this incomplete value locally and defers `onChange` until every
+    /// displayed segment is complete again.
+    cleared: Vec<TimeSegment>,
+    /// The last controlled prop seen. The outer `Option` distinguishes an
+    /// uncontrolled field from an explicitly controlled `None`.
+    last_controlled: Option<Option<Time>>,
     /// The field's tab stop, carried on the state the way
     /// [`crate::input::InputState`] carries its own: a `content` closure and
     /// the replacement field it draws must share one handle, or the closure
@@ -191,6 +201,9 @@ impl TimeState {
         Self {
             value: None,
             focused: TimeSegment::Hour,
+            display_value: None,
+            cleared: Vec::new(),
+            last_controlled: None,
             // A field is a tab stop: the handle carries that, not the element.
             focus_handle: cx.focus_handle().tab_stop(true),
         }
@@ -200,19 +213,108 @@ impl TimeState {
         Self {
             value: Some(value),
             focused: TimeSegment::Hour,
+            display_value: Some(value),
+            cleared: Vec::new(),
+            last_controlled: None,
             focus_handle: cx.focus_handle().tab_stop(true),
         }
     }
 
     /// Adjusts the focused segment, seeding an empty field from `seed`.
     pub fn bump_focused_from(&mut self, delta: i32, seed: Time) {
-        let base = self.value.unwrap_or(seed);
-        self.value = Some(base.bump(self.focused, delta));
+        let base = self.display_value.unwrap_or(seed);
+        let value = base.bump(self.focused, delta);
+        self.value = Some(value);
+        self.display_value = Some(value);
+        self.cleared.retain(|segment| *segment != self.focused);
     }
 
     /// [`bump_focused_from`](Self::bump_focused_from) seeded at midnight.
     pub fn bump_focused(&mut self, delta: i32) {
         self.bump_focused_from(delta, Time::new(0, 0));
+    }
+
+    fn visible_is_complete(&self, segments: &[TimeSegment]) -> bool {
+        !segments
+            .iter()
+            .any(|segment| self.cleared.contains(segment))
+    }
+
+    fn set_uncontrolled_value(&mut self, value: Option<Time>) {
+        self.value = value;
+        self.display_value = value;
+        self.cleared.clear();
+    }
+
+    fn sync_controlled(&mut self, value: Option<Time>) {
+        if self.last_controlled != Some(value) {
+            self.last_controlled = Some(value);
+            self.display_value = value;
+            self.cleared.clear();
+        }
+        // The controlled prop is always the committed value, but an unchanged
+        // prop must not erase the local incomplete display on every render.
+        self.value = value;
+    }
+
+    fn sync_external_value(&mut self) {
+        if self.last_controlled.is_none()
+            && self.cleared.is_empty()
+            && self.display_value != self.value
+        {
+            self.display_value = self.value;
+        }
+    }
+
+    /// Writes one display segment and returns whether the currently visible
+    /// value became complete. Controlled fields report the candidate and then
+    /// keep drawing their prop until the caller supplies the new value.
+    fn edit_focused(&mut self, value: Time, segments: &[TimeSegment]) -> bool {
+        if self.display_value.is_none() {
+            self.cleared = segments.to_vec();
+        }
+        self.display_value = Some(value);
+        self.cleared.retain(|segment| *segment != self.focused);
+        if !self.visible_is_complete(segments) {
+            return false;
+        }
+
+        match self.last_controlled {
+            Some(controlled) => {
+                self.value = controlled;
+                self.display_value = controlled;
+                self.cleared.clear();
+            }
+            None => self.set_uncontrolled_value(Some(value)),
+        }
+        true
+    }
+
+    /// Clears the active display segment. Once every currently displayed
+    /// segment is empty, the field's value becomes null and reports that
+    /// transition; otherwise React Stately keeps the incomplete display local.
+    fn clear_focused(&mut self, segments: &[TimeSegment]) -> bool {
+        if self.display_value.is_none() {
+            return false;
+        }
+        if !self.cleared.contains(&self.focused) {
+            self.cleared.push(self.focused);
+        }
+        if segments
+            .iter()
+            .all(|segment| self.cleared.contains(segment))
+        {
+            match self.last_controlled {
+                Some(Some(value)) => {
+                    self.value = Some(value);
+                    self.display_value = Some(value);
+                    self.cleared.clear();
+                }
+                Some(None) | None => self.set_uncontrolled_value(None),
+            }
+            return true;
+        }
+        false
     }
 }
 
@@ -232,6 +334,8 @@ pub struct TimeField {
     validation_behavior: crate::form::ValidationBehavior,
     /// `defaultValue` — seeds the state on the first render only.
     default_value: Option<Time>,
+    /// `value` — `Some(None)` is an explicitly controlled empty field.
+    controlled_value: Option<Option<Time>>,
     state: Entity<TimeState>,
     label: Option<SharedString>,
     description: Option<SharedString>,
@@ -271,8 +375,11 @@ pub struct TimeField {
 
 impl TimeField {
     /// `value` — writes through to the bound [`TimeState`].
-    pub fn value(self, time: Option<Time>, cx: &mut App) -> Self {
-        self.state.update(cx, |s, _| s.value = time);
+    pub fn value(mut self, time: Option<Time>, cx: &mut App) -> Self {
+        self.state.update(cx, |state, _| {
+            state.sync_controlled(time);
+        });
+        self.controlled_value = Some(time);
         self
     }
 
@@ -282,6 +389,7 @@ impl TimeField {
             name: None,
             validation_behavior: crate::form::ValidationBehavior::Native,
             default_value: None,
+            controlled_value: None,
             state,
             label: None,
             description: None,
@@ -513,21 +621,32 @@ impl TimeField {
 impl RenderOnce for TimeField {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `defaultValue` seeds the state once, before anything reads it.
-        if let Some(value) = self.default_value {
-            let state = self.state.clone();
-            util::seed_once(
-                window,
-                cx,
-                ElementId::Name(
-                    format!("timefield-default-{}", self.state.entity_id().as_u64()).into(),
-                ),
-                move |cx| {
-                    state.update(cx, |s, cx| {
-                        s.value = Some(value);
-                        cx.notify();
-                    });
-                },
-            );
+        if self.controlled_value.is_none() {
+            if let Some(value) = self.default_value {
+                let state = self.state.clone();
+                util::seed_once(
+                    window,
+                    cx,
+                    ElementId::Name(
+                        format!("timefield-default-{}", self.state.entity_id().as_u64()).into(),
+                    ),
+                    move |cx| {
+                        state.update(cx, |s, cx| {
+                            s.set_uncontrolled_value(Some(value));
+                            cx.notify();
+                        });
+                    },
+                );
+            }
+        }
+        if let Some(value) = self.controlled_value {
+            self.state.update(cx, |state, _| {
+                state.sync_controlled(value);
+            });
+        } else {
+            self.state.update(cx, |state, _| {
+                state.sync_external_value();
+            });
         }
 
         let entity_id = self.state.entity_id().as_u64();
@@ -566,11 +685,12 @@ impl RenderOnce for TimeField {
 
         let colors = cx.colors();
         let layout = cx.layout();
-        let interactive = !self.is_disabled && !self.is_read_only;
+        let navigable = !self.is_disabled;
+        let editable = navigable && !self.is_read_only;
 
-        let (value, focused) = {
+        let (value, display_value, focused, cleared) = {
             let st = self.state.read(cx);
-            (st.value, st.focused)
+            (st.value, st.display_value, st.focused, st.cleared.clone())
         };
 
         // v3 order: the controlled flag, then server errors, then `validate`,
@@ -599,7 +719,14 @@ impl RenderOnce for TimeField {
         let hour_cycle = self.hour_cycle;
         let pad = self.should_force_leading_zeros;
         let segment_text = move |segment: TimeSegment| -> String {
-            let Some(t) = value else {
+            if cleared.contains(&segment) {
+                return if segment == TimeSegment::Meridiem {
+                    "AM".to_owned()
+                } else {
+                    "--".to_owned()
+                };
+            }
+            let Some(t) = display_value else {
                 return "--".to_owned();
             };
             match segment {
@@ -641,7 +768,7 @@ impl RenderOnce for TimeField {
 
         // v3 drives a time field from the keyboard: the arrows step the focused
         // segment and walk between segments, and digits type into it.
-        if interactive {
+        if navigable {
             let state = self.state.clone();
             let on_change = self.on_change.clone();
             let buffer = typing;
@@ -649,6 +776,7 @@ impl RenderOnce for TimeField {
             let order = TimeSegment::order(self.granularity, self.hour_cycle == HourCycle::H12);
             let twelve_hour = self.hour_cycle == HourCycle::H12;
             let seed = self.placeholder_value.unwrap_or(Time::new(9, 0));
+            let is_read_only = self.is_read_only;
             group = group
                 .track_focus(&focus_handle)
                 .key_context("TimeField")
@@ -659,27 +787,18 @@ impl RenderOnce for TimeField {
                     let key = event.keystroke.key.as_str();
                     let here = order.iter().position(|s| *s == focused).unwrap_or(0);
                     let commit = |time: Time, window: &mut Window, cx: &mut App| {
-                        state.update(cx, |s, cx| {
-                            s.value = Some(time);
+                        let complete = state.update(cx, |s, cx| {
+                            let complete = s.edit_focused(time, &order);
                             cx.notify();
+                            complete
                         });
-                        if let Some(cb) = &on_change {
-                            cb(Some(time), window, cx);
-                        }
-                    };
-                    match key {
-                        "up" | "down" => {
-                            let delta = if key == "up" { 1 } else { -1 };
-                            buffer.update(cx, |b, _| b.clear());
-                            state.update(cx, |s, cx| {
-                                s.bump_focused_from(delta, seed);
-                                cx.notify();
-                            });
-                            let next = state.read(cx).value;
-                            if let (Some(cb), Some(time)) = (&on_change, next) {
+                        if complete {
+                            if let Some(cb) = &on_change {
                                 cb(Some(time), window, cx);
                             }
                         }
+                    };
+                    match key {
                         "left" | "right" => {
                             let delta: i32 = if key == "right" { 1 } else { -1 };
                             let next =
@@ -691,20 +810,38 @@ impl RenderOnce for TimeField {
                                 cx.notify();
                             });
                         }
+                        _ if is_read_only => {}
+                        "up" | "down" => {
+                            let delta = if key == "up" { 1 } else { -1 };
+                            buffer.update(cx, |b, _| b.clear());
+                            let base = state.read(cx).display_value.unwrap_or(seed);
+                            let time = base.bump(focused, delta);
+                            let complete = state.update(cx, |s, cx| {
+                                let complete = s.edit_focused(time, &order);
+                                cx.notify();
+                                complete
+                            });
+                            if let (true, Some(cb)) = (complete, &on_change) {
+                                cb(Some(time), window, cx);
+                            }
+                        }
                         "backspace" | "delete" => {
                             buffer.update(cx, |b, _| b.clear());
-                            state.update(cx, |s, cx| {
-                                s.value = None;
+                            let emptied = state.update(cx, |s, cx| {
+                                let emptied = s.clear_focused(&order);
                                 cx.notify();
+                                emptied
                             });
-                            if let Some(cb) = &on_change {
-                                cb(None, window, cx);
+                            if emptied {
+                                if let Some(cb) = &on_change {
+                                    cb(None, window, cx);
+                                }
                             }
                         }
                         // The meridiem segment answers `a` and `p`, the way
                         // React Aria's does.
                         "a" | "p" if focused == TimeSegment::Meridiem => {
-                            let base = state.read(cx).value.unwrap_or(seed);
+                            let base = state.read(cx).display_value.unwrap_or(seed);
                             let hour = base.hour % 12 + if key == "p" { 12 } else { 0 };
                             commit(
                                 Time::new(hour, base.minute).with_second(base.second),
@@ -727,7 +864,7 @@ impl RenderOnce for TimeField {
                             let Ok(value) = text.parse::<u32>() else {
                                 return;
                             };
-                            let base = state.read(cx).value.unwrap_or(seed);
+                            let base = state.read(cx).display_value.unwrap_or(seed);
                             commit(focused.with_value(base, value, twelve_hour), window, cx);
                             if text.len() >= width {
                                 buffer.update(cx, |b, _| b.clear());
@@ -787,13 +924,13 @@ impl RenderOnce for TimeField {
                     None => segment_text(segment).into_any_element(),
                 });
 
-            if focused == segment && interactive {
+            if focused == segment && navigable {
                 seg = seg
                     .bg(colors.accent.soft())
                     .text_color(colors.accent.soft_foreground());
             }
 
-            if interactive {
+            if navigable {
                 let state = self.state.clone();
                 seg = seg.cursor_pointer().on_click(move |_, _, cx| {
                     state.update(cx, |s, cx| {
@@ -807,10 +944,11 @@ impl RenderOnce for TimeField {
         }
 
         // Steppers adjust whichever segment is focused.
-        if interactive {
+        if editable {
             let seed = self.placeholder_value.unwrap_or(Time::new(0, 0));
             let min_value = self.min_value;
             let max_value = self.max_value;
+            let visible_segments = segments.clone();
             let mut steppers = div().flex().flex_col().ml(px(8.)).flex_shrink_0();
             for (icon, delta, key) in [
                 (icons::CHEVRON_UP, 1i32, "up"),
@@ -818,6 +956,7 @@ impl RenderOnce for TimeField {
             ] {
                 let state = self.state.clone();
                 let on_change = self.on_change.clone();
+                let visible_segments = visible_segments.clone();
                 let hover_bg = colors.default.color;
                 steppers = steppers.child(
                     div()
@@ -838,17 +977,19 @@ impl RenderOnce for TimeField {
                                 .text_color(colors.muted),
                         )
                         .on_click(move |_, window, cx| {
-                            let next = state.update(cx, |s, cx| {
-                                s.bump_focused_from(delta, seed);
+                            let (next, complete) = state.update(cx, |s, cx| {
+                                let base = s.display_value.unwrap_or(seed);
+                                let mut next = base.bump(s.focused, delta);
                                 // `minValue`/`maxValue` clamp the result.
-                                if let Some(v) = s.value {
-                                    s.value = Some(clamp_time(v, min_value, max_value));
-                                }
+                                next = clamp_time(next, min_value, max_value);
+                                let complete = s.edit_focused(next, &visible_segments);
                                 cx.notify();
-                                s.value
+                                (next, complete)
                             });
-                            if let Some(cb) = &on_change {
-                                cb(next, window, cx);
+                            if complete {
+                                if let Some(cb) = &on_change {
+                                    cb(Some(next), window, cx);
+                                }
                             }
                         }),
                 );

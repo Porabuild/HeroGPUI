@@ -187,8 +187,8 @@ fn virtual_list_box_selects_a_row_after_scrolling(cx: &mut TestAppContext) {
 }
 
 /// The arrows move a cursor the list has *not* built yet, and tell the list's
-/// own scroll handle to bring the new row into view. After 31 Downs the
-/// cursor is on index 30 — item 30, not anything clamped to the 4 visible
+/// own scroll handle to bring the new row into view. Tab focuses index 0, so
+/// after 31 Downs the cursor is on index 31 — not anything clamped to 4 visible
 /// rows — and the deferred center-scroll places it at viewport centre, where
 /// a click can prove the row now exists at that spot.
 #[gpui::test]
@@ -207,12 +207,10 @@ fn virtual_list_box_arrows_scroll_the_focused_row_into_view(cx: &mut TestAppCont
             .into_any_element()
     });
 
-    // The list is the only tab stop, so Tab focuses it and the arrows belong
-    // to it. Thirty-one Downs walk the cursor from None through 0..30 —
-    // `list_nav::resolve` starts `down` from nothing at the first stop and
-    // steps one row per press — and each press defers a center-scroll for the
-    // new cursor, applied at the next draw. The draw the Enter dispatch
-    // triggers first is the one that places item 30.
+    // The list is the only tab stop, so Tab focuses item 0 and the arrows belong
+    // to it. Thirty-one Downs walk to item 31, and each press defers a
+    // center-scroll for the new cursor, applied at the next draw. The draw the
+    // Enter dispatch triggers first is the one that places item 31.
     press(cx, "tab");
     for _ in 0..31 {
         press(cx, "down");
@@ -220,20 +218,19 @@ fn virtual_list_box_arrows_scroll_the_focused_row_into_view(cx: &mut TestAppCont
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["key-0030"],
-        "31 Downs must land the cursor and the activation on index 30"
+        ["key-0031"],
+        "31 Downs after focus entry must activate index 31"
     );
 
-    // Scroll arithmetic for the follow-up click: the center strategy puts the
-    // item top at `item_center - viewport_center` = 30*40 + 20 - 80 = 1140,
-    // so scroll_offset.y = -1140 and item 30 spans window y
-    // 4 + 30*40 - 1140 = 64..104. If the arrows had not scrolled the list,
-    // only rows 0..3 would exist and this click could not record index 30.
+    // The deferred center-scroll from the preceding key frame leaves item 30
+    // centred at y 84 and the focused item 31 immediately below it, spanning
+    // y 104..144. If the arrows had not scrolled the list, only rows 0..3
+    // would exist and this click could not record index 31.
     flush_frame(cx);
-    click(cx, 20., 84.);
+    click(cx, 20., 124.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["key-0030", "key-0030"],
+        ["key-0031", "key-0031"],
         "the centered row must be built and clickable at the position the \
          scroll arithmetic says"
     );
@@ -266,7 +263,7 @@ fn virtual_table_rows_click_and_sort(cx: &mut TestAppContext) {
             ])
             // 1000 rows built on demand: the factory must be re-invokable on
             // every scroll, which is exactly what `virtual_rows` is for.
-            .virtual_rows(1000, move |i| {
+            .virtual_rows(1000, "virtual-sort-users", move |i| {
                 TableRow::new(vec![probe_cell(i, probes.clone())])
             })
             .row_height(px(40.))
@@ -335,7 +332,9 @@ fn variable_height_rows_do_not_overlap(cx: &mut TestAppContext) {
         Table::new(vec![])
             .id("vt-var")
             .columns(vec![TableColumn::new("Name").default_width(px(160.))])
-            .virtual_rows(6, |i| TableRow::new(vec![var_cell(i)]))
+            .virtual_rows(6, "virtual-variable-users", |i| {
+                TableRow::new(vec![var_cell(i)])
+            })
             .estimated_row_height(px(24.))
             .on_row_click(move |i, _, _, _| recorded.borrow_mut().push(format!("row-{i}")))
             .into_any_element()

@@ -68,7 +68,7 @@ use gpui::{
 use herogpui_components::{
     calendar::{Date, CALENDAR_WIDTH},
     util::InteractiveState,
-    Calendar, CalendarCellState, CalendarState, DateConstraints, DateRangeState, ListBox,
+    Button, Calendar, CalendarCellState, CalendarState, DateConstraints, DateRangeState, ListBox,
     ListBoxItem, Menu, MenuItem, RadioGroup, RangeCalendar, RangeCalendarCellState, SelectionMode,
     Tag, TagGroup,
 };
@@ -267,42 +267,51 @@ fn list_box_item_content_tracks_selection_and_cursor(cx: &mut TestAppContext) {
         // Read the set out of the guard first, or the borrow outlives this
         // statement and collides with the callback's write.
         let selected_now = held.borrow().clone();
-        ListBox::new(
-            "rp-lb-state",
-            vec![
-                ListBoxItem::new("alpha", "Alpha"),
-                ListBoxItem::new("beta", "Beta"),
-            ],
-        )
-        .selected_keys(selected_now)
-        .item_content(move |key, state| {
-            record_interactive(&record, key, state);
-            gpui::div().w(px(40.)).h(px(20.)).into_any_element()
-        })
-        .on_selection_change(move |keys, window, _| {
-            changes.borrow_mut().push(sorted_join(keys));
-            *held.borrow_mut() = keys.clone();
-            // The selection is a prop: the closure can only see the next
-            // render's value, so the caller's copy must be rendered back in.
-            window.refresh();
-        })
-        .into_any_element()
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                ListBox::new(
+                    "rp-lb-state",
+                    vec![
+                        ListBoxItem::new("alpha", "Alpha"),
+                        ListBoxItem::new("beta", "Beta"),
+                    ],
+                )
+                .selected_keys(selected_now)
+                .item_content(move |key, state| {
+                    record_interactive(&record, key, state);
+                    gpui::div().w(px(40.)).h(px(20.)).into_any_element()
+                })
+                .on_selection_change(move |keys, window, _| {
+                    changes.borrow_mut().push(sorted_join(keys));
+                    *held.borrow_mut() = keys.clone();
+                    // The selection is a prop: the closure can only see the next
+                    // render's value, so the caller's copy must be rendered back in.
+                    window.refresh();
+                }),
+            )
+            .child(Button::new("after-rp-list-box").label("After"))
+            .into_any_element()
     });
+    cx.update(|window, _| window.activate_window());
+    cx.update(|_, cx| herogpui_components::util::set_focus_visible(true, cx));
+    flush_frame(cx);
 
-    // The list is the window's one tab stop: Tab focuses it, the first Down
-    // lands the cursor on row 0 (y 4..40, centre 22), running the closure
+    // The list is the window's one tab stop: Tab focuses the first enabled row,
+    // then Down advances to row 1 (y 44..80, centre 62), running the closure
     // with `is_focused` — and nothing selected.
     press(cx, "tab");
     press(cx, "down");
     flush_frame(cx);
-    let alpha = state_of(&recorded, "alpha");
+    let beta = state_of(&recorded, "beta");
     assert!(
-        alpha.is_focused && !alpha.is_selected,
-        "the frame after Down must see the cursor on the first row"
+        beta.is_focused && beta.is_focus_visible && !beta.is_selected,
+        "the frame after Down must focus and ring the second row"
     );
     assert!(
-        !state_of(&recorded, "beta").is_focused,
-        "the second row must not be focused"
+        !state_of(&recorded, "alpha").is_focused,
+        "the first row must have lost the cursor"
     );
 
     // Enter activates the cursor's row: the selection change is reported and
@@ -310,21 +319,21 @@ fn list_box_item_content_tracks_selection_and_cursor(cx: &mut TestAppContext) {
     press(cx, "enter");
     flush_frame(cx);
     assert!(
-        state_of(&recorded, "alpha").is_selected,
-        "the frame after Enter must see row alpha selected"
+        state_of(&recorded, "beta").is_selected,
+        "the frame after Enter must see row beta selected"
     );
-    assert_eq!(changed.borrow().as_slice(), ["alpha"]);
+    assert_eq!(changed.borrow().as_slice(), ["beta"]);
 
-    // One more Down walks the cursor to row 1 (y 44..80, centre 62).
-    press(cx, "down");
+    // Up walks the cursor back to row 0 without changing the selection.
+    press(cx, "up");
     flush_frame(cx);
     assert!(
-        state_of(&recorded, "beta").is_focused,
-        "the cursor must have moved to the second row"
+        state_of(&recorded, "alpha").is_focused,
+        "the cursor must have moved back to the first row"
     );
     assert!(
-        !state_of(&recorded, "alpha").is_focused,
-        "the first row must have lost the cursor"
+        !state_of(&recorded, "beta").is_focused,
+        "the second row must have lost the cursor"
     );
 
     // Pointer contract as delivered: the row paints its own hover, but the
@@ -339,6 +348,16 @@ fn list_box_item_content_tracks_selection_and_cursor(cx: &mut TestAppContext) {
     assert!(
         !state_of(&recorded, "alpha").is_hovered,
         "ListBox does not hand the hover to the item_content closure"
+    );
+
+    press(cx, "tab");
+    flush_frame(cx);
+    assert!(
+        ["alpha", "beta"].iter().all(|key| {
+            let state = state_of(&recorded, key);
+            !state.is_focused && !state.is_focus_visible
+        }),
+        "moving focus out of the ListBox must clear every render-prop focus and ring state"
     );
 }
 
@@ -643,10 +662,10 @@ fn tag_group_tag_content_renders_at_all(cx: &mut TestAppContext) {
         .into_any_element()
     });
 
-    // The group's roving cursor starts on the first enabled tag, so the first
-    // frame already has "alpha" focused and no selection anywhere.
+    // The group's roving cursor starts on the first enabled tag, but the first
+    // frame has no window focus yet, so every render-prop state is idle.
     let alpha = state_of(&recorded, "alpha");
-    assert!(alpha.is_focused, "the cursor must start on the first tag");
+    assert!(!alpha.is_focused, "a cursor alone is not window focus");
     assert!(!alpha.is_selected, "nothing is selected on the first frame");
     for key in ["beta", "gamma"] {
         let state = state_of(&recorded, key);
@@ -674,22 +693,31 @@ fn tag_group_tag_content_tracks_hover_press_and_selection(cx: &mut TestAppContex
         // Two chips at the origin: chip 0 spans x 0..56 (y 0..28), chip 1
         // starts at x = 56 + 6 (the list's 6px gap); their centres are
         // (28, 14) and (90, 14).
-        TagGroup::new(
-            "rp-tg-state",
-            vec![Tag::new("alpha", "Alpha"), Tag::new("beta", "Beta")],
-        )
-        .selection_mode(SelectionMode::Single)
-        .selected_keys(selected_now)
-        .tag_content(move |tag, state| {
-            record_interactive(&record, tag.key(), state);
-            gpui::div().w(px(40.)).h(px(20.)).into_any_element()
-        })
-        .on_selection_change(move |keys, window, _| {
-            *held.borrow_mut() = keys.clone();
-            window.refresh();
-        })
-        .into_any_element()
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                TagGroup::new(
+                    "rp-tg-state",
+                    vec![Tag::new("alpha", "Alpha"), Tag::new("beta", "Beta")],
+                )
+                .selection_mode(SelectionMode::Single)
+                .selected_keys(selected_now)
+                .tag_content(move |tag, state| {
+                    record_interactive(&record, tag.key(), state);
+                    gpui::div().w(px(40.)).h(px(20.)).into_any_element()
+                })
+                .on_selection_change(move |keys, window, _| {
+                    *held.borrow_mut() = keys.clone();
+                    window.refresh();
+                }),
+            )
+            .child(Button::new("after-rp-tag-group").label("After"))
+            .into_any_element()
     });
+    cx.update(|window, _| window.activate_window());
+    cx.update(|_, cx| herogpui_components::util::set_focus_visible(true, cx));
+    flush_frame(cx);
 
     // Move the pointer onto chip 0: the slot hears the hover, and the forced
     // frame hands it to the closure — chip 1 stays clean, which only per-chip
@@ -759,6 +787,23 @@ fn tag_group_tag_content_tracks_hover_press_and_selection(cx: &mut TestAppContex
     assert!(
         !state_of(&recorded, "alpha").is_selected,
         "the single selection must have moved off the first chip"
+    );
+
+    press(cx, "tab");
+    flush_frame(cx);
+    let alpha = state_of(&recorded, "alpha");
+    assert!(
+        alpha.is_focused && alpha.is_focus_visible,
+        "Tab must focus and ring the TagGroup's roving stop"
+    );
+    press(cx, "tab");
+    flush_frame(cx);
+    assert!(
+        ["alpha", "beta"].iter().all(|key| {
+            let state = state_of(&recorded, key);
+            !state.is_focused && !state.is_focus_visible
+        }),
+        "moving focus out of the TagGroup must clear every render-prop focus and ring state"
     );
 }
 
@@ -845,8 +890,8 @@ fn tag_group_without_content_needs_no_slot(cx: &mut TestAppContext) {
 
 /// The closure runs once per option on the first frame — a panic here is the
 /// button's defect class on a fourth component — and records the option's
-/// label with the roving stop's initial claim: nothing selected, so the tab
-/// stop is the first option and that row reports `is_focused`.
+/// label. The roving stop starts at the first option, but `is_focused` is the
+/// actual window focus, so every row is idle before Tab enters the group.
 #[gpui::test]
 fn radio_group_option_content_renders_at_all(cx: &mut TestAppContext) {
     let recorded = Rc::new(RefCell::new(HashMap::new()));
@@ -866,8 +911,8 @@ fn radio_group_option_content_renders_at_all(cx: &mut TestAppContext) {
 
     let one = state_of(&recorded, "One");
     assert!(
-        one.is_focused && !one.is_selected,
-        "the roving stop must start on the first option, unselected"
+        !one.is_focused && !one.is_selected,
+        "the first option must be idle before the group receives focus"
     );
     for label in ["Two", "Three"] {
         let state = state_of(&recorded, label);
@@ -896,12 +941,12 @@ fn radio_group_option_content_tracks_selection_and_focus(cx: &mut TestAppContext
             "rp-rg-state",
             vec!["One".into(), "Two".into(), "Three".into()],
         )
-        .default_value(Some(0))
+        .default_value("One")
         .option_content(move |label, state| {
             record_interactive(&record, label, state);
             gpui::div().w(px(40.)).h(px(20.)).into_any_element()
         })
-        .on_change(move |index, _, _| picks.borrow_mut().push(index.to_string()))
+        .on_change(move |value, _, _| picks.borrow_mut().push(value.to_string()))
         .into_any_element()
     });
 
@@ -924,7 +969,11 @@ fn radio_group_option_content_tracks_selection_and_focus(cx: &mut TestAppContext
         !state_of(&recorded, "One").is_selected,
         "the earlier selection must be replaced"
     );
-    assert_eq!(picked.borrow().as_slice(), ["1"]);
+    assert!(
+        state_of(&recorded, "Two").is_focused,
+        "a pointer press must focus the clicked radio immediately"
+    );
+    assert_eq!(picked.borrow().as_slice(), ["Two"]);
 
     // Tab enters the group on the selected row; Down roves to the third
     // option, whose claim on the group's handle moves with the selection.
@@ -936,7 +985,7 @@ fn radio_group_option_content_tracks_selection_and_focus(cx: &mut TestAppContext
         three.is_selected && three.is_focused,
         "the arrow must select the third option and focus it"
     );
-    assert_eq!(picked.borrow().as_slice(), ["1", "2"]);
+    assert_eq!(picked.borrow().as_slice(), ["Two", "Three"]);
 
     // Pointer contract as delivered: the hover is the row's own paint, not a
     // value the closure can read.
@@ -1061,7 +1110,7 @@ fn calendar_cell_renders_at_all(cx: &mut TestAppContext) {
 /// cells and the real next-month days were unreachable. Each spill cell now
 /// carries its own next-month date.
 #[gpui::test]
-fn calendar_cell_spill_dates_lose_their_identity(cx: &mut TestAppContext) {
+fn calendar_cell_spill_dates_preserve_their_identity(cx: &mut TestAppContext) {
     let invocations = Rc::new(RefCell::new(Vec::<(String, String, bool)>::new()));
     let record = invocations.clone();
     let state = cx.new(|cx| CalendarState::new(cx));
@@ -1082,8 +1131,8 @@ fn calendar_cell_spill_dates_lose_their_identity(cx: &mut TestAppContext) {
     });
 
     // August 2026 spills six days of September (the 6-row grid minus 5 lead
-    // blanks minus 31 days). Each must carry its own date; the port gives
-    // every one of them the first of the current month.
+    // blanks minus 31 days). Each must carry its own date; the broken path
+    // used to give every one of them the first of the current month.
     let spills: HashSet<String> = invocations
         .borrow()
         .iter()

@@ -1,10 +1,59 @@
 //! RadioGroup — port of `@heroui/radio`.
 
-use std::collections::HashSet;
+use std::{cell::RefCell, rc::Rc};
 
 use gpui::{prelude::*, px, App, IntoElement, RenderOnce, SharedString, Styled, Window};
 use herogpui_core::{Color, FieldVariant, Orientation};
 use herogpui_theme::ActiveTheme;
+
+/// One radio's visible label, submitted value, and local disabled state.
+#[derive(Clone)]
+pub struct RadioOption {
+    label: SharedString,
+    value: SharedString,
+    is_disabled: bool,
+}
+
+impl RadioOption {
+    pub fn new(label: impl Into<SharedString>) -> Self {
+        let label = label.into();
+        Self {
+            value: label.clone(),
+            label,
+            is_disabled: false,
+        }
+    }
+
+    /// `value` — submitted and reported independently of the visible label.
+    pub fn value(mut self, value: impl Into<SharedString>) -> Self {
+        self.value = value.into();
+        self
+    }
+
+    /// `isDisabled` — disables this option only.
+    pub fn is_disabled(mut self, value: bool) -> Self {
+        self.is_disabled = value;
+        self
+    }
+}
+
+impl From<SharedString> for RadioOption {
+    fn from(label: SharedString) -> Self {
+        Self::new(label)
+    }
+}
+
+impl From<String> for RadioOption {
+    fn from(label: String) -> Self {
+        Self::new(label)
+    }
+}
+
+impl From<&str> for RadioOption {
+    fn from(label: &str) -> Self {
+        Self::new(label.to_owned())
+    }
+}
 
 /// HeroUI RadioGroup.
 #[derive(IntoElement)]
@@ -13,7 +62,9 @@ pub struct RadioGroup {
     /// [`Self::form_field`].
     name: Option<SharedString>,
     id: gpui::ElementId,
-    options: Vec<SharedString>,
+    options: Vec<RadioOption>,
+    /// Mirrors the current selected value for a live [`crate::form::FormField`].
+    live_value: Rc<RefCell<SharedString>>,
     /// `Radio`'s `children`-as-a-function: handed the option and its state.
     option_content: Option<
         std::sync::Arc<dyn Fn(&SharedString, crate::util::InteractiveState) -> gpui::AnyElement>,
@@ -22,10 +73,6 @@ pub struct RadioGroup {
     /// same order. `.radio` is `flex flex-col gap-1` around its content and this
     /// text, indented under the label by `ps-7`.
     descriptions: Vec<Option<SharedString>>,
-    /// `Radio.isDisabled` — options that cannot be chosen, by index. A
-    /// disabled option draws dimmed, answers no clicks and is skipped by the
-    /// group's arrow keys and tab stop.
-    disabled_keys: HashSet<usize>,
     /// The group's own `<Label>`, `<Description>` and `<FieldError>`. v3
     /// composes all three inside `<RadioGroup>` -- every documented example
     /// opens with `<Label>Plan selection</Label>` -- and a monolithic group takes
@@ -44,7 +91,7 @@ pub struct RadioGroup {
     is_invalid: bool,
     is_required: bool,
     is_read_only: bool,
-    on_change: Option<std::sync::Arc<dyn Fn(usize, &mut Window, &mut App) + 'static>>,
+    on_change: Option<std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>>,
 }
 
 impl RadioGroup {
@@ -93,24 +140,14 @@ impl RadioGroup {
         self
     }
 
-    /// `Radio.isDisabled` — options that render but cannot be chosen, by index
-    /// (the same addressing `value` and `on_change` use, and the same shape as
-    /// the sibling `Select::disabled_keys`). A disabled option draws dimmed
-    /// with the disabled opacity, answers no clicks, and is skipped by the
-    /// group's arrow keys and its roving tab stop.
-    pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = usize>) -> Self {
-        self.disabled_keys = keys.into_iter().collect();
-        self
-    }
-
-    pub fn new(id: impl Into<gpui::ElementId>, options: Vec<SharedString>) -> Self {
+    pub fn new(id: impl Into<gpui::ElementId>, options: Vec<RadioOption>) -> Self {
         Self {
             name: None,
             id: id.into(),
             options,
+            live_value: Rc::new(RefCell::new(SharedString::default())),
             option_content: None,
             descriptions: Vec::new(),
-            disabled_keys: HashSet::new(),
             label: None,
             description: None,
             error_message: None,
@@ -165,21 +202,22 @@ impl RadioGroup {
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
         Some(
-            crate::form::FormField::text_value(
-                name,
-                self.selected
-                    .or(self.default_value)
-                    .and_then(|i| self.options.get(i).cloned())
-                    .unwrap_or_default(),
-            )
-            .is_required(self.is_required),
+            crate::form::FormField::live_text_value(name, self.live_value.clone())
+                .is_required(self.is_required),
         )
     }
 
-    /// `value` — the selected option, by index. Supplying it makes the group
-    /// controlled, even with `None`.
-    pub fn value(mut self, i: Option<usize>) -> Self {
-        self.selected = i;
+    /// `value` — the selected option's value. Supplying it makes the group controlled.
+    pub fn value(mut self, value: impl AsRef<str>) -> Self {
+        self.selected = self
+            .options
+            .iter()
+            .position(|option| option.value == value.as_ref());
+        *self.live_value.borrow_mut() = self
+            .selected
+            .and_then(|index| self.options.get(index))
+            .map(|option| option.value.clone())
+            .unwrap_or_default();
         self.is_controlled = true;
         self
     }
@@ -188,8 +226,18 @@ impl RadioGroup {
     ///
     /// Only consulted when `value` is not supplied; the group then owns the
     /// selection and a press moves it.
-    pub fn default_value(mut self, i: Option<usize>) -> Self {
-        self.default_value = i;
+    pub fn default_value(mut self, value: impl AsRef<str>) -> Self {
+        self.default_value = self
+            .options
+            .iter()
+            .position(|option| option.value == value.as_ref());
+        if !self.is_controlled {
+            *self.live_value.borrow_mut() = self
+                .default_value
+                .and_then(|index| self.options.get(index))
+                .map(|option| option.value.clone())
+                .unwrap_or_default();
+        }
         self
     }
 
@@ -203,7 +251,7 @@ impl RadioGroup {
         self
     }
 
-    pub fn on_change(mut self, f: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
+    pub fn on_change(mut self, f: impl Fn(&SharedString, &mut Window, &mut App) + 'static) -> Self {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
@@ -219,6 +267,10 @@ impl RenderOnce for RadioGroup {
             self.is_controlled.then_some(self.selected),
             self.default_value,
         );
+        *self.live_value.borrow_mut() = selected
+            .and_then(|index| self.options.get(index))
+            .map(|option| option.value.clone())
+            .unwrap_or_default();
 
         // *One* handle for the whole group, because a radio group is one tab
         // stop. Which row claims it is what moves: a roving tab stop cannot be
@@ -246,19 +298,28 @@ impl RenderOnce for RadioGroup {
         // `stops` is empty, no row tracks the handle, and the group leaves the
         // tab order exactly as the group-wide `is_disabled` does.
         let stops: Vec<usize> = (0..self.options.len())
-            .filter(|i| !self.disabled_keys.contains(i))
+            .filter(|i| !self.options[*i].is_disabled)
             .collect();
-        let tab_stop_index = selected
-            .filter(|i| !self.disabled_keys.contains(i))
+        let initial_focus_index = selected
+            .filter(|i| stops.contains(i))
             .or_else(|| stops.first().copied())
             .unwrap_or(0);
-        // The arrows move from the *selection* -- which is also the focused
-        // row, the roving tab stop -- and from nowhere when nothing is
-        // selected, so the first Down lands on the top of the enabled list
-        // (`list_nav::resolve` with `None`, which is what React Aria does).
-        // A controlled selection pointing at a disabled option falls back to
-        // the same nowhere, rather than blocking the arrows on it.
-        let key_starts = selected.filter(|i| !self.disabled_keys.contains(i));
+        // Actual focus and selection diverge in a read-only group: React
+        // Aria's arrow handler focuses the next input first, then its stately
+        // setter rejects the value change. Keep that roving cursor separately
+        // from `selected`, keyed by the component id so two groups cannot
+        // share it.
+        let cursor = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{}-cursor", element_id_name(&self.id)).into()),
+            cx,
+            move |_, _| initial_focus_index,
+        );
+        let held_cursor = *cursor.read(cx);
+        let cursor_index = if group_focus.is_focused(window) && stops.contains(&held_cursor) {
+            held_cursor
+        } else {
+            initial_focus_index
+        };
 
         // One hover/press slot per option, for an `option_content` closure. The
         // slots exist only when the closure is set: `track_interaction`'s
@@ -308,14 +369,21 @@ impl RenderOnce for RadioGroup {
             && !layout.field_shadow.is_empty())
         .then(|| layout.field_shadow.clone());
 
-        for (i, label) in self.options.into_iter().enumerate() {
+        let option_values = self
+            .options
+            .iter()
+            .map(|option| option.value.clone())
+            .collect::<Vec<_>>();
+        for (i, option) in self.options.into_iter().enumerate() {
+            let label = option.label;
+            let value = option.value;
             let is_selected = selected == Some(i);
             // `Radio.isDisabled` — the option's own switch, beside the
             // group-wide `is_disabled`: dimmed (`status-disabled`'s opacity,
             // v3's "reduced opacity, no pointer events"), no pointer
             // affordance, no click handler and no place in the tab order or
             // the arrow navigation.
-            let row_disabled = self.is_disabled || self.disabled_keys.contains(&i);
+            let row_disabled = self.is_disabled || option.is_disabled;
             // `.radio__control` has no border (`--field-border-width: 0`); it is
             // a filled square. Unselected it is `bg-field` plus `shadow-field`;
             // selected it fills with `bg-accent` and the indicator shrinks to a
@@ -350,7 +418,7 @@ impl RenderOnce for RadioGroup {
 
             // v3 focuses the radio and rings `.radio__control`: the row takes the
             // focus, the control shows it.
-            let focused = i == tab_stop_index
+            let focused = i == cursor_index
                 && group_focus.is_focused(window)
                 && crate::util::focus_visible(cx);
             let circle_el = crate::util::with_focus_ring(
@@ -395,7 +463,7 @@ impl RenderOnce for RadioGroup {
                 .id(gpui::ElementId::Name(
                     format!("{}-opt-{i}", element_id_name(&self.id)).into(),
                 ))
-                .when(!row_disabled && i == tab_stop_index, |r| {
+                .when(!row_disabled && i == cursor_index, |r| {
                     r.track_focus(&group_focus)
                 })
                 .flex()
@@ -408,7 +476,8 @@ impl RenderOnce for RadioGroup {
                 .child(circle_el)
                 .child(match &self.option_content {
                     Some(render) => {
-                        let focused = !row_disabled && i == tab_stop_index;
+                        let focused =
+                            !row_disabled && i == cursor_index && group_focus.is_focused(window);
                         // The slot's press is a frame behind the pointer,
                         // because gpui reports it to a handler rather than to
                         // the render that draws it. v3's `RadioFieldRenderProps`
@@ -437,55 +506,73 @@ impl RenderOnce for RadioGroup {
                 row = crate::util::track_interaction(row, slot);
             }
 
-            if !row_disabled && !self.is_read_only && (self.on_change.is_some() || own.is_some()) {
+            if !row_disabled {
                 let on_change = self.on_change.clone();
                 let own = own.clone();
-                // The arrows choose the next option and take the focus with
-                // them, which is what makes the group one tab stop: the focused
-                // radio is always the selected one.
+                let read_only = self.is_read_only;
+                // The arrows always take focus with them. In a mutable group
+                // they also select; read-only keeps the cursor movement and
+                // rejects only that second step, matching the pinned hooks.
                 let key_change = on_change.clone();
                 let key_own = own.clone();
                 let key_stops = stops.clone();
+                let key_cursor = cursor.clone();
+                let key_values = option_values.clone();
+                let key_live_value = self.live_value.clone();
                 row = row.on_key_down(move |event, window, cx| {
                     let key = match event.keystroke.key.as_str() {
                         "down" | "right" => "down",
                         "up" | "left" => "up",
-                        other @ ("home" | "end") => other,
                         _ => return,
                     };
-                    // The group wraps, as a radio group does. The move is from
-                    // the selection (which the focused row is), or from nowhere
-                    // when nothing is selected -- so Down cannot land on a
-                    // disabled option, and the first Down with no selection
-                    // picks the first enabled one.
+                    // `useRadioGroup` owns all four arrows, but has no Home or
+                    // End shortcut. Leave those and every other key available
+                    // to the enclosing surface.
+                    cx.stop_propagation();
                     let crate::list_nav::Move::To(next) =
-                        crate::list_nav::resolve(&key_stops, key_starts, key, true)
+                        crate::list_nav::resolve(&key_stops, Some(i), key, true)
                     else {
                         return;
                     };
-                    if let Some(held) = &key_own {
-                        held.update(cx, |v, cx| {
-                            *v = Some(next);
-                            cx.notify();
-                        });
+                    key_cursor.update(cx, |v, cx| {
+                        *v = next;
+                        cx.notify();
+                    });
+                    if !read_only {
+                        if let Some(held) = &key_own {
+                            *key_live_value.borrow_mut() = key_values[next].clone();
+                            held.update(cx, |v, cx| {
+                                *v = Some(next);
+                                cx.notify();
+                            });
+                        }
+                        if let Some(f) = &key_change {
+                            f(&key_values[next], window, cx);
+                        }
                     }
-                    if let Some(f) = &key_change {
-                        f(next, window, cx);
-                    }
-                    // No refocusing: the next render has the newly selected row
-                    // claim the group's handle, so the focus goes with it.
                 });
+                let click_cursor = cursor.clone();
+                let click_focus = group_focus.clone();
+                let click_live_value = self.live_value.clone();
                 row = row.on_click(move |_, window, cx| {
-                    // Uncontrolled: move our own selection, or pressing a
-                    // radio would do nothing.
-                    if let Some(held) = &own {
-                        held.update(cx, |v, cx| {
-                            *v = Some(i);
-                            cx.notify();
-                        });
-                    }
-                    if let Some(f) = &on_change {
-                        f(i, window, cx);
+                    window.focus(&click_focus);
+                    click_cursor.update(cx, |v, cx| {
+                        *v = i;
+                        cx.notify();
+                    });
+                    if !read_only {
+                        // Uncontrolled: move our own selection, or pressing a
+                        // radio would do nothing.
+                        if let Some(held) = &own {
+                            *click_live_value.borrow_mut() = value.clone();
+                            held.update(cx, |v, cx| {
+                                *v = Some(i);
+                                cx.notify();
+                            });
+                        }
+                        if let Some(f) = &on_change {
+                            f(&value, window, cx);
+                        }
                     }
                 });
             }

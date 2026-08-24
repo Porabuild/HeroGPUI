@@ -1,0 +1,943 @@
+//! Deep pointer-geometry tests for ColorArea and ColorSlider.
+//!
+//! HeroUI v3.2.4 pins react-aria 3.51.0 and react-stately 3.49.0. In those
+//! exact releases, `useColorArea` and `useSlider` subtract the target's
+//! `getBoundingClientRect()` origin before converting a pointer position,
+//! `useMove` applies every drag delta, and state reports `onChangeEnd` only
+//! when dragging transitions from true to false. `useColorAreaState` also
+//! converts the value to `colorSpace` before reading and replacing channels.
+//! These tests drive those contracts through gpui's real headless hit testing.
+
+mod harness;
+
+use gpui::{
+    point, prelude::*, px, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext,
+};
+use herogpui_components::{
+    ColorArea, ColorChannel, ColorField, ColorSlider, ColorSpace, InputState, PickerColor,
+};
+use herogpui_core::Orientation;
+
+use harness::{click, events, open_host, press};
+
+fn flush_frame(cx: &mut VisualTestContext) {
+    cx.update(|window, _| window.refresh());
+}
+
+fn drag_through(cx: &mut VisualTestContext, from: (f32, f32), moves: &[(f32, f32)]) {
+    cx.simulate_event(MouseDownEvent {
+        button: MouseButton::Left,
+        position: point(px(from.0), px(from.1)),
+        modifiers: Modifiers::none(),
+        click_count: 1,
+        first_mouse: false,
+    });
+    flush_frame(cx);
+
+    for &(x, y) in moves {
+        cx.simulate_event(MouseMoveEvent {
+            position: point(px(x), px(y)),
+            pressed_button: Some(MouseButton::Left),
+            modifiers: Modifiers::none(),
+        });
+        flush_frame(cx);
+    }
+
+    let &(x, y) = moves.last().expect("a drag needs at least one move");
+    cx.simulate_event(MouseUpEvent {
+        button: MouseButton::Left,
+        position: point(px(x), px(y)),
+        modifiers: Modifiers::none(),
+        click_count: 1,
+    });
+    flush_frame(cx);
+}
+
+fn move_pointer(cx: &mut VisualTestContext, x: f32, y: f32, pressed_button: Option<MouseButton>) {
+    cx.simulate_event(MouseMoveEvent {
+        position: point(px(x), px(y)),
+        pressed_button,
+        modifiers: Modifiers::none(),
+    });
+    flush_frame(cx);
+}
+
+fn release_pointer(cx: &mut VisualTestContext, x: f32, y: f32) {
+    cx.simulate_event(MouseUpEvent {
+        button: MouseButton::Left,
+        position: point(px(x), px(y)),
+        modifiers: Modifiers::none(),
+        click_count: 1,
+    });
+    flush_frame(cx);
+}
+
+fn click_with_modifiers(cx: &mut VisualTestContext, x: f32, y: f32, modifiers: Modifiers) {
+    cx.simulate_event(MouseDownEvent {
+        button: MouseButton::Left,
+        position: point(px(x), px(y)),
+        modifiers,
+        click_count: 1,
+        first_mouse: false,
+    });
+    cx.simulate_event(MouseUpEvent {
+        button: MouseButton::Left,
+        position: point(px(x), px(y)),
+        modifiers,
+        click_count: 1,
+    });
+    flush_frame(cx);
+}
+
+fn wheel(cx: &mut VisualTestContext, x: f32, y: f32, dy: f32) {
+    cx.simulate_event(ScrollWheelEvent {
+        position: point(px(x), px(y)),
+        delta: ScrollDelta::Pixels(point(px(0.), px(dy))),
+        ..Default::default()
+    });
+    flush_frame(cx);
+}
+
+#[gpui::test]
+fn color_area_pointer_uses_area_local_coordinates(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .pl(px(100.))
+            .pt(px(50.))
+            .child(
+                ColorArea::new("offset-area", PickerColor::hsb(210., 0.5, 0.5))
+                    .default_value(PickerColor::hsb(210., 0.5, 0.5))
+                    .size(px(240.), px(180.))
+                    .on_change(move |color, _, _| {
+                        recorded
+                            .borrow_mut()
+                            .push(format!("{:.2},{:.2}", color.saturation, color.brightness));
+                    }),
+            )
+            .into_any_element()
+    });
+
+    // The area starts at (100, 50). This is local (60, 45), or 25% across
+    // and 25% down. Brightness grows upward, so the resulting value is 75%.
+    click(cx, 160., 95.);
+    assert_eq!(recorded.borrow().as_slice(), ["0.25,0.75"]);
+}
+
+#[gpui::test]
+fn color_area_drag_reports_each_move_and_one_change_end(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let change = for_view.clone();
+        let end = for_view.clone();
+        ColorArea::new("drag-area", PickerColor::hsb(210., 0.5, 0.5))
+            .default_value(PickerColor::hsb(210., 0.5, 0.5))
+            .size(px(200.), px(100.))
+            .on_change(move |color, _, _| {
+                change
+                    .borrow_mut()
+                    .push(format!("change:{:.2}", color.saturation));
+            })
+            .on_change_end(move |color, _, _| {
+                end.borrow_mut()
+                    .push(format!("end:{:.2}", color.saturation));
+            })
+            .into_any_element()
+    });
+
+    drag_through(cx, (20., 50.), &[(80., 50.), (150., 50.)]);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["change:0.10", "change:0.40", "change:0.75", "end:0.75"],
+        "the press and both moves report continuously, then release reports one final change"
+    );
+}
+
+#[gpui::test]
+fn color_area_drag_clamps_and_ends_after_release_outside(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let change = for_view.clone();
+        let end = for_view.clone();
+        ColorArea::new("outside-area", PickerColor::hsb(210., 0.5, 0.5))
+            .default_value(PickerColor::hsb(210., 0.5, 0.5))
+            .size(px(200.), px(100.))
+            .on_change(move |color, _, _| {
+                change
+                    .borrow_mut()
+                    .push(format!("change:{:.2}", color.saturation));
+            })
+            .on_change_end(move |color, _, _| {
+                end.borrow_mut()
+                    .push(format!("end:{:.2}", color.saturation));
+            })
+            .into_any_element()
+    });
+
+    cx.simulate_event(MouseDownEvent {
+        button: MouseButton::Left,
+        position: point(px(20.), px(50.)),
+        modifiers: Modifiers::none(),
+        click_count: 1,
+        first_mouse: false,
+    });
+    flush_frame(cx);
+    move_pointer(cx, 80., 50., Some(MouseButton::Left));
+    move_pointer(cx, 260., 50., Some(MouseButton::Left));
+    release_pointer(cx, 260., 50.);
+
+    let after_release = recorded.borrow().len();
+    move_pointer(cx, 100., 50., None);
+    assert_eq!(recorded.borrow().len(), after_release);
+    assert_eq!(
+        recorded
+            .borrow()
+            .iter()
+            .filter(|v| v.starts_with("end:"))
+            .count(),
+        1,
+        "an outside release must finish the drag exactly once"
+    );
+    assert!(
+        recorded.borrow().iter().any(|v| v == "change:1.00")
+            && recorded.borrow().last().is_some_and(|v| v == "end:1.00"),
+        "the outside move and release must clamp to the area's far edge: {:?}",
+        recorded.borrow()
+    );
+}
+
+#[gpui::test]
+fn color_slider_pointer_uses_track_local_coordinates(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .pl(px(100.))
+            .pt(px(50.))
+            .child(
+                ColorSlider::new(
+                    "offset-slider",
+                    PickerColor::hsb(0., 1., 1.),
+                    ColorChannel::Hue,
+                )
+                .default_value(PickerColor::hsb(0., 1., 1.))
+                .length(px(240.))
+                .show_label(false)
+                .on_change(move |color, _, _| {
+                    recorded.borrow_mut().push(format!("{:.0}", color.hue));
+                }),
+            )
+            .into_any_element()
+    });
+
+    // The track starts at (100, 50). Local x=60 is one quarter of its 240px
+    // length, so the hue must be 90 degrees rather than window x=160 -> 240.
+    click(cx, 160., 58.);
+    assert_eq!(recorded.borrow().as_slice(), ["90"]);
+}
+
+#[gpui::test]
+fn color_slider_drag_reports_each_move_and_one_change_end(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let change = for_view.clone();
+        let end = for_view.clone();
+        ColorSlider::new(
+            "drag-slider",
+            PickerColor::hsb(0., 1., 1.),
+            ColorChannel::Hue,
+        )
+        .default_value(PickerColor::hsb(0., 1., 1.))
+        .length(px(240.))
+        .show_label(false)
+        .on_change(move |color, _, _| {
+            change.borrow_mut().push(format!("change:{:.0}", color.hue));
+        })
+        .on_change_end(move |color, _, _| {
+            end.borrow_mut().push(format!("end:{:.0}", color.hue));
+        })
+        .into_any_element()
+    });
+
+    drag_through(cx, (24., 8.), &[(96., 8.), (180., 8.)]);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["change:36", "change:144", "change:270", "end:270"],
+        "the press and both moves report continuously, then release reports one final change"
+    );
+}
+
+#[gpui::test]
+fn color_slider_drag_clamps_and_ends_after_release_outside(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let change = for_view.clone();
+        let end = for_view.clone();
+        ColorSlider::new(
+            "outside-slider",
+            PickerColor::hsb(0., 1., 1.),
+            ColorChannel::Hue,
+        )
+        .default_value(PickerColor::hsb(0., 1., 1.))
+        .length(px(240.))
+        .show_label(false)
+        .on_change(move |color, _, _| {
+            change.borrow_mut().push(format!("change:{:.0}", color.hue));
+        })
+        .on_change_end(move |color, _, _| {
+            end.borrow_mut().push(format!("end:{:.0}", color.hue));
+        })
+        .into_any_element()
+    });
+
+    cx.simulate_event(MouseDownEvent {
+        button: MouseButton::Left,
+        position: point(px(24.), px(8.)),
+        modifiers: Modifiers::none(),
+        click_count: 1,
+        first_mouse: false,
+    });
+    flush_frame(cx);
+    move_pointer(cx, 96., 8., Some(MouseButton::Left));
+    move_pointer(cx, 300., 8., Some(MouseButton::Left));
+    release_pointer(cx, 300., 8.);
+
+    let after_release = recorded.borrow().len();
+    move_pointer(cx, 120., 8., None);
+    assert_eq!(recorded.borrow().len(), after_release);
+    assert_eq!(
+        recorded
+            .borrow()
+            .iter()
+            .filter(|v| v.starts_with("end:"))
+            .count(),
+        1,
+        "an outside release must finish the drag exactly once"
+    );
+    assert!(
+        recorded.borrow().iter().any(|v| v == "change:360")
+            && recorded.borrow().last().is_some_and(|v| v == "end:360"),
+        "the outside move and release must clamp to the slider's far edge: {:?}",
+        recorded.borrow()
+    );
+}
+
+#[gpui::test]
+fn pressing_current_color_ends_without_reporting_a_change(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let area_change = for_view.clone();
+        let area_end = for_view.clone();
+        let slider_change = for_view.clone();
+        let slider_end = for_view.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(20.))
+            .child(
+                ColorArea::new("same-area", PickerColor::hsb(180., 0.5, 0.5))
+                    .size(px(100.), px(100.))
+                    .on_change(move |_, _, _| area_change.borrow_mut().push("area-change".into()))
+                    .on_change_end(move |_, _, _| area_end.borrow_mut().push("area-end".into())),
+            )
+            .child(
+                ColorSlider::new(
+                    "same-slider",
+                    PickerColor::hsb(180., 1., 1.),
+                    ColorChannel::Hue,
+                )
+                .length(px(240.))
+                .show_label(false)
+                .on_change(move |_, _, _| {
+                    slider_change.borrow_mut().push("slider-change".into());
+                })
+                .on_change_end(move |_, _, _| slider_end.borrow_mut().push("slider-end".into())),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 50., 50.);
+    click(cx, 120., 128.);
+    assert_eq!(recorded.borrow().as_slice(), ["area-end", "slider-end"]);
+}
+
+#[gpui::test]
+fn modified_left_presses_do_not_start_color_drags(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let area_change = for_view.clone();
+        let area_end = for_view.clone();
+        let slider_change = for_view.clone();
+        let slider_end = for_view.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(20.))
+            .child(
+                ColorArea::new("modified-area", PickerColor::hsb(180., 0.5, 0.5))
+                    .size(px(100.), px(100.))
+                    .on_change(move |_, _, _| area_change.borrow_mut().push("area-change".into()))
+                    .on_change_end(move |_, _, _| area_end.borrow_mut().push("area-end".into())),
+            )
+            .child(
+                ColorSlider::new(
+                    "modified-slider",
+                    PickerColor::hsb(180., 1., 1.),
+                    ColorChannel::Hue,
+                )
+                .length(px(240.))
+                .show_label(false)
+                .on_change(move |_, _, _| {
+                    slider_change.borrow_mut().push("slider-change".into());
+                })
+                .on_change_end(move |_, _, _| slider_end.borrow_mut().push("slider-end".into())),
+            )
+            .into_any_element()
+    });
+
+    for modifiers in [
+        Modifiers {
+            alt: true,
+            ..Modifiers::none()
+        },
+        Modifiers {
+            control: true,
+            ..Modifiers::none()
+        },
+        Modifiers {
+            platform: true,
+            ..Modifiers::none()
+        },
+    ] {
+        click_with_modifiers(cx, 75., 25., modifiers);
+        click_with_modifiers(cx, 180., 128., modifiers);
+    }
+    assert!(recorded.borrow().is_empty());
+}
+
+#[gpui::test]
+fn hsl_color_area_mutates_hsl_channels(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ColorArea::new("hsl-area", PickerColor::hsb(0., 0.5, 0.5))
+            .default_value(PickerColor::hsb(0., 0.5, 0.5))
+            .color_space(ColorSpace::Hsl)
+            .size(px(240.), px(180.))
+            .on_change(move |color, _, _| {
+                recorded.borrow_mut().push(format!(
+                    "{:.2},{:.2}",
+                    color.channel_in(ColorChannel::Saturation, ColorSpace::Hsl),
+                    color.channel(ColorChannel::Lightness)
+                ));
+            })
+            .into_any_element()
+    });
+
+    // Local x=60 is HSL saturation 25%; y=36 is HSL lightness 80%.
+    // Lightness above 50% distinguishes preserving HSL saturation from
+    // accidentally preserving the stored HSB saturation.
+    click(cx, 60., 36.);
+    assert_eq!(recorded.borrow().as_slice(), ["0.25,0.80"]);
+}
+
+#[test]
+fn hsl_channels_survive_both_lightness_endpoints() {
+    let color = PickerColor::hsb(20., 0.6, 0.8).with_channel_in(
+        ColorChannel::Saturation,
+        ColorSpace::Hsl,
+        0.73,
+    );
+    for endpoint in [0.0, 1.0] {
+        let restored = color
+            .with_channel_in(ColorChannel::Lightness, ColorSpace::Hsl, endpoint)
+            .with_channel_in(ColorChannel::Lightness, ColorSpace::Hsl, 0.5);
+        assert!(
+            (restored.channel_in(ColorChannel::Saturation, ColorSpace::Hsl) - 0.73).abs() < 0.001
+        );
+        assert!(
+            (restored.channel_in(ColorChannel::Lightness, ColorSpace::Hsl) - 0.5).abs() < 0.001
+        );
+    }
+}
+
+#[gpui::test]
+fn rgb_color_area_mutates_its_rgb_axes(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ColorArea::new("rgb-area", PickerColor::from_rgb(0.2, 0.3, 0.4))
+            .color_space(ColorSpace::Rgb)
+            .size(px(255.), px(255.))
+            .on_change(move |color, _, _| {
+                recorded.borrow_mut().push(format!(
+                    "{:.0},{:.0},{:.0}",
+                    color.channel(ColorChannel::Red),
+                    color.channel(ColorChannel::Green),
+                    color.channel(ColorChannel::Blue)
+                ));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 64., 64.);
+    assert_eq!(recorded.borrow().as_slice(), ["64,191,102"]);
+}
+
+#[gpui::test]
+fn hue_max_stays_at_the_far_edge_in_area_and_slider(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let area = for_view.clone();
+        let slider = for_view.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(20.))
+            .child(
+                ColorArea::new("hue-max-area", PickerColor::hsb(0., 1., 1.))
+                    .default_value(PickerColor::hsb(0., 1., 1.))
+                    .x_channel(ColorChannel::Hue)
+                    .y_channel(ColorChannel::Brightness)
+                    .size(px(240.), px(100.))
+                    .on_change(move |color, _, _| {
+                        area.borrow_mut().push(format!("area:{:.0}", color.hue));
+                    }),
+            )
+            .child(
+                ColorSlider::new(
+                    "hue-max-slider",
+                    PickerColor::hsb(0., 1., 1.),
+                    ColorChannel::Hue,
+                )
+                .default_value(PickerColor::hsb(0., 1., 1.))
+                .length(px(240.))
+                .show_label(false)
+                .on_change(move |color, _, _| {
+                    slider.borrow_mut().push(format!("slider:{:.0}", color.hue));
+                }),
+            )
+            .into_any_element()
+    });
+
+    cx.simulate_event(MouseDownEvent {
+        button: MouseButton::Left,
+        position: point(px(120.), px(50.)),
+        modifiers: Modifiers::none(),
+        click_count: 1,
+        first_mouse: false,
+    });
+    flush_frame(cx);
+    move_pointer(cx, 300., 50., Some(MouseButton::Left));
+    release_pointer(cx, 300., 50.);
+
+    cx.simulate_event(MouseDownEvent {
+        button: MouseButton::Left,
+        position: point(px(120.), px(128.)),
+        modifiers: Modifiers::none(),
+        click_count: 1,
+        first_mouse: false,
+    });
+    flush_frame(cx);
+    move_pointer(cx, 300., 128., Some(MouseButton::Left));
+    release_pointer(cx, 300., 128.);
+
+    assert!(recorded.borrow().iter().any(|value| value == "area:360"));
+    assert!(recorded.borrow().iter().any(|value| value == "slider:360"));
+    press(cx, "home");
+    press(cx, "end");
+    let values = recorded.borrow();
+    assert_eq!(&values[values.len() - 2..], ["slider:0", "slider:360"]);
+}
+
+#[gpui::test]
+fn color_area_keyboard_reports_only_real_changes_at_both_bounds(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ColorArea::new("area-key-boundaries", PickerColor::hsb(0., 1., 1.))
+            .default_value(PickerColor::hsb(0., 1., 1.))
+            .x_channel(ColorChannel::Hue)
+            .y_channel(ColorChannel::Brightness)
+            .on_change(move |color, _, _| {
+                recorded.borrow_mut().push(format!("{:.0}", color.hue));
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "home");
+    press(cx, "home");
+    assert!(
+        recorded.borrow().is_empty(),
+        "Home at the minimum must not synthesize a change"
+    );
+
+    for _ in 0..10 {
+        press(cx, "end");
+    }
+    press(cx, "end");
+    press(cx, "end");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["36", "72", "108", "144", "180", "216", "252", "288", "324", "360"],
+        "real page-step changes must report, while repeated End at the maximum stays silent"
+    );
+
+    for _ in 0..10 {
+        press(cx, "home");
+    }
+    press(cx, "home");
+    press(cx, "home");
+    let values = recorded.borrow();
+    assert_eq!(values.len(), 20);
+    assert_eq!(
+        &values[10..],
+        ["324", "288", "252", "216", "180", "144", "108", "72", "36", "0"]
+    );
+}
+
+#[gpui::test]
+fn color_slider_keyboard_reports_only_real_changes_at_both_bounds(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ColorSlider::new(
+            "slider-key-boundaries",
+            PickerColor::hsb(0., 1., 1.),
+            ColorChannel::Hue,
+        )
+        .default_value(PickerColor::hsb(0., 1., 1.))
+        .show_label(false)
+        .on_change(move |color, _, _| {
+            recorded.borrow_mut().push(format!("{:.0}", color.hue));
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "home");
+    press(cx, "home");
+    press(cx, "end");
+    press(cx, "end");
+    press(cx, "end");
+    press(cx, "home");
+    press(cx, "home");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["360", "0"],
+        "only the first Home/End transition at each boundary may report"
+    );
+}
+
+#[gpui::test]
+fn vertical_color_slider_increases_toward_the_top(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ColorSlider::new(
+            "vertical-hue",
+            PickerColor::hsb(0., 1., 1.),
+            ColorChannel::Hue,
+        )
+        .orientation(Orientation::Vertical)
+        .length(px(240.))
+        .show_label(false)
+        .on_change(move |color, _, _| {
+            recorded.borrow_mut().push(format!("{:.0}", color.hue));
+        })
+        .into_any_element()
+    });
+
+    click(cx, 8., 60.);
+    assert_eq!(recorded.borrow().as_slice(), ["270"]);
+}
+
+#[gpui::test]
+fn color_area_hue_y_axis_increases_toward_the_top(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ColorArea::new("vertical-hue-area", PickerColor::hsb(0., 1., 0.5))
+            .x_channel(ColorChannel::Brightness)
+            .y_channel(ColorChannel::Hue)
+            .size(px(100.), px(240.))
+            .on_change(move |color, _, _| {
+                recorded.borrow_mut().push(format!("{:.0}", color.hue));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 50., 60.);
+    assert_eq!(recorded.borrow().as_slice(), ["270"]);
+}
+
+#[gpui::test]
+fn color_area_pointer_snaps_both_channels_to_their_steps(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .pl(px(100.))
+            .pt(px(50.))
+            .child(
+                ColorArea::new("snap-area", PickerColor::hsb(210., 0.5, 0.5))
+                    .size(px(240.), px(180.))
+                    .on_change(move |color, _, _| {
+                        recorded
+                            .borrow_mut()
+                            .push(format!("{:.2},{:.2}", color.saturation, color.brightness));
+                    }),
+            )
+            .into_any_element()
+    });
+
+    // Local (1, 1) maps to raw saturation .0042 and brightness .9944.
+    // React Stately snaps both normalized channels to their .01 step.
+    click(cx, 101., 51.);
+    assert_eq!(recorded.borrow().as_slice(), ["0.00,0.99"]);
+}
+
+#[gpui::test]
+fn color_slider_pointer_snaps_to_the_channel_step(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .pl(px(100.))
+            .child(
+                ColorSlider::new(
+                    "snap-slider",
+                    PickerColor::hsb(0., 1., 1.),
+                    ColorChannel::Hue,
+                )
+                .length(px(240.))
+                .show_label(false)
+                .on_change(move |color, _, _| {
+                    recorded.borrow_mut().push(format!("{:.1}", color.hue));
+                }),
+            )
+            .into_any_element()
+    });
+
+    // Local x=1 maps to 1.5 degrees, which the pinned state rounds to 2.
+    click(cx, 101., 8.);
+    assert_eq!(recorded.borrow().as_slice(), ["2.0"]);
+}
+
+#[gpui::test]
+fn channel_color_field_steps_with_up_and_down(cx: &mut TestAppContext) {
+    let recorded = events();
+    let state = cx.new(|cx| InputState::with_value(cx, "180"));
+    let state_for_view = state;
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ColorField::new("hue-arrows", PickerColor::hsb(180., 1., 1.))
+            .default_value(PickerColor::hsb(180., 1., 1.))
+            .state(state_for_view.clone())
+            .color_space(ColorSpace::Hsl)
+            .channel(ColorChannel::Hue)
+            .on_change(move |color, _, _| {
+                if let Some(color) = color {
+                    recorded.borrow_mut().push(format!("{:.0}", color.hue));
+                }
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "up");
+    press(cx, "down");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["181", "180"],
+        "the pinned ColorChannelField delegates to NumberField's one-step spinbutton keys"
+    );
+}
+
+#[gpui::test]
+fn normalized_channel_field_steps_internally_and_displays_percent(cx: &mut TestAppContext) {
+    let recorded = events();
+    let state = cx.new(|cx| InputState::with_value(cx, "50%"));
+    let state_for_view = state.clone();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ColorField::new("saturation-arrows", PickerColor::hsb(180., 0.5, 1.))
+            .default_value(PickerColor::hsb(180., 0.5, 1.))
+            .state(state_for_view.clone())
+            .channel(ColorChannel::Saturation)
+            .on_change(move |color, _, _| {
+                if let Some(color) = color {
+                    recorded
+                        .borrow_mut()
+                        .push(format!("{:.2}", color.saturation));
+                }
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "up");
+    assert_eq!(recorded.borrow().as_slice(), ["0.51"]);
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).value().to_owned()),
+        "51%",
+        "the input displays a percent without changing the normalized callback value"
+    );
+}
+
+#[gpui::test]
+fn normalized_channel_field_parses_plain_percent_digits(cx: &mut TestAppContext) {
+    let recorded = events();
+    let state = cx.new(|cx| InputState::with_value(cx, "50%"));
+    let state_for_view = state;
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ColorField::new("plain-percent", PickerColor::hsb(180., 0.5, 1.))
+            .state(state_for_view.clone())
+            .channel(ColorChannel::Saturation)
+            .on_change(move |color, _, _| {
+                recorded.borrow_mut().push(
+                    color.map_or_else(|| "none".into(), |color| format!("{:.2}", color.saturation)),
+                );
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "ctrl-a");
+    cx.simulate_input("51");
+    assert_eq!(
+        recorded.borrow().last().map(String::as_str),
+        Some("0.51"),
+        "a percent NumberField interprets plain 51 as 51%, not as an out-of-range 51"
+    );
+}
+
+#[gpui::test]
+fn channel_color_field_wheel_honors_is_wheel_disabled(cx: &mut TestAppContext) {
+    let recorded = events();
+    let enabled_state = cx.new(|cx| InputState::with_value(cx, "180"));
+    let disabled_state = cx.new(|cx| InputState::with_value(cx, "180"));
+    let enabled_for_view = enabled_state;
+    let disabled_for_view = disabled_state;
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let enabled = for_view.clone();
+        let disabled = for_view.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(20.))
+            .child(
+                ColorField::new("hue-wheel-live", PickerColor::hsb(180., 1., 1.))
+                    .default_value(PickerColor::hsb(180., 1., 1.))
+                    .state(enabled_for_view.clone())
+                    .color_space(ColorSpace::Hsl)
+                    .channel(ColorChannel::Hue)
+                    .on_change(move |color, _, _| {
+                        if let Some(color) = color {
+                            enabled
+                                .borrow_mut()
+                                .push(format!("enabled:{:.0}", color.hue));
+                        }
+                    }),
+            )
+            .child(
+                ColorField::new("hue-wheel-dead", PickerColor::hsb(180., 1., 1.))
+                    .default_value(PickerColor::hsb(180., 1., 1.))
+                    .state(disabled_for_view.clone())
+                    .color_space(ColorSpace::Hsl)
+                    .channel(ColorChannel::Hue)
+                    .is_wheel_disabled(true)
+                    .on_change(move |color, _, _| {
+                        if let Some(color) = color {
+                            disabled
+                                .borrow_mut()
+                                .push(format!("disabled:{:.0}", color.hue));
+                        }
+                    }),
+            )
+            .into_any_element()
+    });
+
+    // A channel field is a 36px input. The second sits at y=56..92 after the
+    // explicit 20px gap. Positive vertical wheel delta increments in the
+    // pinned `useNumberField`; `isWheelDisabled` suppresses the second one.
+    click(cx, 60., 18.);
+    wheel(cx, 60., 18., 1.);
+    click(cx, 60., 74.);
+    wheel(cx, 60., 74., 1.);
+    assert_eq!(recorded.borrow().as_slice(), ["enabled:181"]);
+}
+
+#[gpui::test]
+fn disabled_controls_and_read_only_channel_field_are_inert(cx: &mut TestAppContext) {
+    let recorded = events();
+    let state = cx.new(|cx| InputState::with_value(cx, "180"));
+    let state_for_view = state;
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let area = for_view.clone();
+        let slider = for_view.clone();
+        let field = for_view.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(20.))
+            .child(
+                ColorArea::new("disabled-area", PickerColor::hsb(210., 0.5, 0.5))
+                    .size(px(100.), px(60.))
+                    .is_disabled(true)
+                    .on_change(move |_, _, _| area.borrow_mut().push("area".into())),
+            )
+            .child(
+                ColorSlider::new(
+                    "disabled-slider",
+                    PickerColor::hsb(180., 1., 1.),
+                    ColorChannel::Hue,
+                )
+                .length(px(100.))
+                .show_label(false)
+                .is_disabled(true)
+                .on_change(move |_, _, _| slider.borrow_mut().push("slider".into())),
+            )
+            .child(
+                ColorField::new("readonly-field", PickerColor::hsb(180., 1., 1.))
+                    .state(state_for_view.clone())
+                    .channel(ColorChannel::Hue)
+                    .is_read_only(true)
+                    .on_change(move |_, _, _| field.borrow_mut().push("field".into())),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 50., 30.);
+    click(cx, 50., 88.);
+    click(cx, 50., 134.);
+    press(cx, "up");
+    wheel(cx, 50., 134., 1.);
+    assert!(recorded.borrow().is_empty());
+}

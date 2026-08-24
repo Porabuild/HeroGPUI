@@ -92,15 +92,15 @@ fn list_box_on_action_fires_when_selection_is_none(cx: &mut TestAppContext) {
         "clicking rows in selectionMode=none must activate them through onAction"
     );
 
-    // The click's mouse-down gave the list the focus, so the arrows reach it:
-    // two Downs put the cursor on Beta and Enter activates it — the same
-    // callback, reporting "beta" again. Had the activate blink gone to the
-    // selection path instead, there is nobody to record it.
+    // The last click focused Beta, so Down advances to Gamma and the second
+    // Down clamps there. Enter activates Gamma through the same callback. Had
+    // activation gone to the selection path instead, there is nobody to record
+    // it.
     press(cx, "down down");
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["alpha", "beta", "beta"],
+        ["alpha", "beta", "gamma"],
         "Enter must activate the row the arrows reached through onAction"
     );
 }
