@@ -12,5 +12,11 @@ gpui.workspace = true
 herogpui-core.workspace = true
 herogpui-theme.workspace = true
 
+# `test-support` is what gives the tests a headless platform, a
+# `VisualTestContext` and simulated input -- the only way to assert that a
+# control *works* rather than that it draws.
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+
 [lints]
 workspace = true
