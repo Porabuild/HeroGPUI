@@ -482,21 +482,23 @@ impl RenderOnce for ListBox {
                         if let Some(cb) = &on_action {
                             cb(&item_key, window, cx);
                         }
-                        if let Some(cb) = &on_selection_change {
-                            // The same answer a click gives: `Single` collapses
-                            // to this key, `Multiple` toggles it.
-                            let next = match mode {
-                                SelectionMode::None => selected_now.clone(),
-                                SelectionMode::Single => HashSet::from([item_key]),
-                                SelectionMode::Multiple => {
-                                    let mut set = selected_now.clone();
-                                    if !set.remove(&item_key) {
-                                        set.insert(item_key.clone());
+                        if mode != SelectionMode::None {
+                            if let Some(cb) = &on_selection_change {
+                                // The same answer a click gives: `Single`
+                                // collapses to this key, `Multiple` toggles it.
+                                let next = match mode {
+                                    SelectionMode::None => selected_now.clone(),
+                                    SelectionMode::Single => HashSet::from([item_key]),
+                                    SelectionMode::Multiple => {
+                                        let mut set = selected_now.clone();
+                                        if !set.remove(&item_key) {
+                                            set.insert(item_key.clone());
+                                        }
+                                        set
                                     }
-                                    set
-                                }
-                            };
-                            cb(&next, window, cx);
+                                };
+                                cb(&next, window, cx);
+                            }
                         }
                     }
                     crate::list_nav::Move::Ignore => {
@@ -787,19 +789,21 @@ impl ListBox {
                         if let Some(action) = &on_action {
                             action(&key, window, cx);
                         }
-                        if let Some(change) = &on_selection_change {
-                            let next = match mode {
-                                SelectionMode::None => current.clone(),
-                                SelectionMode::Single => HashSet::from([key.clone()]),
-                                SelectionMode::Multiple => {
-                                    let mut set = current.clone();
-                                    if !set.remove(&key) {
-                                        set.insert(key.clone());
+                        if mode != SelectionMode::None {
+                            if let Some(change) = &on_selection_change {
+                                let next = match mode {
+                                    SelectionMode::None => current.clone(),
+                                    SelectionMode::Single => HashSet::from([key.clone()]),
+                                    SelectionMode::Multiple => {
+                                        let mut set = current.clone();
+                                        if !set.remove(&key) {
+                                            set.insert(key.clone());
+                                        }
+                                        set
                                     }
-                                    set
-                                }
-                            };
-                            change(&next, window, cx);
+                                };
+                                change(&next, window, cx);
+                            }
                         }
                     });
                 }

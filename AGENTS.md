@@ -864,7 +864,7 @@ gpui has a headless test platform, so a component can be rendered, clicked and
 typed at for real.
 
 ```bash
-cargo test -p herogpui-components                    # 124 unit + 70 behaviour
+cargo test -p herogpui-components                    # all unit + behaviour binaries
 cargo test -p herogpui-components --test overlays    # one binary
 ```
 
@@ -972,6 +972,24 @@ unlike the screenshot driver's posted keys, but `Keystroke::parse` joins with
 event needs a redraw after it because events hit-test the last rendered frame;
 and taffy shrinks flex children that grow mid-test, so a growth test needs
 `flex_shrink_0` or it measures a box that still fits.
+
+Three gpui layout and hit-test rules are now defect-backed, not guesses:
+
+- **A percentage `max_h` resolves against the parent's content box, not the
+  viewport.** A Modal panel capped at `85%` inside its container therefore
+  never became the viewport-height scroller the CSS anatomy describes. Use an
+  absolute viewport-derived cap when the contract is about the window, then put
+  `overflow_y_scroll` on the body v3 makes scrollable.
+- **A `w_full` child gives a scroller no horizontal range.** It commits the only
+  child to the viewport width, so `max_offset` is zero and every wheel clamps
+  away even when the child's descendants need more room. The Table's content
+  column is `min_w_full().flex_shrink_0()`: it fills a roomy viewport but may
+  exceed a narrow one, which gives `overflow_x_scroll` something to move.
+- **Use `.occlude()` when a floating control covers another interactive
+  element.** gpui otherwise sends the press through to the element underneath;
+  that made a Tabs chevron scroll and select the covered tab in one click.
+  Backdrop dismissal is a different anatomy: put `on_mouse_down_out` on the
+  panel so its own bounds decide what is outside.
 
 `[profile.dev]` sets `debug = "line-tables-only"` because ten test binaries with
 full debug info filled the disk, and the link failed as `link.exe: exit code

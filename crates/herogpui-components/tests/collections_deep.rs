@@ -1,0 +1,164 @@
+//! Deeper collection behaviour: ListBox's `onAction` (activated, not selected)
+//! and TagGroup's `disabledKeys`.
+//!
+//! The existing `collections.rs` drives ListBox single/multiple picks,
+//! typeahead and disabled keys, plus TagGroup removal and roving focus. These
+//! tests cover the halves v3 documents that the suite did not drive:
+//!
+//! - `onAction` is "Handler called when an item is activated", and v3's "With
+//!   Disabled Items" and "With Sections" examples pair it with
+//!   `selectionMode="none"` — a row must answer activation with no selection
+//!   to report. The list here records `on_action` only, so a row that fired
+//!   the selection path instead would stay silent.
+//! - TagGroup's `disabledKeys` ("Keys of disabled tags") must make a tag take
+//!   no click *and* drop out of the roving cursor, so the arrows skip it.
+//!
+//! Geometry is derived from the components' own constants, exactly as
+//! `collections.rs` does:
+//!
+//! - ListBox row *i* centre: y = 4 + i*(36 + 4) + 18 = 22 + 40i
+//!   (`.list-box` p-1, rows `min-h(util::FIELD_HEIGHT)` = 36px, `mt-1` gap).
+//! - TagGroup: the `tag_content` slot draws a fixed 40x20 box, so a `--md`
+//!   chip (px-2 py-1, no remove button, no icon) is 8+40+8 = 56px wide and
+//!   28px tall; chips sit 6px apart, so chip *i* centre x = 28 + 62i, y = 14.
+
+mod harness;
+
+use std::cell::RefCell;
+use std::collections::HashSet;
+use std::rc::Rc;
+
+use gpui::{prelude::*, px, TestAppContext};
+use herogpui_components::{util::FIELD_HEIGHT, ListBox, ListBoxItem, SelectionMode, Tag, TagGroup};
+
+use harness::{click, events, open_host, press};
+
+/// The y centre of ListBox row `i`; see the module comment for the derivation.
+fn list_row_centre(i: usize) -> f32 {
+    let row = f32::from(FIELD_HEIGHT);
+    4. + i as f32 * (row + 4.) + row / 2.
+}
+
+/// The keys of a selection joined in a stable order.
+fn sorted_join(keys: &HashSet<gpui::SharedString>) -> String {
+    let mut keys: Vec<String> = keys.iter().map(ToString::to_string).collect();
+    keys.sort();
+    keys.join(",")
+}
+
+// ---------------------------------------------------------------------------
+// ListBox: onAction, separate from selection
+// ---------------------------------------------------------------------------
+
+#[gpui::test]
+fn list_box_on_action_fires_when_selection_is_none(cx: &mut TestAppContext) {
+    // v3: `onAction` is "Handler called when an item is activated", and the
+    // "With Disabled Items" / "With Sections" examples pair it with
+    // `selectionMode="none"`. The list here records `on_action` only, so
+    // activation is the only thing that can report.
+    let events = events();
+    let recorded = events.clone();
+    let cx = open_host(cx, move || {
+        let events = events.clone();
+        let selection_events = events.clone();
+        ListBox::new(
+            "lb-action",
+            vec![
+                ListBoxItem::new("alpha", "Alpha"),
+                ListBoxItem::new("beta", "Beta"),
+                ListBoxItem::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::None)
+        .on_action(move |key, _, _| events.borrow_mut().push(key.to_string()))
+        .on_selection_change(move |keys, _, _| {
+            selection_events
+                .borrow_mut()
+                .push(format!("selection:{}", sorted_join(keys)));
+        })
+        .into_any_element()
+    });
+
+    // Rows 0 and 1 centre at y 22 and 62; clicking must report the activated
+    // row's key with nothing to select.
+    click(cx, 60., list_row_centre(0));
+    click(cx, 60., list_row_centre(1));
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "beta"],
+        "clicking rows in selectionMode=none must activate them through onAction"
+    );
+
+    // The click's mouse-down gave the list the focus, so the arrows reach it:
+    // two Downs put the cursor on Beta and Enter activates it — the same
+    // callback, reporting "beta" again. Had the activate blink gone to the
+    // selection path instead, there is nobody to record it.
+    press(cx, "down down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "beta", "beta"],
+        "Enter must activate the row the arrows reached through onAction"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// TagGroup: disabledKeys
+// ---------------------------------------------------------------------------
+
+#[gpui::test]
+fn tag_group_disabled_key_takes_no_click_and_is_skipped(cx: &mut TestAppContext) {
+    // v3: `disabledKeys` is "Keys of disabled tags". A disabled tag must not
+    // answer the pointer, and it must drop out of the roving cursor so the
+    // arrows step over it. The caller owns the selection, as a controlled
+    // TagGroup is used.
+    let selection: Rc<RefCell<HashSet<gpui::SharedString>>> = Rc::new(RefCell::new(HashSet::new()));
+    let events = events();
+    let recorded = events.clone();
+    let cx = open_host(cx, move || {
+        let selection = selection.clone();
+        let events = events.clone();
+        let held = selection.borrow().clone();
+        TagGroup::new(
+            "tg-disabled",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Single)
+        .selected_keys(held)
+        .disabled_keys(["beta".into()])
+        .tag_content(|_, _| gpui::div().w(px(40.)).h(px(20.)).into_any_element())
+        .on_selection_change(move |keys, _, _| {
+            events.borrow_mut().push(sorted_join(keys));
+            *selection.borrow_mut() = keys.clone();
+        })
+        .into_any_element()
+    });
+
+    // Chips centre at (28, 14) and (90, 14); the second is the disabled Beta.
+    // Selecting Alpha and then clicking the disabled tag must report Alpha
+    // once and then stop — no callback, no toggle, no replacement.
+    click(cx, 28., 14.);
+    click(cx, 90., 14.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha"],
+        "a disabledKeys tag must take no click"
+    );
+
+    // Tab enters the group on Alpha; Right must land the roving cursor on
+    // Gamma, skipping the disabled Beta. Enter then selects Gamma, which in
+    // single mode *replaces* Alpha — the report "gamma" proves the arrow never
+    // stopped at "beta" (a click that landed there would have said so).
+    press(cx, "tab");
+    press(cx, "right");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "gamma"],
+        "the arrow must skip the disabled tag: Right after Alpha lands on Gamma"
+    );
+}

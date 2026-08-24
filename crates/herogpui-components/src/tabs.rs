@@ -289,12 +289,16 @@ impl RenderOnce for Tabs {
                         let key_cb = self.on_selection_change.clone();
                         let key_own = selection_own.clone();
                         tab = tab.on_key_down(move |event, window, cx| {
-                            let key = match event.keystroke.key.as_str() {
-                                "right" | "down" => "down",
-                                "left" | "up" => "up",
-                                other @ ("home" | "end") => other,
+                            let key = match (vertical, event.keystroke.key.as_str()) {
+                                (false, "right") | (true, "down") => "down",
+                                (false, "left") | (true, "up") => "up",
+                                (_, other @ ("home" | "end")) => other,
                                 _ => return,
                             };
+                            // The list owns its axis and Home/End. Cross-axis
+                            // keys returned above remain available to an
+                            // enclosing scroller or navigation control.
+                            cx.stop_propagation();
                             let crate::list_nav::Move::To(next) =
                                 crate::list_nav::resolve(&key_stops, Some(index), key, true)
                             else {
@@ -399,12 +403,16 @@ impl RenderOnce for Tabs {
                         let key_cb = self.on_selection_change.clone();
                         let key_own = selection_own.clone();
                         tab = tab.on_key_down(move |event, window, cx| {
-                            let key = match event.keystroke.key.as_str() {
-                                "right" | "down" => "down",
-                                "left" | "up" => "up",
-                                other @ ("home" | "end") => other,
+                            let key = match (vertical, event.keystroke.key.as_str()) {
+                                (false, "right") | (true, "down") => "down",
+                                (false, "left") | (true, "up") => "up",
+                                (_, other @ ("home" | "end")) => other,
                                 _ => return,
                             };
+                            // The list owns its axis and Home/End. Cross-axis
+                            // keys returned above remain available to an
+                            // enclosing scroller or navigation control.
+                            cx.stop_propagation();
                             let crate::list_nav::Move::To(next) =
                                 crate::list_nav::resolve(&key_stops, Some(index), key, true)
                             else {
