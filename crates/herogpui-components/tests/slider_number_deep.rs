@@ -78,7 +78,7 @@ fn range_thumb_clamps_at_its_neighbour_without_changing_identity(cx: &mut TestAp
 
     // The press activates the lower thumb. Dragging through the upper thumb
     // clamps that same lower thumb at 80 rather than switching to thumb 1.
-    drag(cx, (120., 9.), (540., 9.));
+    drag(cx, (120., 10.), (540., 10.));
     assert_eq!(
         recorded.borrow().as_slice(),
         ["80,80"],
@@ -114,7 +114,7 @@ fn range_track_tie_activates_upper_thumb_for_following_keys(cx: &mut TestAppCont
 
     // Value 50 is equidistant from 20 and 80, so React Aria chooses the
     // end/right thumb. The following Right key must continue from that thumb.
-    cx.simulate_click(point(px(300.), px(9.)), Modifiers::none());
+    cx.simulate_click(point(px(300.), px(10.)), Modifiers::none());
     flush_frame(cx);
     press(cx, "right");
     assert_eq!(
@@ -147,7 +147,7 @@ fn range_track_does_not_redirect_from_a_disabled_nearest_thumb(cx: &mut TestAppC
 
     // The upper thumb wins the 50/50 geometry tie, but it is disabled. The
     // track press is a no-op; it must not redirect to thumb 0.
-    cx.simulate_click(point(px(300.), px(9.)), Modifiers::none());
+    cx.simulate_click(point(px(300.), px(10.)), Modifiers::none());
     flush_frame(cx);
     assert!(
         recorded.borrow().is_empty(),
@@ -182,7 +182,7 @@ fn range_change_end_reports_the_full_final_array_once(cx: &mut TestAppContext) {
 
     // Release beyond the 600px track to prove the window-scoped listener ends
     // the drag and reports once even after the pointer leaves the hitbox.
-    drag(cx, (120., 9.), (700., 9.));
+    drag(cx, (120., 10.), (700., 10.));
     assert_eq!(
         recorded.borrow().as_slice(),
         ["change:80,80", "end:80,80"],
@@ -213,7 +213,7 @@ fn slider_pointer_and_keyboard_snap_from_min_value(cx: &mut TestAppContext) {
 
     // x=210 is 35% of the track: raw value 10. The min-anchored lattice
     // 3,8,13,... snaps it to 8, and Right advances to 13.
-    cx.simulate_click(point(px(210.), px(9.)), Modifiers::none());
+    cx.simulate_click(point(px(210.), px(10.)), Modifiers::none());
     flush_frame(cx);
     press(cx, "right");
     assert_eq!(
@@ -242,7 +242,7 @@ fn slider_fractional_steps_round_to_step_precision(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    cx.simulate_click(point(px(300.), px(9.)), Modifiers::none());
+    cx.simulate_click(point(px(300.), px(10.)), Modifiers::none());
     flush_frame(cx);
     press(cx, "right");
     assert_eq!(
@@ -270,7 +270,7 @@ fn slider_accepts_positive_exponent_steps(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    cx.simulate_click(point(px(300.), px(9.)), Modifiers::none());
+    cx.simulate_click(point(px(300.), px(10.)), Modifiers::none());
     flush_frame(cx);
     assert_eq!(
         recorded.borrow().as_slice(),

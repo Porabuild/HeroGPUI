@@ -3,7 +3,7 @@
 The prop and animation audits both read documentation, and neither says anything
 about whether a control is the right *size*: `api_audit.py` was perfectly happy
 with a button whose corner radius was a third of v3's. This reads the real
-stylesheets from the v3 branch of the React repo, resolves the Tailwind
+stylesheets from the v3.2.4 tag of the React repo, resolves the Tailwind
 utilities through v3's own token scales, and compares the result with the
 constants this port renders from.
 
@@ -33,7 +33,7 @@ import sys
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 CACHE = os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-css')
-COMPONENTS = ('https://raw.githubusercontent.com/heroui-inc/heroui/v3'
+COMPONENTS = ('https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.4'
               '/packages/styles/components/%s.css')
 
 # v3's own scales, from themes/shared/theme.css and themes/default/variables.css.
@@ -959,6 +959,48 @@ CHECKS = [
     ('slider', '.slider', 'gap', 'Slider wrapper gap', SRC + 'slider.rs',
      r'let mut el = gpui::div\(\)\s*\.flex\(\)\s*\.flex_col\(\)\s*'
      r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('slider', '[data-slot="label"]', 'text', 'Slider label text', SRC + 'slider.rs',
+     r'`\.slider__output` is `text-sm font-medium tabular-nums`[\s\S]{0,500}?'
+     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('slider', '.slider__output', 'text', 'Slider output text', SRC + 'slider.rs',
+     r'`\.slider__output` is `text-sm font-medium tabular-nums`[\s\S]{0,500}?'
+     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('slider', '.slider__track', 'radius', 'Slider track -> small_radius',
+     SRC + 'slider.rs',
+     r'let mut track = gpui::div\(\)[\s\S]{0,240}?'
+     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('slider', '.slider[data-orientation="horizontal"] .slider__track', 'h',
+     'Slider horizontal track height', SRC + 'slider.rs',
+     r'let track_cross = px\((\d+(?:\.\d*)?)\.\)', None),
+    ('slider', '.slider[data-orientation="vertical"] .slider__track', 'w',
+     'Slider vertical track width', SRC + 'slider.rs',
+     r'let track_cross = px\((\d+(?:\.\d*)?)\.\)', None),
+    ('slider', '.slider__thumb', 'radius', 'Slider thumb -> small_radius',
+     SRC + 'slider.rs',
+     r'thumb_el = match &self\.thumb[\s\S]{0,240}?'
+     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('slider', '.slider[data-orientation="horizontal"] .slider__thumb', 'w',
+     'Slider horizontal outer thumb width', SRC + 'slider.rs',
+     r'let thumb_along = px\((\d+(?:\.\d*)?)\.\)', None),
+    ('slider', '.slider[data-orientation="vertical"] .slider__thumb', 'h',
+     'Slider vertical outer thumb height', SRC + 'slider.rs',
+     r'let thumb_along = px\((\d+(?:\.\d*)?)\.\)', None),
+    ('slider', '.slider__thumb::after', 'radius', 'Slider inner thumb -> key_radius',
+     SRC + 'slider.rs',
+     r'inner\.w\(px\(24\. \* scale\)\)\.h\(px\(16\. \* scale\)\)'
+     r'[\s\S]{0,120}?\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('slider', '.slider[data-orientation="horizontal"] .slider__thumb::after', 'w',
+     'Slider horizontal inner thumb width', SRC + 'slider.rs',
+     r'inner\.w\(px\((\d+(?:\.\d*)?)\. \* scale\)\)\.h\(px\(16\. \* scale\)\)', None),
+    ('slider', '.slider[data-orientation="horizontal"] .slider__thumb::after', 'h',
+     'Slider horizontal inner thumb height', SRC + 'slider.rs',
+     r'inner\.w\(px\(24\. \* scale\)\)\.h\(px\((\d+(?:\.\d*)?)\. \* scale\)\)', None),
+    ('slider', '.slider[data-orientation="vertical"] .slider__thumb::after', 'w',
+     'Slider vertical inner thumb width', SRC + 'slider.rs',
+     r'inner\.w\(px\((\d+(?:\.\d*)?)\. \* scale\)\)\.h\(px\(24\. \* scale\)\)', None),
+    ('slider', '.slider[data-orientation="vertical"] .slider__thumb::after', 'h',
+     'Slider vertical inner thumb height', SRC + 'slider.rs',
+     r'inner\.w\(px\(16\. \* scale\)\)\.h\(px\((\d+(?:\.\d*)?)\. \* scale\)\)', None),
     ('switch', '.switch', 'gap', 'Switch content/description gap', SRC + 'switch.rs',
      r'so the text lines up under the label\.[\s\S]{0,300}?'
      r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -1257,11 +1299,33 @@ CHECKS = [
 
 
 THEME_FILES = (
-    ('variables.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3'
+    ('variables.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.4'
                       '/packages/styles/themes/default/variables.css'),
-    ('shared_theme.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3'
+    ('shared_theme.css', 'https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.4'
                          '/packages/styles/themes/shared/theme.css'),
 )
+
+
+NESTED_SELECTOR_CHAINS = {
+    ('slider', '[data-slot="label"]'): ('.slider', '[data-slot="label"]'),
+    ('slider', '.slider__output'): ('.slider', '.slider__output'),
+    ('slider', '.slider__track'): ('.slider', '.slider__track'),
+    ('slider', '.slider__thumb'): ('.slider', '.slider__thumb'),
+    ('slider', '.slider__fill'): ('.slider', '.slider__fill'),
+    ('slider', '.slider__thumb::after'): ('.slider', '.slider__thumb', '&::after'),
+    ('slider', '.slider[data-orientation="horizontal"] .slider__track'): (
+        '.slider', '&[data-orientation="horizontal"]', '.slider__track'),
+    ('slider', '.slider[data-orientation="vertical"] .slider__track'): (
+        '.slider', '&[data-orientation="vertical"]', '.slider__track'),
+    ('slider', '.slider[data-orientation="horizontal"] .slider__thumb'): (
+        '.slider', '&[data-orientation="horizontal"]', '.slider__thumb|last'),
+    ('slider', '.slider[data-orientation="vertical"] .slider__thumb'): (
+        '.slider', '&[data-orientation="vertical"]', '.slider__thumb|last'),
+    ('slider', '.slider[data-orientation="horizontal"] .slider__thumb::after'): (
+        '.slider', '&[data-orientation="horizontal"]', '.slider__thumb|last', '&::after'),
+    ('slider', '.slider[data-orientation="vertical"] .slider__thumb::after'): (
+        '.slider', '&[data-orientation="vertical"]', '.slider__thumb|last', '&::after'),
+}
 
 
 def fetch():
@@ -1376,6 +1440,33 @@ def nested_rule_body(css, parent, selector):
     return parent_body[start : index - 1] if depth == 0 else None
 
 
+def nested_rule_chain(css, selectors):
+    """Resolve a selector through each level of v3's nested CSS."""
+    body = rule_block(css, selectors[0])
+    if body is None:
+        return None
+    for selector in selectors[1:]:
+        use_last = selector.endswith('|last')
+        selector = selector.removesuffix('|last')
+        matches = list(re.finditer(r'(^|\n)\s*' + re.escape(selector) + r'\s*\{', body))
+        if not matches:
+            return None
+        match = matches[-1] if use_last else matches[0]
+        start = match.end()
+        depth = 1
+        index = start
+        while index < len(body) and depth:
+            if body[index] == '{':
+                depth += 1
+            elif body[index] == '}':
+                depth -= 1
+            index += 1
+        if depth:
+            return None
+        body = body[start:index - 1]
+    return body
+
+
 def utilities(body):
     """Every `@apply` utility in one rule body, keyed by breakpoint."""
     out = {}
@@ -1414,6 +1505,12 @@ def measure(body):
     # declaration counts as the same metric. rem is root-relative (16px), not
     # font-relative -- v3's own comments guess otherwise.
     for prop, metric in (('height', 'h'), ('width', 'w')):
+        m = re.search(
+            prop + r':\s*calc\(([\d.]+)rem\s*\+\s*([\d.]+)rem\)',
+            body,
+        )
+        if m:
+            offer(metric, (float(m.group(1)) + float(m.group(2))) * 16.0, '')
         m = re.search(prop + r':\s*([\d.]+)rem', body)
         if m:
             offer(metric, float(m.group(1)) * 16.0, '')
@@ -1565,6 +1662,14 @@ FILLS = [
      SRC + 'switch.rs', 'colors.default.color'),
     ('switch', '.switch__thumb', 'bg-white',
      SRC + 'switch.rs', 'herogpui_theme::white()'),
+    ('slider', '.slider__track', 'bg-default',
+     SRC + 'slider.rs', 'default.color'),
+    ('slider', '.slider__fill', 'bg-accent',
+     SRC + 'slider.rs', 'sem.color'),
+    ('slider', '.slider__thumb', 'bg-accent',
+     SRC + 'slider.rs', 'sem.color'),
+    ('slider', '.slider__thumb::after', 'bg-accent-foreground',
+     SRC + 'slider.rs', 'sem.foreground'),
     ('input-otp', '.input-otp__slot', 'bg-field',
      SRC + 'input_otp.rs', 'colors.field.background'),
     # Every floating panel is `bg-overlay`, which is a distinct token from
@@ -1607,7 +1712,8 @@ def check_fills():
         body = None
         if os.path.exists(css_path):
             css = io.open(css_path, encoding='utf-8', errors='replace').read()
-            body = rule_body(css, selector)
+            chain = NESTED_SELECTOR_CHAINS.get((comp, selector))
+            body = nested_rule_chain(css, chain) if chain else rule_body(css, selector)
         if body is None or token not in body:
             rows.append(('?', selector, token, 'not declared in v3 CSS'))
             stale += 1
@@ -1712,7 +1818,10 @@ def main():
         want = None
         if os.path.exists(css_path):
             css = io.open(css_path, encoding='utf-8', errors='replace').read()
-            if selector.startswith('.dropdown__popover '):
+            chain = NESTED_SELECTOR_CHAINS.get((comp, selector))
+            if chain:
+                body = nested_rule_chain(css, chain)
+            elif selector.startswith('.dropdown__popover '):
                 child = selector.removeprefix('.dropdown__popover ')
                 body = nested_rule_body(css, '.dropdown__popover', child)
             else:
@@ -1738,7 +1847,8 @@ def main():
                         break
             # A size modifier inherits whatever it does not restate.
             if body is not None:
-                want = measure(body).get(metric)
+                measured_body = body.split('{', 1)[0] if chain else body
+                want = measure(measured_body).get(metric)
                 if want is None and '--' in selector:
                     base = rule_body(css, selector.split('--')[0])
                     if base:
@@ -1768,8 +1878,9 @@ def main():
     print('metrics compared : %d' % len(rows))
     print('unreadable       : %d  (a pattern stopped matching -- fix it)' % unreadable)
     print('MISMATCHED       : %d' % mismatched)
-    check_fills()
+    wrong_fills, stale_fills = check_fills()
+    return int(bool(mismatched or unreadable or wrong_fills or stale_fills))
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

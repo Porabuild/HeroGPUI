@@ -1244,10 +1244,9 @@ const SLIDER_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Dragging",
         selector: ".slider__thumb[data-dragging=\"true\"]",
-        description:
-            "Pointer drag state updates the value, but the v3 thumb scale is not drawn yet.",
+        description: "Pointer drag state updates the value and scales the inner thumb to 90%; gpui applies the scale without CSS's 250ms ramp.",
         rust: "DragState",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     StateDoc {
         state: "Disabled slider",
@@ -1291,14 +1290,14 @@ const SLIDER_STYLING: &[StyleDoc] = &[
         class_or_token: "[data-slot=\"label\"] / .slider__output",
         value: "text-sm font-medium; output tabular-nums",
         description: "Label and output typography.",
-        rust: "Slider::render text_size(px(12.))",
-        status: ImplementationStatus::Partial,
+        rust: "Slider::render text_size(px(14.)) + FontWeight::MEDIUM",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".slider__track",
         value: "rounded-xl bg-default; horizontal h-5; vertical w-5",
         description: "Twenty-pixel track with transparent end borders for the thumb overhang.",
-        rust: "4px rail inside an 18px hit surface",
+        rust: "20px default-color track + small_radius; no separate transparent end borders",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {
@@ -1312,15 +1311,15 @@ const SLIDER_STYLING: &[StyleDoc] = &[
         class_or_token: ".slider__thumb",
         value: "28x20 horizontal or 20x28 vertical outer pill; 24x16 or 16x24 inner pill",
         description: "Accent outer handle with accent-foreground inner handle.",
-        rust: "18px circular background thumb",
-        status: ImplementationStatus::Partial,
+        rust: "28x20 / 20x28 outer + 24x16 / 16x24 inner",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".slider__thumb[data-dragging=\"true\"]::after",
         value: "scale(0.9); 250ms ease-out; motion-reduce none",
         description: "Dragging feedback and reduced-motion override.",
-        rust: "value drag only; visual scale unavailable",
-        status: ImplementationStatus::Unavailable,
+        rust: "DragState inner geometry scale; instant under gpui",
+        status: ImplementationStatus::Partial,
     },
     StyleDoc {
         class_or_token: ".slider__thumb[data-focus-visible=\"true\"]",

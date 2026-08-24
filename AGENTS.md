@@ -1175,8 +1175,10 @@ v2 concepts that must **not** come back:
   `pages/reference_metadata.rs` is the checked-in, v3.2.4-pinned source for a
   component's detailed API, Parts & Slots, States and Styling panels;
   `.shots/reference_audit.py` reports detailed coverage explicitly. A generic
-  Rust-builder fallback is not a detailed HeroUI reference, so `1/66 detailed`
-  is honest partial coverage rather than a passing total. Metadata must name
+  Rust-builder fallback is not a detailed HeroUI reference, so partial coverage
+  is reported honestly rather than as a passing total. The current count is
+  printed by the audit rather than copied here because each detailed page
+  changes it. Metadata must name
   real Rust owners/methods and pinned source links, and each panel must be
   opened through its section deep link and inspected — a row count cannot show
   clipping or prove the requested subject rendered.

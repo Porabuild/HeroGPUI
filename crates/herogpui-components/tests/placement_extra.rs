@@ -213,7 +213,7 @@ fn vertical_slider_keyboard_steps_up_and_clamps(cx: &mut TestAppContext) {
 /// track's height, measured up from its bottom edge.
 ///
 /// Before the fix, `set_from_pointer`'s predecessor divided `-y` by the track's
-/// **width** after subtracting its `origin.x`, so a vertical track (18px wide,
+/// **width** after subtracting its `origin.x`, so a vertical track (20px wide,
 /// y growing downward) produced a negative numerator and every press and every
 /// drag clamped to the minimum -- a vertical slider could not be moved by the
 /// pointer at all.
@@ -238,19 +238,19 @@ fn vertical_slider_drag_is_derived_from_track_height(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    // A vertical track is `w(thumb_px).h(px(160.))` -- 18px wide and a fixed
-    // 160px tall, sat at the wrapper's top-left, so the enclosing column's
-    // height does not enter the arithmetic. x = 9 is its centre line, and zero
+    // A vertical track is 20px wide and a fixed 160px tall, sat at the
+    // wrapper's top-left, so the enclosing column's height does not enter the
+    // arithmetic. x = 10 is its centre line, and zero
     // is the *bottom*: y = 160 reads 0 and y = 0 reads 100, so the 25 mark sits
     // at y = 160 - 0.25*160 = 120 and the 75 mark at y = 40.
-    press_at(cx, 9., 120.);
+    press_at(cx, 10., 120.);
     assert_eq!(
         seen.borrow().as_slice(),
         ["25"],
         "a press a quarter of the way up the track must report 25"
     );
 
-    drag(cx, (9., 120.), (9., 40.));
+    drag(cx, (10., 120.), (10., 40.));
     assert_eq!(
         seen.borrow().as_slice(),
         ["25", "75"],
@@ -288,9 +288,9 @@ fn slider_step_snaps_pointer_to_marks_and_clamps_both_ends(cx: &mut TestAppConte
     // 80 (13.3 -> 25) to 460 (76.7 -> 75); the second starts on the current
     // 75 mark, so its unchanged press stays silent before the pull to 590
     // (98.3) clamps at 100.
-    press_at(cx, 5., 9.);
-    drag(cx, (80., 9.), (460., 9.));
-    drag(cx, (460., 9.), (590., 9.));
+    press_at(cx, 5., 10.);
+    drag(cx, (80., 10.), (460., 10.));
+    drag(cx, (460., 10.), (590., 10.));
     assert_eq!(
         seen.borrow().as_slice(),
         ["0", "25", "75", "100"],

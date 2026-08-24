@@ -514,6 +514,7 @@ impl RenderOnce for Slider {
         );
 
         let sem = cx.role(Color::Accent);
+        let default = cx.role(Color::Default);
         let colors = cx.colors();
         let layout = cx.layout();
 
@@ -536,8 +537,10 @@ impl RenderOnce for Slider {
             (0.0, fractions[0])
         };
 
-        let rail_h = px(4.);
-        let thumb_px = px(18.);
+        // v3's track is 20px on its cross axis. Its thumb is a two-layer pill:
+        // 28x20 around a 24x16 centre horizontally, transposed vertically.
+        let track_cross = px(20.);
+        let thumb_along = px(28.);
         let range_span = self.max - self.min;
 
         // A horizontal slider fills its container, as v3's does; without a
@@ -556,7 +559,8 @@ impl RenderOnce for Slider {
                 gpui::div()
                     .flex()
                     .justify_between()
-                    .text_size(px(12.))
+                    .text_size(px(14.))
+                    .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(colors.foreground)
                     .child(self.label.clone().unwrap_or_default())
                     .when(self.show_value, |l| {
@@ -575,11 +579,13 @@ impl RenderOnce for Slider {
             .id(self.id.clone())
             .relative()
             .flex()
-            .items_center();
+            .items_center()
+            .rounded(crate::util::small_radius(cx))
+            .bg(default.color);
         track = if vertical {
-            track.w(thumb_px).h(px(160.))
+            track.w(track_cross).h(px(160.))
         } else {
-            track.w_full().h(thumb_px)
+            track.w_full().h(track_cross)
         };
 
         if !self.is_disabled {
@@ -613,52 +619,74 @@ impl RenderOnce for Slider {
             .inset_0(),
         );
 
-        // `.slider__track` is `relative rounded-xl bg-default` -- the rail the
-        // fill and the thumbs sit on.
-        track = track.child(
-            gpui::div()
-                .absolute()
-                .when(vertical, |r| r.top(px(0.)).bottom(px(0.)).w(rail_h))
-                .when(!vertical, |r| r.left(px(0.)).right(px(0.)).h(rail_h))
-                .rounded_full()
-                .bg(colors.default.soft_hover()),
-        );
-
         // `.slider__fill` is `pointer-events-none absolute bg-accent`.
         let fill_span = (fill_to - fill_from).max(0.0);
         track = track.child(
             gpui::div()
                 .absolute()
-                .rounded_full()
+                .rounded(crate::util::small_radius(cx))
                 .bg(sem.color)
                 .when(vertical, |f| {
                     f.bottom(gpui::relative(fill_from))
-                        .w(rail_h)
+                        .w(track_cross)
                         .h(gpui::relative(fill_span))
                 })
                 .when(!vertical, |f| {
                     f.left(gpui::relative(fill_from))
-                        .h(rail_h)
+                        .h(track_cross)
                         .w(gpui::relative(fill_span))
                 }),
         );
 
         // thumbs
+        let dragging_at = dragging.read(cx).active;
+        let reduce_motion = cx.reduce_motion();
         for (index, f) in fractions.iter().copied().enumerate() {
             let mut thumb_el = gpui::div()
                 .absolute()
-                .when(vertical, |t| t.bottom(gpui::relative(f)).mb(-thumb_px / 2.))
-                .when(!vertical, |t| t.left(gpui::relative(f)).ml(-thumb_px / 2.))
-                .size(thumb_px)
+                .flex()
+                .items_center()
+                .justify_center()
+                .when(vertical, |t| {
+                    t.bottom(gpui::relative(f))
+                        .mb(-thumb_along / 2.)
+                        .w(track_cross)
+                        .h(thumb_along)
+                })
+                .when(!vertical, |t| {
+                    t.left(gpui::relative(f))
+                        .ml(-thumb_along / 2.)
+                        .w(thumb_along)
+                        .h(track_cross)
+                })
                 .flex_shrink_0();
             thumb_el = match &self.thumb {
                 Some(render) => thumb_el.child(render(index, thumbs[index])),
                 None => thumb_el
-                    .rounded_full()
-                    .bg(colors.background)
-                    .border_2()
-                    .border_color(sem.color)
-                    .shadow(layout.surface_shadow.clone()),
+                    .rounded(crate::util::small_radius(cx))
+                    .bg(sem.color)
+                    .child(
+                        gpui::div()
+                            .when(vertical, |inner| {
+                                let scale = if dragging_at == Some(index) && !reduce_motion {
+                                    0.9
+                                } else {
+                                    1.0
+                                };
+                                inner.w(px(16. * scale)).h(px(24. * scale))
+                            })
+                            .when(!vertical, |inner| {
+                                let scale = if dragging_at == Some(index) && !reduce_motion {
+                                    0.9
+                                } else {
+                                    1.0
+                                };
+                                inner.w(px(24. * scale)).h(px(16. * scale))
+                            })
+                            .rounded(crate::util::key_radius(cx))
+                            .bg(sem.foreground)
+                            .shadow(layout.field_shadow.clone()),
+                    ),
             };
             // `.slider__thumb` takes `status-focused` -- the thumb the keys
             // move, while the slider holds a keyboard focus. A disabled thumb

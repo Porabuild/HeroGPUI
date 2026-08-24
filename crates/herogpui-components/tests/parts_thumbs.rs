@@ -44,8 +44,8 @@ fn drag(cx: &mut VisualTestContext, from: (f32, f32), to: (f32, f32)) {
 ///
 /// The geometry is the established one: a horizontal slider is `w_full`, so
 /// the 600px wrapper fixes the track length and a pointer x maps to
-/// `x / 600 * 100`. The y = 9 line is the rail's centre (an 18px thumb on a
-/// 4px rail). The roving stop (which thumb the keys move) starts on the first
+/// `x / 600 * 100`. The y = 10 line is the 20px track's centre. The roving
+/// stop (which thumb the keys move) starts on the first
 /// *enabled* thumb, the radio group's rule for its single stop, so the keys
 /// act on the free thumb from the start.
 #[gpui::test]
@@ -112,7 +112,7 @@ fn slider_disabled_thumb_answers_neither_drag_nor_keys(cx: &mut TestAppContext) 
     // 20) is a no-op. React Aria chooses the geometrically nearest thumb
     // first, then refuses the press when that thumb is disabled; it does not
     // redirect the gesture to an enabled neighbour.
-    drag(cx, (120., 9.), (150., 9.));
+    drag(cx, (120., 10.), (150., 10.));
     assert_eq!(
         seen.borrow().as_slice(),
         ["20,81", "20,80", "20,81"],

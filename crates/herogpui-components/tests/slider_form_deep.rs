@@ -51,7 +51,7 @@ fn uncontrolled_slider_form_reads_value_after_pointer_change(cx: &mut TestAppCon
             .into_any_element()
     });
 
-    click(cx, 450., 9.);
+    click(cx, 450., 10.);
     flush_frame(cx);
     click(cx, 60., 52.);
     flush_frame(cx);
@@ -98,7 +98,7 @@ fn controlled_range_slider_form_reads_parent_values_after_change(cx: &mut TestAp
 
     // The range is 600px wide; x=300 maps to 50 and is equidistant from the
     // initial thumbs, so the lower thumb wins the stable tie.
-    click(cx, 180., 9.);
+    click(cx, 180., 10.);
     flush_frame(cx);
     click(cx, 60., 52.);
     flush_frame(cx);
@@ -162,7 +162,7 @@ fn uncontrolled_slider_reset_restores_default_before_next_submit(cx: &mut TestAp
             .into_any_element()
     });
 
-    click(cx, 450., 9.);
+    click(cx, 450., 10.);
     flush_frame(cx);
     click(cx, 60., 52.);
     flush_frame(cx);
@@ -201,7 +201,7 @@ fn controlled_slider_reset_reports_the_initial_value_once(cx: &mut TestAppContex
             .into_any_element()
     });
 
-    click(cx, 450., 9.);
+    click(cx, 450., 10.);
     flush_frame(cx);
     click(cx, 60., 52.);
 
@@ -240,7 +240,7 @@ fn controlled_range_reset_reports_both_values_once(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    click(cx, 180., 9.);
+    click(cx, 180., 10.);
     flush_frame(cx);
     assert_eq!(changes.borrow().as_slice(), ["[30.0, 80.0]"]);
 
@@ -284,7 +284,7 @@ fn uncontrolled_range_default_values_persist_and_reset(cx: &mut TestAppContext) 
 
     click(cx, 60., 52.);
     flush_frame(cx);
-    click(cx, 180., 9.);
+    click(cx, 180., 10.);
     flush_frame(cx);
     click(cx, 60., 52.);
     flush_frame(cx);
@@ -326,7 +326,7 @@ fn three_thumb_names_follow_current_values_and_omit_disabled_middle(cx: &mut Tes
             .into_any_element()
     });
 
-    click(cx, 480., 9.);
+    click(cx, 480., 10.);
     flush_frame(cx);
     click(cx, 60., 52.);
 
@@ -368,7 +368,7 @@ fn first_successful_named_thumb_owns_reset_when_the_first_thumb_is_disabled(
     });
 
     click(cx, 60., 52.);
-    click(cx, 480., 9.);
+    click(cx, 480., 10.);
     flush_frame(cx);
     click(cx, 60., 52.);
     click(cx, 60., 109.);

@@ -36,8 +36,8 @@
 //!   Four 105px rows keep it outside the first content mask; a 400px wheel
 //!   brings it into view without relying on a clickable replacement row.
 //! - Sliders are wrapped in `w(600)`, which fixes the track at 600px because
-//!   a horizontal slider is `w_full`; the track is `h-size-5` (18px) at the
-//!   window origin, so a drag at y = 9 travels along it. A drop at x maps to
+//!   a horizontal slider is `w_full`; the track is 20px high at the
+//!   window origin, so a drag at y = 10 travels along its centre. A drop at x maps to
 //!   `x / 600 * (max - min)` (the track's own `set_from_x` arithmetic).
 //! - The ColorSlider track is 240px wide (`length` default) and 16px tall;
 //!   it is driven by keyboard here, so only its focus is needed, not its
@@ -598,7 +598,7 @@ fn slider_keyboard_steps_and_clamps(cx: &mut TestAppContext) {
     // Pressing the track both focuses the handle (its `on_mouse_down` calls
     // `window.focus`) and lands on 5. Since 5 is already effective, the
     // unchanged press is silent.
-    click(cx, 300., 9.);
+    click(cx, 300., 10.);
     assert_eq!(
         recorded.borrow().as_slice(),
         &[] as &[String],
@@ -655,7 +655,7 @@ fn slider_drag_moves_the_thumb(cx: &mut TestAppContext) {
     // flag, the move sees it and maps x=150 through the recorded bounds, and
     // the drop lands on 25. A per-render `Rc<Cell>` read as a fresh `false`
     // on every rebuilt listener and no move ever arrived.
-    drag(cx, (60., 9.), (150., 9.));
+    drag(cx, (60., 10.), (150., 10.));
     assert_eq!(
         recorded.borrow().as_slice(),
         ["10", "25"],
@@ -707,18 +707,18 @@ fn two_sliders_do_not_share_a_drag(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    // The top slider's track spans y 0..18 (centre 9): down at x=60 is
+    // The top slider's track spans y 0..20 (centre 10): down at x=60 is
     // 60/600*100=10, the drop at x=150 is 25. The bottom track sits 20px
-    // below (y 38..56, centre 47) and is 300px wide: the same x maps to
+    // below (y 40..60, centre 50) and is 300px wide: the same x maps to
     // 60/300*100=20 and 150/300*100=50.
-    drag(cx, (60., 9.), (150., 9.));
+    drag(cx, (60., 10.), (150., 10.));
     assert_eq!(
         recorded.borrow().as_slice(),
         ["a:10", "a:25"],
         "dragging the top slider must report only the top slider's values"
     );
 
-    drag(cx, (60., 47.), (150., 47.));
+    drag(cx, (60., 50.), (150., 50.));
     assert_eq!(
         recorded.borrow().as_slice(),
         ["a:10", "a:25", "b:20", "b:50"],
@@ -762,7 +762,7 @@ fn slider_range_two_thumbs_do_not_cross(cx: &mut TestAppContext) {
 
     // A press at x=90 (value 15) moves whichever thumb is nearest: the lower
     // one (20), so the set stays [15, 80].
-    click(cx, 90., 9.);
+    click(cx, 90., 10.);
     flush_frame(cx);
     assert_eq!(
         recorded.borrow().as_slice(),
@@ -778,9 +778,9 @@ fn slider_range_two_thumbs_do_not_cross(cx: &mut TestAppContext) {
     // drives it with presses here; the pointer drag itself is exercised, in
     // the single-thumb form, by `slider_drag_moves_the_thumb` and
     // `two_sliders_do_not_share_a_drag`.
-    click(cx, 120., 9.);
+    click(cx, 120., 10.);
     flush_frame(cx);
-    click(cx, 540., 9.);
+    click(cx, 540., 10.);
     flush_frame(cx);
     assert_eq!(
         recorded.borrow().as_slice(),
@@ -791,7 +791,7 @@ fn slider_range_two_thumbs_do_not_cross(cx: &mut TestAppContext) {
 
     // Re-activate the lower thumb, then press End. It clamps at the upper
     // thumb; it does not cross to 100 and become the upper thumb.
-    click(cx, 120., 9.);
+    click(cx, 120., 10.);
     flush_frame(cx);
     press(cx, "end");
     assert_eq!(
