@@ -21,6 +21,12 @@ That is the sentence the old Autocomplete contradicted. This reads all of them -
 one claim per (sheet, contained component) -- and asks whether the module that
 draws C mentions the symbol that draws X.
 
+A second pass reads the other half of the anatomy: v3's docs give each component
+a table per *composition part* (`### Autocomplete.Trigger`, `### Table.Column`,
+`### Toast.ActionButton`) -- 156 of them -- and a part whose props are only
+`className` and `children` contributes nothing to `api_audit.py`, so a part this
+port never renders would not show up there at all.
+
     python .shots/anatomy_audit.py          # the report
     python .shots/anatomy_audit.py --all    # every claim, met or not
 
@@ -36,6 +42,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import api_audit  # noqa: E402  (the docs bundle, and component -> module)
 from state_audit import MODULE  # noqa: E402  (one table of sheet -> module)
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -99,6 +106,49 @@ WONT_COMPOSE = {
     ('label', 'radio'): 'control-draws-its-label',
 }
 
+# A documented part this port draws under another name. The default evidence is
+# the part's own name -- the port cites v3 spellings in comments -- so an entry
+# here is a part whose Rust name is genuinely different.
+PART_EVIDENCE = {
+    ('Accordion', 'Indicator'): r'CHEVRON',
+    ('Accordion', 'Panel'): r'body|content',
+    ('Alert', 'Content'): r'description',
+    ('Card', 'Content'): r'children|content',
+    ('Card', 'Description'): r'description',
+    ('ColorArea', 'Thumb'): r'thumb',
+    ('ColorField', 'Group'): r'apply_field_chrome',
+    ('ColorSlider', 'Thumb'): r'thumb',
+    # A ComboBox *is* an input group: the field plus the chevron trigger.
+    ('ComboBox', 'InputGroup'): r'Input::new',
+    ('DateField', 'InputContainer'): r'segment',
+    # v3 lets a caller place its own dismissing control; this port draws the
+    # built-in close button, which is the same element with no slot to fill.
+    ('Drawer', 'CloseTrigger'): r'CloseButton',
+    ('Modal', 'CloseTrigger'): r'CloseButton',
+    ('Drawer', 'Content'): r'body|children',
+    ('Drawer', 'Heading'): r'title',
+    ('Dropdown', 'Section'): r'SectionLabel',
+    ('Popover', 'Dialog'): r'panel',
+    ('Slider', 'Output'): r'value_label|output',
+    ('Table', 'Collection'): r'rows|virtual_rows',
+    ('Table', 'ColumnResizer'): r'allows_resizing',
+    ('Table', 'LoadMoreContent'): r'on_load_more',
+    ('Table', 'ResizableContainer'): r'allows_resizing',
+    ('Table', 'ScrollContainer'): r'table__scroll-container',
+    ('Toast', 'ActionButton'): r'action',
+    ('Toast', 'CloseButton'): r'toast__close-button',
+    ('Toast', 'Content'): r'description',
+}
+
+# A documented part this port does not render, with the reason.
+WONT_RENDER = {
+    ('Popover', 'Arrow'): 'no-arrow-prop',
+    ('Tooltip', 'Arrow'): 'no-arrow-prop',
+    # `Kbd.Abbr` is a `<abbr>` for screen readers, with no geometry -- the same
+    # row `part_audit.py` records as `no-a11y-element`.
+    ('Kbd', 'Abbr'): 'no-a11y-element',
+}
+
 
 def sheets():
     """`{sheet: css}` for every component stylesheet."""
@@ -134,6 +184,44 @@ def contained(sheet, css):
     return found
 
 
+def snake(name):
+    return re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower()
+
+
+def documented_parts():
+    """v3's `### Comp.Part` tables, and whether the port's module draws each."""
+    parts = {}
+    for m in re.finditer(r'^### ([A-Z][A-Za-z]+)\.([A-Za-z]+)[ \t]*$',
+                         api_audit.bundle, re.M):
+        parts.setdefault(m.group(1), set()).add(m.group(2))
+    rows = []
+    ok = excused = missing = 0
+    for comp in sorted(parts):
+        module = api_audit.FILES.get(comp)
+        if module is None:
+            # `Radio` and `Tag` are documented on their group's page and drawn by
+            # it; `LLMs.txt` is the docs bundle's own heading.
+            continue
+        src = io.open(SRC + module, encoding='utf-8', errors='replace').read()
+        for part in sorted(parts[comp]):
+            name = '%s.%s' % (comp, part)
+            reason = WONT_RENDER.get((comp, part))
+            if reason:
+                excused += 1
+                rows.append(('~', comp, name, reason))
+                continue
+            pattern = PART_EVIDENCE.get((comp, part),
+                                        r'%s|\b%s\b' % (re.escape(name), snake(part)))
+            if re.search(pattern, src):
+                ok += 1
+                if '--all' in sys.argv:
+                    rows.append((' ', comp, name, module))
+                continue
+            missing += 1
+            rows.append(('?', comp, name, 'not drawn in ' + module))
+    return rows, ok, excused, missing
+
+
 def main():
     rows = []
     claims = met = excused = missing = unmapped = 0
@@ -167,7 +255,9 @@ def main():
             missing += 1
             rows.append(('?', sheet, slot, 'not composed in ' + module))
 
-    for mark, sheet, slot, note in rows:
+    parts, part_ok, part_excused, part_missing = documented_parts()
+
+    for mark, sheet, slot, note in rows + parts:
         print('%s %-22s %-28s %s' % (mark, sheet, slot, note))
     print()
     print('containment claims : %d' % claims)
@@ -175,6 +265,11 @@ def main():
     print('recorded won-t     : %d' % excused)
     print('UNMAPPED           : %d' % unmapped)
     print('NOT COMPOSED       : %d' % missing)
+    print()
+    print('documented parts   : %d' % (part_ok + part_excused + part_missing))
+    print('rendered here      : %d' % part_ok)
+    print('recorded won-t     : %d' % part_excused)
+    print('NOT RENDERED       : %d' % part_missing)
 
 
 if __name__ == '__main__':

@@ -800,7 +800,27 @@ things worth keeping about how it reads:
 
 Reading order is part of the anatomy too: v3 puts a group's `<Description>`
 *between* the label and the options and its `<FieldError>` after them, which is
-where the RadioGroup now draws them. The three pickers are the case to keep straight:
+where the RadioGroup now draws them.
+
+A second pass in the same script reads the other half of an anatomy: v3's docs
+give each component a table per **composition part** -- `### Autocomplete.Value`,
+`### Table.ColumnResizer`, `### Toast.ActionButton` -- 151 of them across 41
+components. A part whose props are only `className` and `children` contributes
+nothing to `api_audit.py`, so a part this port never renders would not appear
+there at all. The evidence is the part's own name, because the convention here is
+to cite the v3 spelling in a comment where the part is drawn; 26 of them needed a
+`PART_EVIDENCE` entry instead, and every one turned out to be a different
+*spelling* rather than a missing part (`Dropdown.Section` is `MenuItem::
+SectionLabel`, `Table.ColumnResizer` is `allows_resizing`, `Modal.CloseTrigger`
+is the built-in `CloseButton`). Three parts are recorded as not rendered: the two
+overlay arrows and `Kbd.Abbr`.
+
+**Never put a backslash escape in a Bash heredoc.** `` in a patch script
+arrived as a literal backspace, so the audit's default pattern became
+`'Toast\.Title|title'` and reported 73 parts missing that were all
+present -- the file *looked* right, because a control character reads as nothing.
+`cat -A` is what shows it. Use the Write tool for anything with escapes, which
+`AGENTS.md` already said for `'static` and now says for this. The three pickers are the case to keep straight:
 
 | v3 component | field | where the query is typed | selection shows in |
 |---|---|---|---|
