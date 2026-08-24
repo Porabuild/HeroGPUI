@@ -26,7 +26,7 @@ use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext};
 use harness::{click, events, open_host, press};
 use herogpui_components::{
     calendar::{Date, CALENDAR_WIDTH},
-    Calendar, CalendarState, DateConstraints, DateRangeState, RangeCalendar,
+    Button, Calendar, CalendarState, DateConstraints, DateRangeState, RangeCalendar,
 };
 
 /// Column *c*'s centre in a bare Calendar: seven cells across
@@ -55,6 +55,232 @@ fn range_day(year: i32, month: u32, day: u32) -> (f32, f32) {
     let lead = DateConstraints::new().lead_cells(year, month);
     let idx = day as usize + lead - 1;
     (19. + 38. * (idx % 7) as f32, 75. + 40. * (idx / 7) as f32)
+}
+
+/// React Aria disables a month button when the day immediately beyond that
+/// side of the visible range is outside minValue/maxValue. August is the only
+/// valid month here, so neither chevron may move the state entity away from it.
+#[gpui::test]
+fn calendar_nav_buttons_stop_at_min_and_max(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .min_value(Date::new(2026, 8, 10))
+            .max_value(Date::new(2026, 8, 20))
+            .into_any_element()
+    });
+
+    click(cx, 14., 12.);
+    let previous = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month)
+    });
+    assert_eq!(previous, (2026, 8), "previous must stop at minValue");
+
+    click(cx, 238., 12.);
+    let next = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month)
+    });
+    assert_eq!(next, (2026, 8), "next must stop at maxValue");
+}
+
+/// RangeCalendar inherits the same useCalendarBase button contract. Its
+/// 266px column puts the next button at x=252; both adjacent months are fully
+/// outside the allowed August interval.
+#[gpui::test]
+fn range_calendar_nav_buttons_stop_at_min_and_max(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        RangeCalendar::new(state_for_view.clone())
+            .default_value((Date::new(2026, 8, 15), Date::new(2026, 8, 16)))
+            .min_value(Date::new(2026, 8, 10))
+            .max_value(Date::new(2026, 8, 20))
+            .into_any_element()
+    });
+
+    click(cx, 14., 12.);
+    let previous = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month)
+    });
+    assert_eq!(previous, (2026, 8), "previous must stop at minValue");
+
+    click(cx, 252., 12.);
+    let next = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month)
+    });
+    assert_eq!(next, (2026, 8), "next must stop at maxValue");
+}
+
+/// A partly valid visible month keeps navigation alive in the valid direction.
+/// `isDateUnavailable` is deliberately independent: React Stately consults
+/// only minValue/maxValue for the adjacent-day paging predicate, and readOnly
+/// prevents selection without freezing the visible month.
+#[gpui::test]
+fn calendar_partial_bounds_read_only_and_unavailable_dates_keep_valid_paging(
+    cx: &mut TestAppContext,
+) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let changes = events();
+    let changed = changes.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        let changes = changes.clone();
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .min_value(Date::new(2026, 8, 10))
+            .max_value(Date::new(2026, 9, 20))
+            .is_date_unavailable(|date| date.month == 9)
+            .is_read_only(true)
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .on_change(move |date, _, _| {
+                changes.borrow_mut().push(
+                    date.map(|value| value.format_iso())
+                        .unwrap_or_else(|| "none".into()),
+                );
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "right");
+    press(cx, "enter");
+    assert_eq!(focused.borrow().as_slice(), ["2026-08-16"]);
+    assert!(
+        changed.borrow().is_empty(),
+        "readOnly must keep grid navigation but block selection"
+    );
+
+    click(cx, 14., 12.);
+    let previous = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month)
+    });
+    assert_eq!(
+        previous,
+        (2026, 8),
+        "the previous adjacent day is before minValue"
+    );
+
+    click(cx, 238., 12.);
+    let next = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month)
+    });
+    assert_eq!(
+        next,
+        (2026, 9),
+        "readOnly and unavailable September dates must not disable paging"
+    );
+}
+
+/// RangeCalendar has the same read-only split: its grid stays in the tab order
+/// and arrows move the focus, but Enter cannot start or replace a range.
+#[gpui::test]
+fn range_calendar_read_only_keeps_grid_navigation_without_selection(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let changes = events();
+    let changed = changes.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        let changes = changes.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .default_value((Date::new(2026, 8, 15), Date::new(2026, 8, 16)))
+            .is_read_only(true)
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .on_change(move |start, end, _, _| {
+                changes.borrow_mut().push(format!(
+                    "{}..{}",
+                    start.map(|date| date.format_iso()).unwrap_or_default(),
+                    end.map(|date| date.format_iso()).unwrap_or_default()
+                ));
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "right");
+    press(cx, "enter");
+    assert_eq!(focused.borrow().as_slice(), ["2026-08-16"]);
+    assert!(changed.borrow().is_empty());
+    let value = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.start, state.end)
+    });
+    assert_eq!(
+        value,
+        (Some(Date::new(2026, 8, 15)), Some(Date::new(2026, 8, 16)))
+    );
+}
+
+/// The calendar grid is the first tab stop. The enabled previous chevron is
+/// next and activates on Enter, proving the nav controls are keyboard-reachable
+/// rather than pointer-only.
+#[gpui::test]
+fn calendar_enabled_nav_button_is_a_tab_stop(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    let view = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month)
+    });
+    assert_eq!(view, (2026, 7));
+}
+
+/// Both chevrons are disabled by the August-only bounds. They must not remain
+/// in gpui's tab registry: after the grid, the next Tab reaches the following
+/// button rather than landing on a dead calendar control.
+#[gpui::test]
+fn calendar_disabled_nav_buttons_leave_the_tab_order(cx: &mut TestAppContext) {
+    let presses = events();
+    let presses_for_view = presses.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let pressed = presses_for_view.clone();
+        gpui::div()
+            .child(
+                Calendar::new(state_for_view.clone())
+                    .default_value(Date::new(2026, 8, 15))
+                    .min_value(Date::new(2026, 8, 10))
+                    .max_value(Date::new(2026, 8, 20)),
+            )
+            .child(
+                Button::new("after-calendar")
+                    .label("After")
+                    .on_press(move |_, _, _| pressed.borrow_mut().push("after".into())),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(presses.borrow().as_slice(), ["after"]);
 }
 
 /// `isDateUnavailable` blocks the date on both input paths without blocking

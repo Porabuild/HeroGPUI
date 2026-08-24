@@ -175,6 +175,31 @@ pub fn linear_cells(duration: VisibleDuration, first_day: Weekday, anchor: Date)
     }
 }
 
+/// The first and last dates in the visible range, excluding month-grid spill
+/// cells. React Stately tests the immediately adjacent days to decide whether
+/// the previous and next controls are disabled.
+pub(crate) fn visible_range(
+    duration: VisibleDuration,
+    first_day: Weekday,
+    anchor: Date,
+) -> (Date, Date) {
+    match duration {
+        VisibleDuration::Months(_) => {
+            let months = month_headings(duration, anchor);
+            let (start_year, start_month) = months[0];
+            let (end_year, end_month) = months[months.len() - 1];
+            (
+                Date::new(start_year, start_month, 1),
+                Date::new(end_year, end_month, days_in_month(end_year, end_month)),
+            )
+        }
+        VisibleDuration::Weeks(_) | VisibleDuration::Days(_) => {
+            let cells = linear_cells(duration, first_day, anchor);
+            (cells[0], cells[cells.len() - 1])
+        }
+    }
+}
+
 /// The heading for a week or day view, e.g. `Aug 3 – Aug 9, 2026`.
 pub fn range_heading(cells: &[Date]) -> String {
     match (cells.first(), cells.last()) {
@@ -357,6 +382,22 @@ mod tests {
         assert_eq!(cells[13], d(2026, 8, 30));
         let days = linear_cells(VisibleDuration::Days(3), Weekday::Mon, d(2026, 8, 30));
         assert_eq!(days, vec![d(2026, 8, 30), d(2026, 8, 31), d(2026, 9, 1)]);
+    }
+
+    #[test]
+    fn visible_range_excludes_month_spill_and_spans_linear_views() {
+        assert_eq!(
+            visible_range(VisibleDuration::Months(2), Weekday::Mon, d(2026, 8, 15)),
+            (d(2026, 8, 1), d(2026, 9, 30))
+        );
+        assert_eq!(
+            visible_range(VisibleDuration::Weeks(1), Weekday::Mon, d(2026, 8, 22)),
+            (d(2026, 8, 17), d(2026, 8, 23))
+        );
+        assert_eq!(
+            visible_range(VisibleDuration::Days(3), Weekday::Mon, d(2026, 8, 30)),
+            (d(2026, 8, 30), d(2026, 9, 1))
+        );
     }
 
     #[test]

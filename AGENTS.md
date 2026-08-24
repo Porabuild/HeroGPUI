@@ -873,6 +873,14 @@ cargo test -p herogpui-components                    # all unit + behaviour bina
 cargo test -p herogpui-components --test overlays    # one binary
 ```
 
+The docs bundle is the authority for HeroUI's prop surface; the **dependency
+versions HeroUI pins are the authority for inherited behaviour**. Read that
+exact React Aria/React Stately release rather than `main`: v3.2.4 pins
+`react-aria` 3.51.0 and `react-stately` 3.49.0. The distinction is observable --
+Toolbar's Home/End handling and Calendar's adjacent-day navigation bounds both
+differ from plausible behaviour inferred from a newer source or from the prop
+table alone.
+
 `tests/harness/mod.rs` opens a window on the test platform with a host view that
 rebuilds one `RenderOnce` component per frame -- exactly as a gallery page does,
 which is what keeps the component's keyed state alive between two clicks -- and

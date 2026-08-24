@@ -672,6 +672,16 @@ impl RenderOnce for RangeCalendar {
         // `use_keyed_state` takes `cx` mutably, so both precede the theme.
         let grid_focus =
             util::tab_stop_handle(ElementId::Name(format!("{base}-focus").into()), window, cx);
+        let prev_focus = util::tab_stop_handle(
+            ElementId::Name(format!("{base}-prev-focus").into()),
+            window,
+            cx,
+        );
+        let next_focus = util::tab_stop_handle(
+            ElementId::Name(format!("{base}-next-focus").into()),
+            window,
+            cx,
+        );
         // Inside a picker the grid takes the focus as the panel opens, so the
         // arrows work without hunting for it with Tab.
         if self.autofocus_grid && !self.is_disabled {
@@ -742,12 +752,26 @@ impl RenderOnce for RangeCalendar {
 
         let nav_target =
             |dir: i32| calendar_view::page(self.duration, self.page_behavior, anchor, dir);
+        let (visible_start, visible_end) =
+            calendar_view::visible_range(self.duration, first_day, anchor);
+        // React Stately checks only the day immediately outside the visible
+        // range against minValue/maxValue. Unavailable dates do not block
+        // paging, and readOnly prevents selection without preventing paging.
+        let previous_disabled =
+            self.is_disabled || self.constraints.out_of_range(add_days(&visible_start, -1));
+        let next_disabled =
+            self.is_disabled || self.constraints.out_of_range(add_days(&visible_end, 1));
         let state_for_nav = self.state.clone();
-        let nav_btn = |icon: &'static str, target: Date, key: String| {
+        let nav_btn = |icon: &'static str,
+                       target: Date,
+                       key: String,
+                       focus: &gpui::FocusHandle,
+                       disabled: bool| {
             let state = state_for_nav.clone();
             let hover_bg = colors.default.color;
-            div()
+            let button = div()
                 .id(ElementId::Name(key.into()))
+                .when(!disabled, |b| b.track_focus(focus))
                 .flex()
                 .items_center()
                 .justify_center()
@@ -756,22 +780,25 @@ impl RenderOnce for RangeCalendar {
                 // `rounded-2xl`.
                 .size(px(24.))
                 .rounded(util::small_radius(cx))
-                .cursor_pointer()
                 .text_color(colors.muted)
-                .hover(move |s| s.bg(hover_bg))
-                .child(
-                    gpui::svg()
-                        // `.range-calendar__nav-button-icon` is `size-4`.
-                        .size(px(16.))
-                        .path(icon)
-                        .text_color(colors.muted),
-                )
-                .on_click(move |_, _, cx| {
-                    state.update(cx, |s, cx| {
-                        s.set_anchor(target);
-                        cx.notify();
-                    });
+                .when(!disabled, |b| {
+                    b.cursor_pointer()
+                        .hover(move |s| s.bg(hover_bg))
+                        .on_click(move |_, _, cx| {
+                            state.update(cx, |s, cx| {
+                                s.set_anchor(target);
+                                cx.notify();
+                            });
+                        })
                 })
+                .when(disabled, |b| b.opacity(layout.disabled_opacity));
+            util::ring_if_focused(button, focus, true, Vec::new(), window, cx).child(
+                gpui::svg()
+                    // `.range-calendar__nav-button-icon` is `size-4`.
+                    .size(px(16.))
+                    .path(icon)
+                    .text_color(colors.muted),
+            )
         };
 
         // The heading is a plain label unless a year-picker handler is
@@ -869,14 +896,13 @@ impl RenderOnce for RangeCalendar {
             .flex_col()
             .gap(px(8.))
             .text_color(colors.surface.foreground)
-            .when(!self.is_disabled && !self.is_read_only, |el| {
-                el.track_focus(&grid_focus)
-            });
+            // readOnly blocks selection, not focus or navigation.
+            .when(!self.is_disabled, |el| el.track_focus(&grid_focus));
 
         // The same keys the Calendar answers, and Enter picks: the first press
         // sets the range's start, the second its end, which is what `pick` does
         // for a click.
-        if !self.is_disabled && !self.is_read_only {
+        if !self.is_disabled {
             let held = cursor;
             let from_start = self
                 .focused_value
@@ -887,12 +913,16 @@ impl RenderOnce for RangeCalendar {
             let on_focus = self.on_focus_change.clone();
             let constraints = self.constraints.clone();
             let allows_non_contiguous_ranges = self.allows_non_contiguous_ranges;
+            let read_only = self.is_read_only;
             root = root.on_key_down(move |event, window, cx| {
                 let from = *held.read(cx);
                 let at = from.unwrap_or(from_start);
                 let key = event.keystroke.key.as_str();
                 let shift = event.keystroke.modifiers.shift;
                 if matches!(key, "enter" | "space") {
+                    if read_only {
+                        return;
+                    }
                     let next = state.update(cx, |s, cx| {
                         let next = resolve_pick(
                             s.start,
@@ -960,6 +990,8 @@ impl RenderOnce for RangeCalendar {
                         icons::CHEVRON_LEFT,
                         Date::new(anchor.year - 12, anchor.month, anchor.day),
                         format!("{base}-yprev"),
+                        &prev_focus,
+                        previous_disabled,
                     ))
                     .child(heading(
                         format!("{} {}", month_name(anchor.month), anchor.year),
@@ -969,6 +1001,8 @@ impl RenderOnce for RangeCalendar {
                         icons::CHEVRON_RIGHT,
                         Date::new(anchor.year + 12, anchor.month, anchor.day),
                         format!("{base}-ynext"),
+                        &next_focus,
+                        next_disabled,
                     )),
             );
             root = root.child(self.year_grid(anchor, &base, cx));
@@ -992,7 +1026,13 @@ impl RenderOnce for RangeCalendar {
                         // `.range-calendar__header` is `px-0.5`.
                         .px(px(2.))
                         .child(if first {
-                            nav_btn(icons::CHEVRON_LEFT, nav_target(-1), format!("{base}-prev"))
+                            nav_btn(
+                                icons::CHEVRON_LEFT,
+                                nav_target(-1),
+                                format!("{base}-prev"),
+                                &prev_focus,
+                                previous_disabled,
+                            )
                                 .into_any_element()
                         } else {
                             spacer()
@@ -1002,7 +1042,13 @@ impl RenderOnce for RangeCalendar {
                             format!("{base}-heading{i}"),
                         ))
                         .child(if last {
-                            nav_btn(icons::CHEVRON_RIGHT, nav_target(1), format!("{base}-next"))
+                            nav_btn(
+                                icons::CHEVRON_RIGHT,
+                                nav_target(1),
+                                format!("{base}-next"),
+                                &next_focus,
+                                next_disabled,
+                            )
                                 .into_any_element()
                         } else {
                             spacer()
@@ -1034,6 +1080,8 @@ impl RenderOnce for RangeCalendar {
                         icons::CHEVRON_LEFT,
                         nav_target(-1),
                         format!("{base}-prev"),
+                        &prev_focus,
+                        previous_disabled,
                     ))
                     .child(heading(
                         calendar_view::range_heading(&linear),
@@ -1043,6 +1091,8 @@ impl RenderOnce for RangeCalendar {
                         icons::CHEVRON_RIGHT,
                         nav_target(1),
                         format!("{base}-next"),
+                        &next_focus,
+                        next_disabled,
                     )),
             );
             if per_row == 7 {
