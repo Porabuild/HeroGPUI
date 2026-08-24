@@ -9,6 +9,8 @@ cargo check --workspace            # fast typecheck
 cargo build --workspace            # full build (library + gallery)
 cargo run -p herogpui-gallery      # launch the gallery app
 cargo test --workspace             # unit tests (color math, time math)
+cargo nextest run --workspace      # same suite, faster and per-test isolated (fallback: cargo test)
+bacon                              # background check/clippy/test loop from the repo root
 cargo clippy --workspace           # lint (no warnings policy on new code)
 cargo fix --allow-dirty --workspace
 cargo fmt --all                    # format; --check is the CI-shaped gate

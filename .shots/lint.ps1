@@ -50,6 +50,20 @@ try {
         exit $LASTEXITCODE
     }
     Write-Host "clippy clean (warnings denied)" -ForegroundColor Green
+
+    # 3. License and advisory compliance for every crate in the graph.
+    cargo deny --version 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) {
+        cargo deny --manifest-path Cargo.toml check
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "cargo deny failed" -ForegroundColor Red
+            exit $LASTEXITCODE
+        }
+        Write-Host "cargo deny clean" -ForegroundColor Green
+    }
+    else {
+        Write-Host "skipping cargo-deny: not installed (cargo install cargo-deny --locked)" -ForegroundColor Yellow
+    }
 }
 finally {
     Pop-Location

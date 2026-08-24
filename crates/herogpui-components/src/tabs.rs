@@ -1,7 +1,7 @@
 //! Tabs — port of `@heroui/tabs`.
 
 use gpui::{
-    prelude::*, px, AnyElement, App, IntoElement, RenderOnce, SharedString,
+    prelude::*, px, AnyElement, App, InteractiveElement, IntoElement, RenderOnce, SharedString,
     StatefulInteractiveElement, Styled, Window,
 };
 use herogpui_core::Orientation;
@@ -475,6 +475,12 @@ impl RenderOnce for Tabs {
             |id: &str, icon: &'static str, delta: gpui::Pixels, handle: gpui::ScrollHandle| {
                 gpui::div()
                     .id(gpui::ElementId::Name(format!("{base_id}-{id}").into()))
+                    // gpui has no hitbox occlusion, so a chevron floating over
+                    // the list hands its click to the tab underneath as well.
+                    // v3's chevron is `z-2` above the `z-index: 1` tabs exactly
+                    // so it takes the press; `occlude` stops the hit test at
+                    // the button, which is that on-top layer.
+                    .occlude()
                     .absolute()
                     .size(px(16.))
                     .flex()

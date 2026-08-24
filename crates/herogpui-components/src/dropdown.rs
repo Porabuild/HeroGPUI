@@ -288,6 +288,23 @@ impl RenderOnce for Menu {
             cx,
             |_, _| crate::list_nav::Typeahead::default(),
         );
+        // One hover/press slot per item, for an `item_content` closure. The
+        // slots exist only when the closure is set: `track_interaction`'s
+        // handlers cost a frame of state, and the closure is the only reader
+        // (the press v3's `Dropdown.Item` render props document).
+        let interaction: Vec<crate::util::Interaction> = if self.item_content.is_some() {
+            (0..self.items.len())
+                .map(|i| {
+                    crate::util::interaction(
+                        gpui::ElementId::Name(format!("{base}-item-{i}-interaction").into()),
+                        window,
+                        cx,
+                    )
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
         // A menu takes focus when it opens, which is what makes the arrows work
         // without a click first. The one-shot re-arms while the menu plays its
         // exit, so a menu that reopens after a dismissal -- a pick or Escape
@@ -571,23 +588,32 @@ impl RenderOnce for Menu {
                         && !is_selected;
                     row = row.child(
                         gpui::div().flex_1().child(match &self.item_content {
-                            Some(render) => render(
-                                &key,
-                                crate::util::InteractiveState {
-                                    // The pointer state a menu row reports comes
-                                    // from the same slot the press animation
-                                    // uses; a row is focused when the keyboard
-                                    // cursor is on it.
-                                    is_hovered: false,
-                                    is_pressed: false,
-                                    is_focused: cursor_at == Some(i),
-                                    is_focus_visible: cursor_at == Some(i)
-                                        && crate::util::focus_visible(cx),
-                                    is_selected,
-                                    is_disabled: is_item_disabled,
-                                    is_indeterminate,
-                                },
-                            ),
+                            Some(render) => {
+                                // The slot's press is a frame behind the
+                                // pointer, because gpui reports it to a handler
+                                // rather than to the render that draws it. v3's
+                                // `Dropdown.Item` render-props table lists no
+                                // `isHovered`, so the hover the slot also
+                                // tracks is not handed over; a row is focused
+                                // when the keyboard cursor is on it.
+                                let (_, is_pressed) = interaction
+                                    .get(i)
+                                    .map(|slot| *slot.read(cx))
+                                    .unwrap_or_default();
+                                render(
+                                    &key,
+                                    crate::util::InteractiveState {
+                                        is_hovered: false,
+                                        is_pressed,
+                                        is_focused: cursor_at == Some(i),
+                                        is_focus_visible: cursor_at == Some(i)
+                                            && crate::util::focus_visible(cx),
+                                        is_selected,
+                                        is_disabled: is_item_disabled,
+                                        is_indeterminate,
+                                    },
+                                )
+                            }
                             None => match &description {
                                 // `Label` over `Description`, which is how v3
                                 // composes a described item.
@@ -609,6 +635,12 @@ impl RenderOnce for Menu {
                             },
                         }),
                     );
+                    // The slot's hover and press handlers keep the press the
+                    // closure reads current. Attached even on a disabled row:
+                    // the closure is handed `is_disabled` and may draw it.
+                    if let Some(slot) = interaction.get(i) {
+                        row = crate::util::track_interaction(row, slot);
+                    }
                     if let Some(sc) = shortcut {
                         row = row.child(
                             gpui::div()
@@ -685,20 +717,28 @@ impl RenderOnce for Menu {
                         let is_sub_open = submenu_open.as_ref() == Some(&open_key);
                         let held = submenu_state.clone();
                         let open_key2 = open_key.clone();
-                        row = row.on_hover(move |hovered, _window, cx| {
-                            let next = if *hovered {
-                                Some(open_key2.clone())
-                            } else {
-                                None
-                            };
-                            held.update(cx, |v, cx| {
-                                if *v != next {
-                                    *v = next.clone();
-                                    cx.notify();
-                                }
+                        // The hover that opens the child panel lives on the
+                        // wrapper, not the row: `track_interaction` above has
+                        // claimed the row's single `on_hover` when an
+                        // `item_content` closure is set, and gpui refuses a
+                        // second listener on one element.
+                        let mut slot = gpui::div()
+                            .id(gpui::ElementId::Name(format!("{base}-sub-{i}-wrap").into()))
+                            .relative()
+                            .child(row)
+                            .on_hover(move |hovered, _window, cx| {
+                                let next = if *hovered {
+                                    Some(open_key2.clone())
+                                } else {
+                                    None
+                                };
+                                held.update(cx, |v, cx| {
+                                    if *v != next {
+                                        *v = next.clone();
+                                        cx.notify();
+                                    }
+                                });
                             });
-                        });
-                        let mut slot = gpui::div().relative().child(row);
                         if is_sub_open {
                             slot = slot.child(crate::util::floating(
                                 gpui::div()

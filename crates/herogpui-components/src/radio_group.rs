@@ -260,6 +260,26 @@ impl RenderOnce for RadioGroup {
         // the same nowhere, rather than blocking the arrows on it.
         let key_starts = selected.filter(|i| !self.disabled_keys.contains(i));
 
+        // One hover/press slot per option, for an `option_content` closure. The
+        // slots exist only when the closure is set: `track_interaction`'s
+        // handlers cost a frame of state, and the press the v3 radio control
+        // animates is what the closure reads back.
+        let interaction: Vec<crate::util::Interaction> = if self.option_content.is_some() {
+            (0..self.options.len())
+                .map(|i| {
+                    crate::util::interaction(
+                        gpui::ElementId::Name(
+                            format!("{}-opt-{i}-interaction", element_id_name(&self.id)).into(),
+                        ),
+                        window,
+                        cx,
+                    )
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+
         let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
@@ -389,11 +409,20 @@ impl RenderOnce for RadioGroup {
                 .child(match &self.option_content {
                     Some(render) => {
                         let focused = !row_disabled && i == tab_stop_index;
+                        // The slot's press is a frame behind the pointer,
+                        // because gpui reports it to a handler rather than to
+                        // the render that draws it. v3's `RadioFieldRenderProps`
+                        // list no `isHovered`, so the hover the slot also
+                        // tracks is not handed over.
+                        let (_, is_pressed) = interaction
+                            .get(i)
+                            .map(|slot| *slot.read(cx))
+                            .unwrap_or_default();
                         render(
                             &label,
                             crate::util::InteractiveState {
                                 is_hovered: false,
-                                is_pressed: false,
+                                is_pressed,
                                 is_focused: focused,
                                 is_focus_visible: focused && crate::util::focus_visible(cx),
                                 is_selected: Some(i) == selected,
@@ -404,6 +433,9 @@ impl RenderOnce for RadioGroup {
                     }
                     None => label.to_string().into_any_element(),
                 });
+            if let Some(slot) = interaction.get(i) {
+                row = crate::util::track_interaction(row, slot);
+            }
 
             if !row_disabled && !self.is_read_only && (self.on_change.is_some() || own.is_some()) {
                 let on_change = self.on_change.clone();

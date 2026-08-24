@@ -940,8 +940,8 @@ CHECKS = [
     ('dropdown', '.dropdown', 'gap', 'Dropdown wrapper gap', SRC + 'dropdown.rs',
      r'`\.dropdown` is `flex flex-col gap-1`\.\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('combo-box', '.combo-box', 'gap', 'ComboBox wrapper gap', SRC + 'combo_box.rs',
-     r'\.flex\(\)\s*\.flex_col\(\)\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)[\s\S]{0,200}?'
-     r'\.child\(input\.render', None),
+     r'let mut root = div\(\)[\s\S]{0,300}?\.flex\(\)\s*\.flex_col\(\)\s*'
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('progress-bar', '.progress-bar', 'gap', 'ProgressBar wrapper gap', SRC + 'progress.rs',
      r'let mut el = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\.w_full\(\)',
      None),

@@ -1,9 +1,8 @@
-# Pins the toolchain *components* the lint and format gates need, so
-# `.shots/lint.ps1` and `cargo fmt --all --check` fail on the code rather than
-# on a missing component. The channel floats on stable: `rust-version` in
-# Cargo.toml (1.87) is the floor the crates promise, not the toolchain to build
-# with. If `cargo fmt --all --check` ever starts failing on untouched code, a
-# new stable changed rustfmt's output — pin an exact version here.
+# Pins the toolchain so every machine and CI resolves the same rustc: a
+# floating channel lets a Tuesday release silently invalidate every
+# incremental cache and change rustfmt's output mid-project. Bump the version
+# (and re-run the gates) deliberately. `rust-version` in Cargo.toml (1.87) is
+# the floor the crates promise, not the toolchain to build with.
 [toolchain]
-channel = "stable"
+channel = "1.93.0"
 components = ["rustfmt", "clippy"]

@@ -73,12 +73,15 @@ opt-level = 1
 # line, without the multi-gigabyte PDBs. Full `debug = true` filled the disk on
 # a build with ten test binaries -- the link failed with a bare
 # `link.exe: exit code 1318`, which reads as a toolchain fault rather than as
-# "no space left".
+# "no space left". Linking goes through `rust-lld` (see .cargo/config.toml),
+# which also sidesteps the old MSVC linker's PDB quirks.
 debug = "line-tables-only"
-# Antivirus on Windows intermittently locks the incremental session directory,
-# which leaves behind partial artifacts and fails the next link with
-# "unresolved external symbol anon.*". Disabling incremental trades a slower
-# rebuild for a build that does not spuriously break.
+# Something on this machine still locks the incremental session directory
+# ("error finalizing incremental compilation session directory ... os error 5"),
+# leaving partial artifacts that both break the next link and replay phantom
+# diagnostics (an in-use variable reported unused). Re-verified with Defender
+# path exclusions present; still reproduces every run, so incremental stays
+# off: a slower rebuild beats a build that spuriously breaks.
 incremental = false
 
 [profile.dev.package."*"]

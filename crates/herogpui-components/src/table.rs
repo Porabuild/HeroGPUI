@@ -639,16 +639,18 @@ impl RenderOnce for Table {
                 .pb(px(4.));
         }
 
-        // `.table__scroll-container` is `overflow-x-auto` around the content, so
-        // a table wider than its box scrolls instead of being clipped.
+        // The content column, whose width is what the scroller at the bottom of
+        // the render measures against. A `w_full` child commits to the
+        // scroller's width, which is exactly the scroller's own -- the scroll
+        // maxima are then zero and a wide table clips at the tray edge instead
+        // of sliding. `min_w_full` keeps the column at the viewport when no
+        // column pins a width, and `flex_shrink_0` keeps it at the columns'
+        // width when they exceed the viewport (a shrinking row only ever fits).
         let mut table = gpui::div()
-            .id(gpui::ElementId::Name(
-                format!("{}-scroll-x", self.id).into(),
-            ))
-            .overflow_x_scroll()
             .flex()
             .flex_col()
-            .w_full()
+            .flex_shrink_0()
+            .min_w_full()
             .text_size(px(14.))
             .when_some(self.gap, |el, g| el.gap(g))
             .when_some(self.padding, |el, p| el.p(p));
@@ -1135,7 +1137,20 @@ impl RenderOnce for Table {
             );
         }
 
-        wrapper.child(table)
+        // `.table__scroll-container` is `overflow-x-auto` around the content:
+        // a row flex, so its one child (the content column above) is free to be
+        // wider than the scroller itself, which is what a table wider than its
+        // box scrolls *on*.
+        wrapper.child(
+            gpui::div()
+                .id(gpui::ElementId::Name(
+                    format!("{}-scroll-x", self.id).into(),
+                ))
+                .flex()
+                .w_full()
+                .overflow_x_scroll()
+                .child(table),
+        )
     }
 }
 

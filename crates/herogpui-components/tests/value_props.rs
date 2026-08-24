@@ -285,13 +285,10 @@ fn autocomplete_value_content_hands_placeholder_then_pick(cx: &mut TestAppContex
 /// frame with the placeholder and observes the pick from the list. The
 /// chevron at (298, 18) opens the list without typing; row 0 is at
 /// y = 64 (`p(4)` panel, 36px rows).
-// A `ComboBox::value_content` row is drawn under the field, and the popover is
-// anchored to the component *root* rather than to the input group -- so setting
-// the value closure pushes the panel down by the value row's height and the rows
-// are no longer where the field's own geometry says. v3 anchors
-// `.combo-box__popover` to the trigger, so `ComboBox.Value` cannot move it.
+// `ComboBox::value_content` draws under the field, while the popover is anchored
+// to the input group. A value row therefore cannot move the panel away from the
+// field geometry.
 #[gpui::test]
-#[ignore = "defect: ComboBox::value_content shifts the popover -- the panel is anchored to the component root, not the input group"]
 fn combo_box_value_content_hands_placeholder_then_pick(cx: &mut TestAppContext) {
     let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
     let record = seen.clone();
@@ -371,9 +368,7 @@ fn progress_bar_value_content_sees_percentage_and_text(cx: &mut TestAppContext) 
             .label("Loading")
             .show_value_label(true)
             .value_content(move |percentage, text| {
-                record
-                    .borrow_mut()
-                    .push(format!("{percentage:.0}|{text}"));
+                record.borrow_mut().push(format!("{percentage:.0}|{text}"));
                 gpui::div().child(text.to_owned()).into_any_element()
             })
             .into_any_element()
@@ -408,9 +403,7 @@ fn meter_value_content_forwards_percentage_and_text(cx: &mut TestAppContext) {
         Meter::new(now)
             .show_value(true)
             .value_content(move |percentage, text| {
-                record
-                    .borrow_mut()
-                    .push(format!("{percentage:.0}|{text}"));
+                record.borrow_mut().push(format!("{percentage:.0}|{text}"));
                 gpui::div().child(text.to_owned()).into_any_element()
             })
             .into_any_element()
@@ -445,9 +438,7 @@ fn progress_circle_value_content_sees_percentage_and_text(cx: &mut TestAppContex
             .value(now)
             .show_value_label(true)
             .value_content(move |percentage, text| {
-                record
-                    .borrow_mut()
-                    .push(format!("{percentage:.0}|{text}"));
+                record.borrow_mut().push(format!("{percentage:.0}|{text}"));
                 gpui::div().child(text.to_owned()).into_any_element()
             })
             .into_any_element()
@@ -929,13 +920,10 @@ fn number_field_content_hands_focus_state(cx: &mut TestAppContext) {
     });
 }
 
-// Every other field's `content` closure is handed a live `FieldFocus`; the
-// TimeField's is handed `(false, false, false)` forever, by Tab or by click.
-// Input, TextField, SearchField, ColorField, NumberField and DateField all pass
-// the identical drive, so this is the TimeField's own wiring: with `content`
-// set, whatever the closure reads is not the handle the segments claim.
+// Every field's `content` closure is handed a live `FieldFocus`. TimeField uses
+// the same state-owned handle for the outer closure and the replacement field
+// it draws, so this identical drive observes the segment group's real focus.
 #[gpui::test]
-#[ignore = "defect: TimeField::content is handed a FieldFocus that never reports focus"]
 fn time_field_content_hands_focus_state(cx: &mut TestAppContext) {
     let state = cx.new(|cx| TimeState::new(cx));
     let for_view = state;

@@ -99,6 +99,11 @@ pub struct ComboBox {
     disabled_keys: std::collections::HashSet<SharedString>,
     selection_mode: SelectionMode,
     selected_keys: std::collections::BTreeSet<SharedString>,
+    /// Whether the caller drives the selection. An unset `selected_keys` is not
+    /// an empty controlled selection: without this flag every plain ComboBox
+    /// would hand its own picks back to a set nobody owns, and
+    /// `ComboBox.Value` would never see them.
+    is_controlled: bool,
     /// `ComboBox.Value` — draws the chosen item under the field.
     value_content: Option<Box<dyn Fn(util::SelectionValue<'_>) -> gpui::AnyElement + 'static>>,
     /// `defaultValue` — set it to hand this component its own selection.
@@ -142,6 +147,7 @@ impl ComboBox {
 
     pub fn selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.selected_keys = keys.into_iter().collect();
+        self.is_controlled = true;
         self
     }
 
@@ -324,6 +330,7 @@ impl ComboBox {
             disabled_keys: std::collections::HashSet::new(),
             selection_mode: SelectionMode::Single,
             selected_keys: std::collections::BTreeSet::new(),
+            is_controlled: false,
             value_content: None,
             default_value: None,
             default_input_value: None,
@@ -469,10 +476,7 @@ impl RenderOnce for ComboBox {
             gpui::ElementId::Name(
                 format!("combobox-{}-selection", self.state.entity_id().as_u64()).into(),
             ),
-            match self.default_value {
-                Some(_) => None,
-                None => Some(self.selected_keys.clone()),
-            },
+            self.is_controlled.then(|| self.selected_keys.clone()),
             self.default_value.clone().unwrap_or_default(),
         );
         self.selected_keys = selection;
@@ -698,23 +702,23 @@ impl RenderOnce for ComboBox {
         let list_scroll_now = list_scroll.read(cx).clone();
         let panel_scroll_now = panel_scroll.read(cx).clone();
 
+        // `.combo-box__input-group` is the field itself (`relative
+        // inline-flex items-center`), and it is the panel's positioning
+        // context: `.combo-box__value` sits below the field inside the root,
+        // so a value row that appears under it must not push the popover down.
+        let mut input_group = div().relative().child(input.render(window, cx));
         let mut root = div()
-            // The panel overlays the page rather than pushing it down, so the
-            // root has to be its positioning context.
-            .relative()
             // Without a placeholder the inner input has no intrinsic width and
             // the trigger collapses to just its chevron, which is unclickable.
             .when(!self.full_width, |e| e.min_w(px(180.)))
             .flex()
             .flex_col()
-            .gap(px(4.))
-            // `.combo-box__input-group` is the field itself, and
-            // `--full-width` is the `full_width` flag above.
-            .child(input.render(window, cx));
+            .gap(px(4.));
 
         // `ComboBox.Value` — `.combo-box__value` is `text-sm
         // text-field-foreground empty:hidden`, so it shows only once something
         // is chosen.
+        let mut value_content = None;
         if let Some(render) = self.value_content.take() {
             let items: Vec<SharedString> = self
                 .items
@@ -739,7 +743,7 @@ impl RenderOnce for ComboBox {
                 .text_color(colors.field.foreground)
                 .child(text.clone())
                 .into_any_element();
-            root = root.child(render(util::SelectionValue {
+            value_content = Some(render(util::SelectionValue {
                 selected_items: &items,
                 selected_indices: &indices,
                 selected_text: &text,
@@ -771,6 +775,7 @@ impl RenderOnce for ComboBox {
             let on_selection_change = self.on_selection_change.clone();
             let open_own_keys = open_own.clone();
             let on_open_change = self.on_open_change.clone();
+            let key_selection_own = selection_own.clone();
             root = root.on_key_down(move |event, window, cx| {
                 let key = event.keystroke.key.as_str();
                 let from = *held.read(cx);
@@ -803,6 +808,16 @@ impl RenderOnce for ComboBox {
                             st.set_value(item.to_string());
                             cx.notify();
                         });
+                        // Uncontrolled: record the pick in the selection too,
+                        // or `ComboBox.Value` would never see it.
+                        if let Some(held) = &key_selection_own {
+                            let mut next = std::collections::BTreeSet::new();
+                            next.insert(item.clone());
+                            held.update(cx, |v, cx| {
+                                *v = next;
+                                cx.notify();
+                            });
+                        }
                         held.update(cx, |v, _| *v = None);
                         if let Some(held) = &open_own_keys {
                             held.update(cx, |v, cx| {
@@ -1031,11 +1046,22 @@ impl RenderOnce for ComboBox {
                 let state = row_state.clone();
                 let on_selection_change = on_change_one.clone();
                 let on_open_change = on_open.clone();
+                let own = selection_own.clone();
                 row = row.on_click(move |_, window, cx| {
                     state.update(cx, |s, cx| {
                         s.set_value(value.to_string());
                         cx.notify();
                     });
+                    // Uncontrolled: record the pick in the selection too, or
+                    // `ComboBox.Value` would never see it.
+                    if let Some(held) = &own {
+                        let mut next = std::collections::BTreeSet::new();
+                        next.insert(value.clone());
+                        held.update(cx, |v, cx| {
+                            *v = next;
+                            cx.notify();
+                        });
+                    }
                     if let Some(cb) = &on_selection_change {
                         cb(&value, window, cx);
                     }
@@ -1073,7 +1099,7 @@ impl RenderOnce for ComboBox {
                 }
             }
 
-            root = root.child(util::floating(
+            input_group = input_group.child(util::floating(
                 util::placed_field_panel(self.placement, px(6.)).child(crate::anim::entering_zoom(
                     panel,
                     gpui::ElementId::Name(format!("combobox-{entity_id}-anim").into()),
@@ -1084,6 +1110,10 @@ impl RenderOnce for ComboBox {
             ));
         }
 
-        root
+        // The popover hangs off the input group it belongs to, so the group --
+        // not the panel -- is the root's child; the deferred panel still paints
+        // over the value row below it.
+        root.child(input_group)
+            .when_some(value_content, |root, value| root.child(value))
     }
 }

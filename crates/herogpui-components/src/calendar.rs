@@ -745,8 +745,12 @@ impl Calendar {
                     if day_num > dim {
                         // The next month's leading days: v3 draws them as cells
                         // with `isOutsideMonth`, so the render prop sees them
-                        // too -- muted and inert either way.
+                        // too -- muted and inert either way. Each spill cell
+                        // carries its *own* next-month date: v3 hands the
+                        // render prop a real `CalendarDate`, and the closure is
+                        // the only identity a caller has.
                         let nd = day_num - dim;
+                        let (ny, nm) = next_month(y, m);
                         let slot = gpui::div()
                             .flex_1()
                             .h(px(34.))
@@ -758,7 +762,7 @@ impl Calendar {
                         match &self.cell {
                             Some(render) => slot
                                 .child(render(CalendarCellState {
-                                    date: Date::new(y, m, 1),
+                                    date: Date::new(ny, nm, nd as u32),
                                     formatted_date: nd.to_string().into(),
                                     is_selected: false,
                                     is_unavailable: false,

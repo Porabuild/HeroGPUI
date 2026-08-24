@@ -344,12 +344,11 @@ fn list_box_item_content_tracks_selection_and_cursor(cx: &mut TestAppContext) {
 
 /// A pointer pick on a ListBox row rendered *with* `item_content` must select
 /// exactly as the label path does: v3's `ListBox.Item` stays a row whether
-/// its children are a node or a function. It does not, and cannot: the row
-/// builder returns inside the `item_content` branch, before the `on_click`
-/// that the default label path attaches
-/// (`list_box.rs` `row()`, "Label plus optional description stack").
+/// its children are a node or a function. The content branch used to return
+/// before the `on_click` the default label path attaches
+/// (`list_box.rs` `row()`, "Label plus optional description stack"), which
+/// made a pointer pick inert; the row now falls through to the click handler.
 #[gpui::test]
-#[ignore = "defect: ListBox::row returns before binding on_click when item_content is set, so a pointer pick cannot select"]
 fn list_box_item_content_pointer_selection_is_inert(cx: &mut TestAppContext) {
     let held = Rc::new(RefCell::new(HashSet::<SharedString>::new()));
     let recorded = Rc::new(RefCell::new(HashMap::new()));
@@ -397,11 +396,10 @@ fn list_box_item_content_pointer_selection_is_inert(cx: &mut TestAppContext) {
 
 /// v3 documents `isPressed` on `ListBox.Item`'s render props, and the port's
 /// own `item_content` doc says "the press is a frame behind the pointer,
-/// because gpui reports it to a handler". The state constructed in
-/// `list_box.rs` `row()` hardcodes `is_pressed: false`, so the closure can
-/// never observe the press the row is drawing.
+/// because gpui reports it to a handler". The row hands over the press the
+/// interaction slot recorded on the last frame, so the closure observes the
+/// press the row is drawing.
 #[gpui::test]
-#[ignore = "defect: ListBox hands item_content a hardcoded is_pressed=false, never the pointer's press"]
 fn list_box_item_content_never_sees_the_press(cx: &mut TestAppContext) {
     let recorded = Rc::new(RefCell::new(HashMap::new()));
     let record = recorded.clone();
@@ -585,11 +583,10 @@ fn menu_item_content_tracks_selection_and_cursor(cx: &mut TestAppContext) {
 
 /// v3 documents `isPressed` on `Dropdown.Item`'s render props, and the port's
 /// own `item_content` doc says "the press is a frame behind the pointer,
-/// because gpui reports it to a handler". `dropdown.rs` hands the closure a
-/// state literal with `is_pressed: false`, so the press a menu row is
-/// animating through `anim::pressed` never reaches a caller's closure.
+/// because gpui reports it to a handler". `dropdown.rs` hands over the press
+/// the interaction slot recorded on the last frame, so the closure sees the
+/// press a menu row is animating through `anim::pressed`.
 #[gpui::test]
-#[ignore = "defect: Menu hands item_content a hardcoded is_pressed=false, never the pointer's press"]
 fn menu_item_content_never_sees_the_press(cx: &mut TestAppContext) {
     let recorded = Rc::new(RefCell::new(HashMap::new()));
     let record = recorded.clone();
@@ -957,10 +954,9 @@ fn radio_group_option_content_tracks_selection_and_focus(cx: &mut TestAppContext
 /// The `option_content` doc comment promises "the press is a frame behind the
 /// pointer, because gpui reports it to a handler rather than to the render
 /// that draws it", and the shared `InteractiveState` struct carries the field.
-/// `radio_group.rs` constructs the state with `is_pressed: false`, so the
-/// press the control is animating never reaches a caller's closure.
+/// `radio_group.rs` builds the state from the interaction slot, so the press
+/// the control is animating reaches a caller's closure.
 #[gpui::test]
-#[ignore = "defect: RadioGroup hands option_content a hardcoded is_pressed=false, never the pointer's press"]
 fn radio_group_option_content_never_sees_the_press(cx: &mut TestAppContext) {
     let recorded = Rc::new(RefCell::new(HashMap::new()));
     let record = recorded.clone();
@@ -1058,12 +1054,12 @@ fn calendar_cell_renders_at_all(cx: &mut TestAppContext) {
 
 /// v3 hands a spill cell the *actual* next-month date, and the closure is the
 /// only identity a caller has — this port added the `date` field precisely so
-/// `state.date` can key a custom cell. `calendar.rs` `month_grid` passes
-/// `Date::new(y, m, 1)` for every spill cell, so the six September cells are
-/// all "2026-08-01": a caller drawing from `state.date` renders six identical
-/// cells, and the real next-month days are unreachable.
+/// `state.date` can key a custom cell. `calendar.rs` `month_grid` used to pass
+/// `Date::new(y, m, 1)` for every spill cell, so the six September cells were
+/// all "2026-08-01": a caller drawing from `state.date` rendered six identical
+/// cells and the real next-month days were unreachable. Each spill cell now
+/// carries its own next-month date.
 #[gpui::test]
-#[ignore = "defect: Calendar hands its is_outside_month spill cells the first of the current month as their date, so six cells share one identity"]
 fn calendar_cell_spill_dates_lose_their_identity(cx: &mut TestAppContext) {
     let invocations = Rc::new(RefCell::new(Vec::<(String, String, bool)>::new()));
     let record = invocations.clone();

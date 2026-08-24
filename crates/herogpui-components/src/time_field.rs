@@ -179,20 +179,28 @@ impl TimeSegment {
 pub struct TimeState {
     pub value: Option<Time>,
     pub focused: TimeSegment,
+    /// The field's tab stop, carried on the state the way
+    /// [`crate::input::InputState`] carries its own: a `content` closure and
+    /// the replacement field it draws must share one handle, or the closure
+    /// reads a handle Tab and clicks never reach.
+    pub(crate) focus_handle: gpui::FocusHandle,
 }
 
 impl TimeState {
-    pub fn new(_cx: &mut App) -> Self {
+    pub fn new(cx: &mut App) -> Self {
         Self {
             value: None,
             focused: TimeSegment::Hour,
+            // A field is a tab stop: the handle carries that, not the element.
+            focus_handle: cx.focus_handle().tab_stop(true),
         }
     }
 
-    pub fn with_value(_cx: &mut App, value: Time) -> Self {
+    pub fn with_value(cx: &mut App, value: Time) -> Self {
         Self {
             value: Some(value),
             focused: TimeSegment::Hour,
+            focus_handle: cx.focus_handle().tab_stop(true),
         }
     }
 
@@ -523,15 +531,13 @@ impl RenderOnce for TimeField {
         }
 
         let entity_id = self.state.entity_id().as_u64();
-        // A time field has no inner `Input`, so it owns its focus handle. Keyed
-        // state keeps it across frames; `use_keyed_state` takes `cx` mutably, so
-        // it precedes the theme tokens.
-        let focus_handle = window.use_keyed_state(
-            ElementId::Name(format!("timefield-{entity_id}-focus").into()),
-            cx,
-            |_, cx| cx.focus_handle().tab_stop(true),
-        );
-        let focus_handle = focus_handle.read(cx).clone();
+        // A time field has no inner `Input` to hold the focus, so the handle
+        // lives on the state itself -- the same answer `InputState` and
+        // `NumberState` give. That is what lets a `content` closure and the
+        // replacement field it draws share one handle: the field the closure
+        // draws tracks the state's handle, so Tab and clicks move the focus
+        // the closure is asked to report.
+        let focus_handle = self.state.read(cx).focus_handle.clone();
         if let Some(render) = self.content.clone() {
             // v3's field children-as-a-function: the caller builds the parts.
             let focused = focus_handle.is_focused(window);

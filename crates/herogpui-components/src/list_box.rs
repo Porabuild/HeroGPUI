@@ -356,6 +356,27 @@ impl RenderOnce for ListBox {
             cx,
             |_, _| crate::list_nav::Typeahead::default(),
         );
+        // One hover/press slot per row, for an `item_content` closure. The
+        // slots exist only when the closure is set: `track_interaction`'s
+        // handlers cost a frame of state, and the closure is the only reader
+        // (the press v3's `ListBox.Item` render props document).
+        let interaction: std::rc::Rc<Vec<util::Interaction>> = if self.item_content.is_some() {
+            std::rc::Rc::new(
+                (0..self.items.len())
+                    .map(|index| {
+                        util::interaction(
+                            ElementId::Name(
+                                format!("{:?}-item-{index}-interaction", self.id).into(),
+                            ),
+                            window,
+                            cx,
+                        )
+                    })
+                    .collect(),
+            )
+        } else {
+            std::rc::Rc::new(Vec::new())
+        };
 
         let colors = cx.colors();
 
@@ -524,10 +545,11 @@ impl RenderOnce for ListBox {
             if state.item_count() != count {
                 state.reset(count);
             }
+            let interaction = interaction.clone();
             return list
                 .child(
                     gpui::list(state, move |index, _window, cx| {
-                        rows.row(index, cursor_at, None, cx)
+                        rows.row(index, cursor_at, None, interaction.get(index), cx)
                     })
                     .h(height)
                     .w_full(),
@@ -540,6 +562,7 @@ impl RenderOnce for ListBox {
             let list_id = self.id.clone();
             let count = self.items.len();
             let rows = std::rc::Rc::new(self);
+            let interaction = interaction.clone();
             return list
                 .child(
                     gpui::uniform_list(
@@ -547,7 +570,9 @@ impl RenderOnce for ListBox {
                         count,
                         move |range, _window, cx| {
                             range
-                                .map(|i| rows.row(i, cursor_at, Some(row_height), cx))
+                                .map(|i| {
+                                    rows.row(i, cursor_at, Some(row_height), interaction.get(i), cx)
+                                })
                                 .collect::<Vec<_>>()
                         },
                     )
@@ -561,7 +586,7 @@ impl RenderOnce for ListBox {
 
         let mut items = Vec::with_capacity(self.items.len());
         for index in 0..self.items.len() {
-            items.push(self.row(index, cursor_at, None, cx));
+            items.push(self.row(index, cursor_at, None, interaction.get(index), cx));
         }
         list.children(items).into_any_element()
     }
@@ -579,6 +604,7 @@ impl ListBox {
         index: usize,
         cursor_at: Option<usize>,
         fixed_h: Option<gpui::Pixels>,
+        interaction: Option<&util::Interaction>,
         cx: &mut App,
     ) -> gpui::AnyElement {
         let colors = cx.colors();
@@ -685,39 +711,50 @@ impl ListBox {
                 }
 
                 // Label plus optional description stack -- or the render
-                // function, which v3 hands the row's state.
+                // function, which v3 hands the row's state. The content branch
+                // falls through to the click handler below: `ListBox.Item`
+                // stays a row whether its children are a node or a function.
                 if let Some(render) = &self.item_content {
                     let focused = cursor_at == Some(index);
-                    return row
-                        .child(render(
-                            key,
-                            util::InteractiveState {
-                                is_hovered: false,
-                                is_pressed: false,
-                                is_focused: focused,
-                                is_focus_visible: focused && util::focus_visible(cx),
-                                is_selected: selected,
-                                is_disabled: disabled,
-                                is_indeterminate: false,
-                            },
-                        ))
-                        .into_any_element();
+                    // The slot's press is a frame behind the pointer, because
+                    // gpui reports it to a handler rather than to the render
+                    // that draws it. v3's `ListBox.Item` render-props table
+                    // lists no `isHovered`, so the hover the slot also tracks
+                    // is not handed over.
+                    let (_, is_pressed) =
+                        interaction.map(|slot| *slot.read(cx)).unwrap_or_default();
+                    row = row.child(render(
+                        key,
+                        util::InteractiveState {
+                            is_hovered: false,
+                            is_pressed,
+                            is_focused: focused,
+                            is_focus_visible: focused && util::focus_visible(cx),
+                            is_selected: selected,
+                            is_disabled: disabled,
+                            is_indeterminate: false,
+                        },
+                    ));
+                    if let Some(slot) = interaction {
+                        row = util::track_interaction(row, slot);
+                    }
+                } else {
+                    row = row.child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .flex_1()
+                            .child(div().child(label.to_string()))
+                            .when_some(description.clone(), |el, d| {
+                                el.child(
+                                    div()
+                                        .text_size(px(11.))
+                                        .text_color(colors.muted)
+                                        .child(d.to_string()),
+                                )
+                            }),
+                    );
                 }
-                row = row.child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .flex_1()
-                        .child(div().child(label.to_string()))
-                        .when_some(description.clone(), |el, d| {
-                            el.child(
-                                div()
-                                    .text_size(px(11.))
-                                    .text_color(colors.muted)
-                                    .child(d.to_string()),
-                            )
-                        }),
-                );
 
                 if let Some(render) = &self.indicator {
                     row = row.child(render(selected));

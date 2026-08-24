@@ -35,9 +35,8 @@
 //!   the group width, and an open body is `p-2` (8px all round) around its
 //!   content.
 //!
-//! Two tests are `#[ignore = "defect: …"]`: the Table's horizontal scroller
-//! and the Tabs chevrons. Each keeps its real assertions intact and the
-//! report carries an exact reproduction of what the component does instead.
+//! Two regressions pin defects the suite found: the Table's horizontal content
+//! must exceed its viewport, and the Tabs chevrons must occlude the tabs below.
 
 mod harness;
 
@@ -296,10 +295,9 @@ fn table_sortable_header_answers_enter_space_then_click(cx: &mut TestAppContext)
 /// the whole body slides under a fixed pointer, and a column that was
 /// entirely off-screen comes into reach.
 ///
-/// The assertion below is what that contract says; the wheel produces no
-/// movement and the test fails, which is the point (see the report).
+/// The assertion below pins that contract with fixed-pointer probes before and
+/// after the wheel.
 #[gpui::test]
-#[ignore = "defect: the table's horizontal scroller cannot scroll: its only child is w_full, so the scroll maxima are always zero; min-width columns clip at the wrapper edge instead of sliding"]
 fn table_horizontal_scroll_moves_all_columns(cx: &mut TestAppContext) {
     let recorded = events();
     let for_view = recorded.clone();
@@ -520,7 +518,6 @@ fn table_every_row_selectable_no_disabled_row_api(cx: &mut TestAppContext) {
 ///   `left-1` (x 4..20).
 /// - one chevron click scrolls by `min(120, max)` (the step is 120px).
 #[gpui::test]
-#[ignore = "defect: clicking a scroll chevron also activates the tab it covers (gpui has no hitbox occlusion), so the arrow records the covered tab's selection alongside the scroll"]
 fn tabs_overflow_scroller_chevrons_scroll_the_list(cx: &mut TestAppContext) {
     let recorded = events();
     let for_view = recorded.clone();
