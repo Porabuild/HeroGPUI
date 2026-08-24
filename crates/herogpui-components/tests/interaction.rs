@@ -2,82 +2,19 @@
 //!
 //! Every static axis of this port is measured by the `.shots/*.py` audits;
 //! what they cannot see is whether a control *functions*. These tests open a
-//! real gpui window on the headless test platform (`test-support`, enabled in
-//! this crate's dev-dependencies), render one component at the top-left corner
-//! and simulate clicks and keystrokes against it.
-//!
-//! Two harness facts worth knowing before adding more tests here:
-//!
-//! - Component state lives in the *window's* keyed state
-//!   (`window.use_keyed_state`), so one host window must survive a whole test.
-//!   The builder closures re-run on every frame — that is how these components
-//!   are always driven — and only the keyed state carries the value across
-//!   frames.
-//! - The test platform ships no asset source (`AssetSource for ()` answers
-//!   `Ok(None)`), so every `svg()` glyph silently renders nothing. That path
-//!   logs instead of panicking, which is why no stub source is installed here.
+//! real gpui window on the headless test platform and simulate clicks and
+//! keystrokes against it. The window, the recorder type and the input helpers
+//! live in the shared `tests/harness/mod.rs` module.
+
+mod harness;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use gpui::{
-    point, prelude::*, px, AnyElement, Context, KeyUpEvent, Keystroke, Modifiers, Render,
-    TestAppContext, VisualTestContext, Window,
-};
+use gpui::{point, prelude::*, px, KeyUpEvent, Keystroke, Modifiers, TestAppContext};
 use herogpui_components::{Checkbox, Select, Switch};
-use herogpui_theme::ThemeProvider;
 
-/// What the component callbacks recorded, cloned into each closure.
-type Events = Rc<RefCell<Vec<String>>>;
-
-/// Renders one component under test at the top-left corner of the window, with
-/// no padding, so simulated click coordinates land where the layout says.
-struct Host {
-    content: Box<dyn Fn() -> AnyElement>,
-}
-
-impl Render for Host {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
-        // A minimal stand-in for `util::app_focus_root`: hold the focus when
-        // nothing else does — with no focus there is no key-event chain for the
-        // first Tab to travel down — and move it on Tab. gpui leaves both jobs
-        // to the app root; the gallery installs one, so the harness must too.
-        let root = window
-            .use_keyed_state(
-                gpui::ElementId::Name("host-focus-root".into()),
-                cx,
-                |_, cx| cx.focus_handle(),
-            )
-            .read(cx)
-            .clone();
-        if !root.contains_focused(window, cx) {
-            window.focus(&root);
-        }
-        gpui::div()
-            .track_focus(&root)
-            .on_key_down(|event, window, _| {
-                if event.keystroke.key == "tab" {
-                    window.focus_next();
-                }
-            })
-            .size_full()
-            .child((self.content)())
-    }
-}
-
-/// Installs the theme global and opens one host window on the test platform.
-fn open_host(
-    cx: &mut TestAppContext,
-    content: impl Fn() -> AnyElement + 'static,
-) -> &mut VisualTestContext {
-    // Every component reads its tokens through the `ThemeProvider` global;
-    // drawing without one panics.
-    cx.update(ThemeProvider::init);
-    let (_view, cx) = cx.add_window_view(|_, _| Host {
-        content: Box::new(content),
-    });
-    cx
-}
+use harness::{open_host, Events};
 
 #[gpui::test]
 fn checkbox_click_toggles(cx: &mut TestAppContext) {

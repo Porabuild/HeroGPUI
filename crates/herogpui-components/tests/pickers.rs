@@ -1,0 +1,407 @@
+//! Behaviour tests for the three search-and-select components: Autocomplete,
+//! ComboBox and Dropdown, plus the DatePicker's calendar grid.
+//!
+//! Everything static about them is measured by the `.shots/*.py` audits; these
+//! tests drive the controls and assert on recorded callbacks and behavioural
+//! probes only — never on appearance.
+//!
+//! Geometry is derived from the components' own constants, not guessed:
+//!
+//! - Every trigger field is a 36px row (`util::FIELD_HEIGHT`) at the window
+//!   origin, so its centre is (60, 18).
+//! - The pickers' panels hang from `placed_field_panel(BottomStart, 6px)`:
+//!   top = trigger bottom + 6 = 42.
+//! - Autocomplete: panel `pt(8)` + search wrapper `py(4)` + 36px field + list
+//!   `p(6)` puts row *i* at y 100+36i, plus up to 6px of entry-zoom padding
+//!   (`ZoomBox::panel(px(6))`); clicking y = 124+36i lands inside every phase
+//!   of that animation.
+//! - ComboBox: panel `p(4)` puts row *i* at y 46+36i with ≤4px of zoom
+//!   padding; clicking y = 64+36i covers it.
+//! - Dropdown: same panel shape as Select (row centres y 64+36i), but both
+//!   menus here are driven by keyboard, so only their triggers are clicked.
+//! - DatePicker: the cell band starts at 42 + 12 (`picker_panel` padding) +
+//!   24 (nav header) + 8 + 8 (calendar gaps) + one text line of weekday
+//!   header, and cells are 36px tall; the column centres come from
+//!   `CALENDAR_WIDTH` minus six 2px gaps over seven columns. Only the weekday
+//!   line height is a text metric rather than a constant, which the chosen y
+//!   tolerates by ±14px either way.
+//!
+//! Reduce motion is deliberately **not** set for this process. Only the
+//! Dropdown plays its exit through `util::overlay_phase`, and no test here
+//! probes a dropdown after dismissing it; the Autocomplete, ComboBox and
+//! DatePicker panels leave the tree outright when closed (`show_panel` /
+//! `if is_open` gate them, no exit phase), so "is it closed" probes cannot hit
+//! an exiting panel.
+
+mod harness;
+
+use gpui::{prelude::*, px, TestAppContext};
+use herogpui_components::{
+    calendar::{CalendarState, Date, CALENDAR_WIDTH},
+    Autocomplete, Button, ComboBox, DateConstraints, DatePicker, Dropdown, InputState, MenuItem,
+    SelectionMode,
+};
+
+use harness::{click, events, open_host, press};
+
+/// An `InputState` entity for the search-field-backed controls, created before
+/// the host opens so the test can keep its own handle to it.
+fn search_state(cx: &mut TestAppContext) -> gpui::Entity<InputState> {
+    cx.new(|cx| InputState::new(cx))
+}
+
+#[gpui::test]
+fn autocomplete_opens_filters_and_selects(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        // v3's Autocomplete is a trigger whose popover holds a SearchField;
+        // typing filters, clicking a row selects.
+        Autocomplete::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "the trigger must open"
+    );
+
+    // The popover autofocuses its search field, so typing goes straight into
+    // it and filters the rows down to the one match.
+    cx.simulate_input("ty");
+    click(cx, 60., 124.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Typst"],
+        "clicking the matching row must record its text"
+    );
+    assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
+
+    // Closed proof by behaviour: the same spot is bare page below the trigger
+    // now, so the press must reach nothing. Were the popover still open, the
+    // row would record a second "Typst" here.
+    click(cx, 60., 124.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Typst"],
+        "the popover must be closed after choosing an item"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_uncontrolled_selection_sticks(cx: &mut TestAppContext) {
+    // The regression behind these tests: an Autocomplete with neither `value`
+    // nor `defaultValue` used to hand its clicks back to a set nobody owned —
+    // the callbacks fired, but nothing was remembered. The proof here never
+    // reads private state: `on_selection_change_all` reports the component's
+    // own held set, so the second report naming BOTH picks can only come from
+    // state that stuck, and the third click *toggling Alpha back off* is only
+    // reachable if the row knew it was already selected.
+    let single = events();
+    let picked = single.clone();
+    let all = events();
+    let reported = all.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let single = single.clone();
+        let all = all.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, vec!["Alpha".into(), "Beta".into(), "Gamma".into()])
+            .selection_mode(SelectionMode::Multiple)
+            .on_change(move |item, _, _| single.borrow_mut().push(item.to_string()))
+            .on_selection_change_all(move |keys, _, _| {
+                let joined = keys
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                all.borrow_mut().push(joined);
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    // Multiple mode keeps the panel open between picks: row i sits at
+    // y = 124 + 36i.
+    click(cx, 60., 124.);
+    assert_eq!(reported.borrow().as_slice(), ["Alpha"]);
+
+    click(cx, 60., 196.);
+    assert_eq!(
+        reported.borrow().as_slice(),
+        ["Alpha", "Alpha,Gamma"],
+        "the second report must still contain the first pick"
+    );
+
+    click(cx, 60., 124.);
+    assert_eq!(
+        reported.borrow().as_slice(),
+        ["Alpha", "Alpha,Gamma", "Gamma"],
+        "re-clicking a picked row must toggle it off, which requires \
+         remembering it"
+    );
+    assert_eq!(picked.borrow().as_slice(), ["Alpha", "Gamma", "Alpha"]);
+}
+
+#[gpui::test]
+fn autocomplete_escape_closes(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, vec!["Alpha".into(), "Beta".into(), "Gamma".into()])
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    assert_eq!(opened.borrow().as_slice(), ["open:true"]);
+
+    // Escape reaches the root handler through the focused search field; it
+    // closes the popover and refocuses the trigger without selecting.
+    press(cx, "escape");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "escape closes the popover"
+    );
+    assert!(recorded.borrow().is_empty(), "escape must not select");
+
+    // Closed proof: where row one would have been, nothing answers.
+    click(cx, 60., 124.);
+    assert!(
+        recorded.borrow().is_empty() && opened.borrow().len() == 2,
+        "the popover must be gone after escape"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_arrows_and_enter_select(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, vec!["Rust".into(), "Go".into(), "Python".into()])
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    assert_eq!(opened.borrow().as_slice(), ["open:true"]);
+
+    // Two Downs put the keyboard cursor on the second row; Enter takes it.
+    // Enter must not ALSO reopen: the component deliberately does not refocus
+    // the trigger inside this keystroke, because gpui activates a focused
+    // element on Enter and the trigger's click listener would fire.
+    press(cx, "down down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Go"],
+        "the second row must be selected exactly once"
+    );
+    assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
+}
+
+#[gpui::test]
+fn combo_box_typing_filters_and_click_selects(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = search_state(cx);
+    let state_for_view = state.clone();
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        // ComboBox is input-shaped: the query is typed into the field itself.
+        ComboBox::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+            .placeholder("Search")
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    // The chevron button sits at the right end of the 320px-wide field:
+    // 320 - 12px padding - half its 20px box. (See the module docs and the
+    // report: typing alone does not open the list, although the port's own
+    // `MenuTrigger::Input` documentation says it should.)
+    click(cx, 298., 18.);
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "the chevron must open the list"
+    );
+
+    // Typing into the field filters the suggestion rows down to one.
+    cx.simulate_input("ty");
+    click(cx, 60., 64.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Typst"],
+        "clicking the matching suggestion must select it"
+    );
+
+    // Taking a suggestion fills the field and closes the list — read back
+    // through the state entity the test itself owns.
+    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(value, "Typst", "the input must hold the chosen item");
+    assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
+}
+
+#[gpui::test]
+fn dropdown_arrows_and_enter_activate(cx: &mut TestAppContext) {
+    let actions = events();
+    let fired = actions.clone();
+
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        let skip_actions = actions.clone();
+        // Two dropdowns stacked 320px apart, so the first menu (which ends
+        // near y 170) never overlaps the second trigger.
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(320.))
+            .child(
+                Dropdown::uncontrolled(
+                    Button::new("dd-open-trigger").label("Actions"),
+                    vec![
+                        MenuItem::new("open", "Open"),
+                        MenuItem::new("close", "Close"),
+                    ],
+                )
+                .id("dd-open")
+                .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string())),
+            )
+            .child(
+                Dropdown::uncontrolled(
+                    Button::new("dd-skip-trigger").label("Skipper"),
+                    vec![
+                        MenuItem::new("cut", "Cut"),
+                        MenuItem::new("del", "Delete"),
+                        MenuItem::new("zoom", "Zoom"),
+                    ],
+                )
+                .id("dd-skip")
+                .disabled_keys(["del"])
+                .on_action(move |key, _, _| skip_actions.borrow_mut().push(key.to_string())),
+            )
+            .into_any_element()
+    });
+
+    // First menu: the trigger button is 36px tall at the origin, centre
+    // (40, 18). Opening moves the focus into the panel, so the arrows work
+    // without a click first.
+    click(cx, 40., 18.);
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["open"],
+        "Down then Enter must activate the first enabled item exactly once"
+    );
+
+    // Second menu: its root starts at 36px + the 320px gap, so its trigger
+    // centre is (40, 374). Down twice must step Cut -> Zoom, skipping the
+    // disabled Delete between them.
+    click(cx, 40., 374.);
+    press(cx, "down");
+    press(cx, "enter");
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["open", "cut", "zoom"],
+        "the arrows must skip disabledKeys: activating the second stop \
+         records 'zoom', not 'del'"
+    );
+}
+
+#[gpui::test]
+fn date_picker_opens_and_picks_a_day(cx: &mut TestAppContext) {
+    let picks = events();
+    let recorded = picks.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+
+    // The visible month is the state's view month, seeded from today. Column
+    // c of the first week holds day `c - lead + 1` once the lead blanks are
+    // past, so the last column always holds day `7 - lead` — a real day of
+    // this month whatever the month is.
+    let today = Date::today();
+    let lead = DateConstraints::new().lead_cells(today.year, today.month);
+    let expected = Date::new(today.year, today.month, (7 - lead) as u32);
+
+    // x: the calendar column is CALENDAR_WIDTH wide (252px = seven cells),
+    // six 2px gaps take 12px, so each slot is (252-12)/7 wide and the last
+    // column's centre sits at 12 + 6*(w+2) + w/2 from the panel origin.
+    // y: panel top (36 trigger + 6 offset) + picker_panel p(12) + nav header
+    // h(24) + two calendar gaps of 8 + one weekday-header text line (~16) +
+    // half of a 36px cell. Only the text line is a metric rather than a
+    // constant; any value it takes in 0..34 keeps y = 128 inside the first
+    // week's cells.
+    let cell_w = (f32::from(CALENDAR_WIDTH) - 12.) / 7.;
+    let day_x = 12. + 6. * (cell_w + 2.) + cell_w / 2.;
+    let day_y = 128.;
+
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        DatePicker::new(state_for_view.clone())
+            .on_change(move |date, _, _| {
+                let iso = date.map(|d| d.format_iso()).unwrap_or_default();
+                picks.borrow_mut().push(iso);
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    click(cx, day_x, day_y);
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [expected.format_iso()],
+        "clicking the last cell of the first week must pick day {}",
+        7 - lead
+    );
+}
