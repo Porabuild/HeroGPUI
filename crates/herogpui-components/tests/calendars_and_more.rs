@@ -329,10 +329,10 @@ fn calendar_min_max_blocks_out_of_range_days(cx: &mut TestAppContext) {
 }
 
 /// A RangeCalendar's range is a two-step anchor/extend interaction: the first
-/// click reports an open-ended range, a second click before any end is chosen
-/// *restarts* it (an earlier day becomes the new anchor, still open-ended),
-/// and only a later click completes it. The hover preview between the two
-/// ends must drive the drawing and never a callback.
+/// click reports an open-ended range and the second completes the sorted range
+/// in either direction. A click after a complete range starts a new anchor.
+/// The hover preview between the two ends must drive the drawing and never a
+/// callback.
 #[gpui::test]
 fn range_calendar_click_start_then_end_reports_a_range(cx: &mut TestAppContext) {
     let changes = events();
@@ -390,22 +390,29 @@ fn range_calendar_click_start_then_end_reports_a_range(cx: &mut TestAppContext) 
         "the hover preview must not report anything on its own"
     );
 
-    // A second click before any end is chosen, on an *earlier* day: the range
-    // restarts at the new anchor, still open-ended.
+    // A second click on an earlier day completes the range in reverse. React
+    // Aria sorts the two endpoints rather than discarding the first anchor.
     let (day2_x, day2_y) = range_day(2026, 8, 2);
     click(cx, day2_x, day2_y);
     assert_eq!(
         changed.borrow().as_slice(),
-        ["2026-08-05->", "2026-08-02->"],
-        "a second pick earlier than the anchor must restart the range, open-ended"
+        ["2026-08-05->", "2026-08-02->2026-08-05"],
+        "a second pick earlier than the anchor must complete the sorted range"
     );
 
-    // A later click completes the range.
+    // A complete range starts over on the next click, then a later click
+    // completes that new range.
+    click(cx, day2_x, day2_y);
     let (day12_x, day12_y) = range_day(2026, 8, 12);
     click(cx, day12_x, day12_y);
     assert_eq!(
         changed.borrow().as_slice(),
-        ["2026-08-05->", "2026-08-02->", "2026-08-02->2026-08-12"],
+        [
+            "2026-08-05->",
+            "2026-08-02->2026-08-05",
+            "2026-08-02->",
+            "2026-08-02->2026-08-12",
+        ],
         "a later pick must complete and report the whole range"
     );
 }

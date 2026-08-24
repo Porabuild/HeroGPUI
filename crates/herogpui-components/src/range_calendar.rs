@@ -282,15 +282,64 @@ impl RangeCalendar {
     }
 
     fn is_selectable(&self, date: Date) -> bool {
-        if self.constraints.out_of_range(date) {
-            return false;
+        self.constraints.allows(date)
+    }
+}
+
+/// Resolves one range selection through the same constraint path for clicks
+/// and keyboard activation. While selecting the second endpoint, min/max clamp
+/// the requested date first; unless non-contiguous ranges are enabled, the
+/// first unavailable day then clamps it toward the anchor.
+fn resolve_pick(
+    start: Option<Date>,
+    end: Option<Date>,
+    requested: Date,
+    constraints: &DateConstraints,
+    allows_non_contiguous_ranges: bool,
+) -> Option<(Date, Option<Date>)> {
+    if start.is_none() || end.is_some() {
+        return constraints.allows(requested).then_some((requested, None));
+    }
+
+    let anchor = start?;
+    let mut target = requested;
+    if let Some(min) = constraints.min_value {
+        if days_from_civil(&target) < days_from_civil(&min) {
+            target = min;
         }
-        // A non-contiguous range may span unavailable dates, so they stay
-        // pickable as endpoints.
-        if !self.allows_non_contiguous_ranges && self.constraints.is_unavailable(date) {
-            return false;
+    }
+    if let Some(max) = constraints.max_value {
+        if days_from_civil(&target) > days_from_civil(&max) {
+            target = max;
         }
-        true
+    }
+
+    if allows_non_contiguous_ranges {
+        if constraints.is_unavailable(target) {
+            return None;
+        }
+    } else {
+        let direction = days_from_civil(&target).cmp(&days_from_civil(&anchor));
+        let step = match direction {
+            std::cmp::Ordering::Less => -1,
+            std::cmp::Ordering::Equal => 0,
+            std::cmp::Ordering::Greater => 1,
+        };
+        let mut resolved = anchor;
+        while resolved != target {
+            let next = add_days(&resolved, step);
+            if constraints.is_unavailable(next) {
+                break;
+            }
+            resolved = next;
+        }
+        target = resolved;
+    }
+
+    if days_from_civil(&target) < days_from_civil(&anchor) {
+        Some((target, Some(anchor)))
+    } else {
+        Some((anchor, Some(target)))
     }
 }
 
@@ -326,7 +375,9 @@ impl RangeCalendar {
         let is_start = start_day == Some(serial);
         let is_end = end_day == Some(serial);
         let in_range = match (start_day, end_day) {
-            (Some(a), Some(b)) => serial > a.min(b) && serial < a.max(b),
+            (Some(a), Some(b)) => {
+                serial > a.min(b) && serial < a.max(b) && !self.constraints.is_unavailable(date)
+            }
             _ => false,
         };
         let is_today = serial == days_from_civil(&frame.today);
@@ -428,17 +479,30 @@ impl RangeCalendar {
             let state = self.state.clone();
             let on_change = self.on_change.clone();
             let on_focus = self.on_focus_change.clone();
+            let constraints = self.constraints.clone();
+            let allows_non_contiguous_ranges = self.allows_non_contiguous_ranges;
             cell = cell.on_click(move |_, window, cx| {
                 if let Some(cb) = &on_focus {
                     cb(date, window, cx);
                 }
-                let (next_start, next_end) = state.update(cx, |s, cx| {
-                    s.pick(date);
-                    cx.notify();
-                    (s.start, s.end)
+                let next = state.update(cx, |s, cx| {
+                    let next = resolve_pick(
+                        s.start,
+                        s.end,
+                        date,
+                        &constraints,
+                        allows_non_contiguous_ranges,
+                    );
+                    if let Some((start, end)) = next {
+                        s.start = Some(start);
+                        s.end = end;
+                        s.user_navigated = true;
+                        cx.notify();
+                    }
+                    next
                 });
-                if let Some(cb) = &on_change {
-                    cb(next_start, next_end, window, cx);
+                if let (Some(cb), Some((start, end))) = (&on_change, next) {
+                    cb(Some(start), end, window, cx);
                 }
             });
         }
@@ -629,13 +693,24 @@ impl RenderOnce for RangeCalendar {
         let layout = cx.layout();
         let first_day = self.constraints.first_day_of_week;
 
-        let (stored_anchor, start, preview_end, navigated) = {
+        let (stored_anchor, selection_start, selection_end, hovered, navigated) = {
             let st = self.state.read(cx);
-            (st.anchor(), st.start, st.preview_end(), st.user_navigated)
+            (st.anchor(), st.start, st.end, st.hovered, st.user_navigated)
+        };
+        let (paint_start, preview_end) = match (selection_start, selection_end, hovered) {
+            (Some(start), None, Some(hovered)) => resolve_pick(
+                Some(start),
+                None,
+                hovered,
+                &self.constraints,
+                self.allows_non_contiguous_ranges,
+            )
+            .map_or((Some(start), None), |(start, end)| (Some(start), end)),
+            _ => (selection_start, selection_end),
         };
         // `selectionAlignment` frames the range around the selection start,
         // until the user drives navigation themselves.
-        let anchor = match (navigated, start) {
+        let anchor = match (navigated, selection_start) {
             (false, Some(sel)) => calendar_view::aligned_anchor(
                 self.duration,
                 self.selection_alignment,
@@ -649,11 +724,11 @@ impl RenderOnce for RangeCalendar {
         let ring_at = self
             .focused_value
             .or(cursor_at)
-            .or(start)
+            .or(selection_start)
             .or_else(|| Some(Date::today()))
             .filter(|_| grid_focus.is_focused(window));
         let frame = Frame {
-            start,
+            start: paint_start,
             preview_end,
             today: Date::today(),
             interactive: !self.is_disabled && !self.is_read_only,
@@ -803,27 +878,39 @@ impl RenderOnce for RangeCalendar {
         // for a click.
         if !self.is_disabled && !self.is_read_only {
             let held = cursor;
-            let from_start = self.focused_value.or(start).unwrap_or_else(Date::today);
+            let from_start = self
+                .focused_value
+                .or(selection_start)
+                .unwrap_or_else(Date::today);
             let state = self.state.clone();
             let on_change = self.on_change.clone();
             let on_focus = self.on_focus_change.clone();
-            let selectable = self.constraints.clone();
+            let constraints = self.constraints.clone();
+            let allows_non_contiguous_ranges = self.allows_non_contiguous_ranges;
             root = root.on_key_down(move |event, window, cx| {
                 let from = *held.read(cx);
                 let at = from.unwrap_or(from_start);
                 let key = event.keystroke.key.as_str();
                 let shift = event.keystroke.modifiers.shift;
                 if matches!(key, "enter" | "space") {
-                    if !selectable.allows(at) {
-                        return;
-                    }
-                    let (next_start, next_end) = state.update(cx, |s, cx| {
-                        s.pick(at);
-                        cx.notify();
-                        (s.start, s.end)
+                    let next = state.update(cx, |s, cx| {
+                        let next = resolve_pick(
+                            s.start,
+                            s.end,
+                            at,
+                            &constraints,
+                            allows_non_contiguous_ranges,
+                        );
+                        if let Some((start, end)) = next {
+                            s.start = Some(start);
+                            s.end = end;
+                            s.user_navigated = true;
+                            cx.notify();
+                        }
+                        next
                     });
-                    if let Some(cb) = &on_change {
-                        cb(next_start, next_end, window, cx);
+                    if let (Some(cb), Some((start, end))) = (&on_change, next) {
+                        cb(Some(start), end, window, cx);
                     }
                     return;
                 }
