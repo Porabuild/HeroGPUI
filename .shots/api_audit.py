@@ -63,6 +63,11 @@ ALIAS = {
     'RangeCalendar.isSelectionStart': 'cell', 'RangeCalendar.isSelectionEnd': 'cell',
     'Calendar.formattedDate': 'cell', 'Calendar.isSelected': 'cell',
     'Calendar.isUnavailable': 'cell', 'Calendar.isOutsideMonth': 'cell',
+    # Calendar's value/defaultValue/onChange are unions: multiple mode carries
+    # a date array, so the plural builders are the ones that prove the full
+    # documented value type rather than only matching the prop name.
+    'Calendar.value': 'values', 'Calendar.defaultValue': 'default_values',
+    'Calendar.onChange': 'on_change_all',
     # `ColorSlider.Output`'s render function is handed the `color`.
     'ColorSlider.color': 'output',
     # `ProgressBar.ValueLabel` (and the Meter's and the circle's) is a render

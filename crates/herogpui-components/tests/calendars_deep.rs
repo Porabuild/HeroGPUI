@@ -447,3 +447,67 @@ fn range_calendar_maximum_beats_a_farther_unavailable_date(cx: &mut TestAppConte
         "the maximum must clamp before the farther unavailable boundary"
     );
 }
+
+/// In multiple mode v3's `onChange` value is the whole date array. The legacy
+/// single-value callback can only name the activated date; `on_change_all`
+/// must report the complete toggled set, including a plural `defaultValue`
+/// seed, and it must remove a date when that cell is picked again.
+#[gpui::test]
+fn calendar_multiple_selection_reports_the_full_date_set(cx: &mut TestAppContext) {
+    let changes = events();
+    let changed = changes.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+
+    let cx = open_host(cx, move || {
+        let single = changes.clone();
+        let all = changes.clone();
+        Calendar::new(state_for_view.clone())
+            .selection_mode(herogpui_components::SelectionMode::Multiple)
+            .default_values([Date::new(2026, 8, 3), Date::new(2026, 8, 5)])
+            .on_change(move |date, _, _| {
+                single.borrow_mut().push(format!(
+                    "one:{}",
+                    date.map(|date| date.format_iso()).unwrap_or_default()
+                ));
+            })
+            .on_change_all(move |dates, _, _| {
+                all.borrow_mut().push(format!(
+                    "all:{}",
+                    dates
+                        .iter()
+                        .map(Date::format_iso)
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ));
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).selected_dates().to_vec()),
+        [Date::new(2026, 8, 3), Date::new(2026, 8, 5)],
+        "the plural defaultValue must seed every selected date"
+    );
+
+    let (day5_x, day5_y) = cal_day(2026, 8, 5);
+    click(cx, day5_x, day5_y);
+    let (day7_x, day7_y) = cal_day(2026, 8, 7);
+    click(cx, day7_x, day7_y);
+    cx.update(|window, _| window.refresh());
+    press(cx, "tab");
+    press(cx, "right");
+    press(cx, "enter");
+    assert_eq!(
+        changed.borrow().as_slice(),
+        [
+            "one:2026-08-05",
+            "all:2026-08-03",
+            "one:2026-08-07",
+            "all:2026-08-03,2026-08-07",
+            "one:2026-08-08",
+            "all:2026-08-03,2026-08-07,2026-08-08",
+        ],
+        "the full callback must report the set after pointer and keyboard toggles"
+    );
+}

@@ -180,7 +180,7 @@ pub fn first_weekday_pub(year: i32, month: u32) -> usize {
 }
 
 // ---------------------------------------------------------------------------
-// Single-date calendar
+// Calendar
 // ---------------------------------------------------------------------------
 
 /// State entity for [`Calendar`].
@@ -190,8 +190,8 @@ pub struct CalendarState {
     /// Anchor day for the week and day views; the month view ignores it.
     pub view_day: u32,
     pub selected: Option<Date>,
-    /// Every selected date, for `selectionMode="multiple"`. A single-selection
-    /// calendar leaves this empty and reads `selected`.
+    /// Every selected date. Multiple mode toggles this set; `selected` keeps
+    /// the most recent value for scalar callers.
     pub selected_dates: Vec<Date>,
     /// Set once the user pages or picks a date, after which
     /// `selectionAlignment` stops re-deriving the visible range.
@@ -271,6 +271,7 @@ impl CalendarState {
 }
 
 type OnChange = std::sync::Arc<dyn Fn(Option<Date>, &mut Window, &mut App) + 'static>;
+type OnChangeAll = std::sync::Arc<dyn Fn(&[Date], &mut Window, &mut App) + 'static>;
 
 /// What `Calendar.Cell`'s render function is handed.
 ///
@@ -294,11 +295,13 @@ pub struct CalendarCellState {
     pub is_disabled: bool,
 }
 
-/// HeroUI Calendar (single date, controlled selection through the entity).
+/// HeroUI Calendar, with controlled selection through the entity.
 #[derive(IntoElement)]
 pub struct Calendar {
     /// `defaultValue` — seeds the state on the first render only.
     default_value: Option<Date>,
+    /// `defaultValue` for `selectionMode="multiple"`.
+    default_values: Option<Vec<Date>>,
     id: gpui::ElementId,
     state: Entity<CalendarState>,
     constraints: DateConstraints,
@@ -329,6 +332,7 @@ pub struct Calendar {
         Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
     on_focus_change: Option<std::sync::Arc<dyn Fn(Date, &mut Window, &mut App) + 'static>>,
     on_change: Option<OnChange>,
+    on_change_all: Option<OnChangeAll>,
 }
 
 impl Calendar {
@@ -350,13 +354,26 @@ impl Calendar {
 
     /// `value` — writes the selection through to the bound state.
     pub fn value(self, date: Option<Date>, cx: &mut App) -> Self {
-        self.state.update(cx, |s, _| s.selected = date);
+        self.state.update(cx, |s, _| {
+            s.selected = date;
+            s.selected_dates = date.into_iter().collect();
+        });
+        self
+    }
+
+    /// `value` for `selectionMode="multiple"`.
+    pub fn values(self, dates: impl IntoIterator<Item = Date>, cx: &mut App) -> Self {
+        self.state.update(cx, |s, _| {
+            s.selected_dates = dates.into_iter().collect();
+            s.selected = s.selected_dates.last().copied();
+        });
         self
     }
 
     pub fn new(state: Entity<CalendarState>) -> Self {
         Self {
             default_value: None,
+            default_values: None,
             id: gpui::ElementId::Name(format!("cal-{}", state.entity_id().as_u64()).into()),
             state,
             constraints: DateConstraints::new(),
@@ -377,6 +394,7 @@ impl Calendar {
             on_year_picker_open_change: None,
             on_focus_change: None,
             on_change: None,
+            on_change_all: None,
         }
     }
 
@@ -386,6 +404,12 @@ impl Calendar {
     /// component without fighting the user afterwards.
     pub fn default_value(mut self, value: Date) -> Self {
         self.default_value = Some(value);
+        self
+    }
+
+    /// `defaultValue` for `selectionMode="multiple"`.
+    pub fn default_values(mut self, values: impl IntoIterator<Item = Date>) -> Self {
+        self.default_values = Some(values.into_iter().collect());
         self
     }
 
@@ -538,6 +562,12 @@ impl Calendar {
         self.on_change = Some(std::sync::Arc::new(f));
         self
     }
+
+    /// `onChange` for `selectionMode="multiple"`.
+    pub fn on_change_all(mut self, f: impl Fn(&[Date], &mut Window, &mut App) + 'static) -> Self {
+        self.on_change_all = Some(std::sync::Arc::new(f));
+        self
+    }
 }
 
 /// `date` a month away, clamped to the target month's length -- 31 January plus
@@ -650,20 +680,25 @@ impl Calendar {
             let st = self.state.clone();
             let selection_mode = self.selection_mode;
             let on_change = self.on_change.clone();
+            let on_change_all = self.on_change_all.clone();
             let on_focus = self.on_focus_change.clone();
             circle = circle.on_click(move |_, window, cx| {
                 if let Some(cb) = &on_focus {
                     cb(date, window, cx);
                 }
                 let mode = selection_mode;
-                st.update(cx, |s, cx| {
+                let selected_dates = st.update(cx, |s, cx| {
                     // `toggle` also records that the user took over
                     // navigation, so the alignment pass stops moving the range.
                     s.toggle(date, mode);
                     cx.notify();
+                    s.selected_dates.clone()
                 });
                 if let Some(cb) = &on_change {
                     cb(Some(date), window, cx);
+                }
+                if let Some(cb) = &on_change_all {
+                    cb(&selected_dates, window, cx);
                 }
             });
         }
@@ -850,7 +885,28 @@ impl Calendar {
 impl RenderOnce for Calendar {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `defaultValue` seeds the state once, before anything reads it.
-        if let Some(value) = self.default_value {
+        if let Some(values) = self.default_values.clone() {
+            let state = self.state.clone();
+            crate::util::seed_once(
+                window,
+                cx,
+                gpui::ElementId::Name(
+                    format!("calendar-default-{}", self.state.entity_id().as_u64()).into(),
+                ),
+                move |cx| {
+                    state.update(cx, |s, cx| {
+                        s.selected = values.last().copied();
+                        s.selected_dates = values;
+                        if let Some(value) = s.selected {
+                            s.view_year = value.year;
+                            s.view_month = value.month;
+                            s.view_day = value.day;
+                        }
+                        cx.notify();
+                    });
+                },
+            );
+        } else if let Some(value) = self.default_value {
             let state = self.state.clone();
             crate::util::seed_once(
                 window,
@@ -1109,6 +1165,7 @@ impl RenderOnce for Calendar {
             let state = self.state.clone();
             let mode = self.selection_mode;
             let on_change = self.on_change.clone();
+            let on_change_all = self.on_change_all.clone();
             let on_focus = self.on_focus_change.clone();
             root = root.on_key_down(move |event, window, cx| {
                 let from = *held.read(cx);
@@ -1119,12 +1176,16 @@ impl RenderOnce for Calendar {
                     if !constraints.allows(at) {
                         return;
                     }
-                    state.update(cx, |s, cx| {
+                    let selected_dates = state.update(cx, |s, cx| {
                         s.toggle(at, mode);
                         cx.notify();
+                        s.selected_dates.clone()
                     });
                     if let Some(cb) = &on_change {
                         cb(Some(at), window, cx);
+                    }
+                    if let Some(cb) = &on_change_all {
+                        cb(&selected_dates, window, cx);
                     }
                     return;
                 }

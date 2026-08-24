@@ -270,6 +270,11 @@ times:
   missing *uncontrolled* seed counted as an implemented *controlled* prop — 18
   of them. An alias is for a prop we spell differently, never for a different
   prop that happens to be adjacent.
+- **A builder-name match does not validate its value type.** Calendar's
+  `onChange` counted as implemented while its callback accepted only one date,
+  even though v3 documents a date array in multiple-selection mode. When a prop
+  is a scalar/array union, map the scoped alias to the plural builder that proves
+  the full signature (`Calendar.onChange -> on_change_all`), and drive it.
 - **Not every table on a page is named after the component.** Matching
   `### <Comp>` and `### <Comp>.<Part>` skipped `### ListLayout` and
   `### TableLayout` (the virtualization props), `### Tag` and
