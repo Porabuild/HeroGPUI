@@ -13,10 +13,12 @@
 
 mod harness;
 
+use std::{cell::RefCell, rc::Rc};
+
 use gpui::{
     prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, TestAppContext, WindowTextSystem,
 };
-use herogpui_components::{Orientation, TabItem, Tabs};
+use herogpui_components::{Orientation, TabItem, Tabs, TabsVariant};
 
 use harness::{click, events, open_host, press};
 
@@ -225,21 +227,44 @@ fn tabs_home_end_jump_to_the_ends(cx: &mut TestAppContext) {
 }
 
 /// `selectedKey` is controlled: proposing a different tab reports it, but the
-/// rendered selection must remain on the supplied key until the caller changes
-/// that prop. Two Right presses therefore both propose `second`; an internal
-/// state mutation would make the second press incorrectly propose `third`.
+/// rendered selection remains on the supplied key until the caller changes
+/// that prop. Roving focus is independent, so consecutive Right presses report
+/// `second` and then `third`.
 #[gpui::test]
-fn tabs_controlled_key_does_not_mutate_behind_the_caller(cx: &mut TestAppContext) {
-    let events = events();
-    let selected = events.clone();
+fn tabs_controlled_selection_keeps_independent_roving_focus(cx: &mut TestAppContext) {
+    let proposals = events();
+    let selected = proposals.clone();
+    let panels = events();
+    let clicked_panel = panels.clone();
     let cx = open_host(cx, move || {
-        let events = events.clone();
+        let events = proposals.clone();
+        let first_panel = panels.clone();
+        let second_panel = panels.clone();
+        let third_panel = panels.clone();
         Tabs::new(
             "tb-controlled",
             vec![
-                TabItem::new("first", "First"),
-                TabItem::new("second", "Second"),
-                TabItem::new("third", "Third"),
+                TabItem::new("first", "First").content(
+                    gpui::canvas(
+                        move |_, _, _| first_panel.borrow_mut().push("first".into()),
+                        |_, _, _, _| {},
+                    )
+                    .size(px(32.)),
+                ),
+                TabItem::new("second", "Second").content(
+                    gpui::canvas(
+                        move |_, _, _| second_panel.borrow_mut().push("second".into()),
+                        |_, _, _, _| {},
+                    )
+                    .size(px(32.)),
+                ),
+                TabItem::new("third", "Third").content(
+                    gpui::canvas(
+                        move |_, _, _| third_panel.borrow_mut().push("third".into()),
+                        |_, _, _, _| {},
+                    )
+                    .size(px(32.)),
+                ),
             ],
             "third",
         )
@@ -249,11 +274,154 @@ fn tabs_controlled_key_does_not_mutate_behind_the_caller(cx: &mut TestAppContext
     });
 
     press(cx, "tab");
+    clicked_panel.borrow_mut().clear();
     press(cx, "right");
     press(cx, "right");
     assert_eq!(
         selected.borrow().as_slice(),
-        ["second", "second"],
-        "a controlled tab list must not advance until the caller supplies the proposed key"
+        ["second", "third"],
+        "controlled selection must not prevent the roving focus key from advancing"
+    );
+    assert!(
+        !clicked_panel.borrow().is_empty()
+            && clicked_panel.borrow().iter().all(|panel| panel == "first"),
+        "controlled arrow proposals must keep rendering only the caller-selected panel"
+    );
+}
+
+/// Pinned `useTabListState` synchronizes focusedKey to selectedKey only while
+/// the tab list is not focused. An owner update during keyboard navigation
+/// changes the panel but must not change the next arrow's starting tab.
+#[gpui::test]
+fn tabs_controlled_owner_update_does_not_steal_focused_key(cx: &mut TestAppContext) {
+    let selected_key = Rc::new(RefCell::new(String::from("first")));
+    let selected_for_view = selected_key.clone();
+    let proposals = events();
+    let recorded = proposals.clone();
+    let cx = open_host(cx, move || {
+        let proposals = proposals.clone();
+        Tabs::new(
+            "tb-controlled-owner-update",
+            vec![
+                TabItem::new("first", "First"),
+                TabItem::new("second", "Second"),
+                TabItem::new("third", "Third"),
+            ],
+            "first",
+        )
+        .selected_key(selected_for_view.borrow().clone())
+        .on_selection_change(move |key, _, _| proposals.borrow_mut().push(key.to_string()))
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "right");
+    *selected_key.borrow_mut() = String::from("third");
+    cx.update(|window, _| window.refresh());
+    press(cx, "right");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["second", "third"],
+        "an owner selection update while focused must not reset the arrow-key origin"
+    );
+}
+
+/// Pinned list state repairs a removed focused key to the next surviving
+/// enabled key, falling back to the previous one only when there is no next
+/// item. The controlled selection remains independent throughout.
+#[gpui::test]
+fn tabs_removed_focused_key_repairs_to_the_next_survivor(cx: &mut TestAppContext) {
+    let keys = Rc::new(RefCell::new(vec!["first", "second", "third"]));
+    let keys_for_view = keys.clone();
+    let proposals = events();
+    let recorded = proposals.clone();
+    let cx = open_host(cx, move || {
+        let proposals = proposals.clone();
+        let items = keys_for_view
+            .borrow()
+            .iter()
+            .map(|key| TabItem::new(*key, *key))
+            .collect();
+        Tabs::new("tb-controlled-removal", items, "first")
+            .selected_key("first")
+            .on_selection_change(move |key, _, _| proposals.borrow_mut().push(key.to_string()))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "right");
+    keys.borrow_mut().remove(1);
+    cx.update(|window, _| window.refresh());
+    press(cx, "right");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["second", "first"],
+        "removing the focused second tab must repair focus to third before Right wraps to first"
+    );
+}
+
+/// HeroUI v3.2.4 pins `react-aria` 3.51.0 and `react-stately` 3.49.0: the
+/// vertical tab delegate maps Down to the next tab, while controlled state
+/// reports the proposal without replacing the caller's selected key.
+#[gpui::test]
+fn tabs_controlled_secondary_vertical_advances_roving_focus(cx: &mut TestAppContext) {
+    let proposals = events();
+    let selected = proposals.clone();
+    let panels = events();
+    let clicked_panel = panels.clone();
+    let cx = open_host(cx, move || {
+        let events = proposals.clone();
+        let first_panel = panels.clone();
+        let second_panel = panels.clone();
+        let third_panel = panels.clone();
+        Tabs::new(
+            "tb-controlled-secondary-vertical",
+            vec![
+                TabItem::new("first", "First").content(
+                    gpui::canvas(
+                        move |_, _, _| first_panel.borrow_mut().push("first".into()),
+                        |_, _, _, _| {},
+                    )
+                    .size(px(32.)),
+                ),
+                TabItem::new("second", "Second").content(
+                    gpui::canvas(
+                        move |_, _, _| second_panel.borrow_mut().push("second".into()),
+                        |_, _, _, _| {},
+                    )
+                    .size(px(32.)),
+                ),
+                TabItem::new("third", "Third").content(
+                    gpui::canvas(
+                        move |_, _, _| third_panel.borrow_mut().push("third".into()),
+                        |_, _, _, _| {},
+                    )
+                    .size(px(32.)),
+                ),
+            ],
+            "first",
+        )
+        .variant(TabsVariant::Secondary)
+        .orientation(Orientation::Vertical)
+        .selected_key("first")
+        .on_selection_change(move |key, _, _| events.borrow_mut().push(key.to_string()))
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    clicked_panel.borrow_mut().clear();
+    press(cx, "down");
+    press(cx, "down");
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["second", "third"],
+        "controlled vertical tabs must move roving focus without mutating the selected key"
+    );
+    assert!(
+        !clicked_panel.borrow().is_empty()
+            && clicked_panel.borrow().iter().all(|panel| panel == "first"),
+        "controlled vertical arrow proposals must keep rendering only the first panel"
     );
 }

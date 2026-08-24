@@ -72,6 +72,13 @@ impl TabItem {
 
 type OnChange = std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
 
+#[derive(Clone)]
+struct TabFocusState {
+    key: SharedString,
+    selected_key: SharedString,
+    enabled_keys: Vec<SharedString>,
+}
+
 /// HeroUI Tabs (controlled).
 #[derive(IntoElement)]
 pub struct Tabs {
@@ -172,7 +179,7 @@ impl RenderOnce for Tabs {
             .filter(|key| self.items.iter().any(|item| item.key == *key))
             .or(first_enabled.clone())
             .unwrap_or_default();
-        // One handle for the list: a tab list is one tab stop and the selected
+        // One handle for the list: a tab list is one tab stop and the focused
         // tab claims it, which is how the stop roves. Flipping a handle's
         // `tab_stop` cannot do that -- it is fixed where the handle is made.
         let list_focus = crate::util::tab_stop_handle(
@@ -192,7 +199,7 @@ impl RenderOnce for Tabs {
         // frame as well as storing it, so the replacement panel and roving
         // stop are never absent for a frame.
         if self.selected_key.is_none() && !self.items.iter().any(|item| item.key == selected_key) {
-            if let (Some(next), Some(held)) = (first_enabled, selection_own.as_ref()) {
+            if let (Some(next), Some(held)) = (first_enabled.clone(), selection_own.as_ref()) {
                 selected_key = next.clone();
                 held.update(cx, |value, cx| {
                     *value = next.clone();
@@ -203,6 +210,63 @@ impl RenderOnce for Tabs {
                 }
             }
         }
+
+        // React Aria keeps the roving focus key separate from selectedKey.
+        // That distinction matters for controlled tabs: arrow keys move focus
+        // and report each newly focused key without mutating the selection the
+        // caller still owns.
+        let focus_seed = self
+            .items
+            .iter()
+            .find(|item| item.key == selected_key && !item.is_disabled)
+            .map(|item| item.key.clone())
+            .or(first_enabled)
+            .unwrap_or_else(|| selected_key.clone());
+        let enabled_keys: Vec<SharedString> = self
+            .items
+            .iter()
+            .filter(|item| !item.is_disabled)
+            .map(|item| item.key.clone())
+            .collect();
+        let focus_state = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{base_id}-focused-key").into()),
+            cx,
+            |_, _| TabFocusState {
+                key: focus_seed.clone(),
+                selected_key: selected_key.clone(),
+                enabled_keys: enabled_keys.clone(),
+            },
+        );
+        let mut focus_now = focus_state.read(cx).clone();
+        let focus_valid = enabled_keys.contains(&focus_now.key);
+        if focus_now.selected_key != selected_key && !list_focus.is_focused(window) {
+            focus_now.key = focus_seed;
+        } else if !focus_valid {
+            let old_index = focus_now
+                .enabled_keys
+                .iter()
+                .position(|key| key == &focus_now.key);
+            focus_now.key = old_index
+                .and_then(|index| {
+                    focus_now.enabled_keys[index + 1..]
+                        .iter()
+                        .find(|key| enabled_keys.contains(key))
+                        .or_else(|| {
+                            focus_now.enabled_keys[..index]
+                                .iter()
+                                .rev()
+                                .find(|key| enabled_keys.contains(key))
+                        })
+                        .cloned()
+                })
+                .unwrap_or(focus_seed);
+        }
+        if focus_now.selected_key != selected_key || focus_now.enabled_keys != enabled_keys {
+            focus_now.selected_key = selected_key.clone();
+            focus_now.enabled_keys = enabled_keys;
+            focus_state.update(cx, |state, _| *state = focus_now.clone());
+        }
+        let focused_key = focus_now.key;
 
         // `.tabs__list-container__scroller` is the box `.tabs__list` scrolls
         // inside; the handle is what says how far it has, which is what decides
@@ -256,6 +320,7 @@ impl RenderOnce for Tabs {
                 let selected_index = self.items.iter().position(|item| item.key == selected_key);
                 for (index, item) in self.items.iter().enumerate() {
                     let active = item.key == selected_key;
+                    let focused = item.key == focused_key;
                     let disabled = self.is_disabled || item.is_disabled;
                     // `.tabs__separator` is a `w-px h-1/2 rounded-sm bg-muted/25`
                     // hairline between segments, hidden on either side of the
@@ -282,7 +347,7 @@ impl RenderOnce for Tabs {
                         .id(gpui::ElementId::Name(
                             format!("{base_id}-tab-{}", item.key).into(),
                         ))
-                        .when(!disabled && active, |t| t.track_focus(&list_focus))
+                        .when(!disabled && focused, |t| t.track_focus(&list_focus))
                         // `.tabs__tab` is `h-8 px-4 rounded-3xl text-sm
                         // font-medium`.
                         .h(px(32.))
@@ -324,6 +389,7 @@ impl RenderOnce for Tabs {
                         let key_keys = key_keys.clone();
                         let key_cb = self.on_selection_change.clone();
                         let key_own = selection_own.clone();
+                        let key_focus = focus_state.clone();
                         tab = tab.on_key_down(move |event, window, cx| {
                             let key = match (vertical, event.keystroke.key.as_str()) {
                                 (false, "right") | (true, "down") => "down",
@@ -343,6 +409,10 @@ impl RenderOnce for Tabs {
                             let Some(next_key) = key_keys.get(next).cloned() else {
                                 return;
                             };
+                            key_focus.update(cx, |state, cx| {
+                                state.key = next_key.clone();
+                                cx.notify();
+                            });
                             if let Some(held) = &key_own {
                                 let next_key = next_key.clone();
                                 held.update(cx, |v, cx| {
@@ -354,12 +424,17 @@ impl RenderOnce for Tabs {
                                 f(&next_key, window, cx);
                             }
                             // No refocusing: the next render has the newly
-                            // selected tab claim the list's handle.
+                            // focused tab claim the list's handle.
                         });
                         let key = item.key.clone();
                         let cb = self.on_selection_change.clone();
                         let own = selection_own.clone();
+                        let focus = focus_state.clone();
                         tab = tab.on_click(move |_, window, cx| {
+                            focus.update(cx, |state, cx| {
+                                state.key = key.clone();
+                                cx.notify();
+                            });
                             // Uncontrolled: move our own selection, or pressing
                             // a tab would do nothing.
                             if let Some(held) = &own {
@@ -376,7 +451,7 @@ impl RenderOnce for Tabs {
                     // `.tab:focus-visible` is `status-focused`.
                     let tab = crate::util::with_focus_ring(
                         tab,
-                        active
+                        focused
                             && list_focus.is_focused(window)
                             && crate::util::focus_visible(cx)
                             && !disabled,
@@ -393,12 +468,13 @@ impl RenderOnce for Tabs {
                 list = list.border_b_1().border_color(colors.border);
                 for (index, item) in self.items.iter().enumerate() {
                     let active = item.key == selected_key;
+                    let focused = item.key == focused_key;
                     let disabled = self.is_disabled || item.is_disabled;
                     let mut tab = gpui::div()
                         .id(gpui::ElementId::Name(
                             format!("{base_id}-tab-{}", item.key).into(),
                         ))
-                        .when(!disabled && active, |t| t.track_focus(&list_focus))
+                        .when(!disabled && focused, |t| t.track_focus(&list_focus))
                         // The same `h-8 px-4 text-sm` box, `rounded-none`, with
                         // the indicator as a 2px bar along the bottom.
                         .h(px(32.))
@@ -435,6 +511,7 @@ impl RenderOnce for Tabs {
                         let key_keys = key_keys.clone();
                         let key_cb = self.on_selection_change.clone();
                         let key_own = selection_own.clone();
+                        let key_focus = focus_state.clone();
                         tab = tab.on_key_down(move |event, window, cx| {
                             let key = match (vertical, event.keystroke.key.as_str()) {
                                 (false, "right") | (true, "down") => "down",
@@ -454,6 +531,10 @@ impl RenderOnce for Tabs {
                             let Some(next_key) = key_keys.get(next).cloned() else {
                                 return;
                             };
+                            key_focus.update(cx, |state, cx| {
+                                state.key = next_key.clone();
+                                cx.notify();
+                            });
                             if let Some(held) = &key_own {
                                 let next_key = next_key.clone();
                                 held.update(cx, |v, cx| {
@@ -465,12 +546,17 @@ impl RenderOnce for Tabs {
                                 f(&next_key, window, cx);
                             }
                             // No refocusing: the next render has the newly
-                            // selected tab claim the list's handle.
+                            // focused tab claim the list's handle.
                         });
                         let key = item.key.clone();
                         let cb = self.on_selection_change.clone();
                         let own = selection_own.clone();
+                        let focus = focus_state.clone();
                         tab = tab.on_click(move |_, window, cx| {
+                            focus.update(cx, |state, cx| {
+                                state.key = key.clone();
+                                cx.notify();
+                            });
                             // Uncontrolled: move our own selection, or pressing
                             // a tab would do nothing.
                             if let Some(held) = &own {
@@ -487,7 +573,7 @@ impl RenderOnce for Tabs {
                     // `.tab:focus-visible` is `status-focused`.
                     let tab = crate::util::with_focus_ring(
                         tab,
-                        active
+                        focused
                             && list_focus.is_focused(window)
                             && crate::util::focus_visible(cx)
                             && !disabled,
