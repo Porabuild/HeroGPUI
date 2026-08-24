@@ -815,12 +815,15 @@ SectionLabel`, `Table.ColumnResizer` is `allows_resizing`, `Modal.CloseTrigger`
 is the built-in `CloseButton`). Three parts are recorded as not rendered: the two
 overlay arrows and `Kbd.Abbr`.
 
-**Never put a backslash escape in a Bash heredoc.** `` in a patch script
-arrived as a literal backspace, so the audit's default pattern became
-`'Toast\.Title|title'` and reported 73 parts missing that were all
-present -- the file *looked* right, because a control character reads as nothing.
-`cat -A` is what shows it. Use the Write tool for anything with escapes, which
-`AGENTS.md` already said for `'static` and now says for this. The three pickers are the case to keep straight:
+**Never put a backslash escape in a Bash heredoc.** A word-boundary escape in a
+patch script arrived as a literal backspace character, so the audit's default
+pattern became `Toast\.Title|<BS>title<BS>` and reported 73 parts missing that
+were all present -- the file *looked* right on screen, because a control
+character reads as nothing. `cat -A` is what shows it. Use the Write tool for
+anything with escapes, which this file already said for `'static` and now says
+for this.
+
+The three pickers are the case to keep straight:
 
 | v3 component | field | where the query is typed | selection shows in |
 |---|---|---|---|
