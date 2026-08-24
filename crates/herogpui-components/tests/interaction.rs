@@ -109,17 +109,19 @@ fn select_click_selects_and_closes(cx: &mut TestAppContext) {
     cx.simulate_click(point(px(60.), px(66.)), Modifiers::none());
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["open:true", "select:Some(0)"],
-        "clicking the first row must select index 0"
+        ["open:true", "open:false", "select:Some(0)"],
+        "clicking the first row must report the close and select index 0"
     );
 
     // Closed proof by behaviour: the same spot is bare page below the trigger
     // now, so the press must reach nothing. Were the popover still open, the
-    // row would record a second `select:Some(0)` here.
+    // row would record a second `select:Some(0)` here. The callback proves it
+    // too since the row reports its own dismissal, but the probe is what shows
+    // the panel has actually left the tree.
     cx.simulate_click(point(px(60.), px(66.)), Modifiers::none());
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["open:true", "select:Some(0)"],
+        ["open:true", "open:false", "select:Some(0)"],
         "the popover must be closed after choosing an option"
     );
 }

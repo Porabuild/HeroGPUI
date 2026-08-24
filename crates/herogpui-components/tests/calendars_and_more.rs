@@ -32,9 +32,8 @@
 //!   (`SizeXl::Sm` swatch), so the panel hangs at top 30 and the `ColorArea`
 //!   (240x160) spans x 20..260, y 42..202 inside the zoomed panel.
 //! - Disclosure / DisclosureGroup: each trigger is a 36px Button.
-//! - Toolbar: Md buttons are 36px tall with 16px side padding; label widths
-//!   are *measured* with `Window::text_system().shape_line`, as the other
-//!   behaviour tests do, so no font metric is assumed.
+//! - Toolbar: driven entirely through the keyboard (Tab, arrows, Enter), so
+//!   no geometry is needed — the window's tab order is what moves.
 //!
 //! No exit-phase ghosts are involved: the Select popover and the ColorPicker
 //! panel gate their rendering on the open flag with no `overlay_phase`, and
@@ -49,10 +48,7 @@ use std::{
     rc::Rc,
 };
 
-use gpui::{
-    point, prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, Modifiers, MouseButton,
-    SharedString, TestAppContext, TextRun,
-};
+use gpui::{point, prelude::*, px, Modifiers, MouseButton, SharedString, TestAppContext};
 use harness::{click, events, open_host, press};
 use herogpui_components::{
     calendar::{Date, CALENDAR_WIDTH},
@@ -99,26 +95,6 @@ fn range_day(year: i32, month: u32, day: u32) -> (f32, f32) {
     let lead = DateConstraints::new().lead_cells(year, month);
     let idx = day as usize + lead - 1;
     (range_col_x(idx % 7), range_row_y(idx / 7))
-}
-
-/// A label's width at `size` in `weight`, measured rather than guessed.
-fn text_width(system: &gpui::WindowTextSystem, text: &str, size: f32, weight: FontWeight) -> f32 {
-    let run = TextRun {
-        len: text.len(),
-        font: Font {
-            family: ".SystemUIFont".into(),
-            features: FontFeatures::default(),
-            weight,
-            style: FontStyle::default(),
-            fallbacks: None,
-        },
-        color: gpui::black(),
-        background_color: None,
-        underline: None,
-        strikethrough: None,
-    };
-    let line = system.shape_line(text.to_owned().into(), px(size), &[run], None);
-    f32::from(line.width)
 }
 
 // ---------------------------------------------------------------------------
@@ -703,16 +679,27 @@ fn select_typeahead_moves_the_highlight(cx: &mut TestAppContext) {
 /// (it has no handlers), the popover does not close, and the arrows land on
 /// options — the cursor's stops are the option indices, so the section never
 /// consumes one. The option under the heading still answers both paths.
+///
+/// A single-mode pick also *reports* the close it performs: a caller who
+/// drives `isOpen` from `onOpenChange` has to hear `open:false`. This was a
+/// divergence — the row flipped its own keyed open flag without the callback,
+/// so a controlled caller kept believing the panel was open and the next
+/// render reopened it — so the panel's closure is asserted here through the
+/// callback, exactly once, rather than with a probe click.
 #[gpui::test]
-fn select_section_headers_are_not_selectable(cx: &mut TestAppContext) {
+fn select_row_pick_reports_the_close_once(cx: &mut TestAppContext) {
     let picks = events();
     let picked = picks.clone();
     let opens = events();
     let opened = opens.clone();
+    let open = Rc::new(RefCell::new(false));
+    let open_for_view = open.clone();
 
     let cx = open_host(cx, move || {
         let picks = picks.clone();
         let opens = opens.clone();
+        let open = open_for_view.clone();
+        let is_open = *open.borrow();
         Select::new(
             "sel-sections",
             vec![
@@ -724,11 +711,14 @@ fn select_section_headers_are_not_selectable(cx: &mut TestAppContext) {
             ],
         )
         .section_before(3, "Tropical")
+        .is_open(is_open)
         .on_selection_change(move |i, _, _| {
             picks.borrow_mut().push(format!("{i:?}"));
         })
-        .on_open_change(move |open, _, _| {
-            opens.borrow_mut().push(format!("open:{open}"));
+        .on_open_change(move |v, window, _| {
+            *open.borrow_mut() = v;
+            opens.borrow_mut().push(format!("open:{v}"));
+            window.refresh();
         })
         .into_any_element()
     });
@@ -749,30 +739,45 @@ fn select_section_headers_are_not_selectable(cx: &mut TestAppContext) {
         "a press on the heading must not dismiss the popover either"
     );
 
-    // The option under the heading answers the pointer.
+    // The option under the heading is a normal pick: the selection is
+    // reported, and the close is reported exactly once — the caller's flag
+    // flips to false, so the next render keeps the panel shut.
     click(cx, 60., 195.);
     assert_eq!(
         picked.borrow().as_slice(),
         ["Some(3)"],
         "the option a section announces must still be clickable"
     );
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "the pick must report the close exactly once"
+    );
+    assert!(
+        !*open.borrow(),
+        "the caller driving isOpen must now read closed"
+    );
 
-    // The pick closes the popover — a press where row 0 was now records
-    // nothing. (The row's close path updates the keyed open state without
-    // reporting `on_open_change(false)`, a known divergence of this port, so
-    // the closure is proved behaviourally, as the other select tests do.)
+    // The panel is gone, so a press where row 0 was records nothing either
+    // way — and nothing else reports a close.
     click(cx, 60., 66.);
     assert_eq!(
         picked.borrow().as_slice(),
         ["Some(3)"],
         "after the pick the popover must be gone, so the old row answers nothing"
     );
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "a closed panel must not report anything further"
+    );
 
     // Keyboard: Down three times from the top lands on indices 0, 1, 2, and
     // the next Down lands on the option at index 3 — the section heading is
-    // never a stop, so it cannot be activated. Enter on the option commits it,
-    // and this time the close is the trigger's own click listener, which does
-    // go through `on_open_change(false)`.
+    // never a stop, so it cannot be activated. Enter commits it, and this
+    // close is the trigger's own click listener (gpui fires a focused
+    // element's click on Enter), which reports through the same callback — a
+    // second `open:false`, one per pick, never two for the same one.
     click(cx, 60., 18.);
     press(cx, "down down down down");
     press(cx, "enter");
@@ -783,8 +788,89 @@ fn select_section_headers_are_not_selectable(cx: &mut TestAppContext) {
     );
     assert_eq!(
         opened.borrow().as_slice(),
-        ["open:true", "open:true", "open:false"],
-        "the Enter pick must close the popover through the trigger's own click"
+        ["open:true", "open:false", "open:true", "open:false"],
+        "the Enter pick must close through the trigger's own click, once"
+    );
+}
+
+/// Multiple mode keeps the panel open for the next pick, so a pick must not
+/// report `open:false` — a caller driving `isOpen` from `onOpenChange` would
+/// close the panel between picks. The picks accumulate through the caller's
+/// own set (the port hands the merged selection back and stores nothing), and
+/// the panel is still answering after each one.
+#[gpui::test]
+fn select_multiple_picks_report_no_close(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let open = Rc::new(RefCell::new(false));
+    let selection = Rc::new(RefCell::new(BTreeSet::<usize>::new()));
+    let open_for_view = open.clone();
+    let selection_for_view = selection;
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        let opens = opens.clone();
+        let open = open_for_view.clone();
+        let selection = selection_for_view.clone();
+        // Pre-extracted so no `Ref` borrow survives into the builder chain,
+        // which moves `open` into the `on_open_change` closure.
+        let is_open = *open.borrow();
+        let selection_now = selection.borrow().iter().copied().collect::<Vec<_>>();
+        Select::new(
+            "sel-multi-close",
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .is_open(is_open)
+        .selected_indices(selection_now)
+        .on_open_change(move |v, window, _| {
+            *open.borrow_mut() = v;
+            opens.borrow_mut().push(format!("open:{v}"));
+            window.refresh();
+        })
+        .on_selection_change_all(move |keys, window, _| {
+            *selection.borrow_mut() = keys.iter().copied().collect();
+            window.refresh();
+            let joined = keys
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+            picks.borrow_mut().push(joined);
+        })
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    assert_eq!(opened.borrow().as_slice(), ["open:true"]);
+
+    // Row *i* centres at y = 66 + 36i inside the popover.
+    click(cx, 60., 66.);
+    assert_eq!(picked.borrow().as_slice(), ["0"]);
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "a multiple pick must not report a close"
+    );
+
+    // The panel is still open and answering, so the next pick lands — and it
+    // still reports nothing about the open state.
+    click(cx, 60., 138.);
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0", "0,2"],
+        "the second pick must join the accumulated set"
+    );
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "the panel must stay open across picks, with no close reports"
+    );
+    assert!(
+        *open.borrow(),
+        "the caller driving isOpen must still read open"
     );
 }
 
@@ -884,21 +970,111 @@ fn disclosure_toggles_and_group_reports(cx: &mut TestAppContext) {
 // Toolbar
 // ---------------------------------------------------------------------------
 
-/// A Toolbar's children keep their own press handlers (each button reports
-/// its own press), and the toolbar answers the arrow keys v3's one-line
-/// description advertises ("A container for interactive controls with arrow
-/// key navigation"): Right moves the focus to the next control, and Enter on
-/// the focused control fires *its* press. React Aria says the arrows stay
-/// inside the toolbar; this port routes them through gpui's window-wide
-/// `focus_next`, whose end behaviour is reported separately.
+/// A Toolbar's children keep their own press handlers, and the arrows answer
+/// the way v3's one-line description advertises ("A container for interactive
+/// controls with arrow key navigation") — which, per the inheritance line on
+/// the v3 page, is React Aria's `useToolbar`: the arrows move *inside* the
+/// toolbar, wrapping at the ends, and Tab is what leaves it.
+///
+/// This port used to route the arrows through gpui's window-wide
+/// `focus_next`/`focus_prev`, which a toolbar-alone page could not tell apart
+/// from the scoped behaviour; a button *after* the toolbar is the
+/// distinguisher. Everything is asserted through the keyboard: Tab enters on
+/// the first control, three Rights from the third wrap back to the first (the
+/// window-wide code would have landed Enter on the sibling), Left from the
+/// first wraps to the last, and Tab leaves to the sibling.
 #[gpui::test]
-fn toolbar_children_stay_interactive(cx: &mut TestAppContext) {
+fn toolbar_arrows_wrap_inside_and_tab_leaves(cx: &mut TestAppContext) {
     let pressed = events();
     let recorded = pressed.clone();
 
     let cx = open_host(cx, move || {
         let bold_pressed = pressed.clone();
         let italic_pressed = pressed.clone();
+        let underline_pressed = pressed.clone();
+        let outside_pressed = pressed.clone();
+        // A plain button after the toolbar is the probe a window-wide arrow
+        // would land on: nothing sits between the toolbar's last control and
+        // it, so the old `focus_next` walked straight out to it.
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(100.))
+            .child(
+                Toolbar::new()
+                    .gap(px(8.))
+                    .child(
+                        Button::new("tb-bold")
+                            .label("Bold")
+                            .on_press(move |_, _, _| bold_pressed.borrow_mut().push("bold".into())),
+                    )
+                    .child(
+                        Button::new("tb-italic")
+                            .label("Italic")
+                            .on_press(move |_, _, _| {
+                                italic_pressed.borrow_mut().push("italic".into());
+                            }),
+                    )
+                    .child(Button::new("tb-underline").label("Underline").on_press(
+                        move |_, _, _| {
+                            underline_pressed.borrow_mut().push("underline".into());
+                        },
+                    )),
+            )
+            .child(
+                Button::new("tb-outside")
+                    .label("Outside")
+                    .on_press(move |_, _, _| {
+                        outside_pressed.borrow_mut().push("outside".into());
+                    }),
+            )
+            .into_any_element()
+    });
+
+    // Tab enters the toolbar on the first control; two Rights walk to the
+    // third, and the third Right wraps back to the first instead of walking
+    // on to the sibling. Enter reports which control holds the focus.
+    press(cx, "tab");
+    press(cx, "right right right");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["bold"],
+        "Right from the last control must wrap to the first, staying inside \
+         the toolbar"
+    );
+
+    // Left from the first control wraps to the last, again inside.
+    press(cx, "left");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["bold", "underline"],
+        "Left from the first control must wrap to the last control, not escape"
+    );
+
+    // Tab is the way out: from the last control it moves to the sibling after
+    // the toolbar, whose press then answers.
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["bold", "underline", "outside"],
+        "Tab must leave the toolbar for the next control in the window"
+    );
+}
+
+/// A disabled toolbar child is not a tab stop, so the arrows skip it in both
+/// directions: Right from the first control lands on the third, and Left from
+/// the third lands back on the first. The ends still wrap, over the enabled
+/// controls.
+#[gpui::test]
+fn toolbar_arrows_skip_a_disabled_child(cx: &mut TestAppContext) {
+    let pressed = events();
+    let recorded = pressed.clone();
+
+    let cx = open_host(cx, move || {
+        let bold_pressed = pressed.clone();
         let underline_pressed = pressed.clone();
         Toolbar::new()
             .gap(px(8.))
@@ -907,11 +1083,7 @@ fn toolbar_children_stay_interactive(cx: &mut TestAppContext) {
                     .label("Bold")
                     .on_press(move |_, _, _| bold_pressed.borrow_mut().push("bold".into())),
             )
-            .child(
-                Button::new("tb-italic")
-                    .label("Italic")
-                    .on_press(move |_, _, _| italic_pressed.borrow_mut().push("italic".into())),
-            )
+            .child(Button::new("tb-italic").label("Italic").is_disabled(true))
             .child(
                 Button::new("tb-underline")
                     .label("Underline")
@@ -922,49 +1094,35 @@ fn toolbar_children_stay_interactive(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    // A Md button is 16px padding either side of its measured label; the gap
-    // between buttons is 8px, and the buttons are 36px tall at the origin.
-    let mut w =
-        |text: &str| cx.update(|w, _| text_width(w.text_system(), text, 14.0, FontWeight::MEDIUM));
-    let widths = [w("Bold"), w("Italic"), w("Underline")];
-    let mut x = 16.0;
-    let mut centres = Vec::new();
-    for width in widths {
-        centres.push((x + width / 2., 18.0));
-        x += width + 32. + 8.;
-    }
-
-    // Each control answers its own pointer press.
-    for (label, (cx_coord, _)) in ["bold", "italic", "underline"].iter().zip(&centres) {
-        click(cx, *cx_coord, 18.0);
-        assert_eq!(recorded.borrow().last().map(String::as_str), Some(*label));
-    }
-    assert_eq!(
-        recorded.borrow().as_slice(),
-        ["bold", "italic", "underline"],
-        "each toolbar child must report its own press"
-    );
-
-    // Keyboard: Tab reaches the first control, Right moves between them, and
-    // Enter activates whichever holds the focus.
+    // Forward: Right skips the disabled control and lands on the third.
     press(cx, "tab");
     press(cx, "right");
     press(cx, "enter");
-    press(cx, "right");
-    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["underline"],
+        "Right must skip a disabled child"
+    );
+
+    // Backward: Left skips it on the way to the first.
     press(cx, "left");
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        [
-            "bold",
-            "italic",
-            "underline",
-            "italic",
-            "underline",
-            "italic"
-        ],
-        "the arrows must move between the toolbar's controls and Enter must \
-         activate the focused one"
+        ["underline", "bold"],
+        "Left must skip a disabled child"
+    );
+
+    // The wrap ends stop on enabled controls: Left from the first wraps to the
+    // last, Right from the last wraps to the first, and the disabled child is
+    // never the destination.
+    press(cx, "left");
+    press(cx, "enter");
+    press(cx, "right");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["underline", "bold", "underline", "bold"],
+        "the arrows must wrap over the enabled controls at both ends"
     );
 }

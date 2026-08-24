@@ -41,13 +41,17 @@
 //! that frame (`window.refresh()`) after each event and reads the closure's
 //! latest snapshot — never the one the event dispatched against.
 //!
-//! That test is `#[ignore]`d as a defect: the button panics before a single
-//! frame draws. `anim::hover_fade` (the `transition-colors` wrapper) and
-//! `util::track_interaction` (attached only when a `content` closure is set)
-//! both call `.on_hover` on the button root, and gpui refuses a second one
-//! ("calling on_hover more than once on the same element is not supported").
-//! The assertions below are the contract the render-prop API is supposed to
-//! keep; they run the moment the collision is resolved.
+//! That test used to be `#[ignore]`d as a defect: the button panicked before a
+//! single frame drew, because `anim::hover_fade` (the `transition-colors`
+//! wrapper) and `util::track_interaction` (attached only when a `content`
+//! closure is set) both called `.on_hover` on the button root, and gpui
+//! refuses a second one ("calling on_hover more than once on the same element
+//! is not supported"). `hover_fade` now reads the interaction slot the
+//! `track_interaction` handler keeps when one exists, leaving that handler the
+//! element's single hover listener — see `anim.rs`. The assertions below are
+//! the contract the render-prop API keeps, and
+//! `toggle_button_content_render_prop_sees_state` runs the same cycle on a
+//! second component to prove the fix is not button-specific.
 
 mod harness;
 
@@ -542,11 +546,13 @@ fn link_press_reports_and_disabled_is_inert(cx: &mut TestAppContext) {
 /// CloseButton and ToggleButton all gate it on interactivity, and AGENTS.md
 /// says the same: v3 gives a disabled control nothing to move to).
 ///
-/// Link does not: `link.rs` registers its focus handle and rings it
-/// unconditionally, so Tab lands on the dead control and Space does nothing —
-/// which reads exactly like the broken keyboard AGENTS.md warns about.
+/// Link used to register its focus handle and ring it unconditionally, so Tab
+/// landed on the dead control and Space did nothing — which reads exactly like
+/// the broken keyboard AGENTS.md warns about. `track_focus` and
+/// `ring_if_focused` are now gated on interactivity like every other
+/// pressable's, and this test pins the behaviour: one Tab skips the disabled
+/// link and lands on the live probe behind it.
 #[gpui::test]
-#[ignore = "defect: a disabled Link still registers its focus handle (track_focus is not gated on interactivity), so Tab lands on it instead of skipping it; the probe button behind it never gets the press"]
 fn disabled_link_leaves_tab_order(cx: &mut TestAppContext) {
     let presses = events();
     let recorded = presses.clone();
@@ -678,7 +684,6 @@ fn alert_close_reports(cx: &mut TestAppContext) {
 // ---------------------------------------------------------------------------
 
 #[gpui::test]
-#[ignore = "defect: Button::content panics at render in default motion — anim::hover_fade and util::track_interaction both bind on_hover to the button root ('calling on_hover more than once on the same element is not supported'), so Button + content cannot render at all"]
 fn button_content_render_prop_sees_press(cx: &mut TestAppContext) {
     // v3 hands a button's children a function and passes in
     // `{isHovered, isPressed, isFocused, isFocusVisible}`. This port computes
@@ -746,6 +751,91 @@ fn button_content_render_prop_sees_press(cx: &mut TestAppContext) {
     assert_eq!(
         *seen.borrow(),
         (false, false),
+        "the frame after leaving must see the hover lifted"
+    );
+}
+
+/// A second component's render prop must survive a full pointer cycle too, so
+/// the single-hover-listener fix is not button-specific. `ToggleButton` takes
+/// the same `content` closure and hands `isSelected` over with the rest of
+/// `util::InteractiveState`, so this drives the same hover/press sequence as
+/// the Button test and additionally asserts the toggle bit flips with a click.
+#[gpui::test]
+fn toggle_button_content_render_prop_sees_state(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new((false, false, false)));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        // `default_selected(true)` seeds the button's *own* state, so the first
+        // click flips the closure's `is_selected` from true to false (the
+        // uncontrolled path — `is_selected(true)` would hand the value to
+        // nobody and the toggle would be inert).
+        ToggleButton::new("tb-state")
+            .default_selected(true)
+            .content(move |state: util::InteractiveState| {
+                *record.borrow_mut() = (state.is_hovered, state.is_pressed, state.is_selected);
+                // A fixed 64x16 box stands in for the label a caller's render
+                // function would draw. ToggleButton `Size::Md` is 36px tall
+                // (`h-9`) with `border_1` and `px-4` (16px) each side, so the
+                // centre column is 1 + 16 + 32 = 49 and the centre row is 18.
+                gpui::div()
+                    .w(px(64.))
+                    .h(px(16.))
+                    .child("bold".to_owned())
+                    .into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let centre = point(px(49.), px(18.));
+
+    // The first render drew before any pointer event, and `default_selected`
+    // seeded the selection: idle and selected.
+    assert_eq!(
+        *seen.borrow(),
+        (false, false, true),
+        "initial state must be idle and selected"
+    );
+
+    // Move the pointer onto the toggle: the interaction slot hears the hover,
+    // and the forced frame hands it to the closure.
+    cx.simulate_mouse_move(centre, None::<MouseButton>, Modifiers::none());
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (true, false, true),
+        "the frame after the move must see the hover"
+    );
+
+    // Press down: the press lands alongside the hover; no mouse-up has run.
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (true, true, true),
+        "the frame after the down must see the press"
+    );
+
+    // Release: the press lifts, and the click the up completes toggles the
+    // button's own state off — the frame after the up reports all three.
+    cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (true, false, false),
+        "the up must lift the press and toggle the selection off"
+    );
+
+    // Leave the toggle entirely: the hover clears too.
+    cx.simulate_mouse_move(
+        point(px(4.), px(500.)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (false, false, false),
         "the frame after leaving must see the hover lifted"
     );
 }

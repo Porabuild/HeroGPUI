@@ -12,7 +12,7 @@
 use std::time::Duration;
 
 use gpui::{
-    AnimationExt, AnyElement, App, ElementId, InteractiveElement, IntoElement,
+    AnimationExt, AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement,
     StatefulInteractiveElement, StyleRefinement, Styled,
 };
 use herogpui_theme::ActiveTheme;
@@ -489,60 +489,110 @@ where
 ///
 /// gpui has no property transitions — `hover` swaps the style outright — so the
 /// element keeps its own hover flag and a generation counter, and each change
-/// starts a fresh animation that interpolates in OKLab. `idle` and `hovered` are
-/// the two ends; everything else about the element is untouched.
+/// starts a fresh animation that interpolates in OKLab. `colors` is the
+/// `(idle, hovered)` pair — the two ends; everything else about the element is
+/// untouched.
+///
+/// `interaction` is the hover source when the element already records one: a
+/// `content` closure's `isHovered` needs the same enter/leave that drives this
+/// fade, and gpui allows exactly one `on_hover` per element, so when the caller
+/// wired `util::track_interaction` the fade reads the slot it keeps rather than
+/// binding a second listener. `None` leaves the fade owning its own listener.
+/// Either way exactly one `on_hover` is bound.
+///
+/// **The animated colour lives on an absolutely-positioned child fill, not the
+/// element itself.** gpui keys element state by the *full* element-id path, and
+/// `with_animation` restarts by changing its id — if the animation wrapped the
+/// element, the id change would shift the element's path and reset every
+/// listener latch on it, so hover-out was silently lost the moment the fade
+/// wrapper appeared (and the button stayed in its hover colour). Here the
+/// element keeps a constant id — a stable path, working hover listeners — and
+/// only the fill's animation id moves; the fill has no listeners or hitbox to
+/// lose. `round_corners` shapes the fill like the element itself (a group
+/// member's corners are partial).
 ///
 /// Returns the element with a plain `hover` swap under reduced motion, so the
 /// state is still visible without motion.
 pub fn hover_fade(
     el: gpui::Stateful<gpui::Div>,
     id: impl Into<ElementId>,
-    idle: gpui::Hsla,
-    hovered: gpui::Hsla,
+    colors: (gpui::Hsla, gpui::Hsla),
+    interaction: Option<&crate::util::Interaction>,
+    round_corners: impl Fn(gpui::Div) -> gpui::Div,
     window: &mut gpui::Window,
     cx: &mut App,
-) -> AnyElement {
+) -> gpui::Stateful<gpui::Div> {
+    let (idle, hovered) = colors;
     let id = id.into();
     if cx.reduce_motion() {
-        return el
-            .bg(idle)
-            .hover(move |s: StyleRefinement| s.bg(hovered))
-            .into_any_element();
+        return el.bg(idle).hover(move |s: StyleRefinement| s.bg(hovered));
     }
 
     let state = window.use_keyed_state(id.clone(), cx, |_, _| HoverFade::default());
-    let current = *state.read(cx);
-    let held = state;
-    let el = el
-        .bg(if current.hovered { hovered } else { idle })
-        .on_hover(move |over: &bool, _, cx| {
-            let over = *over;
-            held.update(cx, |s, cx| {
-                if s.hovered != over {
-                    s.hovered = over;
-                    // A new generation gives `with_animation` a new id, which is
-                    // what restarts it mid-flight when the pointer turns around.
-                    s.generation = s.generation.wrapping_add(1);
-                    cx.notify();
-                }
-            });
-        });
+    let mut current = *state.read(cx);
 
+    // One hover listener for the whole element. `util::track_interaction` owns
+    // `on_hover` when the interaction slot exists; the fade then reads the
+    // hover bit it keeps and only has to notice when the bit *changed*, which
+    // is the same generation bump the listener used to perform itself.
+    // `relative()` makes the element the containing block the fill stretches
+    // across; the resting colour is the element's own, and the fill overlays it
+    // between generations.
+    let mut el = el
+        .relative()
+        .bg(if current.hovered { hovered } else { idle });
+    el = match interaction {
+        Some(slot) => {
+            let hovered_now = slot.read(cx).0;
+            if hovered_now != current.hovered {
+                current.hovered = hovered_now;
+                current.generation = current.generation.wrapping_add(1);
+                // The refresh that repaints this frame was already requested by
+                // `track_interaction`'s handler; the new animation id starts
+                // the transition here, and `with_animation` keeps its own
+                // frames coming until it settles.
+                state.update(cx, |s, _| *s = current);
+            }
+            el
+        }
+        None => {
+            let held = state.clone();
+            el.on_hover(move |over: &bool, _, cx| {
+                let over = *over;
+                held.update(cx, |s, cx| {
+                    if s.hovered != over {
+                        s.hovered = over;
+                        // A new generation gives the fill's animation a new id,
+                        // which is what restarts it mid-flight when the pointer
+                        // turns around.
+                        s.generation = s.generation.wrapping_add(1);
+                        cx.notify();
+                    }
+                });
+            })
+        }
+    };
+
+    // Generation 0 is the first render: the resting colour on the element IS
+    // the state, and there is nothing to ease from yet.
+    if current.generation == 0 {
+        return el;
+    }
     let (from, to) = if current.hovered {
         (idle, hovered)
     } else {
         (hovered, idle)
     };
-    // Generation 0 is the first render: there is nothing to ease from yet.
-    if current.generation == 0 {
-        return el.into_any_element();
-    }
-    el.with_animation(
-        ElementId::Name(format!("{id:?}-fade-{}", current.generation).into()),
-        gpui::Animation::new(Duration::from_millis(TRANSITION_MS)).with_easing(ease_out()),
-        move |el, delta| el.bg(herogpui_core::mix_oklab(from, to, delta)),
+    // The fill sits under everything the caller adds afterwards: it exactly
+    // covers the rounded element and carries only the colour transition, so the
+    // element's own state — and its hover listeners — survive the id change.
+    el.child(
+        round_corners(gpui::div().absolute().inset_0()).with_animation(
+            ElementId::Name(format!("{id:?}-fade-{}", current.generation).into()),
+            gpui::Animation::new(Duration::from_millis(TRANSITION_MS)).with_easing(ease_out()),
+            move |fill, delta| fill.bg(herogpui_core::mix_oklab(from, to, delta)),
+        ),
     )
-    .into_any_element()
 }
 
 /// The hover flag and restart counter [`hover_fade`] keeps per element.

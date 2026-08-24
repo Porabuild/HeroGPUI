@@ -729,6 +729,7 @@ impl RenderOnce for Select {
             let on_change_one = self.on_selection_change.clone();
             let value_own = value_own;
             let open_own = open_own;
+            let on_close = self.on_open_change.clone();
             let base_row = base.clone();
             let row = move |i: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
                 let base = &base_row;
@@ -817,6 +818,7 @@ impl RenderOnce for Select {
                         }
                     } else if on_change_one.is_some() || value_own.is_some() || open_own.is_some() {
                         let on_select = on_change_one.clone();
+                        let on_close = on_close.clone();
                         let value_own = value_own.clone();
                         let open_own = open_own.clone();
                         item = item.on_click(move |_, window, cx| {
@@ -833,6 +835,19 @@ impl RenderOnce for Select {
                                     *v = false;
                                     cx.notify();
                                 });
+                            }
+                            // A single-mode pick closes the popover, and a
+                            // caller who drives `isOpen` has to hear about it:
+                            // without this the keyed flag flipped while the
+                            // callback stayed silent, so a controlled caller
+                            // still saw the panel open and reopened it on the
+                            // next render. Reported exactly here by a pointer
+                            // pick; the Enter path's close is the trigger's
+                            // own click listener (gpui fires a focused
+                            // element's click on Enter), so it never reaches
+                            // this closure.
+                            if let Some(cb) = &on_close {
+                                cb(false, window, cx);
                             }
                             if let Some(f) = &on_select {
                                 f(Some(i), window, cx);

@@ -94,17 +94,22 @@ impl Link {
 
 impl RenderOnce for Link {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        // `autoFocus` needs a focus target, and a link is not one by default.
+        // `.link:focus-visible` is `status-focused`, and `track_focus` is what
+        // puts the link in the tab order. A disabled link must leave that order
+        // like every other disabled control in this port — `track_focus` gates
+        // on interactivity, and so does the ring — which is what
+        // `pointer-events-none` with nothing to move to amounts to here.
+        let interactive = !self.is_disabled;
         // `focus_once` takes `cx` mutably, so it runs before the tokens.
-        // A link is a tab stop and rings like one -- `.link:focus-visible` is
-        // `status-focused` -- so the handle exists whether or not `autoFocus`
-        // asked for it.
         let focus = crate::util::tab_stop_handle(
             ElementId::Name(format!("{:?}-link-focus", self.id).into()),
             window,
             cx,
         );
-        if self.auto_focus {
+        // `autoFocus` needs a focus target, and a link is only one while it is
+        // interactive: a disabled link is skipped by Tab, so it must not grab
+        // the focus on its first frame either.
+        if self.auto_focus && interactive {
             crate::util::focus_once(
                 window,
                 cx,
@@ -127,12 +132,17 @@ impl RenderOnce for Link {
             .font_weight(gpui::FontWeight::MEDIUM)
             .rounded(crate::util::small_radius(cx))
             .border_color(color)
-            .pb(px(1.))
-            .track_focus(&focus)
-            // `.link:focus-visible` is `status-focused`.
-            .map(|el| {
-                crate::util::ring_if_focused(el, &focus, true, Vec::new(), window, cx)
-            });
+            .pb(px(1.));
+        if interactive {
+            el = crate::util::ring_if_focused(
+                el.track_focus(&focus),
+                &focus,
+                true,
+                Vec::new(),
+                window,
+                cx,
+            );
+        }
 
         if self.is_disabled {
             el = el.opacity(cx.layout().disabled_opacity);

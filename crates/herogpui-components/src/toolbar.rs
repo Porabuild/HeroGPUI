@@ -68,6 +68,22 @@ impl RenderOnce for Toolbar {
             .gap
             .unwrap_or(if self.is_attached { px(4.) } else { px(8.) });
 
+        // `Inherits from React Aria Toolbar`: the arrows move between the
+        // controls *inside* it and wrap at the ends; Tab leaves it. The
+        // children are the tab stops, so the arrows step with gpui's
+        // window-wide `focus_next`/`focus_prev` and then check whether the
+        // focus is still inside the toolbar -- the same step-and-check
+        // `util::trap_tab` uses to keep Tab in a dialog. A roving tab stop
+        // would need the focused child to claim the toolbar's one handle, but
+        // the children are opaque elements this component cannot reach into,
+        // and wrapping each one to claim the handle would put the focus on the
+        // wrapper rather than the control (breaking Enter on a focused button,
+        // which gpui fires on the focused element). The scope handle is
+        // deliberately *not* a tab stop, so the toolbar adds nothing to the
+        // window's Tab order -- it only marks the subtree whose stops the
+        // arrows may visit.
+        let scope = cx.focus_handle();
+
         let mut el = div().flex().items_center().gap(gap);
 
         el = match self.orientation {
@@ -85,15 +101,35 @@ impl RenderOnce for Toolbar {
                 .border_color(colors.border);
         }
 
-        // `Inherits from React Aria Toolbar`: the arrows move between the
-        // controls inside it. Those controls are the tab stops, so the arrows
-        // ask gpui for the next and the previous one -- the difference from v3 is
-        // at the ends, where React Aria stays inside the toolbar and this walks
-        // on to whatever follows.
+        el = el.track_focus(&scope);
         el.on_key_down(
-            |event: &KeyDownEvent, window, _| match event.keystroke.key.as_str() {
-                "right" | "down" => window.focus_next(),
-                "left" | "up" => window.focus_prev(),
+            move |event: &KeyDownEvent, window, cx| match event.keystroke.key.as_str() {
+                // Next stop in the window's order; if that one left the
+                // toolbar, the focus was on the last control and wraps to
+                // the first (the step landed on the sibling that follows).
+                "right" | "down" => {
+                    window.focus_next();
+                    if !scope.contains_focused(window, cx) {
+                        window.focus(&scope);
+                        window.focus_next();
+                    }
+                }
+                // Same backwards, re-entering from the far end: walk
+                // forward until the focus leaves the toolbar, then one
+                // back, bounded so an empty toolbar cannot spin.
+                "left" | "up" => {
+                    window.focus_prev();
+                    if !scope.contains_focused(window, cx) {
+                        window.focus(&scope);
+                        for _ in 0..256 {
+                            window.focus_next();
+                            if !scope.contains_focused(window, cx) {
+                                window.focus_prev();
+                                break;
+                            }
+                        }
+                    }
+                }
                 _ => {}
             },
         )

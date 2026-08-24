@@ -628,22 +628,15 @@ fn scroll_shadow_reports_visibility_as_it_scrolls(cx: &mut TestAppContext) {
 }
 
 /// Content shorter than the box has no scroll range, so `Auto` resolves to
-/// `None` and `onVisibilityChange` never fires.
-///
-/// **Ignored pending a defect** (repro below): a wheel over a zero-range
-/// scroller makes the component report a one-frame shadow anyway. gpui's
-/// scroll listener writes the wheel's delta into the tracked handle's offset
-/// cell *before* the next layout clamps it, and `ScrollShadow::render` reads
-/// that pre-clamp offset, so a -40px wheel resolves `Auto` to `Top` for one
-/// frame (a +40px wheel resolves `Bottom`) before the layout clamps the
-/// offset back to 0 and the canvas reports the correction. A fits-content
-/// box should behave exactly like a wheeled one that never moves: no report
-/// at all. Reproduction:
-/// `cargo test -p herogpui-components --test virtual_and_feedback
-/// scroll_shadow_hides_when_content_fits -- --ignored` — the recorder holds
-/// `["top", "none"]` instead of nothing.
+/// `None` and `onVisibilityChange` never fires — even under a wheel. The
+/// scroller's listener adds the wheel's delta straight into the tracked
+/// handle's offset cell during event dispatch and layout only clamps it on
+/// the next pass, so `ScrollShadow::render` could read a -40px offset over a
+/// zero-range box and resolve `Auto` to a one-frame `Top` shadow. The
+/// resolution clamps what it reads into `[-max, 0]`, which pins a zero-range
+/// box at 0: `Auto` stays `None` and nothing is ever reported. Regression for
+/// the recorder holding `["top", "none"]` before the clamp existed.
 #[gpui::test]
-#[ignore = "defect: a wheel over a zero-range ScrollShadow resolves Auto to a one-frame start/end shadow before the offset clamps"]
 fn scroll_shadow_hides_when_content_fits(cx: &mut TestAppContext) {
     let recorded = events();
     let for_view = recorded.clone();
@@ -670,5 +663,95 @@ fn scroll_shadow_hides_when_content_fits(cx: &mut TestAppContext) {
         recorded.borrow().is_empty(),
         "content that fits must never report a shadow edge, observed {:?}",
         recorded.borrow().as_slice()
+    );
+}
+
+/// The silent counterpart of the wheeled fits-content case: a box whose
+/// content fits and is *never* wheeled reports nothing at all. This is what
+/// pins the fix as a rule about scroll *range* — nothing to scroll means no
+/// edge, from the first frame on — rather than a clamp that happens to
+/// swallow a wheel.
+#[gpui::test]
+fn scroll_shadow_silent_when_content_fits(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        // Two 40px blocks plus the 8px gap = 88px inside the 160px box: the
+        // scroller's range is 0, so `Auto` resolves `None` on the very first
+        // frame and never changes.
+        ScrollShadow::new("ss-silent")
+            .max_h(px(160.))
+            .visibility(ScrollShadowVisibility::Auto)
+            .on_visibility_change(move |v, _, _| {
+                recorded.borrow_mut().push(shadow_label(v).to_owned());
+            })
+            .children((0..2).map(|_| gpui::div().h(px(40.)).w_full().into_any_element()))
+            .into_any_element()
+    });
+    // A second flush gives a mis-resolving render the frame to correct
+    // itself in — the shape the wheeled defect used to take.
+    flush_frame(cx);
+    flush_frame(cx);
+    assert!(
+        recorded.borrow().is_empty(),
+        "a fits-content box that is never wheeled must never report a shadow \
+         edge, observed {:?}",
+        recorded.borrow().as_slice()
+    );
+}
+
+/// Content that fits reports nothing; once it grows past the box, the first
+/// edge reported is the correct one. The resolution reads the offset and max
+/// the last prepaint left in the tracked handle, so the re-measured range
+/// (88 → 608px against the 160px box) is seen one frame after the layout
+/// that grew it — and it must arrive as `Bottom`, not as a stale `none` or a
+/// spurious leading edge.
+#[gpui::test]
+fn scroll_shadow_reports_first_edge_after_content_grows(cx: &mut TestAppContext) {
+    let recorded = events();
+    let child_h = Rc::new(RefCell::new(40f32));
+    let for_view = recorded.clone();
+    let h_for_view = child_h.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        let h = *h_for_view.borrow();
+        // `flex_shrink_0` keeps the blocks at their laid-out height, so
+        // growing them really grows the content past the box instead of
+        // letting the flex scroller shrink them back into it.
+        ScrollShadow::new("ss-grow")
+            .max_h(px(160.))
+            .visibility(ScrollShadowVisibility::Auto)
+            .on_visibility_change(move |v, _, _| {
+                recorded.borrow_mut().push(shadow_label(v).to_owned());
+            })
+            .children((0..2).map(|_| {
+                gpui::div()
+                    .h(px(h))
+                    .w_full()
+                    .flex_shrink_0()
+                    .into_any_element()
+            }))
+            .into_any_element()
+    });
+    flush_frame(cx);
+    assert!(
+        recorded.borrow().is_empty(),
+        "while the content fits it must report nothing, observed {:?}",
+        recorded.borrow().as_slice()
+    );
+
+    // Grow past the box: two 300px blocks plus the 8px gap make 608px of
+    // content in the 160px box, so `max_offset` becomes 448. The first flush
+    // re-measures during its prepaint but its render still read the old
+    // range, so the first edge is reported by the frame after it.
+    *child_h.borrow_mut() = 300.;
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["bottom"],
+        "once the content outgrows the box, the first edge reported must be \
+         the trailing one: still at the top, more content below"
     );
 }

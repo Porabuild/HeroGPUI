@@ -210,19 +210,33 @@ impl RenderOnce for ScrollShadow {
         // `Auto`: the leading fade once the content has been scrolled away from
         // the start, the trailing one until the end is reached. `offset` counts
         // *backwards* from zero, and `max_offset` is how far it can go.
+        //
+        // The scroller's wheel listener adds the delta straight into the
+        // tracked handle's offset cell during event dispatch; layout clamps it
+        // into `[-max, 0]` only on the next pass. A wheel over a box whose
+        // content fits (`max` = 0) would therefore read as a one-frame -40px
+        // offset here and resolve `Auto` to a spurious one-frame edge shadow.
+        // Clamp what this render reads to the same range layout clamps to:
+        // `Auto` must never report an edge while the offset sits outside the
+        // scrollable range, which is exactly the "nothing to scroll" case —
+        // v3's contract is that content which fits shows no shadow, ever.
         let offset = scroll.offset();
         let max = scroll.max_offset();
-        let (past_start, before_end) = if horizontal {
+        let (scrolled, scroll_max) = if horizontal {
             (
-                f32::from(offset.x) < -f32::from(self.offset),
-                f32::from(offset.x) - f32::from(self.offset) > -f32::from(max.width),
+                f32::from(offset.x).clamp(-f32::from(max.width), 0.0),
+                f32::from(max.width),
             )
         } else {
             (
-                f32::from(offset.y) < -f32::from(self.offset),
-                f32::from(offset.y) - f32::from(self.offset) > -f32::from(max.height),
+                f32::from(offset.y).clamp(-f32::from(max.height), 0.0),
+                f32::from(max.height),
             )
         };
+        let (past_start, before_end) = (
+            scrolled < -f32::from(self.offset),
+            scrolled - f32::from(self.offset) > -scroll_max,
+        );
         let resolved = if self.visibility == ScrollShadowVisibility::Auto {
             match (past_start, before_end) {
                 (true, true) => ScrollShadowVisibility::Both,

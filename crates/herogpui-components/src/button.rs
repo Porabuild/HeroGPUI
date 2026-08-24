@@ -366,6 +366,9 @@ impl RenderOnce for Button {
             )
         });
         let layout = cx.layout();
+        // Copied out: `hover_fade` below takes `&mut App`, and holding the
+        // `layout` borrow across it would be a second borrow of `cx`.
+        let disabled_opacity = layout.disabled_opacity;
         let interactive = !self.is_disabled && !self.is_pending;
         // v3's `transition-colors`: the fill eases rather than switching on the
         // frame the pointer arrives. The variant then leaves the background
@@ -401,6 +404,27 @@ impl RenderOnce for Button {
 
         el = apply_variant(el, self.variant, interactive, fade.is_none(), cx);
 
+        // The fade's animated layer is glued under everything that follows: the
+        // colour transition lives on an inset fill *inside* the button, so the
+        // button's own element id — and with it the hover listener latch — never
+        // moves when the fill's animation restarts (see `anim::hover_fade`).
+        // The interaction slot is handed over when a `content` closure is set:
+        // `track_interaction` then owns `on_hover`, and the fade reads the hover
+        // bit the slot records instead of binding a second listener.
+        if let Some(colors) = fade {
+            let edge = self.group_edge;
+            let radius = util::control_radius(cx);
+            el = crate::anim::hover_fade(
+                el,
+                ElementId::Name(format!("{:?}-fade", self.id).into()),
+                colors,
+                interaction.as_ref(),
+                move |fill| group_radius_any(fill, edge, radius),
+                window,
+                cx,
+            );
+        }
+
         // `.button:focus-visible` is `status-focused`: a 2px ring, offset from
         // the button by another in the background colour. A disabled button is
         // not a tab stop, which is what `pointer-events-none` amounts to here.
@@ -416,7 +440,7 @@ impl RenderOnce for Button {
         }
 
         if self.is_disabled {
-            el = el.opacity(layout.disabled_opacity);
+            el = el.opacity(disabled_opacity);
         }
 
         // `isPending` replaces the leading icon with a spinner, matching the
@@ -490,18 +514,8 @@ impl RenderOnce for Button {
             }
         }
 
-        // The fade owns the background, so it wraps last and yields an
-        // `AnyElement`; without one the button is the plain styled div.
-        match fade {
-            Some((idle, hovered)) => crate::anim::hover_fade(
-                el,
-                ElementId::Name(format!("{:?}-fade", self.id).into()),
-                idle,
-                hovered,
-                window,
-                cx,
-            ),
-            None => el.into_any_element(),
-        }
+        // `fade` was consumed where the fill was added; the button is the
+        // plain styled div either way.
+        el.into_any_element()
     }
 }
