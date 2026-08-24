@@ -931,8 +931,12 @@ CHECKS = [
     # --- every field wrapper is `gap-1` --------------------------------------
     ('checkbox', '.checkbox', 'gap', 'Checkbox content/description gap',
      SRC + 'checkbox.rs',
-     r'`\.checkbox` is `gap-1` between its content and description\.\s*'
-     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'let mut root = gpui::div\(\)\s*\.flex\(\)\s*\.flex_col\(\)\s*'
+     r'\.items_start\(\)\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('checkbox', '.checkbox > [data-slot="description"]', 'ps',
+     'Checkbox description/error indent', SRC + 'checkbox.rs',
+     r'\.w_full\(\)\s*\.pl\(px\((\d+(?:\.\d*)?)\.\)\)\s*'
+     r'\.child\(crate::field::ErrorMessage::new', None),
     ('checkbox', '.checkbox__content', 'text', 'Checkbox content text',
      SRC + 'checkbox.rs',
      r'\(box_px, icon_px, text\) = \(px\(16\.\), px\(12\.\), px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -1307,6 +1311,10 @@ THEME_FILES = (
 
 
 NESTED_SELECTOR_CHAINS = {
+    ('checkbox', '.checkbox > [data-slot="description"]'): (
+        '.checkbox',
+        '& > [data-slot="description"],\n  & > [data-slot="field-error"]',
+    ),
     ('slider', '[data-slot="label"]'): ('.slider', '[data-slot="label"]'),
     ('slider', '.slider__output'): ('.slider', '.slider__output'),
     ('slider', '.slider__track'): ('.slider', '.slider__track'),
@@ -1525,7 +1533,8 @@ def measure(body):
             for prefix, metric in (('h-', 'h'), ('w-', 'w'), ('px-', 'px'),
                                    ('py-', 'py'), ('gap-', 'gap'), ('p-', 'p'),
                                    ('size-', 'size'), ('min-w-', 'min_w'),
-                                   ('mt-', 'mt'), ('min-h-', 'min_h')):
+                                   ('mt-', 'mt'), ('min-h-', 'min_h'),
+                                   ('ps-', 'ps')):
                 if tok.startswith(prefix):
                     v = px(tok[len(prefix):])
                     if v is not None:

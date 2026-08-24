@@ -43,6 +43,8 @@ pub struct Checkbox {
     /// A round control instead of `rounded-md`. v3's "Full Rounded" example
     /// does it with `className="rounded-full"` on `Checkbox.Control`.
     is_round: bool,
+    description: Option<gpui::SharedString>,
+    error_message: Option<gpui::SharedString>,
     children: Vec<AnyElement>,
     on_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
@@ -124,6 +126,8 @@ impl Checkbox {
             variant: herogpui_core::FieldVariant::Primary,
             indicator: None,
             is_round: false,
+            description: None,
+            error_message: None,
             children: Vec::new(),
             on_change: None,
             form_state: Rc::new(RefCell::new(crate::form::LiveFormFieldState {
@@ -176,7 +180,7 @@ impl Checkbox {
             self.is_invalid,
             &self.validation_errors,
             self.validate.as_ref().and_then(|f| f(&checked)),
-            None,
+            self.error_message.clone(),
         );
         {
             let mut state = self.form_state.borrow_mut();
@@ -224,6 +228,18 @@ impl Checkbox {
     /// Label content.
     pub fn label(mut self, el: impl IntoElement) -> Self {
         self.children.push(el.into_any_element());
+        self
+    }
+
+    /// `Description` — help text below and aligned with the label.
+    pub fn description(mut self, text: impl Into<gpui::SharedString>) -> Self {
+        self.description = Some(text.into());
+        self
+    }
+
+    /// `FieldError` — fallback validation text below and aligned with the label.
+    pub fn error_message(mut self, text: impl Into<gpui::SharedString>) -> Self {
+        self.error_message = Some(text.into());
         self
     }
 
@@ -288,7 +304,7 @@ impl RenderOnce for Checkbox {
             self.is_invalid,
             &self.validation_errors,
             self.validate.as_ref().and_then(|f| f(&checked)),
-            None,
+            self.error_message.clone(),
         );
         {
             let mut state = self.form_state.borrow_mut();
@@ -412,7 +428,6 @@ impl RenderOnce for Checkbox {
             .when(!self.is_disabled && !self.is_read_only, |r| {
                 r.cursor_pointer()
             })
-            .when(self.is_disabled, |r| r.opacity(layout.disabled_opacity))
             .children(
                 std::iter::once(boxel.into_any_element())
                     .chain(self.children)
@@ -424,34 +439,63 @@ impl RenderOnce for Checkbox {
                     })),
             )
             .text_size(text)
+            .font_weight(gpui::FontWeight::MEDIUM)
             .text_color(colors.foreground);
 
-        if !self.is_disabled && !self.is_read_only && (self.on_change.is_some() || own.is_some()) {
+        let content = if !self.is_disabled
+            && !self.is_read_only
+            && (self.on_change.is_some() || own.is_some())
+        {
             let on_change = self.on_change;
-            return row
-                .on_click(move |event, window, cx| {
-                    if matches!(
-                        event,
-                        gpui::ClickEvent::Keyboard(event)
-                            if event.button == gpui::KeyboardButton::Enter
-                    ) {
-                        return;
-                    }
-                    // Uncontrolled: flip our own copy, or nothing could ever
-                    // change it.
-                    if let Some(held) = &own {
-                        held.update(cx, |v, cx| {
-                            *v = !checked;
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &on_change {
-                        cb(!checked, window, cx);
-                    }
-                })
-                .into_any_element();
+            row.on_click(move |event, window, cx| {
+                if matches!(
+                    event,
+                    gpui::ClickEvent::Keyboard(event)
+                        if event.button == gpui::KeyboardButton::Enter
+                ) {
+                    return;
+                }
+                // Uncontrolled: flip our own copy, or nothing could ever
+                // change it.
+                if let Some(held) = &own {
+                    held.update(cx, |v, cx| {
+                        *v = !checked;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &on_change {
+                    cb(!checked, window, cx);
+                }
+            })
+            .into_any_element()
+        } else {
+            row.into_any_element()
+        };
+
+        let message = validity.first();
+        let mut root = gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .gap(px(4.))
+            .when(self.is_disabled, |r| r.opacity(layout.disabled_opacity))
+            .child(content);
+        if let Some(message) = message {
+            root = root.child(
+                gpui::div()
+                    .w_full()
+                    .pl(px(28.))
+                    .child(crate::field::ErrorMessage::new(message)),
+            );
+        } else if let Some(description) = self.description {
+            root = root.child(
+                gpui::div()
+                    .w_full()
+                    .pl(px(28.))
+                    .child(crate::field::Description::new(description)),
+            );
         }
-        row.into_any_element()
+        root.into_any_element()
     }
 }
 

@@ -5228,20 +5228,10 @@ impl Gallery {
                 ),
                 (
                     "With Description",
-                    col(vec![gpui::div()
-                        .flex()
-                        .flex_col()
-                        .gap(px(4.))
-                        .child(
-                            h::Checkbox::new("cb-desc")
-                                .default_selected(true)
-                                .label(gpui::div().child("Weekly digest")),
-                        )
-                        .child(
-                            gpui::div()
-                                .pl(px(28.))
-                                .child(h::Description::new("One email every Monday morning.")),
-                        )
+                    col(vec![h::Checkbox::new("cb-desc")
+                        .default_selected(true)
+                        .label(gpui::div().child("Weekly digest"))
+                        .description("One email every Monday morning.")
                         .into_any_element()]),
                 ),
                 (

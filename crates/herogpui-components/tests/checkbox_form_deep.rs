@@ -628,7 +628,9 @@ fn disabled_checked_checkbox_is_not_submitted_or_validated(cx: &mut TestAppConte
             .into_any_element()
     });
 
-    click(cx, 60., 57.);
+    // The configured validation message occupies Checkbox's FieldError row,
+    // while disabled form semantics still omit the control.
+    click(cx, 60., 77.);
     assert_eq!(recorded.borrow().as_slice(), ["submit:omitted"]);
 }
 
@@ -790,7 +792,9 @@ fn checkbox_native_custom_validation_blocks_and_focuses(cx: &mut TestAppContext)
             .into_any_element()
     });
 
-    click(cx, 60., 57.);
+    // The validation message is part of the Checkbox field anatomy, so it
+    // shifts the following button below the 16px error line.
+    click(cx, 60., 77.);
     press(cx, "space");
 
     assert_eq!(
@@ -826,8 +830,64 @@ fn checkbox_aria_custom_validation_does_not_block(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    click(cx, 60., 57.);
+    // ARIA validation still displays its message even though it does not block
+    // submission, so the button sits below that line.
+    click(cx, 60., 77.);
     assert_eq!(recorded.borrow().as_slice(), ["submit"]);
+}
+
+#[gpui::test]
+fn checkbox_description_is_outside_the_clickable_content_row(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        Checkbox::new("described-checkbox")
+            .label("Weekly digest")
+            .description("One email every Monday morning.")
+            .on_change(move |selected, _, _| changes.borrow_mut().push(selected.to_string()))
+            .into_any_element()
+    });
+
+    // The field root is a column: the description starts below the content
+    // row and must not inherit that row's click listener.
+    click(cx, 60., 31.);
+    assert!(recorded.borrow().is_empty());
+
+    click(cx, 60., 11.);
+    assert_eq!(recorded.borrow().as_slice(), ["true"]);
+}
+
+#[gpui::test]
+fn checkbox_validation_message_occupies_the_field_error_row(cx: &mut TestAppContext) {
+    let events = events();
+    let recorded = events.clone();
+    let cx = open_host(cx, move || {
+        let events = events.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(16.))
+            .child(
+                Checkbox::new("invalid-anatomy-checkbox")
+                    .label("Accept terms")
+                    .validation_errors(["Terms are required"]),
+            )
+            .child(
+                Button::new("after-invalid-checkbox")
+                    .label("Continue")
+                    .on_press(move |_, _, _| events.borrow_mut().push("pressed".to_owned())),
+            )
+            .into_any_element()
+    });
+
+    // Without the sibling FieldError row this was the button's centre. The
+    // message now occupies 16px plus the root's 4px gap.
+    click(cx, 60., 57.);
+    assert!(recorded.borrow().is_empty());
+
+    click(cx, 60., 77.);
+    assert_eq!(recorded.borrow().as_slice(), ["pressed"]);
 }
 
 #[gpui::test]
