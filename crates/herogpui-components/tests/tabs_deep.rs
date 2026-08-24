@@ -125,3 +125,37 @@ fn tabs_home_end_jump_to_the_ends(cx: &mut TestAppContext) {
         "Home must jump the selection back to the first tab"
     );
 }
+
+/// `selectedKey` is controlled: proposing a different tab reports it, but the
+/// rendered selection must remain on the supplied key until the caller changes
+/// that prop. Two Right presses therefore both propose `second`; an internal
+/// state mutation would make the second press incorrectly propose `third`.
+#[gpui::test]
+fn tabs_controlled_key_does_not_mutate_behind_the_caller(cx: &mut TestAppContext) {
+    let events = events();
+    let selected = events.clone();
+    let cx = open_host(cx, move || {
+        let events = events.clone();
+        Tabs::new(
+            "tb-controlled",
+            vec![
+                TabItem::new("first", "First"),
+                TabItem::new("second", "Second"),
+                TabItem::new("third", "Third"),
+            ],
+            "third",
+        )
+        .selected_key("first")
+        .on_selection_change(move |key, _, _| events.borrow_mut().push(key.to_string()))
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "right");
+    press(cx, "right");
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["second", "second"],
+        "a controlled tab list must not advance until the caller supplies the proposed key"
+    );
+}
