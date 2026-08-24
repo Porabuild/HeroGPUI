@@ -216,7 +216,7 @@ CHECKS = [
      r'8px grab margin either side[\s\S]{0,80}?\.right\(px\(-(\d+(?:\.\d*)?)\.\)\)', None),
     ('toggle-button', '.toggle-button', 'text', 'ToggleButton Md text',
      SRC + 'toggle_button.rs',
-     r'let text = self\.size\.text_size\(\)', lambda _: 14.0),
+     r'Size::Sm \| Size::Md => \(px\((\d+(?:\.\d*)?)\.\), px\(20\.\)\)', None),
     ('calendar-year-picker', '.calendar-year-picker__trigger', 'gap', 'Year trigger gap',
      SRC + 'calendar.rs',
      r'`\.calendar-year-picker__trigger` is `gap-1 rounded-lg`\.[\s\S]{0,60}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -268,6 +268,15 @@ CHECKS = [
     ('toggle-button', '.toggle-button--sm', 'px', 'ToggleButton Sm px',
      SRC + 'toggle_button.rs',
      r'Size::Sm => \(px\(32\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('toggle-button', '.toggle-button--sm', 'gap', 'ToggleButton Sm gap',
+     SRC + 'toggle_button.rs',
+     r'Size::Sm => \(px\(32\.\), px\(12\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('toggle-button', '.toggle-button--sm', 'text', 'ToggleButton Sm text',
+     SRC + 'toggle_button.rs',
+     r'Size::Sm \| Size::Md => \(px\((\d+(?:\.\d*)?)\.\), px\(20\.\)\)', None),
+    ('toggle-button', '.toggle-button--lg', 'px', 'ToggleButton Lg px',
+     SRC + 'toggle_button.rs',
+     r'Size::Lg => \(px\(40\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('toggle-button', '.toggle-button', 'gap', 'ToggleButton Md gap',
      SRC + 'toggle_button.rs',
      r'Size::Md => \(px\(36\.\), px\(16\.\), px\((\d+(?:\.\d*)?)\.\)', None),
@@ -863,7 +872,7 @@ CHECKS = [
      r'Size::Sm => \(px\((\d+(?:\.\d*)?)\.\), px\(12\.\)', None),
     ('toggle-button', '.toggle-button--lg', 'h', 'ToggleButton lg height',
      SRC + 'toggle_button.rs',
-     r'Size::Lg => \(px\((\d+(?:\.\d*)?)\.\), px\(20\.\)', None),
+     r'Size::Lg => \(px\((\d+(?:\.\d*)?)\.\), px\(16\.\)', None),
     ('toggle-button-group', '.toggle-button-group--detached', 'gap',
      'ToggleButtonGroup detached gap', SRC + 'toggle_button.rs',
      r'is_detached \{ px\((\d+(?:\.\d*)?)\.\) \} else \{ px\(0\.\) \}', None),
@@ -1755,6 +1764,32 @@ def check_fills():
     return bad, stale
 
 
+def check_toggle_button_style_contract():
+    """Non-numeric ToggleButton CSS tokens that metric checks cannot cover."""
+    path = SRC + 'toggle_button.rs'
+    src = io.open(path, encoding='utf-8', errors='replace').read()
+    parts = src.split('impl RenderOnce for ToggleButton {', 1)
+    render = parts[1].split('// ToggleButtonGroup', 1)[0] if len(parts) == 2 else ''
+    checks = [
+        ('no border', '.border_1()' not in render),
+        ('font-medium', '.font_weight(gpui::FontWeight::MEDIUM)' in render),
+        ('default fill', '.bg(colors.default.color)' in render),
+        ('selected soft fill', 'e.bg(sem.soft()).text_color(sem.soft_foreground())' in render),
+        ('selected hover', 'colors.accent.soft_hover()' in render),
+        ('default hover', 'colors.default.hover()' in render),
+        ('pressed fill', 'pressed_with_background(' in render and
+         'el.active(move |style| style.bg(hover_bg))' in render),
+        ('group focus offset', 'ring_if_focused(' in render and '!is_grouped,' in render),
+    ]
+    print()
+    print('toggle button non-numeric styling:')
+    for name, ok in checks:
+        print('%s %-24s %s' % (' ' if ok else '!', name, 'ok' if ok else 'missing'))
+    bad = sum(not ok for _, ok in checks)
+    print('TOGGLE STYLE BAD : %d' % bad)
+    return bad
+
+
 def coverage():
     """Every metric v3 declares, and whether `CHECKS` compares it.
 
@@ -1896,7 +1931,8 @@ def main():
     print('unreadable       : %d  (a pattern stopped matching -- fix it)' % unreadable)
     print('MISMATCHED       : %d' % mismatched)
     wrong_fills, stale_fills = check_fills()
-    return int(bool(mismatched or unreadable or wrong_fills or stale_fills))
+    toggle_bad = check_toggle_button_style_contract()
+    return int(bool(mismatched or unreadable or wrong_fills or stale_fills or toggle_bad))
 
 
 if __name__ == '__main__':

@@ -57,6 +57,7 @@ pub struct ToggleButton {
     /// `rounded-none` with the outer radius on the first and last member.
     group_edge: Option<(crate::button::GroupEdge, bool)>,
     is_disabled: bool,
+    disabled_explicit: bool,
     children: Vec<AnyElement>,
     /// `Arc` for the same reason as `on_change`: the pointer and the keyboard
     /// each hold it.
@@ -96,6 +97,7 @@ impl ToggleButton {
             group_focus_handle: None,
             group_edge: None,
             is_disabled: false,
+            disabled_explicit: false,
             children: Vec::new(),
             on_press: None,
             on_change: None,
@@ -169,11 +171,17 @@ impl ToggleButton {
         self
     }
 
+    fn group_managed(mut self) -> Self {
+        self.on_change = None;
+        self
+    }
+
     fn group_on_press(
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     ) -> Self {
         let child = self.on_press.take();
+        self.on_change = None;
         self.on_press = Some(std::sync::Arc::new(move |event, window, cx| {
             handler(event, window, cx);
             if let Some(child) = &child {
@@ -185,11 +193,14 @@ impl ToggleButton {
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
+        self.disabled_explicit = true;
         self
     }
 
     fn group_disabled(mut self, v: bool) -> Self {
-        self.is_disabled |= v;
+        if !self.disabled_explicit {
+            self.is_disabled = v;
+        }
         self
     }
 
@@ -248,6 +259,7 @@ impl RenderOnce for ToggleButton {
         let sem = cx.colors().accent;
         let colors = cx.colors();
         let layout = cx.layout();
+        let is_grouped = self.group_edge.is_some();
 
         let mut el = div()
             .id(self.id.clone())
@@ -257,21 +269,15 @@ impl RenderOnce for ToggleButton {
             .overflow_hidden()
             .whitespace_nowrap()
             .flex_shrink_0()
-            .border_1()
+            .font_weight(gpui::FontWeight::MEDIUM)
             .when(is_selected, |e| {
-                e.bg(sem.color)
-                    .text_color(sem.foreground)
-                    .border_color(sem.color)
+                e.bg(sem.soft()).text_color(sem.soft_foreground())
             })
             .when(!is_selected, |e| match self.variant {
-                ToggleVariant::Default => e
-                    .bg(colors.surface.background)
-                    .text_color(colors.foreground)
-                    .border_color(colors.separator),
+                ToggleVariant::Default => e.bg(colors.default.color).text_color(colors.foreground),
                 ToggleVariant::Ghost => e
                     .bg(gpui::transparent_black())
-                    .text_color(colors.foreground)
-                    .border_color(gpui::transparent_black()),
+                    .text_color(colors.default.foreground),
             });
 
         // sizing — kept in locals so the press geometry below scales exactly
@@ -279,13 +285,15 @@ impl RenderOnce for ToggleButton {
         // `.toggle-button` is `h-10 md:h-9` with `--sm` at `h-9 md:h-8` and
         // `--lg` at `h-11 md:h-10`: 32 / 36 / 40 on a desktop, the same pair as
         // `.button`. This had them a step too tall.
-        let (height, pad_x, gap) = match self.size {
-            Size::Sm => (px(32.), px(12.), px(6.)),
-            Size::Md => (px(36.), px(16.), px(8.)),
-            Size::Lg => (px(40.), px(20.), px(8.)),
+        let (height, pad_x, gap, press_scale) = match self.size {
+            Size::Sm => (px(32.), px(12.), px(8.), crate::anim::PRESSED_SCALE_SUBTLE),
+            Size::Md => (px(36.), px(16.), px(8.), crate::anim::PRESSED_SCALE),
+            Size::Lg => (px(40.), px(16.), px(8.), crate::anim::PRESSED_SCALE_FIRM),
         };
-        let text = self.size.text_size();
-        let line = self.size.line_height();
+        let (text, line) = match self.size {
+            Size::Sm | Size::Md => (px(14.), px(20.)),
+            Size::Lg => (px(16.), px(24.)),
+        };
         let radius = crate::util::control_radius(cx);
         el = el.h(height).text_size(text).line_height(line);
         el = if self.is_icon_only {
@@ -299,26 +307,39 @@ impl RenderOnce for ToggleButton {
         if self.is_disabled {
             el = el.opacity(layout.disabled_opacity);
         } else {
-            let hover_bg = colors.default.color;
+            let hover_bg = if is_selected {
+                colors.accent.soft_hover()
+            } else {
+                match self.variant {
+                    ToggleVariant::Default => colors.default.hover(),
+                    ToggleVariant::Ghost => colors.default.color,
+                }
+            };
             el = el.cursor_pointer().hover(move |s| s.bg(hover_bg));
             // v3 documents ToggleButton's pressed state as including the same
-            // `scale(0.97)` transform as Button.
-            el = crate::anim::pressed(
-                el,
-                crate::anim::PressBox {
-                    height,
-                    padding_x: (!self.is_icon_only).then_some(pad_x),
-                    width: self.is_icon_only.then_some(height),
-                    min_width: None,
-                    text_size: text,
-                    line_height: line,
-                    gap,
-                    radius,
-                    shrink_x: true,
-                    scale: crate::anim::PRESSED_SCALE,
-                },
-                cx,
-            );
+            // size-specific scale. Group members suppress it so the attached
+            // control never opens gaps between buttons while pressed.
+            if is_grouped {
+                el = el.active(move |style| style.bg(hover_bg));
+            } else {
+                el = crate::anim::pressed_with_background(
+                    el,
+                    crate::anim::PressBox {
+                        height,
+                        padding_x: (!self.is_icon_only).then_some(pad_x),
+                        width: self.is_icon_only.then_some(height),
+                        min_width: None,
+                        text_size: text,
+                        line_height: line,
+                        gap,
+                        radius,
+                        shrink_x: true,
+                        scale: press_scale,
+                    },
+                    hover_bg,
+                    cx,
+                );
+            }
         }
 
         if let Some(render) = self.content.clone() {
@@ -359,11 +380,11 @@ impl RenderOnce for ToggleButton {
                         cx.notify();
                     });
                 }
-                if let Some(cb) = &on_press {
-                    cb(ev, w, cx);
-                }
                 if let Some(cb) = &on_change {
                     cb(next, w, cx);
+                }
+                if let Some(cb) = &on_press {
+                    cb(ev, w, cx);
                 }
             });
         }
@@ -374,7 +395,7 @@ impl RenderOnce for ToggleButton {
         crate::util::ring_if_focused(
             el.track_focus(&focus_handle),
             &focus_handle,
-            true,
+            !is_grouped,
             Vec::new(),
             window,
             cx,
@@ -553,6 +574,7 @@ impl RenderOnce for ToggleButtonGroup {
             .into_iter()
             .map(|button| {
                 button
+                    .group_managed()
                     .group_disabled(self.is_disabled)
                     .group_size(self.size)
             })

@@ -285,6 +285,71 @@ def check_switch_motion():
     return sum(not same for same, _, _, _ in rows)
 
 
+def check_toggle_button_motion():
+    """ToggleButton's size scales and the group's transform suppression."""
+    css_path = os.path.join(CACHE, 'toggle-button.css')
+    group_css_path = os.path.join(CACHE, 'toggle-button-group.css')
+    src_path = os.path.join(SRC, 'toggle_button.rs')
+    anim_path = os.path.join(SRC, 'anim.rs')
+    if not os.path.exists(css_path) or not os.path.exists(group_css_path):
+        print('toggle button motion: no stylesheet')
+        return 1
+    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    group_css = io.open(group_css_path, encoding='utf-8', errors='replace').read()
+    src = io.open(src_path, encoding='utf-8').read()
+    anim = io.open(anim_path, encoding='utf-8').read()
+
+    def scale_for(selector, end):
+        block = re.search(re.escape(selector) + r'\s*\{(.*?)(?=' + end + r')', css, re.S)
+        scale = re.search(r'transform:\s*scale\(([\d.]+)\)', block.group(1) if block else '')
+        return float(scale.group(1)) if scale else None
+
+    wants = {
+        'Sm': scale_for('.toggle-button--sm', r'\n\.toggle-button--md'),
+        'Md': scale_for('.toggle-button', r'\n/\* ={10,}\n   Size variants'),
+        'Lg': scale_for('.toggle-button--lg', r'\n/\* ={10,}\n   Variant styles'),
+    }
+    constants = {}
+    for name in ('PRESSED_SCALE_SUBTLE', 'PRESSED_SCALE', 'PRESSED_SCALE_FIRM'):
+        match = re.search(r'pub const %s:\s*f32\s*=\s*([\d.]+)' % name, anim)
+        constants[name] = float(match.group(1)) if match else None
+    names = {
+        'Sm': 'PRESSED_SCALE_SUBTLE',
+        'Md': 'PRESSED_SCALE',
+        'Lg': 'PRESSED_SCALE_FIRM',
+    }
+    scale_wired = bool(re.search(r'scale:\s*press_scale', src))
+    rows = []
+    for size in ('Sm', 'Md', 'Lg'):
+        symbol = names[size]
+        mapped = bool(re.search(r'Size::%s\s*=>\s*\(.*?crate::anim::%s\)' % (size, symbol), src, re.S))
+        same = wants[size] is not None and constants[symbol] == wants[size] and mapped and scale_wired
+        rows.append((same, size, wants[size], constants[symbol] if mapped else None))
+
+    css_suppresses = bool(re.search(
+        r'\.toggle-button-group \.toggle-button(?:\[data-pressed="true"\]|:active).*?transform:\s*none',
+        group_css,
+        re.S,
+    ))
+    grouped_from_edge = 'let is_grouped = self.group_edge.is_some();' in src
+    rust_suppresses = bool(re.search(
+        r'if is_grouped\s*\{.*?\}\s*else\s*\{\s*el\s*=\s*crate::anim::pressed_with_background',
+        src,
+        re.S,
+    ))
+    rows.append((css_suppresses and grouped_from_edge and rust_suppresses, 'group', 'none', 'none' if rust_suppresses else 'scale'))
+
+    print('toggle button motion (v3 CSS vs ToggleButton):')
+    for same, size, want, got in rows:
+        print('%s %-14s %-16s %-22s %s' % (
+            ' ' if same else '!', 'toggle-button', size, str(want), str(got)
+        ))
+    bad = sum(not same for same, _, _, _ in rows)
+    print('TOGGLE BUTTON MISMATCHES : %d' % bad)
+    print()
+    return bad
+
+
 def corpus():
     """Everything v3 ships that could name an animation.
 
@@ -342,7 +407,7 @@ def main():
         print('no longer in the v3 docs (stale entry?): %s'
               % ', '.join(sorted(stale_docs)))
     print()
-    motion_bad = check_motions() + check_switch_motion()
+    motion_bad = check_motions() + check_switch_motion() + check_toggle_button_motion()
     print('UNIMPLEMENTED : %d' % len(missing_impl))
     print('MOTION BAD    : %d' % motion_bad)
     return len(missing_impl) + len(stale_docs) + motion_bad

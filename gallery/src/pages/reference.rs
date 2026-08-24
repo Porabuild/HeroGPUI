@@ -86,6 +86,7 @@ fn metadata_panels(
         metadata.style_source,
     ]
     .iter()
+    .flat_map(|source| source.split(" + "))
     .filter(|source| !source.is_empty())
     .count();
     let contract = format!(

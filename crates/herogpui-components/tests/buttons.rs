@@ -16,10 +16,9 @@
 //! - CloseButton is a square `(box_size, icon_size) = (24, 16)` (`close_button.rs`),
 //!   so its centre at the origin is (12, 12); the icon's 4px padding is
 //!   irrelevant to the hit box.
-//! - ToggleButton `Size::Md` is `h-9` (36px) with `border_1` and `px-4`
+//! - ToggleButton `Size::Md` is `h-9` (36px) with `px-4`
 //!   (16px) around a label whose advance width is *measured* with the same
-//!   text system the renderer shapes with, so its centre x is
-//!   1 + 16 + w/2 (the 1 is the border on the leading edge).
+//!   text system the renderer shapes with, so its centre x is 16 + w/2.
 //! - A full-width ButtonGroup stretches its members with `flex_1`, so member
 //!   *i* of three spans 640px and its centre column is 320 + 640i; the seams'
 //!   absolutely-positioned separators take no layout space.
@@ -72,8 +71,8 @@ use harness::{click, events, open_host, press};
 /// The advance width of `text` shaped the way the components shape it: gpui's
 /// default `.SystemUIFont` stack at `size` px and `weight`.
 ///
-/// ToggleButton labels are 14px at the default weight; Button and Link labels
-/// are 14px MEDIUM. Both are laid out by the window's own `WindowTextSystem`,
+/// ToggleButton, Button and Link labels are 14px MEDIUM. All are laid out by
+/// the window's own `WindowTextSystem`,
 /// so this measurement is the render's measurement (the same helper the
 /// collections suite uses for Tabs and Breadcrumbs).
 fn text_width(system: &gpui::WindowTextSystem, text: &str, size: f32, weight: FontWeight) -> f32 {
@@ -349,6 +348,7 @@ fn toggle_button_uncontrolled_toggles(cx: &mut TestAppContext) {
     let recorded = changes.clone();
     let cx = open_host(cx, move || {
         let changes = changes.clone();
+        let press_changes = changes.clone();
         // `default_selected` seeds the button's *own* state; `is_selected`
         // would be the controlled prop and hand the value back to nobody —
         // the uncontrolled path is the one that toggles.
@@ -356,27 +356,28 @@ fn toggle_button_uncontrolled_toggles(cx: &mut TestAppContext) {
             .label("Bold")
             .default_selected(true)
             .on_change(move |selected, _, _| changes.borrow_mut().push(format!("{selected}")))
+            .on_press(move |_, _, _| press_changes.borrow_mut().push("press".into()))
             .into_any_element()
     });
 
-    // The toggle is `border_1` (1px each side) with `px-4` (16px) around the
-    // measured 14px label, so its centre x is 1 + 16 + w/2; it is 36px tall
+    // The toggle has `px-4` (16px) around the measured 14px label, so its
+    // centre x is 16 + w/2; it is 36px tall
     // (`h-9`), centre y = 18.
     let w =
-        cx.update(|window, _| text_width(window.text_system(), "Bold", 14.0, FontWeight::NORMAL));
-    let centre_x = 1. + 16. + w / 2.;
+        cx.update(|window, _| text_width(window.text_system(), "Bold", 14.0, FontWeight::MEDIUM));
+    let centre_x = 16. + w / 2.;
 
     click(cx, centre_x, 18.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["false"],
-        "the first click must unselect the default-selected toggle"
+        ["false", "press"],
+        "the first click must report the changed selection before onPress"
     );
     click(cx, centre_x, 18.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["false", "true"],
-        "the second click must select it again"
+        ["false", "press", "true", "press"],
+        "the second click must select it and keep the callback order"
     );
 }
 
@@ -776,8 +777,8 @@ fn toggle_button_content_render_prop_sees_state(cx: &mut TestAppContext) {
                 *record.borrow_mut() = (state.is_hovered, state.is_pressed, state.is_selected);
                 // A fixed 64x16 box stands in for the label a caller's render
                 // function would draw. ToggleButton `Size::Md` is 36px tall
-                // (`h-9`) with `border_1` and `px-4` (16px) each side, so the
-                // centre column is 1 + 16 + 32 = 49 and the centre row is 18.
+                // (`h-9`) with `px-4` (16px) each side, so the centre column is
+                // 16 + 32 = 48 and the centre row is 18.
                 gpui::div()
                     .w(px(64.))
                     .h(px(16.))
@@ -787,7 +788,7 @@ fn toggle_button_content_render_prop_sees_state(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    let centre = point(px(49.), px(18.));
+    let centre = point(px(48.), px(18.));
 
     // The first render drew before any pointer event, and `default_selected`
     // seeded the selection: idle and selected.

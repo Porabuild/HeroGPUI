@@ -280,11 +280,38 @@ pub struct PressBox {
 ///
 /// Returns `el` untouched under reduced motion.
 pub fn pressed(el: gpui::Stateful<gpui::Div>, b: PressBox, cx: &App) -> gpui::Stateful<gpui::Div> {
+    pressed_with_optional_background(el, b, None, cx)
+}
+
+/// Applies the same press geometry and an active-state background in one
+/// refinement, for controls whose CSS changes both on `[data-pressed]`.
+pub fn pressed_with_background(
+    el: gpui::Stateful<gpui::Div>,
+    b: PressBox,
+    background: gpui::Hsla,
+    cx: &App,
+) -> gpui::Stateful<gpui::Div> {
+    pressed_with_optional_background(el, b, Some(background), cx)
+}
+
+fn pressed_with_optional_background(
+    el: gpui::Stateful<gpui::Div>,
+    b: PressBox,
+    background: Option<gpui::Hsla>,
+    cx: &App,
+) -> gpui::Stateful<gpui::Div> {
     if cx.reduce_motion() {
-        return el;
+        return match background {
+            Some(background) => el.active(move |style| style.bg(background)),
+            None => el,
+        };
     }
     let inset = inset_for(b.height, b.scale);
     el.active(move |s: StyleRefinement| {
+        let s = match background {
+            Some(background) => s.bg(background),
+            None => s,
+        };
         let s = s
             .h(shrink(b.height, inset + inset))
             .mt(inset)

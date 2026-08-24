@@ -1056,13 +1056,16 @@ fn toggle_button_group_disabled_propagates_to_children(cx: &mut TestAppContext) 
     press(cx, "space");
     assert_eq!(
         selected.borrow().as_slice(),
-        [] as [&str; 0],
-        "a disabled group must not activate any child"
+        ["bold"],
+        "an explicitly enabled child must override the disabled group context"
     );
+    assert!(probed.borrow().is_empty());
+    press(cx, "tab");
+    press(cx, "space");
     assert_eq!(
         probed.borrow().as_slice(),
         ["probe"],
-        "disabled group children must leave the tab order"
+        "the remaining disabled group children must leave the tab order"
     );
 }
 
@@ -1154,6 +1157,7 @@ fn toggle_button_group_composes_child_press_after_selection(cx: &mut TestAppCont
     let recorded = events.clone();
     let cx = open_host(cx, move || {
         let child_events = events.clone();
+        let child_changes = events.clone();
         let selection_events = events.clone();
         ToggleButtonGroup::new("composed-child-press-group")
             .full_width(true)
@@ -1166,6 +1170,9 @@ fn toggle_button_group_composes_child_press_after_selection(cx: &mut TestAppCont
                 ToggleButton::new("composed-child-press")
                     .key("bold")
                     .label("Bold")
+                    .on_change(move |_, _, _| {
+                        child_changes.borrow_mut().push("child-change".into());
+                    })
                     .on_press(move |_, _, _| child_events.borrow_mut().push("child".into())),
             )
             .into_any_element()
@@ -1175,7 +1182,32 @@ fn toggle_button_group_composes_child_press_after_selection(cx: &mut TestAppCont
     assert_eq!(
         recorded.borrow().as_slice(),
         ["selection:bold", "child"],
-        "group selection must run once before the child's onPress"
+        "group selection must run once before child onPress and replace child onChange"
+    );
+}
+
+#[gpui::test]
+fn toggle_button_group_controlled_without_callback_silences_child_change(cx: &mut TestAppContext) {
+    let events = events();
+    let recorded = events.clone();
+    let cx = open_host(cx, move || {
+        let events = events.clone();
+        ToggleButtonGroup::new("controlled-child-change-group")
+            .full_width(true)
+            .selected_keys(["bold"])
+            .child_toggle(
+                ToggleButton::new("controlled-child-change")
+                    .key("bold")
+                    .label("Bold")
+                    .on_change(move |_, _, _| events.borrow_mut().push("child-change".into())),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 320., 18.);
+    assert!(
+        recorded.borrow().is_empty(),
+        "a controlled group must own selection even without a group callback"
     );
 }
 
