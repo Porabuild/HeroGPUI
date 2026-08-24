@@ -937,6 +937,40 @@ Two of those were only *visible* in the app: the slider drag and the modal
 press. Drive the gallery to confirm a fix, with `.shots/batch.ps1 -Steps
 @(@{ page=..; do='drag:625,437>820,437' })`, not just the test.
 
+Driving the rest of the library found six more, and the pattern held: every one
+was a path the gallery never renders or a state no screenshot can show.
+
+- **`Button::content` panicked on its first frame.** Two helpers bound `on_hover`
+  on one element and gpui refuses the second -- but the real fault was older: an
+  animation id carries a *generation*, gpui keys element state by the full id
+  **path**, and `hover_fade`'s wrapper therefore reset the button's internal
+  hover latch on every restart, so hover-out never fired at all. **An animated
+  wrapper must not sit above an element that owns listeners or state**; animate a
+  child instead, and keep the interactive element's id constant.
+- **A disabled Link stayed a tab stop**, which is the rule this file already
+  states, unfollowed in one component.
+- **A ScrollShadow shaded content that fits**: gpui's wheel listener adds the
+  delta to the offset cell *before* prepaint clamps it, and the render read the
+  raw value. Anything reading a scroll offset outside prepaint has to clamp it
+  itself.
+- **A Select row closed its panel without reporting it**, so a controlled caller
+  never learned; **the Toolbar's arrows walked the whole window** rather than
+  staying inside it. Both were invisible with one component on a page, which is
+  exactly what a gallery page is.
+
+Two v3 facts worth keeping, because both look like port gaps and are not: **Chip
+has no close affordance** (a removable chip is a `TagGroup`), and **Fieldset has
+no `isDisabled`** -- only `className`, `children` and `nativeProps`, so a
+fieldset disabling its children would be an invention.
+
+Three more harness facts: modifier chords *do* carry here (`ctrl-a` selects all)
+unlike the screenshot driver's posted keys, but `Keystroke::parse` joins with
+`-`, so `"shift+pagedown"` silently parses as the key `"+pagedown"`; a wheel is
+`ScrollDelta::Pixels` with a **negative** dy to scroll down, and every mouse
+event needs a redraw after it because events hit-test the last rendered frame;
+and taffy shrinks flex children that grow mid-test, so a growth test needs
+`flex_shrink_0` or it measures a box that still fits.
+
 `[profile.dev]` sets `debug = "line-tables-only"` because ten test binaries with
 full debug info filled the disk, and the link failed as `link.exe: exit code
 1318` -- which reads as a broken toolchain rather than as "no space left".
