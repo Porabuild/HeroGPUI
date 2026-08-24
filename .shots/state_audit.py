@@ -228,6 +228,12 @@ PROSE_EVIDENCE = {
     'index': r'depth',
 }
 
+PROSE_EVIDENCE_OVERRIDE = {
+    # Switch's pressed background now feeds the animated track target from the
+    # same interaction slot its render props read, rather than using `.active`.
+    ('Switch', 'pressed'): r'interaction_state\.1',
+}
+
 # Prose states this port does not draw, with the reason.
 PROSE_WONT_DO = {
     # React Aria's drag-and-drop reordering, which no list here implements.
@@ -337,9 +343,15 @@ def statuses(path):
 
 
 def main():
-    if not os.path.isdir(CSS):
+    if not os.path.exists(BUNDLE):
+        print('no docs bundle at %s' % BUNDLE)
+        return 1
+    missing_css = [sheet for sheet in MODULE
+                   if not os.path.exists(os.path.join(CSS, sheet + '.css'))]
+    if missing_css:
         print('no CSS cache at %s -- run `python .shots/design_audit.py --fetch`' % CSS)
-        return
+        print('missing stylesheets: %s' % ', '.join(sorted(missing_css)))
+        return 1
     sources = {}
     claimed = drawn = excused = 0
     missing, unmapped = [], []
@@ -411,7 +423,7 @@ def main():
                 reason = PROSE_WONT_DO[(page, state)]
                 by_reason[reason] = by_reason.get(reason, 0) + 1
                 continue
-            pattern = PROSE_EVIDENCE.get(state)
+            pattern = PROSE_EVIDENCE_OVERRIDE.get((page, state)) or PROSE_EVIDENCE.get(state)
             if pattern is None:
                 missing.append('%-22s %-22s (no PROSE_EVIDENCE)' % (page, state))
                 continue
@@ -435,7 +447,8 @@ def main():
           % (prose_claimed, prose_drawn, prose_excused))
     print('MISSING         : %d' % len(missing))
     print('UNMAPPED        : %d' % len(unmapped))
+    return 1 if missing or unmapped else 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

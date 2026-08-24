@@ -213,16 +213,19 @@ fn table_keyboard_rows_rove_and_activate(cx: &mut TestAppContext) {
 /// A sortable header is its own tab stop (the port's reading of "one stop per
 /// sortable column"), and gpui fires a *focused* element's click listeners on
 /// Enter and Space. The descriptor reported by the keys must be exactly the
-/// one a click reports: same column flips, feeding the result back continues
-/// the cycle.
+/// one a click reports, and the custom indicator must receive that current
+/// direction: same column flips, feeding the result back continues the cycle.
 #[gpui::test]
 fn table_sortable_header_answers_enter_space_then_click(cx: &mut TestAppContext) {
     let recorded = events();
+    let indicator_seen: Rc<RefCell<Option<SortDirection>>> = Rc::new(RefCell::new(None));
+    let indicator_for_view = indicator_seen.clone();
     let held: Rc<RefCell<Option<SortDescriptor>>> = Rc::new(RefCell::new(None));
     let held_for_view = held;
     let for_view = recorded.clone();
     let cx = open_host(cx, move || {
         let recorded = for_view.clone();
+        let indicator_seen = indicator_for_view.clone();
         let held_view = held_for_view.clone();
         // Two sortable columns at 160px inside a 320px wrapper: each flexing
         // header cell is ~156px wide, so the click at x = 80 lands in column
@@ -247,6 +250,10 @@ fn table_sortable_header_answers_enter_space_then_click(cx: &mut TestAppContext)
             .w(px(320.))
             .child(
                 table
+                    .indicator(move |direction| {
+                        *indicator_seen.borrow_mut() = Some(direction);
+                        gpui::div().into_any_element()
+                    })
                     .on_sort_change(move |d, _, _| {
                         let dir = if d.direction == SortDirection::Ascending {
                             "asc"
@@ -273,8 +280,18 @@ fn table_sortable_header_answers_enter_space_then_click(cx: &mut TestAppContext)
     press(cx, "tab tab");
     press(cx, "enter");
     flush_frame(cx);
+    assert_eq!(
+        *indicator_seen.borrow(),
+        Some(SortDirection::Ascending),
+        "the custom indicator must receive the first controlled sort direction"
+    );
     press(cx, "enter");
     flush_frame(cx);
+    assert_eq!(
+        *indicator_seen.borrow(),
+        Some(SortDirection::Descending),
+        "the custom indicator must receive the flipped controlled sort direction"
+    );
     press(cx, "space");
     flush_frame(cx);
     click(cx, 80., 18.);
