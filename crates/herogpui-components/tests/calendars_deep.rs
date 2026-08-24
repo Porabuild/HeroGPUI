@@ -144,10 +144,9 @@ fn calendar_partial_bounds_read_only_and_unavailable_dates_keep_valid_paging(
                 focuses.borrow_mut().push(date.format_iso());
             })
             .on_change(move |date, _, _| {
-                changes.borrow_mut().push(
-                    date.map(|value| value.format_iso())
-                        .unwrap_or_else(|| "none".into()),
-                );
+                changes
+                    .borrow_mut()
+                    .push(date.map_or_else(|| "none".into(), |value| value.format_iso()));
             })
             .into_any_element()
     });
