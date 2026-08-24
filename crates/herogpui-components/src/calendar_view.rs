@@ -6,7 +6,7 @@
 //! anchor date; everything below is pure so the geometry can be tested without
 //! a window.
 
-use crate::calendar::{add_days, bump_month, days_in_month, Date};
+use crate::calendar::{add_days, add_months, bump_month, days_in_month, month_name, Date};
 use crate::date_constraints::Weekday;
 
 /// `visibleDuration` — how much time one calendar shows at once.
@@ -232,13 +232,56 @@ pub fn range_heading(cells: &[Date]) -> String {
     }
 }
 
-/// The years a year picker shows, as a `rows`x`cols` grid ending on a decade
-/// boundary so the layout does not jump while paging.
-pub fn year_page(view_year: i32, count: usize) -> Vec<i32> {
-    let count = count.max(1) as i32;
-    // Anchor the block so `view_year` always appears in it.
-    let start = view_year - view_year.rem_euclid(count);
-    (0..count).map(|i| start + i).collect()
+/// The sliding year-picker window around `view_year`.
+///
+/// HeroUI defaults to 20 visible years, except when both date bounds are set:
+/// then it shows their full inclusive year span. An explicit `visibleYears`
+/// wins, and the window stays inside either bound.
+pub(crate) fn year_window(
+    view_year: i32,
+    visible_years: Option<usize>,
+    min_value: Option<Date>,
+    max_value: Option<Date>,
+) -> Vec<i32> {
+    let available = min_value.zip(max_value).map(|(min, max)| {
+        let span = i64::from(max.year) - i64::from(min.year) + 1;
+        usize::try_from(span.max(1)).unwrap_or(usize::MAX)
+    });
+    let requested = visible_years.or(available).unwrap_or(20).max(1);
+    let count = requested.min(available.unwrap_or(requested));
+    let count_i64 = i64::try_from(count).unwrap_or(i64::MAX);
+    let mut start = i64::from(view_year) - count_i64 / 2;
+
+    if let Some(min) = min_value {
+        start = start.max(i64::from(min.year));
+    }
+    if let Some(max) = max_value {
+        start = start.min(i64::from(max.year) - count_i64 + 1);
+    }
+    if let Some(min) = min_value {
+        start = start.max(i64::from(min.year));
+    }
+
+    (0..count)
+        .filter_map(|offset| {
+            let year = start + i64::try_from(offset).ok()?;
+            i32::try_from(year).ok()
+        })
+        .collect()
+}
+
+/// The shared render inputs for Calendar and RangeCalendar's year grid.
+pub(crate) struct YearGridView<'a> {
+    pub(crate) years: &'a [i32],
+    pub(crate) active_year: i32,
+    pub(crate) base: &'a str,
+}
+
+/// A year-picker trigger heading shifted from its calendar month's start.
+/// React Aria's `offset={{months: n}}` adds the duration before formatting.
+pub(crate) fn month_heading(year: i32, month: u32, offset_months: i32) -> String {
+    let (year, month) = add_months(year, month, offset_months);
+    format!("{} {year}", month_name(month))
 }
 
 #[cfg(test)]
@@ -412,12 +455,33 @@ mod tests {
     }
 
     #[test]
-    fn year_page_always_contains_the_view_year() {
-        let years = year_page(2026, 12);
-        assert!(years.contains(&2026));
-        assert_eq!(years.len(), 12);
-        // Blocks are stable, so paging does not shift the grid under the cursor.
-        assert_eq!(year_page(2027, 12), years);
-        assert_eq!(year_page(2020, 12)[0], 2016);
+    fn year_window_centers_and_clamps_to_bounds() {
+        let years = year_window(2026, None, None, None);
+        assert_eq!(years.len(), 20);
+        assert_eq!(years[10], 2026);
+
+        assert_eq!(
+            year_window(2026, None, Some(d(2024, 6, 1)), Some(d(2028, 6, 1))),
+            vec![2024, 2025, 2026, 2027, 2028]
+        );
+        assert_eq!(
+            year_window(2026, Some(3), Some(d(2024, 6, 1)), Some(d(2028, 6, 1))),
+            vec![2025, 2026, 2027]
+        );
+        assert_eq!(
+            year_window(2024, Some(3), Some(d(2024, 6, 1)), None),
+            vec![2024, 2025, 2026]
+        );
+        assert_eq!(
+            year_window(2028, Some(3), None, Some(d(2028, 6, 1))),
+            vec![2026, 2027, 2028]
+        );
+    }
+
+    #[test]
+    fn month_heading_offset_crosses_the_year() {
+        assert_eq!(month_heading(2026, 8, 0), "August 2026");
+        assert_eq!(month_heading(2026, 12, 2), "February 2027");
+        assert_eq!(month_heading(2026, 1, -2), "November 2025");
     }
 }

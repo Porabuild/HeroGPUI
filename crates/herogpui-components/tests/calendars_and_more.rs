@@ -309,9 +309,8 @@ fn calendar_min_max_blocks_out_of_range_days(cx: &mut TestAppContext) {
         "an in-range day must still answer the pointer"
     );
 
-    // The ring starts on the seeded selection (15); five Rights walk to 20
-    // (inside), six to 21 (outside). Enter on 21 must be blocked.
-    press(cx, "tab");
+    // The pointer leaves the grid focused on its seeded selection (15); five
+    // Rights walk to 20 (inside), six to 21 (outside). Enter on 21 is blocked.
     press(cx, "right right right right right");
     press(cx, "enter");
     assert_eq!(

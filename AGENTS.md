@@ -133,7 +133,9 @@ Read the diff.
     in front instead. Use `PrintWindow(hwnd, hdc, 2)`, which asks the window to
     render itself; `PW_RENDERFULLCONTENT` (2) is required, because flag 0 comes
     back blank for anything presenting through DirectComposition, as gpui does.
-    Check the result is not a uniform frame before saving.
+    Check the result is not a uniform frame before saving, then open it and
+    verify the requested page and section are actually in the image. A perfectly
+    rendered Introduction page is still a failed ComboBox capture.
   - `gallery.exe` is a **console-subsystem** binary, so every launch pops a
     console window and takes focus — 76 times in a smoke run. Launch it through
     `ProcessStartInfo` with `CreateNoWindow = $true` (the CREATE_NO_WINDOW
@@ -247,8 +249,13 @@ spell a prop differently. Both tables accept a scoped `Component.prop` key,
 which is the form to use whenever a bare name would mean different things in
 different components.
 
-**The audit is only as honest as its inputs**, and it has been wrong eight
+**The audit is only as honest as its inputs**, and it has been wrong nine
 times:
+
+An audit reader that cannot locate the page, section, source block or companion
+it expected must fail loudly. Returning an empty set turns missing input into a
+plausible-looking zero: four separate audit holes survived because "nothing was
+read" and "nothing is missing" produced the same report.
 
 - v3 splits a component's API across the root table *and* one table per
   composed part (`### Tooltip.Content`, `### Table.Column`, `### Dropdown.Menu`).
@@ -297,6 +304,12 @@ times:
   under `| Modifier Keys | Special Keys |` — into five missing Kbd props. A
   table is only read when its first header cell says `Prop`, `Name`, `Option`,
   `Function`, `Method` or `Event`.
+- **A prop table can put ownership before the prop.** Calendar and
+  RangeCalendar document their year-picker parts under
+  `| Component | Prop | Type | ... |`; requiring `Prop` in the first header
+  silently skipped `YearPickerGrid.visibleYears` and the trigger/grid format
+  rows. When a `Component` column names a real root or part and the next column
+  is `Prop`, preserve that per-row owner and read it as a prop table.
 
 Because one number cannot say what it covers, the report breaks the omissions
 down by reason. 61 of them are `drawn-not-delegated`: values v3 hands *into* a
@@ -377,6 +390,12 @@ the Rust that defines each metric. Both sides are mechanical, so neither can go
 stale; a check whose pattern stops matching is reported as unreadable, never
 skipped. Three things it got wrong first, all worth remembering:
 
+- **A fixed window can outrun the value it measures.** Expanding Calendar's
+  heading closure from one line to four parameters pushed its unchanged 14px
+  `text_size` beyond a 120-character scan. Anchor a reader on a structural
+  boundary that owns the value (`let label = ...`, the next heading or the end
+  of a block), not on an arbitrary character budget. Keep a missed anchor loud
+  as `unreadable`; silently skipping it would turn the same drift into a pass.
 - **Scope each rule.** Reading every `@apply` in a file mixes the base rule with
   the size modifiers, which made a medium button measure 32px because
   `.button--sm` lives in the same file.
@@ -929,6 +948,9 @@ writes the arithmetic in a comment. Two exceptions worth knowing: label widths
 are *measured* with `Window::text_system().shape_line` rather than guessed, and a
 table with `default_width` columns must **not** be wrapped in a fixed-width div
 (sortable headers flex and need one; pinned columns shift if you add one).
+An error message is layout too: once a field becomes invalid it can move every
+control below it, so remeasure or probe the invalid frame instead of reusing the
+valid frame's click coordinates.
 
 **A closed panel is not observable from a callback**, so closure is proved
 behaviourally: click where the row was and assert nothing is recorded. That probe
@@ -1137,7 +1159,11 @@ v2 concepts that must **not** come back:
     fired everything twice (a switch flipped and flipped back). The corollary
     bites the other way too: an element that has *both* a click listener and its
     own Enter handling does the thing twice, which is why the Select trigger
-    keeps only the arrows and lets the click own the open and close.
+    keeps only the arrows and lets the click own the open and close. A collection
+    key handler bound on a component root must also check that its collection
+    focus handle owns the event: keys from a focused heading or nav button bubble
+    through that root, and Calendar's Enter selected the current day before its
+    year-picker trigger opened until the grid handle gated the delegate.
   - **A table rings *inside* itself.** `status-focused` is an outset ring, and a
     table is v3's exception: `.table__cell` and `.table__column` are
     `shadow-[inset_0_0_0_2px_var(--focus)]` with `rounded-lg`, and a focused row

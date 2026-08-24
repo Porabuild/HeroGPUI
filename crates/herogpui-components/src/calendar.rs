@@ -328,6 +328,11 @@ pub struct Calendar {
     /// seeded from `defaultYearPickerOpen`.
     year_picker_open: Option<bool>,
     default_year_picker_open: bool,
+    /// `Calendar.YearPickerGrid.visibleYears` — `None` uses the v3 default:
+    /// the full min/max span when both exist, otherwise 20.
+    visible_years: Option<usize>,
+    /// `Calendar.YearPickerTriggerHeading.offset.months`.
+    year_heading_offset_months: i32,
     on_year_picker_open_change:
         Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
     on_focus_change: Option<std::sync::Arc<dyn Fn(Date, &mut Window, &mut App) + 'static>>,
@@ -391,6 +396,8 @@ impl Calendar {
             selection_alignment: SelectionAlignment::default(),
             year_picker_open: None,
             default_year_picker_open: false,
+            visible_years: None,
+            year_heading_offset_months: 0,
             on_year_picker_open_change: None,
             on_focus_change: None,
             on_change: None,
@@ -547,9 +554,20 @@ impl Calendar {
         self
     }
 
-    /// `onYearPickerOpenChange` — supplying it also turns the heading into the
-    /// year-picker trigger, so the affordance never appears without a handler
-    /// behind it.
+    /// `Calendar.YearPickerGrid.visibleYears` — the size of its sliding window.
+    pub fn visible_years(mut self, count: usize) -> Self {
+        self.visible_years = Some(count.max(1));
+        self
+    }
+
+    /// `Calendar.YearPickerTriggerHeading.offset` — shifts its displayed month.
+    pub fn offset(mut self, months: i32) -> Self {
+        self.year_heading_offset_months = months;
+        self
+    }
+
+    /// `onYearPickerOpenChange` — reports the built-in heading trigger opening
+    /// or closing the year grid.
     pub fn on_year_picker_open_change(
         mut self,
         f: impl Fn(bool, &mut Window, &mut App) + 'static,
@@ -825,18 +843,30 @@ impl Calendar {
     }
 
     /// The year grid shown while the year picker is open.
-    fn year_grid(&self, anchor: Date, base: &str, cx: &App) -> gpui::AnyElement {
+    fn year_grid(
+        &self,
+        view: calendar_view::YearGridView<'_>,
+        year_focus: &gpui::FocusHandle,
+        heading_focus: &gpui::FocusHandle,
+        year_picker_own: Option<Entity<bool>>,
+        window: &Window,
+        cx: &App,
+    ) -> gpui::AnyElement {
         let colors = cx.colors();
         let accent = colors.accent;
-        let years = calendar_view::year_page(anchor.year, 12);
+        let active_year = view.active_year;
+        let base = view.base;
         // `.calendar-year-picker__year-grid` is `gap-1 p-1`.
         let mut grid = gpui::div().flex().flex_col().gap(px(4.)).p(px(4.));
-        for chunk in years.chunks(3) {
+        for chunk in view.years.chunks(3) {
             let mut row = gpui::div().flex().gap(px(4.));
             for &year in chunk {
-                let is_current = year == anchor.year;
+                let is_active = year == active_year;
                 let mut cell = gpui::div()
                     .id(gpui::ElementId::Name(format!("{base}-y{year}").into()))
+                    .when(!self.is_disabled && is_active, |cell| {
+                        cell.track_focus(year_focus)
+                    })
                     .flex_1()
                     // `.calendar-year-picker__year-cell` is `h-8 px-2.5
                     // rounded-3xl text-sm`.
@@ -848,12 +878,12 @@ impl Calendar {
                     .text_size(px(14.))
                     .rounded(crate::util::control_radius(cx));
 
-                if is_current {
+                if is_active {
                     cell = cell
                         .bg(accent.color)
                         .text_color(accent.foreground)
                         .font_weight(gpui::FontWeight::SEMIBOLD);
-                } else {
+                } else if !self.is_disabled {
                     let hover_bg = colors.default.soft_hover();
                     cell = cell
                         .text_color(colors.foreground)
@@ -861,19 +891,48 @@ impl Calendar {
                         .hover(move |s| s.bg(hover_bg));
                 }
 
-                let st = self.state.clone();
-                let on_open = self.on_year_picker_open_change.clone();
-                cell = cell.on_click(move |_, window, cx| {
-                    st.update(cx, |s, cx| {
-                        s.set_anchor(Date::new(year, s.view_month, s.view_day.max(1)));
-                        cx.notify();
+                if !self.is_disabled {
+                    let st = self.state.clone();
+                    let on_open = self.on_year_picker_open_change.clone();
+                    let on_focus = self.on_focus_change.clone();
+                    let own = year_picker_own.clone();
+                    let back_to_trigger = heading_focus.clone();
+                    cell = cell.on_click(move |_, window, cx| {
+                        let next = st.update(cx, |s, cx| {
+                            let day = s.view_day.max(1).min(days_in_month(year, s.view_month));
+                            let next = Date::new(year, s.view_month, day);
+                            s.set_anchor(next);
+                            cx.notify();
+                            next
+                        });
+                        if year != active_year {
+                            if let Some(cb) = &on_focus {
+                                cb(next, window, cx);
+                            }
+                        }
+                        if let Some(held) = &own {
+                            held.update(cx, |open, cx| {
+                                *open = false;
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &on_open {
+                            cb(false, window, cx);
+                        }
+                        window.focus(&back_to_trigger);
                     });
-                    // Picking a year closes the picker, as in v3.
-                    if let Some(cb) = &on_open {
-                        cb(false, window, cx);
-                    }
-                });
+                }
 
+                if is_active {
+                    cell = crate::util::ring_if_focused(
+                        cell,
+                        year_focus,
+                        false,
+                        Vec::new(),
+                        window,
+                        cx,
+                    );
+                }
                 row = row.child(cell.child(year.to_string()));
             }
             grid = grid.child(row);
@@ -958,9 +1017,14 @@ impl RenderOnce for Calendar {
             window,
             cx,
         );
+        let year_focus = crate::util::tab_stop_handle(
+            gpui::ElementId::Name(format!("{base}-year-focus").into()),
+            window,
+            cx,
+        );
         // Inside a picker the grid takes the focus as the panel opens, so the
         // arrows work without hunting for it with Tab.
-        if self.autofocus_grid && !self.is_disabled {
+        if self.autofocus_grid && !self.is_disabled && !year_picker_open {
             crate::util::focus_once(
                 window,
                 cx,
@@ -973,10 +1037,23 @@ impl RenderOnce for Calendar {
             cx,
             |_, _| None::<Date>,
         );
+        let year_cursor = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{base}-year-cursor").into()),
+            cx,
+            |_, _| None::<i32>,
+        );
+        let year_was_open = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{base}-year-was-open").into()),
+            cx,
+            |_, _| false,
+        );
+        let year_trigger_index = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{base}-year-trigger-index").into()),
+            cx,
+            |_, _| 0usize,
+        );
         let cursor_at = *cursor.read(cx);
 
-        let colors = cx.colors();
-        let layout = cx.layout();
         let first_day = self.constraints.first_day_of_week;
 
         let (stored_anchor, selected, selected_dates, navigated) = {
@@ -999,6 +1076,25 @@ impl RenderOnce for Calendar {
             ),
             _ => stored_anchor,
         };
+        let initial_year = self.focused_value.unwrap_or(anchor).year;
+        let years = calendar_view::year_window(
+            initial_year,
+            self.visible_years,
+            self.constraints.min_value,
+            self.constraints.max_value,
+        );
+        let first_year = years.first().copied().unwrap_or(anchor.year);
+        let last_year = years.last().copied().unwrap_or(anchor.year);
+        if year_picker_open && !*year_was_open.read(cx) && !self.is_disabled {
+            year_cursor.update(cx, |year, _| *year = Some(initial_year));
+            window.focus(&year_focus);
+        }
+        year_was_open.update(cx, |was_open, _| *was_open = year_picker_open);
+        let active_year = year_cursor
+            .read(cx)
+            .unwrap_or(initial_year)
+            .max(first_year)
+            .min(last_year);
         // `focusedValue` wins; without it the keyboard's own cursor does, and it
         // starts from the selection or today.
         // Taking the focus puts the ring on the date v3 would have focused --
@@ -1022,6 +1118,19 @@ impl RenderOnce for Calendar {
         let months = calendar_view::month_headings(self.duration, anchor);
         let linear = calendar_view::linear_cells(self.duration, first_day, anchor);
         let columns = months.len().max(1);
+        let mut heading_focuses = Vec::with_capacity(columns);
+        for index in 0..columns {
+            heading_focuses.push(crate::util::tab_stop_handle(
+                gpui::ElementId::Name(format!("{base}-heading-{index}-focus").into()),
+                window,
+                cx,
+            ));
+        }
+        let active_heading_index = (*year_trigger_index.read(cx)).min(columns - 1);
+        let active_heading_focus = heading_focuses[active_heading_index].clone();
+
+        let colors = cx.colors();
+        let layout = cx.layout();
 
         let nav_target =
             |dir: i32| calendar_view::page(self.duration, self.page_behavior, anchor, dir);
@@ -1075,9 +1184,13 @@ impl RenderOnce for Calendar {
             )
         };
 
-        // A heading is a plain label unless a year-picker handler is supplied,
-        // in which case it becomes the trigger.
-        let heading = |text: String, key: String| -> gpui::AnyElement {
+        // A heading is a plain label only when the picker is controlled without
+        // a change handler; otherwise it is the built-in year-picker trigger.
+        let heading = |text: String,
+                       key: String,
+                       focus: &gpui::FocusHandle,
+                       index: usize|
+         -> gpui::AnyElement {
             let label = gpui::div()
                 .text_size(px(14.))
                 .font_weight(gpui::FontWeight::SEMIBOLD)
@@ -1087,10 +1200,12 @@ impl RenderOnce for Calendar {
                 None if year_picker_own.is_none() => label.into_any_element(),
                 None => {
                     let own = year_picker_own.clone();
+                    let opener = year_trigger_index.clone();
                     let open = year_picker_open;
                     let hover_bg = colors.default.soft_hover();
-                    gpui::div()
+                    let trigger = gpui::div()
                         .id(gpui::ElementId::Name(key.into()))
+                        .when(!self.is_disabled, |trigger| trigger.track_focus(focus))
                         .flex()
                         .items_center()
                         // `.calendar-year-picker__trigger` is `gap-1 rounded-lg`.
@@ -1098,16 +1213,24 @@ impl RenderOnce for Calendar {
                         .px(px(6.))
                         .py(px(2.))
                         .rounded(crate::util::key_radius(cx))
-                        .cursor_pointer()
-                        .hover(move |s| s.bg(hover_bg))
-                        .on_click(move |_, _, cx| {
-                            if let Some(held) = &own {
-                                held.update(cx, |v, cx| {
-                                    *v = !open;
-                                    cx.notify();
-                                });
-                            }
+                        .when(!self.is_disabled, |trigger| {
+                            trigger
+                                .cursor_pointer()
+                                .hover(move |style| style.bg(hover_bg))
+                                .on_click(move |_, _, cx| {
+                                    opener.update(cx, |value, _| *value = index);
+                                    if let Some(held) = &own {
+                                        held.update(cx, |value, cx| {
+                                            *value = !open;
+                                            cx.notify();
+                                        });
+                                    }
+                                })
                         })
+                        .when(self.is_disabled, |trigger| {
+                            trigger.opacity(layout.disabled_opacity)
+                        });
+                    crate::util::ring_if_focused(trigger, focus, true, Vec::new(), window, cx)
                         .child(label)
                         .child(
                             gpui::svg()
@@ -1125,9 +1248,11 @@ impl RenderOnce for Calendar {
                     let cb = cb.clone();
                     let open = year_picker_open;
                     let own = year_picker_own.clone();
+                    let opener = year_trigger_index.clone();
                     let hover_bg = colors.default.soft_hover();
-                    gpui::div()
+                    let trigger = gpui::div()
                         .id(gpui::ElementId::Name(key.into()))
+                        .when(!self.is_disabled, |trigger| trigger.track_focus(focus))
                         .flex()
                         .items_center()
                         // `.calendar-year-picker__trigger` is `gap-1 rounded-lg`.
@@ -1135,20 +1260,27 @@ impl RenderOnce for Calendar {
                         .px(px(6.))
                         .py(px(2.))
                         .rounded(crate::util::key_radius(cx))
-                        .cursor_pointer()
-                        .hover(move |s| s.bg(hover_bg))
-                        .on_click(move |_, window, cx| {
-                            // Uncontrolled: flip our own copy too, or the
-                            // caller's handler would be the only thing that
-                            // could open it.
-                            if let Some(held) = &own {
-                                held.update(cx, |v, cx| {
-                                    *v = !open;
-                                    cx.notify();
-                                });
-                            }
-                            cb(!open, window, cx);
+                        .when(!self.is_disabled, |trigger| {
+                            trigger
+                                .cursor_pointer()
+                                .hover(move |style| style.bg(hover_bg))
+                                .on_click(move |_, window, cx| {
+                                    opener.update(cx, |value, _| *value = index);
+                                    // Uncontrolled: flip our own copy too, or
+                                    // the callback would be the only opener.
+                                    if let Some(held) = &own {
+                                        held.update(cx, |value, cx| {
+                                            *value = !open;
+                                            cx.notify();
+                                        });
+                                    }
+                                    cb(!open, window, cx);
+                                })
                         })
+                        .when(self.is_disabled, |trigger| {
+                            trigger.opacity(layout.disabled_opacity)
+                        });
+                    crate::util::ring_if_focused(trigger, focus, true, Vec::new(), window, cx)
                         .child(label)
                         .child(
                             gpui::svg()
@@ -1177,13 +1309,19 @@ impl RenderOnce for Calendar {
             .gap(px(8.))
             .text_color(colors.surface.foreground)
             // readOnly blocks selection, not focus or navigation.
-            .when(!self.is_disabled, |el| el.track_focus(&grid_focus));
+            .when(!self.is_disabled && !year_picker_open, |el| {
+                el.track_focus(&grid_focus)
+            });
 
         // v3 drives a calendar from the keyboard: the arrows step a day and a
         // week, Page Up/Down a month, Home and End the ends of the month, and
         // Enter takes the date the ring is on.
-        if !self.is_disabled {
+        if !self.is_disabled && !year_picker_open {
             let held = cursor;
+            let focus = grid_focus.clone();
+            let prev_control = prev_focus.clone();
+            let next_control = next_focus.clone();
+            let heading_controls = heading_focuses.clone();
             let start = self.focused_value.or(selected).unwrap_or_else(Date::today);
             let constraints = self.constraints.clone();
             let state = self.state.clone();
@@ -1193,6 +1331,14 @@ impl RenderOnce for Calendar {
             let on_change_all = self.on_change_all.clone();
             let on_focus = self.on_focus_change.clone();
             root = root.on_key_down(move |event, window, cx| {
+                let header_focused = prev_control.is_focused(window)
+                    || next_control.is_focused(window)
+                    || heading_controls
+                        .iter()
+                        .any(|handle| handle.is_focused(window));
+                if header_focused || !focus.contains_focused(window, cx) {
+                    return;
+                }
                 let from = *held.read(cx);
                 let at = from.unwrap_or(start);
                 let key = event.keystroke.key.as_str();
@@ -1247,6 +1393,70 @@ impl RenderOnce for Calendar {
             });
         }
 
+        if !self.is_disabled && year_picker_open {
+            let held = year_cursor;
+            let focus = year_focus.clone();
+            let years_for_keys = years.clone();
+            let own = year_picker_own.clone();
+            let on_open = self.on_year_picker_open_change.clone();
+            let on_focus = self.on_focus_change.clone();
+            let back_to_trigger = active_heading_focus.clone();
+            root = root.on_key_down(move |event, window, cx| {
+                if !focus.is_focused(window) {
+                    return;
+                }
+                let key = event.keystroke.key.as_str();
+                if key == "escape" {
+                    if let Some(held) = &own {
+                        held.update(cx, |open, cx| {
+                            *open = false;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &on_open {
+                        cb(false, window, cx);
+                    }
+                    window.focus(&back_to_trigger);
+                    cx.stop_propagation();
+                    return;
+                }
+
+                let current = held.read(cx).unwrap_or(active_year);
+                let index = years_for_keys
+                    .iter()
+                    .position(|year| *year == current)
+                    .unwrap_or(0);
+                let next_index = match key {
+                    "left" => index.checked_sub(1),
+                    "right" => (index + 1 < years_for_keys.len()).then_some(index + 1),
+                    "up" => index.checked_sub(3),
+                    "down" => (index + 3 < years_for_keys.len()).then_some(index + 3),
+                    "home" => Some(0),
+                    "end" => years_for_keys.len().checked_sub(1),
+                    _ => return,
+                };
+                if let Some(next_index) = next_index {
+                    let next = years_for_keys[next_index];
+                    held.update(cx, |year, cx| {
+                        *year = Some(next);
+                        cx.notify();
+                    });
+                    if let Some(cb) = &on_focus {
+                        cb(
+                            Date::new(
+                                next,
+                                anchor.month,
+                                anchor.day.min(days_in_month(next, anchor.month)),
+                            ),
+                            window,
+                            cx,
+                        );
+                    }
+                }
+                cx.stop_propagation();
+            });
+        }
+
         if year_picker_open {
             // The picker replaces the grid area in every view.
             root = root.w(column_width);
@@ -1257,26 +1467,31 @@ impl RenderOnce for Calendar {
                     .justify_between()
                     // `.calendar__header` is `px-0.5`.
                     .px(px(2.))
-                    .child(nav_btn(
-                        icons::CHEVRON_LEFT,
-                        Date::new(anchor.year - 12, anchor.month, anchor.day),
-                        format!("{base}-yprev"),
-                        &prev_focus,
-                        previous_disabled,
-                    ))
+                    .child(gpui::div().size(px(24.)))
                     .child(heading(
-                        format!("{} {}", month_name(anchor.month), anchor.year),
+                        calendar_view::month_heading(
+                            anchor.year,
+                            anchor.month,
+                            self.year_heading_offset_months,
+                        ),
                         format!("{base}-yheading"),
+                        &active_heading_focus,
+                        active_heading_index,
                     ))
-                    .child(nav_btn(
-                        icons::CHEVRON_RIGHT,
-                        Date::new(anchor.year + 12, anchor.month, anchor.day),
-                        format!("{base}-ynext"),
-                        &next_focus,
-                        next_disabled,
-                    )),
+                    .child(gpui::div().size(px(24.))),
             );
-            root = root.child(self.year_grid(anchor, &base, cx));
+            root = root.child(self.year_grid(
+                calendar_view::YearGridView {
+                    years: &years,
+                    active_year,
+                    base: &base,
+                },
+                &year_focus,
+                &active_heading_focus,
+                year_picker_own.clone(),
+                window,
+                cx,
+            ));
         } else if self.duration.is_month_view() {
             let mut row = gpui::div().flex().gap(px(20.));
             for (i, &(y, m)) in months.iter().enumerate() {
@@ -1307,8 +1522,14 @@ impl RenderOnce for Calendar {
                             spacer()
                         })
                         .child(heading(
-                            format!("{} {}", month_name(m), y),
+                            calendar_view::month_heading(
+                                y,
+                                m,
+                                self.year_heading_offset_months,
+                            ),
                             format!("{base}-heading{i}"),
+                            &heading_focuses[i],
+                            i,
                         ))
                         .child(if last {
                             nav_btn(
@@ -1354,6 +1575,8 @@ impl RenderOnce for Calendar {
                     .child(heading(
                         calendar_view::range_heading(&linear),
                         format!("{base}-heading"),
+                        &heading_focuses[0],
+                        0,
                     ))
                     .child(nav_btn(
                         icons::CHEVRON_RIGHT,

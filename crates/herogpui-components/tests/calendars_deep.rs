@@ -27,6 +27,7 @@ use harness::{click, events, open_host, press};
 use herogpui_components::{
     calendar::{Date, CALENDAR_WIDTH},
     Button, Calendar, CalendarState, DateConstraints, DateRangeState, RangeCalendar,
+    VisibleDuration,
 };
 
 /// Column *c*'s centre in a bare Calendar: seven cells across
@@ -251,8 +252,8 @@ fn calendar_enabled_nav_button_is_a_tab_stop(cx: &mut TestAppContext) {
 }
 
 /// Both chevrons are disabled by the August-only bounds. They must not remain
-/// in gpui's tab registry: after the grid, the next Tab reaches the following
-/// button rather than landing on a dead calendar control.
+/// in gpui's tab registry: after the grid and v3's year-picker trigger, the next
+/// Tab reaches the following button rather than landing on a dead chevron.
 #[gpui::test]
 fn calendar_disabled_nav_buttons_leave_the_tab_order(cx: &mut TestAppContext) {
     let presses = events();
@@ -278,8 +279,312 @@ fn calendar_disabled_nav_buttons_leave_the_tab_order(cx: &mut TestAppContext) {
 
     press(cx, "tab");
     press(cx, "tab");
+    press(cx, "tab");
     press(cx, "enter");
     assert_eq!(presses.borrow().as_slice(), ["after"]);
+}
+
+/// v3 overlays the year grid on the calendar and makes the month chevrons
+/// pointer-inert while it is open. The port previously left both chevrons live
+/// and repurposed them as twelve-year paging controls.
+#[gpui::test]
+fn calendar_year_picker_hides_month_navigation(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .default_year_picker_open(true)
+            .into_any_element()
+    });
+
+    click(cx, 14., 12.);
+    let previous = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month)
+    });
+    assert_eq!(previous, (2026, 8));
+
+    click(cx, 238., 12.);
+    let next = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month)
+    });
+    assert_eq!(next, (2026, 8));
+}
+
+/// The heading is a real button in v3. In the standalone month layout the tab
+/// order is grid, previous, heading; Enter opens it and transfers focus to the
+/// selected year without requiring another Tab.
+#[gpui::test]
+fn calendar_year_picker_trigger_opens_from_the_keyboard(cx: &mut TestAppContext) {
+    let open_changes = events();
+    let open_changes_for_view = open_changes.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let open_changes = open_changes_for_view.clone();
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .on_year_picker_open_change(move |open, _, _| {
+                open_changes.borrow_mut().push(open.to_string());
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    press(cx, "down");
+    press(cx, "enter");
+
+    let selected = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month, state.view_day)
+    });
+    assert_eq!(selected, (2029, 8, 15));
+    assert_eq!(open_changes.borrow().as_slice(), ["true", "false"]);
+}
+
+/// Opening the v3 year picker focuses the selected year. Its three-column
+/// keyboard delegate moves Down by three, and Enter selects that year and
+/// closes the uncontrolled picker.
+#[gpui::test]
+fn calendar_year_picker_keyboard_moves_selects_and_closes(cx: &mut TestAppContext) {
+    let open_changes = events();
+    let open_changes_for_view = open_changes.clone();
+    let focus_changes = events();
+    let focus_changes_for_view = focus_changes.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let open_changes = open_changes_for_view.clone();
+        let focus_changes = focus_changes_for_view.clone();
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .default_year_picker_open(true)
+            .on_year_picker_open_change(move |open, _, _| {
+                open_changes.borrow_mut().push(open.to_string());
+            })
+            .on_focus_change(move |date, _, _| {
+                focus_changes.borrow_mut().push(date.format_iso());
+            })
+            .into_any_element()
+    });
+
+    press(cx, "down");
+    press(cx, "enter");
+
+    let selected = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month, state.view_day)
+    });
+    assert_eq!(selected, (2029, 8, 15));
+    assert_eq!(focus_changes.borrow().as_slice(), ["2029-08-15"]);
+    assert_eq!(open_changes.borrow().as_slice(), ["false"]);
+}
+
+/// `visibleYears` is a YearPickerGrid prop in v3. Home and End operate on that
+/// bounded window, not on an invented decade page.
+#[gpui::test]
+fn calendar_year_picker_visible_years_respects_date_bounds(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .min_value(Date::new(2024, 1, 1))
+            .max_value(Date::new(2028, 12, 31))
+            .visible_years(3)
+            .default_year_picker_open(true)
+            .into_any_element()
+    });
+
+    press(cx, "home");
+    press(cx, "enter");
+    let selected = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month, state.view_day)
+    });
+    assert_eq!(selected, (2025, 8, 15));
+}
+
+/// Changing only the year must resolve the day against the destination month.
+/// February 29, 2028 becomes February 28 in 2027 rather than an invalid date.
+#[gpui::test]
+fn calendar_year_picker_clamps_leap_day(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2028, 2, 29))
+            .visible_years(5)
+            .default_year_picker_open(true)
+            .into_any_element()
+    });
+
+    press(cx, "left");
+    press(cx, "enter");
+    let selected = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month, state.view_day)
+    });
+    assert_eq!(selected, (2027, 2, 28));
+}
+
+/// Escape closes the uncontrolled picker and restores focus to its trigger.
+/// Enter reopens it, proving the open-session autofocus resets; a second Escape
+/// must restore the day-grid cell beneath it on the next frame.
+#[gpui::test]
+fn calendar_year_picker_escape_restores_the_day_grid(cx: &mut TestAppContext) {
+    let open_changes = events();
+    let open_changes_for_view = open_changes.clone();
+    let selections = events();
+    let selections_for_view = selections.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let open_changes = open_changes_for_view.clone();
+        let selections = selections_for_view.clone();
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .default_year_picker_open(true)
+            .on_year_picker_open_change(move |open, _, _| {
+                open_changes.borrow_mut().push(open.to_string());
+            })
+            .on_change(move |date, _, _| {
+                selections
+                    .borrow_mut()
+                    .push(date.map_or_else(|| "none".into(), |value| value.format_iso()));
+            })
+            .into_any_element()
+    });
+
+    press(cx, "escape");
+    press(cx, "enter");
+    press(cx, "right");
+    press(cx, "escape");
+    let (x, y) = cal_day(2026, 8, 16);
+    click(cx, x, y);
+    assert_eq!(open_changes.borrow().as_slice(), ["false", "true", "false"]);
+    assert_eq!(selections.borrow().as_slice(), ["2026-08-16"]);
+}
+
+/// RangeCalendar uses the same year-picker delegate and uncontrolled close
+/// state. Right advances one year without changing either selected range end.
+#[gpui::test]
+fn range_calendar_year_picker_keyboard_moves_and_closes(cx: &mut TestAppContext) {
+    let open_changes = events();
+    let open_changes_for_view = open_changes.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let open_changes = open_changes_for_view.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .default_value((Date::new(2026, 8, 15), Date::new(2026, 8, 16)))
+            .visible_years(5)
+            .default_year_picker_open(true)
+            .on_year_picker_open_change(move |open, _, _| {
+                open_changes.borrow_mut().push(open.to_string());
+            })
+            .into_any_element()
+    });
+
+    press(cx, "right");
+    press(cx, "enter");
+    let view = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (
+            state.view_year,
+            state.view_month,
+            state.view_day,
+            state.start,
+            state.end,
+        )
+    });
+    assert_eq!(
+        view,
+        (
+            2027,
+            8,
+            15,
+            Some(Date::new(2026, 8, 15)),
+            Some(Date::new(2026, 8, 16))
+        )
+    );
+    assert_eq!(open_changes.borrow().as_slice(), ["false"]);
+}
+
+/// In a multi-month Calendar, Escape restores focus to the heading that opened
+/// the year picker. Tab must therefore reach the following next-month button,
+/// not the other heading.
+#[gpui::test]
+fn calendar_year_picker_escape_returns_to_its_opening_heading(cx: &mut TestAppContext) {
+    let open_changes = events();
+    let open_changes_for_view = open_changes.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let open_changes = open_changes_for_view.clone();
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .visible_duration(VisibleDuration::Months(2))
+            .on_year_picker_open_change(move |open, _, _| {
+                open_changes.borrow_mut().push(open.to_string());
+            })
+            .into_any_element()
+    });
+
+    for _ in 0..4 {
+        press(cx, "tab");
+    }
+    press(cx, "enter");
+    press(cx, "escape");
+    press(cx, "tab");
+    press(cx, "enter");
+
+    let view = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month)
+    });
+    assert_eq!(view, (2026, 10));
+    assert_eq!(open_changes.borrow().as_slice(), ["true", "false"]);
+}
+
+/// Selecting a year has the same focus-restoration contract as Escape. This
+/// drives RangeCalendar's separate exit path from its second visible heading.
+#[gpui::test]
+fn range_calendar_year_selection_returns_to_its_opening_heading(cx: &mut TestAppContext) {
+    let open_changes = events();
+    let open_changes_for_view = open_changes.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let open_changes = open_changes_for_view.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .default_value((Date::new(2026, 8, 15), Date::new(2026, 8, 16)))
+            .visible_duration(VisibleDuration::Months(2))
+            .on_year_picker_open_change(move |open, _, _| {
+                open_changes.borrow_mut().push(open.to_string());
+            })
+            .into_any_element()
+    });
+
+    for _ in 0..4 {
+        press(cx, "tab");
+    }
+    press(cx, "enter");
+    press(cx, "enter");
+    press(cx, "tab");
+    press(cx, "enter");
+
+    let view = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month)
+    });
+    assert_eq!(view, (2026, 10));
+    assert_eq!(open_changes.borrow().as_slice(), ["true", "false"]);
 }
 
 /// `isDateUnavailable` blocks the date on both input paths without blocking
@@ -720,7 +1025,8 @@ fn calendar_multiple_selection_reports_the_full_date_set(cx: &mut TestAppContext
     let (day7_x, day7_y) = cal_day(2026, 8, 7);
     click(cx, day7_x, day7_y);
     cx.update(|window, _| window.refresh());
-    press(cx, "tab");
+    // A pressed cell keeps the grid's focus scope, so keyboard navigation
+    // continues from the pointer-selected day without another Tab.
     press(cx, "right");
     press(cx, "enter");
     assert_eq!(
