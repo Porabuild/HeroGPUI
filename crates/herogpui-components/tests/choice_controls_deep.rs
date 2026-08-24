@@ -122,6 +122,263 @@ fn switch_read_only_stays_focusable_but_ignores_space(cx: &mut TestAppContext) {
 // ---------------------------------------------------------------------------
 
 #[gpui::test]
+fn radio_indicator_receives_field_state_and_reacts_to_selection(cx: &mut TestAppContext) {
+    let states = events();
+    let recorded = states.clone();
+    let cx = open_host(cx, move || {
+        let states = states.clone();
+        RadioGroup::new(
+            "custom-radio-indicator",
+            vec![
+                RadioOption::new("Free plan").value("free"),
+                RadioOption::new("Pro plan").value("pro"),
+            ],
+        )
+        .default_value("free")
+        .is_required(true)
+        .error_message("Choose a plan")
+        .indicator(move |label, state| {
+            states.borrow_mut().push(format!(
+                "{label}:selected={}:invalid={}:required={}",
+                state.is_selected, state.is_invalid, state.is_required
+            ));
+            gpui::div().into_any_element()
+        })
+        .into_any_element()
+    });
+
+    assert!(recorded
+        .borrow()
+        .iter()
+        .any(|state| { state == "Free plan:selected=true:invalid=true:required=true" }));
+    assert!(recorded
+        .borrow()
+        .iter()
+        .any(|state| { state == "Pro plan:selected=false:invalid=true:required=true" }));
+
+    click(cx, 48., 46.);
+    flush_frame(cx);
+    assert!(recorded
+        .borrow()
+        .iter()
+        .any(|state| { state == "Pro plan:selected=true:invalid=true:required=true" }));
+}
+
+#[gpui::test]
+fn per_radio_field_error_is_outside_the_clickable_content(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        RadioGroup::new(
+            "radio-option-error",
+            vec![
+                RadioOption::new("Free plan")
+                    .value("free")
+                    .error_message("Unavailable in this region"),
+                RadioOption::new("Pro plan").value("pro"),
+            ],
+        )
+        .on_change(move |value, _, _| changes.borrow_mut().push(value.to_string()))
+        .into_any_element()
+    });
+
+    // The error is a sibling below Radio.Content and must not inherit its
+    // click listener.
+    click(cx, 80., 31.);
+    assert!(recorded.borrow().is_empty());
+
+    // Its 16px line plus the 4px radio gap moves the second option down.
+    click(cx, 48., 60.);
+    assert_eq!(recorded.borrow().as_slice(), ["pro"]);
+}
+
+#[gpui::test]
+fn invalid_radio_group_blocks_form_and_focuses_its_roving_stop(cx: &mut TestAppContext) {
+    let events = events();
+    let recorded = events.clone();
+    let cx = open_host(cx, move || {
+        let changes = events.clone();
+        let invalids = events.clone();
+        let submits = events.clone();
+        let group = RadioGroup::new(
+            "invalid-radio-form",
+            vec![
+                RadioOption::new("Free plan").value("free"),
+                RadioOption::new("Pro plan").value("pro"),
+            ],
+        )
+        .name("plan")
+        .error_message("Choose a plan")
+        .on_change(move |value, _, _| changes.borrow_mut().push(format!("change:{value}")));
+        let form = Form::new()
+            .field(group.form_field().expect("named radio field"))
+            .on_invalid(move |_, _, _| invalids.borrow_mut().push("invalid".to_owned()))
+            .on_submit(move |_, _, _| submits.borrow_mut().push("submit".to_owned()));
+        let submit = form.submit_handler();
+        form.child(group)
+            .child(
+                Button::new("invalid-radio-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "space");
+    press(cx, "space");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["invalid", "change:free"],
+        "native invalid submission must focus the group's current radio rather than submit"
+    );
+}
+
+#[gpui::test]
+fn disabled_radio_group_is_not_a_successful_form_control(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        let group = RadioGroup::new(
+            "disabled-radio-snapshot",
+            vec![RadioOption::new("Free plan").value("free")],
+        )
+        .name("plan")
+        .default_value("free")
+        .is_disabled(true);
+        let form = Form::new().field(group.form_field().expect("named radio field"));
+        assert!(
+            form.data(cx).get("plan").is_none(),
+            "disabled omission must be true before the first render as well as after it"
+        );
+    });
+
+    let submits = events();
+    let recorded = submits.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let group = RadioGroup::new(
+            "disabled-radio-form",
+            vec![RadioOption::new("Free plan").value("free")],
+        )
+        .name("plan")
+        .default_value("free")
+        .is_disabled(true);
+        let form = Form::new()
+            .field(group.form_field().expect("named radio field"))
+            .on_submit(move |data, _, _| {
+                submits.borrow_mut().push(
+                    data.text("plan")
+                        .map_or_else(|| "omitted".to_owned(), |value| value.to_string()),
+                );
+            });
+        let submit = form.submit_handler();
+        form.child(group)
+            .child(
+                Button::new("disabled-radio-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "space");
+    assert_eq!(recorded.borrow().as_slice(), ["omitted"]);
+}
+
+#[gpui::test]
+fn radio_group_reset_restores_the_uncontrolled_default(cx: &mut TestAppContext) {
+    let events = events();
+    let recorded = events.clone();
+    let cx = open_host(cx, move || {
+        let changes = events.clone();
+        let submits = events.clone();
+        let group = RadioGroup::new(
+            "reset-radio-form",
+            vec![
+                RadioOption::new("Free plan").value("free"),
+                RadioOption::new("Pro plan").value("pro"),
+            ],
+        )
+        .name("plan")
+        .default_value("free")
+        .on_change(move |value, _, _| changes.borrow_mut().push(format!("change:{value}")));
+        let form = Form::new()
+            .field(group.form_field().expect("named radio field"))
+            .on_submit(move |data, _, _| {
+                submits.borrow_mut().push(format!(
+                    "submit:{}",
+                    data.text("plan").expect("selected radio value")
+                ));
+            });
+        let reset = form.reset_handler();
+        let submit = form.submit_handler();
+        form.child(group)
+            .child(
+                Button::new("reset-radio-reset")
+                    .label("Reset")
+                    .on_press(move |_, window, cx| reset(window, cx)),
+            )
+            .child(
+                Button::new("reset-radio-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "tab");
+    press(cx, "space");
+    press(cx, "tab");
+    press(cx, "space");
+    assert_eq!(recorded.borrow().as_slice(), ["change:pro", "submit:free"]);
+}
+
+#[gpui::test]
+fn controlled_radio_reset_reports_the_default_to_its_owner(cx: &mut TestAppContext) {
+    let selected = Rc::new(RefCell::new(SharedString::from("pro")));
+    let changes = events();
+    let recorded = changes.clone();
+    let cx = open_host(cx, move || {
+        let group = RadioGroup::new(
+            "controlled-reset-radio",
+            vec![
+                RadioOption::new("Free plan").value("free"),
+                RadioOption::new("Pro plan").value("pro"),
+            ],
+        )
+        .name("plan")
+        .value(selected.borrow().as_ref())
+        .default_value("free")
+        .on_change({
+            let selected = selected.clone();
+            let changes = changes.clone();
+            move |value, _, _| {
+                *selected.borrow_mut() = value.clone();
+                changes.borrow_mut().push(format!("change:{value}"));
+            }
+        });
+        let form = Form::new().field(group.form_field().expect("named radio field"));
+        let reset = form.reset_handler();
+        form.child(group)
+            .child(
+                Button::new("controlled-reset-radio-button")
+                    .label("Reset")
+                    .on_press(move |_, window, cx| reset(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "space");
+    assert_eq!(recorded.borrow().as_slice(), ["change:free"]);
+}
+
+#[gpui::test]
 fn radio_group_read_only_arrows_move_focus_without_selecting(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();

@@ -6635,6 +6635,7 @@ impl Gallery {
 
     pub fn page_radio_group(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let selected = self.radio_sel;
+        let indicator_color = cx.role(Color::Accent).foreground;
         let options: Vec<h::RadioOption> = vec!["Free".into(), "Pro".into(), "Enterprise".into()];
         let selected_value = SharedString::from(match selected {
             Some(0) => "Free",
@@ -6689,14 +6690,26 @@ impl Gallery {
                 ),
                 (
                     "Validation",
-                    col(vec![h::RadioGroup::new("rg-validate", plans())
-                        .default_value("")
-                        .label("Plan")
-                        .is_required(true)
-                        // v3 composes a `<FieldError>` in the group; supplying
-                        // it is what marks the group invalid.
-                        .error_message("Choose a plan to continue")
-                        .into_any_element()]),
+                    col(vec![
+                        h::RadioGroup::new("rg-validate", plans())
+                            .default_value("")
+                            .label("Plan")
+                            .is_required(true)
+                            // v3 composes a `<FieldError>` in the group;
+                            // supplying it is what marks the group invalid.
+                            .error_message("Choose a plan to continue")
+                            .into_any_element(),
+                        h::RadioGroup::new(
+                            "rg-option-error",
+                            vec![
+                                h::RadioOption::new("Standard delivery"),
+                                h::RadioOption::new("Express delivery")
+                                    .error_message("Unavailable for this address"),
+                            ],
+                        )
+                        .label("Delivery speed")
+                        .into_any_element(),
+                    ]),
                 ),
                 (
                     "Delivery & Payment",
@@ -6725,12 +6738,23 @@ impl Gallery {
                     "Custom Indicator",
                     col(vec![
                         para(
-                            "v3 replaces `Radio.Indicator`. This port draws v3's own filled \
-                             square; the group below shows it selected in both variants.",
+                            "The checkmark replaces `Radio.Indicator` while the control, \
+                             selection and focus behavior stay owned by the radio.",
                             cx,
                         ),
                         h::RadioGroup::new("rg-indicator", plans())
                             .default_value("Enterprise")
+                            .indicator(move |_, state| {
+                                if state.is_selected {
+                                    gpui::svg()
+                                        .size(px(12.))
+                                        .path(h::icons::CHECK)
+                                        .text_color(indicator_color)
+                                        .into_any_element()
+                                } else {
+                                    gpui::div().into_any_element()
+                                }
+                            })
                             .into_any_element(),
                     ]),
                 ),

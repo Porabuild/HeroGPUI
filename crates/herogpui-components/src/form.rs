@@ -262,25 +262,6 @@ impl FormField {
         }
     }
 
-    /// A plain text value owned by a single-threaded rendered control.
-    pub(crate) fn live_text_value(
-        name: impl Into<SharedString>,
-        value: Rc<RefCell<SharedString>>,
-    ) -> Self {
-        Self {
-            name: Some(name.into()),
-            name_of: None,
-            read: Arc::new(move |_| FormValue::Text(value.borrow().clone())),
-            restore: None,
-            is_required: false,
-            validation_behavior: ValidationBehavior::Native,
-            behavior_of: None,
-            successful_of: None,
-            invalid_of: None,
-            focus: None,
-        }
-    }
-
     /// A live field owned by a single-threaded rendered control.
     pub(crate) fn live(
         name: impl Into<SharedString>,

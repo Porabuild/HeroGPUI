@@ -1283,6 +1283,10 @@ CHECKS = [
      r'`\.radio` is `flex flex-col gap-1` around its content and the[\s\S]{0,420}?'
      r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)',
      None),
+    ('radio', '.radio > [data-slot="description"]', 'ps',
+     'Radio description/error indent', SRC + 'radio_group.rs',
+     r'\.pl\(px\((\d+(?:\.\d*)?)\.\)\)\s*'
+     r'\.child\(crate::field::Description::new', None),
     ('separator', '.separator__container', 'gap', 'Separator container gap',
      SRC + 'separator.rs',
      r'`\.separator__container` is `flex items-center gap-3`[\s\S]{0,300}?'
@@ -1313,6 +1317,10 @@ THEME_FILES = (
 NESTED_SELECTOR_CHAINS = {
     ('checkbox', '.checkbox > [data-slot="description"]'): (
         '.checkbox',
+        '& > [data-slot="description"],\n  & > [data-slot="field-error"]',
+    ),
+    ('radio', '.radio > [data-slot="description"]'): (
+        '.radio',
         '& > [data-slot="description"],\n  & > [data-slot="field-error"]',
     ),
     ('slider', '[data-slot="label"]'): ('.slider', '[data-slot="label"]'),

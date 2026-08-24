@@ -4,8 +4,8 @@
 //! `isDisabled` on the *item*, not the swatch picker. This port is monolithic
 //! where v3 composes, so the part props project onto the root by index:
 //! `Slider::disabled_keys` / `ColorSwatchPicker::disabled_keys` name the
-//! immovable members (the same projection `RadioGroup::disabled_keys` gives
-//! `Radio.isDisabled`), and a range's two named inputs use the
+//! immovable members (Radio instead owns the flag on
+//! `RadioOption::is_disabled`), and a range's two named inputs use the
 //! `DateRangePicker` convention (`startName`/`endName`) read back by
 //! `form_fields`.
 //!

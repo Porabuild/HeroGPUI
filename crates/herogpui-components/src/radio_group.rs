@@ -12,6 +12,8 @@ pub struct RadioOption {
     label: SharedString,
     value: SharedString,
     is_disabled: bool,
+    description: Option<SharedString>,
+    error_message: Option<SharedString>,
 }
 
 impl RadioOption {
@@ -21,6 +23,8 @@ impl RadioOption {
             value: label.clone(),
             label,
             is_disabled: false,
+            description: None,
+            error_message: None,
         }
     }
 
@@ -33,6 +37,18 @@ impl RadioOption {
     /// `isDisabled` — disables this option only.
     pub fn is_disabled(mut self, value: bool) -> Self {
         self.is_disabled = value;
+        self
+    }
+
+    /// `Description` — help text below this option's clickable content.
+    pub fn description(mut self, text: impl Into<SharedString>) -> Self {
+        self.description = Some(text.into());
+        self
+    }
+
+    /// `FieldError` — validation text below this option's clickable content.
+    pub fn error_message(mut self, text: impl Into<SharedString>) -> Self {
+        self.error_message = Some(text.into());
         self
     }
 }
@@ -55,6 +71,16 @@ impl From<&str> for RadioOption {
     }
 }
 
+/// State handed to a custom `Radio.Indicator` renderer.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct RadioOptionState {
+    pub is_selected: bool,
+    pub is_disabled: bool,
+    pub is_read_only: bool,
+    pub is_invalid: bool,
+    pub is_required: bool,
+}
+
 /// HeroUI RadioGroup.
 #[derive(IntoElement)]
 pub struct RadioGroup {
@@ -63,12 +89,15 @@ pub struct RadioGroup {
     name: Option<SharedString>,
     id: gpui::ElementId,
     options: Vec<RadioOption>,
-    /// Mirrors the current selected value for a live [`crate::form::FormField`].
-    live_value: Rc<RefCell<SharedString>>,
+    /// Mirrors the current value, validity, successful state, focus and reset
+    /// behavior for a live [`crate::form::FormField`].
+    form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
     /// `Radio`'s `children`-as-a-function: handed the option and its state.
     option_content: Option<
         std::sync::Arc<dyn Fn(&SharedString, crate::util::InteractiveState) -> gpui::AnyElement>,
     >,
+    /// `Radio.Indicator` children — replaces the built-in dot per option.
+    indicator: Option<std::sync::Arc<dyn Fn(&SharedString, RadioOptionState) -> gpui::AnyElement>>,
     /// The `<Description>` v3 composes inside a `<Radio>`, per option and in the
     /// same order. `.radio` is `flex flex-col gap-1` around its content and this
     /// text, indented under the label by `ps-7`.
@@ -129,6 +158,15 @@ impl RadioGroup {
         self
     }
 
+    /// `Radio.Indicator` — draws each option's indicator from its field state.
+    pub fn indicator(
+        mut self,
+        render: impl Fn(&SharedString, RadioOptionState) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.indicator = Some(std::sync::Arc::new(render));
+        self
+    }
+
     /// The per-option descriptions, in the order the options were given. v3
     /// writes one `<Description>` inside each `<Radio>`; a monolithic group
     /// takes the column instead.
@@ -145,8 +183,15 @@ impl RadioGroup {
             name: None,
             id: id.into(),
             options,
-            live_value: Rc::new(RefCell::new(SharedString::default())),
+            form_state: Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+                value: crate::form::FormValue::Text(SharedString::default()),
+                is_invalid: false,
+                is_successful: true,
+                focus: None,
+                restore: None,
+            })),
             option_content: None,
+            indicator: None,
             descriptions: Vec::new(),
             label: None,
             description: None,
@@ -201,8 +246,29 @@ impl RadioGroup {
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
+        let selected = if self.is_controlled {
+            self.selected
+        } else {
+            self.default_value
+        };
+        {
+            let mut state = self.form_state.borrow_mut();
+            state.value = crate::form::FormValue::Text(
+                selected
+                    .and_then(|index| self.options.get(index))
+                    .map(|option| option.value.clone())
+                    .unwrap_or_default(),
+            );
+            state.is_invalid = self.is_invalid
+                || self.error_message.is_some()
+                || self
+                    .options
+                    .iter()
+                    .any(|option| option.error_message.is_some());
+            state.is_successful = !self.is_disabled;
+        }
         Some(
-            crate::form::FormField::live_text_value(name, self.live_value.clone())
+            crate::form::FormField::live(name, self.form_state.clone())
                 .is_required(self.is_required),
         )
     }
@@ -213,11 +279,12 @@ impl RadioGroup {
             .options
             .iter()
             .position(|option| option.value == value.as_ref());
-        *self.live_value.borrow_mut() = self
-            .selected
-            .and_then(|index| self.options.get(index))
-            .map(|option| option.value.clone())
-            .unwrap_or_default();
+        self.form_state.borrow_mut().value = crate::form::FormValue::Text(
+            self.selected
+                .and_then(|index| self.options.get(index))
+                .map(|option| option.value.clone())
+                .unwrap_or_default(),
+        );
         self.is_controlled = true;
         self
     }
@@ -232,11 +299,12 @@ impl RadioGroup {
             .iter()
             .position(|option| option.value == value.as_ref());
         if !self.is_controlled {
-            *self.live_value.borrow_mut() = self
-                .default_value
-                .and_then(|index| self.options.get(index))
-                .map(|option| option.value.clone())
-                .unwrap_or_default();
+            self.form_state.borrow_mut().value = crate::form::FormValue::Text(
+                self.default_value
+                    .and_then(|index| self.options.get(index))
+                    .map(|option| option.value.clone())
+                    .unwrap_or_default(),
+            );
         }
         self
     }
@@ -267,10 +335,47 @@ impl RenderOnce for RadioGroup {
             self.is_controlled.then_some(self.selected),
             self.default_value,
         );
-        *self.live_value.borrow_mut() = selected
+        let is_invalid = self.is_invalid
+            || self.error_message.is_some()
+            || self
+                .options
+                .iter()
+                .any(|option| option.error_message.is_some());
+        let selected_value = selected
             .and_then(|index| self.options.get(index))
             .map(|option| option.value.clone())
             .unwrap_or_default();
+        {
+            let mut state = self.form_state.borrow_mut();
+            state.value = crate::form::FormValue::Text(selected_value);
+            state.is_invalid = is_invalid;
+            state.is_successful = !self.is_disabled;
+        }
+
+        let reset_own = own.clone();
+        let reset_state = self.form_state.clone();
+        let reset_change = self.is_controlled.then(|| self.on_change.clone()).flatten();
+        let reset_index = self.default_value;
+        let reset_value = reset_index
+            .and_then(|index| self.options.get(index))
+            .map(|option| option.value.clone())
+            .unwrap_or_default();
+        self.form_state.borrow_mut().restore = (reset_own.is_some() || reset_change.is_some())
+            .then(|| {
+                crate::util::shared(move |window: &mut Window, cx: &mut App| {
+                    reset_state.borrow_mut().value =
+                        crate::form::FormValue::Text(reset_value.clone());
+                    if let Some(held) = &reset_own {
+                        held.update(cx, |selected, cx| {
+                            *selected = reset_index;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(on_change) = &reset_change {
+                        on_change(&reset_value, window, cx);
+                    }
+                }) as std::sync::Arc<dyn Fn(&mut Window, &mut App)>
+            });
 
         // *One* handle for the whole group, because a radio group is one tab
         // stop. Which row claims it is what moves: a roving tab stop cannot be
@@ -282,6 +387,7 @@ impl RenderOnce for RadioGroup {
             window,
             cx,
         );
+        self.form_state.borrow_mut().focus = Some(group_focus.clone());
 
         // A radio group is *one* tab stop: Tab moves past the whole group and
         // the arrows choose within it, which is the ARIA radio-group pattern
@@ -321,25 +427,20 @@ impl RenderOnce for RadioGroup {
             initial_focus_index
         };
 
-        // One hover/press slot per option, for an `option_content` closure. The
-        // slots exist only when the closure is set: `track_interaction`'s
-        // handlers cost a frame of state, and the press the v3 radio control
-        // animates is what the closure reads back.
-        let interaction: Vec<crate::util::Interaction> = if self.option_content.is_some() {
-            (0..self.options.len())
-                .map(|i| {
-                    crate::util::interaction(
-                        gpui::ElementId::Name(
-                            format!("{}-opt-{i}-interaction", element_id_name(&self.id)).into(),
-                        ),
-                        window,
-                        cx,
-                    )
-                })
-                .collect()
-        } else {
-            Vec::new()
-        };
+        // One hover/press slot per option. The row's press grows the selected
+        // indicator from 6px to 8px, and an `option_content` closure reads the
+        // same state rather than maintaining a second listener path.
+        let interaction: Vec<crate::util::Interaction> = (0..self.options.len())
+            .map(|i| {
+                crate::util::interaction(
+                    gpui::ElementId::Name(
+                        format!("{}-opt-{i}-interaction", element_id_name(&self.id)).into(),
+                    ),
+                    window,
+                    cx,
+                )
+            })
+            .collect();
 
         let sem = cx.role(Color::Accent);
         let colors = cx.colors();
@@ -377,6 +478,10 @@ impl RenderOnce for RadioGroup {
         for (i, option) in self.options.into_iter().enumerate() {
             let label = option.label;
             let value = option.value;
+            let description = option
+                .description
+                .or_else(|| self.descriptions.get(i).and_then(|text| text.clone()));
+            let error_message = option.error_message;
             let is_selected = selected == Some(i);
             // `Radio.isDisabled` — the option's own switch, beside the
             // group-wide `is_disabled`: dimmed (`status-disabled`'s opacity,
@@ -384,6 +489,17 @@ impl RenderOnce for RadioGroup {
             // affordance, no click handler and no place in the tab order or
             // the arrow navigation.
             let row_disabled = self.is_disabled || option.is_disabled;
+            let (_, is_pressed) = interaction
+                .get(i)
+                .map(|slot| *slot.read(cx))
+                .unwrap_or_default();
+            let option_state = RadioOptionState {
+                is_selected,
+                is_disabled: row_disabled,
+                is_read_only: self.is_read_only,
+                is_invalid,
+                is_required: self.is_required,
+            };
             // `.radio__control` has no border (`--field-border-width: 0`); it is
             // a filled square. Unselected it is `bg-field` plus `shadow-field`;
             // selected it fills with `bg-accent` and the indicator shrinks to a
@@ -401,10 +517,12 @@ impl RenderOnce for RadioGroup {
                 .bg(if is_selected { sem.color } else { control_bg })
                 .when_some(control_shadow.clone(), |el, shadows| el.shadow(shadows));
 
-            if is_selected {
+            if let Some(render) = &self.indicator {
+                circle_el = circle_el.child(render(&label, option_state));
+            } else if is_selected {
                 circle_el = circle_el.child(
                     gpui::div()
-                        .size(dot)
+                        .size(if is_pressed { px(8.) } else { dot })
                         .rounded(crate::util::key_radius(cx))
                         .bg(sem.foreground),
                 );
@@ -412,7 +530,7 @@ impl RenderOnce for RadioGroup {
             // `status-invalid-field` is a 1px danger outline over whatever the
             // control already paints — it does not replace the fill, and v3
             // applies it whether or not the option is selected.
-            if self.is_invalid {
+            if is_invalid {
                 circle_el = circle_el.border_1().border_color(colors.danger.color);
             }
 
@@ -470,6 +588,7 @@ impl RenderOnce for RadioGroup {
                 .items_center()
                 .gap(gap)
                 .text_size(text)
+                .font_weight(gpui::FontWeight::MEDIUM)
                 .text_color(colors.foreground)
                 .when(!row_disabled && !self.is_read_only, |r| r.cursor_pointer())
                 .when(row_disabled, |r| r.opacity(layout.disabled_opacity))
@@ -483,10 +602,6 @@ impl RenderOnce for RadioGroup {
                         // the render that draws it. v3's `RadioFieldRenderProps`
                         // list no `isHovered`, so the hover the slot also
                         // tracks is not handed over.
-                        let (_, is_pressed) = interaction
-                            .get(i)
-                            .map(|slot| *slot.read(cx))
-                            .unwrap_or_default();
                         render(
                             &label,
                             crate::util::InteractiveState {
@@ -502,8 +617,10 @@ impl RenderOnce for RadioGroup {
                     }
                     None => label.to_string().into_any_element(),
                 });
-            if let Some(slot) = interaction.get(i) {
-                row = crate::util::track_interaction(row, slot);
+            if !row_disabled && !self.is_read_only {
+                if let Some(slot) = interaction.get(i) {
+                    row = crate::util::track_interaction(row, slot);
+                }
             }
 
             if !row_disabled {
@@ -518,7 +635,7 @@ impl RenderOnce for RadioGroup {
                 let key_stops = stops.clone();
                 let key_cursor = cursor.clone();
                 let key_values = option_values.clone();
-                let key_live_value = self.live_value.clone();
+                let key_form_state = self.form_state.clone();
                 row = row.on_key_down(move |event, window, cx| {
                     let key = match event.keystroke.key.as_str() {
                         "down" | "right" => "down",
@@ -540,7 +657,8 @@ impl RenderOnce for RadioGroup {
                     });
                     if !read_only {
                         if let Some(held) = &key_own {
-                            *key_live_value.borrow_mut() = key_values[next].clone();
+                            key_form_state.borrow_mut().value =
+                                crate::form::FormValue::Text(key_values[next].clone());
                             held.update(cx, |v, cx| {
                                 *v = Some(next);
                                 cx.notify();
@@ -553,7 +671,7 @@ impl RenderOnce for RadioGroup {
                 });
                 let click_cursor = cursor.clone();
                 let click_focus = group_focus.clone();
-                let click_live_value = self.live_value.clone();
+                let click_form_state = self.form_state.clone();
                 row = row.on_click(move |_, window, cx| {
                     window.focus(&click_focus);
                     click_cursor.update(cx, |v, cx| {
@@ -564,7 +682,8 @@ impl RenderOnce for RadioGroup {
                         // Uncontrolled: move our own selection, or pressing a
                         // radio would do nothing.
                         if let Some(held) = &own {
-                            *click_live_value.borrow_mut() = value.clone();
+                            click_form_state.borrow_mut().value =
+                                crate::form::FormValue::Text(value.clone());
                             held.update(cx, |v, cx| {
                                 *v = Some(i);
                                 cx.notify();
@@ -580,17 +699,26 @@ impl RenderOnce for RadioGroup {
             // `.radio` is `flex flex-col gap-1` around its content and the
             // description, which `ps-7` indents under the label -- the control
             // plus the content gap.
-            match self.descriptions.get(i).and_then(|d| d.clone()) {
-                Some(text) => {
+            match (error_message, description) {
+                (Some(message), _) => {
                     group = group.child(
                         gpui::div().flex().flex_col().gap(px(4.)).child(row).child(
                             gpui::div()
-                                .pl(circle + gap)
+                                .pl(px(28.))
+                                .child(crate::field::ErrorMessage::new(message)),
+                        ),
+                    );
+                }
+                (None, Some(text)) => {
+                    group = group.child(
+                        gpui::div().flex().flex_col().gap(px(4.)).child(row).child(
+                            gpui::div()
+                                .pl(px(28.))
                                 .child(crate::field::Description::new(text)),
                         ),
                     );
                 }
-                None => group = group.child(row),
+                (None, None) => group = group.child(row),
             }
         }
 
@@ -598,7 +726,6 @@ impl RenderOnce for RadioGroup {
         // description and error are its siblings. v3 marks `isRequired` on the
         // Label rather than adding a line of its own, which is what
         // `field::Label` draws.
-        let is_invalid = self.is_invalid || self.error_message.is_some();
         let mut root = gpui::div().flex().flex_col().gap(px(4.));
         if let Some(label) = &self.label {
             root = root.child(
