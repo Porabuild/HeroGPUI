@@ -47,6 +47,44 @@ for comp in FILES:
             if re.search(r'[一-鿿]', desc):
                 continue
             where.setdefault(prop, {}).setdefault(comp, (heading, desc))
+        # The `Component | Prop | ...` shape: the row's first cell names the
+        # part that owns it and the prop is column two -- `### Year Picker
+        # Parts` documents `Calendar.YearPickerGrid` and
+        # `Calendar.YearPickerTriggerHeading` that way. The pass above cannot
+        # see it, because it demands a backticked simple word in the first
+        # cell and the owner carries a dot. The guard here is
+        # `api_audit.prop_rows_owned`'s, imported rather than restated so the
+        # two readers cannot drift apart: first header exactly `Component`,
+        # second header a prop indicator, and a backticked owner and a
+        # backticked prop in the body's first two cells. A table of values
+        # cannot pass it -- `Modifier Keys | Special Keys` names neither
+        # header, `Component | Description` (the composition-parts listing)
+        # fails the second, and even a hypothetical `Component | Value` table
+        # has no backticked word in column two to extract -- so reading it
+        # never invents the props `prop_rows` learnt to leave alone. The
+        # owner determines the component: `Calendar.YearPickerGrid` belongs to
+        # `Calendar`, and a row for a part of another component stays with
+        # that component.
+        for tbl in re.finditer(A.TABLE_RE, chunk, re.M):
+            cells = tbl.group('head').split('|')
+            if len(cells) < 2:
+                continue
+            first = cells[0].strip().strip('`').lower()
+            if first != 'component':
+                continue
+            second = cells[1].strip().strip('`').lower()
+            if second not in A.PROP_HEADERS:
+                continue
+            for row in re.finditer(
+                    r'^\|\s*`([A-Za-z][A-Za-z0-9.]*)`\s*\|\s*`([a-zA-Z-]+)`\s*\|([^\n]*)$',
+                    tbl.group('body'), re.M):
+                prop = row.group(2)
+                desc = re.sub(r'\s+', ' ', row.group(3)).strip()
+                # Skip the translated duplicates.
+                if re.search(r'[一-鿿]', desc):
+                    continue
+                where.setdefault(prop, {}).setdefault(
+                    row.group(1).split('.')[0], (heading, desc))
 
 by_reason = {}
 for key, reason in WONT.items():

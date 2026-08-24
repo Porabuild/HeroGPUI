@@ -66,8 +66,9 @@ def activation_claims():
 # v3 claims each by saying it inherits from the React Aria component, and the
 # pattern is that component's documented keyboard -- a radio group selects with
 # the arrows, a tab list moves with them, a toolbar walks its controls, a tag
-# group walks its tags and removes with Delete.
-ARROW_NAV = ('RadioGroup', 'Tabs', 'Toolbar', 'TagGroup')
+# group walks its tags and removes with Delete, and a swatch picker roves its
+# focus with the arrows while Enter is the press that selects.
+ARROW_NAV = ('RadioGroup', 'Tabs', 'Toolbar', 'TagGroup', 'ColorSwatchPicker')
 REMOVE_KEY = ('TagGroup',)
 
 # Every popover-like surface closes on Escape and on a press outside it. v3's
@@ -200,13 +201,15 @@ EVIDENCE = {
     # `ClickEvent::Keyboard` -- so the evidence is the focus handle, which is
     # what the element was missing. Binding the handler again fires it twice.
     # The ARIA patterns these primitives name: a radio group, a tab list, a
-    # toolbar and a tag group are each *one* tab stop, with the arrows moving
-    # inside. That is behaviour v3 claims by inheriting them, and it is why
-    # `list_nav` is shared as widely as it is.
+    # toolbar, a tag group and a swatch picker are each *one* tab stop, with
+    # the arrows moving inside (the picker's rove is focus-only; Enter or
+    # Space is the press that selects). That is behaviour v3 claims by
+    # inheriting them, and it is why `list_nav` is shared as widely as it is.
     ('RadioGroup', 'arrow-nav'): ('radio_group.rs', r'list_nav::resolve'),
     ('Tabs', 'arrow-nav'): ('tabs.rs', r'list_nav::resolve'),
     ('Toolbar', 'arrow-nav'): ('toolbar.rs', r'focus_next'),
     ('TagGroup', 'arrow-nav'): ('tag_group.rs', r'list_nav::resolve'),
+    ('ColorSwatchPicker', 'arrow-nav'): ('color_picker.rs', r'list_nav::resolve'),
     ('TagGroup', 'remove-key'): ('tag_group.rs', r'"delete" \| "backspace"'),
     # Dismissal: the panel reads the press, and Escape reads wherever the focus
     # is -- on the panel when it holds it, on the component root otherwise (a

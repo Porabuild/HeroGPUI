@@ -216,6 +216,11 @@ EXTRA_OK_SCOPED = {
     # takes a `TableRow` rather than a cell vector, so a row can carry them.
     'Table.tree_column': 'composition',
     'Table.tree_row': 'composition',
+    # v3 documents `scrollOffset` on the composed `Table.LoadMore` part -- its
+    # own Async Loading example writes `<Table.LoadMore ... scrollOffset={0}
+    # ...>`, and React Aria's `LoadMoreSentinelProps` defaults it to one
+    # viewport. The monolithic Table projects that part's prop onto itself.
+    'Table.scroll_offset': 'composition',
     'Select.indicator': 'composition',
     'Select.value_content': 'composition',
     'Autocomplete.value_content': 'composition',

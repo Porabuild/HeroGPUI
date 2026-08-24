@@ -68,6 +68,17 @@ ALIAS = {
     # documented value type rather than only matching the prop name.
     'Calendar.value': 'values', 'Calendar.defaultValue': 'default_values',
     'Calendar.onChange': 'on_change_all',
+    # `Calendar.Cell Render Props` documents `isDisabled` ("whether the cell is
+    # disabled") as a value handed *into* the cell render function, and
+    # `CalendarCellState::is_disabled` (same for `RangeCalendarCellState`) is
+    # exactly that: the port computes the per-day state in order to draw the
+    # cell dimmed, and hands it over to the `cell` closure. The root's
+    # `is_disabled` disables the whole calendar, which is a different prop, so
+    # the part-scoped key is what keeps the two rows apart -- the root table
+    # also documents `isDisabled`, and a bare `Calendar.isDisabled` alias would
+    # answer for both.
+    'Calendar.Cell.isDisabled': 'cell',
+    'RangeCalendar.Cell.isDisabled': 'cell',
     # `ColorSlider.Output`'s render function is handed the `color`.
     'ColorSlider.color': 'output',
     # `ProgressBar.ValueLabel` (and the Meter's and the circle's) is a render
@@ -113,6 +124,10 @@ ALIAS = {
     # v3 documents the plain attribute spellings alongside the is* ones.
     'disabled': 'is_disabled', 'readOnly': 'is_read_only', 'required': 'is_required',
     'inputValue': 'input_value', 'shouldFlip': 'should_flip',
+    # Avatar.Image's error callback and Avatar.Fallback's show-delay, ported
+    # with a custom image loader that observes the load.
+    'Avatar.onError': 'on_error',
+    'Avatar.delayMs': 'delay_ms',
     'onLoadMore': 'on_load_more', 'isLoading': 'is_pending',
     'sortDescriptor': 'sort_descriptor', 'allowsSorting': 'allows_sorting',
     'isRowHeader': 'is_row_header', 'showIndicator': 'show_indicator',
@@ -126,10 +141,46 @@ ALIAS = {
     'Dropdown.variant': 'danger',
     # Pagination.Link's press handler is the group's page-change callback.
     'Pagination.onPress': 'on_change',
+    # `Pagination.Link.isDisabled` (and the `Previous / Next` halves of it)
+    # is per-link; the port's expression of that is the keyed set
+    # `disabled_keys`, the same shape `Accordion.Item.isDisabled` already
+    # takes: keys 1..total disable the page links, `0` Previous and
+    # `total + 1` Next. The root `is_disabled` disables the whole bar, which
+    # is a different prop, so only the part-scoped key answers the row.
+    'Pagination.Link.isDisabled': 'disabled_keys',
+    # `Slider.Thumb.isDisabled` and `Slider.Thumb.name` are per-thumb: one
+    # thumb of a range stays put while the others move, and `name` is the
+    # name of one thumb's `<input>`. The root's `is_disabled`/`name` -- the
+    # whole slider, and its single-name+value submission -- are different
+    # props, so the same-named root builders cannot answer either row. The
+    # port is monolithic where v3 composes, so both project onto the root by
+    # thumb index, the addressing `Slider::values` uses: `disabled_keys`
+    # names the immovable thumbs (the pointer's nearest-thumb choice skips
+    # them, the arrows and the slider's own Tab cycle skip them, they leave
+    # the tab order, and their field is not submitted), and the per-thumb
+    # input names are the range's named ends -- `start_name`/`end_name`,
+    # the `DateRangePicker` convention, read back by `form_fields` -- with
+    # `name` covering the single-thumb form. Anchored at `disabled_keys` and
+    # `start_name`, the setters a caller actually uses.
+    'Slider.Thumb.isDisabled': 'disabled_keys',
+    'Slider.Thumb.name': 'start_name',
     # Accordion.Trigger's extra press handler, and Accordion.Item's controlled
     # expansion, are expressed on the group.
     'Accordion.onPress': 'on_toggle',
     'Accordion.isExpanded': 'expanded_keys',
+    # Accordion.Item's per-item state is expressed on the group, each under a
+    # name that names the group-level facility: `disabled_keys` (the render
+    # disables an item whose key is in the set), `default_expanded` (the
+    # source documents it as "`defaultExpanded` on a single item"), and
+    # `on_toggle`, which reports the key of the item that moved -- the
+    # per-item half of `onExpandedChange`, whose group half reports the whole
+    # set (`Accordion.onExpandedChange`). `isDisabled` on the Trigger is the
+    # item's disabled state: v3's trigger is the item's header, and the port
+    # draws both from the item.
+    'Accordion.Item.isDisabled': 'disabled_keys',
+    'Accordion.Trigger.isDisabled': 'disabled_keys',
+    'Accordion.Item.defaultExpanded': 'default_expanded',
+    'Accordion.Item.onExpandedChange': 'on_toggle',
     # Autocomplete.ClearButton's click handler.
     'Autocomplete.onClick': 'on_clear',
     'ColorSwatchPicker.variant': 'shape',
@@ -177,7 +228,7 @@ ALIAS = {
 # Props with no meaningful gpui analogue at all.
 SKIP = {
     'className', 'children', 'render', 'style', 'nativeProps', 'id', 'slot', 'ref',
-    'asChild', 'key', 'queue', 'srcSet', 'sizes', 'alt', 'onLoad', 'onError',
+    'asChild', 'key', 'queue', 'srcSet', 'sizes', 'alt',
     'aria-label', 'aria-labelledby', 'aria-describedby', 'aria-details', 'textValue',
     'containerClassName',
 }
@@ -259,6 +310,15 @@ WONT_PORT = {
     # CLDR data; a partial table would be worse than not offering the prop.
     # `formatOptions` itself is implemented -- see `core/src/format.rs`.
     'locale': 'no-intl',
+    # The year-picker heading `format` is `DateFormatterOptions`, i.e.
+    # `Intl.DateTimeFormatOptions`. Its two rows document `{month: 'short'}`
+    # and `{year: 'numeric'}`, but the type also carries `era`, a `calendar`
+    # identifier and the state's timeZone, and honoring those needs the same
+    # locale-aware `Intl` data as `locale` above -- CLDR data this port does
+    # not carry. It can emit a fixed ISO date (`Date::format_iso`) but not
+    # honor the options object.
+    'Calendar.format': 'no-intl',
+    'RangeCalendar.format': 'no-intl',
     # There is no browser to navigate or post to. `action` is the exception:
     # v3's type is `string | FormHTMLAttributes['action']`, and the function half
     # of that union -- the one handed the form data -- is `on_submit`, so it is
@@ -306,9 +366,13 @@ WONT_PORT = {
     # Browser image-loading attributes with no gpui analogue.
     'Avatar.crossOrigin': 'no-browser-image-attrs',
     'Avatar.loading': 'no-browser-image-attrs',
-    # gpui's img() reports no load or error events, so a fallback delay has
-    # nothing to key off.
-    'Avatar.delayMs': 'no-image-load-events',
+    # The success half of the image-events pair. The custom loader this port
+    # uses can observe a successful load, but the port wires only the failure
+    # side (`on_error`) and the fallback -- the parts v3's own examples drive
+    # (`delayMs` on a deliberately broken URL); the failure reason was
+    # recorded as `no-image-load-events` for `delayMs` before either half
+    # existed.
+    'Avatar.onLoad': 'no-image-load-events',
 
     # gpui gives a RenderOnce element no scroll offset, so there is nothing
     # truthful to report.
@@ -337,13 +401,21 @@ COMPANIONS = {
     'NumberField': ['NumberState'],
     'InputOTP': ['OtpState'],
     'Table': ['TableRow', 'TableColumn'],
-    'Tabs': ['Tab'],
+    # The v3 part is `Tabs.Tab`; the struct is `TabItem`. The old entry named
+    # a `Tab` no source file defines, and a companion that does not exist
+    # contributes an empty method set -- exactly how `Radio.isDisabled` hid
+    # behind a phantom `RadioOption`, and how `Tabs.Tab.isDisabled` hid
+    # behind the whole-list `Tabs::is_disabled`.
+    'Tabs': ['TabItem'],
     'ToggleButtonGroup': ['ToggleButton'],
     'Calendar': ['CalendarState'],
     'RangeCalendar': ['DateRangeState'],
     'DatePicker': ['CalendarState'],
     'DateRangePicker': ['DateRangeState'],
-    'Select': ['SelectOption'],
+    # `SelectOption` was another phantom: select.rs defines only `Select`, and
+    # its options are plain `SharedString`s, so there is no per-option struct
+    # whose builders could implement a row. (Select.Popover is the only part
+    # table with props, and `placement` lives on `Select` itself.)
     'Switch': ['SwitchGroup'],
     # `useFilter` is a hook, so its options and its three returned matchers are
     # one value here: `Filter::new(sensitivity).contains(..)`.
@@ -357,6 +429,101 @@ COMPANIONS = {
     'InputGroup': ['Input', 'TextArea'],
     'TagGroup': ['Tag'],
     'ColorSwatchPicker': ['ColorSwatch'],
+}
+
+# Which structs answer for each `### Comp.Part` table. A prop documented on a
+# part belongs to that part: it must be satisfiable by a builder on one of the
+# listed structs, and *never* by a same-named builder on the component root --
+# `Tabs::is_disabled` disables the whole list, `Tabs.Tab.isDisabled` disables
+# one tab, and only `TabItem` can answer for it. The parts with no entry here
+# hold only `className`/`children`-shaped rows, which `SKIP` already covers.
+# A part table with real props and no entry is reported rather than folded
+# into the root's set, because that silent fallback is the hole this table
+# closes.
+#
+# The two empty entries are no-owners answered by the part-scoped ALIAS rows
+# above rather than by a struct. `Slider.Thumb`'s `isDisabled` and `name` are
+# per-thumb: the port projects them onto the root by thumb index --
+# `disabled_keys` (the immovable thumbs), and the range's named ends
+# `start_name`/`end_name`, with `name` for the single-thumb form -- while the
+# root's `is_disabled`/`name` cover the whole slider, so a same-named root
+# builder must not answer them and no per-thumb struct exists. The same goes
+# for `Pagination.Link` and `Pagination.Previous / Pagination.Next`:
+# `isDisabled` there is per-link/per-button, expressed as the keyed set
+# `disabled_keys`, while the root flag disables the whole bar.
+#
+# The key matches the v3 heading (`Comp.Part`), with the ` Render Props`
+# suffix dropped: the heading `### Calendar.Cell Render Props` is the part
+# `Calendar.Cell`.
+PART_STRUCTS = {
+    'Accordion.Item': ['AccordionItem'],
+    'Accordion.Trigger': ['AccordionItem'],
+    'AlertDialog.Backdrop': ['AlertDialog'],
+    'AlertDialog.Container': ['AlertDialog'],
+    'AlertDialog.Dialog': ['AlertDialog'],
+    'AlertDialog.Icon': ['AlertDialog'],
+    'Autocomplete.ClearButton': ['Autocomplete'],
+    'Autocomplete.Filter': ['Autocomplete'],
+    'Autocomplete.Popover': ['Autocomplete'],
+    'Avatar.Fallback': ['Avatar'],
+    'Avatar.Image': ['Avatar'],
+    'Breadcrumbs.Item': ['Crumb'],
+    'Calendar.Cell': ['Calendar'],
+    # The Year Picker parts are drawn by the monolithic calendar, and the root
+    # builders that answer them can only mean the part's prop: `visible_years`
+    # is the year-picker grid's window size and nothing else, so the part rows
+    # `### Year Picker Parts` documents resolve against the root struct -- the
+    # same composition projection `Table.LoadMore` uses above.
+    'Calendar.YearPickerGrid': ['Calendar'],
+    'Calendar.YearPickerTriggerHeading': ['Calendar'],
+    'ColorField.Group': ['ColorField'],
+    'ColorField.Input': ['ColorField'],
+    'ColorPicker.Popover': ['ColorPicker'],
+    'ColorSwatchPicker.Item': ['ColorSwatch'],
+    'ComboBox.Popover': ['ComboBox'],
+    'ComboBox.Value': ['ComboBox'],
+    'DateField.Group': ['DateField'],
+    'DateField.Input': ['DateField'],
+    'DateField.Segment': ['DateField'],
+    'Drawer.Backdrop': ['Drawer'],
+    'Drawer.Content': ['Drawer'],
+    'Drawer.Dialog': ['Drawer'],
+    'Dropdown.Item': ['MenuItem'],
+    'Dropdown.ItemIndicator': ['Menu'],
+    'Dropdown.Menu': ['Menu'],
+    'Dropdown.Popover': ['Dropdown'],
+    'Dropdown.Section': ['Menu'],
+    'InputOTP.Slot': ['InputOTP'],
+    'Kbd.Abbr': ['Kbd'],
+    'ListBox.Item': ['ListBoxItem'],
+    'Modal.Backdrop': ['Modal'],
+    'Modal.Container': ['Modal'],
+    'Modal.Dialog': ['Modal'],
+    'Pagination.Link': [],
+    'Pagination.Previous / Pagination.Next': [],
+    'Popover.Content': ['Popover'],
+    'RangeCalendar.Cell': ['RangeCalendar'],
+    # The RangeCalendar halves of the same year-picker parts: drawn by the
+    # monolithic root, whose builders can only be the parts' props.
+    'RangeCalendar.YearPickerGrid': ['RangeCalendar'],
+    'RangeCalendar.YearPickerTriggerHeading': ['RangeCalendar'],
+    'Select.Popover': ['Select'],
+    'Slider.Thumb': [],
+    'Table.Body': ['Table'],
+    'Table.Collection': ['Table'],
+    'Table.Column': ['TableColumn'],
+    'Table.Content': ['Table'],
+    'Table.Header': ['Table'],
+    'Table.LoadMore': ['Table'],
+    'Table.SortableColumnHeader': ['Table'],
+    'Tabs.Tab': ['TabItem'],
+    'TagGroup.List': ['TagGroup'],
+    'TimeField.Group': ['TimeField'],
+    'TimeField.Input': ['TimeField'],
+    'TimeField.Segment': ['TimeField'],
+    'Toast.Indicator': ['Toast'],
+    'Toast.Provider': ['ToastViewport'],
+    'Tooltip.Content': ['Tooltip'],
 }
 
 FILES = {
@@ -425,7 +592,21 @@ for path in glob.glob(SRC + '*.rs'):
                 name = param.split(':')[0].strip().lstrip('&').strip()
                 if re.fullmatch(r'[a-z_][a-z_0-9]*', name or ''):
                     constructor_args.setdefault(struct_name, set()).add(name)
-
+# Every struct a table names must be one the sources define. A phantom
+# companion contributes an empty method set, so the rows it answers for can
+# never fail: `Radio.isDisabled` hid behind a nonexistent `RadioOption`, and
+# `Tabs.Tab.isDisabled` hid behind the whole-list `Tabs::is_disabled` once the
+# real struct had been misspelled `Tab`. Fail loudly rather than audit a name
+# that is not there.
+_phantom = sorted(({
+    s for v in COMPANIONS.values() for s in v
+} | {
+    s for v in PART_STRUCTS.values() for s in v
+}) - set(impl_methods))
+if _phantom:
+    raise SystemExit(
+        'PHANTOM STRUCT IN COMPANIONS/PART_STRUCTS: %s -- every name must '
+        'resolve to a real struct' % ', '.join(_phantom))
 
 API_SECTIONS = None
 
@@ -473,11 +654,78 @@ def props_for(component):
     return prop_rows(owners[0])
 
 
+def props_for_state(component):
+    """`(root props, {part: props})` for `component`, attributed per heading.
+
+    `props_for` reads the whole `## API Reference` section and folds every
+    table into one set, which is what other audits want. This splits the same
+    section per `###` heading so a row documented on `### Comp.Part` can be
+    answered by the *part's* structs and not by a same-named builder on the
+    root. The union of the two halves is exactly `props_for`'s set, and the
+    section matching is the same assertion (`Comp` or `Comp.Part` resolved to
+    exactly one section).
+
+    A heading that is neither the component nor one of its parts (`ListLayout`,
+    `SwitchGroup`, `Composition Components`, `ToastQueue`, `toast Function`,
+    `useFilter Hook`) carries the parts v3 composes, and folds into the root
+    half -- `PART_STRUCTS` only governs tables named `Comp.Part`, which is the
+    boundary the hole lived on.
+    """
+    anchor = r'^[ 	]*### %s(?:\.[A-Za-z]+)?[ 	]*$' % re.escape(component)
+    owners = [s for s in api_sections() if re.search(anchor, s, re.M)]
+    if len(owners) != 1:
+        print('API SECTION AMBIGUOUS: %s matched %d sections' % (component, len(owners)))
+        return None
+    root = set()
+    parts = {}
+    heads = [(m.end(), m.group(1).strip())
+             for m in re.finditer(r'^[ 	]*### (.+?)[ 	]*$', owners[0], re.M)]
+    for i, (at, heading) in enumerate(heads):
+        body = owners[0][at:heads[i + 1][0]] if i + 1 < len(heads) else owners[0][at:]
+        chunk_props = prop_rows(body)
+        if heading == component:
+            root |= chunk_props
+        elif heading.startswith(component + '.'):
+            part = heading[len(component) + 1:]
+            # `### Calendar.Cell Render Props` is the `Calendar.Cell` part; the
+            # trailing words describe the table's kind, not the part.
+            if part.endswith(' Render Props'):
+                part = part[:-len(' Render Props')]
+            parts.setdefault(part, set()).update(chunk_props)
+        else:
+            root |= chunk_props
+        # A `Component | Prop | ...` table names its owner per row, so its
+        # rows carry an ownership the heading cannot: `### Year Picker Parts`
+        # is not a `Comp.Part` heading, and the table attributes `visibleYears`
+        # to `Calendar.YearPickerGrid`, `format`/`offset` to
+        # `Calendar.YearPickerTriggerHeading`. The owner is authoritative
+        # regardless of which heading hosts the table. A part named in one of
+        # these tables and missing from `PART_STRUCTS` hits the same unowned
+        # check below as a `###` part table would.
+        for owner, owned in prop_rows_owned(body).items():
+            if owner == component:
+                root |= owned
+            elif owner.startswith(component + '.'):
+                parts.setdefault(owner[len(component) + 1:], set()).update(owned)
+            else:
+                parts.setdefault(owner, set()).update(owned)
+    # A part table with real props and no PART_STRUCTS entry would silently
+    # fall back to the root's set, which is the hole this fixes -- report it
+    # rather than let a future part table launder again.
+    for part in sorted(parts):
+        if parts[part] - SKIP and '%s.%s' % (component, part) not in PART_STRUCTS:
+            print('PART TABLE UNOWNED: %s.%s -- add a PART_STRUCTS entry'
+                  % (component, part))
+    return root, parts
+
+
 # The first header cell of a v3 prop table. Anything else is a table of
 # *values*: `### Kbd.Content Type` lists the key names `keyValue` accepts under
 # `| Modifier Keys | Special Keys | ...`, and reading its first column reported
 # `command`, `ctrl`, `option`, `shift` and `win` as five missing Kbd props.
 PROP_HEADERS = ('prop', 'name', 'option', 'function', 'method', 'prop name', 'event')
+
+TABLE_RE = r'^\|(?P<head>.+)\|[ \t]*\n\|[ \t:|-]+\|[ \t]*\n(?P<body>(?:\|.*\n?)*)'
 
 
 def prop_rows(text):
@@ -486,16 +734,68 @@ def prop_rows(text):
     A markdown table is header row, divider row, then body; splitting on the
     divider is what tells the two apart, and the header is what says whether the
     first column holds prop names at all.
+
+    One deliberate second shape: v3's `Year Picker Parts` tables put the part
+    that owns a row in the first column and the prop in the second:
+
+        | Component | Prop | Type | Default | Description |
+        | `Calendar.YearPickerGrid` | `visibleYears` | number | ... |
+
+    The first cell is `Component` -- not in `PROP_HEADERS` -- so the old rule
+    silently passed the table over: `visibleYears` and friends were documented
+    props that never showed up. The header says which is which, so the rule
+    for this shape is one more line on the same reading: the first header is
+    exactly `Component` *and* the second header is a prop indicator, and then
+    the prop is column two. A table of values cannot pass -- `Modifier Keys |
+    Special Keys` names neither header, `Component | Description` (the
+    composition-parts listing) fails the second, and even a hypothetical
+    `Component | Value` table has no backticked word in column two to extract.
     """
     found = set()
-    for tbl in re.finditer(
-            r'^\|(?P<head>.+)\|[ \t]*\n\|[ \t:|-]+\|[ \t]*\n(?P<body>(?:\|.*\n?)*)',
-            text, re.M):
-        first = tbl.group('head').split('|')[0].strip().strip('`').lower()
-        if first not in PROP_HEADERS:
+    for tbl in re.finditer(TABLE_RE, text, re.M):
+        cells = tbl.group('head').split('|')
+        first = cells[0].strip().strip('`').lower()
+        if first in PROP_HEADERS:
+            found |= set(re.findall(
+                r'^\|\s*`([a-zA-Z-]+)`\s*\|', tbl.group('body'), re.M))
             continue
-        found |= set(re.findall(r'^\|\s*`([a-zA-Z-]+)`\s*\|', tbl.group('body'), re.M))
+        # The `Component | Prop | ...` shape: per-row part ownership.
+        if len(cells) > 1 and first == 'component':
+            second = cells[1].strip().strip('`').lower()
+            if second in PROP_HEADERS:
+                found |= set(re.findall(
+                    r'^\|\s*`[A-Za-z][A-Za-z0-9.]*`\s*\|\s*`([a-zA-Z-]+)`\s*\|',
+                    tbl.group('body'), re.M))
     return found
+
+
+def prop_rows_owned(text):
+    """The `Component | Prop | ...` tables of `text`, split per owning part.
+
+    Returns `{owner: props}` where `owner` is the part the row's first column
+    names (`Calendar.YearPickerGrid`), so the row can be attributed to that
+    part rather than to whatever heading happens to host the table. The
+    condition is the one `prop_rows` guards with: first header exactly
+    `Component`, second header a prop indicator, and a backticked owner and
+    prop in the body's first two cells.
+    """
+    owned = {}
+    for tbl in re.finditer(TABLE_RE, text, re.M):
+        cells = tbl.group('head').split('|')
+        if len(cells) < 2:
+            continue
+        first = cells[0].strip().strip('`').lower()
+        if first != 'component':
+            continue
+        second = cells[1].strip().strip('`').lower()
+        if second not in PROP_HEADERS:
+            continue
+        for m in re.finditer(
+                r'^\|\s*`([A-Za-z][A-Za-z0-9.]*)`\s*\|\s*`([a-zA-Z-]+)`\s*\|',
+                tbl.group('body'), re.M):
+            owner, prop = m.group(1), m.group(2)
+            owned.setdefault(owner, set()).add(prop)
+    return owned
 
 
 def main():
@@ -520,7 +820,13 @@ def main():
         for part in COMPANIONS.get(comp, ()):
             have |= impl_methods.get(part, set())
             have |= constructor_args.get(part, set())
-        props = props_for(comp)
+        state = props_for_state(comp)
+        if state is None:
+            continue
+        root_doc, part_docs = state
+        props = set(root_doc)
+        for chunk in part_docs.values():
+            props |= chunk
         if not props:
             continue
         missing = []
@@ -528,16 +834,55 @@ def main():
             if p in SKIP:
                 continue
             documented += 1
-            # A scoped alias (`Component.prop`) wins over the global one, so a
-            # name that means different things in different components can be
-            # mapped per component.
-            rust = ALIAS.get('%s.%s' % (comp, p)) or ALIAS.get(
-                p, re.sub(r'(?<!^)(?=[A-Z])', '_', p).lower())
-            if rust in have or p.lower() in have:
+            # A prop documented on a `### Comp.Part` table belongs to that part:
+            # it has to be a builder on the part's own struct (PART_STRUCTS),
+            # never a same-named builder on the root. `Tabs::is_disabled`
+            # disables the whole list; only `TabItem` can answer
+            # `Tabs.Tab.isDisabled`. Two recorded exceptions exist:
+            #
+            # * a **part-scoped alias** (`Comp.Part.prop`) -- a per-row human
+            #   decision that the prop is implemented under a different
+            #   spelling, which may sit anywhere in the component's
+            #   implementation (`Accordion.Item.isDisabled` is `disabled_keys`
+            #   on the group);
+            # * a **component-scoped alias** (`Comp.prop`) on a part row, the
+            #   pre-existing mechanism for the same decision
+            #   (`Pagination.onPress` is the group's `on_change`).
+            # A bare global or snake resolution is checked against the part's
+            # structs only, which is the check that used to pass by accident.
+            # A name documented on both a root table and a part table
+            # (`Calendar.isDisabled` and `Slider.isDisabled` appear on the
+            # component *and* on `Cell`/`Thumb`) is one counted row, and the
+            # part reading governs it: the root builder answers the whole
+            # component, and it is the per-part reading the fold used to
+            # launder. The part-scoped aliases above are how the implemented
+            # per-part readings are recorded.
+            part = next((pt for pt in part_docs if p in part_docs[pt]), None)
+            part_key = '%s.%s.%s' % (comp, part, p) if part else None
+            comp_key = '%s.%s' % (comp, p)
+            snake = re.sub(r'(?<!^)(?=[A-Z])', '_', p).lower()
+            if part and part_key in ALIAS:
+                rust = ALIAS[part_key]
+                ok = rust in have or p.lower() in have
+            elif part is not None:
+                owned = set()
+                for struct in PART_STRUCTS.get('%s.%s' % (comp, part), ()):
+                    owned |= impl_methods.get(struct, set())
+                    owned |= constructor_args.get(struct, set())
+                if comp_key in ALIAS:
+                    rust = ALIAS[comp_key]
+                    ok = rust in have or p.lower() in have
+                else:
+                    rust = ALIAS.get(p, snake)
+                    ok = rust in owned or p.lower() in owned
+            else:
+                rust = ALIAS.get(comp_key) or ALIAS.get(p, snake)
+                ok = rust in have or p.lower() in have
+            if ok:
                 continue
             # A reason may be global (`prop`) or scoped (`Component.prop`); the
             # scoped form keeps a blanket name from hiding a real gap elsewhere.
-            reason = WONT_PORT.get('%s.%s' % (comp, p)) or WONT_PORT.get(p)
+            reason = WONT_PORT.get(comp_key) or WONT_PORT.get(p)
             if reason:
                 wont_total += 1
                 by_reason[reason] = by_reason.get(reason, 0) + 1
