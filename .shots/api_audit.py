@@ -79,6 +79,9 @@ ALIAS = {
     # documented value type rather than only matching the prop name.
     'Calendar.value': 'values', 'Calendar.defaultValue': 'default_values',
     'Calendar.onChange': 'on_change_all',
+    # Slider's value/defaultValue are number | number[]; the plural builder
+    # proves the multi-thumb form rather than only the scalar.
+    'Slider.defaultValue': 'default_values',
     # `Calendar.Cell Render Props` documents `isDisabled` ("whether the cell is
     # disabled") as a value handed *into* the cell render function, and
     # `CalendarCellState::is_disabled` (same for `RangeCalendarCellState`) is
@@ -104,6 +107,9 @@ ALIAS = {
     'onSubmit': 'on_submit', 'onClose': 'on_close', 'onConfirm': 'on_confirm',
     'onCancel': 'on_cancel', 'onClear': 'on_clear', 'onToggle': 'on_toggle',
     'onSortChange': 'on_sort_change', 'onFocusChange': 'on_focus_change',
+    # v3's Slider callback is `(number | number[])`; the scalar builder answers
+    # the one-thumb form and this scoped alias proves the array form exists too.
+    'Slider.onChangeEnd': 'on_change_end_all',
     'onChangeEnd': 'on_change_end', 'onVisibilityChange': 'on_visibility_change',
     'isDisabled': 'is_disabled', 'isReadOnly': 'is_read_only', 'isRequired': 'is_required',
     'isInvalid': 'is_invalid', 'isSelected': 'is_selected', 'isPending': 'is_pending',
@@ -183,12 +189,10 @@ ALIAS = {
     # names the immovable thumbs (the pointer's nearest-thumb choice skips
     # them, the arrows and the slider's own Tab cycle skip them, they leave
     # the tab order, and their field is not submitted), and the per-thumb
-    # input names are the range's named ends -- `start_name`/`end_name`,
-    # the `DateRangePicker` convention, read back by `form_fields` -- with
-    # `name` covering the single-thumb form. Anchored at `disabled_keys` and
-    # `start_name`, the setters a caller actually uses.
+    # input names are `thumb_names`, with `start_name`/`end_name` retaining
+    # the `DateRangePicker` compatibility convention.
     'Slider.Thumb.isDisabled': 'disabled_keys',
-    'Slider.Thumb.name': 'start_name',
+    'Slider.Thumb.name': 'thumb_names',
     # Accordion.Trigger's extra press handler, and Accordion.Item's controlled
     # expansion, are expressed on the group.
     'Accordion.onPress': 'on_toggle',

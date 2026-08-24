@@ -646,7 +646,10 @@ hangs off it.
 Two lessons that belong with it. A constructor must never seed the controlled
 prop — a positional seed is `defaultX`. And two components on one page sharing an
 id share their keyed state silently: two `TagGroup`s both called `tg-remove`
-shared one focus cursor.
+shared one focus cursor. `#[track_caller]` is not a substitute for an instance
+id: two controls created by one helper or loop have the same source location.
+Dropdown proved the result by making both instances inert, so collection and
+overlay constructors take an explicit id instead.
 
 v3's theming story *is* its variables: override the custom properties and every
 component follows. The port's equivalent is `ThemeColors` and `LayoutTokens`, so
@@ -923,6 +926,13 @@ Toolbar's Home/End handling and Calendar's adjacent-day navigation bounds both
 differ from plausible behaviour inferred from a newer source or from the prop
 table alone.
 
+The same version rule applies to gpui. Zed's `main` is useful framework truth,
+and `longbridge/gpui-component` is useful precedent, but this crate compiles
+against gpui **0.2.2**. Check that installed source before using an API: Zed
+`main` has `Window::capture_pointer`, while 0.2.2 does not, so a drag that must
+outlive its hitbox still needs paint-time `Window::on_mouse_event` listeners
+here.
+
 An intentionally failing test is evidence only after its expectation is checked
 against that contract. A test authored around broken state can demand an output
 no correct implementation can produce; correct the expectation with the v3
@@ -1010,6 +1020,17 @@ control from activation and the tab order; a read-only control stays focusable
 and navigable while selection or editing is blocked. Calendar proved the mirror
 failure: treating read-only as wholly inert made its grid unreachable by
 keyboard even though every disabled/readOnly prop and state audit was green.
+Form submission is a third gate: disabled controls are not successful and must
+be omitted, while read-only controls still submit. A `FormField` built from a
+render-time value is only a snapshot; interactive controls keep a live field
+state for current value, validity, focus and successful status. Reset restores
+that state immediately and still reports a controlled default for disabled or
+read-only controls — those flags block user input, not the form's reset event.
+That live state must also survive the component builder's next render. A fresh
+`Rc<RefCell<_>>` in `new()` leaves the Form's registered reader on the previous
+frame; DatePicker keys its live field state by the calendar entity for that
+reason. Invalid FormData carries the text the user sees, not the last committed
+date that the calendar still holds.
 
 - **Pointer positions are window-relative, and a drag outlives its hitbox.** A
   ColorArea and ColorSlider divided the window point by their own size, so an
@@ -1151,6 +1172,14 @@ v2 concepts that must **not** come back:
   `gallery/src/pages/{docs,components}.rs`; the page registry and the fifteen
   v3 nav categories live in `gallery/src/pages/mod.rs`. Icons are embedded SVGs
   served by `gallery/src/assets.rs` under `herogpui/icons/*`.
+  `pages/reference_metadata.rs` is the checked-in, v3.2.4-pinned source for a
+  component's detailed API, Parts & Slots, States and Styling panels;
+  `.shots/reference_audit.py` reports detailed coverage explicitly. A generic
+  Rust-builder fallback is not a detailed HeroUI reference, so `1/66 detailed`
+  is honest partial coverage rather than a passing total. Metadata must name
+  real Rust owners/methods and pinned source links, and each panel must be
+  opened through its section deep link and inspected — a row count cannot show
+  clipping or prove the requested subject rendered.
 
 ## Conventions & gotchas
 
@@ -1240,7 +1269,7 @@ v2 concepts that must **not** come back:
     floating surfaces all close on Escape and on a press outside, and no prop
     table says so — React Aria's `useOverlay` does it, so the docs only mention
     dismissal where it is configurable (`isDismissable` on a dialog backdrop).
-    `util::dismissable` is both halves, and they attach in different places:
+    The two halves attach in different places:
     `on_mouse_down_out` reads the element's *own bounds*, so it belongs on the
     panel (the wrapper an absolute panel sits in has none, which would make every
     press inside the panel count as outside), while a key event goes to the
@@ -1251,6 +1280,18 @@ v2 concepts that must **not** come back:
     ComboBox already read Escape where they read the arrows, and binding it twice
     closes twice. `util::panel_focus` takes `open` for a reason — claiming the
     focus on a closed frame spends the one-shot, and Escape then does nothing.
+  - **Overlay order is explicit state, not render order.** Every open surface
+    registers through `util::overlay_scope`, whose weak token is scoped by
+    `WindowId`; repainting does not reorder it, an exiting or unmounted surface
+    is inactive, and only the topmost token may answer Escape or outside press.
+    A dismissal returns `Handled` only when it owns the event and `Declined`
+    when a trigger or compound-panel guard must let that same press continue.
+    A parent menu plus submenu uses the event-aware token helper so its union
+    bounds do not bypass the stack. Trigger-versus-outside arbitration is the
+    rare render-local state that lasts exactly one dispatch: set the latch on
+    mouse-down and clear it with gpui 0.2.2's `App::defer` at the end of that
+    effect cycle. Clearing only on click leaves it stuck after a cancelled
+    press; keeping it across frames would be the Slider drag bug again.
   - **A roving tab stop is one handle, claimed by a different element.** A
     radio group, a tab list and a tag group are each *one* tab stop with the
     arrows moving inside, and the obvious port -- a handle per row, and

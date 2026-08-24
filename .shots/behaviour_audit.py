@@ -182,10 +182,13 @@ EVIDENCE = {
     # cannot tell the area apart from the slider -- the area's claim names the
     # wiring instead: the key context is what attaches the keyboard to it.
     ('ColorArea', 'area-keys'): ('color_picker.rs', r'key_context\("ColorArea"\)\s+\.on_key_down'),
-    ('Modal', 'escape'): ('modal.rs', r'"escape"'),
-    ('Drawer', 'escape'): ('drawer.rs', r'"escape"'),
-    ('AlertDialog', 'escape'): ('alert_dialog.rs', r'"escape"'),
-    ('Drawer', 'drag-dismiss'): ('drawer.rs', r'drag_dismiss|on_mouse_move'),
+    ('Modal', 'escape'): ('modal.rs', r'dismiss_on_escape_with_token'),
+    ('Drawer', 'escape'): ('drawer.rs', r'dismiss_on_escape_with_token'),
+    ('AlertDialog', 'escape'): ('alert_dialog.rs', r'dismiss_on_escape_with_token'),
+    ('Drawer', 'drag-dismiss'): (
+        'drawer.rs',
+        r'window\.on_mouse_event\(move \|ev: &gpui::MouseMoveEvent',
+    ),
     ('Modal', 'focus-trap'): ('modal.rs', r'trap_tab'),
     ('Drawer', 'focus-trap'): ('drawer.rs', r'trap_tab'),
     ('AlertDialog', 'focus-trap'): ('alert_dialog.rs', r'trap_tab'),
@@ -222,7 +225,8 @@ EVIDENCE = {
     # outside presses test that union and Escape closes from the focused menu.
     ('Dropdown', 'dismiss'): (
         'dropdown.rs',
-        r'(?s)(?=.*panel_union.*on_mouse_down_out)(?=.*dismiss_on_escape)',
+        r'(?s)(?=.*panel_union.*dismiss_on_press_outside_with_token_event)'
+        r'(?=.*dismiss_on_escape_with_token)',
     ),
     ('Select', 'dismiss'): ('select.rs', r'dismiss_on_press_outside'),
     ('ComboBox', 'dismiss'): ('combo_box.rs', r'dismiss_on_press_outside'),
@@ -272,8 +276,8 @@ EVIDENCE = {
     ),
     # A picker moves the focus into the open calendar, so the grid answers the
     # arrows without the user having to find its tab stop first.
-    ('DatePicker', 'panel-focus'): ('date_picker.rs', r'autofocus_grid\(true\)'),
-    ('DateRangePicker', 'panel-focus'): ('date_picker.rs', r'autofocus_grid\(true\)'),
+    ('DatePicker', 'panel-focus'): ('date_picker.rs', r'autofocus_grid\(panel_open\)'),
+    ('DateRangePicker', 'panel-focus'): ('date_picker.rs', r'autofocus_grid\(panel_open\)'),
     ('Calendar', 'calendar-paging'): ('calendar.rs', r'"pageup" if shift'),
     ('RangeCalendar', 'calendar-paging'): ('range_calendar.rs', r'"pageup" if shift'),
     ('Select', 'scroll-into-view'): ('select.rs', r'scroll_to_item'),
@@ -428,7 +432,8 @@ def main():
         print('    %-22s %d' % (reason, n))
     print('MISSING            : %d' % len(missing))
     print('UNMAPPED           : %d' % len(set(unmapped)))
+    return 1 if missing or unmapped else 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

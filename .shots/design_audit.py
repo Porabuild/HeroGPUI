@@ -367,6 +367,8 @@ CHECKS = [
     ('dropdown', '.dropdown__menu', 'p', 'Dropdown menu padding',
      SRC + 'dropdown.rs',
      r'`gap-0\.5 p-1`[\s\S]{0,200}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('dropdown', '.dropdown__popover [data-slot="dropdown-menu"]', 'p',
+     'Dropdown contextual menu padding', SRC + 'dropdown.rs', None, None),
     ('color-swatch', '.color-swatch--xs', 'size', 'ColorSwatch Xs', CORE,
      r'SizeXl::Xs => gpui::px\((\d+(?:\.\d*)?)\)', None),
     ('color-swatch', '.color-swatch--sm', 'size', 'ColorSwatch Sm', CORE,
@@ -744,6 +746,8 @@ CHECKS = [
     ('menu-item', '.menu-item', 'px', 'Menu row padding_x', SRC + 'dropdown.rs',
      r'\.px\(px\((\d+(?:\.\d*)?)\)\)\s+\.rounded\(crate::util::\w+_radius\(cx\)\)',
      None),
+    ('dropdown', '.dropdown__popover [data-slot="menu-item"]', 'px',
+     'Dropdown contextual menu row padding_x', SRC + 'dropdown.rs', None, None),
     ('toast', '.toast', 'px', 'Toast padding_x', SRC + 'toast.rs',
      r'\.px\(px\((\d+(?:\.\d*)?)\)\)\s*\n\s*\.py\(', None),
     ('toast', '.toast', 'py', 'Toast padding_y', SRC + 'toast.rs',
@@ -1154,12 +1158,14 @@ CHECKS = [
      r'\.rounded\(px\((\d+(?:\.\d*)?)\.\)\)', None),
 
     # --- date and time --------------------------------------------------------
-    ('date-picker', '.date-picker__trigger', 'text', 'DatePicker trigger text',
-     SRC + 'date_picker.rs',
-     r'\.px\(px\(12\.\)\)\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('date-picker', '.date-picker__trigger', 'text',
+     'DatePicker trigger text -> embedded DateField FIELD_TEXT', SRC + 'date_picker.rs',
+     r'let mut group = gpui::div\(\)(?:(?!;)[\s\S])*?'
+     r'\.text_size\(crate::util::(FIELD_TEXT)\)', lambda _: 14.0),
     ('date-range-picker', '.date-range-picker__trigger', 'text',
-     'DateRangePicker trigger text', SRC + 'date_picker.rs',
-     r'\.px\(px\(12\.\)\)\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     'DateRangePicker trigger text -> FIELD_TEXT', SRC + 'date_picker.rs',
+     r'let mut field = gpui::div\(\)(?:(?!;)[\s\S])*?'
+     r'\.text_size\(crate::util::(FIELD_TEXT)\)', lambda _: 14.0),
     ('date-picker', '.date-picker__trigger-indicator', 'size', 'DatePicker trigger glyph',
      SRC + 'date_picker.rs',
      r'`\.date-picker__trigger-indicator` is `size-4`\.\s*\.size\(px\((\d+(?:\.\d*)?)\.\)\)',
@@ -1327,13 +1333,47 @@ def rule_body(css, selector):
     reading past it made a radio's *label* measure 12px, which is its
     description's size.
     """
-    pattern = '^' + re.escape(selector) + r'\s*\{(.*?)\n\}'
-    m = re.search(pattern, css, re.S | re.M)
-    if not m:
+    body = rule_block(css, selector)
+    if body is None:
         return None
-    body = m.group(1)
     nested = body.find('{')
     return body[:nested] if nested >= 0 else body
+
+
+def rule_block(css, selector):
+    """Return one balanced CSS rule body, including nested rules."""
+    match = re.search(r'^' + re.escape(selector) + r'\s*\{', css, re.M)
+    if not match:
+        return None
+    depth = 1
+    index = match.end()
+    while index < len(css) and depth:
+        if css[index] == '{':
+            depth += 1
+        elif css[index] == '}':
+            depth -= 1
+        index += 1
+    return css[match.end() : index - 1] if depth == 0 else None
+
+
+def nested_rule_body(css, parent, selector):
+    """Return a nested selector body, or None when the selector disappeared."""
+    parent_body = rule_block(css, parent)
+    if parent_body is None:
+        return None
+    match = re.search(r'(^|\n)\s*' + re.escape(selector) + r'\s*\{', parent_body)
+    if not match:
+        return None
+    start = match.end()
+    depth = 1
+    index = start
+    while index < len(parent_body) and depth:
+        if parent_body[index] == '{':
+            depth += 1
+        elif parent_body[index] == '}':
+            depth -= 1
+        index += 1
+    return parent_body[start : index - 1] if depth == 0 else None
 
 
 def utilities(body):
@@ -1456,6 +1496,43 @@ def our_value(path, pattern, transform):
     if transform:
         return transform(group)
     return float(group) if group is not None else None
+
+
+def rust_blocks_after(source, marker):
+    """Yield balanced Rust blocks whose opening statement contains marker."""
+    for match in re.finditer(re.escape(marker), source):
+        opening = source.find('{', match.end())
+        if opening < 0:
+            continue
+        depth = 1
+        index = opening + 1
+        while index < len(source) and depth:
+            if source[index] == '{':
+                depth += 1
+            elif source[index] == '}':
+                depth -= 1
+            index += 1
+        if depth == 0:
+            yield source[opening + 1:index - 1]
+
+
+def contextual_our_value(path, selector):
+    """Read a Dropdown override from its owning conditional block."""
+    try:
+        source = io.open(path, encoding='utf-8').read()
+    except OSError:
+        return None
+    if selector.endswith('[data-slot="dropdown-menu"]'):
+        expression = r'panel\s*=\s*panel\.p\(px\(([0-9.]+)\.\)\)'
+    elif selector.endswith('[data-slot="menu-item"]'):
+        expression = r'row\s*=\s*row\.px\(px\(([0-9.]+)\.\)\)'
+    else:
+        return None
+    for body in rust_blocks_after(source, 'if dropdown_composition'):
+        match = re.search(expression, body)
+        if match:
+            return float(match.group(1))
+    return None
 
 
 # Every check above is a number, and a control can match all of them and still
@@ -1635,7 +1712,11 @@ def main():
         want = None
         if os.path.exists(css_path):
             css = io.open(css_path, encoding='utf-8', errors='replace').read()
-            body = rule_body(css, selector)
+            if selector.startswith('.dropdown__popover '):
+                child = selector.removeprefix('.dropdown__popover ')
+                body = nested_rule_body(css, '.dropdown__popover', child)
+            else:
+                body = rule_body(css, selector)
             if body is None:
                 # A rule nested inside another one is indented, so the
                 # start-of-line match above misses it. `.checkbox-group` puts
@@ -1664,7 +1745,10 @@ def main():
                         want = measure(base).get(metric)
                 if want is None and (comp, selector, metric) in ABSENT_IS_ZERO:
                     want = 0.0
-        got = our_value(path, pattern, transform)
+        if selector.startswith('.dropdown__popover '):
+            got = contextual_our_value(path, selector)
+        else:
+            got = our_value(path, pattern, transform)
         if want is None or got is None:
             unreadable += 1
             rows.append(('?', selector, metric, want, got, label))
