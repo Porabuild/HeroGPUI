@@ -11,7 +11,8 @@
 //!   to report. The list here records `on_action` only, so a row that fired
 //!   the selection path instead would stay silent.
 //! - TagGroup's `disabledKeys` ("Keys of disabled tags") must make a tag take
-//!   no click *and* drop out of the roving cursor, so the arrows skip it.
+//!   no click *and* drop out of the roving cursor, so the arrows skip it. Its
+//!   React Aria keyboard delegate is horizontal, so Up and Down do nothing.
 //!
 //! Geometry is derived from the components' own constants, exactly as
 //! `collections.rs` does:
@@ -30,7 +31,7 @@ use std::rc::Rc;
 
 use gpui::{prelude::*, px, TestAppContext};
 use herogpui_components::{
-    util::FIELD_HEIGHT, ListBox, ListBoxItem, Menu, MenuItem, SelectionMode, Tag, TagGroup,
+    util::FIELD_HEIGHT, Button, ListBox, ListBoxItem, Menu, MenuItem, SelectionMode, Tag, TagGroup,
 };
 
 use harness::{click, events, open_host, press};
@@ -207,5 +208,82 @@ fn tag_group_disabled_key_takes_no_click_and_is_skipped(cx: &mut TestAppContext)
         recorded.borrow().as_slice(),
         ["alpha", "gamma"],
         "the arrow must skip the disabled tag: Right after Alpha lands on Gamma"
+    );
+}
+
+/// React Aria builds TagGroup's keyboard delegate with horizontal orientation.
+/// Down is therefore a cross-axis key: it must not move the roving stop or be
+/// consumed as Right. Enter after Down still activates the first tag.
+#[gpui::test]
+fn tag_group_ignores_perpendicular_arrows(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "tg-horizontal-axis",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Single)
+        .on_selection_change(move |keys, _, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha"],
+        "Down must leave a horizontal TagGroup's roving stop on Alpha"
+    );
+}
+
+/// Deleting the last tag removes every enabled stop. The group must then leave
+/// the tab order rather than retaining a focused handle that no tag claims.
+#[gpui::test]
+fn tag_group_delete_last_tag_leaves_the_tab_order(cx: &mut TestAppContext) {
+    let tags = Rc::new(RefCell::new(vec![Tag::new("alpha", "Alpha")]));
+    let recorded = events();
+    let for_view = recorded.clone();
+    let tags_for_view = tags;
+    let cx = open_host(cx, move || {
+        let tags = tags_for_view.clone();
+        let removed = for_view.clone();
+        let after = for_view.clone();
+        let current = tags.borrow().clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                TagGroup::new("tg-delete-last", current).on_remove(move |key, _, cx| {
+                    removed.borrow_mut().push(format!("remove:{key}"));
+                    tags.borrow_mut().clear();
+                    cx.refresh_windows();
+                }),
+            )
+            .child(
+                Button::new("tg-after")
+                    .label("After")
+                    .on_press(move |_, _, _| after.borrow_mut().push("after".to_owned())),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "delete");
+    cx.update(|window, _| window.refresh());
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["remove:alpha", "after"],
+        "an empty TagGroup must yield Tab to the following control"
     );
 }

@@ -425,15 +425,21 @@ impl RenderOnce for TagGroup {
                         move |event, window, cx| match event.keystroke.key.as_str() {
                             "delete" | "backspace" => {
                                 if let Some(cb) = &remove {
+                                    cx.stop_propagation();
                                     cb(&key_for_remove, window, cx);
                                 }
                             }
-                            key @ ("left" | "right" | "up" | "down" | "home" | "end") => {
+                            key @ ("left" | "right" | "home" | "end") => {
                                 let key = match key {
-                                    "right" | "down" => "down",
-                                    "left" | "up" => "up",
+                                    "right" => "down",
+                                    "left" => "up",
                                     other => other,
                                 };
+                                // React Aria gives TagGroup a horizontal
+                                // keyboard delegate. The list owns its axis
+                                // and Home/End; Up/Down fall through to an
+                                // enclosing scroller.
+                                cx.stop_propagation();
                                 let crate::list_nav::Move::To(next) =
                                     crate::list_nav::resolve(&stops, Some(index), key, false)
                                 else {
