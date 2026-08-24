@@ -128,9 +128,22 @@ SCROLL_INTO_VIEW = ('Select', 'ComboBox', 'Autocomplete', 'ListBox', 'Dropdown')
 # Ours moved an invisible cursor: the month on screen never changed.
 CALENDAR_PAGING = ('Calendar', 'RangeCalendar')
 
-# Opening a picker moves the focus into the calendar. Without it the grid was a
-# tab stop the user had to *find*, and the arrows did nothing until they did.
-PANEL_FOCUS = ('DatePicker', 'DateRangePicker')
+# An open floating panel holds the focus so the keyboard can reach it: a key
+# event only travels to the focused element and its ancestors, so an open panel
+# that focuses nothing is a panel no key can dismiss -- which is how a Popover
+# opened through its controlled `isOpen` lost Escape (the key went to the app
+# root). v3's floating pages say "Proper focus management" in as many words, and
+# React Aria's overlays move the focus in on open: the dialog and the menu take
+# it themselves, and the Autocomplete hands it to the `SearchField` its popover
+# stacks above the list. The pickers move it to the calendar grid; without that
+# the grid was a tab stop the user had to *find*, and the arrows did nothing
+# until they did. Select and ComboBox are deliberately not here: their trigger
+# and input hold the focus and own every key, so the panel never needs to claim
+# it -- the Popover hole cannot open for a component whose trigger is a tab stop.
+PANEL_FOCUS = (
+    'Popover', 'Dropdown', 'Autocomplete', 'Modal', 'Drawer',
+    'AlertDialog', 'DatePicker', 'DateRangePicker',
+)
 
 OVERLAY_DISMISS = (
     'Popover', 'Dropdown', 'Select', 'ComboBox', 'Autocomplete',
@@ -215,6 +228,41 @@ EVIDENCE = {
     ('TextArea', 'text-keys'): ('input.rs', r'fn vertical_target'),
     ('TextField', 'text-keys'): ('input.rs', r'key_char'),
     ('Dropdown', 'focus-return'): ('dropdown.rs', r'back_to_trigger'),
+    # The panel itself claims the focus, only when nothing inside already holds
+    # it -- a click on the trigger leaves the ring where the user put it, while
+    # a controlled open, which focuses nothing, still gets a panel the keyboard
+    # can reach. This is the regression the claim exists for.
+    ('Popover', 'panel-focus'): ('popover.rs', r'util::panel_focus\(window, cx, &base, claim\)'),
+    # A menu takes the focus when it opens; the one-shot is spent on the same
+    # handle the panel tracks, or the arrows land on a handle no element owns.
+    ('Dropdown', 'panel-focus'): (
+        'dropdown.rs',
+        r'(?s:util::focus_once\(window, cx, autofocus, &focus_handle\).{0,4000}?track_focus\(&focus_handle\))',
+    ),
+    # v3 writes `<SearchField autoFocus>` inside `Autocomplete.Filter`, so the
+    # query field takes the focus as the popover opens -- once per opening, or
+    # it would steal the focus back on every frame (a controlled caller typing
+    # elsewhere would be robbed of the field).
+    ('Autocomplete', 'panel-focus'): ('autocomplete.rs', r'window\.focus\(&search_focus\)'),
+    # The dialogs claim the focus on open the same way the popover does: Escape
+    # has to reach the overlay, and a key event only travels to the focused
+    # element and its ancestors. The gate is what stops the claim from stealing
+    # focus from a field inside the dialog. Shared by all three so they cannot
+    # spell it differently.
+    ('Modal', 'panel-focus'): (
+        'modal.rs',
+        r'if !focus_handle\.contains_focused\(window, cx\)\s*\{\s*window\.focus\(&focus_handle\);\s*\}',
+    ),
+    ('Drawer', 'panel-focus'): (
+        'drawer.rs',
+        r'if !focus_handle\.contains_focused\(window, cx\)\s*\{\s*window\.focus\(&focus_handle\);\s*\}',
+    ),
+    ('AlertDialog', 'panel-focus'): (
+        'alert_dialog.rs',
+        r'if !focus_handle\.contains_focused\(window, cx\)\s*\{\s*window\.focus\(&focus_handle\);\s*\}',
+    ),
+    # A picker moves the focus into the open calendar, so the grid answers the
+    # arrows without the user having to find its tab stop first.
     ('DatePicker', 'panel-focus'): ('date_picker.rs', r'autofocus_grid\(true\)'),
     ('DateRangePicker', 'panel-focus'): ('date_picker.rs', r'autofocus_grid\(true\)'),
     ('Calendar', 'calendar-paging'): ('calendar.rs', r'"pageup" if shift'),

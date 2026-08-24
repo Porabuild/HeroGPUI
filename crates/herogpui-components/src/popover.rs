@@ -137,6 +137,31 @@ impl RenderOnce for Popover {
             is_open,
         );
         let exiting = phase == crate::util::OverlayPhase::Exiting;
+        // Escape is read on the root, and a key event only reaches an element
+        // that is on the focused element's path -- so an open panel needs
+        // *something* inside this root to hold the focus. A click on the
+        // trigger does that by itself, which is why the keyboard appeared to
+        // work; a caller that drives `isOpen` focuses nothing, and Escape went
+        // to the app root instead. The root handle is how the component asks
+        // whether anything inside it already has the focus, and it is
+        // deliberately not a tab stop: the popover adds no stop of its own.
+        // Both `use_keyed_state` calls take `cx` mutably, so they precede the
+        // theme tokens.
+        let base = format!("{:?}", self.id);
+        let root_focus = window
+            .use_keyed_state(
+                gpui::ElementId::Name(format!("{base}-root-focus").into()),
+                cx,
+                |_, cx| cx.focus_handle(),
+            )
+            .read(cx)
+            .clone();
+        // Claim the focus only when nothing inside already holds it, so the
+        // trigger keeps its own ring on the pointer path (and keeps the ring
+        // it would lose if the panel stole focus on every open frame). This is
+        // the shape `alert_dialog.rs` uses for the same reason.
+        let claim = is_open && !root_focus.contains_focused(window, cx);
+        let panel_focus = crate::util::panel_focus(window, cx, &base, claim);
         let colors = cx.colors();
         let layout = cx.layout();
 
@@ -166,6 +191,7 @@ impl RenderOnce for Popover {
         }
 
         let mut root = gpui::div()
+            .track_focus(&root_focus)
             .relative()
             .flex()
             .flex_col()
@@ -252,13 +278,17 @@ impl RenderOnce for Popover {
         }
         panel = panel.children(self.children);
 
+        // The panel tracks the handle above: on the controlled path it now holds
+        // the focus, so Escape reaches the root's handler by bubbling; on the
+        // pointer path the trigger still holds it and this is inert.
+        let panel = panel.track_focus(&panel_focus);
+
         // React Aria dismisses a popover on Escape and on a press outside it.
         //
-        // The panel deliberately does *not* take the focus: whatever opened it
-        // keeps it, so Escape bubbles up from there to the root and the trigger
-        // keeps its own ring. A panel that claimed the focus would also have to
-        // hand it back on close, and it has no handle for the trigger -- the
-        // caller built that element.
+        // The panel takes the focus only when nothing inside the popover already
+        // holds it (see the `claim` above): a click on the trigger leaves the
+        // ring where the user put it, while a controlled open -- which focuses
+        // nothing -- would otherwise leave a panel the keyboard cannot reach.
         let close = crate::util::shared({
             let own = open_own;
             let cb = self.on_open_change.clone();

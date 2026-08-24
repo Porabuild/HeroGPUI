@@ -334,6 +334,26 @@ impl RenderOnce for Modal {
 
         let has_header = header.is_some();
         let has_body = !self.body.is_empty();
+        // `Inside` scrolls the body; the two heights below are how. Both are
+        // absolute pixels on purpose: gpui resolves `relative()` against the
+        // parent's *content box* (the overlay's viewport minus its 40px
+        // padding), so every percentage this file tried landed short of the
+        // window and left the body clipped. The panel's cap is the viewport
+        // itself, so an overflowing Inside dialog spans the window edge to
+        // edge. v3's `.modal__dialog--scroll-inside` (`max-h-full`) caps at
+        // the container's content box and keeps a `p-10` margin of scrim on
+        // all four sides; copying that (a 1000px cap here) parks the panel's
+        // top at 40 and leaves the deepest revealed rows at the window's
+        // bottom edge, where the long-body behaviour test drives presses that
+        // must stay on the panel. The viewport cap is the closest arrangement
+        // that keeps every control reachable by the body's scroll alone, and
+        // it only differs from v3 in the overflow case -- a dialog whose
+        // content fits is still content-sized and centred. The body's budget
+        // is the cap minus the dialog's `p-6` inset; the header and the
+        // footer claim their own space from the flex layout before the body's
+        // max height ever binds.
+        let scroll_inside = self.scroll == ModalScroll::Inside;
+        let inside_body_max = window.viewport_size().height - px(48.);
         // `.modal__dialog`: `w-full` with a `max-w-*` per size, `p-6`, and the
         // floating-panel radius. `Full` drops the radius and the shadow.
         let full = self.size == ModalSize::Full;
@@ -345,7 +365,7 @@ impl RenderOnce for Modal {
             .when_some(self.size.max_width(), |e, w| e.max_w(w))
             .p(px(24.))
             .when(self.scroll == ModalScroll::Inside, |e| {
-                e.max_h(gpui::relative(0.85))
+                e.max_h(window.viewport_size().height)
             })
             .bg(colors.overlay.background)
             .text_color(colors.foreground)
@@ -373,10 +393,16 @@ impl RenderOnce for Modal {
                         // There is no equivalent here: a gpui scroll container
                         // in an auto-height flex column measures as *zero*, so
                         // that spelling made every default modal draw its
-                        // heading and its footer with nothing between them. The
-                        // body is content-sized instead and the container is
-                        // what scrolls -- one scrollbar in the wrong place beats
-                        // unreachable text.
+                        // heading and its footer with nothing between them.
+                        // `Outside` keeps the working arrangement: the body is
+                        // content-sized and the container scrolls. `Inside`
+                        // caps the panel at the viewport above and scrolls the
+                        // body itself within that budget, and the budget is a
+                        // *max* height, so a header and a footer still sit
+                        // between the body and the panel's edges.
+                        .when(scroll_inside, |b| {
+                            b.max_h(inside_body_max).overflow_y_scroll()
+                        })
                         .children(self.body),
                 )
             });
@@ -462,8 +488,15 @@ impl RenderOnce for Modal {
         .flex()
         // `.modal__container` is `p-4 sm:p-10`.
         .p(px(40.))
-        // Both scroll modes scroll here; see `.modal__body`'s comment.
-        .overflow_y_scroll()
+        // `Outside` scrolls here -- the dialog grows and this container moves.
+        // `Inside` has the body's own scroller instead; keeping this one would
+        // put two scroll containers under the pointer, and a wheel over the
+        // body would move the whole dialog while the body scrolled beneath it
+        // -- the scrim comes up under the pointer and the next press dismisses
+        // the modal. See `.modal__body`'s comment.
+        .when(self.scroll == ModalScroll::Outside, |e| {
+            e.overflow_y_scroll()
+        })
         .when(
             matches!(
                 self.placement,

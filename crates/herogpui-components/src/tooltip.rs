@@ -82,6 +82,15 @@ impl TooltipHover {
         }
     }
 
+    /// A closed tip, for a caller that needs the same seed the component uses.
+    ///
+    /// The state lives in `Window::use_keyed_state` under the tooltip's id, and
+    /// a test (or any caller that wants to read the flag) has to hand that call
+    /// the identical initialiser or it seeds a different slot.
+    pub fn closed() -> Self {
+        Self::new()
+    }
+
     /// Whether the tip is currently shown.
     pub fn is_open(&self) -> bool {
         self.open

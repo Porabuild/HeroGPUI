@@ -487,9 +487,10 @@ impl RenderOnce for Slider {
                     d_down.update(cx, |v, _| *v = true);
                     // The keys have to land somewhere after a pointer grab.
                     window.focus(&focus_for_press);
-                    set_from_x(
+                    set_from_pointer(
                         &b_down,
-                        axis_pos(ev.position, vertical),
+                        ev.position,
+                        vertical,
                         &target_down,
                         &on_change_down,
                         &all_down,
@@ -516,9 +517,10 @@ impl RenderOnce for Slider {
                 // in keyed state; a per-render cell read as a fresh `false`
                 // here and dropped every move.
                 if *d_move.read(cx) {
-                    set_from_x(
+                    set_from_pointer(
                         &b_move,
-                        axis_pos(ev.position, vertical),
+                        ev.position,
+                        vertical,
                         &target_move,
                         &on_change_move,
                         &all_move,
@@ -548,9 +550,10 @@ impl RenderOnce for Slider {
                     });
                     if was_dragging {
                         if let Some(cb) = &on_change_end {
-                            set_from_x(
+                            set_from_pointer(
                                 &b_up,
-                                axis_pos(ev.position, vertical),
+                                ev.position,
+                                vertical,
                                 &target_up,
                                 &Some(cb.clone()),
                                 &None,
@@ -581,7 +584,7 @@ struct DragTarget {
 
 /// Writes one thumb's value through the uncontrolled copy and both callbacks.
 ///
-/// The pointer path reaches this through `set_from_x`, which turns a position
+/// The pointer path reaches this through `set_from_pointer`, which turns a position
 /// into a value first; the keyboard already has the value.
 #[allow(clippy::too_many_arguments)]
 fn set_thumb(
@@ -618,9 +621,10 @@ fn set_thumb(
 }
 
 #[allow(clippy::too_many_arguments)] // one struct per call site would be worse
-fn set_from_x(
+fn set_from_pointer(
     slot: &gpui::Entity<Bounds<f32>>,
-    x: f32,
+    pos: gpui::Point<gpui::Pixels>,
+    vertical: bool,
     target: &DragTarget,
     on_change: &Option<OnChange>,
     on_change_all: &Option<OnChangeAll>,
@@ -629,10 +633,15 @@ fn set_from_x(
     cx: &mut App,
 ) {
     let b = *slot.read(cx);
-    if b.size.width <= 0.0 || target.span <= 0.0 {
+    let extent = if vertical {
+        b.size.height
+    } else {
+        b.size.width
+    };
+    if extent <= 0.0 || target.span <= 0.0 {
         return;
     }
-    let frac = ((x - b.origin.x) / b.size.width).clamp(0.0, 1.0);
+    let frac = axis_fraction(pos, b, vertical);
     let raw = target.min + frac * target.span;
     let snapped =
         ((raw / target.step).round() * target.step).clamp(target.min, target.min + target.span);
@@ -669,14 +678,27 @@ fn set_from_x(
     }
 }
 
-/// The pointer coordinate along the slider's own axis.
+/// Where the pointer sits along the slider's own axis, as a 0..1 fraction of
+/// the track.
 ///
-/// A vertical slider is inverted: its zero end is at the bottom, and
-/// `set_from_x` subtracts the track origin either way.
-fn axis_pos(pos: gpui::Point<gpui::Pixels>, vertical: bool) -> f32 {
-    if vertical {
-        -f32::from(pos.y)
+/// The axis decides *both* halves of the sum, which is what the earlier version
+/// got wrong: it returned `-y` for a vertical slider and left the caller
+/// subtracting `origin.x` and dividing by `width`, so a vertical track (18px
+/// wide, y growing downward) produced a negative numerator and every press and
+/// every drag clamped to the minimum. A vertical slider is also inverted -- its
+/// zero end is at the *bottom* -- so the fraction is measured up from the
+/// track's bottom edge.
+fn axis_fraction(pos: gpui::Point<gpui::Pixels>, bounds: Bounds<f32>, vertical: bool) -> f32 {
+    let (reach, extent) = if vertical {
+        (
+            bounds.origin.y + bounds.size.height - f32::from(pos.y),
+            bounds.size.height,
+        )
     } else {
-        f32::from(pos.x)
+        (f32::from(pos.x) - bounds.origin.x, bounds.size.width)
+    };
+    if extent <= 0.0 {
+        return 0.0;
     }
+    (reach / extent).clamp(0.0, 1.0)
 }

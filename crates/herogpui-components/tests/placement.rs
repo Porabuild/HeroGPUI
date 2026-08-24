@@ -625,19 +625,19 @@ fn popover_every_placement_opens_from_its_trigger_and_dismisses(cx: &mut TestApp
     }
 }
 
-/// A popover opened by its controlled `isOpen` cannot be dismissed by Escape.
+/// A popover opened by its controlled `isOpen` answers Escape.
 ///
-/// `popover.rs` binds `util::dismiss_on_escape` on its *root* -- an
-/// `on_key_down` handler, and a key event goes to the focused element and
-/// bubbles up. Nothing in the component claims the focus: there is no
-/// `util::panel_focus` call, even though AGENTS.md's dismissal note says
-/// "Popover and the dropdown menu hold the focus themselves". So Escape works
-/// only by accident, when a *click* on the trigger happened to focus something
-/// inside the root; a caller that drives `isOpen` (v3's controlled pattern, and
-/// what React Aria's own overlay does by focusing the dialog on open) is left
-/// with a panel the keyboard cannot reach or close.
+/// It did not: `popover.rs` binds `util::dismiss_on_escape` on its root, a key
+/// event only reaches elements on the focused element's path, and the component
+/// claimed no focus at all -- `util::panel_focus` had *no callers*, though
+/// AGENTS.md's dismissal note says "Popover and the dropdown menu hold the focus
+/// themselves". Escape worked only by accident, when a click on the trigger had
+/// happened to focus something inside the root; the controlled path (v3's own
+/// pattern, and what React Aria does by focusing the dialog on open) left a
+/// panel the keyboard could neither reach nor close. The panel now claims the
+/// focus when nothing inside the popover already holds it, so the pointer path
+/// still leaves the ring on the trigger.
 #[gpui::test]
-#[ignore = "defect: a controlled-open Popover claims no focus, so Escape never reaches it"]
 fn popover_controlled_open_answers_escape(cx: &mut TestAppContext) {
     still();
     let closes = events();
@@ -722,23 +722,7 @@ fn modal_every_size_opens_and_dismisses(cx: &mut TestAppContext) {
     }
 }
 
-/// Guards the "scrolls rather than clips" contract for an overflowing body.
-///
-/// AGENTS.md records why a gpui scroll container in an auto-height column
-/// measured as zero, which is why the modal's body is content-sized and the
-/// container is what scrolls. The 24 probes (36px + 10px gap = 46px pitch)
-/// make the body 1094px tall — far past the window — so the deepest probe
-/// must only be reachable after scrolling. The wheel lands on the panel and
-/// the sweep clicks the panel's column across the window's lower half; the
-/// deepest probe reports "p23" the moment the scroll reveals it.
-///
-/// As written, the `Inside` scroll mode caps the panel at `max-h 0.85` =
-/// 918px — shorter than the container's inner 1000px — so the scroll range
-/// is zero and the body is clipped by the panel's `overflow-hidden`: the
-/// deepest probe can never be reached. This test is ignored with the defect
-/// recorded until the body actually scrolls.
 #[gpui::test]
-#[ignore = "defect: the Inside scroll mode caps the panel at 918px below the container's 1000px inner height, so the scroll range is zero and the overflowing body is clipped with nothing to scroll"]
 fn modal_long_body_scrolls_to_reach_the_deepest_control(cx: &mut TestAppContext) {
     still();
     let hits = events();
