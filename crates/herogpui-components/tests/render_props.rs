@@ -18,12 +18,12 @@
 //! Four of the six closures are handed `util::InteractiveState`. TagGroup
 //! wires its hover/press through `util::interaction` + `util::track_interaction`
 //! (gated on the closure being set — see the no-closure test); ListBox, Menu
-//! and RadioGroup hand over hardcoded `false` for those two fields, so their
-//! state-change tests assert what they do deliver (selection, cursor focus,
-//! indeterminate) and separate `#[ignore]`d defect tests pin what they
-//! document but do not deliver (the press, which v3's `ListBox.Item` and
-//! `Dropdown.Item` tables list as `isPressed` and which the port's own doc
-//! comments promise "a frame behind the pointer").
+//! and RadioGroup hand over hardcoded `false` for the hover but read the
+//! press from the interaction slot, so their state-change tests assert what
+//! they do deliver (selection, cursor focus, indeterminate) and separate
+//! defect tests pin the press, which v3's `ListBox.Item` and `Dropdown.Item`
+//! tables list as `isPressed` and which the port's own doc comments promise
+//! "a frame behind the pointer".
 //!
 //! Geometry is derived from the components' own constants, never guessed:
 //!
@@ -250,9 +250,9 @@ fn list_box_item_content_renders_at_all(cx: &mut TestAppContext) {
 
 /// The state a caller's closure can observe on a ListBox row: the selection
 /// (keyboard-driven, because Enter activates the cursor's row) and the cursor
-/// the arrows move (`is_focused`). The pointer state is delivered as
-/// hardcoded false — v3's `ListBox.Item` render-props table lists no
-/// `isHovered`, and the press is pinned separately by the ignored defect test.
+/// the arrows move (`is_focused`). The hover is delivered as hardcoded false —
+/// v3's `ListBox.Item` render-props table lists no `isHovered` — and the
+/// press is pinned separately by the press test.
 #[gpui::test]
 fn list_box_item_content_tracks_selection_and_cursor(cx: &mut TestAppContext) {
     let held = Rc::new(RefCell::new(HashSet::<SharedString>::new()));
@@ -329,7 +329,7 @@ fn list_box_item_content_tracks_selection_and_cursor(cx: &mut TestAppContext) {
 
     // Pointer contract as delivered: the row paints its own hover, but the
     // closure is handed the static value — v3's ListBox.Item render-props
-    // table has no isHovered row, and the press is the ignored test's subject.
+    // table has no isHovered row, and the press is the press test's subject.
     cx.simulate_mouse_move(
         point(px(60.), px(22.)),
         None::<MouseButton>,
@@ -400,7 +400,7 @@ fn list_box_item_content_pointer_selection_is_inert(cx: &mut TestAppContext) {
 /// interaction slot recorded on the last frame, so the closure observes the
 /// press the row is drawing.
 #[gpui::test]
-fn list_box_item_content_never_sees_the_press(cx: &mut TestAppContext) {
+fn list_box_item_content_sees_the_press(cx: &mut TestAppContext) {
     let recorded = Rc::new(RefCell::new(HashMap::new()));
     let record = recorded.clone();
     let cx = open_host(cx, move || {
@@ -568,7 +568,7 @@ fn menu_item_content_tracks_selection_and_cursor(cx: &mut TestAppContext) {
     );
 
     // Pointer contract as delivered: v3's Dropdown.Item render-props table
-    // lists no isHovered, and the press is the ignored test's subject.
+    // lists no isHovered, and the press is the press test's subject.
     cx.simulate_mouse_move(
         point(px(60.), px(98.)),
         None::<MouseButton>,
@@ -587,7 +587,7 @@ fn menu_item_content_tracks_selection_and_cursor(cx: &mut TestAppContext) {
 /// the interaction slot recorded on the last frame, so the closure sees the
 /// press a menu row is animating through `anim::pressed`.
 #[gpui::test]
-fn menu_item_content_never_sees_the_press(cx: &mut TestAppContext) {
+fn menu_item_content_sees_the_press(cx: &mut TestAppContext) {
     let recorded = Rc::new(RefCell::new(HashMap::new()));
     let record = recorded.clone();
     let cx = open_host(cx, move || {
@@ -880,8 +880,9 @@ fn radio_group_option_content_renders_at_all(cx: &mut TestAppContext) {
 
 /// What a RadioGroup hands its options' closure: the selection, from the
 /// pointer and the roving arrows, and the focused row that follows it. The
-/// pointer's hover and press stay static (the radio's own draw is an `active`
-/// style, not a slot); the press's documented delivery is the ignored test.
+/// hover stays hardcoded false (the radio's own draw is an `active` style,
+/// not a slot); the press comes from the interaction slot and its documented
+/// delivery is the press test's subject.
 #[gpui::test]
 fn radio_group_option_content_tracks_selection_and_focus(cx: &mut TestAppContext) {
     let recorded = Rc::new(RefCell::new(HashMap::new()));
@@ -957,7 +958,7 @@ fn radio_group_option_content_tracks_selection_and_focus(cx: &mut TestAppContext
 /// `radio_group.rs` builds the state from the interaction slot, so the press
 /// the control is animating reaches a caller's closure.
 #[gpui::test]
-fn radio_group_option_content_never_sees_the_press(cx: &mut TestAppContext) {
+fn radio_group_option_content_sees_the_press(cx: &mut TestAppContext) {
     let recorded = Rc::new(RefCell::new(HashMap::new()));
     let record = recorded.clone();
     let cx = open_host(cx, move || {
@@ -989,9 +990,9 @@ fn radio_group_option_content_never_sees_the_press(cx: &mut TestAppContext) {
 /// is the button's defect class on a fifth component — and recorded the state
 /// v3 hands `Calendar.Cell`: the formatted day label and the flags, for all
 /// 31 in-month days and for the next month's spill cells. The recorder keys
-/// each invocation by `(date, label, outside)` so the port's own quirk —
-/// every spill cell is handed the first of the current month as its `date`
-/// (pinned by the ignored defect test below) — cannot merge distinct cells.
+/// each invocation by `(date, label, outside)` so distinct cells cannot merge;
+/// each spill cell carries its own next-month date, which the defect test
+/// below pins.
 #[gpui::test]
 fn calendar_cell_renders_at_all(cx: &mut TestAppContext) {
     let seen = Rc::new(RefCell::new(HashSet::<(String, String, bool, bool)>::new()));

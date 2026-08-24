@@ -723,7 +723,7 @@ fn autocomplete_wrap_joins_both_ends(cx: &mut TestAppContext) {
 /// into the field, the list stays up with an empty state when nothing matches
 /// (the port draws "Press Enter to use this value"), a press in that empty
 /// region records nothing, and an outside press still dismisses. What does
-/// *not* happen is the subject of the next (`#[ignore]`d) test.
+/// *not* happen is the subject of the next test.
 #[gpui::test]
 fn combo_box_allows_custom_value_keeps_the_list_up_with_the_empty_state(cx: &mut TestAppContext) {
     let changes = events();
