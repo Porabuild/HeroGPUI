@@ -659,6 +659,64 @@ impl RenderOnce for ColorArea {
         // `.color-area:focus-visible` is `status-focused`.
         area = util::ring_if_focused(area, &area_focus, true, Vec::new(), window, cx);
 
+        // v3's ColorArea inherits React Aria's keyboard: the arrows move the
+        // thumb, left/right on the x channel and up/down on the y, and Page
+        // Up/Down move the y while Home/End move the x by the page step
+        // (React Aria's `useColorArea` shortcuts step by the page, not to the
+        // edge). A two-axis control that answered no key could only be moved
+        // with the pointer; the step sizes are ColorSlider's own, so the two
+        // colour controls agree.
+        let keys_value = self.value;
+        let on_change_keys = self.on_change.clone();
+        let end_keys = self.on_change_end.clone();
+        let own_keys = own.clone();
+        let (x_channel, y_channel) = (self.x_channel, self.y_channel);
+        let (x_min, x_max) = x_channel.range();
+        let (y_min, y_max) = y_channel.range();
+        // One step per unit for a wide channel (hue, an 8-bit byte), a
+        // percentage point for the normalised ones -- the same rule
+        // ColorSlider's keys use.
+        let x_step = if x_max - x_min > 2.0 { 1.0 } else { 0.01 };
+        let y_step = if y_max - y_min > 2.0 { 1.0 } else { 0.01 };
+        // A tenth of the range, never less than a step -- React Aria's page.
+        let x_page = ((x_max - x_min) / 10.0).max(x_step);
+        let y_page = ((y_max - y_min) / 10.0).max(y_step);
+        area = area
+            .key_context("ColorArea")
+            .on_key_down(move |event, window, cx| {
+                let x_now = keys_value.channel(x_channel);
+                let y_now = keys_value.channel(y_channel);
+                let (nx, ny) = match event.keystroke.key.as_str() {
+                    "left" => (x_now - x_step, y_now),
+                    "right" => (x_now + x_step, y_now),
+                    "down" => (x_now, y_now - y_step),
+                    "up" => (x_now, y_now + y_step),
+                    "pageup" => (x_now, y_now + y_page),
+                    "pagedown" => (x_now, y_now - y_page),
+                    "home" => (x_now - x_page, y_now),
+                    "end" => (x_now + x_page, y_now),
+                    _ => return,
+                };
+                let next = keys_value
+                    .with_channel(x_channel, nx.clamp(x_min, x_max))
+                    .with_channel(y_channel, ny.clamp(y_min, y_max));
+                // Uncontrolled: move our own copy, as the pointer path does.
+                if let Some(held) = &own_keys {
+                    held.update(cx, |v, cx| {
+                        *v = next;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &on_change_keys {
+                    cb(next, window, cx);
+                }
+                // A keystroke is a finished change, so `onChangeEnd` fires
+                // with it rather than waiting for a release that never comes.
+                if let Some(cb) = &end_keys {
+                    cb(next, window, cx);
+                }
+            });
+
         if let Some(cb) = self.on_change_end {
             let value = self.value;
             let (x_channel, y_channel) = (self.x_channel, self.y_channel);

@@ -511,7 +511,6 @@ fn slider_keyboard_steps_and_clamps(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-#[ignore = "defect: the slider's drag flag is a per-render Rc<Cell<bool>>, so the press's own repaint rebuilds the track's listeners and no MouseMove is ever handled; only the press records"]
 fn slider_drag_moves_the_thumb(cx: &mut TestAppContext) {
     let recorded = events();
 
@@ -538,18 +537,81 @@ fn slider_drag_moves_the_thumb(cx: &mut TestAppContext) {
     // at x=60 is 10; one move (the drag) to x=150 is 0.25 * 100 = 25. The
     // drop position's value is the one the drag must land on.
     //
-    // Defect reproduction: the down (x=60) records "10", then the move to
-    // x=150 records nothing, so the drag never leaves the press. Compare the
-    // table's resize handle, which keys its drag state and drags fine; the
-    // slider's `dragging` flag lives in a fresh `Rc<Cell>` per render, and on
-    // the synchronous test platform the press's own `pending_mouse_down`
-    // repaint (plus the focus and the state-entity notify) rebuilds the
-    // listeners before the move arrives.
+    // Defect reproduction (fixed): the drag's flag and the track bounds live
+    // in the window's keyed state, so the press's own repaint rebuilds the
+    // listeners without losing the drag -- `on_mouse_down` marks the keyed
+    // flag, the move sees it and maps x=150 through the recorded bounds, and
+    // the drop lands on 25. A per-render `Rc<Cell>` read as a fresh `false`
+    // on every rebuilt listener and no move ever arrived.
     drag(cx, (60., 9.), (150., 9.));
     assert_eq!(
         recorded.borrow().as_slice(),
         ["10", "25"],
         "the down reports 60/600*100=10 and the drop at 150/600*100=25"
+    );
+}
+
+#[gpui::test]
+fn two_sliders_do_not_share_a_drag(cx: &mut TestAppContext) {
+    let recorded = events();
+
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        // Two handles into the recorder, one per slider's closure; `recorded`
+        // itself can move into the second, since every handle is the same Rc.
+        let a_rec = recorded.clone();
+        let b_rec = recorded;
+        // Two sliders with different track widths, so a drag state that was
+        // keyed by anything but the component's own id would mis-map the
+        // moves: the top track is 600px (value = x / 6), the bottom one 300px
+        // (value = x / 3), and the lower canvas would overwrite the bounds
+        // the upper drag reads. The records are prefixed so a report can
+        // always be blamed on one slider.
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(20.))
+            .child(
+                gpui::div().w(px(600.)).child(
+                    Slider::new("iso-a", 50.)
+                        .default_value(50.)
+                        .min_value(0.)
+                        .max_value(100.)
+                        .step(1.)
+                        .on_change(move |v, _, _| a_rec.borrow_mut().push(format!("a:{v}"))),
+                ),
+            )
+            .child(
+                gpui::div().w(px(300.)).child(
+                    Slider::new("iso-b", 50.)
+                        .default_value(50.)
+                        .min_value(0.)
+                        .max_value(100.)
+                        .step(1.)
+                        .on_change(move |v, _, _| b_rec.borrow_mut().push(format!("b:{v}"))),
+                ),
+            )
+            .into_any_element()
+    });
+
+    // The top slider's track spans y 0..18 (centre 9): down at x=60 is
+    // 60/600*100=10, the drop at x=150 is 25. The bottom track sits 20px
+    // below (y 38..56, centre 47) and is 300px wide: the same x maps to
+    // 60/300*100=20 and 150/300*100=50.
+    drag(cx, (60., 9.), (150., 9.));
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["a:10", "a:25"],
+        "dragging the top slider must report only the top slider's values"
+    );
+
+    drag(cx, (60., 47.), (150., 47.));
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["a:10", "a:25", "b:20", "b:50"],
+        "dragging the bottom slider must move the bottom slider alone and \
+         map its x through its own 300px track, not the top slider's 600px"
     );
 }
 
@@ -602,11 +664,10 @@ fn slider_range_two_thumbs_do_not_cross(cx: &mut TestAppContext) {
     // reports the unchanged pair; a press far past the upper thumb (x=540
     // maps to 90) moves the nearest thumb -- the upper -- to 90, giving
     // [20, 90]. This is the same "nearest follows the pointer, the set never
-    // inverts" arithmetic a drag would run, per move. The literal DRAG path
-    // cannot be exercised here: the state behind it is a per-render
-    // `Rc<Cell<bool>>`, so the press's own repaint rebuilds the track's
-    // listeners and every move is ignored (see the ignored
-    // `slider_drag_moves_the_thumb` defect).
+    // inverts" arithmetic a drag would run, per move. The range form drives
+    // it with presses here; the pointer drag itself is exercised, in the
+    // single-thumb form, by `slider_drag_moves_the_thumb` and
+    // `two_sliders_do_not_share_a_drag`.
     click(cx, 120., 9.);
     flush_frame(cx);
     click(cx, 540., 9.);
@@ -676,7 +737,6 @@ fn color_slider_keyboard_changes_channel(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-#[ignore = "defect: ColorArea has no on_key_down handler (v3 arrow keys move the two area axes); focus plus Right/Up produces no on_change at all"]
 fn color_area_keyboard_moves_both_axes(cx: &mut TestAppContext) {
     let recorded = events();
 
@@ -718,6 +778,39 @@ fn color_area_keyboard_moves_both_axes(cx: &mut TestAppContext) {
     assert_ne!(
         brightness_after, brightness_before,
         "Up must move the y axis (brightness)"
+    );
+}
+
+#[gpui::test]
+fn disabled_color_area_answers_no_key(cx: &mut TestAppContext) {
+    let recorded = events();
+
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        // A disabled area must leave the tab order and answer no key: the
+        // `track_focus` is gated on `is_disabled`, so Tab skips it entirely,
+        // and the key handler is only wired on the enabled path. Every key a
+        // live area would answer is pressed, and none of them may record.
+        ColorArea::new("area-dead", PickerColor::hsb(210., 0.5, 0.5))
+            .default_value(PickerColor::hsb(210., 0.5, 0.5))
+            .is_disabled(true)
+            .on_change(move |c, _, _| {
+                recorded
+                    .borrow_mut()
+                    .push(format!("{:.2},{:.2}", c.saturation, c.brightness));
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "right");
+    press(cx, "up");
+    press(cx, "home");
+    press(cx, "end");
+    assert!(
+        recorded.borrow().is_empty(),
+        "a disabled colour area must not enter the tab order or answer any key"
     );
 }
 

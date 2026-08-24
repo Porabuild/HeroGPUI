@@ -81,6 +81,15 @@ REMOVE_KEY = ('TagGroup',)
 # key handler at all -- the steppers were the only way to change it.
 SPIN_KEYS = ('NumberField',)
 
+# React Aria's ColorArea moves its thumb with the arrow keys -- left/right on
+# the x channel, up/down on the y -- and Page Up/Down and Home/End move by the
+# page step (React Aria's `useColorArea` keyboard shortcuts). v3's own page has
+# no Accessibility section at all: it inherits from React Aria ColorArea, where
+# the keys are documented. The claim is derived rather than read, like
+# NumberField's, because a page with no prose is invisible to the CLAIMS
+# patterns -- which is exactly why the missing handler went unnoticed.
+AREA_KEYS = ('ColorArea',)
+
 # React Aria shows a tooltip on keyboard focus as well as on hover; a hover-only
 # tooltip is invisible to a keyboard user, and v3's own page says "shown on hover
 # or focus".
@@ -155,6 +164,10 @@ EVIDENCE = {
     ('ColorSlider', 'arrows'): ('color_picker.rs', r'"right" \| "up"'),
     ('ColorSlider', 'home-end'): ('color_picker.rs', r'"home"'),
     ('ColorSlider', 'page-up-down'): ('color_picker.rs', r'"pageup"'),
+    # Both colour controls live in one module, so ColorSlider's evidence
+    # cannot tell the area apart from the slider -- the area's claim names the
+    # wiring instead: the key context is what attaches the keyboard to it.
+    ('ColorArea', 'area-keys'): ('color_picker.rs', r'key_context\("ColorArea"\)\s+\.on_key_down'),
     ('Modal', 'escape'): ('modal.rs', r'"escape"'),
     ('Drawer', 'escape'): ('drawer.rs', r'"escape"'),
     ('AlertDialog', 'escape'): ('alert_dialog.rs', r'"escape"'),
@@ -273,14 +286,15 @@ def main():
     # has both the keys and the caret), and counting it once per tuple inflated
     # every total.
     derived = dict.fromkeys(
-        ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + FOCUS_OPEN
-        + TEXT_KEYS + POINTER_CARET + SORT_KEYS + FOCUS_RETURN + SCROLL_INTO_VIEW
-        + CALENDAR_PAGING + PANEL_FOCUS
+        ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + AREA_KEYS
+        + FOCUS_OPEN + TEXT_KEYS + POINTER_CARET + SORT_KEYS + FOCUS_RETURN
+        + SCROLL_INTO_VIEW + CALENDAR_PAGING + PANEL_FOCUS
     )
     for page in derived:
-        for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'focus-open',
-                      'text-keys', 'pointer-caret', 'sort-keys', 'focus-return',
-                      'scroll-into-view', 'calendar-paging', 'panel-focus'):
+        for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'area-keys',
+                      'focus-open', 'text-keys', 'pointer-caret', 'sort-keys',
+                      'focus-return', 'scroll-into-view', 'calendar-paging',
+                      'panel-focus'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach
             # the breakdown: reading only EVIDENCE skipped `TextArea`'s

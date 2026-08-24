@@ -418,6 +418,23 @@ impl RenderOnce for AlertDialog {
             }
         }
 
+        // Backdrop dismissal lives on the **panel**, exactly as in the modal
+        // and the drawer: gpui has no hitbox occlusion, so a click on the
+        // full-window backdrop would fire for a press on this panel too.
+        // `on_mouse_down_out` reads the panel's own bounds instead, so it
+        // only fires for a press on the dimmed region around the panel.
+        // `dismiss` is `None` unless `isDismissible` is set, which is the
+        // whole gate; the exit phase gets none — the dialog is already
+        // closing.
+        let panel = match (dismiss.clone(), exiting) {
+            (Some(on_dismiss), false) => {
+                util::dismiss_on_press_outside(panel, move |window, cx| {
+                    on_dismiss(&ClickEvent::default(), window, cx);
+                })
+            }
+            _ => panel,
+        };
+
         let keyboard_dismiss: Option<OnAction> = if self.is_keyboard_dismiss_disabled {
             None
         } else {
@@ -437,14 +454,14 @@ impl RenderOnce for AlertDialog {
         };
 
         // `.alert-dialog__backdrop`, whose variants are the `Backdrop` enum.
-        let mut backdrop = div()
+        // A bare scrim, like the modal's and the drawer's: the panel's
+        // `on_mouse_down_out` owns backdrop dismissal, and a second listener
+        // here would only double-report.
+        let backdrop = div()
             .id("alert-dialog-backdrop")
             .absolute()
             .inset_0()
             .bg(backdrop_bg);
-        if let Some(on_dismiss) = dismiss {
-            backdrop = backdrop.on_click(move |ev, window, cx| on_dismiss(ev, window, cx));
-        }
         // v3 fades the backdrop in alongside the panel, and out with it.
         let backdrop = if exiting {
             crate::anim::exiting(

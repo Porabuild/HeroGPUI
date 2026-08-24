@@ -4,7 +4,7 @@
 
 use gpui::{
     prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
-    SharedString, StatefulInteractiveElement, Styled, Window,
+    SharedString, Styled, Window,
 };
 use herogpui_theme::ActiveTheme;
 
@@ -195,6 +195,9 @@ impl RenderOnce for Drawer {
                 },
             )),
         };
+        // The panel's outside-press dismissal; the drag release moves the
+        // shared `dismiss` below, so this clone is where the two split.
+        let press_out_dismiss = dismiss.clone();
 
         // `.drawer__header` is `flex flex-col gap-3` with no padding of its
         // own: the dialog's `p-6` is the inset, and the close trigger is
@@ -335,6 +338,25 @@ impl RenderOnce for Drawer {
                 .right(px(0.)),
         };
 
+        // Backdrop dismissal lives on the **panel**, not on the backdrop: gpui
+        // has no hitbox occlusion, so an `on_click` on the full-window
+        // backdrop fired for a press on this sheet as well, and any pull at
+        // all — even a sub-threshold one — reported a close. `on_mouse_down_out`
+        // reads the panel's own bounds instead, so it only fires for a press
+        // on the dimmed region around the sheet. `is_dismissible` gates it,
+        // and the exit phase gets none: the drawer is already closing.
+        let anchored = if self.is_dismissible && !exiting {
+            if let Some(on_close) = press_out_dismiss {
+                crate::util::dismiss_on_press_outside(anchored, move |window, cx| {
+                    on_close(&ClickEvent::default(), window, cx);
+                })
+            } else {
+                anchored
+            }
+        } else {
+            anchored
+        };
+
         // v3 backdrop variants; gpui has no backdrop-filter, so `Blur` renders a
         // lighter scrim than `Opaque` to keep the layering readable.
         let backdrop_bg = match self.backdrop {
@@ -411,42 +433,33 @@ impl RenderOnce for Drawer {
                     }
                 });
         }
-        // v3 fades the backdrop in alongside the panel.
-        match (self.is_dismissible && !exiting, dismiss.clone()) {
-            (true, Some(on_close)) => {
-                overlay = overlay.child(crate::anim::entering(
-                    gpui::div()
-                        .id("drawer-backdrop")
-                        .absolute()
-                        .inset_0()
-                        .bg(backdrop_bg)
-                        .on_click(move |ev, window, cx| on_close(ev, window, cx)),
-                    "drawer-backdrop-anim",
-                    crate::anim::Motion::BACKDROP_IN,
-                    cx,
-                ));
-            }
-            _ => {
-                // `.drawer__backdrop`, whose variants are the `Backdrop` enum.
-                let scrim = gpui::div().absolute().inset_0().bg(backdrop_bg);
-                overlay = overlay.child(if exiting {
-                    crate::anim::exiting(
-                        scrim,
-                        "drawer-backdrop-out",
-                        crate::anim::ZoomBox::default(),
-                        crate::anim::Motion::BACKDROP_OUT,
-                        cx,
-                    )
-                } else {
-                    crate::anim::entering(
-                        scrim,
-                        "drawer-backdrop-anim",
-                        crate::anim::Motion::BACKDROP_IN,
-                        cx,
-                    )
-                });
-            }
-        }
+        // `.drawer__backdrop` (its `--opaque`/`--blur`/`--transparent`
+        // variants are the Backdrop enum) is a bare scrim — dimmed but
+        // press-less, exactly like the modal's: the panel's `on_mouse_down_out`
+        // dismisses on a press outside the sheet, and a scrim with its own
+        // click listener would only double-report. v3 fades it in alongside
+        // the panel.
+        let scrim = gpui::div()
+            .id("drawer-backdrop")
+            .absolute()
+            .inset_0()
+            .bg(backdrop_bg);
+        overlay = overlay.child(if exiting {
+            crate::anim::exiting(
+                scrim,
+                "drawer-backdrop-out",
+                crate::anim::ZoomBox::default(),
+                crate::anim::Motion::BACKDROP_OUT,
+                cx,
+            )
+        } else {
+            crate::anim::entering(
+                scrim,
+                "drawer-backdrop-anim",
+                crate::anim::Motion::BACKDROP_IN,
+                cx,
+            )
+        });
         // Drawers slide in from the edge they are anchored to.
         let edge = match self.placement {
             DrawerPlacement::Left => crate::anim::Edge::Left,

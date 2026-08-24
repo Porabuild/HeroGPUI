@@ -323,7 +323,6 @@ COMPANIONS = {
     'Toast': ['ToastViewport', 'ToastStore'],
     'ListBox': ['ListBoxItem'],
     'CheckboxGroup': ['CheckboxOption'],
-    'RadioGroup': ['RadioOption'],
     'Dropdown': ['Menu', 'MenuItem'],
     'Accordion': ['AccordionItem'],
     'Input': ['InputState'],

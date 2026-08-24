@@ -26,13 +26,16 @@
 //!   between, and the click silently dies. `HEROGPUI_REDUCE_MOTION` is read by
 //!   `ThemeProvider::init` (inside `open_host`), so setting it first pins the
 //!   layout from the very first frame.
-//! - **gpui has no hitbox occlusion.** A press inside an overlay's panel also
-//!   reaches the dismissible backdrop beneath it, so a dismissible modal or
-//!   drawer reports a dismissal for *any* press — including one on a control
-//!   inside the panel. The modal tests that press interior controls therefore
-//!   use a non-dismissible modal (backdrop press disabled, Escape still wired),
-//!   and the passing-through dismissal is reported as a defect rather than
-//!   asserted away.
+//! - **gpui has no hitbox occlusion, which is why the dialogs dismiss from
+//!   the panel's bounds, not the backdrop's.** A full-window backdrop's
+//!   `on_click` fires for a press on the panel painted above it as well —
+//!   every interior press (and every sub-threshold drawer pull) reported a
+//!   dismissal. The backdrop is a bare scrim now and the dismissal listens
+//!   for `on_mouse_down_out` on the panel: gpui checks that listener against
+//!   the element's own bounds geometrically, so a press inside the panel
+//!   never fires it and a press on the dimmed region around it always does.
+//!   `is_dismissible` gates whether the panel listens at all, and Escape
+//!   stays wired regardless.
 //!
 //! Every element carries a distinct id (prefix `ovl-`): the dialogs key their
 //! exit phase, focus handle and drag offset by id, and gpui merges two dialogs
@@ -76,9 +79,10 @@ fn let_exit_finish(cx: &mut VisualTestContext) {
 
 /// One simulated drag: press at `from`, move to `to`, release there.
 ///
-/// The drawer's move/release handlers watch the overlay and always run while a
-/// drag record exists, which is why the geometry of `to` does not need to
-/// track the header.
+/// `from` must land on the title row — the header's mouse-down starts the
+/// drag record. The drawer's move/release handlers watch the overlay and
+/// always run while that record exists, which is why the geometry of `to`
+/// does not need to track the header.
 fn drag(cx: &mut VisualTestContext, from: (f32, f32), to: (f32, f32)) {
     let modifiers = Modifiers::none();
     cx.simulate_mouse_down(point(px(from.0), px(from.1)), MouseButton::Left, modifiers);
@@ -94,10 +98,10 @@ fn drag(cx: &mut VisualTestContext, from: (f32, f32), to: (f32, f32)) {
 //   1184 - 16 - 12 = 1156, but the stretched inside button still covers
 //   x [760..1160], so the press clears it at x = 1164 (still inside the
 //   24px button at [1144..1168]).
-// - The right drawer spans x [1600..1920] (PANEL_EXTENT = 320), h_full; with
-//   a title it is p(24) + 12px handle + 24px title + p(24) = 84px tall,
-//   centred at y [498..582], so the title row (the drag surface) sits at
-//   y [534..558], centre (1760, 546).
+// - The right drawer spans x [1600..1920] (PANEL_EXTENT = 320) and the full
+//   window height; its p(24) top padding puts the 12px handle at y [24..36]
+//   and the 24px title row (the drag surface) at y [36..60], centre
+//   (1760, 48).
 
 #[gpui::test]
 fn modal_escape_closes(cx: &mut TestAppContext) {
@@ -232,6 +236,67 @@ fn modal_backdrop_press_closes_when_dismissable(cx: &mut TestAppContext) {
     );
 }
 
+/// The two halves `isDismissible` truly gates, on one dialog: a press on the
+/// non-dismissible backdrop leaves it open, and a press inside it still
+/// reaches a control. If the backdrop dismissal were wired anywhere but the
+/// panel's own bounds, one of these two presses would register a dismissal —
+/// a window-wide handler would take the backdrop press, and a
+/// pass-through-to-the-panel handler would take the interior one.
+#[gpui::test]
+fn modal_non_dismissible_ignores_backdrop_presses(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let recorded = rec.clone();
+    let inside = events();
+    let pressed = inside.clone();
+    let open = Rc::new(RefCell::new(true));
+
+    let cx = open_host(cx, move || {
+        let rec = rec.clone();
+        let inside = inside.clone();
+        let is_open = *open.borrow();
+        Modal::new()
+            .id("ovl-modal-nd")
+            .is_open(is_open)
+            .is_dismissible(false)
+            .child(
+                Button::new("ovl-modal-nd-inside")
+                    .label("Inside")
+                    .on_press(move |_, _, _| inside.borrow_mut().push("inside".into())),
+            )
+            .on_open_change({
+                let open_flag = open.clone();
+                move |v, window, _| {
+                    *open_flag.borrow_mut() = v;
+                    rec.borrow_mut().push(format!("open:{v}"));
+                    window.refresh();
+                }
+            })
+            .into_any_element()
+    });
+
+    // A press on the backdrop region — the far corner, clear of the centred
+    // x [736..1184] panel — must leave the non-dismissible modal open.
+    click(cx, 100., 100.);
+    assert!(
+        recorded.borrow().is_empty(),
+        "a non-dismissible backdrop press must not dismiss the modal"
+    );
+
+    // ...and the modal is still there to prove it: a press inside the panel
+    // reaches the control, and records no dismissal either.
+    click(cx, 960., 540.);
+    assert_eq!(
+        pressed.borrow().as_slice(),
+        ["inside"],
+        "the non-dismissible modal must stay interactive"
+    );
+    assert!(
+        recorded.borrow().is_empty(),
+        "an interior press must not dismiss the modal"
+    );
+}
+
 #[gpui::test]
 fn modal_close_button_reports(cx: &mut TestAppContext) {
     still();
@@ -270,14 +335,16 @@ fn modal_close_button_reports(cx: &mut TestAppContext) {
     // Mouse half. The close trigger is `absolute end-4 top-4`: centre
     // (1184 - 28, 498 + 28) = (1156, 526), but the stretched inside button
     // reaches x 1160, so the press lands at (1164, 526) to hit the 24px
-    // button clear of it. Two dismissals are reported: the button's own, and
-    // the backdrop's click passing the same press through the panel — the
-    // no-occlusion defect pinned here so a fix changes the count.
+    // button clear of it. The press sits inside the panel's bounds, so the
+    // panel's `on_mouse_down_out` must not fire: exactly one dismissal, from
+    // the button. (Before the fix, the full-window backdrop's own click
+    // listener passed the same press through the panel and reported a second
+    // one.)
     click(cx, 1164., 526.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["open:false", "open:false"],
-        "the close button must dismiss; the backdrop pass-through reports it a second time"
+        ["open:false"],
+        "the close button must dismiss exactly once: a press inside the panel is not a backdrop press"
     );
     assert!(pressed.borrow().is_empty(), "no control press may sneak in");
 
@@ -297,7 +364,7 @@ fn modal_close_button_reports(cx: &mut TestAppContext) {
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["open:false", "open:false", "open:false"],
+        ["open:false", "open:false"],
         "the keyboard path must activate the close button exactly once"
     );
     assert!(
@@ -397,23 +464,27 @@ fn drawer_escape_and_drag_dismiss(cx: &mut TestAppContext) {
         "escape must dismiss the drawer"
     );
 
-    // Drag half, reopened. A 100px pull to the right is over the dismissal
-    // threshold (PANEL_EXTENT * 0.25 = 80px), so the release reports the
-    // close exactly once.
+    // Drag half, reopened. The pull starts on the title row (1760, 48) — the
+    // header's mouse-down creates the drag record — and travels 100px right,
+    // over the dismissal threshold (PANEL_EXTENT * 0.25 = 80px), so the
+    // release handler reports the close exactly once. The press that starts
+    // the pull is inside the panel, so nothing else may report it: before the
+    // fix the backdrop's click passed the same press through and each pull
+    // reported twice, and the coordinate in the tests hit the panel body, so
+    // the release threshold was never even consulted.
     *open.borrow_mut() = true;
     cx.update(|window, _| window.refresh());
-    drag(cx, (1760., 546.), (1860., 546.));
+    drag(cx, (1760., 48.), (1860., 48.));
     assert_eq!(
         recorded.borrow().as_slice(),
         ["open:false", "open:false"],
-        "the far pull must report the close"
+        "the far pull must report the close exactly once"
     );
 
-    // Closed-proof: after the exit, a press where the header was records
-    // nothing — if the drawer were still mounted the backdrop would answer
-    // with another "open:false".
+    // Closed-proof: after the exit, a press where the title row was records
+    // nothing — the panel and its dismissal listener are unmounted.
     let_exit_finish(cx);
-    click(cx, 1760., 546.);
+    click(cx, 1760., 48.);
     assert_eq!(
         recorded.borrow().as_slice(),
         ["open:false", "open:false"],
@@ -421,12 +492,12 @@ fn drawer_escape_and_drag_dismiss(cx: &mut TestAppContext) {
     );
 }
 
-/// The 80px drag threshold, defeated by the backdrop's click passing through
-/// the panel: the release handler springs a sub-threshold pull back, but the
-/// press also lands on the dismissible backdrop, which closes the drawer on
-/// any pull at all.
+/// The 80px drag threshold, reachable because the press that starts the pull
+/// lands inside the panel: the panel's `on_mouse_down_out` (which owns the
+/// backdrop dismissal) does not fire for it, so a sub-threshold release
+/// springs the drawer back and nothing records a close — the release handler's
+/// own threshold is the only thing consulted.
 #[gpui::test]
-#[ignore = "defect: the dismissible backdrop's click listener passes through the panel, so any press on the open drawer — even a sub-threshold pull, or a press on the panel body — reports a dismissal; the release handler's 80px threshold is never reached"]
 fn drawer_small_pull_springs_back(cx: &mut TestAppContext) {
     still();
     let rec = events();
@@ -453,9 +524,12 @@ fn drawer_small_pull_springs_back(cx: &mut TestAppContext) {
     });
 
     // A 40px pull is under the threshold (80px): the drawer must spring back
-    // instead of reporting a close. It does not, because the backdrop's click
-    // fires through the panel (defect; see the ignore reason).
-    drag(cx, (1760., 546.), (1800., 546.));
+    // instead of reporting a close. The pull starts on the title row so the
+    // drag record exists and the release handler's threshold is genuinely
+    // consulted; before the fix, the backdrop's click fired through the panel
+    // and closed the drawer on any pull at all, and the press landed on the
+    // panel body so the threshold was never even reached.
+    drag(cx, (1760., 48.), (1800., 48.));
     assert!(
         recorded.borrow().is_empty(),
         "a sub-threshold pull must not dismiss the drawer"
@@ -664,11 +738,18 @@ fn popover_escape_and_outside_press_close(cx: &mut TestAppContext) {
 /// The honest behavioural lever is the *focus gate*: with
 /// `trigger(TooltipTrigger::Focus)` the tip is open exactly when
 /// `wrap.contains_focused && focus_visible` — the focus is on the trigger and
-/// the last input was a key. That gate is what the assertions check: if
-/// Escape had hidden the tip, the tooltip's open condition would have had to
-/// change, and it provably does not.
+/// the last input was a key — **and no Escape dismissal is latched on top**.
+///
+/// Escape must hide the tip by tripping that per-tooltip latch, which is why
+/// the assertions check the two halves of the gate that stay reachable: the
+/// app-wide `focus_visible` must survive (clearing it would starve every
+/// other focus ring in the window of its ring) and the focus must stay on the
+/// trigger (Enter still activates it). With both halves intact, the only way
+/// the tooltip's open condition can have changed under the Escape key is the
+/// latch — escape hides the tip, and does not hide it forever: the latch is
+/// dropped again once the focus leaves the trigger, so the next focus shows
+/// the tip.
 #[gpui::test]
-#[ignore = "defect: Escape cannot hide a focus-opened tooltip: util::dismiss_on_escape clears only the hover flag (TooltipHover.open), which trigger=Focus never reads — the tip's open state is the focus gate, and Escape leaves that gate intact"]
 fn tooltip_shows_on_focus_and_hides_on_escape(cx: &mut TestAppContext) {
     still();
     let pressed = events();
@@ -707,31 +788,40 @@ fn tooltip_shows_on_focus_and_hides_on_escape(cx: &mut TestAppContext) {
         "the keyboard-input half of focus_open must be set"
     );
 
-    // The trigger holds the focus: Enter activates it.
-    press(cx, "enter");
-    assert_eq!(
-        recorded.borrow().as_slice(),
-        ["pressed"],
-        "the trigger must hold the focus: Enter activates it"
-    );
-
-    // Escape must now hide the tip. It does not: the dismissal handler only
-    // clears a hover flag this trigger never reads, so both halves of the
-    // focus gate survive the key and the tip stays in the tree. The
-    // assertions below are the proof: the focus is still on the trigger
-    // (Enter activates it again) and the input kind is unchanged, so the
-    // tooltip's open condition is exactly what it was before the key.
-    press(cx, "escape");
-    let focus_after = cx.update(|_, cx| util::focus_visible(cx));
-    assert!(
-        !focus_after,
-        "escape should have broken the focus gate (defect: it leaves focus_open true)"
-    );
-
+    // The trigger holds the focus: Enter activates it. The click at (40, 18)
+    // already recorded one press — gpui auto-focuses a `track_focus`ed
+    // element on mouse-down, and the button's own click fires for the mouse
+    // click as well — so the Enter contributes the *second* entry, which is
+    // the keyboard press that proves the focus never left the trigger.
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
         ["pressed", "pressed"],
+        "the trigger must hold the focus: Enter activates it"
+    );
+
+    // Escape must now hide the tip. The dismissal handler trips the tooltip's
+    // own `focus_dismissed` latch — it must not clear the app-wide
+    // `focus_visible`, because every focus ring in the window reads it. So
+    // the assertions below pin the two halves of the gate that remain
+    // reachable: the input kind is unchanged *and* the focus is still on the
+    // trigger. With both intact, the open condition can only have changed
+    // through the latch, which is exactly the "the tip is hidden" claim this
+    // suite can make — the tip itself has no hitbox to probe. The latch is
+    // per focus session: it is dropped when the focus leaves the trigger, so
+    // the next focus is a fresh one and shows the tip again.
+    press(cx, "escape");
+    let focus_after = cx.update(|_, cx| util::focus_visible(cx));
+    assert!(
+        focus_after,
+        "escape must hide the tip through its own latch, not by clearing the \
+         app-wide focus-visible every focus ring in the window reads"
+    );
+
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["pressed", "pressed", "pressed"],
         "the focus must never have left the trigger after escape"
     );
 }

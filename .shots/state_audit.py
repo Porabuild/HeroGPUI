@@ -261,6 +261,10 @@ PROSE_ELSEWHERE = {
     ('Modal', 'hover'): 'close_button.rs',
     ('Drawer', 'hover'): 'close_button.rs',
     ('AlertDialog', 'active'): 'button.rs',
+    # The drawer's own sheet presses `.drawer__trigger` (built by the caller);
+    # inside the component the only pressed thing is the composed close
+    # button, which is where the evidence lives.
+    ('Drawer', 'active'): 'close_button.rs',
     # These compose an `Input`, which is what hovers and takes the focus.
     ('InputGroup', 'hover'): 'input.rs',
     ('ComboBox', 'focus'): 'input.rs',

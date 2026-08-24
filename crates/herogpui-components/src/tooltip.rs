@@ -60,9 +60,17 @@ impl TooltipPlacement {
 /// `generation` is bumped on every hover transition; a timer that fires after a
 /// newer transition has been recorded is stale and must not flip the tip. That
 /// is what keeps a fast pass over a row of triggers from opening all of them.
+///
+/// `focus_dismissed` is what Escape trips for a *focus-opened* tip. The focus
+/// gate (`contains_focused && focus_visible`) is not something Escape may
+/// clear — `focus_visible` is app-wide state every focus ring reads — so the
+/// dismissal is remembered per tooltip instead, and dropped again the moment
+/// the focus leaves the trigger. A dismissal therefore lasts exactly one
+/// focus session: the next focus shows the tip again.
 pub struct TooltipHover {
     open: bool,
     generation: u64,
+    focus_dismissed: bool,
 }
 
 impl TooltipHover {
@@ -70,6 +78,7 @@ impl TooltipHover {
         Self {
             open: false,
             generation: 0,
+            focus_dismissed: false,
         }
     }
 
@@ -233,7 +242,16 @@ impl RenderOnce for Tooltip {
             |_, cx| cx.focus_handle(),
         );
         let wrap_handle = wrap_focus.read(cx).clone();
-        let focus_open = wrap_handle.contains_focused(window, cx) && util::focus_visible(cx);
+        let focus_held = wrap_handle.contains_focused(window, cx);
+        // Escape's dismissal is per focus *session*: once the focus leaves the
+        // trigger, the latch is dropped, so the next focus is a fresh one and
+        // shows the tip again. Clearing here rather than on the next open is
+        // what makes a dismissal not permanent without ever touching the
+        // app-wide `focus_visible`.
+        if !focus_held && state.read(cx).focus_dismissed {
+            state.update(cx, |s, _| s.focus_dismissed = false);
+        }
+        let focus_open = focus_held && util::focus_visible(cx) && !state.read(cx).focus_dismissed;
         // `trigger="focus"` takes the pointer out of it; `hover` is both, which
         // is React Aria's behaviour for the default.
         let open = match self.trigger {
@@ -356,11 +374,20 @@ impl RenderOnce for Tooltip {
             });
 
         // React Aria hides a tooltip on Escape, which reaches here from the
-        // focused trigger inside the wrapper.
+        // focused trigger inside the wrapper. The hover flag alone is not
+        // enough: a `trigger="focus"` tip reads the focus gate and never
+        // looks at `open`, so Escape has to trip `focus_dismissed` as well.
+        // The latch is per focus session — it is dropped when the focus
+        // leaves (see the render gate) — so the next focus shows the tip
+        // again, and `focus_visible` is deliberately left untouched.
         wrapper = util::dismiss_on_escape(wrapper, move |_window, cx| {
             escape_state.update(cx, |s, cx| {
                 if s.open {
                     s.open = false;
+                    cx.notify();
+                }
+                if !s.focus_dismissed {
+                    s.focus_dismissed = true;
                     cx.notify();
                 }
             });

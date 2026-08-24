@@ -852,6 +852,95 @@ table documents `defaultChildren` beside `children`, which reads exactly like a
 would have drawn*, handed in so a caller can return it unchanged -- so the three
 components that take a value closure are recorded in `NOT_STATE`.
 
+## Driving the components: the behaviour suite
+
+Sixteen audits at zero say nothing about whether a control *works*. That was not
+a hypothesis: the Autocomplete rebuild shipped with an unset `value` read as a
+controlled empty selection, so clicking a row wrote to state nobody owned, and
+every audit stayed green. `crates/herogpui-components/tests/` is the answer --
+gpui has a headless test platform, so a component can be rendered, clicked and
+typed at for real.
+
+```bash
+cargo test -p herogpui-components                    # 124 unit + 70 behaviour
+cargo test -p herogpui-components --test overlays    # one binary
+```
+
+`tests/harness/mod.rs` opens a window on the test platform with a host view that
+rebuilds one `RenderOnce` component per frame -- exactly as a gallery page does,
+which is what keeps the component's keyed state alive between two clicks -- and
+records callbacks into an `Rc<RefCell<Vec<String>>>`. `dev-dependencies` enables
+gpui's `test-support`. Six things the harness had to learn, each of which cost an
+hour:
+
+- **`ThemeProvider::init` must run before the window opens**, or the first draw
+  panics: every component reads its tokens from that global.
+- **`simulate_keystrokes` sends only the key *down*.** gpui activates a focused
+  element's click listeners on key **up**, so `harness::press` dispatches an
+  explicit `KeyUpEvent` for the last key. Without it a Space on a focused switch
+  does nothing at all, and the test passes for the wrong reason.
+- **gpui does not move focus on Tab** -- the app root does. The harness
+  reproduces the minimum of `util::app_focus_root`.
+- **A drag is down, `MouseMoveEvent` with `pressed_button`, up**, with a
+  `window.refresh()` between: events hit-test the *last rendered frame*.
+- **Reduced motion has to be set before the first frame.** Flipping it later
+  changes the animated wrapper mid-click and the press is lost between down and
+  up.
+- **After `advance_clock` past an exit, force one more update**, or the ghost of
+  the exiting panel answers the probe.
+
+Coordinates come from this port's own constants -- `util::FIELD_HEIGHT`, a 16px
+checkbox, `CALENDAR_WIDTH`, a panel 6px below its trigger -- and every test
+writes the arithmetic in a comment. Two exceptions worth knowing: label widths
+are *measured* with `Window::text_system().shape_line` rather than guessed, and a
+table with `default_width` columns must **not** be wrapped in a fixed-width div
+(sortable headers flex and need one; pinned columns shift if you add one).
+
+**A closed panel is not observable from a callback**, so closure is proved
+behaviourally: click where the row was and assert nothing is recorded. That probe
+is how `select.rs`'s row handler was found closing the panel without calling
+`on_open_change`.
+
+### What driving them found
+
+Five defects in two days, none of which any audit could see -- every one was a
+prop that is *read* somewhere, just not where it mattered:
+
+- **A slider could not be dragged.** Its drag flag was a per-render
+  `Rc<Cell<bool>>`, and the press itself repaints the window, so the new frame's
+  listeners held a fresh `false` and every move was ignored. Confirmed in the
+  gallery before fixing: a click on the track jumped the value, a drag did
+  nothing. The Table's column resize survives because it keys its drag through
+  `use_keyed_state`; that is now what the Slider does. **Cross-event state must
+  be keyed state** -- a per-render cell is a frame long, and a press is not.
+- **A press inside a dismissible Modal or Drawer dismissed it.** gpui has no
+  hitbox occlusion, so a full-window backdrop `on_click` fires for a press that
+  landed on the panel painted above it. The dismissal belongs on the panel,
+  where `on_mouse_down_out` reads *its own bounds* -- which is what Popover
+  always did. The drawer's drag threshold had never once been consulted: the
+  backdrop claimed every pull first.
+- **A ColorArea answered no key.** `behaviour_audit.py` had no claim for it
+  because v3's ColorArea page has no prose to read -- the audit's weak side,
+  now covered by a derived claim like NumberField's.
+- **Escape could not hide a focus-opened Tooltip.** The dismissal cleared the
+  hover flag; a `trigger="focus"` tip is gated on `contains_focused &&
+  focus_visible`, a different condition. It has a per-focus-session latch now,
+  dropped when the focus leaves, so the tip returns on the next focus.
+- **`Radio.isDisabled` was not ported at all**, and `api_audit.py` stayed green
+  because its `COMPANIONS` table named a `RadioOption` struct **no source file
+  defines**: the per-option prop resolved against the group-wide `is_disabled`
+  builder of the same name. A companion that does not exist contributes an empty
+  method set, so the row can never fail. Every name in that table must resolve
+  to a real struct.
+
+Two of those were only *visible* in the app: the slider drag and the modal
+press. Drive the gallery to confirm a fix, with `.shots/batch.ps1 -Steps
+@(@{ page=..; do='drag:625,437>820,437' })`, not just the test.
+
+`[profile.dev]` sets `debug = "line-tables-only"` because ten test binaries with
+full debug info filled the disk, and the link failed as `link.exe: exit code
+1318` -- which reads as a broken toolchain rather than as "no space left".
+
 ## Scope: HeroUI v3 only
 
 This is a port of **HeroUI v3**, not v2. When in doubt, the authoritative source

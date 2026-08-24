@@ -224,41 +224,90 @@ fn radio_group_arrows_move_and_select(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-#[ignore = "defect: RadioGroup has no per-option disable (v3's Radio.isDisabled is not ported) — a disabled radio option cannot be expressed, so the arrows cannot skip one"]
 fn radio_group_disabled_option_is_skipped(cx: &mut TestAppContext) {
-    // The requested scenario is unwritable through the public API: a v3
-    // `<Radio>` takes `isDisabled` ("Whether the radio button is disabled" —
-    // heroui.com/react, `### Radio`), but this port's `RadioGroup` takes plain
-    // `SharedString` options and offers no per-option switch, so there is
-    // nothing for the arrows to skip. The parity audit's `COMPANIONS` even
-    // lists a `RadioOption` struct that no source file defines, which is why
-    // api_audit.py stays at zero for it.
-    //
-    // The closest state the API *can* express is the group-wide `is_disabled`,
-    // and it must take the group out of the tab order and mute its arrows
-    // entirely. That contract is asserted below; the per-option half is the
-    // defect this test is named for.
-    let changes = events();
-    let recorded = changes.clone();
+    // `Radio.isDisabled` — a disabled option draws dimmed and answers no
+    // clicks ("Whether the radio button is disabled" — heroui.com/react,
+    // `### Radio`; Interactive States: disabled is "reduced opacity, no
+    // pointer events"), and the group's arrows and roving tab stop pass it
+    // by. Index 1 is disabled, so Down from row 0 lands on row 2, Up from
+    // row 2 wraps past it back to row 0, and a pointer press on the disabled
+    // row changes nothing.
+    let picks = events();
+    let picked = picks.clone();
     let cx = open_host(cx, move || {
-        let changes = changes.clone();
+        let picks = picks.clone();
         RadioGroup::new(
-            "rg-disabled",
+            "rg-disabled-opt",
             vec!["One".into(), "Two".into(), "Three".into()],
         )
         .default_value(Some(0))
-        .is_disabled(true)
-        .on_change(move |index, _, _| changes.borrow_mut().push(index.to_string()))
+        .disabled_keys([1])
+        .on_change(move |index, _, _| picks.borrow_mut().push(index.to_string()))
         .into_any_element()
     });
 
-    // No row tracks a focus handle when the group is disabled, so Tab passes
-    // it by and Down reaches nothing.
+    // Tab enters the group on the selected option (row 0), and the arrows
+    // must skip the disabled row: Down lands on 2 and Up from there wraps
+    // back to 0 — never 1.
     press(cx, "tab");
     press(cx, "down");
-    assert!(
-        recorded.borrow().is_empty(),
-        "a disabled radio group must not enter the tab order or answer arrows"
+    press(cx, "up");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["2", "0"],
+        "Down and Up must skip the disabled option and land on the enabled \
+         ones around it"
+    );
+
+    // A pointer press on the disabled option must select nothing: v3's
+    // `status-disabled` is `pointer-events: none`, and this port leaves the
+    // row without a click handler. Row 1's 16px box centre is (8, 46) — see
+    // the file doc comment.
+    click(cx, 8., 46.);
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["2", "0"],
+        "the disabled option must not answer a click"
+    );
+
+    // The enabled row beside it still does: row 0's box centre is (8, 11).
+    click(cx, 8., 11.);
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["2", "0", "0"],
+        "an enabled option beside a disabled one must still answer a click"
+    );
+}
+
+#[gpui::test]
+fn radio_group_first_option_disabled_stays_reachable(cx: &mut TestAppContext) {
+    // AGENTS.md's roving tab stop: a stop that rests on a disabled option
+    // takes the group out of the tab order. With row 0 disabled and nothing
+    // selected, the group's one stop must fall on the first *enabled* option,
+    // so Tab still reaches the group — and the first Down, moving from
+    // nowhere, selects that same first enabled option (React Aria's radio
+    // group starts a keyboard walk at the top of the enabled list).
+    let picks = events();
+    let picked = picks.clone();
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        RadioGroup::new(
+            "rg-first-disabled",
+            vec!["One".into(), "Two".into(), "Three".into()],
+        )
+        .default_value(None)
+        .disabled_keys([0])
+        .on_change(move |index, _, _| picks.borrow_mut().push(index.to_string()))
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["1"],
+        "Tab must reach the group with the first option disabled, and the \
+         first Down must select the first enabled option"
     );
 }
 

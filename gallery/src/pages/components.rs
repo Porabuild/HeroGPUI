@@ -6521,10 +6521,20 @@ impl Gallery {
                 ),
                 (
                     "Disabled",
-                    col(vec![h::RadioGroup::new("rg-d", options)
-                        .value(selected)
-                        .is_disabled(true)
-                        .into_any_element()]),
+                    col(vec![
+                        // v3's own example disables the whole group
+                        // (`<RadioGroup isDisabled>`); `Radio.isDisabled`
+                        // instead disables one option — dimmed, unclickable,
+                        // skipped by the arrows.
+                        h::RadioGroup::new("rg-d", options)
+                            .value(selected)
+                            .is_disabled(true)
+                            .into_any_element(),
+                        h::RadioGroup::new("rg-d-opt", plans())
+                            .default_value(Some(2))
+                            .disabled_keys([0])
+                            .into_any_element(),
+                    ]),
                 ),
             ],
             cx,

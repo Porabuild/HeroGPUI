@@ -280,7 +280,6 @@ impl RenderOnce for Modal {
                 },
             )),
         };
-        let backdrop_click: Option<OnClose> = dismiss.clone();
         // `ClickEvent::default()` is the Keyboard variant, so a caller
         // inspecting the event sees a keyboard activation, which is what this
         // is.
@@ -413,6 +412,26 @@ impl RenderOnce for Modal {
             _ => panel,
         };
 
+        // Backdrop dismissal lives on the **panel**, not on the backdrop.
+        // gpui has no hitbox occlusion, so a `on_click` on the full-window
+        // backdrop fires for a press on the panel above it as well — the
+        // close button reported every press twice. `on_mouse_down_out` reads
+        // the element's own bounds instead of hit-testing, so `close` runs
+        // exactly when the press landed outside this box, which is the
+        // backdrop. `is_dismissible` gates it, and the exit phase gets none:
+        // the dialog is already closing.
+        let panel = if self.is_dismissible && !exiting {
+            if let Some(on_close) = dismiss.clone() {
+                crate::util::dismiss_on_press_outside(panel, move |window, cx| {
+                    on_close(&ClickEvent::default(), window, cx);
+                })
+            } else {
+                panel
+            }
+        } else {
+            panel
+        };
+
         // Backdrop — v3 variants: opaque / blur / transparent
         // gpui has no backdrop-filter, so `Blur` renders a lighter scrim than
         // `Opaque` to keep the layering readable.
@@ -458,43 +477,33 @@ impl RenderOnce for Modal {
         .when(self.placement == ModalPlacement::Bottom, |e| {
             e.items_end().justify_center()
         });
-        // v3 fades the backdrop in alongside the panel (`.backdrop[data-entering]`).
-        match (self.is_dismissible && !exiting, backdrop_click.clone()) {
-            (true, Some(on_close)) => {
-                overlay = overlay.child(crate::anim::entering(
-                    gpui::div()
-                        .id("modal-backdrop")
-                        .absolute()
-                        .inset_0()
-                        .bg(backdrop_bg)
-                        .on_click(move |ev, window, cx| on_close(ev, window, cx)),
-                    "modal-backdrop-anim",
-                    crate::anim::Motion::BACKDROP_IN,
-                    cx,
-                ));
-            }
-            _ => {
-                // `.modal__backdrop`, whose `--opaque`/`--blur`/`--transparent`
-                // variants are the `Backdrop` enum above.
-                let scrim = gpui::div().absolute().inset_0().bg(backdrop_bg);
-                overlay = overlay.child(if exiting {
-                    crate::anim::exiting(
-                        scrim,
-                        "modal-backdrop-out",
-                        crate::anim::ZoomBox::default(),
-                        crate::anim::Motion::BACKDROP_OUT,
-                        cx,
-                    )
-                } else {
-                    crate::anim::entering(
-                        scrim,
-                        "modal-backdrop-anim",
-                        crate::anim::Motion::BACKDROP_IN,
-                        cx,
-                    )
-                });
-            }
-        }
+        // `.modal__backdrop` is a bare scrim — `--opaque`/`--blur`/
+        // `--transparent` are the Backdrop enum above: it must look dimmed
+        // but never grab presses, because the panel's `on_mouse_down_out`
+        // owns backdrop dismissal (see above), which also keeps the press out
+        // of the panel's own controls. v3 fades it in alongside the panel
+        // (`.backdrop[data-entering]`).
+        let scrim = gpui::div()
+            .id("modal-backdrop")
+            .absolute()
+            .inset_0()
+            .bg(backdrop_bg);
+        overlay = overlay.child(if exiting {
+            crate::anim::exiting(
+                scrim,
+                "modal-backdrop-out",
+                crate::anim::ZoomBox::default(),
+                crate::anim::Motion::BACKDROP_OUT,
+                cx,
+            )
+        } else {
+            crate::anim::entering(
+                scrim,
+                "modal-backdrop-anim",
+                crate::anim::Motion::BACKDROP_IN,
+                cx,
+            )
+        });
         let zoom = crate::anim::ZoomBox {
             // The zoom needs a width to scale geometrically; `Cover` and `Full`
             // have none of their own, so the container's is as close as it gets.

@@ -1,5 +1,7 @@
 //! RadioGroup — port of `@heroui/radio`.
 
+use std::collections::HashSet;
+
 use gpui::{prelude::*, px, App, IntoElement, RenderOnce, SharedString, Styled, Window};
 use herogpui_core::{Color, FieldVariant, Orientation};
 use herogpui_theme::ActiveTheme;
@@ -20,6 +22,10 @@ pub struct RadioGroup {
     /// same order. `.radio` is `flex flex-col gap-1` around its content and this
     /// text, indented under the label by `ps-7`.
     descriptions: Vec<Option<SharedString>>,
+    /// `Radio.isDisabled` — options that cannot be chosen, by index. A
+    /// disabled option draws dimmed, answers no clicks and is skipped by the
+    /// group's arrow keys and tab stop.
+    disabled_keys: HashSet<usize>,
     /// The group's own `<Label>`, `<Description>` and `<FieldError>`. v3
     /// composes all three inside `<RadioGroup>` -- every documented example
     /// opens with `<Label>Plan selection</Label>` -- and a monolithic group takes
@@ -87,6 +93,16 @@ impl RadioGroup {
         self
     }
 
+    /// `Radio.isDisabled` — options that render but cannot be chosen, by index
+    /// (the same addressing `value` and `on_change` use, and the same shape as
+    /// the sibling `Select::disabled_keys`). A disabled option draws dimmed
+    /// with the disabled opacity, answers no clicks, and is skipped by the
+    /// group's arrow keys and its roving tab stop.
+    pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = usize>) -> Self {
+        self.disabled_keys = keys.into_iter().collect();
+        self
+    }
+
     pub fn new(id: impl Into<gpui::ElementId>, options: Vec<SharedString>) -> Self {
         Self {
             name: None,
@@ -94,6 +110,7 @@ impl RadioGroup {
             options,
             option_content: None,
             descriptions: Vec::new(),
+            disabled_keys: HashSet::new(),
             label: None,
             description: None,
             error_message: None,
@@ -218,8 +235,30 @@ impl RenderOnce for RadioGroup {
         // the arrows choose within it, which is the ARIA radio-group pattern
         // React Aria implements. The stop is the selected option, or the first
         // when nothing is selected yet.
-        let tab_stop_index = selected.unwrap_or(0);
-        let stops: Vec<usize> = (0..self.options.len()).collect();
+        //
+        // `Radio.isDisabled` options are left out of `stops` -- the list the
+        // arrows and Home/End walk -- so the cursor never lands on one. The
+        // tab stop skips them too: a stop resting on a disabled option has no
+        // row to claim the group's handle (AGENTS.md's roving tab stop), which
+        // would take the whole group out of the tab order. So with nothing
+        // selected and the first option disabled, the group is still reachable
+        // by Tab, on the first *enabled* option. With every option disabled
+        // `stops` is empty, no row tracks the handle, and the group leaves the
+        // tab order exactly as the group-wide `is_disabled` does.
+        let stops: Vec<usize> = (0..self.options.len())
+            .filter(|i| !self.disabled_keys.contains(i))
+            .collect();
+        let tab_stop_index = selected
+            .filter(|i| !self.disabled_keys.contains(i))
+            .or_else(|| stops.first().copied())
+            .unwrap_or(0);
+        // The arrows move from the *selection* -- which is also the focused
+        // row, the roving tab stop -- and from nowhere when nothing is
+        // selected, so the first Down lands on the top of the enabled list
+        // (`list_nav::resolve` with `None`, which is what React Aria does).
+        // A controlled selection pointing at a disabled option falls back to
+        // the same nowhere, rather than blocking the arrows on it.
+        let key_starts = selected.filter(|i| !self.disabled_keys.contains(i));
 
         let sem = cx.role(Color::Accent);
         let colors = cx.colors();
@@ -251,6 +290,12 @@ impl RenderOnce for RadioGroup {
 
         for (i, label) in self.options.into_iter().enumerate() {
             let is_selected = selected == Some(i);
+            // `Radio.isDisabled` — the option's own switch, beside the
+            // group-wide `is_disabled`: dimmed (`status-disabled`'s opacity,
+            // v3's "reduced opacity, no pointer events"), no pointer
+            // affordance, no click handler and no place in the tab order or
+            // the arrow navigation.
+            let row_disabled = self.is_disabled || self.disabled_keys.contains(&i);
             // `.radio__control` has no border (`--field-border-width: 0`); it is
             // a filled square. Unselected it is `bg-field` plus `shadow-field`;
             // selected it fills with `bg-accent` and the indicator shrinks to a
@@ -290,15 +335,16 @@ impl RenderOnce for RadioGroup {
                 && crate::util::focus_visible(cx);
             let circle_el = crate::util::with_focus_ring(
                 circle_el,
-                focused && !self.is_disabled,
+                focused && !row_disabled,
                 true,
                 control_shadow.clone().unwrap_or_default(),
                 cx,
             );
 
             // `.radio__control[data-pressed]` is `scale-95`, and a checked one
-            // also fills with `bg-accent-hover`.
-            let circle_el = if self.is_disabled || self.is_read_only {
+            // also fills with `bg-accent-hover`. A disabled option cannot be
+            // pressed, so it skips the animation like a read-only one.
+            let circle_el = if row_disabled || self.is_read_only {
                 circle_el
             } else {
                 let pressed_fill = sem.hover();
@@ -329,7 +375,7 @@ impl RenderOnce for RadioGroup {
                 .id(gpui::ElementId::Name(
                     format!("{}-opt-{i}", element_id_name(&self.id)).into(),
                 ))
-                .when(!self.is_disabled && i == tab_stop_index, |r| {
+                .when(!row_disabled && i == tab_stop_index, |r| {
                     r.track_focus(&group_focus)
                 })
                 .flex()
@@ -337,14 +383,12 @@ impl RenderOnce for RadioGroup {
                 .gap(gap)
                 .text_size(text)
                 .text_color(colors.foreground)
-                .when(!self.is_disabled && !self.is_read_only, |r| {
-                    r.cursor_pointer()
-                })
-                .when(self.is_disabled, |r| r.opacity(layout.disabled_opacity))
+                .when(!row_disabled && !self.is_read_only, |r| r.cursor_pointer())
+                .when(row_disabled, |r| r.opacity(layout.disabled_opacity))
                 .child(circle_el)
                 .child(match &self.option_content {
                     Some(render) => {
-                        let focused = !self.is_disabled && i == tab_stop_index;
+                        let focused = !row_disabled && i == tab_stop_index;
                         render(
                             &label,
                             crate::util::InteractiveState {
@@ -353,7 +397,7 @@ impl RenderOnce for RadioGroup {
                                 is_focused: focused,
                                 is_focus_visible: focused && crate::util::focus_visible(cx),
                                 is_selected: Some(i) == selected,
-                                is_disabled: self.is_disabled,
+                                is_disabled: row_disabled,
                                 is_indeterminate: false,
                             },
                         )
@@ -361,10 +405,7 @@ impl RenderOnce for RadioGroup {
                     None => label.to_string().into_any_element(),
                 });
 
-            if !self.is_disabled
-                && !self.is_read_only
-                && (self.on_change.is_some() || own.is_some())
-            {
+            if !row_disabled && !self.is_read_only && (self.on_change.is_some() || own.is_some()) {
                 let on_change = self.on_change.clone();
                 let own = own.clone();
                 // The arrows choose the next option and take the focus with
@@ -380,9 +421,13 @@ impl RenderOnce for RadioGroup {
                         other @ ("home" | "end") => other,
                         _ => return,
                     };
-                    // The group wraps, as a radio group does.
+                    // The group wraps, as a radio group does. The move is from
+                    // the selection (which the focused row is), or from nowhere
+                    // when nothing is selected -- so Down cannot land on a
+                    // disabled option, and the first Down with no selection
+                    // picks the first enabled one.
                     let crate::list_nav::Move::To(next) =
-                        crate::list_nav::resolve(&key_stops, Some(i), key, true)
+                        crate::list_nav::resolve(&key_stops, key_starts, key, true)
                     else {
                         return;
                     };

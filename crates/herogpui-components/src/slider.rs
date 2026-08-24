@@ -1,8 +1,5 @@
 //! Slider — port of `@heroui/slider` (single value).
 
-use std::cell::Cell;
-use std::rc::Rc;
-
 use gpui::{
     prelude::*, px, App, Bounds, IntoElement, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
     RenderOnce, Styled, Window,
@@ -225,6 +222,27 @@ impl RenderOnce for Slider {
         );
         let active_at = *active_thumb.read(cx);
 
+        // The drag's state hangs off the window's keyed store, keyed by this
+        // slider's own id -- the same shape the Table's column resize uses
+        // (`{id}-resizing`). The press repaints the window, and a per-render
+        // `Rc<Cell>` would be rebuilt fresh afterwards, which is the defect
+        // this replaces: every `on_mouse_move` after the press read a new
+        // `false` and no thumb ever moved. Keyed by the id means two sliders
+        // on one page can never share a drag.
+        let bounds_slot = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{:?}-bounds", self.id).into()),
+            cx,
+            |_, _| Bounds::<f32> {
+                origin: gpui::point(0., 0.),
+                size: gpui::size(0., 0.),
+            },
+        );
+        let dragging = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{:?}-dragging", self.id).into()),
+            cx,
+            |_, _| false,
+        );
+
         let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
@@ -253,14 +271,6 @@ impl RenderOnce for Slider {
         } else {
             (0.0, fractions[0])
         };
-
-        // Shared slot where a canvas records the track bounds each frame so
-        // mouse handlers can map positions to values.
-        let bounds_slot: Rc<Cell<Bounds<f32>>> = Rc::new(Cell::new(Bounds {
-            origin: gpui::point(0., 0.),
-            size: gpui::size(0., 0.),
-        }));
-        let dragging: Rc<Cell<bool>> = Rc::new(Cell::new(false));
 
         let rail_h = px(4.);
         let thumb_px = px(18.);
@@ -318,13 +328,18 @@ impl RenderOnce for Slider {
         let recorder_bounds = bounds_slot.clone();
         track = track.child(
             gpui::canvas(
-                move |bounds: Bounds<gpui::Pixels>, _, _| {
-                    recorder_bounds.set(Bounds {
-                        origin: gpui::point(f32::from(bounds.origin.x), f32::from(bounds.origin.y)),
-                        size: gpui::size(
-                            f32::from(bounds.size.width),
-                            f32::from(bounds.size.height),
-                        ),
+                move |bounds: Bounds<gpui::Pixels>, _, cx| {
+                    recorder_bounds.update(cx, |slot, _| {
+                        *slot = Bounds {
+                            origin: gpui::point(
+                                f32::from(bounds.origin.x),
+                                f32::from(bounds.origin.y),
+                            ),
+                            size: gpui::size(
+                                f32::from(bounds.size.width),
+                                f32::from(bounds.size.height),
+                            ),
+                        };
                     });
                     bounds
                 },
@@ -469,7 +484,7 @@ impl RenderOnce for Slider {
             track = track.on_mouse_down(
                 gpui::MouseButton::Left,
                 move |ev: &MouseDownEvent, window, cx| {
-                    d_down.set(true);
+                    d_down.update(cx, |v, _| *v = true);
                     // The keys have to land somewhere after a pointer grab.
                     window.focus(&focus_for_press);
                     set_from_x(
@@ -497,7 +512,10 @@ impl RenderOnce for Slider {
             let b_move = bounds_slot.clone();
             let d_move = dragging.clone();
             track = track.on_mouse_move(move |ev: &MouseMoveEvent, window, cx| {
-                if d_move.get() {
+                // The flag survives the press's own repaint because it lives
+                // in keyed state; a per-render cell read as a fresh `false`
+                // here and dropped every move.
+                if *d_move.read(cx) {
                     set_from_x(
                         &b_move,
                         axis_pos(ev.position, vertical),
@@ -523,8 +541,11 @@ impl RenderOnce for Slider {
             track = track.on_mouse_up(
                 gpui::MouseButton::Left,
                 move |ev: &MouseUpEvent, window, cx| {
-                    let was_dragging = d_up.get();
-                    d_up.set(false);
+                    let was_dragging = *d_up.read(cx);
+                    d_up.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
                     if was_dragging {
                         if let Some(cb) = &on_change_end {
                             set_from_x(
@@ -598,7 +619,7 @@ fn set_thumb(
 
 #[allow(clippy::too_many_arguments)] // one struct per call site would be worse
 fn set_from_x(
-    slot: &Rc<Cell<Bounds<f32>>>,
+    slot: &gpui::Entity<Bounds<f32>>,
     x: f32,
     target: &DragTarget,
     on_change: &Option<OnChange>,
@@ -607,7 +628,7 @@ fn set_from_x(
     window: &mut Window,
     cx: &mut App,
 ) {
-    let b = slot.get();
+    let b = *slot.read(cx);
     if b.size.width <= 0.0 || target.span <= 0.0 {
         return;
     }
