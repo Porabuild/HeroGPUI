@@ -1899,6 +1899,44 @@ def check_pagination_style_contract():
     return bad
 
 
+def check_tabs_style_contract():
+    """Non-numeric Tabs hover and overflow-chevron styling."""
+    css_path = os.path.join(CACHE, 'tabs.css')
+    src_path = SRC + 'tabs.rs'
+    if not os.path.exists(css_path):
+        print('tabs styling: no stylesheet')
+        return 1
+    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    src = io.open(src_path, encoding='utf-8', errors='replace').read()
+    tab = re.search(r'/\* Individual tab \*/\s*\.tabs__tab\s*\{(.*?)(?=\n/\* Tab separator)',
+                    css, re.S)
+    arrows = re.search(
+        r'> \.tabs__list-container__scroll-prev,\s*'
+        r'> \.tabs__list-container__scroll-next\s*\{(.*?)(?=\n\s*/\* Chevron position)',
+        css,
+        re.S,
+    )
+    tab_css = tab.group(1) if tab else ''
+    arrow_css = arrows.group(1) if arrows else ''
+    arrow_parts = src.split('let arrow =', 1)
+    arrow_src = arrow_parts[1].split('let container_radius', 1)[0] if len(arrow_parts) == 2 else ''
+    tab_hovers = re.findall(r'\.hover\(\|(\w+)\| \1\.opacity\(0\.7\)\)', src)
+    checks = [
+        ('tab hover opacity', 'opacity-70' in tab_css and len(tab_hovers) >= 2),
+        ('chevron transparent fill', bool(arrow_src) and
+         'bg-transparent' in arrow_css and '.bg(' not in arrow_src),
+        ('chevron hover opacity', 'opacity-70' in arrow_css and
+         '.hover(|arrow| arrow.opacity(0.7))' in arrow_src),
+    ]
+    print()
+    print('tabs non-numeric styling:')
+    for name, ok in checks:
+        print('%s %-24s %s' % (' ' if ok else '!', name, 'ok' if ok else 'missing'))
+    bad = sum(not ok for _, ok in checks)
+    print('TABS STYLE BAD : %d' % bad)
+    return bad
+
+
 def coverage():
     """Every metric v3 declares, and whether `CHECKS` compares it.
 
@@ -2042,8 +2080,10 @@ def main():
     wrong_fills, stale_fills = check_fills()
     toggle_bad = check_toggle_button_style_contract()
     pagination_bad = check_pagination_style_contract()
+    tabs_bad = check_tabs_style_contract()
     return int(bool(
         mismatched or unreadable or wrong_fills or stale_fills or toggle_bad or pagination_bad
+        or tabs_bad
     ))
 
 

@@ -721,7 +721,7 @@ impl RenderOnce for Tabs {
                     } else {
                         tab = tab.text_color(colors.muted);
                         if !disabled {
-                            tab = tab.hover(move |s| s.text_color(colors.foreground));
+                            tab = tab.hover(|s| s.opacity(0.7));
                         }
                     }
                     if !disabled {
@@ -856,6 +856,9 @@ impl RenderOnce for Tabs {
                             tab.border_color(gpui::transparent_black())
                         })
                     };
+                    if !active && !disabled {
+                        tab = tab.hover(|tab| tab.opacity(0.7));
+                    }
                     if !disabled {
                         // A tab list is one stop and the arrows move within
                         // it. Automatic activation selects as focus moves;
@@ -971,8 +974,8 @@ impl RenderOnce for Tabs {
                     .justify_center()
                     .rounded_full()
                     .cursor_pointer()
-                    .bg(colors.surface.background)
                     .text_color(colors.foreground)
+                    .hover(|arrow| arrow.opacity(0.7))
                     .child(
                         gpui::svg()
                             .size(px(12.))

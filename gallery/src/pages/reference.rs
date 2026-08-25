@@ -1074,6 +1074,39 @@ impl Widget {
     }
 
     #[test]
+    fn tabs_metadata_keeps_parts_and_remaining_style_gaps_explicit() {
+        let metadata = reference_metadata::for_route(
+            "Tabs",
+            "use herogpui::components::tabs::{TabItem, Tabs};",
+        )
+        .expect("Tabs metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for required in metadata.required_parts {
+            assert!(
+                metadata.parts.iter().any(|part| part.name == *required),
+                "registered Tabs part disappeared: {required}"
+            );
+        }
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Hovered"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".tabs__tab transitions"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".tabs__list-container__scroller"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".tabs__panel[data-exiting=\"true\"]"
+                && entry.status == reference_metadata::ImplementationStatus::Unavailable
+        }));
+    }
+
+    #[test]
     fn metadata_validation_rejects_bogus_method_owner_and_page() {
         let metadata = reference_metadata::for_route(
             "Dropdown",
