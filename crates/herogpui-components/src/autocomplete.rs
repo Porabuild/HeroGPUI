@@ -464,6 +464,15 @@ impl RenderOnce for Autocomplete {
         // opening, or it would take the focus back on every frame.
         let autofocused =
             window.use_keyed_state(el_name(format!("{base}-autofocus")), cx, |_, _| false);
+        // SearchField's text callback and the bubbling key event cooperate to
+        // classify the pending edit; see the block after `matches` below.
+        let query_edit = window.use_keyed_state(
+            el_name(format!("{base}-query-edit")),
+            cx,
+            |_, _| None::<bool>,
+        );
+        let plain_edit_key =
+            window.use_keyed_state(el_name(format!("{base}-plain-edit-key")), cx, |_, _| false);
         let search_focus = self.state.read(cx).focus_handle.clone();
         if open && !*autofocused.read(cx) {
             window.focus(&search_focus);
@@ -471,9 +480,6 @@ impl RenderOnce for Autocomplete {
         } else if !open && *autofocused.read(cx) {
             autofocused.update(cx, |v, _| *v = false);
         }
-
-        let colors = cx.colors();
-        let layout = cx.layout();
 
         // A controlled `inputValue` wins over whatever the search field holds.
         let raw_query = match &self.input_value {
@@ -498,6 +504,49 @@ impl RenderOnce for Autocomplete {
             .take(self.max_items)
             .cloned()
             .collect();
+
+        // Forward typing while the popover is open puts the collection cursor
+        // on its first enabled filtered row. react-aria 3.51.0 does this from
+        // `useAutocomplete.onChange` only for forward input types, and clears
+        // virtual focus for deletion, paste and history edits. GPUI exposes
+        // neither a DOM input type nor one combined callback, so the actual
+        // SearchField change and its bubbling unmodified character key mark
+        // the edit together. A controlled prop update fires neither and cannot
+        // masquerade as typing.
+        if let Some(forward) = *query_edit.read(cx) {
+            let next = if open && forward {
+                matches
+                    .iter()
+                    .position(|item| !self.disabled_keys.contains(item))
+            } else {
+                None
+            };
+            if cursor_at != next {
+                cursor.update(cx, |v, cx| {
+                    *v = next;
+                    cx.notify();
+                });
+                if let Some(next) = next {
+                    if self.row_height.is_some() {
+                        list_scroll_now.scroll_to_item(next, gpui::ScrollStrategy::Center);
+                    } else {
+                        panel_scroll_now.scroll_to_item(next);
+                    }
+                }
+            }
+            query_edit.update(cx, |v, cx| {
+                *v = None;
+                cx.notify();
+            });
+        }
+        if *plain_edit_key.read(cx) {
+            plain_edit_key.update(cx, |v, _| *v = false);
+        }
+
+        // The theme tokens borrow `cx`, so they are copied out only after the
+        // keyed-state updates above.
+        let colors = cx.colors();
+        let layout = cx.layout();
 
         let is_invalid = self.is_invalid || self.error_message.is_some();
         let can_open = !self.is_disabled;
@@ -766,7 +815,9 @@ impl RenderOnce for Autocomplete {
                         .is_some_and(|item| !self.disabled_keys.contains(item))
                 })
                 .collect();
-            let held = cursor;
+            let held = cursor.clone();
+            let key_query_edit = query_edit.clone();
+            let key_plain_edit = plain_edit_key.clone();
             let wrap = self.should_focus_wrap;
             let virtual_rows = self.row_height.is_some();
             let key_list_scroll = list_scroll_now.clone();
@@ -782,6 +833,32 @@ impl RenderOnce for Autocomplete {
             let was_open = open;
             root = root.on_key_down(move |event, window, cx| {
                 let key = event.keystroke.key.as_str();
+                let modifiers = event.keystroke.modifiers;
+                let mut chars = key.chars();
+                let plain_insert = was_open
+                    && (key == "space"
+                        || matches!(
+                            (chars.next(), chars.next()),
+                            (Some(ch), None) if !ch.is_control()
+                        ))
+                    && !modifiers.control
+                    && !modifiers.alt
+                    && !modifiers.platform
+                    && !modifiers.function;
+                key_plain_edit.update(cx, |v, cx| {
+                    if *v != plain_insert {
+                        *v = plain_insert;
+                        cx.notify();
+                    }
+                });
+                if plain_insert {
+                    key_query_edit.update(cx, |edit, cx| {
+                        if edit.is_some() {
+                            *edit = Some(true);
+                            cx.notify();
+                        }
+                    });
+                }
                 if !was_open {
                     // Closed: Down and Up open it. Enter and Space are *not*
                     // handled here -- the trigger has a click listener and gpui
@@ -805,6 +882,13 @@ impl RenderOnce for Autocomplete {
                             cb(true, window, cx);
                         }
                     }
+                    return;
+                }
+                // The focused search field owns inserted characters. In
+                // particular, the shared list navigator treats Space as an
+                // activation key, but Autocomplete must insert it into the
+                // query rather than select the current virtual row.
+                if plain_insert || key == "space" {
                     return;
                 }
                 let from = *held.read(cx);
@@ -948,13 +1032,26 @@ impl RenderOnce for Autocomplete {
             // The search field: v3's `[data-slot="search-field"]` inside the
             // popover is `shrink-0 px-3 py-1`, and `variant="secondary"` so it
             // reads as part of the panel rather than as a second field.
-            let mut search = SearchField::new(self.state.clone())
+            let query_before_edit = raw_query;
+            let edit_query = query_edit;
+            let edit_key = plain_edit_key;
+            let input_change = self.on_input_change.clone();
+            let search = SearchField::new(self.state.clone())
                 .variant(FieldVariant::Secondary)
                 .placeholder("Search...")
-                .is_read_only(self.is_read_only);
-            if let Some(cb) = self.on_input_change.clone() {
-                search = search.on_change(move |text, window, cx| cb(text, window, cx));
-            }
+                .is_read_only(self.is_read_only)
+                .on_change(move |text, window, cx| {
+                    if text != query_before_edit {
+                        let forward = *edit_key.read(cx);
+                        edit_query.update(cx, |edit, cx| {
+                            *edit = Some(forward);
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &input_change {
+                        cb(text, window, cx);
+                    }
+                });
             panel = panel.child(
                 gpui::div()
                     .flex_shrink_0()

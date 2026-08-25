@@ -37,6 +37,8 @@
 
 mod harness;
 
+use std::{cell::RefCell, rc::Rc};
+
 use gpui::{prelude::*, px, TestAppContext};
 use herogpui_components::{
     calendar::{CalendarState, Date, CALENDAR_WIDTH},
@@ -239,6 +241,237 @@ fn autocomplete_arrows_and_enter_select(cx: &mut TestAppContext) {
         "the second row must be selected exactly once"
     );
     assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
+}
+
+#[gpui::test]
+fn autocomplete_forward_typing_focuses_the_first_match_for_enter(cx: &mut TestAppContext) {
+    // react-aria 3.51.0's `useAutocomplete.onChange` treats a forward
+    // insertion as a request to focus the wrapped collection's first item, so
+    // a query can be typed into the search field and Enter commits the top
+    // match without an arrow key first. The focus target is
+    // `ListKeyboardDelegate.getFirstKey`, which operates on the *filtered*
+    // collection: "Alpha" is index 0 of the unfiltered list and must not
+    // catch the autofocus — "ru" filters to Rust and Rusty, and the cursor
+    // lands on Rust.
+    let changes = events();
+    let recorded = changes.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, vec!["Alpha".into(), "Rust".into(), "Rusty".into()])
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    assert_eq!(opened.borrow().as_slice(), ["open:true"]);
+
+    // Typing forward must move the keyboard cursor onto the first filtered
+    // row, so a bare Enter commits it and closes the popover exactly once.
+    cx.simulate_input("ru");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Rust"],
+        "typing forward must focus the first filtered match so Enter commits it"
+    );
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "the Enter pick must close the popover exactly once"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_forward_typing_focuses_the_first_enabled_match(cx: &mut TestAppContext) {
+    // `ListKeyboardDelegate.getFirstKey` is `findNextNonDisabled` — the first
+    // *enabled* item, with `disabledKeys` walked past. A literal first match
+    // would put the cursor on the disabled "Rust", and Enter would commit a
+    // row that cannot be chosen; the autofocus must land on "Rusty" instead.
+    let changes = events();
+    let recorded = changes.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, vec!["Rust".into(), "Rusty".into(), "Go".into()])
+            .disabled_keys(["Rust".into()])
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    assert_eq!(opened.borrow().as_slice(), ["open:true"]);
+
+    cx.simulate_input("ru");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Rusty"],
+        "a disabled first match must not catch the forward-typing autofocus"
+    );
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "the Enter pick must close the popover exactly once"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_space_resets_focus_to_the_first_match(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let state_for_assert = state.clone();
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, vec!["Rust book".into(), "Rust belt".into()])
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("rust");
+    press(cx, "down");
+    press(cx, "space");
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "rust "
+    );
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Rust book"],
+        "a typed space is a forward insertion and must refocus the first match"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_backspace_clears_virtual_focus(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, vec!["Rust".into(), "Rusty".into()])
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("ru");
+    press(cx, "down");
+    press(cx, "backspace");
+    press(cx, "enter");
+    assert!(
+        recorded.borrow().is_empty(),
+        "deleting text must clear virtual focus instead of committing a stale row"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_paste_clears_virtual_focus(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, vec!["Rust".into(), "Rusty".into()])
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("r");
+    press(cx, "down");
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string("u".to_owned()));
+    press(cx, "ctrl-v");
+    press(cx, "enter");
+    assert!(
+        recorded.borrow().is_empty(),
+        "pasting text must clear virtual focus instead of committing a stale row"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_modified_space_does_not_activate_a_match(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, vec!["Rust".into(), "Rusty".into()])
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("ru");
+    press(cx, "ctrl-space");
+    assert!(
+        recorded.borrow().is_empty(),
+        "modified Space must not activate the virtually focused row"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_controlled_query_update_does_not_focus_a_match(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let query = Rc::new(RefCell::new(String::new()));
+    let query_for_view = query.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, vec!["Alpha".into(), "Rust".into(), "Rusty".into()])
+            .default_open(true)
+            .input_value(query_for_view.borrow().clone())
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .into_any_element()
+    });
+
+    // React Aria focuses the first match from its input-event handler. An
+    // owner replacing controlled `inputValue` is not such an event, so a bare
+    // Enter after this repaint must still have no collection cursor to commit.
+    *query.borrow_mut() = "ru".to_owned();
+    cx.update(|window, _| window.refresh());
+    press(cx, "enter");
+    assert!(
+        recorded.borrow().is_empty(),
+        "a controlled query prop update must not masquerade as forward typing"
+    );
 }
 
 #[gpui::test]
