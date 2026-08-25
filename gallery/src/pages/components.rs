@@ -4516,7 +4516,7 @@ impl Gallery {
                     col(vec![h::RangeCalendar::new(
                         self.demo_range("rc-unavailable", cx),
                     )
-                    .is_date_unavailable(|date| {
+                    .is_date_unavailable(|date, _| {
                         let weekday = h::weekday_index(date);
                         weekday == 0 || weekday == 6
                     })
@@ -4526,13 +4526,17 @@ impl Gallery {
                     "Anchor-Based Unavailable Dates",
                     col(vec![
                         para(
-                            "A range cannot cross an unavailable day unless \
-                             `allowsNonContiguousRanges` says it may, so the anchor decides how \
-                             far the selection reaches.",
+                            "After the first date is selected, earlier dates become unavailable \
+                             because the predicate receives that active anchor.",
                             cx,
                         ),
                         h::RangeCalendar::new(self.demo_range("rc-anchor", cx))
-                            .is_date_unavailable(|date| date.day == 15)
+                            .is_date_unavailable(|date, anchor| {
+                                anchor.is_some_and(|anchor| {
+                                    (date.year, date.month, date.day)
+                                        < (anchor.year, anchor.month, anchor.day)
+                                })
+                            })
                             .into_any_element(),
                     ]),
                 ),
@@ -4541,7 +4545,7 @@ impl Gallery {
                     col(vec![h::RangeCalendar::new(
                         self.demo_range("rc-noncontig", cx),
                     )
-                    .is_date_unavailable(|date| date.day == 15)
+                    .is_date_unavailable(|date, _| date.day == 15)
                     .allows_non_contiguous_ranges(true)
                     .into_any_element()]),
                 ),
@@ -4623,7 +4627,7 @@ impl Gallery {
                         .child(
                             h::RangeCalendar::new(self.demo_range("rc-real", cx))
                                 .min_value(today)
-                                .is_date_unavailable(|date| date.day == 20),
+                                .is_date_unavailable(|date, _| date.day == 20),
                         )
                         .child(h::Description::new("The 20th is fully booked."))
                         .into_any_element()]),

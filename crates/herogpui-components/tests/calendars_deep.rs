@@ -339,7 +339,9 @@ fn range_calendar_keyboard_focus_falls_back_before_an_unavailable_day(cx: &mut T
         let focuses = focuses.clone();
         let changes = changes.clone();
         RangeCalendar::new(state_for_view.clone())
-            .is_date_unavailable(|date| date == Date::new(2026, 8, 11))
+            .is_date_unavailable(|date, anchor| {
+                anchor == Some(Date::new(2026, 8, 10)) && date == Date::new(2026, 8, 11)
+            })
             .on_focus_change(move |date, _, _| {
                 focuses.borrow_mut().push(date.format_iso());
             })
@@ -367,6 +369,159 @@ fn range_calendar_keyboard_focus_falls_back_before_an_unavailable_day(cx: &mut T
         changed.borrow().as_slice(),
         ["2026-08-10->", "2026-08-09->2026-08-10"]
     );
+}
+
+/// v3 passes the first endpoint back into `isDateUnavailable` while a range is
+/// open. The predicate may therefore introduce an interior barrier only after
+/// the anchor is chosen, and it returns to its anchor-free result once the
+/// range is complete.
+#[gpui::test]
+fn range_calendar_unavailable_dates_follow_the_active_anchor(cx: &mut TestAppContext) {
+    let anchors = Rc::new(RefCell::new(Vec::new()));
+    let seen_anchors = anchors.clone();
+    let unavailable = Rc::new(RefCell::new(None));
+    let unavailable_probe = unavailable.clone();
+    let selected = Rc::new(RefCell::new(HashMap::new()));
+    let selected_probe = selected.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let anchors = anchors.clone();
+        let unavailable = unavailable.clone();
+        let selected = selected.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .is_date_unavailable(move |date, anchor| {
+                if date == Date::new(2026, 8, 13) {
+                    anchors.borrow_mut().push(anchor);
+                }
+                anchor == Some(Date::new(2026, 8, 10)) && date == Date::new(2026, 8, 13)
+            })
+            .cell(move |cell| {
+                if cell.date == Date::new(2026, 8, 13) {
+                    *unavailable.borrow_mut() = Some(cell.is_unavailable);
+                }
+                if (12..=14).contains(&cell.date.day) && cell.date.month == 8 {
+                    selected
+                        .borrow_mut()
+                        .insert(cell.date.day, cell.is_selected);
+                }
+                gpui::div().size(px(20.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        *unavailable_probe.borrow(),
+        Some(false),
+        "without an anchor the first endpoint remains available"
+    );
+    assert_eq!(seen_anchors.borrow().last(), Some(&None));
+
+    let (start_x, start_y) = range_day(2026, 8, 10);
+    click(cx, start_x, start_y);
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        *unavailable_probe.borrow(),
+        Some(true),
+        "the active anchor must be supplied while the second endpoint is pending"
+    );
+    assert_eq!(
+        seen_anchors.borrow().last(),
+        Some(&Some(Date::new(2026, 8, 10)))
+    );
+
+    let (end_x, end_y) = range_day(2026, 8, 15);
+    cx.simulate_mouse_move(
+        point(px(end_x), px(end_y)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        selected_probe.borrow().get(&12),
+        Some(&true),
+        "the hover preview must include dates before the anchor-derived barrier"
+    );
+    assert_eq!(
+        selected_probe.borrow().get(&13),
+        Some(&false),
+        "the anchor-derived unavailable date must stay outside the preview"
+    );
+    assert_eq!(
+        selected_probe.borrow().get(&14),
+        Some(&false),
+        "the contiguous hover preview must stop at the anchor-derived barrier"
+    );
+    let (selectable_end_x, selectable_end_y) = range_day(2026, 8, 12);
+    click(cx, selectable_end_x, selectable_end_y);
+    cx.update(|window, _| window.refresh());
+    let value = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.start, state.end)
+    });
+    assert_eq!(
+        value,
+        (Some(Date::new(2026, 8, 10)), Some(Date::new(2026, 8, 12))),
+        "the last selectable date before the anchor-derived barrier must complete the range"
+    );
+    assert_eq!(
+        *unavailable_probe.borrow(),
+        Some(false),
+        "a completed range must call the predicate without an active anchor"
+    );
+    assert_eq!(seen_anchors.borrow().last(), Some(&None));
+}
+
+/// Non-contiguous mode lets keyboard focus move onto a date rejected relative
+/// to the active anchor, but pinned React Aria still ignores Enter there.
+#[gpui::test]
+fn range_calendar_anchor_unavailable_keyboard_endpoint_is_inert(cx: &mut TestAppContext) {
+    let changes = events();
+    let changed = changes.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .allows_non_contiguous_ranges(true)
+            .is_date_unavailable(|date, anchor| {
+                anchor == Some(Date::new(2026, 8, 10)) && date == Date::new(2026, 8, 13)
+            })
+            .on_change(move |start, end, _, _| {
+                changes.borrow_mut().push(format!(
+                    "{}->{}",
+                    start.map(|date| date.format_iso()).unwrap_or_default(),
+                    end.map(|date| date.format_iso()).unwrap_or_default()
+                ));
+            })
+            .into_any_element()
+    });
+
+    let (anchor_x, anchor_y) = range_day(2026, 8, 10);
+    click(cx, anchor_x, anchor_y);
+    press(cx, "right");
+    press(cx, "right");
+    press(cx, "right");
+    press(cx, "enter");
+
+    assert_eq!(changed.borrow().as_slice(), ["2026-08-10->"]);
+    let value = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.start, state.end)
+    });
+    assert_eq!(value, (Some(Date::new(2026, 8, 10)), None));
 }
 
 /// Escape cancels only an in-progress keyboard anchor. It reports no value or
@@ -576,7 +731,7 @@ fn range_calendar_non_contiguous_keyboard_focus_can_advance_to_an_unavailable_da
         let changes = changes.clone();
         RangeCalendar::new(state_for_view.clone())
             .allows_non_contiguous_ranges(true)
-            .is_date_unavailable(|date| date == Date::new(2026, 8, 11))
+            .is_date_unavailable(|date, _| date == Date::new(2026, 8, 11))
             .on_focus_change(move |date, _, _| {
                 focuses.borrow_mut().push(date.format_iso());
             })
@@ -1181,7 +1336,7 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
         let changes = changes.clone();
         let selected_cells = selected_cells.clone();
         RangeCalendar::new(state_for_view.clone())
-            .is_date_unavailable(|date| date == Date::new(2026, 8, 7))
+            .is_date_unavailable(|date, _| date == Date::new(2026, 8, 7))
             .on_change(move |start, end, _, _| {
                 let start = start.map(|date| date.format_iso()).unwrap_or_default();
                 let end = end.map(|date| date.format_iso()).unwrap_or_default();
@@ -1268,7 +1423,7 @@ fn range_calendar_allows_a_gap_but_not_an_unavailable_endpoint(cx: &mut TestAppC
         let changes = changes.clone();
         let unavailable_state = unavailable_state.clone();
         RangeCalendar::new(state_for_view.clone())
-            .is_date_unavailable(|date| date == Date::new(2026, 8, 7))
+            .is_date_unavailable(|date, _| date == Date::new(2026, 8, 7))
             .allows_non_contiguous_ranges(true)
             .on_change(move |start, end, _, _| {
                 let start = start.map(|date| date.format_iso()).unwrap_or_default();
@@ -1329,7 +1484,7 @@ fn range_calendar_uses_the_tighter_bound_when_keys_jump(cx: &mut TestAppContext)
         let backward = backward.clone();
         RangeCalendar::new(state_for_view.clone())
             .min_value(Date::new(2026, 8, 9))
-            .is_date_unavailable(|date| date == Date::new(2026, 8, 7))
+            .is_date_unavailable(|date, _| date == Date::new(2026, 8, 7))
             .on_change(move |start, end, _, _| {
                 let start = start.map(|date| date.format_iso()).unwrap_or_default();
                 let end = end.map(|date| date.format_iso()).unwrap_or_default();
@@ -1369,7 +1524,7 @@ fn range_calendar_maximum_beats_a_farther_unavailable_date(cx: &mut TestAppConte
         let changes = changes.clone();
         RangeCalendar::new(state_for_view.clone())
             .max_value(Date::new(2026, 8, 7))
-            .is_date_unavailable(|date| date == Date::new(2026, 8, 9))
+            .is_date_unavailable(|date, _| date == Date::new(2026, 8, 9))
             .on_change(move |start, end, _, _| {
                 let start = start.map(|date| date.format_iso()).unwrap_or_default();
                 let end = end.map(|date| date.format_iso()).unwrap_or_default();

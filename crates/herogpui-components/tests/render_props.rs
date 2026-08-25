@@ -1744,7 +1744,7 @@ fn range_calendar_outside_cells_keep_date_derived_state(cx: &mut TestAppContext)
         let changes = changes.clone();
         let record = record.clone();
         RangeCalendar::new(state.clone())
-            .is_date_unavailable(|date| date == Date::new(2026, 7, 31))
+            .is_date_unavailable(|date, _| date == Date::new(2026, 7, 31))
             .on_change(move |start, end, _, _| {
                 changes.borrow_mut().push(format!(
                     "{}..{}",
@@ -1799,7 +1799,7 @@ fn range_calendar_read_only_and_unavailable_states_stay_independent(cx: &mut Tes
         let record = record.clone();
         RangeCalendar::new(state.clone())
             .is_read_only(true)
-            .is_date_unavailable(|date| date == Date::new(2026, 8, 16))
+            .is_date_unavailable(|date, _| date == Date::new(2026, 8, 16))
             .on_change(move |_, _, _, _| changes.borrow_mut().push("changed".into()))
             .cell(move |cell| {
                 record_range_cell(&record, &cell);
