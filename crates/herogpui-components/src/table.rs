@@ -23,6 +23,7 @@ type OnSortChange = std::sync::Arc<dyn Fn(SortDescriptor, &mut Window, &mut App)
 type OnLoadMore = std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>;
 type VirtualRowKey = std::sync::Arc<dyn Fn(usize) -> SharedString + 'static>;
 type VirtualRow = std::sync::Arc<dyn Fn(usize) -> TableRow + 'static>;
+type VirtualTree = std::sync::Arc<dyn Fn(usize) -> VirtualTreeMetadata + 'static>;
 
 /// Visual variant of a table (`variant`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -190,6 +191,18 @@ pub struct TableRow {
     children: Vec<TableRow>,
 }
 
+/// Cheap tree structure for one preorder item in a virtual table.
+///
+/// The row factory still runs only for items the viewport builds. This metadata
+/// is projected for the whole collection so expansion can derive the visible
+/// indices without eagerly constructing any cells.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct VirtualTreeMetadata {
+    pub depth: usize,
+    pub parent_key: Option<SharedString>,
+    pub has_children: bool,
+}
+
 impl TableRow {
     pub fn new(cells: Vec<AnyElement>) -> Self {
         Self {
@@ -313,6 +326,7 @@ pub struct Table {
     /// cannot be built up front and then handed out again on the next scroll,
     /// so a virtual table asks for its rows one at a time.
     virtual_rows: Option<(usize, SharedString, VirtualRowKey, VirtualRow)>,
+    virtual_tree_metadata: Option<VirtualTree>,
     variant: TableVariant,
     selection_mode: SelectionMode,
     selected_keys: Vec<SharedString>,
@@ -347,6 +361,7 @@ impl Table {
             gap: None,
             padding: None,
             virtual_rows: None,
+            virtual_tree_metadata: None,
             variant: TableVariant::Primary,
             selection_mode: SelectionMode::None,
             selected_keys: Vec::new(),
@@ -477,6 +492,19 @@ impl Table {
             std::sync::Arc::new(key),
             std::sync::Arc::new(row),
         ));
+        self
+    }
+
+    /// Supplies preorder tree structure for [`Table::virtual_rows`].
+    ///
+    /// `count` remains the size of the underlying collection. The projection
+    /// identifies each item's parent, depth and expandability; controlled
+    /// `expanded_keys` then decides which source indices are visible.
+    pub fn virtual_tree_metadata(
+        mut self,
+        metadata: impl Fn(usize) -> VirtualTreeMetadata + 'static,
+    ) -> Self {
+        self.virtual_tree_metadata = Some(std::sync::Arc::new(metadata));
         self
     }
 
@@ -680,10 +708,42 @@ impl RenderOnce for Table {
             Vec::new(),
         );
         self.selected_keys = selected_keys;
-        let virtual_keys = self
+        let virtual_projection = self
             .virtual_rows
             .as_ref()
-            .map(|(count, _, key, _)| (0..*count).map(|index| key(index)).collect::<Vec<_>>());
+            .map(|(count, _, key_for_row, _)| {
+                let mut full_keys = Vec::with_capacity(*count);
+                let mut visible = Vec::with_capacity(*count);
+                if let Some(project) = &self.virtual_tree_metadata {
+                    let mut visible_by_key = std::collections::HashMap::with_capacity(*count);
+                    for source_index in 0..*count {
+                        let key = key_for_row(source_index);
+                        let metadata = project(source_index);
+                        let is_visible = metadata.parent_key.as_ref().is_none_or(|parent| {
+                            visible_by_key.get(parent).copied().unwrap_or(false)
+                                && self.expanded_keys.contains(parent)
+                        });
+                        visible_by_key.insert(key.clone(), is_visible);
+                        full_keys.push(key.clone());
+                        if is_visible {
+                            visible.push((source_index, key, metadata));
+                        }
+                    }
+                } else {
+                    for source_index in 0..*count {
+                        let key = key_for_row(source_index);
+                        full_keys.push(key.clone());
+                        visible.push((source_index, key, VirtualTreeMetadata::default()));
+                    }
+                }
+                (full_keys, visible)
+            });
+        let virtual_keys = virtual_projection
+            .as_ref()
+            .map(|(full_keys, _)| full_keys.clone());
+        let virtual_visible_count = virtual_projection
+            .as_ref()
+            .map_or(0, |(_, visible)| visible.len());
         let virtual_scroll = window.use_keyed_state(
             gpui::ElementId::Name(format!("{}-virtual-scroll", self.id).into()),
             cx,
@@ -695,8 +755,8 @@ impl RenderOnce for Table {
             self.estimated_row_height,
             &self.virtual_rows,
         ) {
-            (None, Some(estimate), Some((count, identity, _, _))) => {
-                let count = *count;
+            (None, Some(estimate), Some((_, identity, _, _))) => {
+                let count = virtual_visible_count;
                 let state = window
                     .use_keyed_state(
                         gpui::ElementId::Name(format!("{}-list-state-{identity}", self.id).into()),
@@ -750,7 +810,7 @@ impl RenderOnce for Table {
         let muted = colors.muted;
         let secondary = self.variant == TableVariant::Secondary;
         let selectable = self.selection_mode != SelectionMode::None;
-        let full_collection_keys = virtual_keys.clone().unwrap_or_else(|| self.row_keys());
+        let full_collection_keys = virtual_keys.unwrap_or_else(|| self.row_keys());
         let selectable_collection_keys: Vec<SharedString> = full_collection_keys
             .iter()
             .filter(|key| !self.disabled_keys.contains(key))
@@ -1069,15 +1129,23 @@ impl RenderOnce for Table {
             &self.expanded_keys,
             &mut flat,
         );
-        let tree_rows: Vec<(bool, Option<SharedString>)> = if virtual_keys.is_none() {
-            flat.iter()
-                .map(|(_, _, has_children, _, parent)| (*has_children, parent.clone()))
-                .collect()
-        } else {
-            Vec::new()
-        };
-        let visible_collection_keys: Vec<SharedString> = virtual_keys
-            .unwrap_or_else(|| flat.iter().map(|(_, _, _, key, _)| key.clone()).collect());
+        let tree_rows: Vec<(bool, Option<SharedString>)> = virtual_projection.as_ref().map_or_else(
+            || {
+                flat.iter()
+                    .map(|(_, _, has_children, _, parent)| (*has_children, parent.clone()))
+                    .collect()
+            },
+            |(_, visible)| {
+                visible
+                    .iter()
+                    .map(|(_, _, metadata)| (metadata.has_children, metadata.parent_key.clone()))
+                    .collect()
+            },
+        );
+        let visible_collection_keys: Vec<SharedString> = virtual_projection.as_ref().map_or_else(
+            || flat.iter().map(|(_, _, _, key, _)| key.clone()).collect(),
+            |(_, visible)| visible.iter().map(|(_, key, _)| key.clone()).collect(),
+        );
         let cursor_key = row_cursor.read(cx).clone();
         let cursor_valid = cursor_key.as_ref().is_none_or(|key| {
             visible_collection_keys.contains(key) && !self.disabled_keys.contains(key)
@@ -1103,7 +1171,10 @@ impl RenderOnce for Table {
         };
         // Whether any row in this table is expandable at all: a flat table
         // keeps its cells flush, rather than reserving a chevron's width.
-        let tree_column_has_children = flat.iter().any(|(_, _, has, _, _)| *has);
+        let tree_column_has_children = virtual_projection.as_ref().map_or_else(
+            || flat.iter().any(|(_, _, has, _, _)| *has),
+            |(_, visible)| visible.iter().any(|(_, _, metadata)| metadata.has_children),
+        );
         let expanded_keys = std::rc::Rc::new(std::mem::take(&mut self.expanded_keys));
 
         // Everything a row needs, held once. The virtual path builds its rows
@@ -1301,35 +1372,48 @@ impl RenderOnce for Table {
             }
         }
 
-        let row_count = match &self.virtual_rows {
-            Some((count, _, _, _))
-                if self.row_height.is_some() || self.estimated_row_height.is_some() =>
-            {
-                *count
-            }
-            _ => flat.len(),
+        let row_count = if self.virtual_rows.is_some()
+            && (self.row_height.is_some() || self.estimated_row_height.is_some())
+        {
+            virtual_visible_count
+        } else {
+            flat.len()
         };
+        let virtual_projection = std::rc::Rc::new(
+            virtual_projection
+                .map(|(_, visible)| visible)
+                .unwrap_or_default(),
+        );
 
         // `estimatedRowHeight` takes the variable-height path: gpui's `list`
         // measures each row it builds, and its state is intrusive, so it lives in
         // the window's keyed store and resets when the count changes.
-        if let (Some(row_height), Some((count, _, key_for_row, factory))) =
+        if let (Some(row_height), Some((_, _, _, factory))) =
             (self.row_height, self.virtual_rows.clone())
         {
             // The body scrolls inside `uniform_list`, which asks for the rows the
             // viewport shows and no others.
             let height = self.max_h.unwrap_or(px(400.));
             let rows = ctx.clone();
+            let projection = virtual_projection;
             body = body.child(
                 gpui::uniform_list(
                     gpui::ElementId::Name(format!("{table_id}-virtual-rows").into()),
-                    count,
+                    row_count,
                     move |range, _window, cx| {
                         range
                             .map(|i| {
-                                let row_data = factory(i);
-                                let key = key_for_row(i);
-                                rows.row(i, row_data, 0, false, &key, Some(row_height), cx)
+                                let (source_index, key, metadata) = &projection[i];
+                                let row_data = factory(*source_index);
+                                rows.row(
+                                    i,
+                                    row_data,
+                                    metadata.depth,
+                                    metadata.has_children,
+                                    key,
+                                    Some(row_height),
+                                    cx,
+                                )
                             })
                             .collect::<Vec<_>>()
                     },
@@ -1338,16 +1422,25 @@ impl RenderOnce for Table {
                 .h(height)
                 .w_full(),
             );
-        } else if let (Some(state), Some((_, _, key_for_row, factory))) =
+        } else if let (Some(state), Some((_, _, _, factory))) =
             (virtual_list_state, self.virtual_rows.clone())
         {
             let height = self.max_h.unwrap_or(px(400.));
             let rows = ctx.clone();
+            let projection = virtual_projection;
             body = body.child(
                 gpui::list(state, move |i, _window, cx| {
-                    let row_data = factory(i);
-                    let key = key_for_row(i);
-                    rows.row(i, row_data, 0, false, &key, None, cx)
+                    let (source_index, key, metadata) = &projection[i];
+                    let row_data = factory(*source_index);
+                    rows.row(
+                        i,
+                        row_data,
+                        metadata.depth,
+                        metadata.has_children,
+                        key,
+                        None,
+                        cx,
+                    )
                 })
                 .h(height)
                 .w_full(),

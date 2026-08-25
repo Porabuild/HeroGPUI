@@ -116,8 +116,8 @@ SORT_KEYS = ('Table',)
 # expands a collapsed parent, Left collapses an expanded parent, and Left on a
 # child returns the roving cursor to its parent. HeroUI documents the chevron
 # composition but not these inherited keys, so this is derived from the pinned
-# `react-aria` 3.51.0 `useTableRow` source. `virtual_rows` remains a flat-row
-# factory and cannot claim this composition until it accepts tree metadata.
+# `react-aria` 3.51.0 `useTableRow` source. Virtual rows carry the same contract
+# when `virtual_tree_metadata` supplies their cheap preorder tree projection.
 TREE_KEYS = ('Table',)
 
 # Closing an overlay hands the focus back to what opened it. Only a surface that

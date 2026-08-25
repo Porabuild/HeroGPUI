@@ -15,7 +15,7 @@ use std::rc::Rc;
 use gpui::{prelude::*, px, SharedString, TestAppContext, VisualTestContext};
 use herogpui_components::{
     Button, ListBox, ListBoxItem, SelectionMode, TabItem, Table, TableColumn, TableRow, Tabs, Tag,
-    TagGroup,
+    TagGroup, VirtualTreeMetadata,
 };
 
 use harness::{click, events, open_host, press};
@@ -994,7 +994,7 @@ fn table_load_more_rearms_after_same_length_collection_replacement(cx: &mut Test
 fn table_load_more_does_not_rearm_for_expansion_only(cx: &mut TestAppContext) {
     let expanded = Rc::new(Cell::new(false));
     let recorded = events();
-    let expanded_for_view = expanded;
+    let expanded_for_view = expanded.clone();
     let for_view = recorded.clone();
     let cx = open_host(cx, move || {
         let expanded = expanded_for_view.get();
@@ -1021,12 +1021,80 @@ fn table_load_more_does_not_rearm_for_expansion_only(cx: &mut TestAppContext) {
     });
 
     flush_frame(cx);
-    click(cx, 29., 58.);
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "right");
     flush_frame(cx);
+    assert!(expanded.get(), "the tree key must expand the branch");
     assert_eq!(
         recorded.borrow().as_slice(),
         ["load-more"],
         "expansion changes visibility, not the underlying collection identity"
+    );
+}
+
+#[gpui::test]
+fn virtual_table_load_more_does_not_rearm_for_expansion_only(cx: &mut TestAppContext) {
+    let expanded = Rc::new(Cell::new(false));
+    let recorded = events();
+    let expanded_for_view = expanded.clone();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let expanded = expanded_for_view.get();
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("contract-virtual-table-load-expand")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .tree_column(0)
+            .row_height(px(80.))
+            .max_h(px(160.))
+            .scroll_offset(0.)
+            .expanded_keys(expanded.then(|| SharedString::from("parent")))
+            .virtual_rows(
+                2,
+                "virtual-tree-data",
+                |index| ["parent", "child"][index].into(),
+                |index| TableRow::new(vec![tall_cell(["Parent", "Child"][index])]),
+            )
+            .virtual_tree_metadata(|index| {
+                if index == 0 {
+                    VirtualTreeMetadata {
+                        depth: 0,
+                        parent_key: None,
+                        has_children: true,
+                    }
+                } else {
+                    VirtualTreeMetadata {
+                        depth: 1,
+                        parent_key: Some("parent".into()),
+                        has_children: false,
+                    }
+                }
+            })
+            .on_expanded_change({
+                let expanded = expanded_for_view.clone();
+                move |keys, window, _| {
+                    expanded.set(!keys.is_empty());
+                    window.refresh();
+                }
+            })
+            .on_load_more(move |_, _| recorded.borrow_mut().push("load-more".into()))
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "right");
+    flush_frame(cx);
+    assert!(
+        expanded.get(),
+        "the virtual tree key must expand the branch"
+    );
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["load-more"],
+        "virtual expansion changes the visible flatten, not the underlying collection identity"
     );
 }
 

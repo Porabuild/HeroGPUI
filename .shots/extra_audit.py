@@ -178,6 +178,7 @@ EXTRA_OK_SCOPED = {
     # of a virtual table come from a function, because the Virtualizer calls it
     # again every time the viewport moves.
     'Table.virtual_rows': 'composition',
+    'Table.virtual_tree_metadata': 'composition',
     'InputGroup.prefix': 'composition',
     'InputGroup.suffix': 'composition',
     'InputGroup.input': 'composition',

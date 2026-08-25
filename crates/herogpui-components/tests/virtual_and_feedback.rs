@@ -51,14 +51,15 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use gpui::{
-    point, prelude::*, px, ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext,
+    point, prelude::*, px, ScrollDelta, ScrollWheelEvent, SharedString, TestAppContext,
+    VisualTestContext,
 };
 
 use harness::{click, events, open_host, press, Events};
 use herogpui_components::{
     pause_toasts, toast_store, ListBox, ListBoxItem, ScrollShadow, ScrollShadowVisibility,
     SortDescriptor, SortDirection, Table, TableColumn, TableRow, Toast, ToastPlacement,
-    ToastViewport,
+    ToastViewport, VirtualTreeMetadata,
 };
 
 /// Pins the toast card layout by enabling reduced motion **before** the first
@@ -77,6 +78,128 @@ fn still() {
 /// next event hits the stale frame.
 fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
+}
+
+fn virtual_tree_key(index: usize) -> SharedString {
+    ["parent", "child", "sibling"][index].into()
+}
+
+fn virtual_tree_metadata(index: usize) -> VirtualTreeMetadata {
+    match index {
+        0 => VirtualTreeMetadata {
+            depth: 0,
+            parent_key: None,
+            has_children: true,
+        },
+        1 => VirtualTreeMetadata {
+            depth: 1,
+            parent_key: Some("parent".into()),
+            has_children: false,
+        },
+        _ => VirtualTreeMetadata {
+            depth: 0,
+            parent_key: None,
+            has_children: false,
+        },
+    }
+}
+
+fn virtual_tree_row(index: usize) -> TableRow {
+    TableRow::new(vec![gpui::div()
+        .child(["Parent", "Child", "Sibling"][index])
+        .into_any_element()])
+}
+
+fn virtual_tree_table(
+    id: &'static str,
+    variable_height: bool,
+    expanded: Rc<RefCell<Vec<SharedString>>>,
+    recorded: Events,
+) -> gpui::AnyElement {
+    let expanded_now = expanded.borrow().clone();
+    let expansion_events = recorded.clone();
+    let action_events = recorded;
+    let table = Table::new(vec![])
+        .id(id)
+        .column(TableColumn::new("Name").default_width(px(240.)))
+        .tree_column(0)
+        .expanded_keys(expanded_now)
+        .virtual_rows(3, id, virtual_tree_key, virtual_tree_row)
+        .virtual_tree_metadata(virtual_tree_metadata)
+        .max_h(px(160.))
+        .on_expanded_change(move |keys, window, _| {
+            *expanded.borrow_mut() = keys.to_vec();
+            expansion_events.borrow_mut().push(format!(
+                "expanded:{}",
+                keys.iter()
+                    .map(AsRef::<str>::as_ref)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ));
+            window.refresh();
+        })
+        .on_row_click(move |index, _, _, _| {
+            action_events.borrow_mut().push(format!("action:{index}"));
+        });
+    if variable_height {
+        table.estimated_row_height(px(40.)).into_any_element()
+    } else {
+        table.row_height(px(40.)).into_any_element()
+    }
+}
+
+fn drive_virtual_tree_keyboard(cx: &mut VisualTestContext, recorded: &Events) {
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "right");
+    flush_frame(cx);
+    press(cx, "down");
+    press(cx, "enter");
+    press(cx, "left");
+    press(cx, "enter");
+    press(cx, "left");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["expanded:parent", "action:1", "action:0", "expanded:"],
+        "a virtual tree must expand, enter its child, return to its parent, and collapse"
+    );
+}
+
+#[gpui::test]
+fn fixed_height_virtual_table_carries_tree_metadata(cx: &mut TestAppContext) {
+    let expanded = Rc::new(RefCell::new(Vec::<SharedString>::new()));
+    let recorded = events();
+    let expanded_for_view = expanded;
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        virtual_tree_table(
+            "virtual-tree-fixed",
+            false,
+            expanded_for_view.clone(),
+            for_view.clone(),
+        )
+    });
+
+    drive_virtual_tree_keyboard(cx, &recorded);
+}
+
+#[gpui::test]
+fn variable_height_virtual_table_carries_tree_metadata(cx: &mut TestAppContext) {
+    let expanded = Rc::new(RefCell::new(Vec::<SharedString>::new()));
+    let recorded = events();
+    let expanded_for_view = expanded;
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        virtual_tree_table(
+            "virtual-tree-variable",
+            true,
+            expanded_for_view.clone(),
+            for_view.clone(),
+        )
+    });
+
+    drive_virtual_tree_keyboard(cx, &recorded);
 }
 
 /// One simulated wheel event at window coordinates (`x`, `y`), scrolling
