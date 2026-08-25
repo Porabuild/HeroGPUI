@@ -840,3 +840,103 @@ fn toggle_button_content_render_prop_sees_state(cx: &mut TestAppContext) {
         "the frame after leaving must see the hover lifted"
     );
 }
+
+/// `ToggleButtonRenderProps` includes the focus and disabled fields as well as
+/// the pointer and selection fields driven above. Keyboard focus must reach
+/// the closure without changing selection, and the app's focus-visible flag
+/// must be reflected on the following frame.
+#[gpui::test]
+fn toggle_button_content_render_prop_sees_focus_state(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new((false, false, false, false)));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        ToggleButton::new("tb-focus-state")
+            .default_selected(true)
+            .content(move |state: util::InteractiveState| {
+                *record.borrow_mut() = (
+                    state.is_focused,
+                    state.is_focus_visible,
+                    state.is_disabled,
+                    state.is_selected,
+                );
+                gpui::div()
+                    .w(px(64.))
+                    .h(px(16.))
+                    .child("bold".to_owned())
+                    .into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        *seen.borrow(),
+        (false, false, false, true),
+        "the initial render must report an enabled, unfocused selected toggle"
+    );
+
+    press(cx, "tab");
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (true, false, false, true),
+        "keyboard focus must reach the content closure without changing selection"
+    );
+
+    cx.update(|_, cx| util::set_focus_visible(true, cx));
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (true, true, false, true),
+        "the app focus-visible flag must reach the focused toggle's content closure"
+    );
+}
+
+/// A disabled toggle still renders its content closure, but it is neither a
+/// focus stop nor a press target. The closure must receive that disabled state
+/// while both pointer and keyboard activation stay inert.
+#[gpui::test]
+fn disabled_toggle_button_content_reports_disabled_and_stays_inert(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new((false, false, false)));
+    let record = seen.clone();
+    let changes = events();
+    let recorded = changes.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        let changes = changes.clone();
+        ToggleButton::new("tb-disabled-state")
+            .default_selected(true)
+            .is_disabled(true)
+            .content(move |state: util::InteractiveState| {
+                *record.borrow_mut() = (state.is_focused, state.is_disabled, state.is_selected);
+                gpui::div()
+                    .w(px(64.))
+                    .h(px(16.))
+                    .child("bold".to_owned())
+                    .into_any_element()
+            })
+            .on_change(move |selected, _, _| {
+                changes.borrow_mut().push(format!("{selected}"));
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        *seen.borrow(),
+        (false, true, true),
+        "the disabled state must reach the content closure"
+    );
+
+    click(cx, 48., 18.);
+    press(cx, "tab enter");
+    flush_frame(cx);
+    assert!(
+        recorded.borrow().is_empty(),
+        "a disabled toggle must answer neither pointer nor keyboard activation"
+    );
+    assert_eq!(
+        *seen.borrow(),
+        (false, true, true),
+        "a disabled toggle must remain unfocused and selected"
+    );
+}

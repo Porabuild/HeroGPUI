@@ -1250,6 +1250,23 @@ impl RenderOnce for Table {
                     // to the focused tree row before the list resolver sees
                     // them. Right opens; Left closes or returns to the parent.
                     let key_name = event.keystroke.key.as_str();
+                    if key_name == "escape"
+                        && mode != SelectionMode::None
+                        && !selected_now.is_empty()
+                    {
+                        let next = Vec::new();
+                        if let Some(held) = &selection_own_for_keys {
+                            held.update(cx, |value, cx| {
+                                *value = next.clone();
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &selection {
+                            cb(&next, window, cx);
+                        }
+                        cx.stop_propagation();
+                        return;
+                    }
                     if let Some(index) = from {
                         let focused_key = &keys[index];
                         if let Some((has_children, parent)) = tree_rows.get(index) {

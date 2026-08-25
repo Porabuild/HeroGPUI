@@ -663,6 +663,134 @@ fn tabs_overflow_scroller_chevrons_scroll_the_list(cx: &mut TestAppContext) {
     assert_eq!(recorded.borrow().as_slice(), ["five", "four"]);
 }
 
+/// Pinned React Aria hands the tab-list scroller to its selectable collection,
+/// which scrolls the newly keyboard-focused tab into view. The click after the
+/// arrow sequence proves that the fifth tab moved under its nearest visible
+/// coordinate rather than remaining clipped beyond the 240px viewport.
+#[gpui::test]
+fn tabs_keyboard_navigation_scrolls_focused_tab_into_view(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .w(px(240.))
+            .child(
+                Tabs::new(
+                    "tb-keyboard-overflow",
+                    vec![
+                        TabItem::new("one", "One"),
+                        TabItem::new("two", "Two"),
+                        TabItem::new("three", "Three"),
+                        TabItem::new("four", "Four"),
+                        TabItem::new("five", "Five"),
+                        TabItem::new("six", "Six"),
+                        TabItem::new("seven", "Seven"),
+                        TabItem::new("eight", "Eight"),
+                        TabItem::new("nine", "Nine"),
+                        TabItem::new("ten", "Ten"),
+                    ],
+                    "one",
+                )
+                .on_selection_change(move |key, _, _| {
+                    recorded.borrow_mut().push(key.to_string());
+                })
+                .into_any_element(),
+            )
+            .into_any_element()
+    });
+
+    let labels = ["One", "Two", "Three", "Four", "Five"];
+    let mut starts = [0f32; 5];
+    let mut centres = [0f32; 5];
+    let mut widths = [0f32; 5];
+    let mut x = 4.;
+    for (i, label) in labels.iter().enumerate() {
+        let width = cx
+            .update(|window, _| text_width(window.text_system(), label, 14.0, FontWeight::MEDIUM))
+            .ceil()
+            + 32.;
+        starts[i] = x;
+        centres[i] = x + width / 2.;
+        widths[i] = width;
+        x += width;
+    }
+
+    flush_frame(cx);
+    flush_frame(cx);
+    flush_frame(cx);
+    press(cx, "tab right right right right");
+    flush_frame(cx);
+    recorded.borrow_mut().clear();
+
+    let nearest_offset = starts[4] + widths[4] - 240.;
+    click(cx, centres[4] - nearest_offset, 20.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["five"],
+        "keyboard navigation must scroll the focused tab into view"
+    );
+}
+
+/// Keyboard focus entry uses the same pinned scroll contract as an arrow move.
+/// Starting on the fifth tab leaves it beyond the bounded scroller; Tab must
+/// reveal it before the pointer probe can reach it.
+#[gpui::test]
+fn tabs_keyboard_entry_scrolls_selected_tab_into_view(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .w(px(240.))
+            .child(
+                Tabs::new(
+                    "tb-keyboard-entry",
+                    vec![
+                        TabItem::new("one", "One"),
+                        TabItem::new("two", "Two"),
+                        TabItem::new("three", "Three"),
+                        TabItem::new("four", "Four"),
+                        TabItem::new("five", "Five"),
+                    ],
+                    "five",
+                )
+                .on_selection_change(move |key, _, _| {
+                    recorded.borrow_mut().push(key.to_string());
+                })
+                .into_any_element(),
+            )
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    flush_frame(cx);
+    cx.update(|_, cx| herogpui_components::util::set_focus_visible(true, cx));
+    press(cx, "tab");
+    flush_frame(cx);
+
+    let labels = ["One", "Two", "Three", "Four", "Five"];
+    let mut start = 4.;
+    let mut width = 0.;
+    for label in labels {
+        width = cx
+            .update(|window, _| text_width(window.text_system(), label, 14.0, FontWeight::MEDIUM))
+            .ceil()
+            + 32.;
+        if label != "Five" {
+            start += width;
+        }
+    }
+    let centre = start + width / 2.;
+    let nearest_offset = start + width - 240.;
+    click(cx, centre - nearest_offset, 20.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["five"],
+        "keyboard entry must scroll the selected tab into view"
+    );
+}
+
 /// `TabItem::separator()` composes v3's `Tabs.Separator` — a 1px hairline
 /// positioned inside the tab that carries it. The line ignores pointer events,
 /// so its pixel remains part of the following tab's hit area without becoming

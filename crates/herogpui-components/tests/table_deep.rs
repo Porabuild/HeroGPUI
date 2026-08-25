@@ -366,3 +366,38 @@ fn table_single_mode_keyboard_replaces_then_clears(cx: &mut TestAppContext) {
         "single mode must replace the selected key and permit clearing it"
     );
 }
+
+/// React Aria's inherited `useGrid` contract defaults Escape to clearing a
+/// non-empty selection. The table body owns the roving stop, so the clear is
+/// reported through the same controlled selection callback as a row press.
+#[gpui::test]
+fn table_escape_clears_a_non_empty_selection(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-escape-deep")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .selected_keys([SharedString::from("alpha")])
+            .keyed_row("alpha", vec![gpui::div().child("Alpha").into_any_element()])
+            .keyed_row("beta", vec![gpui::div().child("Beta").into_any_element()])
+            .on_selection_change(move |keys, _, _| {
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab escape");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [""],
+        "Escape must clear the table's non-empty selection"
+    );
+}

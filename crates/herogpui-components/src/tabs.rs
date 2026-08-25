@@ -174,6 +174,57 @@ fn indicator_target(
     })
 }
 
+fn scroll_tab_into_view(
+    scroll: &gpui::ScrollHandle,
+    geometry: &TabsGeometry,
+    key: &SharedString,
+    vertical: bool,
+) {
+    let Some(tab) = geometry
+        .tabs
+        .iter()
+        .find_map(|(held, bounds)| (held == key).then_some(*bounds))
+    else {
+        return;
+    };
+    let viewport = scroll.bounds();
+    let at = scroll.offset();
+    let next = if vertical {
+        let before = viewport.top() - tab.top();
+        let after = tab.bottom() - viewport.bottom();
+        if before > px(0.) && after > px(0.) {
+            if before <= after {
+                gpui::point(at.x, at.y + before)
+            } else {
+                gpui::point(at.x, at.y - after)
+            }
+        } else if before > px(0.) {
+            gpui::point(at.x, at.y + viewport.top() - tab.top())
+        } else if after > px(0.) {
+            gpui::point(at.x, at.y - (tab.bottom() - viewport.bottom()))
+        } else {
+            return;
+        }
+    } else {
+        let before = viewport.left() - tab.left();
+        let after = tab.right() - viewport.right();
+        if before > px(0.) && after > px(0.) {
+            if before <= after {
+                gpui::point(at.x + before, at.y)
+            } else {
+                gpui::point(at.x - after, at.y)
+            }
+        } else if before > px(0.) {
+            gpui::point(at.x + viewport.left() - tab.left(), at.y)
+        } else if after > px(0.) {
+            gpui::point(at.x - (tab.right() - viewport.right()), at.y)
+        } else {
+            return;
+        }
+    };
+    scroll.set_offset(next);
+}
+
 #[derive(Clone)]
 struct SeparatorMotion {
     hidden: bool,
@@ -535,6 +586,18 @@ impl RenderOnce for Tabs {
             cx,
             |_, _| TabsGeometry::default(),
         );
+        let keyboard_focus = list_focus.is_focused(window) && crate::util::focus_visible(cx);
+        let focus_presence = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{base_id}-keyboard-focus").into()),
+            cx,
+            |_, _| false,
+        );
+        if *focus_presence.read(cx) != keyboard_focus {
+            focus_presence.update(cx, |focused, _| *focused = keyboard_focus);
+            if keyboard_focus {
+                scroll_tab_into_view(&scroll, geometry.read(cx), &focused_key, vertical);
+            }
+        }
         let indicator_frame =
             indicator_target(geometry.read(cx), &selected_key, vertical, secondary).map(|target| {
                 indicator_motion(
@@ -733,6 +796,8 @@ impl RenderOnce for Tabs {
                         let key_cb = self.on_selection_change.clone();
                         let key_own = selection_own.clone();
                         let key_focus = focus_state.clone();
+                        let key_geometry = geometry.clone();
+                        let key_scroll = scroll.clone();
                         let automatic = self.keyboard_activation == KeyboardActivation::Automatic;
                         tab = tab.on_key_down(move |event, window, cx| {
                             let key = match (vertical, event.keystroke.key.as_str()) {
@@ -757,6 +822,12 @@ impl RenderOnce for Tabs {
                                 state.key = next_key.clone();
                                 cx.notify();
                             });
+                            scroll_tab_into_view(
+                                &key_scroll,
+                                key_geometry.read(cx),
+                                &next_key,
+                                vertical,
+                            );
                             if automatic {
                                 if let Some(held) = &key_own {
                                     let next_key = next_key.clone();
@@ -868,6 +939,8 @@ impl RenderOnce for Tabs {
                         let key_cb = self.on_selection_change.clone();
                         let key_own = selection_own.clone();
                         let key_focus = focus_state.clone();
+                        let key_geometry = geometry.clone();
+                        let key_scroll = scroll.clone();
                         let automatic = self.keyboard_activation == KeyboardActivation::Automatic;
                         tab = tab.on_key_down(move |event, window, cx| {
                             let key = match (vertical, event.keystroke.key.as_str()) {
@@ -892,6 +965,12 @@ impl RenderOnce for Tabs {
                                 state.key = next_key.clone();
                                 cx.notify();
                             });
+                            scroll_tab_into_view(
+                                &key_scroll,
+                                key_geometry.read(cx),
+                                &next_key,
+                                vertical,
+                            );
                             if automatic {
                                 if let Some(held) = &key_own {
                                     let next_key = next_key.clone();
@@ -982,7 +1061,7 @@ impl RenderOnce for Tabs {
                             .path(icon)
                             .text_color(colors.foreground),
                     )
-                    .on_click(move |_, _, _| {
+                    .on_click(move |_, window, _| {
                         let at = handle.offset();
                         let viewport = handle.bounds().size;
                         let step = if vertical {
@@ -997,6 +1076,7 @@ impl RenderOnce for Tabs {
                             gpui::point(at.x + delta, at.y)
                         };
                         handle.set_offset(next);
+                        window.refresh();
                     })
         };
         let container_radius = layout.radius_lg() * 2.5;
