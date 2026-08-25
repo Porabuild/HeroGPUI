@@ -198,12 +198,15 @@ fn autocomplete_allows_empty_collection_keeps_the_panel_up_with_no_matches(
     assert!(recorded.borrow().is_empty());
 }
 
-/// Without `allowsEmptyCollection` the same no-match query unmounts the panel
-/// body, but the still-open overlay scope keeps its outside boundary. A press
-/// away from the trigger must therefore report the close even though there is
-/// no empty-state row to draw.
+/// `allowsEmptyCollection` is **not** a close-on-filtered-empty flag. v3's
+/// Autocomplete root is a React Aria `Select` and its filtering is a separate
+/// layer (`Autocomplete.Filter` is RAC's `Autocomplete`), so a query that
+/// prunes an open popover to zero changes nothing about the popover's open
+/// state: the panel stays mounted and its composed "No results found" state
+/// renders, with or without the prop. The prop only governs
+/// whether a *collection with no items at all* may function at all.
 #[gpui::test]
-fn autocomplete_without_empty_collection_takes_the_panel_down(cx: &mut TestAppContext) {
+fn autocomplete_filtered_empty_without_the_prop_keeps_the_panel_mounted(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();
     let opens = events();
@@ -226,14 +229,76 @@ fn autocomplete_without_empty_collection_takes_the_panel_down(cx: &mut TestAppCo
     click(cx, 60., 18.);
     assert_eq!(opened.borrow().as_slice(), ["open:true"]);
 
-    // The default: a query with no match hides the list on the spot.
+    // "zz" matches nothing. The empty state ("No results found") sits where
+    // the rows would be; the press lands inside the still-mounted panel, so
+    // it records nothing and must not dismiss it either.
     cx.simulate_input("zz");
+    click(cx, 60., 124.);
+    assert!(
+        recorded.borrow().is_empty(),
+        "the empty state must not select anything"
+    );
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "a filtered-empty query must keep the popover mounted even without \
+         the prop, so a press inside it cannot dismiss it"
+    );
+
+    // The panel is still mounted, so a press outside it dismisses it and
+    // reports the close.
     click(cx, 600., 300.);
     assert_eq!(
         opened.borrow().as_slice(),
         ["open:true", "open:false"],
-        "the no-match query must unmount the panel body without making the \
-         still-open overlay impossible to dismiss"
+        "the mounted empty panel must still answer its outside-press dismissal"
+    );
+    assert!(recorded.borrow().is_empty());
+}
+
+/// A collection with no items at all is a different gate, and this is what
+/// `allowsEmptyCollection` is for. React Aria's `useSelectState.toggle` on
+/// an empty collection early-returns ("Don't open if the collection is
+/// empty."), so the trigger of a zero-item Autocomplete without the prop
+/// neither opens nor reports `onOpenChange(true)` — and a second press must
+/// not toggle either.
+#[gpui::test]
+fn autocomplete_zero_item_collection_without_the_prop_refuses_the_trigger(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, Vec::new())
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    // The trigger press is the `useSelectState.toggle()` act: with an empty
+    // collection and no prop it must do nothing at all — no open, no report.
+    click(cx, 60., 18.);
+    assert!(
+        opened.borrow().is_empty(),
+        "a zero-item collection without allowsEmptyCollection must refuse \
+         the trigger toggle and never report open"
+    );
+
+    // The refusal covers the toggle in both directions: a second press must
+    // not open-and-close either (or report anything).
+    click(cx, 60., 18.);
+    assert!(
+        opened.borrow().is_empty(),
+        "a zero-item collection without allowsEmptyCollection must refuse \
+         every trigger toggle"
     );
     assert!(recorded.borrow().is_empty());
 }

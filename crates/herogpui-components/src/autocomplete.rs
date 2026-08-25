@@ -65,8 +65,10 @@ pub struct Autocomplete {
     indicator: Option<Box<dyn Fn(bool) -> gpui::AnyElement + 'static>>,
     /// `Autocomplete.Value` — draws the trigger's value.
     value_content: Option<Box<dyn Fn(util::SelectionValue<'_>) -> gpui::AnyElement + 'static>>,
-    /// `allowsEmptyCollection` — keep the panel open with an empty state
-    /// instead of hiding it when nothing matches.
+    /// `allowsEmptyCollection` — whether the autocomplete may function when
+    /// the collection has no items at all. It is the `useSelectState` open
+    /// gate, not a close-on-filtered-empty flag: filtering an open popover
+    /// to zero keeps it mounted with the empty state either way.
     allows_empty_collection: bool,
     selection_mode: SelectionMode,
     selected_keys: std::collections::BTreeSet<SharedString>,
@@ -373,8 +375,14 @@ impl Autocomplete {
         self
     }
 
-    /// `allowsEmptyCollection` — the popover stays open with an empty state when
-    /// nothing matches.
+    /// `allowsEmptyCollection` — whether the autocomplete may function with a
+    /// collection that has no items at all (v3: *"When true, the autocomplete
+    /// can function even with no items."*).
+    ///
+    /// react-stately 3.49.0's `useSelectState` reads it as the `open`/`toggle`
+    /// gate: a truly empty collection refuses to open without it. Filtering an
+    /// open popover to zero is a different layer (the ListBox's empty-state
+    /// slot), so this is not a close-on-filtered-empty flag.
     pub fn allows_empty_collection(mut self, v: bool) -> Self {
         self.allows_empty_collection = v;
         self
@@ -493,6 +501,15 @@ impl RenderOnce for Autocomplete {
 
         let is_invalid = self.is_invalid || self.error_message.is_some();
         let can_open = !self.is_disabled;
+        // Whether the trigger's open acts are allowed at all: react-stately
+        // 3.49.0's `useSelectState` guards `open`/`toggle` — *"Don't open if
+        // the collection is empty"* — and v3's Autocomplete root is a RAC
+        // `Select`, whose trigger calls `state.toggle()`. A collection with no
+        // items therefore refuses every trigger open/toggle unless
+        // `allowsEmptyCollection` lets the autocomplete function with no
+        // items. This is the *unfiltered* collection: a query that prunes an
+        // open popover to zero never reaches this gate.
+        let toggle_allowed = self.allows_empty_collection || !self.items.is_empty();
 
         // --- the trigger ----------------------------------------------------
         // Whether the pointer went down on the trigger (or on the clear
@@ -678,12 +695,17 @@ impl RenderOnce for Autocomplete {
                 ),
         );
 
-        // Clicking the trigger opens and closes the popover.
+        // Clicking the trigger opens and closes the popover. The toggle is
+        // the `useSelectState.toggle()` act: an empty collection without the
+        // prop refuses it in *both* directions, and the refusal reports
+        // nothing (the guard sits before `triggerState.toggle()`, so
+        // `onOpenChange` never fires).
         if can_open {
             let own = open_own.clone();
             let cb = self.on_open_change.clone();
             let was_open = open;
             let pressed = trigger_pressed.clone();
+            let may_toggle = toggle_allowed;
             field = field
                 .capture_any_mouse_down(move |_, _, cx| {
                     pressed.set(true);
@@ -692,6 +714,9 @@ impl RenderOnce for Autocomplete {
                 })
                 .when_some(focus_handle.as_ref(), |el, handle| el.track_focus(handle))
                 .on_click(move |_, window, cx| {
+                    if !may_toggle {
+                        return;
+                    }
                     if let Some(held) = &own {
                         held.update(cx, |v, cx| {
                             *v = !was_open;
@@ -749,6 +774,7 @@ impl RenderOnce for Autocomplete {
             let rows = matches.clone();
             let key_open_own = open_own.clone();
             let key_open_change = self.on_open_change.clone();
+            let may_open = toggle_allowed;
             let on_change_all = self.on_selection_change_all.clone();
             let on_change_one = self.on_selection_change.clone();
             let key_selection_own = selection_own.clone();
@@ -762,6 +788,13 @@ impl RenderOnce for Autocomplete {
                     // fires those for a focused element, so answering them again
                     // would open and close the popover in one keystroke.
                     if matches!(key, "down" | "up") {
+                        // The keyboard open is the same
+                        // `useSelectState.open()` act: an empty collection
+                        // without `allowsEmptyCollection` refuses it and
+                        // reports nothing.
+                        if !may_open {
+                            return;
+                        }
                         if let Some(held) = &key_open_own {
                             held.update(cx, |v, cx| {
                                 *v = true;
@@ -859,28 +892,14 @@ impl RenderOnce for Autocomplete {
             });
 
         // --- the popover ----------------------------------------------------
-        // `allowsEmptyCollection` keeps it up with an empty state.
-        let show_panel = overlay_active && (!matches.is_empty() || self.allows_empty_collection);
-        if !show_panel && overlay_active {
-            let dismiss_own = open_own.clone();
-            let dismiss_cb = self.on_open_change.clone();
-            root = util::dismiss_on_press_outside_with_token(
-                root,
-                dismissal_token.clone(),
-                move |window, cx| {
-                    if let Some(held) = &dismiss_own {
-                        held.update(cx, |v, cx| {
-                            *v = false;
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &dismiss_cb {
-                        cb(false, window, cx);
-                    }
-                    util::DismissResult::Handled
-                },
-            );
-        }
+        // The popover's presence is the Select's open state and nothing else.
+        // Filtering happens inside `Autocomplete.Filter`, which prunes only
+        // the ListBox's rows. At zero this port draws the "No results found"
+        // empty state used by v3's examples; `allowsEmptyCollection` is not a
+        // close-on-filtered-empty flag. The panel carries its own
+        // outside-press dismissal, so there is nothing to attach to the root
+        // when it is unmounted.
+        let show_panel = overlay_active;
         if show_panel {
             let panel = gpui::div()
                 .w_full()
