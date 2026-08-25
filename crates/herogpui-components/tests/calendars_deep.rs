@@ -775,7 +775,7 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
                 changes.borrow_mut().push(format!("{start}->{end}"));
             })
             .cell(move |state| {
-                if (6..=8).contains(&state.date.day) {
+                if !state.is_outside_month && (6..=8).contains(&state.date.day) {
                     selected_cells
                         .borrow_mut()
                         .insert(state.date.day, state.is_selected);

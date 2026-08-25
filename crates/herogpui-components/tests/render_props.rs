@@ -1588,9 +1588,9 @@ fn calendar_cell_tracks_selection(cx: &mut TestAppContext) {
 // RangeCalendar::cell
 // ---------------------------------------------------------------------------
 
-/// The closure ran for every day of the pinned month on the first frame — the
-/// button's defect class on the sixth and last component — with every cell
-/// idle: no anchor, no end, nothing selected.
+/// The closure ran for every real date in the pinned six-week grid on the
+/// first frame, including both adjacent months. With no anchor or end, every
+/// cell is idle and only the outside-month copies are disabled.
 #[gpui::test]
 fn range_calendar_cell_renders_at_all(cx: &mut TestAppContext) {
     let recorded = Rc::new(RefCell::new(HashMap::new()));
@@ -1623,6 +1623,283 @@ fn range_calendar_cell_renders_at_all(cx: &mut TestAppContext) {
     assert!(
         !five.is_disabled && !five.is_outside_month,
         "an in-month day of an enabled calendar must report neither"
+    );
+
+    let cells = recorded.borrow();
+    assert_eq!(
+        cells.len(),
+        42,
+        "the six-week grid must expose 42 real dates"
+    );
+    assert_eq!(
+        cells.values().filter(|cell| !cell.is_outside_month).count(),
+        31,
+        "all August dates must remain in-month"
+    );
+    assert_eq!(
+        cells.values().filter(|cell| cell.is_outside_month).count(),
+        11,
+        "the five July and six September copies must reach the closure"
+    );
+    for cell in cells.values().filter(|cell| cell.is_outside_month) {
+        assert!(cell.is_disabled && !cell.is_selected);
+        assert!(!cell.is_selection_start && !cell.is_selection_end);
+    }
+}
+
+/// Both spill edges preserve their real dates and labels. Blank leading slots
+/// or a repeated synthetic date would make this exact map differ.
+#[gpui::test]
+fn range_calendar_spill_dates_preserve_their_identity(cx: &mut TestAppContext) {
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let record = recorded.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let _cx = open_host(cx, move || {
+        let record = record.clone();
+        RangeCalendar::new(state.clone())
+            .cell(move |cell| {
+                record_range_cell(&record, &cell);
+                gpui::div().w(px(20.)).h(px(20.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let spills: HashMap<String, String> = recorded
+        .borrow()
+        .values()
+        .filter(|cell| cell.is_outside_month)
+        .map(|cell| (cell.date.format_iso(), cell.formatted_date.to_string()))
+        .collect();
+    assert_eq!(
+        spills,
+        HashMap::from([
+            ("2026-07-27".into(), "27".into()),
+            ("2026-07-28".into(), "28".into()),
+            ("2026-07-29".into(), "29".into()),
+            ("2026-07-30".into(), "30".into()),
+            ("2026-07-31".into(), "31".into()),
+            ("2026-09-01".into(), "1".into()),
+            ("2026-09-02".into(), "2".into()),
+            ("2026-09-03".into(), "3".into()),
+            ("2026-09-04".into(), "4".into()),
+            ("2026-09-05".into(), "5".into()),
+            ("2026-09-06".into(), "6".into()),
+        ])
+    );
+}
+
+/// `weeksInMonth` is an exact nonzero row count in pinned React Stately, even
+/// above the usual six rows. The extra row must contain real spill dates too.
+#[gpui::test]
+fn range_calendar_weeks_in_month_keeps_exact_row_count(cx: &mut TestAppContext) {
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let record = recorded.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let _cx = open_host(cx, move || {
+        let record = record.clone();
+        RangeCalendar::new(state.clone())
+            .weeks_in_month(7)
+            .cell(move |cell| {
+                record_range_cell(&record, &cell);
+                gpui::div().w(px(20.)).h(px(20.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(recorded.borrow().len(), 49);
+    let final_cell = range_cell_of(&recorded, "2026-09-13");
+    assert!(final_cell.is_outside_month && final_cell.is_disabled);
+}
+
+/// Outside-month copies are disabled and unselected, but their unavailable
+/// state still comes from the predicate evaluated against the real date.
+#[gpui::test]
+fn range_calendar_outside_cells_keep_date_derived_state(cx: &mut TestAppContext) {
+    let changes = events();
+    let changed = changes.clone();
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let record = recorded.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.start = Some(Date::new(2026, 9, 1));
+        state.end = Some(Date::new(2026, 9, 2));
+        state.user_navigated = true;
+    });
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let record = record.clone();
+        RangeCalendar::new(state.clone())
+            .is_date_unavailable(|date| date == Date::new(2026, 7, 31))
+            .on_change(move |start, end, _, _| {
+                changes.borrow_mut().push(format!(
+                    "{}..{}",
+                    start.map_or_else(|| "none".into(), |date| date.format_iso()),
+                    end.map_or_else(|| "none".into(), |date| date.format_iso())
+                ));
+            })
+            .cell(move |cell| {
+                record_range_cell(&record, &cell);
+                gpui::div().w(px(20.)).h(px(20.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let july = range_cell_of(&recorded, "2026-07-31");
+    assert!(july.is_outside_month && july.is_disabled && july.is_unavailable);
+    assert!(!july.is_selected && !july.is_selection_start && !july.is_selection_end);
+    let september = range_cell_of(&recorded, "2026-09-01");
+    assert!(september.is_outside_month && september.is_disabled && !september.is_selected);
+    assert!(
+        september.is_selection_start,
+        "RAC preserves endpoint identity even though the outside copy is not selected"
+    );
+
+    click(cx, range_col_x(0), range_row_y(0));
+    click(cx, range_col_x(1), range_row_y(5));
+    assert!(
+        changed.borrow().is_empty(),
+        "neither outside-month edge may report a range change"
+    );
+}
+
+/// Read-only blocks pointer selection without turning cells disabled, while an
+/// unavailable date reports its own state independently of read-only.
+#[gpui::test]
+fn range_calendar_read_only_and_unavailable_states_stay_independent(cx: &mut TestAppContext) {
+    let changes = events();
+    let changed = changes.clone();
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let record = recorded.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.start = Some(Date::new(2026, 8, 15));
+        state.end = Some(Date::new(2026, 8, 17));
+        state.user_navigated = true;
+    });
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let record = record.clone();
+        RangeCalendar::new(state.clone())
+            .is_read_only(true)
+            .is_date_unavailable(|date| date == Date::new(2026, 8, 16))
+            .on_change(move |_, _, _, _| changes.borrow_mut().push("changed".into()))
+            .cell(move |cell| {
+                record_range_cell(&record, &cell);
+                gpui::div().w(px(20.)).h(px(20.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let start = range_cell_of(&recorded, "2026-08-15");
+    assert!(start.is_selected && start.is_selection_start && !start.is_disabled);
+    let unavailable = range_cell_of(&recorded, "2026-08-16");
+    assert!(unavailable.is_unavailable && !unavailable.is_disabled && !unavailable.is_selected);
+    let (start_x, start_y) = range_day(2026, 8, 15);
+    click(cx, start_x, start_y);
+    let (unavailable_x, unavailable_y) = range_day(2026, 8, 16);
+    click(cx, unavailable_x, unavailable_y);
+    assert!(changed.borrow().is_empty());
+}
+
+/// Adjacent grids may render the same boundary date twice. The in-month copy
+/// carries selection while the outside copy keeps endpoint identity but not
+/// selected state.
+#[gpui::test]
+fn range_calendar_multimonth_boundary_copies_keep_independent_state(cx: &mut TestAppContext) {
+    let recorded = Rc::new(RefCell::new(Vec::new()));
+    let record = recorded.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.start = Some(Date::new(2026, 8, 31));
+        state.end = Some(Date::new(2026, 9, 2));
+        state.user_navigated = true;
+    });
+    let _cx = open_host(cx, move || {
+        let record = record.clone();
+        RangeCalendar::new(state.clone())
+            .visible_duration(VisibleDuration::Months(2))
+            .cell(move |cell| {
+                if matches!(cell.date.format_iso().as_str(), "2026-08-31" | "2026-09-01") {
+                    record.borrow_mut().push((
+                        cell.date.format_iso(),
+                        cell.is_outside_month,
+                        cell.is_selected,
+                        cell.is_selection_start,
+                    ));
+                }
+                gpui::div().w(px(20.)).h(px(20.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let mut boundary = recorded.borrow().clone();
+    boundary.sort();
+    assert_eq!(
+        boundary,
+        [
+            ("2026-08-31".into(), false, true, true),
+            ("2026-08-31".into(), true, false, true),
+            ("2026-09-01".into(), false, true, false),
+            ("2026-09-01".into(), true, false, false),
+        ]
+    );
+}
+
+/// A completed pointer range leaves the keyed cursor on its end. Enter then
+/// starts the next range at that end rather than jumping back to the old start.
+#[gpui::test]
+fn range_calendar_pointer_end_hands_focus_to_keyboard(cx: &mut TestAppContext) {
+    let changes = Rc::new(RefCell::new(Vec::new()));
+    let changed = changes.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        RangeCalendar::new(state.clone())
+            .on_change(move |start, end, _, _| {
+                changes.borrow_mut().push((start, end));
+            })
+            .into_any_element()
+    });
+
+    let (five_x, five_y) = range_day(2026, 8, 5);
+    click(cx, five_x, five_y);
+    let (eight_x, eight_y) = range_day(2026, 8, 8);
+    click(cx, eight_x, eight_y);
+    press(cx, "enter");
+    assert_eq!(
+        changed.borrow().as_slice(),
+        [
+            (Some(Date::new(2026, 8, 5)), None),
+            (Some(Date::new(2026, 8, 5)), Some(Date::new(2026, 8, 8))),
+            (Some(Date::new(2026, 8, 8)), None),
+        ]
     );
 }
 

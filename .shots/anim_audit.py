@@ -40,11 +40,13 @@ IMPLEMENTS = {
     'slide-in-from-bottom-4': 'pub fn entering_from',
     'slide-out-to-bottom-2': 'pub fn exiting_to',
     'scale(0.97)': 'PRESSED_SCALE',
-    # v3 presses four different amounts: a button 0.97, a menu row 0.98, a
-    # pagination arrow 0.96, a calendar cell and a radio control 0.95.
+    # v3 presses five different amounts: a button 0.97, a menu row 0.98, a
+    # pagination arrow 0.96, a calendar cell and radio control 0.95, and a
+    # RangeCalendar cell 0.9.
     'scale(0.98)': 'PRESSED_SCALE_SUBTLE',
     'scale(0.96)': 'PRESSED_SCALE_FIRM',
     'scale(0.95)': 'PRESSED_SCALE_DEEP',
+    'scale: 0.9': 'PRESSED_SCALE_RANGE',
     '@keyframes caret-blink': 'pub fn caret_blink',
     '@keyframes skeleton': 'SkeletonAnimation',
     'animate-pulse': 'SkeletonAnimation',

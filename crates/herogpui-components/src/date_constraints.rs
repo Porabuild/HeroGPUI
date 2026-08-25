@@ -134,8 +134,8 @@ impl DateConstraints {
 
     /// Rows the grid should render for this month.
     pub fn rows(&self, year: i32, month: u32) -> usize {
-        if let Some(rows) = self.weeks_in_month {
-            return rows.clamp(1, 6);
+        if let Some(rows) = self.weeks_in_month.filter(|rows| *rows > 0) {
+            return rows;
         }
         let cells = self.lead_cells(year, month) + days_in_month(year, month) as usize;
         cells.div_ceil(7)
@@ -244,17 +244,23 @@ mod tests {
     }
 
     #[test]
-    fn weeks_in_month_overrides_and_clamps() {
+    fn weeks_in_month_overrides_without_clamping() {
         let forced = DateConstraints {
             weeks_in_month: Some(6),
             ..Default::default()
         };
         assert_eq!(forced.rows(2026, 2), 6);
 
-        let clamped = DateConstraints {
-            weeks_in_month: Some(99),
+        let extended = DateConstraints {
+            weeks_in_month: Some(7),
             ..Default::default()
         };
-        assert_eq!(clamped.rows(2026, 2), 6);
+        assert_eq!(extended.rows(2026, 2), 7);
+
+        let locale_default = DateConstraints {
+            weeks_in_month: Some(0),
+            ..Default::default()
+        };
+        assert_eq!(locale_default.rows(2026, 2), 5);
     }
 }

@@ -13,7 +13,7 @@ use gpui::{
 use herogpui_theme::ActiveTheme;
 
 use crate::{
-    calendar::{add_days, days_from_civil, days_in_month, weekday_index, Date},
+    calendar::{add_days, add_months, days_from_civil, days_in_month, weekday_index, Date},
     calendar_view::{self, PageBehavior, SelectionAlignment, VisibleDuration},
     date_constraints::{DateConstraints, Weekday},
     date_picker::DateRangeState,
@@ -299,10 +299,6 @@ impl RangeCalendar {
         self.on_change = Some(Arc::new(handler));
         self
     }
-
-    fn is_selectable(&self, date: Date) -> bool {
-        self.constraints.allows(date)
-    }
 }
 
 /// Resolves one range selection through the same constraint path for clicks
@@ -368,7 +364,7 @@ struct Frame<'a> {
     start: Option<Date>,
     preview_end: Option<Date>,
     today: Date,
-    interactive: bool,
+    cursor: &'a Entity<Option<Date>>,
     base: &'a str,
     /// The date wearing the focus ring: `focusedValue` when the caller controls
     /// it, otherwise wherever the arrow keys have walked to. `None` while the
@@ -379,7 +375,14 @@ struct Frame<'a> {
 impl RangeCalendar {
     /// One day cell. The range interior is a square fill so the run reads as
     /// continuous; the two ends are pills.
-    fn range_cell(&self, date: Date, frame: &Frame<'_>, key: String, cx: &App) -> gpui::AnyElement {
+    fn range_cell(
+        &self,
+        date: Date,
+        outside_month: bool,
+        frame: &Frame<'_>,
+        key: String,
+        cx: &App,
+    ) -> gpui::AnyElement {
         let colors = cx.colors();
         let accent = if self.is_invalid {
             colors.danger
@@ -389,16 +392,21 @@ impl RangeCalendar {
         let serial = days_from_civil(&date);
         let start_day = frame.start.map(|d| days_from_civil(&d));
         let end_day = frame.preview_end.map(|d| days_from_civil(&d));
-        let selectable = frame.interactive && self.is_selectable(date);
+        let unavailable = self.constraints.is_unavailable(date);
+        let disabled = outside_month || self.is_disabled || self.constraints.out_of_range(date);
+        let eligible = !disabled && !unavailable;
+        let selectable = eligible && !self.is_read_only;
 
         let is_start = start_day == Some(serial);
         let is_end = end_day == Some(serial);
-        let in_range = match (start_day, end_day) {
-            (Some(a), Some(b)) => {
-                serial > a.min(b) && serial < a.max(b) && !self.constraints.is_unavailable(date)
-            }
-            _ => false,
-        };
+        let in_range = eligible
+            && match (start_day, end_day) {
+                (Some(a), Some(b)) => serial > a.min(b) && serial < a.max(b),
+                _ => false,
+            };
+        let is_selected = eligible && (is_start || is_end || in_range);
+        let draw_start = is_start && !outside_month;
+        let draw_end = is_end && !outside_month;
         let is_today = serial == days_from_civil(&frame.today);
 
         let mut cell = div()
@@ -412,20 +420,18 @@ impl RangeCalendar {
                 Some(render) => render(RangeCalendarCellState {
                     date,
                     formatted_date: date.day.to_string().into(),
-                    is_selected: is_start || is_end || in_range,
+                    is_selected,
                     is_selection_start: is_start,
                     is_selection_end: is_end,
-                    is_unavailable: self.constraints.is_unavailable(date),
-                    // Every cell this draws belongs to the month it is in; the
-                    // adjacent months are drawn as inert slots.
-                    is_outside_month: false,
+                    is_unavailable: unavailable,
+                    is_outside_month: outside_month,
                     is_today,
-                    is_disabled: !selectable,
+                    is_disabled: disabled,
                 }),
                 None => date.day.to_string().into_any_element(),
             });
 
-        if is_start || is_end {
+        if draw_start || draw_end {
             cell = cell
                 .rounded_full()
                 .bg(accent.color)
@@ -445,7 +451,7 @@ impl RangeCalendar {
         }
 
         // `.range-calendar__cell[data-pressed]` fills with `bg-default` and
-        // scales to 0.95, the same press a calendar cell takes.
+        // scales to 0.9.
         let cell = if selectable {
             let pressed_bg = colors.default.color;
             crate::anim::pressed(
@@ -460,7 +466,7 @@ impl RangeCalendar {
                     gap: px(0.),
                     radius: px(19.),
                     shrink_x: true,
-                    scale: crate::anim::PRESSED_SCALE_DEEP,
+                    scale: crate::anim::PRESSED_SCALE_RANGE,
                 },
                 cx,
             )
@@ -471,15 +477,22 @@ impl RangeCalendar {
 
         // `.range-calendar__cell` takes `status-focused` -- a ring, not a border,
         // which would shrink the cell as the cursor arrived.
-        let mut cell =
-            util::with_focus_ring(cell, frame.focused == Some(date), true, Vec::new(), cx);
+        let mut cell = util::with_focus_ring(
+            cell,
+            !outside_month && frame.focused == Some(date),
+            true,
+            Vec::new(),
+            cx,
+        );
 
-        if !selectable {
+        if disabled || unavailable {
             cell = cell.text_color(colors.muted);
-            if self.constraints.is_unavailable(date) {
+            if disabled && !outside_month {
                 cell = cell.line_through();
             }
-        } else {
+        }
+
+        if selectable {
             // Tracking the hovered cell is what makes the half-open range
             // preview between the anchor and the cursor.
             let hover_state = self.state.clone();
@@ -500,7 +513,12 @@ impl RangeCalendar {
             let on_focus = self.on_focus_change.clone();
             let constraints = self.constraints.clone();
             let allows_non_contiguous_ranges = self.allows_non_contiguous_ranges;
+            let cursor = frame.cursor.clone();
             cell = cell.on_click(move |_, window, cx| {
+                cursor.update(cx, |focused, cx| {
+                    *focused = Some(date);
+                    cx.notify();
+                });
                 if let Some(cb) = &on_focus {
                     cb(date, window, cx);
                 }
@@ -544,7 +562,8 @@ impl RangeCalendar {
             );
         }
 
-        cell.into_any_element()
+        cell.when(outside_month, |cell| cell.opacity(0.5))
+            .into_any_element()
     }
 
     /// The seven column headers -- `.range-calendar__grid-header`.
@@ -569,31 +588,57 @@ impl RangeCalendar {
     fn month_grid(&self, y: i32, m: u32, frame: &Frame<'_>, cx: &App) -> gpui::AnyElement {
         let lead = self.constraints.lead_cells(y, m);
         let total = days_in_month(y, m) as usize;
+        let rows = self.constraints.rows(y, m);
 
         let mut grid = div().flex().flex_col().gap(px(2.));
-        let mut row = div().flex().flex_row();
-        let mut cell_index = 0usize;
-
-        // Leading blanks so the 1st lands on its weekday.
-        for _ in 0..lead {
-            row = row.child(div().size(px(38.)));
-            cell_index += 1;
-        }
-
-        for day in 1..=total {
-            if cell_index > 0 && cell_index.is_multiple_of(7) {
-                grid = grid.child(row);
-                row = div().flex().flex_row();
+        for row_index in 0..rows {
+            let mut row = div().flex().flex_row();
+            for column in 0..7 {
+                let index = row_index * 7 + column;
+                let cell = if index < lead {
+                    let (previous_year, previous_month) = add_months(y, m, -1);
+                    let day =
+                        days_in_month(previous_year, previous_month) as usize - lead + index + 1;
+                    self.range_cell(
+                        Date::new(previous_year, previous_month, day as u32),
+                        true,
+                        frame,
+                        format!(
+                            "{}-{y}-{m}-outside-{previous_year}-{previous_month}-day-{day}",
+                            frame.base
+                        ),
+                        cx,
+                    )
+                } else {
+                    let day = index - lead + 1;
+                    if day <= total {
+                        self.range_cell(
+                            Date::new(y, m, day as u32),
+                            false,
+                            frame,
+                            format!("{}-{y}-{m}-day-{day}", frame.base),
+                            cx,
+                        )
+                    } else {
+                        let (next_year, next_month) = add_months(y, m, 1);
+                        let next_day = day - total;
+                        self.range_cell(
+                            Date::new(next_year, next_month, next_day as u32),
+                            true,
+                            frame,
+                            format!(
+                                "{}-{y}-{m}-outside-{next_year}-{next_month}-day-{next_day}",
+                                frame.base
+                            ),
+                            cx,
+                        )
+                    }
+                };
+                row = row.child(cell);
             }
-            row = row.child(self.range_cell(
-                Date::new(y, m, day as u32),
-                frame,
-                format!("{}-{y}-{m}-day-{day}", frame.base),
-                cx,
-            ));
-            cell_index += 1;
+            grid = grid.child(row);
         }
-        grid.child(row).into_any_element()
+        grid.into_any_element()
     }
 
     /// The year grid shown while the year picker is open.
@@ -833,7 +878,7 @@ impl RenderOnce for RangeCalendar {
             start: paint_start,
             preview_end,
             today: Date::today(),
-            interactive: !self.is_disabled && !self.is_read_only,
+            cursor: &cursor,
             base: &base,
             focused: ring_at,
         };
@@ -1033,7 +1078,7 @@ impl RenderOnce for RangeCalendar {
         // sets the range's start, the second its end, which is what `pick` does
         // for a click.
         if !self.is_disabled && !year_picker_open {
-            let held = cursor;
+            let held = cursor.clone();
             let focus = grid_focus.clone();
             let prev_control = prev_focus.clone();
             let next_control = next_focus.clone();
@@ -1381,6 +1426,7 @@ impl RenderOnce for RangeCalendar {
                 for &date in chunk {
                     line = line.child(self.range_cell(
                         date,
+                        false,
                         &frame,
                         format!("{base}-{}", date.format_iso()),
                         cx,

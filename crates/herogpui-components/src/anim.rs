@@ -208,10 +208,12 @@ pub fn ease_smooth() -> impl Fn(f32) -> f32 {
 pub const PRESSED_SCALE: f32 = 0.97;
 
 /// The other scales v3 presses with: a menu row and a pagination link squeeze
-/// less than a button, a calendar cell and a radio control more.
+/// less than a button, a calendar cell and a radio control more, and a range
+/// calendar cell most.
 pub const PRESSED_SCALE_SUBTLE: f32 = 0.98;
 pub const PRESSED_SCALE_FIRM: f32 = 0.96;
 pub const PRESSED_SCALE_DEEP: f32 = 0.95;
+pub const PRESSED_SCALE_RANGE: f32 = 0.9;
 
 /// The inset that shrinks a control of `height` by a scale about its
 /// centre.
