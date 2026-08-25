@@ -216,8 +216,8 @@ ALIAS = {
     # v3 hands these *into* a child render function. The builder that takes the
     # closure is what implements the prop, so the alias points at it: a caller
     # receives the value rather than supplying it.
+    'Dropdown.ItemIndicator.isSelected': 'indicator_content',
     'Dropdown.isSelected': 'item_content',
-    'Dropdown.isIndeterminate': 'item_content',
     'InputOTP.index': 'slot',
     'Pagination.isActive': 'link',
     'Table.sortDirection': 'indicator',
@@ -265,6 +265,10 @@ SKIP = {
 # Deliberately not ported, with the reason. These are reported separately so
 # the "real gap" number stays meaningful.
 WONT_PORT = {
+    # HeroUI documents this value, but v3.2.4 passes the raw
+    # react-aria-components 1.20.0 MenuItemRenderProps to the indicator. That
+    # state has no `isIndeterminate` member, so the value is always absent.
+    'Dropdown.isIndeterminate': 'pinned-source-does-not-emit',
     # Uncontrolled mode exists (`util::controlled` + `use_keyed_state`), so
     # `defaultOpen`, `defaultSelected`, `defaultExpanded*` and
     # `defaultYearPickerOpen` are implemented, not omitted. The collection-

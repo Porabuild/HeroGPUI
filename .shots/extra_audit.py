@@ -228,6 +228,9 @@ EXTRA_OK_SCOPED = {
     # pinned dependency exposes `keyboardActivation`, but HeroUI's own table
     # does not repeat that inherited row.
     'Tabs.keyboard_activation': 'react-aria-inherited',
+    # v3 composes `Dropdown.ItemIndicator` inside each item. The monolithic
+    # Dropdown projects its render-function child across keyed menu rows.
+    'Dropdown.indicator_content': 'composition',
     # v3 composes one `Slider.Thumb` per value and names each thumb there. The
     # monolithic Slider projects those names as an index-ordered collection.
     'Slider.thumb_names': 'composition',

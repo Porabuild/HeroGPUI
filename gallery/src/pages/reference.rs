@@ -963,6 +963,20 @@ impl Widget {
                 .rust_owner,
             "MenuItem"
         );
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "Dropdown.Item"
+                && entry.prop == "children"
+                && entry.rust_owner == "Menu"
+                && entry.rust == "item_content(render)"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "Dropdown.ItemIndicator"
+                && entry.prop == "children"
+                && entry.rust_owner == "Menu"
+                && entry.rust == "indicator_content(render)"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
     }
 
     #[test]

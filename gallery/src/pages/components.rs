@@ -1105,7 +1105,7 @@ impl Gallery {
                     )
                     .id("dd-single-dd")
                     .selection_mode(SelectionMode::Single)
-                    .selected_keys([SharedString::from("date")])
+                    .default_selected_keys([SharedString::from("date")])
                     .into_any_element()]),
                 ),
                 (
@@ -1122,9 +1122,51 @@ impl Gallery {
                     )
                     .id("dd-single-ind-dd")
                     .selection_mode(SelectionMode::Single)
-                    .selected_keys([SharedString::from("name")])
+                    .default_selected_keys([SharedString::from("name")])
                     .indicator(h::IndicatorKind::Dot)
                     .into_any_element()]),
+                ),
+                (
+                    "Render Props",
+                    col(vec![
+                        para(
+                            "The composed Dropdown forwards item and indicator render state into \
+                             the live menu. Open it and choose rows to watch the selection move.",
+                            cx,
+                        ),
+                        h::Dropdown::uncontrolled(
+                            "dd-render-props-dd",
+                            h::Button::new("dd-render-props")
+                                .label("Render state")
+                                .variant(Variant::Secondary),
+                            vec![
+                                h::MenuItem::new("name", "Name"),
+                                h::MenuItem::new("date", "Date"),
+                                h::MenuItem::new("size", "Size"),
+                            ],
+                        )
+                        .selection_mode(SelectionMode::Multiple)
+                        .default_selected_keys([SharedString::from("name")])
+                        .item_content(|key, state| {
+                            gpui::div()
+                                .child(format!(
+                                    "{key}: {}",
+                                    if state.is_selected {
+                                        "selected"
+                                    } else {
+                                        "idle"
+                                    }
+                                ))
+                                .into_any_element()
+                        })
+                        .indicator_content(|_, selected, _| {
+                            gpui::div()
+                                .w(px(16.))
+                                .child(if selected { "✓" } else { "" })
+                                .into_any_element()
+                        })
+                        .into_any_element(),
+                    ]),
                 ),
                 (
                     "With Section Level Selection",

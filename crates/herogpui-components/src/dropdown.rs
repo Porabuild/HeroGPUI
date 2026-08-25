@@ -108,6 +108,8 @@ pub type OnSelectionChange =
 
 type ItemContent =
     std::sync::Arc<dyn Fn(&SharedString, crate::util::InteractiveState) -> AnyElement + 'static>;
+type ItemIndicatorContent =
+    std::sync::Arc<dyn Fn(&SharedString, bool, bool) -> AnyElement + 'static>;
 type OnDismiss = std::rc::Rc<dyn Fn(bool, &mut Window, &mut App) + 'static>;
 type PanelBounds = std::rc::Rc<std::cell::RefCell<Vec<Bounds<Pixels>>>>;
 
@@ -122,8 +124,11 @@ pub struct Menu {
     focus_first: Option<gpui::Entity<bool>>,
     on_back: Option<std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>>,
     /// `children` on `Dropdown.Item` — v3's render prop, handed the item's
-    /// key, `isSelected` and `isIndeterminate`.
+    /// key, selection, focus, disabled and pressed state.
     item_content: Option<ItemContent>,
+    /// `children` on `Dropdown.ItemIndicator` — handed the item's key,
+    /// `isSelected` and `isIndeterminate`.
+    indicator_content: Option<ItemIndicatorContent>,
     id: gpui::ElementId,
     items: Vec<MenuItem>,
     selected_key: Option<SharedString>,
@@ -156,6 +161,7 @@ impl Menu {
             focus_first: None,
             on_back: None,
             item_content: None,
+            indicator_content: None,
             id: id.into(),
             items,
             selected_key: None,
@@ -243,6 +249,15 @@ impl Menu {
         render: impl Fn(&SharedString, crate::util::InteractiveState) -> AnyElement + 'static,
     ) -> Self {
         self.item_content = Some(std::sync::Arc::new(render));
+        self
+    }
+
+    /// `children` on `Dropdown.ItemIndicator` — replaces the built-in mark.
+    pub fn indicator_content(
+        mut self,
+        render: impl Fn(&SharedString, bool, bool) -> AnyElement + 'static,
+    ) -> Self {
+        self.indicator_content = Some(std::sync::Arc::new(render));
         self
     }
 
@@ -752,6 +767,7 @@ impl RenderOnce for Menu {
                     let is_selected = self.selected_key.as_ref() == Some(&key)
                         || self.selected_keys.contains(&key);
                     let is_item_disabled = self.disabled_keys.contains(&key);
+                    let has_submenu = !submenu.is_empty();
                     let text_color = if is_item_disabled {
                         colors.muted
                     } else if is_danger {
@@ -835,6 +851,59 @@ impl RenderOnce for Menu {
                         cx,
                     );
 
+                    // HeroUI passes React Aria's raw MenuItem state to the
+                    // indicator. The pinned 1.20.0 state has no indeterminate
+                    // member, so the documented value is always falsy.
+                    let is_indeterminate = false;
+                    let indicator_content = if let Some(render) = &self.indicator_content {
+                        Some(render(&key, is_selected, is_indeterminate))
+                    } else if is_selected && self.selection_mode != SelectionMode::None {
+                        Some(match self.indicator {
+                            IndicatorKind::Checkmark => gpui::svg()
+                                .size(px(13.))
+                                .path(icons::CHECK)
+                                // svg() never inherits text colour.
+                                .text_color(sem_primary(cx))
+                                .into_any_element(),
+                            IndicatorKind::Dot => gpui::div()
+                                .size(px(6.))
+                                .rounded_full()
+                                .bg(sem_primary(cx))
+                                .into_any_element(),
+                        })
+                    } else {
+                        None
+                    };
+                    let mut indicator = if self.indicator_content.is_some()
+                        || self.selection_mode != SelectionMode::None
+                    {
+                        let mut cell = gpui::div()
+                            .size(px(16.))
+                            .flex_none()
+                            .flex()
+                            .items_center()
+                            .justify_center();
+                        // The row's normal gap is 12px. v3 positions the 16px
+                        // cell 4px from its content, so cancel the extra 8px.
+                        cell = if has_submenu {
+                            cell.ml(px(-8.))
+                        } else {
+                            cell.mr(px(-8.))
+                        };
+                        if let Some(content) = indicator_content {
+                            cell = cell.child(content);
+                        }
+                        Some(cell.into_any_element())
+                    } else {
+                        None
+                    };
+                    // The indicator owns v3's leading 16px cell. Submenu rows
+                    // move it beside the trailing submenu chevron instead.
+                    if !has_submenu {
+                        if let Some(content) = indicator.take() {
+                            row = row.child(content);
+                        }
+                    }
                     if let Some(icon_path) = icon {
                         row = row.child(
                             gpui::svg()
@@ -845,12 +914,7 @@ impl RenderOnce for Menu {
                         );
                     }
                     // `children` on `Dropdown.Item` is a render function in
-                    // v3, handed the row's state. A multi-selection item is
-                    // indeterminate when some but not all of the menu's keys are
-                    // chosen.
-                    let is_indeterminate = self.selection_mode == SelectionMode::Multiple
-                        && !self.selected_keys.is_empty()
-                        && !is_selected;
+                    // v3, handed the row's state.
                     row = row.child(
                         gpui::div().flex_1().child(match &self.item_content {
                             Some(render) => {
@@ -916,7 +980,6 @@ impl RenderOnce for Menu {
                     }
                     // `Dropdown.SubmenuIndicator` — the chevron that says a row
                     // opens another panel.
-                    let has_submenu = !submenu.is_empty();
                     if has_submenu {
                         row = row.child(
                             gpui::svg()
@@ -924,20 +987,9 @@ impl RenderOnce for Menu {
                                 .path(icons::CHEVRON_RIGHT)
                                 .text_color(colors.muted),
                         );
-                    }
-
-                    if is_selected && self.selection_mode != SelectionMode::None {
-                        row = match self.indicator {
-                            IndicatorKind::Checkmark => row.child(
-                                gpui::svg()
-                                    .size(px(13.))
-                                    .path(icons::CHECK)
-                                    // svg() never inherits text colour.
-                                    .text_color(sem_primary(cx)),
-                            ),
-                            IndicatorKind::Dot => row
-                                .child(gpui::div().size(px(6.)).rounded_full().bg(sem_primary(cx))),
-                        };
+                        if let Some(content) = indicator {
+                            row = row.child(content);
+                        }
                     }
 
                     if !is_item_disabled && !has_submenu {
@@ -1114,6 +1166,8 @@ impl RenderOnce for Menu {
                 .disabled_keys(self.disabled_keys)
                 .embedded(all_panel_bounds)
                 .focus_first(submenu_focus.clone());
+            sub.item_content = self.item_content.clone();
+            sub.indicator_content = self.indicator_content.clone();
             if let Some(token) = overlay_token.clone() {
                 sub = sub.overlay_token(token);
             }
@@ -1227,6 +1281,8 @@ pub struct Dropdown {
     default_open: bool,
     on_open_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
     items: Vec<MenuItem>,
+    item_content: Option<ItemContent>,
+    indicator_content: Option<ItemIndicatorContent>,
     selection_mode: SelectionMode,
     selected_keys: Vec<SharedString>,
     default_selected_keys: Vec<SharedString>,
@@ -1311,6 +1367,8 @@ impl Dropdown {
             default_open: false,
             on_open_change: None,
             items,
+            item_content: None,
+            indicator_content: None,
             selection_mode: SelectionMode::None,
             selected_keys: Vec::new(),
             default_selected_keys: Vec::new(),
@@ -1327,6 +1385,25 @@ impl Dropdown {
     /// `type` on `Dropdown.ItemIndicator`.
     pub fn indicator(mut self, kind: IndicatorKind) -> Self {
         self.indicator = kind;
+        self
+    }
+
+    /// `children` on `Dropdown.Item` — replaces each item's label with a
+    /// render closure receiving its key and interactive state.
+    pub fn item_content(
+        mut self,
+        render: impl Fn(&SharedString, crate::util::InteractiveState) -> AnyElement + 'static,
+    ) -> Self {
+        self.item_content = Some(std::sync::Arc::new(render));
+        self
+    }
+
+    /// `children` on `Dropdown.ItemIndicator` — replaces the built-in mark.
+    pub fn indicator_content(
+        mut self,
+        render: impl Fn(&SharedString, bool, bool) -> AnyElement + 'static,
+    ) -> Self {
+        self.indicator_content = Some(std::sync::Arc::new(render));
         self
     }
 
@@ -1540,6 +1617,8 @@ impl RenderOnce for Dropdown {
             .disallow_empty_selection(self.disallow_empty_selection)
             .disabled_keys(self.disabled_keys.clone())
             .indicator(self.indicator);
+            menu.item_content = self.item_content.clone();
+            menu.indicator_content = self.indicator_content.clone();
             menu = menu.overlay_token(overlay_token);
             if let Some(on_action) = self.on_action.clone() {
                 menu = menu.on_action(move |k, w, cx| on_action(k, w, cx));

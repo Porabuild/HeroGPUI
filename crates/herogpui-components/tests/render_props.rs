@@ -1,7 +1,7 @@
 //! Behaviour tests for the *collection* render-prop closures — the inverted
 //! render props AGENTS.md's "A render-prop argument is not an unportable prop"
-//! table lists: `ListBox::item_content`, `Menu::item_content` (the builder
-//! behind `Dropdown.Item children`), `TagGroup::tag_content`,
+//! table lists: `ListBox::item_content`, `Dropdown::item_content` and
+//! `Dropdown::indicator_content`, `Menu::item_content`, `TagGroup::tag_content`,
 //! `RadioGroup::option_content`, `Calendar::cell` and `RangeCalendar::cell`.
 //!
 //! `Button::content` — the seventh row of that table — panicked the instant it
@@ -15,12 +15,12 @@
 //! one frame late where gpui reports it to a handler, so the cycle is
 //! event -> `flush_frame` -> read the closure's latest snapshot.
 //!
-//! Four of the six closures are handed `util::InteractiveState`. TagGroup
+//! Five of the eight closures are handed `util::InteractiveState`. TagGroup
 //! wires its hover/press through `util::interaction` + `util::track_interaction`
 //! (gated on the closure being set — see the no-closure test); ListBox, Menu
 //! and RadioGroup hand over hardcoded `false` for the hover but read the
 //! press from the interaction slot, so their state-change tests assert what
-//! they do deliver (selection, cursor focus, indeterminate) and separate
+//! they do deliver (selection and cursor focus) and separate
 //! defect tests pin the press, which v3's `ListBox.Item` and `Dropdown.Item`
 //! tables list as `isPressed` and which the port's own doc comments promise
 //! "a frame behind the pointer".
@@ -68,9 +68,9 @@ use gpui::{
 use herogpui_components::{
     calendar::{Date, CALENDAR_WIDTH},
     util::InteractiveState,
-    Button, Calendar, CalendarCellState, CalendarState, DateConstraints, DateRangeState, ListBox,
-    ListBoxItem, Menu, MenuItem, RadioGroup, RangeCalendar, RangeCalendarCellState, SelectionMode,
-    Tag, TagGroup,
+    Button, Calendar, CalendarCellState, CalendarState, DateConstraints, DateRangeState, Dropdown,
+    ListBox, ListBoxItem, Menu, MenuItem, RadioGroup, RangeCalendar, RangeCalendarCellState,
+    SelectionMode, Tag, TagGroup,
 };
 
 use harness::{click, events, open_host, press};
@@ -452,9 +452,134 @@ fn list_box_item_content_sees_the_press(cx: &mut TestAppContext) {
 // Menu::item_content (Dropdown.Item children)
 // ---------------------------------------------------------------------------
 
-/// The builder behind v3's `Dropdown.Item` children lives on `Menu`, and
-/// `Dropdown`'s own render never forwards it to the menu it composes — this
-/// test drives the builder where it exists, a bare `Menu` panel.
+/// `Dropdown` composes the `Menu` that owns `Dropdown.Item` render state, so
+/// the root builder must reach that live menu rather than existing only on a
+/// bare `Menu` instance.
+#[gpui::test]
+fn dropdown_forwards_item_content_to_its_composed_menu(cx: &mut TestAppContext) {
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let record = recorded.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        Dropdown::new(
+            "rp-dropdown-item",
+            Button::new("rp-dropdown-item-trigger").label("Open"),
+            vec![MenuItem::new("one", "One"), MenuItem::new("two", "Two")],
+            true,
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_selected_keys([SharedString::from("one")])
+        .disabled_keys([SharedString::from("two")])
+        .item_content(move |key, state| {
+            record_interactive(&record, key, state);
+            gpui::div().w(px(40.)).h(px(20.)).into_any_element()
+        })
+        .into_any_element()
+    });
+
+    flush_frame(cx);
+    let one = state_of(&recorded, "one");
+    let two = state_of(&recorded, "two");
+    assert!(
+        one.is_selected && !one.is_disabled && !two.is_selected && two.is_disabled,
+        "the composed menu must hand each item closure its selection and disabled state"
+    );
+}
+
+/// `Dropdown.ItemIndicator` has its own render function. It receives selected
+/// state independently of `Dropdown.Item` children. The pinned HeroUI source
+/// forwards raw React Aria item state, where `isIndeterminate` is absent and
+/// therefore always falsy.
+#[gpui::test]
+fn dropdown_forwards_indicator_content_to_its_composed_menu(cx: &mut TestAppContext) {
+    let recorded = Rc::new(RefCell::new(HashMap::<String, (bool, bool)>::new()));
+    let record = recorded.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        Dropdown::new(
+            "rp-dropdown-indicator",
+            Button::new("rp-dropdown-indicator-trigger").label("Open"),
+            vec![MenuItem::new("one", "One"), MenuItem::new("two", "Two")],
+            true,
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_selected_keys([SharedString::from("one")])
+        .indicator_content(move |key, is_selected, is_indeterminate| {
+            record
+                .borrow_mut()
+                .insert(key.to_string(), (is_selected, is_indeterminate));
+            gpui::div().size(px(16.)).into_any_element()
+        })
+        .into_any_element()
+    });
+
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().clone(),
+        HashMap::from([
+            ("one".to_owned(), (true, false)),
+            ("two".to_owned(), (false, false)),
+        ]),
+        "indicator render state must reach every composed dropdown item"
+    );
+    press(cx, "down");
+    press(cx, "down");
+    press(cx, "enter");
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().clone(),
+        HashMap::from([
+            ("one".to_owned(), (true, false)),
+            ("two".to_owned(), (true, false)),
+        ]),
+        "the composed indicator closure must observe live uncontrolled selection"
+    );
+}
+
+/// A submenu is still part of the same Dropdown collection composition, so
+/// its items receive both root render closures too.
+#[gpui::test]
+fn dropdown_forwards_render_content_into_submenus(cx: &mut TestAppContext) {
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let indicators = Rc::new(RefCell::new(HashMap::<String, (bool, bool)>::new()));
+    let record = recorded.clone();
+    let indicator_record = indicators.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        let indicator_record = indicator_record.clone();
+        Dropdown::new(
+            "rp-dropdown-submenu",
+            Button::new("rp-dropdown-submenu-trigger").label("Open"),
+            vec![MenuItem::new("parent", "Parent").submenu(vec![MenuItem::new("child", "Child")])],
+            true,
+        )
+        .item_content(move |key, state| {
+            record_interactive(&record, key, state);
+            gpui::div().w(px(40.)).h(px(20.)).into_any_element()
+        })
+        .indicator_content(move |key, is_selected, is_indeterminate| {
+            indicator_record
+                .borrow_mut()
+                .insert(key.to_string(), (is_selected, is_indeterminate));
+            gpui::div().size(px(16.)).into_any_element()
+        })
+        .into_any_element()
+    });
+
+    click(cx, 40., 64.);
+    flush_frame(cx);
+    assert!(
+        recorded.borrow().contains_key("child"),
+        "the root item closure must reach a submenu item"
+    );
+    assert_eq!(
+        indicators.borrow().get("child"),
+        Some(&(false, false)),
+        "the root indicator closure must reach the submenu item state"
+    );
+}
+
+/// The builder behind v3's `Dropdown.Item` children also works on a bare Menu.
 #[gpui::test]
 fn menu_item_content_renders_at_all(cx: &mut TestAppContext) {
     let recorded = Rc::new(RefCell::new(HashMap::new()));
@@ -538,21 +663,16 @@ fn menu_item_content_tracks_selection_and_cursor(cx: &mut TestAppContext) {
     );
 
     // Enter activates the cursor's row (multiple mode: no dismissal), and the
-    // fed-back selection reaches the closure: one ticked, the others
-    // indeterminate.
+    // fed-back selection reaches the closure: one ticked, the others idle.
     press(cx, "enter");
     flush_frame(cx);
     let one = state_of(&recorded, "one");
     assert!(one.is_selected, "the picked row must report selected");
-    assert!(
-        !one.is_indeterminate,
-        "the picked row must not be indeterminate"
-    );
     for key in ["two", "three"] {
         let state = state_of(&recorded, key);
         assert!(
-            !state.is_selected && state.is_indeterminate,
-            "{key} must report the indeterminate of a partial selection"
+            !state.is_selected && !state.is_indeterminate,
+            "{key} must stay idle rather than inventing indeterminate item state"
         );
     }
     assert_eq!(changed.borrow().as_slice(), ["one"]);

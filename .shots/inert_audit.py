@@ -131,7 +131,7 @@ def documented_state():
 
 def instances(src):
     """`(struct, element id, source line, the instance's text)` per demo."""
-    pattern = (r'h::(\w+)::new\(\s*(?:\n\s*)?'
+    pattern = (r'h::(\w+)::(?:new|uncontrolled)\(\s*(?:\n\s*)?'
                r'(?:"([^"]*)"|el_id\(format!\("([^"{]*))?')
     for m in re.finditer(pattern, src):
         end = src.find('.into_any_element()', m.end())
