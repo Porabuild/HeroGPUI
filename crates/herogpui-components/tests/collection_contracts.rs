@@ -30,6 +30,14 @@ fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
 }
 
+fn press_mod_a(cx: &mut VisualTestContext) {
+    if cfg!(target_os = "macos") {
+        press(cx, "cmd-a");
+    } else {
+        press(cx, "ctrl-a");
+    }
+}
+
 fn tall_cell(text: impl Into<SharedString>) -> gpui::AnyElement {
     gpui::div()
         .h(px(80.))
@@ -75,6 +83,81 @@ fn list_box_single_reselect_clears_by_default(cx: &mut TestAppContext) {
         recorded.borrow().as_slice(),
         ["alpha", ""],
         "reselecting the only selected row must clear the selection"
+    );
+}
+
+/// Pinned React Aria 3.51 binds platform Mod+A to `selectAll` in a
+/// multiple-selection collection, excluding disabled options.
+#[gpui::test]
+fn list_box_multiple_selects_every_enabled_option_on_mod_a(cx: &mut TestAppContext) {
+    let selected = Rc::new(RefCell::new(HashSet::<SharedString>::new()));
+    let recorded = events();
+    let selected_for_view = selected;
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let selected = selected_for_view.clone();
+        let held = selected.borrow().clone();
+        let recorded = for_view.clone();
+        ListBox::new(
+            "contract-list-mod-a",
+            vec![
+                ListBoxItem::new("alpha", "Alpha"),
+                ListBoxItem::new("beta", "Beta"),
+                ListBoxItem::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .disabled_keys([SharedString::from("beta")])
+        .selected_keys(held)
+        .on_selection_change(move |keys, window, _| {
+            *selected.borrow_mut() = keys.clone();
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    click(cx, 60., 22.);
+    flush_frame(cx);
+    recorded.borrow_mut().clear();
+    press_mod_a(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha,gamma"],
+        "Mod+A must select every enabled option in multiple mode"
+    );
+}
+
+#[gpui::test]
+fn list_box_mod_a_is_idempotent_for_a_selection_superset(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ListBox::new(
+            "contract-list-mod-a-idempotent",
+            vec![
+                ListBoxItem::new("alpha", "Alpha"),
+                ListBoxItem::new("beta", "Beta"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .selected_keys([
+            SharedString::from("alpha"),
+            SharedString::from("beta"),
+            SharedString::from("stale"),
+        ])
+        .on_selection_change(move |keys, _, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press_mod_a(cx);
+    assert!(
+        recorded.borrow().is_empty(),
+        "Mod+A must not report or drop stale keys once every enabled option is selected"
     );
 }
 

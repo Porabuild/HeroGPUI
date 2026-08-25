@@ -499,12 +499,39 @@ impl RenderOnce for ListBox {
             let entry_at = cursor_at;
             list = list.on_key_down(move |event, window, cx| {
                 let from = (*held.read(cx)).or(entry_at);
-                match crate::list_nav::resolve(
-                    &stops_for_keys,
-                    from,
-                    event.keystroke.key.as_str(),
-                    wrap,
-                ) {
+                let key_name = event.keystroke.key.as_str();
+                if key_name == "a"
+                    && event.keystroke.modifiers.secondary()
+                    && !event.keystroke.modifiers.shift
+                    && !event.keystroke.modifiers.alt
+                    && !event.keystroke.modifiers.function
+                    && if cfg!(target_os = "macos") {
+                        !event.keystroke.modifiers.control
+                    } else {
+                        !event.keystroke.modifiers.platform
+                    }
+                    && mode == SelectionMode::Multiple
+                {
+                    let next: HashSet<SharedString> = stops_for_keys
+                        .iter()
+                        .filter_map(|index| keys.get(*index).cloned())
+                        .collect();
+                    let all_selected = next.iter().all(|key| selected_now.contains(key));
+                    if !all_selected {
+                        if let Some(held) = &selection_own_for_keys {
+                            held.update(cx, |value, cx| {
+                                *value = next.clone();
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &on_selection_change {
+                            cb(&next, window, cx);
+                        }
+                    }
+                    cx.stop_propagation();
+                    return;
+                }
+                match crate::list_nav::resolve(&stops_for_keys, from, key_name, wrap) {
                     crate::list_nav::Move::To(next) => {
                         held.update(cx, |v, cx| {
                             *v = Some(next);
@@ -564,7 +591,13 @@ impl RenderOnce for ListBox {
                     crate::list_nav::Move::Ignore => {
                         // Typeahead: letters jump to the row that starts with
                         // them, which is the other half of v3's keyboard.
-                        let key = event.keystroke.key.as_str();
+                        if event.keystroke.modifiers.control
+                            || event.keystroke.modifiers.platform
+                            || event.keystroke.modifiers.alt
+                        {
+                            return;
+                        }
+                        let key = key_name;
                         if !crate::list_nav::is_typeahead_key(key) {
                             return;
                         }

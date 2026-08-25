@@ -120,13 +120,12 @@ SORT_KEYS = ('Table',)
 # when `virtual_tree_metadata` supplies their cheap preorder tree projection.
 TREE_KEYS = ('Table',)
 
-# A multiple-selection table answers `Mod+A` -- the platform Mod, Ctrl on
-# Windows and Linux, Cmd on macOS -- by selecting every enabled row. v3's own
-# page documents the header checkbox but not this inherited shortcut, so it is
-# derived from the pinned `react-aria` 3.51.0 `useSelectableCollection`
-# source ('Mod+A' -> `selectAll`, multiple-selection mode only), exactly like
-# the tree row keys.
-SELECT_ALL_KEYS = ('Table',)
+# Multiple-selection collections answer `Mod+A` -- the platform Mod, Ctrl on
+# Windows and Linux, Cmd on macOS -- by selecting every enabled item. v3's own
+# pages do not enumerate this inherited shortcut, so it is derived from the
+# pinned React Aria 3.51.0 `useSelectableCollection` source (`Mod+A` ->
+# `selectAll`, multiple-selection mode only).
+SELECT_ALL_KEYS = ('Table', 'ListBox')
 
 # HeroUI forwards Table.Column's resize props to React Aria, whose pinned
 # TableColumnLayout clamps every committed width to minWidth (75px by default)
@@ -339,6 +338,13 @@ EVIDENCE = {
         r'(?s)key_name == "a".*?modifiers\.secondary\(\).*?modifiers\.platform'
         r'.*?SelectionMode::Multiple'
         r'.*?selectable_collection_keys\.clone\(\)',
+    ),
+    ('ListBox', 'select-all'): (
+        'list_box.rs',
+        r'(?s)key_name == "a".*?modifiers\.secondary\(\).*?modifiers\.platform'
+        r'.*?mode == SelectionMode::Multiple.*?stops_for_keys.*?filter_map'
+        r'.*?next\.iter\(\)\.all.*?selected_now\.contains.*?if !all_selected'
+        r'.*?on_selection_change.*?stop_propagation\(\)',
     ),
     ('Table', 'resize-bounds'): (
         'table.rs',
