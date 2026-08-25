@@ -560,7 +560,7 @@ CHECKS = [
      r'`w-auto gap-1\.5 px-2\.5`[\s\S]{0,120}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('pagination', '.pagination__link--nav', 'px', 'Pagination nav px',
      SRC + 'pagination.rs',
-     r'`w-auto gap-1\.5 px-2\.5`[\s\S]{0,160}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'let nav_padding = match self\.size \{[\s\S]{0,120}?Size::Md => px\((\d+(?:\.\d*)?)\.\)', None),
     # --- Chip -------------------------------------------------------------
     ('chip', '.chip', 'px', 'Chip Md px', SRC + 'chip.rs',
      r'Size::Md => \(px\((\d+(?:\.\d*)?)\.\)', None),
@@ -1790,6 +1790,80 @@ def check_toggle_button_style_contract():
     return bad
 
 
+def check_pagination_style_contract():
+    """Desktop size variants and non-numeric Pagination link styling."""
+    css_path = os.path.join(CACHE, 'pagination.css')
+    src_path = SRC + 'pagination.rs'
+    if not os.path.exists(css_path):
+        print('pagination styling: no stylesheet')
+        return 1
+    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    src = io.open(src_path, encoding='utf-8', errors='replace').read()
+
+    base_link = rule_body(css, '.pagination__link') or ''
+    sm = re.search(r'\.pagination--sm\s*\{(.*?)(?=\n\.pagination--md)', css, re.S)
+    lg = re.search(r'\.pagination--lg\s*\{(.*)\Z', css, re.S)
+    blocks = {
+        'Sm': sm.group(1) if sm else '',
+        'Md': base_link,
+        'Lg': lg.group(1) if lg else '',
+    }
+
+    def utility_px(body, utility):
+        match = re.search(r'(?<![\w:-])' + utility + r'-(\d+(?:\.\d+)?)', body)
+        return float(match.group(1)) * 4.0 if match else None
+
+    wants_cell = {
+        size: utility_px(body, 'md:size') for size, body in blocks.items()
+    }
+    wants_padding = {
+        'Sm': utility_px(blocks['Sm'], 'px'),
+        'Md': utility_px(rule_body(css, '.pagination__link--nav') or '', 'px'),
+        'Lg': utility_px(blocks['Lg'], 'px'),
+    }
+
+    def rust_size_map(name):
+        match = re.search(r'let %s = match self\.size \{(.*?)\n\s*\};' % name, src, re.S)
+        body = match.group(1) if match else ''
+        values = {}
+        for size in ('Sm', 'Md', 'Lg'):
+            value = re.search(r'Size::%s\s*=>\s*px\(([\d.]+)\.\)' % size, body)
+            values[size] = float(value.group(1)) if value else None
+        return values
+
+    got_cell = rust_size_map('cell')
+    got_padding = rust_size_map('nav_padding')
+    checks = []
+    for size in ('Sm', 'Md', 'Lg'):
+        checks.append((
+            '%s cell' % size,
+            wants_cell[size] is not None and wants_cell[size] == got_cell[size],
+            wants_cell[size],
+            got_cell[size],
+        ))
+        checks.append((
+            '%s nav px' % size,
+            wants_padding[size] is not None and wants_padding[size] == got_padding[size],
+            wants_padding[size],
+            got_padding[size],
+        ))
+    checks.extend([
+        ('no link border', '.border_1()' not in src),
+        ('active default fill', '.bg(colors.default.color)' in src),
+        ('default hover', 'let hover_bg = colors.default.hover();' in src),
+    ])
+
+    print()
+    print('pagination variant styling:')
+    for row in checks:
+        name, ok = row[:2]
+        detail = 'ok' if len(row) == 2 else 'v3=%s ours=%s' % (row[2], row[3])
+        print('%s %-24s %s' % (' ' if ok else '!', name, detail))
+    bad = sum(not row[1] for row in checks)
+    print('PAGINATION STYLE BAD : %d' % bad)
+    return bad
+
+
 def coverage():
     """Every metric v3 declares, and whether `CHECKS` compares it.
 
@@ -1932,7 +2006,10 @@ def main():
     print('MISMATCHED       : %d' % mismatched)
     wrong_fills, stale_fills = check_fills()
     toggle_bad = check_toggle_button_style_contract()
-    return int(bool(mismatched or unreadable or wrong_fills or stale_fills or toggle_bad))
+    pagination_bad = check_pagination_style_contract()
+    return int(bool(
+        mismatched or unreadable or wrong_fills or stale_fills or toggle_bad or pagination_bad
+    ))
 
 
 if __name__ == '__main__':

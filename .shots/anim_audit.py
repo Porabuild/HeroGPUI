@@ -350,6 +350,61 @@ def check_toggle_button_motion():
     return bad
 
 
+def check_pagination_motion():
+    """Pagination's size-specific link scale, including its nav links."""
+    css_path = os.path.join(CACHE, 'pagination.css')
+    src_path = os.path.join(SRC, 'pagination.rs')
+    anim_path = os.path.join(SRC, 'anim.rs')
+    if not os.path.exists(css_path):
+        print('pagination motion: no stylesheet')
+        return 1
+    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    src = io.open(src_path, encoding='utf-8').read()
+    anim = io.open(anim_path, encoding='utf-8').read()
+
+    def scale_in(pattern):
+        block = re.search(pattern, css, re.S)
+        scale = re.search(r'transform:\s*scale\(([\d.]+)\)', block.group(1) if block else '')
+        return float(scale.group(1)) if scale else None
+
+    wants = {
+        'Sm': scale_in(r'\.pagination--sm\s*\{(.*?)(?=\n\.pagination--md)'),
+        'Md': scale_in(r'\.pagination__link\s*\{(.*?)(?=\n/\* Ellipsis)'),
+        'Lg': scale_in(r'\.pagination--lg\s*\{(.*)\Z'),
+    }
+    names = {
+        'Sm': 'PRESSED_SCALE_SUBTLE',
+        'Md': 'PRESSED_SCALE',
+        'Lg': 'PRESSED_SCALE_FIRM',
+    }
+    constants = {}
+    for name in names.values():
+        match = re.search(r'pub const %s:\s*f32\s*=\s*([\d.]+)' % name, anim)
+        constants[name] = float(match.group(1)) if match else None
+
+    scale_map = re.search(
+        r'let press_scale = match self\.size \{(.*?)\n\s*\};', src, re.S
+    )
+    map_body = scale_map.group(1) if scale_map else ''
+    wired = src.count('scale: press_scale') >= 2
+    rows = []
+    for size in ('Sm', 'Md', 'Lg'):
+        symbol = names[size]
+        mapped = bool(re.search(r'Size::%s\s*=>\s*crate::anim::%s' % (size, symbol), map_body))
+        same = wants[size] is not None and constants[symbol] == wants[size] and mapped and wired
+        rows.append((same, size, wants[size], constants[symbol] if mapped else None))
+
+    print('pagination motion (v3 CSS vs Pagination):')
+    for same, size, want, got in rows:
+        print('%s %-14s %-16s %-22s %s' % (
+            ' ' if same else '!', 'pagination', size, str(want), str(got)
+        ))
+    bad = sum(not same for same, _, _, _ in rows)
+    print('PAGINATION MISMATCHES : %d' % bad)
+    print()
+    return bad
+
+
 def corpus():
     """Everything v3 ships that could name an animation.
 
@@ -407,7 +462,12 @@ def main():
         print('no longer in the v3 docs (stale entry?): %s'
               % ', '.join(sorted(stale_docs)))
     print()
-    motion_bad = check_motions() + check_switch_motion() + check_toggle_button_motion()
+    motion_bad = (
+        check_motions()
+        + check_switch_motion()
+        + check_toggle_button_motion()
+        + check_pagination_motion()
+    )
     print('UNIMPLEMENTED : %d' % len(missing_impl))
     print('MOTION BAD    : %d' % motion_bad)
     return len(missing_impl) + len(stale_docs) + motion_bad

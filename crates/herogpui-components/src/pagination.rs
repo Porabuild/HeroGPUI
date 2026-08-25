@@ -4,7 +4,7 @@ use gpui::{
     prelude::*, px, App, InteractiveElement, IntoElement, RenderOnce, StatefulInteractiveElement,
     Styled, Window,
 };
-use herogpui_core::{Color, Size};
+use herogpui_core::Size;
 use herogpui_theme::ActiveTheme;
 
 use crate::icons;
@@ -119,7 +119,6 @@ impl RenderOnce for Pagination {
         );
         let ring_visible = crate::util::focus_visible(cx);
 
-        let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
         let base = format!("{:?}", self.id);
@@ -131,7 +130,17 @@ impl RenderOnce for Pagination {
         let cell = match self.size {
             Size::Sm => px(28.),
             Size::Md => px(32.),
-            Size::Lg => px(40.),
+            Size::Lg => px(36.),
+        };
+        let press_scale = match self.size {
+            Size::Sm => crate::anim::PRESSED_SCALE_SUBTLE,
+            Size::Md => crate::anim::PRESSED_SCALE,
+            Size::Lg => crate::anim::PRESSED_SCALE_FIRM,
+        };
+        let nav_padding = match self.size {
+            Size::Sm => px(8.),
+            Size::Md => px(10.),
+            Size::Lg => px(12.),
         };
         let cell_text = self.size.text_size();
 
@@ -152,15 +161,17 @@ impl RenderOnce for Pagination {
                 prev_enabled,
                 NavStyle {
                     foreground: colors.foreground,
-                    hover_bg: colors.default.color,
-                    border: colors.border,
+                    hover_bg: colors.default.hover(),
                     disabled_opacity: layout.disabled_opacity,
                     cell,
+                    padding_x: nav_padding,
+                    press_scale,
                     radius: crate::util::control_radius(cx),
                 },
                 &prev_focus,
                 (ring_visible && prev_focus.is_focused(window))
                     .then(|| crate::util::focus_ring_shadows(true, cx)),
+                cx,
             )
             .when(prev_enabled, |b| {
                 b.on_click({
@@ -202,40 +213,44 @@ impl RenderOnce for Pagination {
                         .when(!link_disabled, |b| b.cursor_pointer());
 
                     if active {
-                        btn = btn.bg(sem.color).text_color(sem.foreground);
+                        // `[data-active=true]` is v3's tertiary-button state:
+                        // `--default` at rest and `--default-hover` while
+                        // hovered or pressed, not the accent fill.
+                        btn = btn.bg(colors.default.color).text_color(colors.foreground);
                     } else {
-                        btn = btn
-                            .text_color(colors.foreground)
-                            .border_1()
-                            .border_color(colors.default.soft_hover());
-                        if !link_disabled {
-                            let hover_bg = colors.default.color;
-                            let pressed_bg = colors.default.hover();
-                            btn = btn.hover(move |s| s.bg(hover_bg));
-                            // `.pagination__link[data-pressed]` deepens the fill
-                            // and scales to 0.97.
-                            btn = crate::anim::pressed(
-                                btn,
-                                crate::anim::PressBox {
-                                    height: cell,
-                                    padding_x: Some(px(6.)),
-                                    width: None,
-                                    min_width: Some(cell),
-                                    text_size: cell_text,
-                                    line_height: cell_text,
-                                    gap: px(0.),
-                                    radius: crate::util::control_radius(cx),
-                                    shrink_x: true,
-                                    scale: crate::anim::PRESSED_SCALE,
-                                },
-                                cx,
-                            )
-                            .active(move |s| s.bg(pressed_bg));
-                            // A disabled link answers no press: the click
-                            // listener is gated the same way the tab stop is.
-                            if let Some(cb) = self_on_change.clone() {
-                                btn = btn.on_click(move |_, w, cx| cb(n, w, cx));
-                            }
+                        // The resting ghost link is transparent and borderless.
+                        btn = btn.text_color(colors.foreground);
+                    }
+                    if !link_disabled {
+                        let hover_bg = colors.default.hover();
+                        let pressed_bg = colors.default.hover();
+                        btn = btn.hover(move |s| s.bg(hover_bg));
+                        // `.pagination__link[data-pressed]` applies to every
+                        // enabled link, including the active page.
+                        btn = crate::anim::pressed(
+                            btn,
+                            crate::anim::PressBox {
+                                height: cell,
+                                padding_x: Some(px(6.)),
+                                width: None,
+                                min_width: Some(cell),
+                                text_size: cell_text,
+                                line_height: cell_text,
+                                gap: px(0.),
+                                radius: crate::util::control_radius(cx),
+                                shrink_x: true,
+                                scale: press_scale,
+                            },
+                            cx,
+                        )
+                        .active(move |s| s.bg(pressed_bg));
+                    }
+                    // `aria-current` identifies the active page without
+                    // disabling its React Aria Button. Every enabled numeric
+                    // link forwards the same press callback, active or not.
+                    if !link_disabled {
+                        if let Some(cb) = self_on_change.clone() {
+                            btn = btn.on_click(move |_, w, cx| cb(n, w, cx));
                         }
                     }
                     // `.pagination__link:disabled` is `status-disabled` —
@@ -288,15 +303,17 @@ impl RenderOnce for Pagination {
                 next_enabled,
                 NavStyle {
                     foreground: colors.foreground,
-                    hover_bg: colors.default.color,
-                    border: colors.border,
+                    hover_bg: colors.default.hover(),
                     disabled_opacity: layout.disabled_opacity,
                     cell,
+                    padding_x: nav_padding,
+                    press_scale,
                     radius: crate::util::control_radius(cx),
                 },
                 &next_focus,
                 (ring_visible && next_focus.is_focused(window))
                     .then(|| crate::util::focus_ring_shadows(true, cx)),
+                cx,
             )
             .when(next_enabled, |b| {
                 b.on_click({
@@ -335,9 +352,10 @@ impl RenderOnce for Pagination {
 struct NavStyle {
     foreground: gpui::Hsla,
     hover_bg: gpui::Hsla,
-    border: gpui::Hsla,
     disabled_opacity: f32,
     cell: gpui::Pixels,
+    padding_x: gpui::Pixels,
+    press_scale: f32,
     /// `.pagination__link` is `rounded-3xl`; `--nav` restates only the width.
     radius: gpui::Pixels,
 }
@@ -350,13 +368,15 @@ fn nav_button(
     focus: &gpui::FocusHandle,
     // The focus ring's shadows, when this button is the one holding the focus.
     ring: Option<Vec<gpui::BoxShadow>>,
+    cx: &App,
 ) -> gpui::Stateful<gpui::Div> {
     let NavStyle {
         foreground,
         hover_bg,
-        border,
         disabled_opacity,
         cell,
+        padding_x,
+        press_scale,
         radius,
     } = style;
     let mut btn = gpui::div()
@@ -373,13 +393,28 @@ fn nav_button(
         // page cell, but as wide as its content needs.
         .h(cell)
         .gap(px(6.))
-        .px(px(10.))
+        .px(padding_x)
         .rounded(radius)
-        .border_1()
-        .border_color(border)
         .text_color(foreground);
     if enabled {
         btn = btn.cursor_pointer().hover(move |s| s.bg(hover_bg));
+        btn = crate::anim::pressed_with_background(
+            btn,
+            crate::anim::PressBox {
+                height: cell,
+                padding_x: Some(padding_x),
+                width: None,
+                min_width: None,
+                text_size: px(14.),
+                line_height: px(14.),
+                gap: px(6.),
+                radius,
+                shrink_x: true,
+                scale: press_scale,
+            },
+            hover_bg,
+            cx,
+        );
     } else {
         btn = btn.opacity(disabled_opacity);
     }

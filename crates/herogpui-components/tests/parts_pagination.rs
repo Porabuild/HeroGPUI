@@ -3,8 +3,8 @@
 //! `Pagination.Next.isDisabled`.
 //!
 //! `tests/nav_deep.rs` pins the whole-bar and bound-based disabling (the
-//! arrows at page 1 / the last page, the inert active cell and ellipses, the
-//! Tab walk). This suite drives the *individual* knobs: v3's part tables
+//! arrows at page 1 / the last page, the live active cell, inert ellipses and
+//! the Tab walk). This suite drives the *individual* knobs: v3's part tables
 //! document `isDisabled` on the Link and on the Previous/Next buttons, and a
 //! monolithic port projects all three onto one builder,
 //! `Pagination::disabled_keys`, keyed by the page each control navigates to:
@@ -72,8 +72,8 @@ use harness::{click, events, open_host, press};
 /// `disabled_keys` answers neither a click nor Enter, holds no tab stop, and
 /// leaves its neighbours alone. Fixture: page 2 of 5 with page 4 disabled —
 /// prev, all five cells (1 2 3 4 5) and next render; cell 2 is the active
-/// (inert) page and cell 4 (centre x 162) is the disabled one. The Tab walk
-/// must go prev -> 1 -> 2 (active, silent) -> 3 -> 5 -> next — the Enter
+/// page and cell 4 (centre x 162) is the disabled one. The Tab walk must go
+/// prev -> 1 -> 2 (active and live) -> 3 -> 5 -> next — the Enter
 /// after cell 3 landing on cell 5 is what proves cell 4 is not a stop — and
 /// a click at cell 4's seat must record nothing while a click on either
 /// adjacent cell still reports its page.
@@ -96,7 +96,7 @@ fn disabled_link_answers_nothing_is_skipped_and_neighbours_report(cx: &mut TestA
     press(cx, "tab");
     press(cx, "enter"); // cell 1 -> report page 1
     press(cx, "tab");
-    press(cx, "enter"); // cell 2 (the active page, `aria-current`) -> nothing
+    press(cx, "enter"); // cell 2 (active and `aria-current`) -> report page 2
     press(cx, "tab");
     press(cx, "enter"); // cell 3 -> report page 3
     press(cx, "tab");
@@ -105,7 +105,7 @@ fn disabled_link_answers_nothing_is_skipped_and_neighbours_report(cx: &mut TestA
     press(cx, "enter"); // next -> report page 3 (2 + 1)
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["1", "1", "3", "5", "3"],
+        ["1", "1", "2", "3", "5", "3"],
         "Tab must walk prev, every enabled cell and next, skipping the \
          disabled cell 4 — got {:?}",
         recorded.borrow()
@@ -117,7 +117,7 @@ fn disabled_link_answers_nothing_is_skipped_and_neighbours_report(cx: &mut TestA
     click(cx, 162., 16.); // the disabled cell 4
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["1", "1", "3", "5", "3", "3", "5"],
+        ["1", "1", "2", "3", "5", "3", "3", "5"],
         "a click on the disabled cell must record nothing while the adjacent \
          cells 3 and 5 still report their own pages — got {:?}",
         recorded.borrow()
@@ -148,7 +148,7 @@ fn disabled_previous_answers_nothing_and_leaves_tab_order(cx: &mut TestAppContex
     press(cx, "tab");
     press(cx, "enter"); // cell 2 -> report page 2
     press(cx, "tab");
-    press(cx, "enter"); // cell 3 (the active page) -> nothing
+    press(cx, "enter"); // cell 3 (the active page) -> report page 3
     press(cx, "tab");
     press(cx, "enter"); // cell 4 -> report page 4
     press(cx, "tab");
@@ -157,7 +157,7 @@ fn disabled_previous_answers_nothing_and_leaves_tab_order(cx: &mut TestAppContex
     press(cx, "enter"); // next -> report page 4 (3 + 1)
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["1", "2", "4", "5", "4"],
+        ["1", "2", "3", "4", "5", "4"],
         "the force-disabled prev must hold no tab stop (the first Enter \
          reports cell 1, not page 2) while the cells and Next still report — \
          got {:?}",
@@ -170,7 +170,7 @@ fn disabled_previous_answers_nothing_and_leaves_tab_order(cx: &mut TestAppContex
     click(cx, 235., 16.); // next
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["1", "2", "4", "5", "4", "4", "4"],
+        ["1", "2", "3", "4", "5", "4", "4", "4"],
         "a click on the force-disabled prev must record nothing while cell 4 \
          and Next still report — got {:?}",
         recorded.borrow()
@@ -203,7 +203,7 @@ fn disabled_next_answers_nothing_and_leaves_tab_order(cx: &mut TestAppContext) {
     press(cx, "tab");
     press(cx, "enter"); // cell 2 -> report page 2
     press(cx, "tab");
-    press(cx, "enter"); // cell 3 (the active page) -> nothing
+    press(cx, "enter"); // cell 3 (the active page) -> report page 3
     press(cx, "tab");
     press(cx, "enter"); // cell 4 -> report page 4
     press(cx, "tab");
@@ -212,7 +212,7 @@ fn disabled_next_answers_nothing_and_leaves_tab_order(cx: &mut TestAppContext) {
     press(cx, "enter"); // next is no stop: the walk wraps to prev -> page 2
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["2", "1", "2", "4", "5", "2"],
+        ["2", "1", "2", "3", "4", "5", "2"],
         "the force-disabled next must hold no tab stop (after cell 5 the walk \
          wraps to prev instead of reporting page 4), while prev and the \
          enabled cells still report — got {:?}",
@@ -224,7 +224,7 @@ fn disabled_next_answers_nothing_and_leaves_tab_order(cx: &mut TestAppContext) {
     click(cx, 17., 16.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["2", "1", "2", "4", "5", "2", "2"],
+        ["2", "1", "2", "3", "4", "5", "2", "2"],
         "a click on the force-disabled next must record nothing while prev \
          still reports page 2 — got {:?}",
         recorded.borrow()

@@ -717,19 +717,18 @@ fn breadcrumbs_tab_reaches_each_link_and_enter_navigates(cx: &mut TestAppContext
 // interactions via React Aria"). The port spells the v2 API (`page`, `total`,
 // `on_change`) that v3 removed; `siblings` exists as a *field* with no
 // builder, so it is frozen at 1 — another write-only prop on the parity list.
-// The tests below pin the edge cells: disabled arrows must answer nothing,
-// ellipses and the active cell must be inert, the derived page set must be
+// The tests below pin the edge cells: disabled arrows and ellipses must answer
+// nothing, the active page remains pressable, the derived page set must be
 // exactly the v3 "Controlled"-example arithmetic (siblings = boundaries = 1),
 // and Tab must walk prev, cells and next.
 
 /// At page 1 the Previous arrow is disabled (v3: `isDisabled` communicates
 /// "disabled states properly" and React Aria's press never fires for them),
-/// and at the last page the Next arrow is. The port still attaches the press
-/// to both — `nav_button` is given `on_click` unconditionally and its
-/// `track_focus` is not gated on `enabled` either — so the disabled arrows
-/// answer the pointer *and* the keyboard, reporting page 0 / total+1.
+/// and at the last page the Next arrow is. Neither disabled arrow is a tab stop
+/// or answers a pointer press; the first Tab instead reaches active page 1,
+/// which remains a live link and reports itself.
 #[gpui::test]
-fn pagination_disabled_arrows_still_answer(cx: &mut TestAppContext) {
+fn pagination_disabled_arrows_are_inert(cx: &mut TestAppContext) {
     let recorded = events();
     let for_view = recorded.clone();
     let cx = open_host(cx, move || {
@@ -754,27 +753,26 @@ fn pagination_disabled_arrows_still_answer(cx: &mut TestAppContext) {
 
     // Row 0 at y 0..32 (centre 16): the first Tab must NOT land on the
     // disabled prev (a disabled control is not a stop), and neither a click
-    // nor Enter on it may report. The port does both: it stays in the tab
-    // order and fires page 0.
+    // nor Enter on it may report. Enter therefore activates page 1.
     press(cx, "tab");
     press(cx, "enter");
     click(cx, 17., 16.);
     // Row 1 at y 132..164 (centre 148): the disabled next must not report
     // the page after the last.
     click(cx, 163., 148.);
-    assert!(
-        recorded.borrow().is_empty(),
-        "the disabled prev on page 1 and the disabled next on the last page \
-         must answer nothing — got {:?}",
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["1"],
+        "the disabled arrows must answer nothing while the first enabled tab \
+         stop, active page 1, reports itself — got {:?}",
         recorded.borrow()
     );
 }
 
 /// `Pagination::new` clamps `total` to at least 1, so a single-page
-/// pagination still renders prev, the one (active) page cell and next. The
-/// active cell is inert (v3's `aria-current="page"` link), but the two
-/// disabled arrows fire page 0 and page 2 — the same un-gated press as the
-/// multi-page case, at the absolute edge of the component.
+/// pagination still renders prev, the one active page link and next. The two
+/// arrows are disabled at the bounds, while pressing the active link reports
+/// page 1 exactly like any other enabled Pagination.Link.
 #[gpui::test]
 fn pagination_single_page_has_working_tab_order(cx: &mut TestAppContext) {
     let recorded = events();
@@ -791,10 +789,10 @@ fn pagination_single_page_has_working_tab_order(cx: &mut TestAppContext) {
     click(cx, 17., 16.);
     click(cx, 91., 16.);
     click(cx, 54., 16.);
-    assert!(
-        recorded.borrow().is_empty(),
-        "on a single page, prev, next and the active cell must all answer \
-         nothing — got {:?}",
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["1"],
+        "on a single page only the active page link may answer — got {:?}",
         recorded.borrow()
     );
 }
@@ -827,12 +825,11 @@ fn pagination_two_pages_edge_reports(cx: &mut TestAppContext) {
     );
 }
 
-/// v3: the ellipsis is "marked with aria-hidden" and the active page is
-/// indicated with `aria-current` — neither is an interactive element, so
-/// clicks at their exact seats must record nothing while the live cells
-/// beside them answer. page=5 of 10 with the default window: 1 … 4 5 6 … 10.
+/// v3 marks the ellipsis `aria-hidden`, but its active page remains a live
+/// React Aria Button: `aria-current` styles and identifies it without disabling
+/// its forwarded `onPress`. Page 5 of 10 renders 1 … 4 5 6 … 10.
 #[gpui::test]
-fn pagination_ellipsis_and_active_cell_are_inert(cx: &mut TestAppContext) {
+fn pagination_ellipses_are_inert_and_active_cell_reports(cx: &mut TestAppContext) {
     let recorded = events();
     let for_view = recorded.clone();
     let cx = open_host(cx, move || {
@@ -848,15 +845,16 @@ fn pagination_ellipsis_and_active_cell_are_inert(cx: &mut TestAppContext) {
     click(cx, 90., 16.); // first ellipsis
     click(cx, 162., 16.); // the active page 5
     click(cx, 234., 16.); // second ellipsis
-    assert!(
-        recorded.borrow().is_empty(),
-        "neither ellipsis nor the current page may answer a press"
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["5"],
+        "the ellipses must stay inert while the active page reports its page"
     );
     click(cx, 126., 16.);
     click(cx, 270., 16.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["4", "10"],
+        ["5", "4", "10"],
         "the page cells around the ellipses must report their own pages"
     );
 }
@@ -882,14 +880,14 @@ fn pagination_middle_page_shows_the_derived_set(cx: &mut TestAppContext) {
     // …, 12 — seven cells at centres 54+36k (54, 90, 126, 162, 198, 234,
     // 270), y 16. The next button starts at 38+36*7 = 290 (centre 307).
     click(cx, 126., 16.); // cell 2 -> "5"
-    click(cx, 162., 16.); // cell 3 -> "6" (the current page is inert)
+    click(cx, 162., 16.); // cell 3 -> "6" (the current page remains live)
     click(cx, 198., 16.); // cell 4 -> "7"
     click(cx, 234., 16.); // second ellipsis -> nothing
     click(cx, 270., 16.); // cell 6 -> "12"
     click(cx, 307., 16.); // next -> "7"
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["5", "7", "12", "7"],
+        ["5", "6", "7", "12", "7"],
         "the middle-page window must render exactly 1 … 5 6 7 … 12 with the \
          ellipsis inert and the next arrow reporting the following page"
     );
@@ -898,8 +896,8 @@ fn pagination_middle_page_shows_the_derived_set(cx: &mut TestAppContext) {
 /// v3's Accessibility section: "Keyboard navigation via Tab key through all
 /// interactive elements." The port gives every cell and both arrows their own
 /// tab stop, so the walk is prev -> every cell -> next; Enter activates
-/// whatever holds the focus, and the active cell — `aria-current` — must be
-/// the one element that answers nothing.
+/// whatever holds the focus. The active cell remains a live Button;
+/// `aria-current` identifies it without disabling it.
 #[gpui::test]
 fn pagination_keyboard_reaches_arrows_and_cells(cx: &mut TestAppContext) {
     let recorded = events();
@@ -918,16 +916,15 @@ fn pagination_keyboard_reaches_arrows_and_cells(cx: &mut TestAppContext) {
     press(cx, "tab");
     press(cx, "enter"); // cell 1 -> reports page 1
     press(cx, "tab");
-    press(cx, "enter"); // cell 2 (active) -> must report nothing
+    press(cx, "enter"); // cell 2 (active) -> reports page 2
     press(cx, "tab");
     press(cx, "enter"); // cell 3 -> reports page 3
     press(cx, "tab");
     press(cx, "enter"); // next -> reports page 3 (2 + 1)
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["1", "1", "3", "3"],
-        "Tab must walk prev, both non-active cells and next, activating each \
-         on Enter; only the active page cell is inert"
+        ["1", "1", "2", "3", "3"],
+        "Tab must walk prev, every page cell and next, activating each on Enter"
     );
 }
 
