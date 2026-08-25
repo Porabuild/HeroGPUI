@@ -1172,6 +1172,74 @@ impl Widget {
     }
 
     #[test]
+    fn range_calendar_metadata_keeps_range_state_and_style_gaps_explicit() {
+        let metadata = reference_metadata::for_route(
+            "RangeCalendar",
+            "use herogpui::components::range_calendar::RangeCalendar;",
+        )
+        .expect("RangeCalendar metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for required in metadata.required_parts {
+            assert!(
+                metadata.parts.iter().any(|part| part.name == *required),
+                "registered RangeCalendar part disappeared: {required}"
+            );
+        }
+        for prop in [
+            "onChange",
+            "focusedValue",
+            "minValue",
+            "maxValue",
+            "isDateUnavailable",
+            "firstDayOfWeek",
+            "selectionAlignment",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "RangeCalendar"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Partial
+            }));
+        }
+        for (owner, prop) in [
+            ("RangeCalendar.YearPickerTriggerHeading", "offset"),
+            ("RangeCalendar.YearPickerGrid", "visibleYears"),
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == owner
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Partial
+            }));
+        }
+        assert!(metadata.parts.iter().any(|entry| {
+            entry.name == "RangeCalendar.YearPickerGrid"
+                && entry.slot == "calendar-year-picker-grid"
+        }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Outside month"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Pressed"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Range middle"
+                && entry.selector == "[data-selection-in-range=\"true\"]"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".range-calendar__nav-button"
+                && entry.rust.contains("small_radius")
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token
+                == ".range-calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"range-calendar-grid\"]"
+                && entry.status == reference_metadata::ImplementationStatus::Unavailable
+        }));
+    }
+
+    #[test]
     fn metadata_validation_rejects_bogus_method_owner_and_page() {
         let metadata = reference_metadata::for_route(
             "Dropdown",
