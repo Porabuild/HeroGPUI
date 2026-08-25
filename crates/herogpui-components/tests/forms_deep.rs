@@ -844,13 +844,17 @@ fn input_otp_paste_transformer_runs_before_fill(cx: &mut TestAppContext) {
     // fires onComplete exactly as a typed code does.
     let completes = events();
     let completed = completes.clone();
+    let changes = events();
+    let changed = changes.clone();
     let state = cx.new(|cx| OtpState::with_length(cx, 4));
     let state_for_view = state.clone();
     let cx = open_host(cx, move || {
         let completes = completes.clone();
+        let changes = changes.clone();
         InputOTP::new(state_for_view.clone())
             .pattern(OtpPattern::Alphanumeric)
             .paste_transformer(|text| text.replace('1', "A"))
+            .on_change(move |code, _, _| changes.borrow_mut().push(code.to_owned()))
             .on_complete(move |code, _, _| completes.borrow_mut().push(code.to_owned()))
             .into_any_element()
     });
@@ -868,10 +872,116 @@ fn input_otp_paste_transformer_runs_before_fill(cx: &mut TestAppContext) {
          slots fill"
     );
     assert_eq!(
+        changed.borrow().as_slice(),
+        ["A234"],
+        "a valid transformed paste must fire on_change exactly once"
+    );
+    assert_eq!(
         completed.borrow().as_slice(),
         ["A234"],
         "a paste that fills every slot must fire on_complete with the \
          transformed code"
+    );
+}
+
+/// Pinned `input-otp` reports an accepted paste through `onChange`, then fires
+/// `onComplete` only when that paste transitions the field from partial to
+/// full. Empty/rejected pastes do neither, and an accepted same-value paste on
+/// an already-complete field still reports the value without completing twice.
+#[gpui::test]
+fn input_otp_paste_callbacks_follow_acceptance_and_completion_transitions(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let state = cx.new(|cx| OtpState::with_length(cx, 4));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changed = for_view.clone();
+        let completed = for_view.clone();
+        InputOTP::new(state_for_view.clone())
+            .pattern(OtpPattern::Digits)
+            .on_change(move |code, _, _| changed.borrow_mut().push(format!("change:{code}")))
+            .on_complete(move |code, _, _| {
+                completed.borrow_mut().push(format!("complete:{code}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 19., 20.);
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string("1".to_owned()));
+    press(cx, "ctrl-v");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["change:1"],
+        "a partial paste changes the value but must not complete"
+    );
+
+    recorded.borrow_mut().clear();
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string("letters".to_owned()));
+    press(cx, "ctrl-v");
+    assert!(
+        recorded.borrow().is_empty(),
+        "a paste with no accepted characters must report neither callback"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).code()),
+        "1",
+        "a paste rejected by the explicit digits pattern must leave the value unchanged"
+    );
+
+    cx.update(|_, cx| state.update(cx, |state, _| state.set_code("1234")));
+    recorded.borrow_mut().clear();
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string("4".to_owned()));
+    press(cx, "ctrl-v");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["change:1234"],
+        "an accepted same-value paste reports on_change but does not complete twice"
+    );
+
+    cx.update(|_, cx| state.update(cx, |state, _| state.set_code("123")));
+    recorded.borrow_mut().clear();
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string("4".to_owned()));
+    press(cx, "ctrl-v");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["change:1234", "complete:1234"],
+        "the transition to full must report change before completion"
+    );
+}
+
+/// `slot` is a GPUI render extension that receives the slot index and current
+/// character. The closure must receive each slot independently and update
+/// after editing rather than remaining a construction-time snapshot.
+#[gpui::test]
+fn input_otp_slot_content_tracks_each_character(cx: &mut TestAppContext) {
+    let snapshots = events();
+    let snapshots_for_view = snapshots.clone();
+    let state = cx.new(|cx| OtpState::with_length(cx, 2));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let snapshots = snapshots_for_view.clone();
+        InputOTP::new(state_for_view.clone())
+            .slot(move |index, value| {
+                snapshots
+                    .borrow_mut()
+                    .push(format!("{index}:{}", value.unwrap_or('_')));
+                gpui::div()
+                    .child(value.unwrap_or('_').to_string())
+                    .into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert!(
+        snapshots.borrow().ends_with(&["0:_".into(), "1:_".into()]),
+        "the initial frame must identify both empty slots"
+    );
+
+    click(cx, 19., 20.);
+    press(cx, "7");
+    assert!(
+        snapshots.borrow().ends_with(&["0:7".into(), "1:_".into()]),
+        "editing the first slot must update only that slot's render value"
     );
 }
 

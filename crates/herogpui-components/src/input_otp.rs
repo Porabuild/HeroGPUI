@@ -556,7 +556,9 @@ impl RenderOnce for InputOTP {
                         Some(f) => f(&text),
                         None => text,
                     };
-                    state_entity.update(cx, |s, cx| {
+                    let was_complete = state_entity.read(cx).is_complete();
+                    let accepted = state_entity.update(cx, |s, cx| {
+                        let mut accepted = false;
                         // A paste replaces the code from the cursor onward.
                         // Every pasted char goes through the same `pattern`
                         // gate a keystroke does (the typing branch calls
@@ -569,6 +571,7 @@ impl RenderOnce for InputOTP {
                             if !pattern.accepts(ch) {
                                 continue;
                             }
+                            accepted = true;
                             s.cells[s.cursor] = ch.to_ascii_uppercase();
                             s.cursor += 1;
                         }
@@ -578,9 +581,15 @@ impl RenderOnce for InputOTP {
                             s.cursor = s.cells.len() - 1;
                         }
                         cx.notify();
+                        accepted
                     });
                     let code: String = state_entity.read(cx).code();
-                    if code.chars().all(|c| c != ' ') {
+                    if accepted {
+                        if let Some(cb) = &on_change {
+                            cb(&code, window, cx);
+                        }
+                    }
+                    if !was_complete && state_entity.read(cx).is_complete() {
                         if let Some(cb) = &on_complete {
                             cb(&code, window, cx);
                         }

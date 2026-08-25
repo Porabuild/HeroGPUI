@@ -6395,6 +6395,27 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Custom Slots",
+                    col(vec![
+                        para(
+                            "The GPUI `slot` extension receives each slot's live index and character.",
+                            cx,
+                        ),
+                        h::InputOTP::new(self.demo_otp("otp-custom-slots", 4, cx))
+                            .slot(|index, value| {
+                                gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .items_center()
+                                    .text_size(px(11.))
+                                    .child(value.unwrap_or('·').to_string())
+                                    .child(format!("#{index}"))
+                                    .into_any_element()
+                            })
+                            .into_any_element(),
+                    ]),
+                ),
+                (
                     "Form Example",
                     col(vec![{
                         let state = self.demo_otp("otp-form", 6, cx);
