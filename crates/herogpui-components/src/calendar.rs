@@ -1366,8 +1366,8 @@ impl RenderOnce for Calendar {
                     "pagedown" => {
                         calendar_view::focus_section(duration, page_behavior, at, 1, shift)
                     }
-                    "home" => Date::new(at.year, at.month, 1),
-                    "end" => Date::new(at.year, at.month, days_in_month(at.year, at.month)),
+                    "home" => calendar_view::section_start(duration, visible_start, at),
+                    "end" => calendar_view::section_end(duration, visible_end, at),
                     _ => return,
                 };
                 held.update(cx, |v, cx| {
@@ -1410,9 +1410,19 @@ impl RenderOnce for Calendar {
                             s.set_anchor(next_anchor);
                             cx.notify();
                         }
-                    } else if s.view_year != next.year || s.view_month != next.month {
-                        s.set_anchor(next);
-                        cx.notify();
+                    } else {
+                        let next_anchor = calendar_view::anchor_following_focus(
+                            duration,
+                            first_day,
+                            anchor,
+                            visible_start,
+                            visible_end,
+                            next,
+                        );
+                        if next_anchor != anchor {
+                            s.set_anchor(next_anchor);
+                            cx.notify();
+                        }
                     }
                 });
                 if let Some(cb) = &on_focus {

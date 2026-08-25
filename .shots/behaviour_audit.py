@@ -138,6 +138,11 @@ SCROLL_INTO_VIEW = ('Select', 'ComboBox', 'Autocomplete', 'ListBox', 'Dropdown')
 # focused section rather than leaving an invisible cursor behind.
 CALENDAR_PAGING = ('Calendar', 'RangeCalendar')
 
+# Home and End call React Stately's focusSectionStart/focusSectionEnd. Month
+# views use the focused month, week views use the locale week (not the grid's
+# firstDayOfWeek override), and day views use the current visible window.
+CALENDAR_SECTION_BOUNDS = ('Calendar', 'RangeCalendar')
+
 # An open floating panel holds the focus so the keyboard can reach it: a key
 # event only travels to the focused element and its ancestors, so an open panel
 # that focuses nothing is a panel no key can dismiss -- which is how a Popover
@@ -289,6 +294,14 @@ EVIDENCE = {
     ('DateRangePicker', 'panel-focus'): ('date_picker.rs', r'autofocus_grid\(panel_open\)'),
     ('Calendar', 'calendar-paging'): ('calendar.rs', r'calendar_view::focus_section'),
     ('RangeCalendar', 'calendar-paging'): ('range_calendar.rs', r'calendar_view::focus_section'),
+    ('Calendar', 'calendar-section-bounds'): (
+        'calendar.rs',
+        r'(?s)(?=.*calendar_view::section_start)(?=.*calendar_view::section_end)',
+    ),
+    ('RangeCalendar', 'calendar-section-bounds'): (
+        'range_calendar.rs',
+        r'(?s)(?=.*calendar_view::section_start)(?=.*calendar_view::section_end)',
+    ),
     ('Select', 'scroll-into-view'): ('select.rs', r'scroll_to_item'),
     ('ComboBox', 'scroll-into-view'): ('combo_box.rs', r'scroll_to_item'),
     ('Autocomplete', 'scroll-into-view'): ('autocomplete.rs', r'scroll_to_item'),
@@ -363,13 +376,13 @@ def main():
     derived = dict.fromkeys(
         ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + AREA_KEYS
         + FOCUS_OPEN + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS + FOCUS_RETURN
-        + SCROLL_INTO_VIEW + CALENDAR_PAGING + PANEL_FOCUS
+        + SCROLL_INTO_VIEW + CALENDAR_PAGING + CALENDAR_SECTION_BOUNDS + PANEL_FOCUS
     )
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'area-keys',
                       'focus-open', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
                       'focus-return', 'scroll-into-view', 'calendar-paging',
-                      'panel-focus'):
+                      'calendar-section-bounds', 'panel-focus'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach
             # the breakdown: reading only EVIDENCE skipped `TextArea`'s

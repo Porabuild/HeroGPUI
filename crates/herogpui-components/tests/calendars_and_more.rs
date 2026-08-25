@@ -54,7 +54,7 @@ use herogpui_components::{
     calendar::{Date, CALENDAR_WIDTH},
     Button, Calendar, CalendarState, ColorPicker, DateConstraints, DateRangeState, Disclosure,
     DisclosureGroup, PageBehavior, PickerColor, RangeCalendar, Select, SelectionMode, Toolbar,
-    VisibleDuration,
+    VisibleDuration, Weekday,
 };
 
 /// Column *c*'s centre in a bare Calendar: seven cells across `CALENDAR_WIDTH`
@@ -402,6 +402,108 @@ fn range_calendar_week_page_keys_realign_at_the_visible_boundary(cx: &mut TestAp
         cx.update(|_, cx| state.read(cx).anchor()),
         Date::new(2026, 9, 21),
         "focus beyond the two-week range must realign it at the start"
+    );
+}
+
+#[gpui::test]
+fn calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .visible_duration(VisibleDuration::Weeks(2))
+            .first_day_of_week(Weekday::Mon)
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "home");
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2026, 7, 27),
+        "the Monday-first grid must realign so the locale Sunday remains visible"
+    );
+    press(cx, "end");
+    assert_eq!(
+        focused.borrow().as_slice(),
+        ["2026-08-09", "2026-08-15"],
+        "week section bounds use the en-US locale week even when the grid overrides its first day"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2026, 8, 10),
+        "End must realign the grid forward after the locale week crosses its visible edge"
+    );
+}
+
+#[gpui::test]
+fn calendar_day_home_end_use_the_visible_window(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        Calendar::new(state.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .visible_duration(VisibleDuration::Days(3))
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "home");
+    press(cx, "end");
+    assert_eq!(
+        focused.borrow().as_slice(),
+        ["2026-08-14", "2026-08-16"],
+        "day section bounds are the already-visible dates, not the focused date's month"
+    );
+}
+
+#[gpui::test]
+fn range_calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .default_value((Date::new(2026, 8, 15), Date::new(2026, 8, 16)))
+            .visible_duration(VisibleDuration::Weeks(2))
+            .first_day_of_week(Weekday::Mon)
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "home");
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2026, 7, 27),
+        "RangeCalendar must keep the locale-week Home target visible"
+    );
+    press(cx, "end");
+    assert_eq!(
+        focused.borrow().as_slice(),
+        ["2026-08-09", "2026-08-15"],
+        "RangeCalendar must share Calendar's locale-week section bounds"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2026, 8, 10),
+        "RangeCalendar must realign again when End crosses the visible edge"
     );
 }
 

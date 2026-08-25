@@ -6,7 +6,9 @@
 //! anchor date; everything below is pure so the geometry can be tested without
 //! a window.
 
-use crate::calendar::{add_days, add_months, bump_month, days_in_month, month_name, Date};
+use crate::calendar::{
+    add_days, add_months, bump_month, days_from_civil, days_in_month, month_name, Date,
+};
 use crate::date_constraints::Weekday;
 
 /// `visibleDuration` — how much time one calendar shows at once.
@@ -152,6 +154,48 @@ pub fn focus_section(
             anchor,
             dir,
         ),
+    }
+}
+
+/// The date reached by Home in pinned React Stately's calendar grid.
+pub fn section_start(duration: VisibleDuration, visible_start: Date, focused: Date) -> Date {
+    match duration {
+        VisibleDuration::Days(_) => visible_start,
+        // This port's fixed locale is en-US. React Stately deliberately uses
+        // the locale week here rather than the grid's firstDayOfWeek override.
+        VisibleDuration::Weeks(_) => week_start(focused, Weekday::Sun),
+        VisibleDuration::Months(_) => Date::new(focused.year, focused.month, 1),
+    }
+}
+
+/// The date reached by End in pinned React Stately's calendar grid.
+pub fn section_end(duration: VisibleDuration, visible_end: Date, focused: Date) -> Date {
+    match duration {
+        VisibleDuration::Days(_) => visible_end,
+        VisibleDuration::Weeks(_) => add_days(&week_start(focused, Weekday::Sun), 6),
+        VisibleDuration::Months(_) => Date::new(
+            focused.year,
+            focused.month,
+            days_in_month(focused.year, focused.month),
+        ),
+    }
+}
+
+/// Realign a visible window after keyboard focus crosses either edge.
+pub fn anchor_following_focus(
+    duration: VisibleDuration,
+    first_day: Weekday,
+    anchor: Date,
+    visible_start: Date,
+    visible_end: Date,
+    focused: Date,
+) -> Date {
+    if days_from_civil(&focused) < days_from_civil(&visible_start) {
+        aligned_anchor(duration, SelectionAlignment::End, first_day, focused)
+    } else if days_from_civil(&focused) > days_from_civil(&visible_end) {
+        aligned_anchor(duration, SelectionAlignment::Start, first_day, focused)
+    } else {
+        anchor
     }
 }
 
