@@ -13,7 +13,7 @@ use gpui::{
 use herogpui_theme::ActiveTheme;
 
 use crate::{
-    calendar::{add_days, days_from_civil, days_in_month, month_step, weekday_index, Date},
+    calendar::{add_days, days_from_civil, days_in_month, weekday_index, Date},
     calendar_view::{self, PageBehavior, SelectionAlignment, VisibleDuration},
     date_constraints::{DateConstraints, Weekday},
     date_picker::DateRangeState,
@@ -1048,6 +1048,8 @@ impl RenderOnce for RangeCalendar {
             let constraints = self.constraints.clone();
             let allows_non_contiguous_ranges = self.allows_non_contiguous_ranges;
             let read_only = self.is_read_only;
+            let duration = self.duration;
+            let page_behavior = self.page_behavior;
             root = root.on_key_down(move |event, window, cx| {
                 let header_focused = prev_control.is_focused(window)
                     || next_control.is_focused(window)
@@ -1091,11 +1093,12 @@ impl RenderOnce for RangeCalendar {
                     "right" => add_days(&at, 1),
                     "up" => add_days(&at, -7),
                     "down" => add_days(&at, 7),
-                    // React Aria pages by month, and by *year* with shift.
-                    "pageup" if shift => month_step(at, -12),
-                    "pagedown" if shift => month_step(at, 12),
-                    "pageup" => month_step(at, -1),
-                    "pagedown" => month_step(at, 1),
+                    "pageup" => {
+                        calendar_view::focus_section(duration, page_behavior, at, -1, shift)
+                    }
+                    "pagedown" => {
+                        calendar_view::focus_section(duration, page_behavior, at, 1, shift)
+                    }
                     "home" => Date::new(at.year, at.month, 1),
                     "end" => Date::new(at.year, at.month, days_in_month(at.year, at.month)),
                     _ => return,
@@ -1104,10 +1107,42 @@ impl RenderOnce for RangeCalendar {
                     *v = Some(next);
                     cx.notify();
                 });
-                // The grid follows the cursor across a month boundary, the way
-                // React Aria keeps the focused date visible.
+                // React Aria realigns a week/month window only after focus
+                // leaves it. Day views page the whole window directly.
                 state.update(cx, |s, cx| {
-                    if s.view_year != next.year || s.view_month != next.month {
+                    if matches!(key, "pageup" | "pagedown") {
+                        let dir = if key == "pageup" { -1 } else { 1 };
+                        let next_anchor = match duration {
+                            VisibleDuration::Days(_) => calendar_view::focus_section(
+                                duration,
+                                page_behavior,
+                                anchor,
+                                dir,
+                                shift,
+                            ),
+                            _ if days_from_civil(&next) < days_from_civil(&visible_start) => {
+                                calendar_view::aligned_anchor(
+                                    duration,
+                                    SelectionAlignment::End,
+                                    first_day,
+                                    next,
+                                )
+                            }
+                            _ if days_from_civil(&next) > days_from_civil(&visible_end) => {
+                                calendar_view::aligned_anchor(
+                                    duration,
+                                    SelectionAlignment::Start,
+                                    first_day,
+                                    next,
+                                )
+                            }
+                            _ => anchor,
+                        };
+                        if next_anchor != anchor {
+                            s.set_anchor(next_anchor);
+                            cx.notify();
+                        }
+                    } else if s.view_year != next.year || s.view_month != next.month {
                         s.set_anchor(next);
                         cx.notify();
                     }

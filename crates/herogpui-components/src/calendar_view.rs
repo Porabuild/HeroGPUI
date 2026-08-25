@@ -117,6 +117,44 @@ pub fn page(duration: VisibleDuration, behavior: PageBehavior, anchor: Date, dir
     }
 }
 
+/// The focused section reached by PageUp/PageDown in pinned React Aria.
+///
+/// Month and week views move one displayed unit regardless of `pageBehavior`;
+/// Shift moves their next larger unit. Day views delegate to page navigation,
+/// so they honor `pageBehavior` and ignore Shift.
+pub fn focus_section(
+    duration: VisibleDuration,
+    behavior: PageBehavior,
+    anchor: Date,
+    dir: i32,
+    larger: bool,
+) -> Date {
+    match (duration, larger) {
+        (VisibleDuration::Days(_), _) => page(duration, behavior, anchor, dir),
+        (VisibleDuration::Weeks(_), false) => {
+            page(VisibleDuration::Weeks(1), PageBehavior::Single, anchor, dir)
+        }
+        (VisibleDuration::Weeks(_), true) => page(
+            VisibleDuration::Months(1),
+            PageBehavior::Single,
+            anchor,
+            dir,
+        ),
+        (VisibleDuration::Months(_), false) => page(
+            VisibleDuration::Months(1),
+            PageBehavior::Single,
+            anchor,
+            dir,
+        ),
+        (VisibleDuration::Months(_), true) => page(
+            VisibleDuration::Months(12),
+            PageBehavior::Visible,
+            anchor,
+            dir,
+        ),
+    }
+}
+
 /// The anchor that puts `selection` at the requested position in the range.
 ///
 /// v3 applies this on initial render only, so callers seed state with it
@@ -358,6 +396,45 @@ mod tests {
         assert_eq!(
             page(day, PageBehavior::Single, d(2026, 8, 3), -1),
             d(2026, 8, 2)
+        );
+    }
+
+    #[test]
+    fn focused_sections_follow_the_displayed_unit() {
+        let at = d(2026, 8, 15);
+        assert_eq!(
+            focus_section(
+                VisibleDuration::Weeks(2),
+                PageBehavior::Visible,
+                at,
+                1,
+                false
+            ),
+            d(2026, 8, 22)
+        );
+        assert_eq!(
+            focus_section(
+                VisibleDuration::Weeks(2),
+                PageBehavior::Visible,
+                at,
+                1,
+                true
+            ),
+            d(2026, 9, 15)
+        );
+        assert_eq!(
+            focus_section(VisibleDuration::Days(3), PageBehavior::Visible, at, 1, true),
+            d(2026, 8, 18)
+        );
+        assert_eq!(
+            focus_section(
+                VisibleDuration::Days(3),
+                PageBehavior::Single,
+                at,
+                -1,
+                false
+            ),
+            d(2026, 8, 14)
         );
     }
 

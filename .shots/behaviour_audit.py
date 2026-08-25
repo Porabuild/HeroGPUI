@@ -132,9 +132,10 @@ FOCUS_RETURN = ('Dropdown', 'Modal', 'Drawer', 'AlertDialog')
 # highlight walked off the bottom.
 SCROLL_INTO_VIEW = ('Select', 'ComboBox', 'Autocomplete', 'ListBox', 'Dropdown')
 
-# React Aria's calendar pages by month, by *year* with shift, and keeps the
-# focused date visible -- the grid follows the cursor across a month boundary.
-# Ours moved an invisible cursor: the month on screen never changed.
+# React Aria pages the focused section according to the visible unit: months
+# move by one month (a year with shift), weeks by one week (a month with shift),
+# and days by pageBehavior with shift ignored. The visible window follows the
+# focused section rather than leaving an invisible cursor behind.
 CALENDAR_PAGING = ('Calendar', 'RangeCalendar')
 
 # An open floating panel holds the focus so the keyboard can reach it: a key
@@ -286,8 +287,8 @@ EVIDENCE = {
     # arrows without the user having to find its tab stop first.
     ('DatePicker', 'panel-focus'): ('date_picker.rs', r'autofocus_grid\(panel_open\)'),
     ('DateRangePicker', 'panel-focus'): ('date_picker.rs', r'autofocus_grid\(panel_open\)'),
-    ('Calendar', 'calendar-paging'): ('calendar.rs', r'"pageup" if shift'),
-    ('RangeCalendar', 'calendar-paging'): ('range_calendar.rs', r'"pageup" if shift'),
+    ('Calendar', 'calendar-paging'): ('calendar.rs', r'calendar_view::focus_section'),
+    ('RangeCalendar', 'calendar-paging'): ('range_calendar.rs', r'calendar_view::focus_section'),
     ('Select', 'scroll-into-view'): ('select.rs', r'scroll_to_item'),
     ('ComboBox', 'scroll-into-view'): ('combo_box.rs', r'scroll_to_item'),
     ('Autocomplete', 'scroll-into-view'): ('autocomplete.rs', r'scroll_to_item'),

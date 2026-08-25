@@ -588,13 +588,6 @@ impl Calendar {
     }
 }
 
-/// `date` a month away, clamped to the target month's length -- 31 January plus
-/// a month is the end of February, not the 31st.
-pub(crate) fn month_step(date: Date, delta: i32) -> Date {
-    let (year, month) = add_months(date.year, date.month, delta);
-    Date::new(year, month, date.day.min(days_in_month(year, month)))
-}
-
 /// The per-frame facts every cell needs, bundled so the helpers below take a
 /// readable argument list.
 struct Frame<'a> {
@@ -1313,9 +1306,9 @@ impl RenderOnce for Calendar {
                 el.track_focus(&grid_focus)
             });
 
-        // v3 drives a calendar from the keyboard: the arrows step a day and a
-        // week, Page Up/Down a month, Home and End the ends of the month, and
-        // Enter takes the date the ring is on.
+        // v3 drives a calendar from the keyboard: arrows step a day and a
+        // week, Page Up/Down move the visible section, and Enter takes the
+        // date the ring is on.
         if !self.is_disabled && !year_picker_open {
             let held = cursor;
             let focus = grid_focus.clone();
@@ -1330,6 +1323,8 @@ impl RenderOnce for Calendar {
             let on_change = self.on_change.clone();
             let on_change_all = self.on_change_all.clone();
             let on_focus = self.on_focus_change.clone();
+            let duration = self.duration;
+            let page_behavior = self.page_behavior;
             root = root.on_key_down(move |event, window, cx| {
                 let header_focused = prev_control.is_focused(window)
                     || next_control.is_focused(window)
@@ -1365,11 +1360,12 @@ impl RenderOnce for Calendar {
                     "right" => add_days(&at, 1),
                     "up" => add_days(&at, -7),
                     "down" => add_days(&at, 7),
-                    // React Aria pages by month, and by *year* with shift.
-                    "pageup" if shift => month_step(at, -12),
-                    "pagedown" if shift => month_step(at, 12),
-                    "pageup" => month_step(at, -1),
-                    "pagedown" => month_step(at, 1),
+                    "pageup" => {
+                        calendar_view::focus_section(duration, page_behavior, at, -1, shift)
+                    }
+                    "pagedown" => {
+                        calendar_view::focus_section(duration, page_behavior, at, 1, shift)
+                    }
                     "home" => Date::new(at.year, at.month, 1),
                     "end" => Date::new(at.year, at.month, days_in_month(at.year, at.month)),
                     _ => return,
@@ -1379,10 +1375,42 @@ impl RenderOnce for Calendar {
                     cx.notify();
                 });
                 // React Aria keeps the focused date visible: the grid follows
-                // the cursor across a month boundary. Without this, paging moved
-                // an invisible cursor and the month on screen never changed.
+                // the cursor once it leaves the current visible range. Day
+                // views page the whole window directly.
                 state.update(cx, |s, cx| {
-                    if s.view_year != next.year || s.view_month != next.month {
+                    if matches!(key, "pageup" | "pagedown") {
+                        let dir = if key == "pageup" { -1 } else { 1 };
+                        let next_anchor = match duration {
+                            VisibleDuration::Days(_) => calendar_view::focus_section(
+                                duration,
+                                page_behavior,
+                                anchor,
+                                dir,
+                                shift,
+                            ),
+                            _ if days_from_civil(&next) < days_from_civil(&visible_start) => {
+                                calendar_view::aligned_anchor(
+                                    duration,
+                                    SelectionAlignment::End,
+                                    first_day,
+                                    next,
+                                )
+                            }
+                            _ if days_from_civil(&next) > days_from_civil(&visible_end) => {
+                                calendar_view::aligned_anchor(
+                                    duration,
+                                    SelectionAlignment::Start,
+                                    first_day,
+                                    next,
+                                )
+                            }
+                            _ => anchor,
+                        };
+                        if next_anchor != anchor {
+                            s.set_anchor(next_anchor);
+                            cx.notify();
+                        }
+                    } else if s.view_year != next.year || s.view_month != next.month {
                         s.set_anchor(next);
                         cx.notify();
                     }
@@ -1641,18 +1669,5 @@ mod tests {
         assert_eq!(add_months(2026, 8, -12), (2025, 8));
         assert_eq!(add_months(2026, 8, 12), (2027, 8));
         assert_eq!(add_months(2026, 8, -20), (2024, 12));
-    }
-
-    #[test]
-    fn month_step_clamps_the_day_to_the_shorter_month() {
-        // 31 January back one month is the 28th, not the 31st of February.
-        assert_eq!(
-            month_step(Date::new(2026, 1, 31), -1),
-            Date::new(2025, 12, 31)
-        );
-        assert_eq!(
-            month_step(Date::new(2026, 3, 31), -1),
-            Date::new(2026, 2, 28)
-        );
     }
 }

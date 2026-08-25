@@ -53,7 +53,8 @@ use harness::{click, events, open_host, press};
 use herogpui_components::{
     calendar::{Date, CALENDAR_WIDTH},
     Button, Calendar, CalendarState, ColorPicker, DateConstraints, DateRangeState, Disclosure,
-    DisclosureGroup, PickerColor, RangeCalendar, Select, SelectionMode, Toolbar,
+    DisclosureGroup, PageBehavior, PickerColor, RangeCalendar, Select, SelectionMode, Toolbar,
+    VisibleDuration,
 };
 
 /// Column *c*'s centre in a bare Calendar: seven cells across `CALENDAR_WIDTH`
@@ -267,6 +268,141 @@ fn calendar_page_keys_change_month(cx: &mut TestAppContext) {
             cx.update(|_, cx| (state.read(cx).view_year, state.read(cx).view_month));
         assert_eq!((year, month), (2026, 8), "next must page forward a month");
     }
+}
+
+#[gpui::test]
+fn calendar_week_page_keys_move_one_week_and_shift_moves_one_month(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .visible_duration(VisibleDuration::Weeks(2))
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "pagedown");
+    press(cx, "shift-pagedown");
+    press(cx, "pageup");
+    assert_eq!(
+        focused.borrow().as_slice(),
+        ["2026-08-22", "2026-09-22", "2026-09-15"],
+        "week sections move seven days, while shifted paging moves one month"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2026, 9, 7),
+        "the two-week window must realign at the edge focus crossed"
+    );
+}
+
+#[gpui::test]
+fn calendar_day_page_keys_honor_the_visible_day_count_even_with_shift(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .visible_duration(VisibleDuration::Days(3))
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "pagedown");
+    press(cx, "shift-pagedown");
+    assert_eq!(
+        focused.borrow().as_slice(),
+        ["2026-08-18", "2026-08-21"],
+        "day sections use pageBehavior and ignore the shift modifier"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2026, 8, 20),
+        "the rolling three-day window must advance with each page"
+    );
+}
+
+#[gpui::test]
+fn range_calendar_single_day_pages_one_day(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .default_value((Date::new(2026, 8, 15), Date::new(2026, 8, 16)))
+            .visible_duration(VisibleDuration::Days(3))
+            .page_behavior(PageBehavior::Single)
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "pagedown");
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2026, 8, 15),
+        "single-day paging must advance the range calendar window"
+    );
+    press(cx, "shift-pageup");
+    assert_eq!(
+        focused.borrow().as_slice(),
+        ["2026-08-16", "2026-08-15"],
+        "single day paging moves one day and ignores shift"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2026, 8, 14),
+        "the range calendar day window must follow both page keys"
+    );
+}
+
+#[gpui::test]
+fn range_calendar_week_page_keys_realign_at_the_visible_boundary(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .default_value((Date::new(2026, 8, 15), Date::new(2026, 8, 16)))
+            .visible_duration(VisibleDuration::Weeks(2))
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "pagedown");
+    press(cx, "shift-pagedown");
+    assert_eq!(
+        focused.borrow().as_slice(),
+        ["2026-08-22", "2026-09-22"],
+        "range week sections share the pinned week and shifted-month steps"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2026, 9, 21),
+        "focus beyond the two-week range must realign it at the start"
+    );
 }
 
 /// A day outside `minValue`/`maxValue` is not selectable by either input
