@@ -468,7 +468,6 @@ impl RenderOnce for Tabs {
         let fallback = self
             .default_selected_key
             .clone()
-            .filter(|key| self.items.iter().any(|item| item.key == *key))
             .or(first_enabled.clone())
             .unwrap_or_default();
         // One handle for the list: a tab list is one tab stop and the focused
@@ -486,10 +485,10 @@ impl RenderOnce for Tabs {
             self.selected_key.clone(),
             fallback,
         );
-        // Pinned `useTabListState` repairs an uncontrolled selection when its
-        // item disappears from the collection. Use the repaired key in this
-        // frame as well as storing it, so the replacement panel and roving
-        // stop are never absent for a frame.
+        // Pinned `useTabListState` repairs an invalid uncontrolled default and
+        // a selection whose item disappears from the collection. Use the
+        // repaired key in this frame as well as storing it, so the replacement
+        // panel and roving stop are never absent for a frame.
         if self.selected_key.is_none() && !self.items.iter().any(|item| item.key == selected_key) {
             if let (Some(next), Some(held)) = (first_enabled.clone(), selection_own.as_ref()) {
                 selected_key = next.clone();

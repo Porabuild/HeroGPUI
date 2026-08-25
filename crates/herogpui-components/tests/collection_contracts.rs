@@ -517,6 +517,37 @@ fn tabs_uncontrolled_selection_recovers_when_selected_item_disappears(cx: &mut T
     );
 }
 
+/// React Stately repairs an invalid uncontrolled default to the first enabled
+/// tab and reports that normalized selection to the owner.
+#[gpui::test]
+fn tabs_invalid_uncontrolled_default_reports_its_repaired_selection(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Tabs::new(
+            "contract-tabs-invalid-default",
+            vec![
+                TabItem::new("disabled", "Disabled").is_disabled(true),
+                TabItem::new("alpha", "Alpha"),
+            ],
+            "missing",
+        )
+        .on_selection_change(move |key, _, _| {
+            recorded.borrow_mut().push(key.to_string());
+        })
+        .into_any_element()
+    });
+
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha"],
+        "an invalid defaultSelectedKey must report the first enabled replacement"
+    );
+}
+
 /// React Aria applies selectable-row press props to the whole table row. The
 /// checkbox is one affordance, not the only place a row can be selected.
 #[gpui::test]
