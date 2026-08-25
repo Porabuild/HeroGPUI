@@ -13,14 +13,19 @@
 
 mod harness;
 
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use gpui::{
-    prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, TestAppContext, WindowTextSystem,
+    prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, TestAppContext, VisualTestContext,
+    WindowTextSystem,
 };
 use herogpui_components::{KeyboardActivation, Orientation, TabItem, Tabs, TabsVariant};
 
 use harness::{click, events, open_host, press};
+
+fn flush_frame(cx: &mut VisualTestContext) {
+    cx.update(|window, _| window.refresh());
+}
 
 fn text_width(system: &WindowTextSystem, text: &str) -> f32 {
     let run = gpui::TextRun {
@@ -114,6 +119,61 @@ fn tabs_pointer_selection_hands_off_to_roving_keyboard_focus(cx: &mut TestAppCon
         selected.borrow().as_slice(),
         ["second", "third"],
         "Right after a pointer selection must continue from the pressed tab"
+    );
+}
+
+/// The pinned SelectionIndicator is one measured child that owns the selected
+/// pill. It starts on the selected tab and settles onto the next tab after its
+/// 250ms geometry transition.
+#[gpui::test]
+fn tabs_indicator_moves_between_measured_tab_boxes(cx: &mut TestAppContext) {
+    let cx = open_host(cx, move || {
+        Tabs::new(
+            "tb-indicator-geometry",
+            vec![
+                TabItem::new("first", "First"),
+                TabItem::new("second", "Second"),
+            ],
+            "first",
+        )
+        .into_any_element()
+    });
+
+    flush_frame(cx);
+    flush_frame(cx);
+    flush_frame(cx);
+    flush_frame(cx);
+    let first = cx
+        .debug_bounds("Name(\"tb-indicator-geometry\")-indicator")
+        .expect("the measured selected-tab indicator must be painted");
+    let expected_width = cx.update(|window, _| text_width(window.text_system(), "First")) + 32.;
+    assert!(
+        (f32::from(first.size.width) - expected_width).abs() < 1.,
+        "the primary indicator must match the selected tab width"
+    );
+    assert!(
+        (f32::from(first.size.height) - 32.).abs() < f32::EPSILON,
+        "the primary indicator must match the tab height"
+    );
+
+    press(cx, "tab");
+    press(cx, "right");
+    flush_frame(cx);
+    let moving = cx
+        .debug_bounds("Name(\"tb-indicator-geometry\")-indicator")
+        .expect("the moving indicator must remain painted");
+    assert!(
+        f32::from(moving.origin.x) < f32::from(first.origin.x + first.size.width) - 1.,
+        "the indicator must animate rather than snap to the second tab"
+    );
+    std::thread::sleep(Duration::from_millis(300));
+    flush_frame(cx);
+    let second = cx
+        .debug_bounds("Name(\"tb-indicator-geometry\")-indicator")
+        .expect("the indicator must remain painted after moving");
+    assert!(
+        f32::from(second.origin.x) >= f32::from(first.origin.x + first.size.width) - 1.,
+        "after 250ms the indicator must settle onto the second tab"
     );
 }
 

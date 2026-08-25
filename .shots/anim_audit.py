@@ -285,6 +285,127 @@ def check_switch_motion():
     return sum(not same for same, _, _, _ in rows)
 
 
+def check_tabs_motion():
+    """Tabs indicator and separator property transitions."""
+    css_path = os.path.join(CACHE, 'tabs.css')
+    src_path = os.path.join(SRC, 'tabs.rs')
+    if not os.path.exists(css_path):
+        print('tabs motion: no stylesheet')
+        return 1
+    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    src = io.open(src_path, encoding='utf-8').read()
+    separator = re.search(
+        r'/\* Tab separator \*/\s*\.tabs__separator\s*\{(.*?)(?=\n/\* Tab panel)',
+        css,
+        re.S,
+    )
+    indicator = re.search(
+        r'/\* Tab indicator.*?\*/\s*\.tabs__indicator\s*\{(.*?)(?=\n/\* ={10,})',
+        css,
+        re.S,
+    )
+    want_separator = re.search(
+        r'opacity\s+(\d+)ms\s+var\(--ease-([\w-]+)\)',
+        separator.group(1) if separator else '',
+    )
+    want_indicator_ms = re.search(
+        r'transition-duration:\s*(\d+)ms',
+        indicator.group(1) if indicator else '',
+    )
+    want_indicator_curve = re.search(
+        r'transition-timing-function:\s*var\(--ease-([\w-]+)\)',
+        indicator.group(1) if indicator else '',
+    )
+    got_separator_ms = re.search(r'const SEPARATOR_TRANSITION_MS:\s*u64\s*=\s*(\d+)', src)
+    got_separator_curve = re.search(
+        r'SEPARATOR_TRANSITION_MS\)\)\s*\.with_easing\(\|t\|\s*'
+        r'crate::anim::Curve::(\w+)\.at\(t\)\)',
+        src,
+        re.S,
+    )
+    got_indicator_ms = re.search(r'const INDICATOR_TRANSITION_MS:\s*u64\s*=\s*(\d+)', src)
+    got_indicator_curve = re.search(
+        r'INDICATOR_TRANSITION_MS\)\)\s*\.with_easing\(\|t\|\s*'
+        r'crate::anim::Curve::(\w+)\.at\(t\)\)',
+        src,
+        re.S,
+    )
+    required = (
+        separator,
+        indicator,
+        want_separator,
+        want_indicator_ms,
+        want_indicator_curve,
+        got_separator_ms,
+        got_separator_curve,
+        got_indicator_ms,
+        got_indicator_curve,
+    )
+    if any(value is None for value in required):
+        print('tabs motion: unreadable')
+        return 1
+
+    separator_reduced = (
+        separator.group(1).find('transition:')
+        < separator.group(1).find('motion-reduce:transition-none')
+        and 'fn separator_motion(' in src
+        and 'if cx.reduce_motion()' in src.split('fn separator_motion(', 1)[1].split(
+            '/// HeroUI Tabs', 1
+        )[0]
+    )
+    indicator_reduced = (
+        indicator.group(1).find('transition-duration:')
+        < indicator.group(1).find('motion-reduce:transition-none')
+        and 'fn indicator_motion(' in src
+        and 'if cx.reduce_motion()' in src.split('fn indicator_motion(', 1)[1].split(
+            '#[derive(Clone, Debug, Default)]', 1
+        )[0]
+    )
+    properties = (
+        'transition-property: translate, width, height' in indicator.group(1)
+        and all(('to.%s - from.%s' % (name, name)) in src for name in ('x', 'y', 'width', 'height'))
+    )
+    listener_free = (
+        'frame.render(indicator)' in src
+        and '.render(separator)' in src
+        and 'tabs-indicator-slide-' in src
+        and 'tabs-separator-fade-' in src
+    )
+    reversal = (
+        'current.from = current.rect.get();' in src
+        and 'current.from = current.opacity.get();' in src
+    )
+    want_separator_curve = CURVES.get(want_separator.group(2))
+    want_indicator_curve = CURVES.get(want_indicator_curve.group(1))
+    rows = [
+        (
+            int(want_separator.group(1)) == int(got_separator_ms.group(1))
+            and want_separator_curve == got_separator_curve.group(1),
+            'separator opacity',
+            '%sms %s' % (want_separator.group(1), want_separator_curve),
+            '%sms %s' % (got_separator_ms.group(1), got_separator_curve.group(1)),
+        ),
+        (
+            int(want_indicator_ms.group(1)) == int(got_indicator_ms.group(1))
+            and want_indicator_curve == got_indicator_curve.group(1),
+            'indicator geometry',
+            '%sms %s' % (want_indicator_ms.group(1), want_indicator_curve),
+            '%sms %s' % (got_indicator_ms.group(1), got_indicator_curve.group(1)),
+        ),
+        (properties, 'indicator properties', 'translate width height', 'all four' if properties else 'missing'),
+        (separator_reduced and indicator_reduced, 'reduced motion', 'transition-none', 'direct geometry' if separator_reduced and indicator_reduced else 'missing'),
+        (listener_free, 'animation owner', 'listener-free children', 'child elements' if listener_free else 'listener owner'),
+        (reversal, 'reversal', 'current rendered values', 'preserved' if reversal else 'endpoint jump'),
+    ]
+    print('tabs motion (v3 CSS vs Tabs):')
+    for same, name, want, got in rows:
+        print('%s %-14s %-22s %-26s %s' % (' ' if same else '!', 'tabs', name, want, got))
+    bad = sum(not same for same, _, _, _ in rows)
+    print('TABS MISMATCHES : %d' % bad)
+    print()
+    return bad
+
+
 def check_toggle_button_motion():
     """ToggleButton's size scales and the group's transform suppression."""
     css_path = os.path.join(CACHE, 'toggle-button.css')
@@ -465,6 +586,7 @@ def main():
     motion_bad = (
         check_motions()
         + check_switch_motion()
+        + check_tabs_motion()
         + check_toggle_button_motion()
         + check_pagination_motion()
     )

@@ -1,8 +1,10 @@
 //! Tabs — port of `@heroui/tabs`.
 
+use std::{cell::Cell, rc::Rc, time::Duration};
+
 use gpui::{
-    prelude::*, px, AnyElement, App, InteractiveElement, IntoElement, RenderOnce, SharedString,
-    StatefulInteractiveElement, Styled, Window,
+    prelude::*, px, Animation, AnimationExt, AnyElement, App, InteractiveElement, IntoElement,
+    RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window,
 };
 use herogpui_core::Orientation;
 use herogpui_theme::ActiveTheme;
@@ -25,6 +27,227 @@ impl TabsVariant {
             TabsVariant::Primary => "Primary",
             TabsVariant::Secondary => "Secondary",
         }
+    }
+}
+
+/// `.tabs__separator` transitions its opacity for 150ms with `--ease-smooth`.
+const SEPARATOR_TRANSITION_MS: u64 = 150;
+/// `.tabs__indicator` transitions translate, width and height for 250ms with
+/// `--ease-out-fluid`.
+const INDICATOR_TRANSITION_MS: u64 = 250;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct IndicatorRect {
+    x: gpui::Pixels,
+    y: gpui::Pixels,
+    width: gpui::Pixels,
+    height: gpui::Pixels,
+}
+
+#[derive(Clone)]
+struct IndicatorMotion {
+    target: IndicatorRect,
+    generation: usize,
+    from: IndicatorRect,
+    rect: Rc<Cell<IndicatorRect>>,
+}
+
+struct IndicatorMotionFrame {
+    generation: usize,
+    from: IndicatorRect,
+    to: IndicatorRect,
+    rect: Rc<Cell<IndicatorRect>>,
+    animate: bool,
+}
+
+impl IndicatorMotionFrame {
+    fn render(self, indicator: gpui::Div) -> AnyElement {
+        if !self.animate {
+            self.rect.set(self.to);
+            return place_indicator(indicator, self.to).into_any_element();
+        }
+
+        let rect = self.rect;
+        let from = self.from;
+        let to = self.to;
+        indicator
+            .with_animation(
+                gpui::ElementId::Name(format!("tabs-indicator-slide-{}", self.generation).into()),
+                Animation::new(Duration::from_millis(INDICATOR_TRANSITION_MS))
+                    .with_easing(|t| crate::anim::Curve::OutFluid.at(t)),
+                move |indicator, delta| {
+                    let next = IndicatorRect {
+                        x: from.x + (to.x - from.x) * delta,
+                        y: from.y + (to.y - from.y) * delta,
+                        width: from.width + (to.width - from.width) * delta,
+                        height: from.height + (to.height - from.height) * delta,
+                    };
+                    rect.set(next);
+                    place_indicator(indicator, next)
+                },
+            )
+            .into_any_element()
+    }
+}
+
+fn place_indicator(indicator: gpui::Div, rect: IndicatorRect) -> gpui::Div {
+    indicator
+        .left(rect.x)
+        .top(rect.y)
+        .w(rect.width)
+        .h(rect.height)
+}
+
+fn indicator_motion(
+    id: gpui::ElementId,
+    target: IndicatorRect,
+    window: &mut Window,
+    cx: &mut App,
+) -> IndicatorMotionFrame {
+    let state = window.use_keyed_state(id, cx, |_, _| IndicatorMotion {
+        target,
+        generation: 0,
+        from: target,
+        rect: Rc::new(Cell::new(target)),
+    });
+    let mut current = state.read(cx).clone();
+    if current.target != target {
+        current.target = target;
+        current.generation = current.generation.wrapping_add(1);
+        current.from = current.rect.get();
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    if cx.reduce_motion() && current.rect.get() != target {
+        current.from = target;
+        current.rect.set(target);
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    IndicatorMotionFrame {
+        generation: current.generation,
+        from: current.from,
+        to: target,
+        rect: current.rect,
+        animate: current.generation != 0 && !cx.reduce_motion() && current.from != target,
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct TabsGeometry {
+    list: Option<gpui::Bounds<gpui::Pixels>>,
+    tabs: Vec<(SharedString, gpui::Bounds<gpui::Pixels>)>,
+}
+
+fn indicator_target(
+    geometry: &TabsGeometry,
+    selected_key: &SharedString,
+    vertical: bool,
+    secondary: bool,
+) -> Option<IndicatorRect> {
+    let list = geometry.list?;
+    let tab = geometry
+        .tabs
+        .iter()
+        .find_map(|(key, bounds)| (key == selected_key).then_some(*bounds))?;
+    let x = tab.origin.x - list.origin.x;
+    let y = tab.origin.y - list.origin.y;
+    Some(if secondary && vertical {
+        IndicatorRect {
+            x: px(0.),
+            y,
+            width: px(2.),
+            height: tab.size.height,
+        }
+    } else if secondary {
+        IndicatorRect {
+            x,
+            y: list.size.height - px(2.),
+            width: tab.size.width,
+            height: px(2.),
+        }
+    } else {
+        IndicatorRect {
+            x,
+            y,
+            width: tab.size.width,
+            height: tab.size.height,
+        }
+    })
+}
+
+#[derive(Clone)]
+struct SeparatorMotion {
+    hidden: bool,
+    generation: usize,
+    from: f32,
+    opacity: Rc<Cell<f32>>,
+}
+
+struct SeparatorMotionFrame {
+    generation: usize,
+    from: f32,
+    to: f32,
+    opacity: Rc<Cell<f32>>,
+    animate: bool,
+}
+
+impl SeparatorMotionFrame {
+    fn render(self, separator: gpui::Div) -> AnyElement {
+        if !self.animate {
+            self.opacity.set(self.to);
+            return separator.opacity(self.to).into_any_element();
+        }
+
+        let opacity = self.opacity;
+        let from = self.from;
+        let to = self.to;
+        separator
+            .with_animation(
+                gpui::ElementId::Name(format!("tabs-separator-fade-{}", self.generation).into()),
+                Animation::new(Duration::from_millis(SEPARATOR_TRANSITION_MS))
+                    .with_easing(|t| crate::anim::Curve::Smooth.at(t)),
+                move |separator, delta| {
+                    let next = from + (to - from) * delta;
+                    opacity.set(next);
+                    separator.opacity(next)
+                },
+            )
+            .into_any_element()
+    }
+}
+
+fn separator_motion(
+    id: gpui::ElementId,
+    hidden: bool,
+    window: &mut Window,
+    cx: &mut App,
+) -> SeparatorMotionFrame {
+    let target = if hidden { 0. } else { 1. };
+    let state = window.use_keyed_state(id, cx, |_, _| SeparatorMotion {
+        hidden,
+        generation: 0,
+        from: target,
+        opacity: Rc::new(Cell::new(target)),
+    });
+    let mut current = state.read(cx).clone();
+    if current.hidden != hidden {
+        current.hidden = hidden;
+        current.generation = current.generation.wrapping_add(1);
+        current.from = current.opacity.get();
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    if cx.reduce_motion() && (current.opacity.get() - target).abs() > f32::EPSILON {
+        current.from = target;
+        current.opacity.set(target);
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    SeparatorMotionFrame {
+        generation: current.generation,
+        from: current.from,
+        to: target,
+        opacity: current.opacity,
+        animate: current.generation != 0
+            && !cx.reduce_motion()
+            && (current.from - target).abs() > f32::EPSILON,
     }
 }
 
@@ -305,6 +528,39 @@ impl RenderOnce for Tabs {
             cx,
             |_, _| (false, false),
         );
+        let vertical = self.orientation == Orientation::Vertical;
+        let secondary = self.variant == TabsVariant::Secondary;
+        let geometry = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{base_id}-geometry").into()),
+            cx,
+            |_, _| TabsGeometry::default(),
+        );
+        let indicator_frame =
+            indicator_target(geometry.read(cx), &selected_key, vertical, secondary).map(|target| {
+                indicator_motion(
+                    gpui::ElementId::Name(format!("{base_id}-indicator-motion").into()),
+                    target,
+                    window,
+                    cx,
+                )
+            });
+        let mut separator_motions = self
+            .items
+            .iter()
+            .enumerate()
+            .map(|(index, item)| {
+                (self.variant == TabsVariant::Primary && index > 0 && item.separator).then(|| {
+                    let hidden =
+                        item.key == selected_key || self.items[index - 1].key == selected_key;
+                    separator_motion(
+                        gpui::ElementId::Name(format!("{base_id}-separator-{}", item.key).into()),
+                        hidden,
+                        window,
+                        cx,
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
 
         let colors = cx.colors();
         let layout = cx.layout();
@@ -316,11 +572,25 @@ impl RenderOnce for Tabs {
             .collect();
         let key_keys: Vec<SharedString> = self.items.iter().map(|item| item.key.clone()).collect();
 
-        let vertical = self.orientation == Orientation::Vertical;
         // `.tabs__list` is `w-max min-w-full`: it grows with its content, which is
         // what lets the scroller overflow -- a shrinking row always fits and
         // never scrolls.
-        let mut list = gpui::div().flex().flex_shrink_0();
+        let mut list = gpui::div().relative().flex().flex_shrink_0().child({
+            let measured = geometry.clone();
+            gpui::canvas(
+                move |bounds, _window, cx| {
+                    if measured.read(cx).list != Some(bounds) {
+                        measured.update(cx, |geometry, cx| {
+                            geometry.list = Some(bounds);
+                            cx.notify();
+                        });
+                    }
+                },
+                |_, _, _, _| {},
+            )
+            .absolute()
+            .inset_0()
+        });
         if vertical {
             list = list.flex_col().items_start().gap(px(4.));
         } else {
@@ -329,13 +599,57 @@ impl RenderOnce for Tabs {
 
         // v3 keeps two indicator styles: `primary` fills a segment behind the
         // selected tab, `secondary` underlines it.
-        let secondary = self.variant == TabsVariant::Secondary;
+        let indicator_ready = indicator_frame.is_some();
+        if let Some(frame) = indicator_frame {
+            // `.tabs__indicator` is the absolute `rounded-3xl bg-segment
+            // shadow-surface` pill; Secondary flattens it into an accent line.
+            let mut indicator = gpui::div()
+                .absolute()
+                .debug_selector(|| format!("{base_id}-indicator"));
+            indicator = if secondary {
+                indicator.bg(colors.accent.color)
+            } else {
+                indicator
+                    .rounded(crate::util::control_radius(cx))
+                    .bg(colors.segment.background)
+                    .when(!layout.surface_shadow.is_empty(), |indicator| {
+                        indicator.shadow(layout.surface_shadow.clone())
+                    })
+            };
+            list = list.child(frame.render(indicator));
+        }
+        let measure_tab = |key: SharedString| {
+            let measured = geometry.clone();
+            gpui::canvas(
+                move |bounds, _window, cx| {
+                    let current = measured
+                        .read(cx)
+                        .tabs
+                        .iter()
+                        .find_map(|(held, bounds)| (held == &key).then_some(*bounds));
+                    if current != Some(bounds) {
+                        measured.update(cx, |geometry, cx| {
+                            if let Some((_, held)) =
+                                geometry.tabs.iter_mut().find(|(held, _)| held == &key)
+                            {
+                                *held = bounds;
+                            } else {
+                                geometry.tabs.push((key.clone(), bounds));
+                            }
+                            cx.notify();
+                        });
+                    }
+                },
+                |_, _, _, _| {},
+            )
+            .absolute()
+            .inset_0()
+        };
         match self.variant {
             TabsVariant::Primary => {
                 // `.tabs__list` is `p-1` and nothing else: the tabs sit
                 // shoulder to shoulder, with no gap between them.
                 list = list.p(px(4.));
-                let selected_index = self.items.iter().position(|item| item.key == selected_key);
                 for (index, item) in self.items.iter().enumerate() {
                     let active = item.key == selected_key;
                     let focused = item.key == focused_key;
@@ -344,6 +658,7 @@ impl RenderOnce for Tabs {
                         .id(gpui::ElementId::Name(
                             format!("{base_id}-tab-{}", item.key).into(),
                         ))
+                        .relative()
                         .when(!disabled && focused, |t| t.track_focus(&list_focus))
                         // `.tabs__tab` is `h-8 px-4 rounded-3xl text-sm
                         // font-medium`.
@@ -364,21 +679,16 @@ impl RenderOnce for Tabs {
                         .when(!disabled, |t| t.cursor_pointer())
                         // `status-disabled` is `--disabled-opacity`.
                         .when(disabled, |t| t.opacity(cx.layout().disabled_opacity));
+                    tab = tab.child(measure_tab(item.key.clone()));
                     // `.tabs__separator` is the absolute `w-px h-1/2
                     // rounded-sm` hairline inside the tab that carries it. It
                     // turns into `h-px w-[90%]` in a vertical list and hides
                     // beside the selected segment.
                     if index > 0 && item.separator {
-                        let touches_selected =
-                            selected_index == Some(index) || selected_index == Some(index - 1);
                         let separator = gpui::div()
                             .absolute()
                             .rounded(crate::util::hairline_radius(cx))
-                            .bg(if touches_selected {
-                                gpui::transparent_black()
-                            } else {
-                                colors.muted.alpha(0.25)
-                            });
+                            .bg(colors.muted.alpha(0.25));
                         let separator = if vertical {
                             separator
                                 .left(gpui::relative(0.05))
@@ -392,15 +702,21 @@ impl RenderOnce for Tabs {
                                 .w(cx.layout().border_width)
                                 .h(gpui::relative(0.5))
                         };
-                        tab = tab.relative().child(separator);
+                        let separator = separator_motions[index]
+                            .take()
+                            .expect("primary separators have motion state")
+                            .render(separator);
+                        tab = tab.child(separator);
                     }
                     if active {
                         tab = tab
-                            .bg(colors.segment.background)
                             .text_color(colors.segment.foreground)
                             .font_weight(gpui::FontWeight::MEDIUM)
-                            .when(!layout.surface_shadow.is_empty(), |t| {
-                                t.shadow(layout.surface_shadow.clone())
+                            .when(!indicator_ready, |tab| {
+                                tab.bg(colors.segment.background)
+                                    .when(!layout.surface_shadow.is_empty(), |tab| {
+                                        tab.shadow(layout.surface_shadow.clone())
+                                    })
                             });
                     } else {
                         tab = tab.text_color(colors.muted);
@@ -505,6 +821,7 @@ impl RenderOnce for Tabs {
                         .id(gpui::ElementId::Name(
                             format!("{base_id}-tab-{}", item.key).into(),
                         ))
+                        .relative()
                         .when(!disabled && focused, |t| t.track_focus(&list_focus))
                         // The same `h-8 px-4 text-sm` box, `rounded-none`, with
                         // the indicator as a 2px bar along the bottom.
@@ -522,18 +839,22 @@ impl RenderOnce for Tabs {
                         .text_size(px(14.))
                         .line_height(px(20.))
                         .font_weight(gpui::FontWeight::MEDIUM)
-                        .when(vertical, |t| t.border_l_2())
-                        .when(!vertical, |t| t.border_b_2())
+                        .when(!indicator_ready && vertical, |t| t.border_l_2())
+                        .when(!indicator_ready && !vertical, |t| t.border_b_2())
                         .when(!disabled, |t| t.cursor_pointer())
                         // `status-disabled` is `--disabled-opacity`.
                         .when(disabled, |t| t.opacity(cx.layout().disabled_opacity));
+                    tab = tab.child(measure_tab(item.key.clone()));
                     tab = if active {
-                        tab.border_color(colors.accent.color)
-                            .text_color(colors.foreground)
+                        tab.text_color(colors.foreground)
                             .font_weight(gpui::FontWeight::MEDIUM)
+                            .when(!indicator_ready, |tab| {
+                                tab.border_color(colors.accent.color)
+                            })
                     } else {
-                        tab.border_color(gpui::transparent_black())
-                            .text_color(colors.muted)
+                        tab.text_color(colors.muted).when(!indicator_ready, |tab| {
+                            tab.border_color(gpui::transparent_black())
+                        })
                     };
                     if !disabled {
                         // A tab list is one stop and the arrows move within
@@ -631,13 +952,11 @@ impl RenderOnce for Tabs {
         // something to scroll to in that direction (`start-1`/`end-1`, centred
         // on the cross axis).
         let (before, after) = *arrows.read(cx);
-        let step = px(120.);
         // `.tabs__list-container__scroll-prev` and
         // `.tabs__list-container__scroll-next` are `size-4` circles at the
         // edges, shown only when there is something that way to scroll to.
-        let arrow =
-            |id: &str, icon: &'static str, delta: gpui::Pixels, handle: gpui::ScrollHandle| {
-                gpui::div()
+        let arrow = |id: &str, icon: &'static str, direction: f32, handle: gpui::ScrollHandle| {
+            gpui::div()
                     .id(gpui::ElementId::Name(format!("{base_id}-{id}").into()))
                     // gpui has no hitbox occlusion, so a chevron floating over
                     // the list hands its click to the tab underneath as well.
@@ -662,6 +981,13 @@ impl RenderOnce for Tabs {
                     )
                     .on_click(move |_, _, _| {
                         let at = handle.offset();
+                        let viewport = handle.bounds().size;
+                        let step = if vertical {
+                            viewport.height * 0.8
+                        } else {
+                            viewport.width * 0.8
+                        };
+                        let delta = step * direction;
                         let next = if vertical {
                             gpui::point(at.x, at.y + delta)
                         } else {
@@ -669,7 +995,7 @@ impl RenderOnce for Tabs {
                         };
                         handle.set_offset(next);
                     })
-            };
+        };
         let container_radius = layout.radius_lg() * 2.5;
         let container = gpui::div()
             .relative()
@@ -741,7 +1067,7 @@ impl RenderOnce for Tabs {
                     } else {
                         crate::icons::CHEVRON_LEFT
                     },
-                    step,
+                    1.,
                     scroll.clone(),
                 );
                 c.child(if vertical {
@@ -759,7 +1085,7 @@ impl RenderOnce for Tabs {
                     } else {
                         crate::icons::CHEVRON_RIGHT
                     },
-                    -step,
+                    -1.,
                     scroll.clone(),
                 );
                 c.child(if vertical {

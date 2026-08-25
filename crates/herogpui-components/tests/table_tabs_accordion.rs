@@ -573,7 +573,7 @@ fn table_newly_disabled_cursor_cannot_activate(cx: &mut TestAppContext) {
 /// - the next chevron is a 16px circle at `right-1` (x 220..236) vertically
 ///   centred on the 40px list (y 12..28); the prev chevron mirrors it at
 ///   `left-1` (x 4..20).
-/// - one chevron click scrolls by `min(120, max)` (the step is 120px).
+/// - one chevron click scrolls by 80% of the 240px viewport: 192px.
 #[gpui::test]
 fn tabs_overflow_scroller_chevrons_scroll_the_list(cx: &mut TestAppContext) {
     let recorded = events();
@@ -591,6 +591,11 @@ fn tabs_overflow_scroller_chevrons_scroll_the_list(cx: &mut TestAppContext) {
                         TabItem::new("three", "Three"),
                         TabItem::new("four", "Four"),
                         TabItem::new("five", "Five"),
+                        TabItem::new("six", "Six"),
+                        TabItem::new("seven", "Seven"),
+                        TabItem::new("eight", "Eight"),
+                        TabItem::new("nine", "Nine"),
+                        TabItem::new("ten", "Ten"),
                     ],
                     "one",
                 )
@@ -602,9 +607,11 @@ fn tabs_overflow_scroller_chevrons_scroll_the_list(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    let labels = ["One", "Two", "Three", "Four", "Five"];
-    let mut starts = [0f32; 5];
-    let mut centres = [0f32; 5];
+    let labels = [
+        "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+    ];
+    let mut starts = [0f32; 10];
+    let mut centres = [0f32; 10];
     let mut x = 4.;
     for (i, label) in labels.iter().enumerate() {
         // The shaped advance is rounded *up* to whole pixels by gpui's own
@@ -616,9 +623,7 @@ fn tabs_overflow_scroller_chevrons_scroll_the_list(cx: &mut TestAppContext) {
         centres[i] = x + (w + 32.) / 2.;
         x += w + 32.;
     }
-    let list_width = x + 4.;
-    let max = (list_width - 240.).max(0.);
-    let scrolled = max.min(120.);
+    let scrolled = 240. * 0.8;
 
     // The measuring canvas needs a few frames: `max_offset` is written during
     // the scroller's prepaint and the chevron renders one frame later.
@@ -636,22 +641,26 @@ fn tabs_overflow_scroller_chevrons_scroll_the_list(cx: &mut TestAppContext) {
         centres[4]
     );
 
-    // The next chevron at (228, 20) must scroll the list left by `scrolled`,
-    // sliding "Five" to `centres[4] - scrolled`, where a click now lands on
-    // it. Clicking the prev chevron (12, 20) must slide everything back, so
-    // the same x finds "Four" again.
+    // The next chevron at (228, 20) must scroll the list left by 192px,
+    // sliding "Five" to `centres[4] - scrolled`. The old fixed 120px step
+    // leaves "Four" at that coordinate, so this distinguishes the contract.
     click(cx, 228., 20.);
-    flush_frame(cx);
-    click(cx, centres[4] - scrolled, 20.);
-    click(cx, 12., 20.);
     flush_frame(cx);
     click(cx, centres[4] - scrolled, 20.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["five", "four"],
-        "a chevron click must scroll the list (an off-screen tab becomes \
-         clickable at its slid position) and must not select anything itself"
+        ["five"],
+        "a chevron click must move by 80% of the viewport and must not select anything itself"
     );
+
+    // The previous chevron must move the same viewport-relative step back.
+    flush_frame(cx);
+    flush_frame(cx);
+    flush_frame(cx);
+    click(cx, 12., 20.);
+    flush_frame(cx);
+    click(cx, starts[3] + 8., 20.);
+    assert_eq!(recorded.borrow().as_slice(), ["five", "four"]);
 }
 
 /// `TabItem::separator()` composes v3's `Tabs.Separator` — a 1px hairline
