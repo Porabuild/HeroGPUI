@@ -528,7 +528,25 @@ CHECKS = [
     ('tabs', '.tabs__tab', 'radius', 'Tabs tab -> util::_radius', SRC + 'tabs.rs',
      r'\.justify_center\(\)[\s\S]{0,40}?\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
     ('tabs', '.tabs__panel', 'p', 'Tabs panel padding', SRC + 'tabs.rs',
-     r'`\.tabs__panel` is `w-full p-2`\.[\s\S]{0,40}?el = el\.child\(gpui::div\(\)\.w_full\(\)\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.tabs__panel` is `w-full p-2`[\s\S]{0,240}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('tabs', '.tabs__list-container', 'radius', 'Tabs list container radius',
+     SRC + 'tabs.rs',
+     r'let container_radius = layout\.radius_lg\(\) \* (\d+(?:\.\d*)?);',
+     lambda factor: 8.0 * float(factor)),
+    ('tabs', '.tabs__list[data-orientation="vertical"]', 'gap',
+     'Tabs vertical list gap', SRC + 'tabs.rs',
+     r'list = list\.flex_col\(\)\.items_start\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
+    ('tabs', '.tabs__list[data-orientation="vertical"] .tabs__tab', 'min_w',
+     'Tabs vertical tab minimum width', SRC + 'tabs.rs',
+     r'\.when\(vertical, \|t\| t\.w_full\(\)\.min_w\(px\((\d+(?:\.\d*)?)\.\)\)\)',
+     None),
+    ('tabs', '.tabs__panel[data-orientation="horizontal"]', 'mt',
+     'Tabs horizontal panel margin', SRC + 'tabs.rs',
+     r'\.when\(!vertical, \|panel\| panel\.mt\(px\((\d+(?:\.\d*)?)\.\)\)\)', None),
+    ('tabs', '.tabs__panel[data-orientation="vertical"]', 'ms',
+     'Tabs vertical panel margin', SRC + 'tabs.rs',
+     r'\.when\(vertical, \|panel\| panel\.ml\(px\((\d+(?:\.\d*)?)\.\)\)\)', None),
     ('table', '.table__column', 'px', 'Table header px', SRC + 'table.rs',
      r'`\.table__column` is `px-4 py-2\.5 text-xs`\.[\s\S]{0,40}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('table', '.table__column', 'py', 'Table header py', SRC + 'table.rs',
@@ -816,7 +834,7 @@ CHECKS = [
     ('toast', '.toast', 'gap', 'Toast gap', SRC + 'toast.rs',
      '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
     ('tabs', '.tabs', 'gap', 'Tabs root gap', SRC + 'tabs.rs',
-     r'let mut el = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'let mut el = gpui::div\(\)[\s\S]{0,220}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('progress-bar', '.progress-bar__track', 'radius', 'ProgressBar track', SRC + 'progress.rs',
      '\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
     ('checkbox', '.checkbox__content', 'gap', 'Checkbox row gap', SRC + 'checkbox.rs',
@@ -1139,7 +1157,7 @@ CHECKS = [
      'ToggleButtonGroup separator -> hairline_radius', SRC + 'toggle_button.rs',
      r'let separator_radius = crate::util::(\w+_radius)\(cx\)', helper_px),
     ('tabs', '.tabs__separator', 'radius', 'Tabs separator -> hairline_radius', SRC + 'tabs.rs',
-     r'`\.tabs__separator` is a `w-px h-1/2 rounded-sm[\s\S]{0,900}?'
+     r'`\.tabs__separator` is the absolute `w-px h-1/2[\s\S]{0,900}?'
      r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
     ('tabs', '.tabs__indicator', 'radius', 'Tabs selected segment -> control_radius',
      SRC + 'tabs.rs',
@@ -1324,6 +1342,14 @@ THEME_FILES = (
 
 
 NESTED_SELECTOR_CHAINS = {
+    ('tabs', '.tabs__list[data-orientation="vertical"]'): (
+        '.tabs__list', '&[data-orientation="vertical"]'),
+    ('tabs', '.tabs__list[data-orientation="vertical"] .tabs__tab'): (
+        '.tabs__list', '&[data-orientation="vertical"]', '.tabs__tab'),
+    ('tabs', '.tabs__panel[data-orientation="horizontal"]'): (
+        '.tabs__panel', '&[data-orientation="horizontal"]'),
+    ('tabs', '.tabs__panel[data-orientation="vertical"]'): (
+        '.tabs__panel', '&[data-orientation="vertical"]'),
     ('checkbox', '.checkbox > [data-slot="description"]'): (
         '.checkbox',
         '& > [data-slot="description"],\n  & > [data-slot="field-error"]',
@@ -1540,6 +1566,13 @@ def measure(body):
         if m:
             offer(metric, float(m.group(1)) * 16.0, '')
 
+    m = re.search(
+        r'border-radius:\s*calc\(var\(--radius\)\s*\*\s*([\d.]+)\)',
+        body,
+    )
+    if m:
+        offer('radius', 8.0 * float(m.group(1)), '')
+
     # A border width is sometimes a utility (`border-2`) and sometimes plain CSS
     # -- the colour-area thumb is `border: 3px solid white`, which no `@apply`
     # can spell. Both are the same metric; Tailwind's border scale is in pixels,
@@ -1550,7 +1583,7 @@ def measure(body):
             for prefix, metric in (('h-', 'h'), ('w-', 'w'), ('px-', 'px'),
                                    ('py-', 'py'), ('gap-', 'gap'), ('p-', 'p'),
                                    ('size-', 'size'), ('min-w-', 'min_w'),
-                                   ('mt-', 'mt'), ('min-h-', 'min_h'),
+                                   ('mt-', 'mt'), ('ms-', 'ms'), ('min-h-', 'min_h'),
                                    ('ps-', 'ps')):
                 if tok.startswith(prefix):
                     v = px(tok[len(prefix):])
@@ -1698,6 +1731,8 @@ FILLS = [
      SRC + 'slider.rs', 'sem.foreground'),
     ('input-otp', '.input-otp__slot', 'bg-field',
      SRC + 'input_otp.rs', 'colors.field.background'),
+    ('tabs', '.tabs__list-container', 'bg-default',
+     SRC + 'tabs.rs', 'colors.default.color'),
     # Every floating panel is `bg-overlay`, which is a distinct token from
     # `--surface` -- a panel painted with the surface colour is the right shade
     # in light mode and the wrong one in dark.

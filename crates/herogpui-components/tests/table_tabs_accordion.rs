@@ -655,17 +655,16 @@ fn tabs_overflow_scroller_chevrons_scroll_the_list(cx: &mut TestAppContext) {
 }
 
 /// `TabItem::separator()` composes v3's `Tabs.Separator` — a 1px hairline
-/// drawn *before* the tab that carries it. It is a plain styled div with no
-/// listeners and no place in the arrow stops (which are the tab indices), so
-/// it must neither answer a click nor become a stop.
+/// positioned inside the tab that carries it. The line ignores pointer events,
+/// so its pixel remains part of the following tab's hit area without becoming
+/// a separate keyboard stop.
 #[gpui::test]
-fn tabs_separator_is_not_a_tab(cx: &mut TestAppContext) {
+fn tabs_separator_stays_inside_the_following_tab(cx: &mut TestAppContext) {
     let recorded = events();
     let for_view = recorded.clone();
     let cx = open_host(cx, move || {
         let recorded = for_view.clone();
-        // The separator sits between "one" and "two" (`w: border_width` —
-        // 1px — `h-4`, vertically centred).
+        // The separator is the leading 1px inside "two", vertically centred.
         Tabs::new(
             "tb-sep",
             vec![
@@ -679,42 +678,37 @@ fn tabs_separator_is_not_a_tab(cx: &mut TestAppContext) {
         .into_any_element()
     });
 
-    // The list is `p-1`, so tab "one" spans x 4..(4 + w_one + 32) and the
-    // separator is the next 1px, at (4 + w_one + 32)..(4 + w_one + 33).
+    // The list is `p-1`, so tab "one" spans x 4..(4 + w_one + 32) and tab
+    // "two" begins at that boundary with its separator overlaid inside it.
     // gpui's own text measurement rounds the shaped advance *up* to whole
     // pixels (`TextLayout` ceils the line width) — exactly how the tab's box
     // is sized — so the measured width must be rounded the same way before
-    // the boundary arithmetic. A click at the separator's centre, half a
-    // pixel from either tab, cannot land on a tab; it falls through to the
-    // (listener-less) scroller.
+    // the boundary arithmetic. A click half a pixel into the line must still
+    // land on tab "two" because the separator itself is pointer-inert.
     let w_one =
         cx.update(|window, _| text_width(window.text_system(), "One", 14.0, FontWeight::MEDIUM));
     let tab_one_end = 4. + w_one.ceil() + 32.;
     click(cx, tab_one_end + 0.5, 20.);
-    assert!(
-        recorded.borrow().is_empty(),
-        "clicking the 1px separator must record nothing"
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["two"],
+        "the separator pixel must remain inside the following tab's hit area"
     );
 
-    // The arrows skip it: Tab lands on the selected tab ("one"), and Right
-    // moves one -> two -> three — there is no stop between them.
-    press(cx, "tab");
-    press(cx, "right");
+    // The pointer focused "two", and Right moves directly to "three" — the
+    // separator never became a second stop.
     press(cx, "right");
     assert_eq!(
         recorded.borrow().as_slice(),
         ["two", "three"],
-        "the separator must not become a stop: Right Right from the first tab \
-         reaches third directly"
+        "the separator must not become a keyboard stop"
     );
 }
 
 /// The port's spelling of a disabled tab is `Tabs::is_disabled`, which
-/// disables the *whole* list. (v3 also documents per-tab `Tabs.Tab.isDisabled`
-/// — `id`, `isDisabled`, `className`, `render` — and this port's `TabItem`
-/// has no such builder, so a single dead tab among live ones cannot even be
-/// expressed; the report carries that parity gap.) A disabled list must leave
-/// the tab order and answer no key and no click.
+/// disables the *whole* list. Per-tab `TabItem::is_disabled` is driven in the
+/// deeper Tabs suite. A disabled list must leave the tab order and answer no
+/// key and no click.
 #[gpui::test]
 fn tabs_disabled_list_answers_no_key_or_click(cx: &mut TestAppContext) {
     let recorded = events();

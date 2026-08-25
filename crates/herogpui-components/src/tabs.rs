@@ -322,45 +322,24 @@ impl RenderOnce for Tabs {
         // never scrolls.
         let mut list = gpui::div().flex().flex_shrink_0();
         if vertical {
-            list = list.flex_col().items_start();
+            list = list.flex_col().items_start().gap(px(4.));
+        } else {
+            list = list.min_w_full();
         }
 
         // v3 keeps two indicator styles: `primary` fills a segment behind the
         // selected tab, `secondary` underlines it.
+        let secondary = self.variant == TabsVariant::Secondary;
         match self.variant {
             TabsVariant::Primary => {
                 // `.tabs__list` is `p-1` and nothing else: the tabs sit
                 // shoulder to shoulder, with no gap between them.
-                list = list
-                    .p(px(4.))
-                    .rounded(crate::util::control_radius(cx))
-                    .bg(colors.surface_secondary);
+                list = list.p(px(4.));
                 let selected_index = self.items.iter().position(|item| item.key == selected_key);
                 for (index, item) in self.items.iter().enumerate() {
                     let active = item.key == selected_key;
                     let focused = item.key == focused_key;
                     let disabled = self.is_disabled || item.is_disabled;
-                    // `.tabs__separator` is a `w-px h-1/2 rounded-sm bg-muted/25`
-                    // hairline between segments, hidden on either side of the
-                    // selected one (`&[data-selected] .tabs__separator` and
-                    // `& + .tabs__tab .tabs__separator` are `opacity-0`).
-                    if index > 0 && item.separator {
-                        let touches_selected =
-                            selected_index == Some(index) || selected_index == Some(index - 1);
-                        list = list.child(
-                            gpui::div()
-                                .w(cx.layout().border_width)
-                                .h(px(16.))
-                                .flex_shrink_0()
-                                .my_auto()
-                                .rounded(crate::util::hairline_radius(cx))
-                                .bg(if touches_selected {
-                                    gpui::transparent_black()
-                                } else {
-                                    colors.muted.alpha(0.25)
-                                }),
-                        );
-                    }
                     let mut tab = gpui::div()
                         .id(gpui::ElementId::Name(
                             format!("{base_id}-tab-{}", item.key).into(),
@@ -370,6 +349,7 @@ impl RenderOnce for Tabs {
                         // font-medium`.
                         .h(px(32.))
                         .px(px(16.))
+                        .when(vertical, |t| t.w_full().min_w(px(80.)))
                         .flex_shrink_0()
                         // A tab's label does not wrap: `.tabs__list` is `w-max`,
                         // so the row is as wide as its labels and the scroller
@@ -384,6 +364,36 @@ impl RenderOnce for Tabs {
                         .when(!disabled, |t| t.cursor_pointer())
                         // `status-disabled` is `--disabled-opacity`.
                         .when(disabled, |t| t.opacity(cx.layout().disabled_opacity));
+                    // `.tabs__separator` is the absolute `w-px h-1/2
+                    // rounded-sm` hairline inside the tab that carries it. It
+                    // turns into `h-px w-[90%]` in a vertical list and hides
+                    // beside the selected segment.
+                    if index > 0 && item.separator {
+                        let touches_selected =
+                            selected_index == Some(index) || selected_index == Some(index - 1);
+                        let separator = gpui::div()
+                            .absolute()
+                            .rounded(crate::util::hairline_radius(cx))
+                            .bg(if touches_selected {
+                                gpui::transparent_black()
+                            } else {
+                                colors.muted.alpha(0.25)
+                            });
+                        let separator = if vertical {
+                            separator
+                                .left(gpui::relative(0.05))
+                                .top(px(0.))
+                                .w(gpui::relative(0.9))
+                                .h(cx.layout().border_width)
+                        } else {
+                            separator
+                                .left(px(0.))
+                                .top(gpui::relative(0.25))
+                                .w(cx.layout().border_width)
+                                .h(gpui::relative(0.5))
+                        };
+                        tab = tab.relative().child(separator);
+                    }
                     if active {
                         tab = tab
                             .bg(colors.segment.background)
@@ -410,8 +420,8 @@ impl RenderOnce for Tabs {
                         let automatic = self.keyboard_activation == KeyboardActivation::Automatic;
                         tab = tab.on_key_down(move |event, window, cx| {
                             let key = match (vertical, event.keystroke.key.as_str()) {
-                                (false, "right") | (true, "down") => "down",
-                                (false, "left") | (true, "up") => "up",
+                                (_, "right") | (true, "down") => "down",
+                                (_, "left") | (true, "up") => "up",
                                 (_, other @ ("home" | "end")) => other,
                                 _ => return,
                             };
@@ -450,7 +460,9 @@ impl RenderOnce for Tabs {
                         let cb = self.on_selection_change.clone();
                         let own = selection_own.clone();
                         let focus = focus_state.clone();
+                        let list_focus_for_click = list_focus.clone();
                         tab = tab.on_click(move |_, window, cx| {
+                            window.focus(&list_focus_for_click);
                             focus.update(cx, |state, cx| {
                                 state.key = key.clone();
                                 cx.notify();
@@ -483,9 +495,8 @@ impl RenderOnce for Tabs {
                 }
             }
             TabsVariant::Secondary => {
-                // `.tabs--secondary` gives the list `p-0` and the *container*
-                // `border-b border-border`; the tabs keep their own box.
-                list = list.border_b_1().border_color(colors.border);
+                // `.tabs--secondary` gives the container a trailing-axis
+                // border: bottom when horizontal, start when vertical.
                 for (index, item) in self.items.iter().enumerate() {
                     let active = item.key == selected_key;
                     let focused = item.key == focused_key;
@@ -499,6 +510,7 @@ impl RenderOnce for Tabs {
                         // the indicator as a 2px bar along the bottom.
                         .h(px(32.))
                         .px(px(16.))
+                        .when(vertical, |t| t.w_full().min_w(px(80.)))
                         .flex_shrink_0()
                         // A tab's label does not wrap: `.tabs__list` is `w-max`,
                         // so the row is as wide as its labels and the scroller
@@ -510,7 +522,8 @@ impl RenderOnce for Tabs {
                         .text_size(px(14.))
                         .line_height(px(20.))
                         .font_weight(gpui::FontWeight::MEDIUM)
-                        .border_b_2()
+                        .when(vertical, |t| t.border_l_2())
+                        .when(!vertical, |t| t.border_b_2())
                         .when(!disabled, |t| t.cursor_pointer())
                         // `status-disabled` is `--disabled-opacity`.
                         .when(disabled, |t| t.opacity(cx.layout().disabled_opacity));
@@ -534,8 +547,8 @@ impl RenderOnce for Tabs {
                         let automatic = self.keyboard_activation == KeyboardActivation::Automatic;
                         tab = tab.on_key_down(move |event, window, cx| {
                             let key = match (vertical, event.keystroke.key.as_str()) {
-                                (false, "right") | (true, "down") => "down",
-                                (false, "left") | (true, "up") => "up",
+                                (_, "right") | (true, "down") => "down",
+                                (_, "left") | (true, "up") => "up",
                                 (_, other @ ("home" | "end")) => other,
                                 _ => return,
                             };
@@ -574,7 +587,9 @@ impl RenderOnce for Tabs {
                         let cb = self.on_selection_change.clone();
                         let own = selection_own.clone();
                         let focus = focus_state.clone();
+                        let list_focus_for_click = list_focus.clone();
                         tab = tab.on_click(move |_, window, cx| {
+                            window.focus(&list_focus_for_click);
                             focus.update(cx, |state, cx| {
                                 state.key = key.clone();
                                 cx.notify();
@@ -655,8 +670,18 @@ impl RenderOnce for Tabs {
                         handle.set_offset(next);
                     })
             };
+        let container_radius = layout.radius_lg() * 2.5;
         let container = gpui::div()
             .relative()
+            .when(!secondary, |c| {
+                c.bg(colors.default.color)
+                    .rounded(container_radius.min(px(32.)))
+            })
+            .when(secondary, |c| {
+                c.border_color(colors.border)
+                    .when(vertical, |c| c.border_l_1())
+                    .when(!vertical, |c| c.border_b_1())
+            })
             // A scroller only overflows if it is bounded: without `w_full` the
             // box grows to fit every tab and nothing ever scrolls.
             .when(!vertical, |c| c.w_full())
@@ -711,7 +736,11 @@ impl RenderOnce for Tabs {
             .when(before, |c| {
                 let a = arrow(
                     "scroll-prev",
-                    crate::icons::CHEVRON_LEFT,
+                    if vertical {
+                        crate::icons::CHEVRON_UP
+                    } else {
+                        crate::icons::CHEVRON_LEFT
+                    },
                     step,
                     scroll.clone(),
                 );
@@ -725,7 +754,11 @@ impl RenderOnce for Tabs {
             .when(after, |c| {
                 let a = arrow(
                     "scroll-next",
-                    crate::icons::CHEVRON_RIGHT,
+                    if vertical {
+                        crate::icons::CHEVRON_DOWN
+                    } else {
+                        crate::icons::CHEVRON_RIGHT
+                    },
                     -step,
                     scroll.clone(),
                 );
@@ -736,13 +769,27 @@ impl RenderOnce for Tabs {
                 })
             });
 
-        // `.tabs` is `flex gap-2`: the gap between the list and the panel.
-        let mut el = gpui::div().flex().flex_col().gap(px(8.)).child(container);
+        // `.tabs` is `flex gap-2`: horizontal tabs stack their panel below;
+        // vertical tabs place it beside the list.
+        let mut el = gpui::div()
+            .flex()
+            .when(vertical, |root| root.flex_row())
+            .when(!vertical, |root| root.flex_col())
+            .gap(px(8.))
+            .child(container);
 
         if let Some(idx) = active_idx {
             if let Some(content) = items.swap_remove(idx).content {
-                // `.tabs__panel` is `w-full p-2`.
-                el = el.child(gpui::div().w_full().p(px(8.)).child(content));
+                // `.tabs__panel` is `w-full p-2`, with `mt-4` horizontally or
+                // `ms-4` vertically.
+                el = el.child(
+                    gpui::div()
+                        .w_full()
+                        .p(px(8.))
+                        .when(vertical, |panel| panel.ml(px(16.)))
+                        .when(!vertical, |panel| panel.mt(px(16.)))
+                        .child(content),
+                );
             }
         }
 

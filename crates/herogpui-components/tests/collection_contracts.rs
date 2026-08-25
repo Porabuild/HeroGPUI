@@ -507,8 +507,9 @@ fn tabs_uncontrolled_selection_recovers_when_selected_item_disappears(cx: &mut T
     include_beta.set(false);
     flush_frame(cx);
     flush_frame(cx);
-    // The 40px list plus 8px gap and 8px panel padding put the probe at y=60.
-    click(cx, 20., 60.);
+    // The 40px list, 8px root gap, pinned 16px panel margin and 8px panel
+    // padding put the recovered panel content at y=72..112.
+    click(cx, 20., 80.);
     assert_eq!(
         recorded.borrow().as_slice(),
         ["selection:alpha", "alpha-panel"],

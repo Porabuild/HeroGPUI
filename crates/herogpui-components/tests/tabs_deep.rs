@@ -3,13 +3,13 @@
 //! v3's Tabs API table documents `orientation: "horizontal" | "vertical"`
 //! ("Tab layout orientation") and nothing else about the keyboard; the
 //! component is built on React Aria Components (v3's own statement of record),
-//! whose `useTabList` contract is: a vertical tab list answers Up/Down and
-//! ignores Left/Right, a horizontal one answers Left/Right and ignores
+//! whose `TabsKeyboardDelegate` contract is: a vertical tab list answers both
+//! Up/Down and Left/Right, a horizontal one answers Left/Right and ignores
 //! Up/Down, and Home/End jump to the first/last tab.
 //!
-//! `collections.rs` already drives horizontal arrows; this file drives the
-//! vertical axis (Down must move, the cross-axis Right must be ignored) and
-//! the Home/End jumps. Keyboards only — no click geometry to derive.
+//! `collections.rs` already drives basic horizontal arrows; this file drives
+//! both vertical axes, end wrapping, pointer-to-keyboard focus handoff, and
+//! orientation layout.
 
 mod harness;
 
@@ -82,6 +82,41 @@ fn tabs_disabled_item_is_skipped_by_keys_and_clicks(cx: &mut TestAppContext) {
     );
 }
 
+/// A pointer press selects and focuses the tab in pinned React Aria. The next
+/// arrow therefore starts at the pressed tab rather than at the old keyboard
+/// stop or outside the list.
+#[gpui::test]
+fn tabs_pointer_selection_hands_off_to_roving_keyboard_focus(cx: &mut TestAppContext) {
+    let recorded = events();
+    let selected = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        Tabs::new(
+            "tb-pointer-focus",
+            vec![
+                TabItem::new("first", "First"),
+                TabItem::new("second", "Second"),
+                TabItem::new("third", "Third"),
+            ],
+            "first",
+        )
+        .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+        .into_any_element()
+    });
+
+    let first = cx.update(|window, _| text_width(window.text_system(), "First")) + 32.;
+    let second = cx.update(|window, _| text_width(window.text_system(), "Second")) + 32.;
+    click(cx, 4. + first + second / 2., 20.);
+    cx.update(|window, _| window.refresh());
+    press(cx, "right");
+
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["second", "third"],
+        "Right after a pointer selection must continue from the pressed tab"
+    );
+}
+
 /// Theme changes rebuild every rendered element. The uncontrolled selection is
 /// keyed component state, so switching from light to dark must not reseed it
 /// from `defaultSelectedKey` between two arrow presses.
@@ -118,11 +153,10 @@ fn tabs_uncontrolled_selection_survives_dark_mode_switch(cx: &mut TestAppContext
     );
 }
 
-/// Vertical orientation must move the selection with Down and descend back
-/// with Up — and a Right key, which belongs to the horizontal axis, must do
-/// nothing: React Aria's vertical tab list only roves along its own axis.
+/// Vertical orientation consumes Down/Up and Right/Left: React Aria's Tabs
+/// delegate keeps the horizontal pair active in both orientations.
 #[gpui::test]
-fn tabs_vertical_axis_down_moves_right_ignored(cx: &mut TestAppContext) {
+fn tabs_vertical_axes_down_and_right_move(cx: &mut TestAppContext) {
     let recorded = events();
     let selected = recorded.clone();
     let bubbled = events();
@@ -168,24 +202,60 @@ fn tabs_vertical_axis_down_moves_right_ignored(cx: &mut TestAppContext) {
         outside.borrow().is_empty(),
         "a consumed axis key must not also move an enclosing navigation control"
     );
-    // Right is the horizontal axis's key. A vertical list must ignore it; the
-    // selection stays on "second" and no change is reported.
+    // TabsKeyboardDelegate exposes Left/Right regardless of orientation, so
+    // Right advances just like Down and remains inside the tab list.
     press(cx, "right");
     assert_eq!(
         selected.borrow().as_slice(),
-        ["second"],
-        "a vertical tab list must ignore the horizontal arrow keys"
+        ["second", "third"],
+        "a vertical tab list must advance on Right as well as Down"
     );
-    assert_eq!(
-        outside.borrow().as_slice(),
-        ["right"],
-        "an ignored cross-axis key must remain available to an enclosing control"
+    assert!(
+        outside.borrow().is_empty(),
+        "a consumed Right key must not reach an enclosing control"
     );
     press(cx, "down");
     assert_eq!(
         selected.borrow().as_slice(),
-        ["second", "third"],
-        "after an ignored cross-axis key, Down must still move on"
+        ["second", "third", "first"],
+        "Down from the last vertical tab must wrap to the first"
+    );
+}
+
+/// v3's vertical orientation lays the tab list and panel side by side. The
+/// list has an 80px minimum tab width, so the panel content must begin to its
+/// right rather than below it at the root's leading edge.
+#[gpui::test]
+fn tabs_vertical_panel_is_to_the_right_of_the_list(cx: &mut TestAppContext) {
+    let panel_bounds = Rc::new(RefCell::new(None));
+    let for_view = panel_bounds.clone();
+    let cx = open_host(cx, move || {
+        let panel_bounds = for_view.clone();
+        Tabs::new(
+            "tb-vertical-layout",
+            vec![
+                TabItem::new("first", "A").content(gpui::div().size(px(40.)).child(gpui::canvas(
+                    move |bounds, _, _| {
+                        *panel_bounds.borrow_mut() = Some(bounds);
+                        bounds
+                    },
+                    |_, _, _, _| {},
+                ))),
+                TabItem::new("second", "B"),
+            ],
+            "first",
+        )
+        .orientation(Orientation::Vertical)
+        .into_any_element()
+    });
+
+    cx.update(|window, _| window.refresh());
+    let bounds = panel_bounds
+        .borrow()
+        .expect("the selected vertical panel must be painted");
+    assert!(
+        f32::from(bounds.origin.x) > 100.,
+        "the vertical panel must sit to the right of the minimum-width tab list"
     );
 }
 
@@ -223,6 +293,38 @@ fn tabs_home_end_jump_to_the_ends(cx: &mut TestAppContext) {
         selected.borrow().as_slice(),
         ["third", "first"],
         "Home must jump the selection back to the first tab"
+    );
+}
+
+/// Pinned `TabsKeyboardDelegate` wraps internally: its next/previous methods
+/// join the collection ends independently of `shouldFocusWrap`.
+#[gpui::test]
+fn tabs_arrow_keys_wrap_at_the_ends(cx: &mut TestAppContext) {
+    let events = events();
+    let selected = events.clone();
+    let cx = open_host(cx, move || {
+        let events = events.clone();
+        Tabs::new(
+            "tb-wrap",
+            vec![
+                TabItem::new("first", "First"),
+                TabItem::new("second", "Second"),
+                TabItem::new("third", "Third"),
+            ],
+            "first",
+        )
+        .on_selection_change(move |key, _, _| events.borrow_mut().push(key.to_string()))
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "left");
+    press(cx, "right");
+
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["third", "first"],
+        "Left at the first tab must wrap to the last, and Right must wrap back"
     );
 }
 
