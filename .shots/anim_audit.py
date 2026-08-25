@@ -528,6 +528,68 @@ def check_pagination_motion():
     return bad
 
 
+def check_drawer_motion():
+    """The Drawer's 200ms exit must stay mounted for the whole slide."""
+    css_path = os.path.join(CACHE, 'drawer.css')
+    if not os.path.exists(css_path):
+        print('drawer motion: no stylesheet')
+        return 1
+    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    anim = io.open(os.path.join(SRC, 'anim.rs'), encoding='utf-8').read()
+    drawer = io.open(os.path.join(SRC, 'drawer.rs'), encoding='utf-8').read()
+    util = io.open(os.path.join(SRC, 'util.rs'), encoding='utf-8').read()
+    want_enter = re.search(r'--drawer-enter-duration:\s*(\d+)ms', css)
+    want_exit = re.search(r'--drawer-exit-duration:\s*(\d+)ms', css)
+    got_enter = re.search(
+        r'pub const DRAWER_IN:\s*Motion\s*=\s*Motion\s*\{\s*ms:\s*(\d+)',
+        anim,
+        re.S,
+    )
+    got_exit = re.search(
+        r'pub const DRAWER_OUT:\s*Motion\s*=\s*Motion\s*\{\s*ms:\s*(\d+)',
+        anim,
+        re.S,
+    )
+    wired = bool(
+        re.search(
+            r'overlay_scope_with_exit\(\s*window,\s*cx,.*?self\.is_open,\s*true,'
+            r'\s*crate::anim::Motion::DRAWER_OUT\.ms',
+            drawer,
+            re.S,
+        )
+        and re.search(
+            r'pub fn overlay_scope_with_exit\(.*?from_millis\(exit_ms\)',
+            util,
+            re.S,
+        )
+    )
+    want_enter_ms = int(want_enter.group(1)) if want_enter else None
+    want_exit_ms = int(want_exit.group(1)) if want_exit else None
+    got_enter_ms = int(got_enter.group(1)) if got_enter else None
+    got_exit_ms = int(got_exit.group(1)) if got_exit else None
+    enter_same = want_enter_ms is not None and want_enter_ms == got_enter_ms
+    exit_same = want_exit_ms is not None and want_exit_ms == got_exit_ms and wired
+    print('drawer motion (v3 CSS vs Drawer):')
+    print('%s %-14s %-16s %-22s %s' % (
+        ' ' if enter_same else '!',
+        'drawer',
+        'enter duration',
+        '%sms' % want_enter_ms if want_enter_ms is not None else 'unreadable',
+        '%sms' % got_enter_ms if got_enter_ms is not None else 'unreadable',
+    ))
+    print('%s %-14s %-16s %-22s %s' % (
+        ' ' if exit_same else '!',
+        'drawer',
+        'exit lifetime',
+        '%sms' % want_exit_ms if want_exit_ms is not None else 'unreadable',
+        '%sms, duration-aware scope' % got_exit_ms if wired else 'not wired',
+    ))
+    bad = (0 if enter_same else 1) + (0 if exit_same else 1)
+    print('DRAWER MISMATCHES : %d' % bad)
+    print()
+    return bad
+
+
 def corpus():
     """Everything v3 ships that could name an animation.
 
@@ -591,6 +653,7 @@ def main():
         + check_tabs_motion()
         + check_toggle_button_motion()
         + check_pagination_motion()
+        + check_drawer_motion()
     )
     print('UNIMPLEMENTED : %d' % len(missing_impl))
     print('MOTION BAD    : %d' % motion_bad)

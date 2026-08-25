@@ -36,6 +36,23 @@ fn explicit_phase_probe(key: &'static str, open: bool, seen: harness::Events) ->
     .into_any_element()
 }
 
+fn custom_exit_phase_probe(
+    key: &'static str,
+    open: bool,
+    exit_ms: u64,
+    seen: harness::Events,
+) -> AnyElement {
+    canvas(
+        move |_, window, cx| {
+            let (phase, _) = util::overlay_scope_with_exit(window, cx, key, open, true, exit_ms);
+            seen.borrow_mut().push(format!("{phase:?}"));
+        },
+        |_, _, _, _| {},
+    )
+    .size_0()
+    .into_any_element()
+}
+
 #[gpui::test]
 fn legacy_overlay_phase_ignores_a_stale_exit_timer(cx: &mut TestAppContext) {
     still();
@@ -102,6 +119,37 @@ fn explicit_overlay_scope_ignores_a_stale_exit_timer(cx: &mut TestAppContext) {
     cx.refresh().unwrap();
     cx.simulate_mouse_move(point(px(1.), px(1.)), None, Modifiers::none());
     assert_eq!(phases.borrow().last().map(String::as_str), Some("Exiting"));
+}
+
+#[gpui::test]
+fn explicit_overlay_scope_honours_a_custom_exit_duration(cx: &mut TestAppContext) {
+    still();
+    let open = Rc::new(Cell::new(true));
+    let phases = events();
+    let seen = phases.clone();
+    let render_open = open.clone();
+    let cx = open_host(cx, move || {
+        custom_exit_phase_probe("scope-custom-exit", render_open.get(), 200, seen.clone())
+    });
+
+    open.set(false);
+    cx.refresh().unwrap();
+    cx.simulate_mouse_move(point(px(1.), px(1.)), None, Modifiers::none());
+    assert_eq!(phases.borrow().last().map(String::as_str), Some("Exiting"));
+
+    cx.executor().advance_clock(Duration::from_millis(110));
+    cx.refresh().unwrap();
+    cx.simulate_mouse_move(point(px(1.), px(1.)), None, Modifiers::none());
+    assert_eq!(
+        phases.borrow().last().map(String::as_str),
+        Some("Exiting"),
+        "a 200ms Drawer exit must not be truncated by the shared 100ms lifetime"
+    );
+
+    cx.executor().advance_clock(Duration::from_millis(100));
+    cx.refresh().unwrap();
+    cx.simulate_mouse_move(point(px(1.), px(1.)), None, Modifiers::none());
+    assert_eq!(phases.borrow().last().map(String::as_str), Some("Closed"));
 }
 
 #[derive(IntoElement)]

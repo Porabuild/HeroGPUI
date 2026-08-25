@@ -163,12 +163,13 @@ impl ParentElement for Drawer {
 impl RenderOnce for Drawer {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // v3 keeps a closing panel on screen for its `slide-out-to-*` run.
-        let (phase, dismissal_token) = crate::util::overlay_scope(
+        let (phase, dismissal_token) = crate::util::overlay_scope_with_exit(
             window,
             cx,
             crate::modal::dialog_key(&self.id, "phase"),
             self.is_open,
             true,
+            crate::anim::Motion::DRAWER_OUT.ms,
         );
         if phase == crate::util::OverlayPhase::Closed {
             return gpui::div().into_any_element();

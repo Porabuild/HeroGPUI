@@ -549,6 +549,25 @@ pub fn overlay_scope(
     is_open: bool,
     keep_exiting: bool,
 ) -> (OverlayPhase, OverlayToken) {
+    overlay_scope_with_exit(
+        window,
+        cx,
+        key,
+        is_open,
+        keep_exiting,
+        crate::anim::EXITING_MS,
+    )
+}
+
+/// Registers an overlay whose exit lifetime differs from the shared 100ms.
+pub fn overlay_scope_with_exit(
+    window: &mut gpui::Window,
+    cx: &mut App,
+    key: impl Into<gpui::ElementId>,
+    is_open: bool,
+    keep_exiting: bool,
+    exit_ms: u64,
+) -> (OverlayPhase, OverlayToken) {
     let key = key.into();
     let window_id = window.window_handle().window_id();
     let registration = window.use_keyed_state(key, cx, |_, _| OverlayRegistration {
@@ -584,7 +603,7 @@ pub fn overlay_scope(
         let held = registration.downgrade();
         cx.spawn(async move |cx: &mut gpui::AsyncApp| {
             cx.background_executor()
-                .timer(std::time::Duration::from_millis(crate::anim::EXITING_MS))
+                .timer(std::time::Duration::from_millis(exit_ms))
                 .await;
             let _ = cx.update(|cx| {
                 let _ = held.update(cx, |state, cx| {

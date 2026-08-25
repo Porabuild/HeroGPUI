@@ -1240,6 +1240,42 @@ impl Widget {
     }
 
     #[test]
+    fn drawer_metadata_keeps_drag_contract_and_style_gaps_explicit() {
+        let metadata = reference_metadata::for_route(
+            "Drawer",
+            "use herogpui::components::drawer::{Drawer, DrawerPlacement};",
+        )
+        .expect("Drawer metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for required in metadata.required_parts {
+            assert!(
+                metadata.parts.iter().any(|part| part.name == *required),
+                "registered Drawer part disappeared: {required}"
+            );
+        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "Drawer.Backdrop"
+                && entry.prop == "isDismissable"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        for class_or_token in [
+            ".drawer__backdrop",
+            ".drawer__body",
+            ".drawer__handle / [data-slot=\"drawer-handle-bar\"]",
+        ] {
+            assert!(metadata.styling.iter().any(|entry| {
+                entry.class_or_token == class_or_token
+                    && entry.status == reference_metadata::ImplementationStatus::Partial
+            }));
+        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == "useDrawerDrag contract"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+    }
+
+    #[test]
     fn metadata_validation_rejects_bogus_method_owner_and_page() {
         let metadata = reference_metadata::for_route(
             "Dropdown",

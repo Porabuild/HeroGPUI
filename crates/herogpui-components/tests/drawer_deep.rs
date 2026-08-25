@@ -2,7 +2,7 @@
 
 mod harness;
 
-use std::{cell::Cell, rc::Rc};
+use std::{cell::Cell, rc::Rc, time::Duration};
 
 use gpui::{
     point, prelude::*, px, Modifiers, MouseButton, ScrollDelta, ScrollWheelEvent, TestAppContext,
@@ -33,10 +33,10 @@ fn slow_drag(cx: &mut VisualTestContext, from: (f32, f32), to: (f32, f32)) {
     let modifiers = Modifiers::none();
     cx.simulate_mouse_down(point(px(from.0), px(from.1)), MouseButton::Left, modifiers);
     flush_frame(cx);
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    std::thread::sleep(Duration::from_millis(100));
     cx.simulate_mouse_move(point(px(to.0), px(to.1)), MouseButton::Left, modifiers);
     flush_frame(cx);
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    std::thread::sleep(Duration::from_millis(100));
     cx.simulate_mouse_up(point(px(to.0), px(to.1)), MouseButton::Left, modifiers);
     flush_frame(cx);
 }
@@ -96,6 +96,50 @@ fn content_defaults_to_bottom_placement(cx: &mut TestAppContext) {
     // drawer would not cover x=100 at all.
     click(cx, 100., 1020.);
     assert_eq!(hit.borrow().as_slice(), ["body"]);
+}
+
+#[gpui::test]
+fn closing_drawer_stays_mounted_for_its_full_exit_duration(cx: &mut TestAppContext) {
+    still();
+    let open = Rc::new(Cell::new(true));
+    let open_for_view = open.clone();
+    let hits = events();
+    let hits_for_view = hits.clone();
+    let cx = open_host(cx, move || {
+        let hits = hits_for_view.clone();
+        Drawer::new()
+            .id("drawer-exit-lifetime")
+            .is_open(open_for_view.get())
+            .is_dismissible(false)
+            .child(
+                gpui::div()
+                    .id("drawer-exit-lifetime-probe")
+                    .w_full()
+                    .h(px(40.))
+                    .on_click(move |_, _, _| hits.borrow_mut().push("body".into())),
+            )
+            .into_any_element()
+    });
+
+    open.set(false);
+    flush_frame(cx);
+    cx.executor().advance_clock(Duration::from_millis(110));
+    flush_frame(cx);
+    click(cx, 100., 1020.);
+    assert_eq!(
+        hits.borrow().as_slice(),
+        ["body"],
+        "the Drawer body must remain mounted after the shared 100ms exit lifetime"
+    );
+
+    cx.executor().advance_clock(Duration::from_millis(100));
+    flush_frame(cx);
+    click(cx, 100., 1020.);
+    assert_eq!(
+        hits.borrow().as_slice(),
+        ["body"],
+        "the Drawer body must unmount after its 200ms exit completes"
+    );
 }
 
 #[gpui::test]
