@@ -688,6 +688,12 @@ impl RenderOnce for Table {
             |_, _| Vec::<Option<Pixels>>::new(),
         );
         let resized_now = resized.read(cx).clone();
+        let measured_widths = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{}-measured-widths", self.id).into()),
+            cx,
+            |_, _| Vec::<Option<Pixels>>::new(),
+        );
+        let measured_widths_now = measured_widths.read(cx).clone();
         let dragging = window.use_keyed_state(
             gpui::ElementId::Name(format!("{}-resizing", self.id).into()),
             cx,
@@ -1090,7 +1096,9 @@ impl RenderOnce for Table {
             // inside the column, which is what this wrapper is.
             let cell = if column.allows_resizing {
                 let held = dragging.clone();
-                let start_width = effective.unwrap_or(px(160.));
+                let start_width = effective
+                    .or_else(|| measured_widths_now.get(column_index).copied().flatten())
+                    .unwrap_or(px(160.));
                 let keyboard = keyboard_resizing.clone();
                 let keyboard_out = keyboard.clone();
                 let widths = resized.clone();
@@ -1104,10 +1112,33 @@ impl RenderOnce for Table {
                 let focus_color = colors.focus;
                 let is_resizing = drag_now.is_some_and(|(index, _, _)| index == column_index)
                     || keyboard_resize_now == Some(column_index);
+                let measured = measured_widths.clone();
                 gpui::div()
                     .relative()
                     .when(effective.is_none(), flex_cell)
                     .when_some(effective, |c, w| c.w(w))
+                    .when(effective.is_none(), |wrapper| {
+                        wrapper.child(
+                            gpui::canvas(
+                                move |bounds: gpui::Bounds<Pixels>, _, cx| {
+                                    let width = px(f32::from(bounds.size.width).floor());
+                                    measured.update(cx, |values, cx| {
+                                        if values.len() <= column_index {
+                                            values.resize(column_index + 1, None);
+                                        }
+                                        if values[column_index] != Some(width) {
+                                            values[column_index] = Some(width);
+                                            cx.notify();
+                                        }
+                                    });
+                                    bounds
+                                },
+                                |_, _, _, _| {},
+                            )
+                            .absolute()
+                            .inset_0(),
+                        )
+                    })
                     .child(cell)
                     .child(
                         gpui::div()

@@ -564,6 +564,86 @@ fn table_column_resize_drag_changes_width(cx: &mut TestAppContext) {
     );
 }
 
+/// React Stately starts a resize from the column's current laid-out width, not
+/// from a constant fallback. In a 600px primary table, the 4px tray padding
+/// leaves 592px and two un-sized columns measure 296px each.
+#[gpui::test]
+fn table_column_resize_starts_from_the_measured_flex_width(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Table::new(vec![])
+                    .id("tbl-resize-measured")
+                    .columns(vec![
+                        TableColumn::new("Name").allows_resizing(true),
+                        TableColumn::new("Size").allows_resizing(true),
+                    ])
+                    .row(vec![
+                        probe_cell("resize-measured-a0", "cell-a", recorded.clone()),
+                        probe_cell("resize-measured-b0", "cell-b", recorded),
+                    ]),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 320., 90.);
+    flush_frame(cx);
+    assert_eq!(recorded.borrow().as_slice(), ["cell-b"]);
+
+    // The first boundary is at screen x=300: 4px tray padding plus the 296px
+    // column. Moving it 40px right must leave x=320 in column 0. A 160px or
+    // 240px constant anchor leaves the same point in column 1.
+    drag(cx, (300., 18.), (340., 18.));
+    click(cx, 320., 90.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["cell-b", "cell-a"],
+        "resizing an un-sized flex column must start from its measured width"
+    );
+}
+
+#[gpui::test]
+fn table_column_keyboard_resize_starts_from_the_measured_flex_width(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Table::new(vec![])
+                    .id("tbl-resize-measured-keys")
+                    .columns(vec![
+                        TableColumn::new("Name").allows_resizing(true),
+                        TableColumn::new("Size").allows_resizing(true),
+                    ])
+                    .row(vec![
+                        probe_cell("resize-measured-keys-a0", "cell-a", recorded.clone()),
+                        probe_cell("resize-measured-keys-b0", "cell-b", recorded),
+                    ]),
+            )
+            .into_any_element()
+    });
+
+    // The column-1 probe focuses the table body. Tab reaches resizer 0;
+    // Enter+Right grows the measured 296px width to 306px, which moves x=290
+    // from the padding gap into column 0's probe content.
+    click(cx, 320., 90.);
+    assert_eq!(recorded.borrow().as_slice(), ["cell-b"]);
+    press(cx, "tab enter right");
+    flush_frame(cx);
+    click(cx, 290., 90.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["cell-b", "cell-a"],
+        "keyboard resizing an un-sized column must start from its measured width"
+    );
+}
+
 /// Pinned React Aria exposes a column resizer as a keyboard-editable range:
 /// Enter starts editing and each arrow step moves the boundary by 10px.
 #[gpui::test]
