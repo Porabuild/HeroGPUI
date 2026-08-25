@@ -1121,6 +1121,57 @@ impl Widget {
     }
 
     #[test]
+    fn calendar_metadata_keeps_defaults_parts_and_style_gaps_explicit() {
+        let metadata = reference_metadata::for_route(
+            "Calendar",
+            "use herogpui::components::calendar::{Calendar, CalendarState};",
+        )
+        .expect("Calendar metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for required in metadata.required_parts {
+            assert!(
+                metadata.parts.iter().any(|part| part.name == *required),
+                "registered Calendar part disappeared: {required}"
+            );
+        }
+        for prop in ["focusedValue", "minValue", "maxValue", "firstDayOfWeek"] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "Calendar"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Partial
+            }));
+        }
+        for (owner, prop) in [
+            ("Calendar.YearPickerTriggerHeading", "offset"),
+            ("Calendar.YearPickerGrid", "visibleYears"),
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == owner
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Partial
+            }));
+        }
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Outside month"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Today"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token
+                == ".calendar:has(.calendar-year-picker__year-grid) > [data-slot=\"calendar-grid\"]"
+                && entry.status == reference_metadata::ImplementationStatus::Unavailable
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".calendar__cell-indicator"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+    }
+
+    #[test]
     fn metadata_validation_rejects_bogus_method_owner_and_page() {
         let metadata = reference_metadata::for_route(
             "Dropdown",
