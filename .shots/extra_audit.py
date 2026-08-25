@@ -148,6 +148,8 @@ EXTRA_OK = {
 
 # Scoped exceptions, when a bare name would excuse the wrong component.
 EXTRA_OK_SCOPED = {
+    # v3 composes the item's supporting text inside Accordion.Item.
+    'Accordion.subtitle': 'composition',
     # v3's ColorArea takes its dimensions from `className`.
     'ColorArea.size': 'no-classname',
     # v3 tints `Modal.Icon` with `className="bg-default text-foreground"`.
@@ -163,6 +165,22 @@ EXTRA_OK_SCOPED = {
     # v3 composes `<Table.Footer>` under the body, where a table's pagination
     # goes.
     'Table.footer': 'composition',
+    # HeroUI forwards both inherited React Aria Column resize props even
+    # though its Table.Column table lists only the initial/minimum widths.
+    'Table.allows_resizing': 'react-aria-inherited',
+    # HeroUI forwards the inherited React Aria Column `maxWidth` prop even
+    # though its Table.Column table omits it alongside other inherited props.
+    'Table.max_width': 'react-aria-inherited',
+    # MenuItem/ListBoxItem expose compound child slots rather than root props.
+    'Dropdown.shortcut': 'composition',
+    'Dropdown.submenu': 'composition',
+    'ListBox.section': 'composition',
+    'ListBox.shortcut': 'composition',
+    # `[data-exiting]` belongs to Dropdown.Menu; the standalone Menu builder
+    # carries that composed part state in gpui.
+    'Dropdown.exiting': 'composition',
+    # v3 positions Toast.Provider through layout classes.
+    'Toast.inset': 'no-classname',
     # v3 composes `<Pagination.Summary>Page 1 of 10</Pagination.Summary>`.
     'Pagination.summary': 'composition',
     'Pagination.previous_icon': 'composition',
@@ -262,12 +280,17 @@ def main():
 
     elsewhere, unknown = [], []
     for comp in sorted(A.FILES):
-        if comp not in A.impl_methods:
+        owners = [comp]
+        for heading, structs in A.PART_STRUCTS.items():
+            if heading.startswith(comp + '.'):
+                owners.extend(structs)
+        methods = set().union(*(A.impl_methods.get(owner, set()) for owner in owners))
+        if not methods:
             continue
         documented = our_spelling(comp)
         if not documented:
             continue
-        for m in sorted(A.impl_methods[comp]):
+        for m in sorted(methods):
             if m in documented:
                 continue
             if m in EXTRA_OK or ('%s.%s' % (comp, m)) in EXTRA_OK_SCOPED:

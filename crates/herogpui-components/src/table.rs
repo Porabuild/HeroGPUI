@@ -25,6 +25,8 @@ type VirtualRowKey = std::sync::Arc<dyn Fn(usize) -> SharedString + 'static>;
 type VirtualRow = std::sync::Arc<dyn Fn(usize) -> TableRow + 'static>;
 type VirtualTree = std::sync::Arc<dyn Fn(usize) -> VirtualTreeMetadata + 'static>;
 
+const DEFAULT_COLUMN_MIN_WIDTH: f32 = 75.;
+
 /// Visual variant of a table (`variant`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TableVariant {
@@ -120,6 +122,8 @@ pub struct TableColumn {
     width: Option<Pixels>,
     /// `minWidth` — the column's floor.
     min_width: Option<Pixels>,
+    /// `maxWidth` — the column's ceiling.
+    max_width: Option<Pixels>,
 }
 
 impl TableColumn {
@@ -131,6 +135,7 @@ impl TableColumn {
             allows_resizing: false,
             width: None,
             min_width: None,
+            max_width: None,
         }
     }
 
@@ -150,6 +155,12 @@ impl TableColumn {
     /// `minWidth` — the width this column will not go below.
     pub fn min_width(mut self, width: impl Into<Pixels>) -> Self {
         self.min_width = Some(width.into());
+        self
+    }
+
+    /// `maxWidth` — the width this column will not exceed.
+    pub fn max_width(mut self, width: impl Into<Pixels>) -> Self {
+        self.max_width = Some(width.into());
         self
     }
 
@@ -804,6 +815,50 @@ impl RenderOnce for Table {
             .collect();
 
         let resizable = self.columns.iter().any(|c| c.allows_resizing);
+        let resize_limits: Vec<(f32, f32)> = self
+            .columns
+            .iter()
+            .map(|column| {
+                (
+                    column.min_width.map_or(DEFAULT_COLUMN_MIN_WIDTH, f32::from),
+                    column.max_width.map_or(f32::MAX, f32::from),
+                )
+            })
+            .collect();
+        let effective_widths: Vec<Option<Pixels>> = self
+            .columns
+            .iter()
+            .enumerate()
+            .map(|(column_index, column)| {
+                let width = resized_now
+                    .get(column_index)
+                    .copied()
+                    .flatten()
+                    .or(column.width);
+                if column.allows_resizing {
+                    let (min, max) = resize_limits[column_index];
+                    width.map(|width| px(f32::from(width).floor().min(max).max(min)))
+                } else {
+                    width
+                }
+            })
+            .collect();
+        let layout_width_bounds: Vec<(Option<Pixels>, Option<Pixels>)> = self
+            .columns
+            .iter()
+            .enumerate()
+            .map(|(column_index, column)| {
+                if column.allows_resizing {
+                    if effective_widths[column_index].is_some() {
+                        (None, None)
+                    } else {
+                        (Some(px(resize_limits[column_index].0)), column.max_width)
+                    }
+                } else {
+                    (column.min_width, column.max_width)
+                }
+            })
+            .collect();
         let colors = cx.colors();
         // Copies of the tokens the tail needs: the row builder borrows `cx`
         // mutably, which ends the borrow `cx.colors()` holds.
@@ -920,15 +975,13 @@ impl RenderOnce for Table {
                 .as_ref()
                 .filter(|d| d.column == column.label);
             // A resized column keeps the width the drag left it at.
-            let effective = resized_now
-                .get(column_index)
-                .copied()
-                .flatten()
-                .or(column.width);
+            let effective = effective_widths[column_index];
+            let (layout_min, layout_max) = layout_width_bounds[column_index];
             let mut cell = gpui::div()
                 .when(effective.is_none(), flex_cell)
                 .when_some(effective, |c, w| c.w(w))
-                .when_some(column.min_width, |c, w| c.min_w(w))
+                .when_some(layout_min, |c, w| c.min_w(w))
+                .when_some(layout_max, |c, w| c.max_w(w))
                 .flex()
                 .items_center()
                 .gap(px(4.))
@@ -1075,13 +1128,12 @@ impl RenderOnce for Table {
                     let Some((column, from_x, from_w)) = *held.read(cx) else {
                         return;
                     };
-                    // 48px is the floor a header label needs to stay readable.
-                    let next = (from_w + f32::from(ev.position.x) - from_x).max(48.);
+                    let raw = (from_w + f32::from(ev.position.x) - from_x).floor();
                     widths.update(cx, |v, cx| {
                         if v.len() <= column {
                             v.resize(column + 1, None);
                         }
-                        v[column] = Some(px(next));
+                        v[column] = Some(px(raw));
                         cx.notify();
                     });
                 })
@@ -1190,10 +1242,12 @@ impl RenderOnce for Table {
                 .columns
                 .iter()
                 .enumerate()
-                .map(|(c, col)| {
+                .map(|(c, _)| {
+                    let (layout_min, layout_max) = layout_width_bounds[c];
                     (
-                        resized_now.get(c).copied().flatten().or(col.width),
-                        col.min_width,
+                        effective_widths.get(c).copied().flatten(),
+                        layout_min,
+                        layout_max,
                     )
                 })
                 .collect(),
@@ -1635,8 +1689,8 @@ impl RenderOnce for Table {
 struct RowCtx {
     /// The table's id, so one table's row ids cannot collide with another's.
     id: SharedString,
-    /// `(defaultWidth or the resize, minWidth)` per column.
-    widths: Vec<(Option<Pixels>, Option<Pixels>)>,
+    /// `(defaultWidth or the resize, minWidth, maxWidth)` per column.
+    widths: Vec<(Option<Pixels>, Option<Pixels>, Option<Pixels>)>,
     row_header_columns: Vec<bool>,
     tree_column: usize,
     tree_column_has_children: bool,
@@ -1746,11 +1800,13 @@ impl RowCtx {
         let expanded_before = self.expanded.clone();
         let on_expanded = self.on_expanded_change.clone();
         row = row.children(row_data.cells.into_iter().enumerate().map(|(c, cell)| {
-            let (width, min_width) = widths.get(c).copied().unwrap_or((None, None));
+            let (width, min_width, max_width) =
+                widths.get(c).copied().unwrap_or((None, None, None));
             let mut cell_el = gpui::div()
                 .when(width.is_none(), flex_cell)
                 .when_some(width, |e, w| e.w(w))
                 .when_some(min_width, |e, w| e.min_w(w))
+                .when_some(max_width, |e, w| e.max_w(w))
                 .flex()
                 .items_center()
                 .gap(px(6.))

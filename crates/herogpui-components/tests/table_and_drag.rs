@@ -565,6 +565,162 @@ fn table_column_resize_drag_changes_width(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn table_column_resize_drag_clamps_at_the_default_floor(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("tbl-resize-floor")
+            .columns(vec![
+                TableColumn::new("Name")
+                    .allows_resizing(true)
+                    .default_width(px(160.)),
+                TableColumn::new("Size")
+                    .allows_resizing(true)
+                    .default_width(px(160.)),
+            ])
+            .row(vec![
+                probe_cell("resize-floor-a0", "cell-a", recorded.clone()),
+                probe_cell("resize-floor-b0", "cell-b", recorded),
+            ])
+            .into_any_element()
+    });
+
+    click(cx, 52., 90.);
+    flush_frame(cx);
+    assert_eq!(recorded.borrow().as_slice(), ["cell-a"]);
+
+    // Pinned react-stately 3.49.0 defaults a resizable column's minimum to
+    // 75px. Dragging from 160px to a raw 30px must therefore leave x=52 in
+    // the first column; the old hardcoded 48px floor leaves that point bare.
+    drag(cx, (160., 18.), (30., 18.));
+    click(cx, 52., 90.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["cell-a", "cell-a"],
+        "a resize past the default floor must commit the pinned 75px minimum"
+    );
+}
+
+#[gpui::test]
+fn table_column_resize_drag_clamps_to_explicit_min_and_max(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("tbl-resize-bounds")
+            .columns(vec![
+                TableColumn::new("Name")
+                    .allows_resizing(true)
+                    .default_width(px(160.))
+                    .min_width(px(120.))
+                    .max_width(px(180.)),
+                TableColumn::new("Size")
+                    .allows_resizing(true)
+                    .default_width(px(160.)),
+            ])
+            .row(vec![
+                probe_cell("resize-bounds-a0", "cell-a", recorded.clone()),
+                probe_cell("resize-bounds-b0", "cell-b", recorded),
+            ])
+            .into_any_element()
+    });
+
+    drag(cx, (160., 18.), (30., 18.));
+    click(cx, 100., 90.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["cell-a"],
+        "the explicit 120px minimum must own x=100 after a far-left drag"
+    );
+
+    drag(cx, (120., 18.), (300., 18.));
+    click(cx, 150., 90.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["cell-a", "cell-a"],
+        "the explicit maximum must leave x=150 in the widened first column"
+    );
+    click(cx, 200., 90.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["cell-a", "cell-a", "cell-b"],
+        "the explicit 180px maximum must leave x=200 in the second column"
+    );
+}
+
+#[gpui::test]
+fn table_column_resize_starts_from_the_constrained_default_width(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("tbl-resize-constrained-default")
+            .columns(vec![
+                TableColumn::new("Name")
+                    .allows_resizing(true)
+                    .default_width(px(40.))
+                    .min_width(px(120.)),
+                TableColumn::new("Size")
+                    .allows_resizing(true)
+                    .default_width(px(160.)),
+            ])
+            .row(vec![
+                probe_cell("resize-default-a0", "cell-a", recorded.clone()),
+                probe_cell("resize-default-b0", "cell-b", recorded),
+            ])
+            .into_any_element()
+    });
+
+    // The explicit minimum renders the first boundary at x=120. A 50px drag
+    // must start from that constrained width and end at 170px, so x=150 is
+    // still in column one. Starting from the raw 40px default would clamp the
+    // result back to 120px and leave x=150 in column two.
+    drag(cx, (120., 18.), (170., 18.));
+    click(cx, 150., 90.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["cell-a"],
+        "resizing must start from the rendered constrained default width"
+    );
+}
+
+#[gpui::test]
+fn table_column_resize_default_min_wins_over_a_smaller_max(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("tbl-resize-min-wins")
+            .columns(vec![
+                TableColumn::new("Name")
+                    .allows_resizing(true)
+                    .default_width(px(160.))
+                    .max_width(px(40.)),
+                TableColumn::new("Size")
+                    .allows_resizing(true)
+                    .default_width(px(160.)),
+            ])
+            .row(vec![
+                probe_cell("resize-min-wins-a0", "cell-a", recorded.clone()),
+                probe_cell("resize-min-wins-b0", "cell-b", recorded),
+            ])
+            .into_any_element()
+    });
+
+    click(cx, 52., 90.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["cell-a"],
+        "the 75px default minimum must beat a smaller maximum in the body"
+    );
+}
+
+#[gpui::test]
 fn table_load_more_fires_when_the_sentinel_enters_view(cx: &mut TestAppContext) {
     let recorded = events();
 
