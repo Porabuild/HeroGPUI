@@ -72,7 +72,7 @@ use gpui::{
 };
 use harness::{click, events, open_host, press, Events};
 use herogpui_components::{
-    Autocomplete, ComboBox, Drawer, DrawerPlacement, InputState, Select, SelectionMode,
+    Autocomplete, ComboBox, Drawer, DrawerPlacement, InputState, MenuTrigger, Select, SelectionMode,
 };
 
 /// An `InputState` entity for the search-field-backed controls, created before
@@ -717,15 +717,13 @@ fn autocomplete_wrap_joins_both_ends(cx: &mut TestAppContext) {
 // ComboBox
 // ---------------------------------------------------------------------------
 
-/// `allowsCustomValue` — v3: *"Whether the ComboBox allows custom values not
-/// in the list"*; the example adds *"You can type any animal name, even if
-/// it's not in the list"*. What works in this port: the typed text is accepted
-/// into the field, the list stays up with an empty state when nothing matches
-/// (the port draws "Press Enter to use this value"), a press in that empty
-/// region records nothing, and an outside press still dismisses. What does
-/// *not* happen is the subject of the next test.
+/// `allowsEmptyCollection` keeps the panel mounted when filtering removes
+/// every row. The unmatched text remains in the field, the empty-state region
+/// is inert, and an outside press still dismisses the panel.
 #[gpui::test]
-fn combo_box_allows_custom_value_keeps_the_list_up_with_the_empty_state(cx: &mut TestAppContext) {
+fn combo_box_allows_empty_collection_keeps_the_list_up_with_the_empty_state(
+    cx: &mut TestAppContext,
+) {
     let changes = events();
     let recorded = changes.clone();
     let opens = events();
@@ -738,7 +736,7 @@ fn combo_box_allows_custom_value_keeps_the_list_up_with_the_empty_state(cx: &mut
         let opens = opens.clone();
         let state = state_for_view.clone();
         ComboBox::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
-            .allows_custom_value(true)
+            .allows_empty_collection(true)
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
@@ -747,7 +745,8 @@ fn combo_box_allows_custom_value_keeps_the_list_up_with_the_empty_state(cx: &mut
     });
 
     click(cx, 60., 18.);
-    // The first non-empty edit opens the list under the default Input trigger.
+    // The default Focus trigger opens the list; allowsEmptyCollection keeps
+    // it mounted when the edit filters every row away.
     cx.simulate_input("pl");
     assert_eq!(opened.borrow().as_slice(), ["open:true"]);
     assert_eq!(
@@ -775,10 +774,8 @@ fn combo_box_allows_custom_value_keeps_the_list_up_with_the_empty_state(cx: &mut
 /// v3 inherits React Aria for the ComboBox (its Accessibility section links
 /// the RAC docs and lists "Support for custom values"), and RAC commits a
 /// custom value: pressing Enter with an unmatched value selects the typed text
-/// and fires `onSelectionChange`. The port draws the hint "Press Enter to use
-/// this value" — and the Enter handler commits the text it promises: nothing
-/// is under the cursor (a no-match query has no cursor row at all), so the
-/// typed value becomes the selection and the list closes.
+/// and fires `onSelectionChange`, even though an empty filtered collection has
+/// already closed the list.
 #[gpui::test]
 fn combo_box_allows_custom_value_enter_commits_the_text(cx: &mut TestAppContext) {
     let changes = events();
@@ -803,9 +800,9 @@ fn combo_box_allows_custom_value_enter_commits_the_text(cx: &mut TestAppContext)
 
     click(cx, 60., 18.);
     cx.simulate_input("pl");
-    assert_eq!(opened.borrow().as_slice(), ["open:true"]);
+    assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
 
-    // The port's own hint promises this very gesture.
+    // The closed field still commits the custom value on Enter.
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
@@ -816,7 +813,36 @@ fn combo_box_allows_custom_value_enter_commits_the_text(cx: &mut TestAppContext)
     assert_eq!(
         opened.borrow().as_slice(),
         ["open:true", "open:false"],
-        "the commit must close the list"
+        "the closed custom-value commit must not report another close"
+    );
+}
+
+#[gpui::test]
+fn combo_box_empty_filtered_collection_closes_and_reports(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Typst".into(), "Rust".into(), "Go".into()],
+        )
+        .menu_trigger(MenuTrigger::Input)
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("t");
+    cx.simulate_input("z");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "an empty filtered collection must close the list and report the transition"
     );
 }
 
@@ -901,7 +927,7 @@ fn combo_box_validate_runs_on_every_edit_and_leaves_the_field_interactive(cx: &m
     );
 }
 
-/// The caret must survive the list opening. Under the default Input trigger
+/// The caret must survive the list opening. Under an explicit Input trigger
 /// the first keystroke opens the list; the proof reads the caret from the
 /// state entity the test owns via the selection anchor — pressing shift+Left
 /// after "typ" selects the "p" (anchor 3, cursor 2) only if the caret is
@@ -922,6 +948,7 @@ fn combo_box_caret_stays_at_the_end_when_the_list_opens(cx: &mut TestAppContext)
         let opens = opens.clone();
         let state = state_for_view.clone();
         ComboBox::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+            .menu_trigger(MenuTrigger::Input)
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
@@ -930,7 +957,7 @@ fn combo_box_caret_stays_at_the_end_when_the_list_opens(cx: &mut TestAppContext)
     });
 
     click(cx, 60., 18.);
-    // Focus alone does not open the default (Input) trigger.
+    // Focus alone does not open an explicit Input trigger.
     assert!(opened.borrow().is_empty());
 
     cx.simulate_input("typ");

@@ -266,9 +266,9 @@ fn combo_box_typing_filters_and_click_selects(cx: &mut TestAppContext) {
 
     // The chevron button sits at the right end of the 320px-wide field:
     // 320 - 12px padding - half its 20px box. The chevron is used here to
-    // open deliberately -- typing would also open it under the default
-    // `MenuTrigger::Input` (combo_box_open.rs proves that path) -- and this
-    // test's point is the pick geometry, not the trigger.
+    // open deliberately without focusing the input first. The default focus
+    // trigger is covered in combo_box_open.rs; this test's point is the
+    // chevron and pick geometry.
     click(cx, 298., 18.);
     assert_eq!(
         opened.borrow().as_slice(),
@@ -278,6 +278,11 @@ fn combo_box_typing_filters_and_click_selects(cx: &mut TestAppContext) {
 
     // Typing into the field filters the suggestion rows down to one.
     cx.simulate_input("ty");
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).value().to_owned()),
+        "ty",
+        "the chevron press must leave the ComboBox input focused for typing"
+    );
     click(cx, 60., 64.);
     assert_eq!(
         recorded.borrow().as_slice(),
@@ -289,6 +294,14 @@ fn combo_box_typing_filters_and_click_selects(cx: &mut TestAppContext) {
     // through the state entity the test itself owns.
     let value = cx.update(|_, cx| state.read(cx).value().to_owned());
     assert_eq!(value, "Typst", "the input must hold the chosen item");
+    assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
+
+    click(cx, 60., 64.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Typst"],
+        "a pointer selection must clear uncontrolled open state"
+    );
     assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
 }
 

@@ -309,7 +309,7 @@ impl ComboBox {
             description: None,
             error_message: None,
             variant: FieldVariant::Primary,
-            menu_trigger: MenuTrigger::Input,
+            menu_trigger: MenuTrigger::Focus,
             filter: None,
             allows_custom_value: false,
             max_items: 8,
@@ -511,22 +511,32 @@ impl RenderOnce for ComboBox {
         let query = raw_query.to_lowercase();
         let is_invalid = self.is_invalid || self.error_message.is_some();
         let multiple = self.selection_mode == SelectionMode::Multiple;
+        let focus_handle = self.state.read(cx).focus_handle.clone();
 
-        // `Manual` shows the full collection; the typing triggers filter it.
-        // A custom `defaultFilter` owns the whole decision, so it also runs on
-        // an empty query.
+        let show_all_items = window.use_keyed_state(
+            gpui::ElementId::Name(format!("combobox-{entity_id}-show-all-items").into()),
+            cx,
+            |_, _| false,
+        );
+        let display_full_collection =
+            *show_all_items.read(cx) || (self.menu_trigger == MenuTrigger::Manual && !open_state);
+
+        // Focus and manual-action opens show the full collection until the
+        // next edit. A custom `defaultFilter` owns the filtering decision,
+        // including an empty query.
         let custom = self.filter.clone();
         let matches: Vec<SharedString> = match &custom {
-            Some(f) if self.menu_trigger != MenuTrigger::Manual => self
+            _ if display_full_collection => {
+                self.items.iter().take(self.max_items).cloned().collect()
+            }
+            Some(f) => self
                 .items
                 .iter()
                 .filter(|item| f(item.as_ref(), &raw_query))
                 .take(self.max_items)
                 .cloned()
                 .collect(),
-            _ if self.menu_trigger == MenuTrigger::Manual || query.is_empty() => {
-                self.items.iter().take(self.max_items).cloned().collect()
-            }
+            _ if query.is_empty() => self.items.iter().take(self.max_items).cloned().collect(),
             _ => self
                 .items
                 .iter()
@@ -543,15 +553,20 @@ impl RenderOnce for ComboBox {
         // the focus -- the frame after closing would otherwise re-answer the
         // still-held focus. The focus leaving resets it, so the *next* focus
         // session opens again.
-        if self.menu_trigger == MenuTrigger::Focus && !self.is_disabled {
-            let focus_open = window.use_keyed_state(
-                gpui::ElementId::Name(format!("combobox-{entity_id}-focus-open").into()),
-                cx,
-                |_, _| FocusOpen {
-                    can_open: true,
-                    was_open: false,
-                },
-            );
+        let focus_open =
+            if self.menu_trigger == MenuTrigger::Focus && !self.is_disabled && !self.is_read_only {
+                Some(window.use_keyed_state(
+                    gpui::ElementId::Name(format!("combobox-{entity_id}-focus-open").into()),
+                    cx,
+                    |_, _| FocusOpen {
+                        can_open: true,
+                        was_open: false,
+                    },
+                ))
+            } else {
+                None
+            };
+        if let Some(focus_open) = &focus_open {
             let focused = self.state.read(cx).focus_handle.is_focused(window);
             let mut held = *focus_open.read(cx);
             let mut now_open = open_state;
@@ -559,9 +574,9 @@ impl RenderOnce for ComboBox {
                 // A fresh focus session: the field taking focus is the
                 // gesture, when there is something to show -- the panel's own
                 // gate of a non-empty result or an allowed empty state.
-                let can_show =
-                    !matches.is_empty() || self.allows_empty_collection || self.allows_custom_value;
+                let can_show = !self.items.is_empty() || self.allows_empty_collection;
                 if can_show {
+                    show_all_items.update(cx, |v, _| *v = true);
                     // Opening from focus writes both halves, the way the
                     // chevron's handler does: the uncontrolled flag, and the
                     // report to a controlled caller.
@@ -618,19 +633,34 @@ impl RenderOnce for ComboBox {
                     .path(icons::CHEVRON_DOWN)
                     .text_color(colors.muted),
             );
-        if !self.is_disabled {
+        if !self.is_disabled && !self.is_read_only {
             let hover_bg = colors.default.hover();
             trigger = trigger.cursor_pointer().hover(move |s| s.bg(hover_bg));
             if on_open_change.is_some() || open_own.is_some() {
                 let own = open_own.clone();
                 let pressed = trigger_pressed.clone();
+                let focus_open = focus_open.clone();
+                let show_all_items = show_all_items.clone();
                 trigger = trigger
                     .capture_any_mouse_down(move |_, _, cx| {
                         pressed.set(true);
                         let pressed = pressed.clone();
                         cx.defer(move |_| pressed.set(false));
                     })
+                    // The chevron is a separate React Aria button. Focus the
+                    // input on press start, but do not let its down bubble into
+                    // the input row and also trigger the default focus-open path.
+                    .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                        if let Some(focus_open) = &focus_open {
+                            focus_open.update(cx, |v, _| v.can_open = false);
+                        }
+                        window.focus(&focus_handle);
+                        cx.stop_propagation();
+                    })
                     .on_click(move |_, window, cx| {
+                        if !is_open {
+                            show_all_items.update(cx, |v, _| *v = true);
+                        }
                         // Uncontrolled: flip our own copy, or the chevron would be
                         // inert without a caller handler.
                         if let Some(held) = &own {
@@ -657,37 +687,71 @@ impl RenderOnce for ComboBox {
             .when_some(self.validation_behavior, |i, b| i.validation_behavior(b))
             .when_some(validate, |i, f| i.validate(move |v| f(v)))
             .end_content(trigger);
-        // `MenuTrigger::Input` opens the list when the field's text gains
-        // content, on the same `on_change` path a caller's handler rides:
-        // the first keystroke is what shows the suggestions. The open writes
-        // both halves, the way the chevron's handler does -- the uncontrolled
-        // flag and the report to a controlled caller -- and only when the
-        // list was closed, so editing an already-open list stays quiet. The
-        // Input's `on_change` fires only on a real edit, never on a picked
-        // item being written into the state, so a selection cannot reopen it.
-        if self.menu_trigger == MenuTrigger::Input || self.on_input_change.is_some() {
-            let input_change = self.on_input_change.clone();
-            let open_own_on_change = open_own.clone();
-            let open_change_cb = self.on_open_change.clone();
-            let was_open = open_state;
-            let open_on_typing = self.menu_trigger == MenuTrigger::Input;
-            input = input.on_change(move |text, window, cx| {
-                if let Some(cb) = &input_change {
-                    cb(text, window, cx);
+        // Edits open Focus and Input triggers only when there is something to
+        // show, and close an already-open filtered collection when it empties.
+        // Manual stays closed until its trigger opens it, then edits switch it
+        // from the full collection to filtered rows.
+        let input_change = self.on_input_change.clone();
+        let open_own_on_change = open_own.clone();
+        let open_change_cb = self.on_open_change.clone();
+        let focus_open_on_change = focus_open.clone();
+        let show_all_items_on_change = show_all_items.clone();
+        let items_on_change = self.items.clone();
+        let filter_on_change = self.filter.clone();
+        let menu_trigger_on_change = self.menu_trigger;
+        let allows_empty_collection = self.allows_empty_collection;
+        let was_open = open_state;
+        input = input.on_change(move |text, window, cx| {
+            if let Some(cb) = &input_change {
+                cb(text, window, cx);
+            }
+
+            let query = text.to_lowercase();
+            let has_matches = match &filter_on_change {
+                Some(f) => items_on_change.iter().any(|item| f(item.as_ref(), text)),
+                None if query.is_empty() => !items_on_change.is_empty(),
+                None => items_on_change
+                    .iter()
+                    .any(|item| item.to_lowercase().contains(&query)),
+            };
+            let can_show = has_matches || allows_empty_collection;
+            let is_open = open_own_on_change
+                .as_ref()
+                .map_or(was_open, |held| *held.read(cx));
+
+            if !is_open && menu_trigger_on_change != MenuTrigger::Manual && can_show {
+                if let Some(focus_open) = &focus_open_on_change {
+                    focus_open.update(cx, |v, _| v.can_open = false);
                 }
-                if open_on_typing && !text.is_empty() && !was_open {
-                    if let Some(held) = &open_own_on_change {
-                        held.update(cx, |v, cx| {
-                            *v = true;
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &open_change_cb {
-                        cb(true, window, cx);
-                    }
+                if let Some(held) = &open_own_on_change {
+                    held.update(cx, |v, cx| {
+                        *v = true;
+                        cx.notify();
+                    });
                 }
+                if let Some(cb) = &open_change_cb {
+                    cb(true, window, cx);
+                }
+            } else if is_open && !can_show {
+                if let Some(held) = &open_own_on_change {
+                    held.update(cx, |v, cx| {
+                        *v = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &open_change_cb {
+                    cb(false, window, cx);
+                }
+            }
+
+            show_all_items_on_change.update(cx, |v, cx| {
+                *v = false;
+                cx.notify();
             });
-        }
+            if menu_trigger_on_change == MenuTrigger::Manual {
+                cx.refresh_windows();
+            }
+        });
 
         if self.full_width {
             input = input.full_width();
@@ -779,14 +843,19 @@ impl RenderOnce for ComboBox {
         }
 
         // `allowsEmptyCollection` keeps the panel up with no matches. Without
-        // it an empty result closes the list -- except when a custom value is
-        // allowed, since then the empty state is the "press Enter" hint.
+        // it an empty result closes the list; `allowsCustomValue` only changes
+        // what Enter commits while the list is closed.
         // Up, down, Home, End and Enter walk the suggestions; the inner input
         // keeps left and right for the caret.
         if !self.is_disabled && !self.is_read_only {
-            let stops: Vec<usize> = (0..matches.len())
+            let key_rows = if open_state {
+                matches.clone()
+            } else {
+                self.items.iter().take(self.max_items).cloned().collect()
+            };
+            let stops: Vec<usize> = (0..key_rows.len())
                 .filter(|i| {
-                    matches
+                    key_rows
                         .get(*i)
                         .is_some_and(|item| !self.disabled_keys.contains(item))
                 })
@@ -796,9 +865,11 @@ impl RenderOnce for ComboBox {
             let virtual_rows = self.row_height.is_some();
             let key_list_scroll = list_scroll_now.clone();
             let key_panel_scroll = panel_scroll_now.clone();
-            let rows = matches.clone();
+            let rows = key_rows;
             let state = self.state.clone();
             let allows_custom_value = self.allows_custom_value;
+            let was_open = open_state;
+            let show_all_items = show_all_items.clone();
             let on_selection_change = self.on_selection_change.clone();
             let open_own_keys = open_own.clone();
             let on_open_change = self.on_open_change.clone();
@@ -842,8 +913,10 @@ impl RenderOnce for ComboBox {
                     if let Some(cb) = &on_selection_change {
                         cb(&text, window, cx);
                     }
-                    if let Some(cb) = &on_open_change {
-                        cb(false, window, cx);
+                    if was_open {
+                        if let Some(cb) = &on_open_change {
+                            cb(false, window, cx);
+                        }
                     }
                     return;
                 }
@@ -865,6 +938,12 @@ impl RenderOnce for ComboBox {
                                 *v = true;
                                 cx.notify();
                             });
+                        }
+                        if !was_open {
+                            show_all_items.update(cx, |v, _| *v = true);
+                            if let Some(cb) = &on_open_change {
+                                cb(true, window, cx);
+                            }
                         }
                     }
                     crate::list_nav::Move::Activate => {
@@ -908,7 +987,7 @@ impl RenderOnce for ComboBox {
 
         let show_list = overlay_active
             && !self.is_disabled
-            && (!matches.is_empty() || self.allows_empty_collection || self.allows_custom_value);
+            && (!matches.is_empty() || self.allows_empty_collection);
 
         let escape_own = open_own.clone();
         let escape_cb = self.on_open_change.clone();
@@ -978,7 +1057,7 @@ impl RenderOnce for ComboBox {
             // on the chevron trigger is not an outside press: the chevron's
             // own click owns the close, and the click only fires because the
             // down was not stolen as a dismissal.
-            let dismiss_own = open_own;
+            let dismiss_own = open_own.clone();
             let dismiss_cb = self.on_open_change.clone();
             let mut panel = util::dismiss_on_press_outside_with_token(
                 panel,
@@ -1034,6 +1113,12 @@ impl RenderOnce for ComboBox {
             let on_open = self.on_open_change.clone();
             let row_state = self.state.clone();
             let selection_own = selection_own;
+            let row_open_own = open_own.clone();
+            let row_open_state = open_state;
+            let row_items = self.items.clone();
+            let row_filter = self.filter.clone();
+            let row_show_all_items = show_all_items;
+            let row_max_items = self.max_items;
             let row_muted = colors.muted;
             let row_hover_bg = colors.default.color;
             let row_focus = colors.focus;
@@ -1151,7 +1236,45 @@ impl RenderOnce for ComboBox {
                 let on_selection_change = on_change_one.clone();
                 let on_open_change = on_open.clone();
                 let own = selection_own.clone();
+                let open_own = row_open_own.clone();
+                let items = row_items.clone();
+                let filter = row_filter.clone();
+                let show_all_items = row_show_all_items.clone();
+                let max_items = row_max_items;
                 row = row.on_click(move |_, window, cx| {
+                    let is_open = open_own
+                        .as_ref()
+                        .map_or(row_open_state, |held| *held.read(cx));
+                    if !is_open {
+                        return;
+                    }
+                    let value = if !*show_all_items.read(cx) {
+                        let current = state.read(cx).value().to_owned();
+                        let query = current.to_lowercase();
+                        let filtered: Vec<SharedString> = match &filter {
+                            Some(f) => items
+                                .iter()
+                                .filter(|item| f(item.as_ref(), &current))
+                                .take(max_items)
+                                .cloned()
+                                .collect(),
+                            None if query.is_empty() => {
+                                items.iter().take(max_items).cloned().collect()
+                            }
+                            None => items
+                                .iter()
+                                .filter(|item| item.to_lowercase().contains(&query))
+                                .take(max_items)
+                                .cloned()
+                                .collect(),
+                        };
+                        let Some(value) = filtered.get(index).cloned() else {
+                            return;
+                        };
+                        value
+                    } else {
+                        value.clone()
+                    };
                     state.update(cx, |s, cx| {
                         s.set_value(value.to_string());
                         cx.notify();
@@ -1168,6 +1291,12 @@ impl RenderOnce for ComboBox {
                     }
                     if let Some(cb) = &on_selection_change {
                         cb(&value, window, cx);
+                    }
+                    if let Some(held) = &open_own {
+                        held.update(cx, |v, cx| {
+                            *v = false;
+                            cx.notify();
+                        });
                     }
                     if let Some(cb) = &on_open_change {
                         cb(false, window, cx);

@@ -1,10 +1,10 @@
 //! Behaviour tests for what opens a ComboBox's suggestion list.
 //!
 //! The pickers suite drives ComboBox from the chevron; these tests cover the
-//! two `menuTrigger` paths it never exercised, the defect this file exists
-//! for: typing opened nothing with the default input trigger, and the focus
-//! trigger did not open at all. Everything is asserted on recorded callbacks
-//! and behavioural probes -- never on appearance.
+//! `menuTrigger` paths it never exercised. The regressions preserved here are
+//! the v3 default Focus trigger, explicit Input and Manual behavior, dismissal
+//! and reopening, read-only inertness, and keyboard-open reports. Everything
+//! is asserted on recorded callbacks and behavioral probes -- never appearance.
 //!
 //! Geometry is borrowed from tests/pickers.rs: the trigger field is a 36px
 //! row at the window origin (centre (60, 18)), the chevron sits at the right
@@ -18,8 +18,8 @@
 
 mod harness;
 
-use gpui::{prelude::*, TestAppContext};
-use herogpui_components::{ComboBox, InputState, MenuTrigger};
+use gpui::{prelude::*, Focusable, TestAppContext};
+use herogpui_components::{ComboBox, Input, InputState, MenuTrigger};
 
 use harness::{click, events, open_host, press};
 
@@ -42,8 +42,8 @@ fn combo_box_typing_opens_the_list(cx: &mut TestAppContext) {
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        // No `menu_trigger` builder: the default is `MenuTrigger::Input`.
         ComboBox::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+            .menu_trigger(MenuTrigger::Input)
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
@@ -83,7 +83,7 @@ fn combo_box_typing_opens_the_list(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn combo_box_focus_trigger_opens_on_focus(cx: &mut TestAppContext) {
+fn combo_box_default_trigger_opens_on_focus(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();
     let opens = events();
@@ -96,7 +96,6 @@ fn combo_box_focus_trigger_opens_on_focus(cx: &mut TestAppContext) {
         let opens = opens.clone();
         let state = state_for_view.clone();
         ComboBox::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
-            .menu_trigger(MenuTrigger::Focus)
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
@@ -104,13 +103,13 @@ fn combo_box_focus_trigger_opens_on_focus(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    // The gesture is the focus: no keystroke and no chevron. Clicking into
-    // the field opens the list on that very frame.
+    // v3 defaults menuTrigger to Focus: no keystroke, chevron or builder.
+    // Clicking into the field opens the list on that very frame.
     click(cx, 60., 18.);
     assert_eq!(
         opened.borrow().as_slice(),
         ["open:true"],
-        "the field taking focus must open the list"
+        "the default trigger must open when the field takes focus"
     );
 
     // Row 0 is already drawn without any typing, and records the pick.
@@ -124,6 +123,59 @@ fn combo_box_focus_trigger_opens_on_focus(cx: &mut TestAppContext) {
         opened.borrow().as_slice(),
         ["open:true", "open:false"],
         "picking must close the list"
+    );
+}
+
+#[gpui::test]
+fn combo_box_focus_open_shows_all_items_before_the_next_edit(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = combo_state(cx);
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Typst".into(), "Rust".into(), "Go".into()],
+        )
+        .default_input_value("ru")
+        .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    click(cx, 60., 64.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Typst"],
+        "a Focus open must show the original collection, not the filtered query"
+    );
+}
+
+#[gpui::test]
+fn combo_box_chevron_open_shows_all_items_for_an_input_trigger(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = combo_state(cx);
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Typst".into(), "Rust".into(), "Go".into()],
+        )
+        .default_input_value("ru")
+        .menu_trigger(MenuTrigger::Input)
+        .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+        .into_any_element()
+    });
+
+    click(cx, 298., 18.);
+    click(cx, 60., 64.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Typst"],
+        "a chevron press is a manual open and must show the original collection"
     );
 }
 
@@ -165,18 +217,21 @@ fn combo_box_manual_trigger_ignores_typing(cx: &mut TestAppContext) {
         "the chevron must still open a manual list"
     );
 
-    // Manual keeps the full collection on screen, so row 0 is still "Typst".
+    // The manual press opens the full collection. A subsequent edit switches
+    // back to filtered results while keeping the already-open list visible.
+    press(cx, "ctrl-a");
+    cx.simulate_input("go");
     click(cx, 60., 64.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["Typst"],
-        "clicking the first row must select it"
+        ["Go"],
+        "typing in an open manual list must replace show-all with filtered rows"
     );
     assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
 }
 
 #[gpui::test]
-fn combo_box_focus_trigger_stays_closed_after_escape(cx: &mut TestAppContext) {
+fn combo_box_focus_trigger_reopens_after_a_later_edit(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();
     let opens = events();
@@ -211,16 +266,164 @@ fn combo_box_focus_trigger_stays_closed_after_escape(cx: &mut TestAppContext) {
         "escape must close the list"
     );
 
-    // The probe is a click where row 0 was. If the panel had come back, the
-    // click records "Typst"; a bare page records nothing.
-    click(cx, 60., 64.);
-    assert!(
-        recorded.borrow().is_empty(),
-        "the list must stay closed after escape while the field keeps the focus"
-    );
+    // Force another frame while focus remains in the field. The focus-open
+    // one-shot must not answer the still-held focus by reopening the panel.
+    cx.update(|window, _| window.refresh());
+    assert!(recorded.borrow().is_empty());
     assert_eq!(
         opened.borrow().as_slice(),
         ["open:true", "open:false"],
         "no reopen after escape"
+    );
+
+    cx.simulate_input("t");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false", "open:true"],
+        "a later edit must reopen a dismissed Focus-triggered list"
+    );
+}
+
+#[gpui::test]
+fn combo_box_escape_does_not_steal_a_later_pointer_focus(cx: &mut TestAppContext) {
+    let combo = combo_state(cx);
+    let other = combo_state(cx);
+    let combo_for_view = combo;
+    let other_for_view = other.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                ComboBox::new(
+                    combo_for_view.clone(),
+                    vec!["Typst".into(), "Rust".into(), "Go".into()],
+                )
+                .into_any_element(),
+            )
+            .child(Input::new(other_for_view.clone()).into_any_element())
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "escape");
+    click(cx, 60., 54.);
+    assert!(
+        cx.update(|window, cx| other.read(cx).focus_handle(cx).is_focused(window)),
+        "Escape dismissal must not reclaim focus from a later pointer target"
+    );
+}
+
+#[gpui::test]
+fn combo_box_manual_no_match_edit_closes_logical_open_state(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let state = combo_state(cx);
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Typst".into(), "Rust".into(), "Go".into()],
+        )
+        .menu_trigger(MenuTrigger::Manual)
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    click(cx, 298., 18.);
+    cx.simulate_input("zz");
+    press(cx, "escape");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "an unmatched edit must close Manual state once, not leave a hidden overlay"
+    );
+}
+
+#[gpui::test]
+fn combo_box_arrow_open_shows_all_items_for_an_input_trigger(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let state = combo_state(cx);
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Typst".into(), "Rust".into(), "Go".into()],
+        )
+        .default_input_value("zz")
+        .menu_trigger(MenuTrigger::Input)
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "down");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "ArrowDown is a manual open and must use the original collection"
+    );
+}
+
+#[gpui::test]
+fn combo_box_read_only_refuses_focus_and_chevron_open(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let state = combo_state(cx);
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Typst".into(), "Rust".into(), "Go".into()],
+        )
+        .is_read_only(true)
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    click(cx, 298., 18.);
+    assert!(
+        opened.borrow().is_empty(),
+        "a read-only ComboBox must not open from focus or its chevron"
+    );
+}
+
+#[gpui::test]
+fn combo_box_arrow_open_reports_to_a_controlled_owner(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let state = combo_state(cx);
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Typst".into(), "Rust".into(), "Go".into()],
+        )
+        .is_open(false)
+        .menu_trigger(MenuTrigger::Manual)
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "down");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "ArrowDown must report a manual open even when the owner has not accepted it"
     );
 }
