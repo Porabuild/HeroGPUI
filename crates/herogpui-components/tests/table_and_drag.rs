@@ -61,7 +61,7 @@
 
 mod harness;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use gpui::{
@@ -561,6 +561,123 @@ fn table_column_resize_drag_changes_width(cx: &mut TestAppContext) {
         ["cell-b", "cell-a"],
         "after dragging the boundary 40px right, a click at x=180 that used \
          to land in column two must land in column one"
+    );
+}
+
+/// Pinned React Aria exposes a column resizer as a keyboard-editable range:
+/// Enter starts editing and each arrow step moves the boundary by 10px.
+#[gpui::test]
+fn table_column_resizer_answers_keyboard_editing(cx: &mut TestAppContext) {
+    let recorded = events();
+    let bubbled = events();
+    let bubbled_after = bubbled.clone();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        let bubbled = bubbled.clone();
+        gpui::div()
+            .on_key_down(move |event, _, _| {
+                bubbled.borrow_mut().push(event.keystroke.key.clone());
+            })
+            .child(
+                Table::new(vec![])
+                    .id("tbl-resize-keys")
+                    .columns(vec![
+                        TableColumn::new("Name")
+                            .allows_resizing(true)
+                            .default_width(px(160.)),
+                        TableColumn::new("Size")
+                            .allows_resizing(true)
+                            .default_width(px(160.)),
+                    ])
+                    .row(vec![
+                        probe_cell("resize-keys-a0", "cell-a", recorded.clone()),
+                        probe_cell("resize-keys-b0", "cell-b", recorded),
+                    ]),
+            )
+            .into_any_element()
+    });
+
+    // Column 0's padded content ends before x=190 at its 160px default, so
+    // this point belongs to column 1. Five pinned 10px steps move the first
+    // boundary to 210px and put x=190 inside column 0's content.
+    click(cx, 190., 90.);
+    assert_eq!(recorded.borrow().as_slice(), ["cell-b"]);
+
+    // The probe click focuses the table body stop, so Tab reaches the first
+    // resizer; Enter then Right commits one step.
+    press(cx, "tab");
+    bubbled_after.borrow_mut().clear();
+    // The first Tab ends edit mode without moving focus. Enter therefore
+    // starts the same resizer again, and the final Right is its fifth step.
+    press(cx, "enter right right right right tab enter right");
+    assert!(
+        bubbled_after.borrow().is_empty(),
+        "resizer edit keys must be consumed by the focused handle; bubbled: {:?}",
+        bubbled_after.borrow().as_slice()
+    );
+    flush_frame(cx);
+    click(cx, 190., 90.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["cell-b", "cell-a"],
+        "five Right presses across a Tab-ended edit must widen the column by 50px"
+    );
+}
+
+/// A conditionally rendered resizer gets a new GPUI element and focus handle
+/// when it returns. Its outside-press exit must belong to that live element.
+#[gpui::test]
+fn table_recreated_column_resizer_ends_editing_on_outside_press(cx: &mut TestAppContext) {
+    let first_resizable = Rc::new(Cell::new(true));
+    let resizable_for_view = first_resizable.clone();
+    let bubbled = events();
+    let bubbled_after = bubbled.clone();
+    let cx = open_host(cx, move || {
+        let bubbled = bubbled.clone();
+        gpui::div()
+            .on_key_down(move |event, _, _| {
+                bubbled.borrow_mut().push(event.keystroke.key.clone());
+            })
+            .child(
+                Table::new(vec![])
+                    .id("tbl-resize-recreated")
+                    .columns(vec![
+                        TableColumn::new("Name")
+                            .allows_resizing(resizable_for_view.get())
+                            .default_width(px(160.)),
+                        TableColumn::new("Size")
+                            .allows_resizing(true)
+                            .default_width(px(160.)),
+                    ])
+                    .row(vec![
+                        gpui::div().child("A").into_any_element(),
+                        gpui::div().child("B").into_any_element(),
+                    ]),
+            )
+            .into_any_element()
+    });
+
+    first_resizable.set(false);
+    flush_frame(cx);
+    flush_frame(cx);
+    first_resizable.set(true);
+    flush_frame(cx);
+
+    // Clicking the recreated column-0 boundary focuses it, and Enter starts
+    // edit mode. Clicking column 1's boundary must blur/end column 0; clicking
+    // column 0 again only refocuses it and does not start a new keyboard edit.
+    click(cx, 160., 18.);
+    press(cx, "enter");
+    click(cx, 320., 18.);
+    flush_frame(cx);
+    click(cx, 160., 18.);
+    bubbled_after.borrow_mut().clear();
+    press(cx, "right");
+    assert_eq!(
+        bubbled_after.borrow().as_slice(),
+        ["right"],
+        "a recreated resizer must not retain edit mode after an outside press"
     );
 }
 

@@ -133,6 +133,12 @@ SELECT_ALL_KEYS = ('Table',)
 # and maxWidth. A draggable line without those bounds is not the same control.
 RESIZE_BOUNDS = ('Table',)
 
+# React Aria's inherited ColumnResizer range enters keyboard edit mode with
+# Enter, moves by ten pixels per arrow, and exits with Enter, Escape, Space,
+# Tab or a pointer press elsewhere. HeroUI's own prop table does not enumerate
+# those inherited keys.
+RESIZE_KEYS = ('Table',)
+
 # Closing an overlay hands the focus back to what opened it. Only a surface that
 # *took* the focus has to: the pickers and the popover leave it on the trigger,
 # so the menu is the one with something to return. A dialog's trigger belongs to
@@ -338,6 +344,18 @@ EVIDENCE = {
         'table.rs',
         r'(?s)DEFAULT_COLUMN_MIN_WIDTH: f32 = 75\..*?floor\(\)\.min\(max\)\.max\(min\)',
     ),
+    ('Table', 'resize-keys'): (
+        'table.rs',
+        r'(?s)keyboard-resizing.*?on_mouse_down_out.*?== Some\(column_index\)'
+        r'.*?\*active = None.*?"enter" =>.*?\*active = if editing \{ None \}'
+        r' else \{ Some\(column_index\) \}.*?stop_propagation\(\)'
+        r'.*?"escape" \| "space" if editing =>.*?\*active = None'
+        r'.*?stop_propagation\(\).*?"tab" if editing =>.*?\*active = None'
+        r'.*?stop_propagation\(\).*?"right" \| "up" \| "left" \| "down" if editing'
+        r'.*?matches!\(key, "right" \| "up"\).*?10\..*?-10\.'
+        r'.*?floor\(\).*?\.min\(max_width\).*?\.max\(min_width\)'
+        r'.*?stop_propagation\(\)',
+    ),
     ('Input', 'pointer-caret'): ('input.rs', r'fn char_at_x'),
     ('TextField', 'pointer-caret'): ('input.rs', r'closest_index_for_x'),
     ('Accordion', 'activation'): ('accordion.rs', r'tab_stop_handle'),
@@ -401,14 +419,14 @@ def main():
     derived = dict.fromkeys(
         ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + AREA_KEYS
         + FOCUS_OPEN + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS + SELECT_ALL_KEYS
-        + RESIZE_BOUNDS
+        + RESIZE_BOUNDS + RESIZE_KEYS
         + FOCUS_RETURN + SCROLL_INTO_VIEW + CALENDAR_PAGING + CALENDAR_SECTION_BOUNDS
         + PANEL_FOCUS
     )
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'area-keys',
                       'focus-open', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
-                      'select-all', 'resize-bounds', 'focus-return', 'scroll-into-view', 'calendar-paging',
+                      'select-all', 'resize-bounds', 'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
                       'calendar-section-bounds', 'panel-focus'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach

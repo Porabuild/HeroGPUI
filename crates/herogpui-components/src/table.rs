@@ -694,6 +694,12 @@ impl RenderOnce for Table {
             |_, _| None::<(usize, f32, f32)>,
         );
         let drag_now = *dragging.read(cx);
+        let keyboard_resizing = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{}-keyboard-resizing", self.id).into()),
+            cx,
+            |_, _| None::<usize>,
+        );
+        let keyboard_resize_now = *keyboard_resizing.read(cx);
         let load_more_state = window.use_keyed_state(
             gpui::ElementId::Name(format!("{}-load-more-state", self.id).into()),
             cx,
@@ -813,6 +819,35 @@ impl RenderOnce for Table {
             .iter()
             .map(|h| h.as_ref().is_some_and(|h| h.is_focused(window)) && ring_visible)
             .collect();
+        let resize_focus: Vec<Option<gpui::FocusHandle>> = self
+            .columns
+            .iter()
+            .enumerate()
+            .map(|(i, column)| {
+                column.allows_resizing.then(|| {
+                    crate::util::tab_stop_handle(
+                        gpui::ElementId::Name(format!("{}-resize-{i}-focus", self.id).into()),
+                        window,
+                        cx,
+                    )
+                })
+            })
+            .collect();
+        let resize_focused: Vec<bool> = resize_focus
+            .iter()
+            .map(|h| h.as_ref().is_some_and(|h| h.is_focused(window)) && ring_visible)
+            .collect();
+        if keyboard_resize_now.is_some_and(|column_index| {
+            resize_focus
+                .get(column_index)
+                .and_then(Option::as_ref)
+                .is_none()
+        }) {
+            keyboard_resizing.update(cx, |active, cx| {
+                *active = None;
+                cx.notify();
+            });
+        }
 
         let resizable = self.columns.iter().any(|c| c.allows_resizing);
         let resize_limits: Vec<(f32, f32)> = self
@@ -1056,8 +1091,19 @@ impl RenderOnce for Table {
             let cell = if column.allows_resizing {
                 let held = dragging.clone();
                 let start_width = effective.unwrap_or(px(160.));
+                let keyboard = keyboard_resizing.clone();
+                let keyboard_out = keyboard.clone();
+                let widths = resized.clone();
+                let (min_width, max_width) = resize_limits[column_index];
+                let focus_for_mouse = resize_focus[column_index]
+                    .as_ref()
+                    .expect("resizable columns have a focus handle")
+                    .clone();
                 let resizer_group: SharedString = format!("table-resizer-{column_index}").into();
                 let accent_color = colors.accent.color;
+                let focus_color = colors.focus;
+                let is_resizing = drag_now.is_some_and(|(index, _, _)| index == column_index)
+                    || keyboard_resize_now == Some(column_index);
                 gpui::div()
                     .relative()
                     .when(effective.is_none(), flex_cell)
@@ -1068,6 +1114,11 @@ impl RenderOnce for Table {
                             .id(gpui::ElementId::Name(
                                 format!("table-resize-{column_index}").into(),
                             ))
+                            .track_focus(
+                                resize_focus[column_index]
+                                    .as_ref()
+                                    .expect("resizable columns have a focus handle"),
+                            )
                             .group(resizer_group.clone())
                             .absolute()
                             .top(px(0.))
@@ -1089,14 +1140,77 @@ impl RenderOnce for Table {
                                     .bg(colors.separator)
                                     .group_hover(resizer_group.clone(), |s| {
                                         s.w(px(2.)).h_full().bg(accent_color)
+                                    })
+                                    .when(is_resizing, |s| {
+                                        s.w(px(2.)).h_full().bg(accent_color)
+                                    })
+                                    .when(resize_focused[column_index], |s| {
+                                        s.w(px(2.)).h_full().bg(focus_color)
                                     }),
                             )
                             .cursor(gpui::CursorStyle::ResizeLeftRight)
-                            .on_mouse_down(gpui::MouseButton::Left, move |ev, _window, cx| {
+                            .on_mouse_down(gpui::MouseButton::Left, move |ev, window, cx| {
+                                window.focus(&focus_for_mouse);
                                 let x = f32::from(ev.position.x);
                                 held.update(cx, |v, _| {
                                     *v = Some((column_index, x, f32::from(start_width)));
                                 });
+                            })
+                            .on_mouse_down_out(move |_, _, cx| {
+                                if *keyboard_out.read(cx) == Some(column_index) {
+                                    keyboard_out.update(cx, |active, cx| {
+                                        *active = None;
+                                        cx.notify();
+                                    });
+                                }
+                            })
+                            .on_key_down(move |event, _window, cx| {
+                                let key = event.keystroke.key.as_str();
+                                let editing = *keyboard.read(cx) == Some(column_index);
+                                match key {
+                                    "enter" => {
+                                        keyboard.update(cx, |active, cx| {
+                                            *active = if editing { None } else { Some(column_index) };
+                                            cx.notify();
+                                        });
+                                        cx.stop_propagation();
+                                    }
+                                    "escape" | "space" if editing => {
+                                        keyboard.update(cx, |active, cx| {
+                                            *active = None;
+                                            cx.notify();
+                                        });
+                                        cx.stop_propagation();
+                                    }
+                                    "tab" if editing => {
+                                        keyboard.update(cx, |active, cx| {
+                                            *active = None;
+                                            cx.notify();
+                                        });
+                                        cx.stop_propagation();
+                                    }
+                                    "right" | "up" | "left" | "down" if editing => {
+                                        let delta = if matches!(key, "right" | "up") {
+                                            10.
+                                        } else {
+                                            -10.
+                                        };
+                                        widths.update(cx, |values, cx| {
+                                            if values.len() <= column_index {
+                                                values.resize(column_index + 1, None);
+                                            }
+                                            let current = values[column_index].unwrap_or(start_width);
+                                            let next = (f32::from(current) + delta)
+                                                .floor()
+                                                .min(max_width)
+                                                .max(min_width);
+                                            values[column_index] = Some(px(next));
+                                            cx.notify();
+                                        });
+                                        cx.stop_propagation();
+                                    }
+                                    _ => {}
+                                }
                             }),
                     )
                     .into_any_element()
@@ -1146,8 +1260,6 @@ impl RenderOnce for Table {
                     }
                 });
         }
-        let _ = drag_now;
-
         // ---- rows --------------------------------------------------------
         // Depth-first, and only through the parents that are open: a nested row
         // is not rendered at all until its parent is expanded.
