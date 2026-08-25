@@ -77,7 +77,7 @@ fn link_render_prop_receives_active_page_and_keeps_it_pressable(cx: &mut TestApp
     let recorded = events();
     let for_press = recorded.clone();
     let page = Rc::new(Cell::new(2usize));
-    let page_for_view = page.clone();
+    let page_for_view = page;
     let cx = open_host(cx, move || {
         let states = for_view.clone();
         let recorded = for_press.clone();
