@@ -18,7 +18,8 @@ pub struct ButtonGroup {
     size: Size,
     /// Whether a `ButtonGroup.Separator` is drawn before each member after the
     /// first. v3 composes it as a child of the member that follows it, so this
-    /// is the slot flag rather than a documented prop.
+    /// is the slot flag rather than a documented prop. Defaults to none, as a
+    /// group without `Separator` children draws no dividers.
     separators: bool,
     is_disabled: bool,
     orientation: Orientation,
@@ -46,7 +47,7 @@ impl ButtonGroup {
         Self {
             variant: Variant::Primary,
             size: Size::Md,
-            separators: true,
+            separators: false,
             is_disabled: false,
             orientation: Orientation::Horizontal,
             full_width: false,
@@ -83,11 +84,13 @@ impl ButtonGroup {
         self
     }
 
-    /// `ButtonGroup.Separator` — the hairline between members.
+    /// `ButtonGroup.Separator` — the hairline before each member after the
+    /// first.
     ///
-    /// v3 puts it inside whichever member should show one, so a group can have
-    /// none (its "Without Separator" example) or one per seam. Defaults to one
-    /// per seam, which is what its other examples show.
+    /// v3 composes it as a child of whichever member should show one, and
+    /// `ButtonGroupRoot` synthesizes none of its own, so this port spells the
+    /// composition as a flag. Defaults to false: a group only draws dividers
+    /// when its example composes them.
     pub fn separators(mut self, v: bool) -> Self {
         self.separators = v;
         self
@@ -188,5 +191,19 @@ impl RenderOnce for ButtonGroup {
             wrapped.push(slot);
         }
         el.children(wrapped)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn separators_are_explicit_composition() {
+        assert!(
+            !ButtonGroup::new().separators,
+            "v3 groups without a Separator child must not synthesize dividers"
+        );
+        assert!(ButtonGroup::new().separators(true).separators);
     }
 }

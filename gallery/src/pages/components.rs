@@ -498,6 +498,7 @@ impl Gallery {
                 (
                     "Usage",
                     row(vec![h::ButtonGroup::new()
+                        .separators(true)
                         .button(h::Button::new("bgu-1").label("Merge pull request"))
                         .button(
                             h::Button::new("bgu-2")
@@ -510,6 +511,7 @@ impl Gallery {
                     "Merged",
                     row(vec![h::ButtonGroup::new()
                         .variant(Variant::Secondary)
+                        .separators(true)
                         .button(h::Button::new("bg-1").label("Day"))
                         .button(h::Button::new("bg-2").label("Week"))
                         .button(h::Button::new("bg-3").label("Month"))
@@ -523,6 +525,7 @@ impl Gallery {
                             h::ButtonGroup::new()
                                 .variant(Variant::Secondary)
                                 .size(*sz)
+                                .separators(true)
                                 .button(
                                     h::Button::new(el_id(format!("bgs-{sz:?}-1"))).label("Left"),
                                 )
@@ -539,6 +542,7 @@ impl Gallery {
                     "With Icons",
                     row(vec![h::ButtonGroup::new()
                         .variant(Variant::Tertiary)
+                        .separators(true)
                         .button(
                             h::Button::new("bgi-1")
                                 .label("Fork")
@@ -563,6 +567,7 @@ impl Gallery {
                         .map(|v| {
                             h::ButtonGroup::new()
                                 .variant(*v)
+                                .separators(true)
                                 .button(h::Button::new(el_id(format!("bgv-{v:?}-1"))).label("One"))
                                 .button(h::Button::new(el_id(format!("bgv-{v:?}-2"))).label("Two"))
                         })
@@ -573,6 +578,7 @@ impl Gallery {
                     row(vec![
                         h::ButtonGroup::new()
                             .variant(Variant::Secondary)
+                            .separators(true)
                             .button(h::Button::new("bgo-l").label("Left"))
                             .button(h::Button::new("bgo-c").label("Center"))
                             .button(h::Button::new("bgo-r").label("Right"))
@@ -580,6 +586,7 @@ impl Gallery {
                         h::ButtonGroup::new()
                             .variant(Variant::Secondary)
                             .orientation(Orientation::Vertical)
+                            .separators(true)
                             .button(h::Button::new("bgv-top").label("Top"))
                             .button(h::Button::new("bgv-mid").label("Middle"))
                             .button(h::Button::new("bgv-bot").label("Bottom"))
@@ -594,6 +601,7 @@ impl Gallery {
                             h::ButtonGroup::new()
                                 .variant(Variant::Secondary)
                                 .full_width(true)
+                                .separators(true)
                                 .button(h::Button::new("bgf-1").label("Cancel"))
                                 .button(h::Button::new("bgf-2").label("Save draft"))
                                 .button(h::Button::new("bgf-3").label("Publish")),
@@ -604,7 +612,8 @@ impl Gallery {
                     "Without Separator",
                     row(vec![h::ButtonGroup::new()
                         .variant(Variant::Secondary)
-                        .separators(false)
+                        // v3: omit the `<ButtonGroup.Separator />` child
+                        // composition — the port's default draws no dividers.
                         .button(h::Button::new("bgn-1").label("One"))
                         .button(h::Button::new("bgn-2").label("Two"))
                         .button(h::Button::new("bgn-3").label("Three"))
@@ -615,6 +624,7 @@ impl Gallery {
                     row(vec![h::ButtonGroup::new()
                         .variant(Variant::Secondary)
                         .is_disabled(true)
+                        .separators(true)
                         .button(h::Button::new("bgd2-1").label("One"))
                         .button(h::Button::new("bgd2-2").label("Two"))
                         .into_any_element()]),
@@ -7623,6 +7633,7 @@ impl Gallery {
                     h::ButtonGroup::new()
                         .variant(Variant::Tertiary)
                         .size(Size::Sm)
+                        .separators(true)
                         .button(h::Button::new(el_id(format!("tbar-{key}-copy"))).label("Copy"))
                         .button(h::Button::new(el_id(format!("tbar-{key}-cut"))).label("Cut")),
                 )
@@ -7662,6 +7673,7 @@ impl Gallery {
                             h::ButtonGroup::new()
                                 .variant(Variant::Secondary)
                                 .size(Size::Sm)
+                                .separators(true)
                                 .button(h::Button::new("tb-bg-1").label("Left"))
                                 .button(h::Button::new("tb-bg-2").label("Center"))
                                 .button(h::Button::new("tb-bg-3").label("Right")),
