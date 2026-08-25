@@ -631,6 +631,153 @@ fn autocomplete_clear_button_fires_on_clear_and_vanishes(cx: &mut TestAppContext
     );
 }
 
+#[gpui::test]
+fn autocomplete_clear_button_works_without_an_on_clear_callback(cx: &mut TestAppContext) {
+    let selections = events();
+    let selected = selections.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let selections = selections.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, vec!["Alpha".into(), "Beta".into()])
+            .default_value(["Alpha"])
+            .on_selection_change_all(move |keys, _, _| {
+                selections.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 282., 18.);
+    assert_eq!(
+        selected.borrow().as_slice(),
+        [""],
+        "ClearButton must report the empty selection even without on_clear"
+    );
+    assert!(
+        opened.borrow().is_empty(),
+        "clearing without on_clear must not bubble into the trigger"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_controlled_clear_waits_for_the_owner(cx: &mut TestAppContext) {
+    let selections = events();
+    let selected = selections.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let selections = selections.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, vec!["Alpha".into(), "Beta".into()])
+            .value(["Alpha"])
+            .on_selection_change_all(move |keys, _, _| {
+                selections.borrow_mut().push(keys.len().to_string());
+            })
+            .into_any_element()
+    });
+
+    click(cx, 282., 18.);
+    flush_frame(cx);
+    click(cx, 282., 18.);
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["0", "0"],
+        "controlled clear must report empty without mutating the owner's value"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_clear_handles_a_controlled_key_missing_from_items(cx: &mut TestAppContext) {
+    let selections = events();
+    let selected = selections.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let selections = selections.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, vec!["Alpha".into(), "Beta".into()])
+            .value(["loading-item"])
+            .on_selection_change_all(move |keys, _, _| {
+                selections.borrow_mut().push(keys.len().to_string());
+            })
+            .into_any_element()
+    });
+
+    click(cx, 282., 18.);
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["0"],
+        "a selected key remains clearable while its item is not loaded"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_disabled_clear_is_inert(cx: &mut TestAppContext) {
+    let selections = events();
+    let selected = selections.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let selections = selections.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, vec!["Alpha".into()])
+            .default_value(["Alpha"])
+            .is_disabled(true)
+            .on_selection_change_all(move |_, _, _| {
+                selections.borrow_mut().push("changed".into());
+            })
+            .into_any_element()
+    });
+
+    click(cx, 282., 18.);
+    assert!(
+        selected.borrow().is_empty(),
+        "a disabled Autocomplete must not expose an active clear button"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_read_only_clear_is_inert(cx: &mut TestAppContext) {
+    let selections = events();
+    let selected = selections.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let selections = selections.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, vec!["Alpha".into()])
+            .default_value(["Alpha"])
+            .is_read_only(true)
+            .on_selection_change_all(move |_, _, _| {
+                selections.borrow_mut().push("changed".into());
+            })
+            .into_any_element()
+    });
+
+    click(cx, 282., 18.);
+    assert!(
+        selected.borrow().is_empty(),
+        "a read-only Autocomplete must not expose an active clear button"
+    );
+}
+
 /// The clear drops the component's *owned* selection, proven through the
 /// toggle in multiple mode: with {Alpha, Beta} seeded, picking Gamma reports
 /// the three, and after the clear picks Alpha reports only {"Alpha"}. Were the
@@ -640,14 +787,12 @@ fn autocomplete_clear_button_fires_on_clear_and_vanishes(cx: &mut TestAppContext
 fn autocomplete_clear_empties_the_owned_selection_before_the_next_pick(cx: &mut TestAppContext) {
     let picks = events();
     let picked = picks.clone();
-    let clears = events();
-    let cleared = clears.clone();
     let state = search_state(cx);
     let state_for_view = state;
 
     let cx = open_host(cx, move || {
         let picks = picks.clone();
-        let clears = clears.clone();
+        let clear_events = picks.clone();
         let state = state_for_view.clone();
         Autocomplete::new(
             state,
@@ -660,7 +805,7 @@ fn autocomplete_clear_empties_the_owned_selection_before_the_next_pick(cx: &mut 
         )
         .selection_mode(SelectionMode::Multiple)
         .default_value(["Alpha", "Beta"])
-        .on_clear(move |_, _| clears.borrow_mut().push("cleared".into()))
+        .on_clear(move |_, _| clear_events.borrow_mut().push("clear:cleared".into()))
         .on_selection_change_all(move |keys, _, _| {
             let joined = keys
                 .iter()
@@ -684,14 +829,18 @@ fn autocomplete_clear_empties_the_owned_selection_before_the_next_pick(cx: &mut 
     // The clear button sits on the trigger, above the open panel, so it can
     // be pressed while the panel is up.
     click(cx, 282., 18.);
-    assert_eq!(cleared.borrow().as_slice(), ["cleared"]);
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Alpha,Beta,Gamma", "", "clear:cleared"],
+        "selection change must report before on_clear"
+    );
 
     // Row 0 (Alpha) after the clear: {"Alpha"}. A stale held set would have
     // reported "Beta,Gamma".
     click(cx, 60., 124.);
     assert_eq!(
         picked.borrow().as_slice(),
-        ["Alpha,Beta,Gamma", "Alpha"],
+        ["Alpha,Beta,Gamma", "", "clear:cleared", "Alpha"],
         "the clear must empty the owned selection, so the next pick starts \
          from nothing"
     );

@@ -79,6 +79,10 @@ ALIAS = {
     # documented value type rather than only matching the prop name.
     'Calendar.value': 'values', 'Calendar.defaultValue': 'default_values',
     'Calendar.onChange': 'on_change_all',
+    # Autocomplete's onChange is Key | Key[] | null. The slice callback
+    # represents all three shapes, including ClearButton's empty selection;
+    # the scalar convenience callback cannot represent null.
+    'Autocomplete.onChange': 'on_selection_change_all',
     # Slider's value/defaultValue are number | number[]; the plural builder
     # proves the multi-thumb form rather than only the scalar.
     'Slider.defaultValue': 'default_values',

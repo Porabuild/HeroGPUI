@@ -128,7 +128,8 @@ impl Autocomplete {
         self
     }
 
-    /// Reports the whole selection, for `selectionMode="multiple"`.
+    /// `onChange`'s complete `Key | Key[] | null` domain as a selection slice.
+    /// Single selection reports zero or one key; multiple reports every key.
     pub fn on_selection_change_all(
         mut self,
         handler: impl Fn(&[SharedString], &mut Window, &mut App) + 'static,
@@ -189,14 +190,17 @@ impl Autocomplete {
         self
     }
 
-    /// `onClick` on `Autocomplete.ClearButton` — supplying it renders the clear
-    /// affordance, so the button never appears without a handler behind it.
+    /// `onClear` — called after `Autocomplete.ClearButton` clears selection.
+    /// The button's clearing behavior does not depend on this callback.
     pub fn on_clear(mut self, f: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.on_clear = Some(std::sync::Arc::new(f));
         self
     }
 
-    /// `onChange` — the v3 name for [`Autocomplete::on_selection_change`].
+    /// Pick-only single-key convenience callback.
+    ///
+    /// Use [`Self::on_selection_change_all`] for v3's complete `onChange`
+    /// domain, including multiple selection and the empty value from clear.
     pub fn on_change(
         self,
         handler: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
@@ -611,6 +615,7 @@ impl RenderOnce for Autocomplete {
         }
 
         // --- `.autocomplete__value` -----------------------------------------
+        let has_selection = !self.selected_keys.is_empty();
         let selected_items: Vec<SharedString> = self
             .items
             .iter()
@@ -671,52 +676,58 @@ impl RenderOnce for Autocomplete {
         };
         field = field.child(value_slot);
 
-        // `.autocomplete__clear-button` — only when a handler backs it, and only
-        // when there is a selection to clear (`data-empty` hides it otherwise).
-        if let Some(cb) = self.on_clear.clone() {
-            if !is_placeholder && !self.is_disabled && !self.is_read_only {
-                let own = selection_own.clone();
-                let hover_bg = colors.default.soft_hover();
-                field = field.child(
-                    gpui::div()
-                        .id(el_name(format!("{base}-clear")))
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        // `.autocomplete__clear-button` is `h-6 w-6`
-                        // and then `size-5`, so 20px, `rounded-xl` and `p-1`
-                        // -- which leaves the glyph 12.
-                        .size(px(20.))
-                        .p(px(4.))
-                        .rounded(util::small_radius(cx))
-                        .cursor_pointer()
-                        .hover(move |st| st.bg(hover_bg))
-                        .child(
-                            gpui::svg()
-                                .size(px(12.))
-                                .path(icons::CLOSE)
-                                .text_color(colors.muted),
-                        )
-                        .on_click(move |_, window, cx| {
-                            // The button sits *inside* the trigger, so gpui
-                            // dispatches its click up to the trigger's own
-                            // `on_click` too -- and clearing is not an open
-                            // gesture (React Aria's trigger press is
-                            // pointer-bound, so a bubbled DOM click is inert
-                            // there).
-                            cx.stop_propagation();
-                            // Uncontrolled: drop our own selection too, or the
-                            // button would clear nothing.
-                            if let Some(held) = &own {
-                                held.update(cx, |v, cx| {
-                                    v.clear();
-                                    cx.notify();
-                                });
-                            }
+        // `.autocomplete__clear-button` — present whenever there is a mutable
+        // selection to clear (`data-empty` hides it otherwise). v3 clears the
+        // selection first and only then calls the optional `onClear` handler.
+        if has_selection && !self.is_disabled && !self.is_read_only {
+            let own = selection_own.clone();
+            let selection_cb = self.on_selection_change_all.clone();
+            let clear_cb = self.on_clear.clone();
+            let hover_bg = colors.default.soft_hover();
+            field = field.child(
+                gpui::div()
+                    .id(el_name(format!("{base}-clear")))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    // `.autocomplete__clear-button` is `h-6 w-6`
+                    // and then `size-5`, so 20px, `rounded-xl` and `p-1`
+                    // -- which leaves the glyph 12.
+                    .size(px(20.))
+                    .p(px(4.))
+                    .rounded(util::small_radius(cx))
+                    .cursor_pointer()
+                    .hover(move |st| st.bg(hover_bg))
+                    .child(
+                        gpui::svg()
+                            .size(px(12.))
+                            .path(icons::CLOSE)
+                            .text_color(colors.muted),
+                    )
+                    .on_click(move |_, window, cx| {
+                        // The button sits *inside* the trigger, so gpui
+                        // dispatches its click up to the trigger's own
+                        // `on_click` too -- and clearing is not an open
+                        // gesture (React Aria's trigger press is
+                        // pointer-bound, so a bubbled DOM click is inert
+                        // there).
+                        cx.stop_propagation();
+                        // Uncontrolled: drop our own selection too, or the
+                        // button would clear nothing.
+                        if let Some(held) = &own {
+                            held.update(cx, |v, cx| {
+                                v.clear();
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &selection_cb {
+                            cb(&[], window, cx);
+                        }
+                        if let Some(cb) = &clear_cb {
                             cb(window, cx);
-                        }),
-                );
-            }
+                        }
+                    }),
+            );
         }
 
         // `.autocomplete__indicator` is `absolute inset-y-0 end-2 my-auto`, and
