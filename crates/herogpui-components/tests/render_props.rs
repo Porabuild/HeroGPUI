@@ -70,7 +70,7 @@ use herogpui_components::{
     util::InteractiveState,
     Button, Calendar, CalendarCellState, CalendarState, DateConstraints, DateRangeState, Dropdown,
     ListBox, ListBoxItem, Menu, MenuItem, RadioGroup, RangeCalendar, RangeCalendarCellState,
-    SelectionMode, Tag, TagGroup,
+    SelectionMode, Tag, TagGroup, VisibleDuration,
 };
 
 use harness::{click, events, open_host, press};
@@ -1161,14 +1161,13 @@ fn radio_group_option_content_sees_the_press(cx: &mut TestAppContext) {
 /// The cell closure ran for every visible cell on the first frame — a panic
 /// is the button's defect class on a fifth component — and recorded the state
 /// v3 hands `Calendar.Cell`: the formatted day label and the flags, for all
-/// 31 in-month days and for the next month's spill cells. The recorder keys
-/// each invocation by `(date, label, outside)` so distinct cells cannot merge;
-/// each spill cell carries its own next-month date, which the defect test
-/// below pins.
+/// 31 in-month days and both adjacent months' spill cells. The recorder keys
+/// each invocation by date so distinct cells cannot merge; the identity test
+/// below pins every adjacent-month date and label.
 #[gpui::test]
 fn calendar_cell_renders_at_all(cx: &mut TestAppContext) {
-    let seen = Rc::new(RefCell::new(HashSet::<(String, String, bool, bool)>::new()));
-    let record = seen.clone();
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let record = recorded.clone();
     let state = cx.new(|cx| CalendarState::new(cx));
     let state_for_view = state;
     let _cx = open_host(cx, move || {
@@ -1178,50 +1177,53 @@ fn calendar_cell_renders_at_all(cx: &mut TestAppContext) {
         Calendar::new(state_for_view.clone())
             .default_value(Date::new(2026, 8, 15))
             .cell(move |state| {
-                record.borrow_mut().insert((
-                    state.date.format_iso(),
-                    state.formatted_date.to_string(),
-                    state.is_outside_month,
-                    state.is_disabled,
-                ));
+                record_cell(&record, &state);
                 gpui::div().w(px(20.)).h(px(20.)).into_any_element()
             })
             .into_any_element()
     });
 
     // The seeded pick reached the closure with its day label.
-    assert!(
-        seen.borrow()
-            .contains(&("2026-08-15".into(), "15".into(), false, false)),
-        "the seeded day must have rendered with its own label"
-    );
+    let selected = cell_of(&recorded, "2026-08-15");
+    assert_eq!(selected.formatted_date, "15");
+    assert!(selected.is_selected && !selected.is_outside_month && !selected.is_disabled);
 
-    // August 2026 starts on a Saturday, so `lead_cells` is 5 — five empty
-    // lead slots, which this port does *not* hand to the closure — and the
-    // next month's leading days (6 rows x 7 - 5 lead - 31 days = 6 of them)
-    // render as spill cells that the closure is told about with
-    // `isOutsideMonth` and `isDisabled`. The in-month days are 31 and report
-    // neither.
+    // August 2026 starts on a Saturday, so its six rows contain five July
+    // cells, 31 August cells, and six September cells. React Aria invokes the
+    // renderer for all 42 real dates; outside-month cells are disabled and
+    // cannot be selected, but their other state still comes from the date.
     let lead = DateConstraints::new().lead_cells(2026, 8);
     assert_eq!(lead, 5, "the month's own derivation must give a lead");
     let rows = DateConstraints::new().rows(2026, 8);
-    let cells = seen.borrow();
-    let in_month = cells.iter().filter(|(_, _, outside, _)| !outside).count();
+    let cells = recorded.borrow();
+    let in_month = cells.values().filter(|cell| !cell.is_outside_month).count();
     assert_eq!(
         in_month, 31,
         "every in-month day must render with the closure"
     );
-    let spills = cells.iter().filter(|(_, _, outside, _)| *outside).count();
+    let spills = cells.values().filter(|cell| cell.is_outside_month).count();
     assert_eq!(
         spills,
-        rows * 7 - lead - 31,
-        "the next month's leading cells must render as spill cells"
+        rows * 7 - 31,
+        "both adjacent months' cells must reach the render closure"
     );
-    for (_, _, outside, disabled) in cells.iter() {
-        assert_eq!(
-            disabled, outside,
-            "a cell's isDisabled must match its outside-month flag"
-        );
+    for cell in cells.values() {
+        if cell.is_outside_month {
+            assert!(cell.is_disabled, "an outside-month cell must be disabled");
+            assert!(
+                !cell.is_unavailable,
+                "the unconfigured unavailable predicate is false"
+            );
+            assert!(
+                !cell.is_selected,
+                "an outside-month copy cannot report selected"
+            );
+        } else {
+            assert!(
+                !cell.is_disabled,
+                "an unconstrained in-month cell must not report disabled"
+            );
+        }
     }
 }
 
@@ -1253,19 +1255,292 @@ fn calendar_cell_spill_dates_preserve_their_identity(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    // August 2026 spills six days of September (the 6-row grid minus 5 lead
-    // blanks minus 31 days). Each must carry its own date; the broken path
-    // used to give every one of them the first of the current month.
-    let spills: HashSet<String> = invocations
+    // The five July cells and six September cells each carry their own date
+    // and formatted day label. A missing edge or duplicated identity changes
+    // this exact map.
+    let spills: HashMap<String, String> = invocations
         .borrow()
         .iter()
         .filter(|(_, _, outside)| *outside)
-        .map(|(date, _, _)| date.clone())
+        .map(|(date, label, _)| (date.clone(), label.clone()))
         .collect();
     assert_eq!(
-        spills.len(),
-        6,
-        "each spill cell must hand the closure a distinct date"
+        spills,
+        HashMap::from([
+            ("2026-07-27".into(), "27".into()),
+            ("2026-07-28".into(), "28".into()),
+            ("2026-07-29".into(), "29".into()),
+            ("2026-07-30".into(), "30".into()),
+            ("2026-07-31".into(), "31".into()),
+            ("2026-09-01".into(), "1".into()),
+            ("2026-09-02".into(), "2".into()),
+            ("2026-09-03".into(), "3".into()),
+            ("2026-09-04".into(), "4".into()),
+            ("2026-09-05".into(), "5".into()),
+            ("2026-09-06".into(), "6".into()),
+        ]),
+        "both spill edges must hand the closure their real dates and labels"
+    );
+}
+
+/// Outside-month cells are disabled copies, but React Aria still evaluates
+/// `isDateUnavailable` for their real adjacent dates before handing render
+/// props to the child closure.
+#[gpui::test]
+fn calendar_outside_cells_keep_date_derived_unavailable_state(cx: &mut TestAppContext) {
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let record = recorded.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state;
+    let _cx = open_host(cx, move || {
+        let record = record.clone();
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .is_date_unavailable(|date| {
+                date == Date::new(2026, 7, 31) || date == Date::new(2026, 9, 1)
+            })
+            .cell(move |state| {
+                record_cell(&record, &state);
+                gpui::div().w(px(20.)).h(px(20.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    for date in ["2026-07-31", "2026-09-01"] {
+        let cell = cell_of(&recorded, date);
+        assert!(
+            cell.is_outside_month && cell.is_disabled && cell.is_unavailable && !cell.is_selected,
+            "outside cell {date} must retain its predicate-derived unavailable state"
+        );
+    }
+}
+
+/// `isUnavailable`, `isDisabled`, and read-only interaction are independent
+/// React Aria states. Read-only blocks presses without making every cell
+/// disabled, and an unavailable in-month date remains focusable.
+#[gpui::test]
+fn calendar_cell_distinguishes_read_only_unavailable_and_disabled(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let changes = events();
+    let changed = changes.clone();
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let record = recorded.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        let changes = changes.clone();
+        let record = record.clone();
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .is_read_only(true)
+            .is_date_unavailable(|date| date == Date::new(2026, 8, 16))
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .on_change(move |date, _, _| {
+                changes
+                    .borrow_mut()
+                    .push(date.map_or_else(|| "none".into(), |date| date.format_iso()));
+            })
+            .cell(move |state| {
+                record_cell(&record, &state);
+                gpui::div().w(px(20.)).h(px(20.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let selected = cell_of(&recorded, "2026-08-15");
+    assert!(selected.is_selected && !selected.is_unavailable && !selected.is_disabled);
+    let unavailable = cell_of(&recorded, "2026-08-16");
+    assert!(unavailable.is_unavailable && !unavailable.is_selected && !unavailable.is_disabled);
+    press(cx, "tab");
+    press(cx, "right");
+    let (x17, y17) = cal_day(2026, 8, 17);
+    click(cx, x17, y17);
+    let (x16, y16) = cal_day(2026, 8, 16);
+    click(cx, x16, y16);
+    assert_eq!(
+        focused.borrow().as_slice(),
+        ["2026-08-16"],
+        "read-only and unavailable cells remain keyboard-focusable but must be pointer-inert"
+    );
+    assert!(
+        changed.borrow().is_empty(),
+        "read-only cells must never report a selection change"
+    );
+}
+
+/// A controlled value can become unavailable or fall outside new bounds.
+/// React Aria keeps the value but does not expose that disabled cell as
+/// selected through Calendar.Cell render props.
+#[gpui::test]
+fn calendar_cell_suppresses_selection_for_unavailable_and_disabled_values(cx: &mut TestAppContext) {
+    let disabled_cells = Rc::new(RefCell::new(HashMap::new()));
+    let disabled_record = disabled_cells.clone();
+    let unavailable_cells = Rc::new(RefCell::new(HashMap::new()));
+    let unavailable_record = unavailable_cells.clone();
+    let disabled_state = cx.new(|cx| CalendarState::new(cx));
+    let unavailable_state = cx.new(|cx| CalendarState::new(cx));
+    let _cx = open_host(cx, move || {
+        let disabled_record = disabled_record.clone();
+        let unavailable_record = unavailable_record.clone();
+        gpui::div()
+            .child(
+                Calendar::new(disabled_state.clone())
+                    .default_value(Date::new(2026, 8, 14))
+                    .min_value(Date::new(2026, 8, 15))
+                    .cell(move |state| {
+                        record_cell(&disabled_record, &state);
+                        gpui::div().into_any_element()
+                    }),
+            )
+            .child(
+                Calendar::new(unavailable_state.clone())
+                    .default_value(Date::new(2026, 8, 16))
+                    .is_date_unavailable(|date| date == Date::new(2026, 8, 16))
+                    .cell(move |state| {
+                        record_cell(&unavailable_record, &state);
+                        gpui::div().into_any_element()
+                    }),
+            )
+            .into_any_element()
+    });
+
+    let disabled = cell_of(&disabled_cells, "2026-08-14");
+    assert!(disabled.is_disabled && !disabled.is_selected);
+    let unavailable = cell_of(&unavailable_cells, "2026-08-16");
+    assert!(unavailable.is_unavailable && !unavailable.is_disabled && !unavailable.is_selected);
+}
+
+/// Multiple-mode deselection must leave the keyed cursor on the pressed date.
+/// Enter then toggles that same date back on instead of acting on the last
+/// remaining selection.
+#[gpui::test]
+fn calendar_multiple_deselection_keeps_pointer_focus(cx: &mut TestAppContext) {
+    let changes = events();
+    let changed = changes.clone();
+    let focuses = events();
+    let focused = focuses.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let focuses = focuses.clone();
+        Calendar::new(state_for_view.clone())
+            .selection_mode(SelectionMode::Multiple)
+            .default_values([Date::new(2026, 8, 15), Date::new(2026, 8, 16)])
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .on_change_all(move |dates, _, _| {
+                changes.borrow_mut().push(
+                    dates
+                        .iter()
+                        .map(Date::format_iso)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    let (x16, y16) = cal_day(2026, 8, 16);
+    click(cx, x16, y16);
+    press(cx, "enter");
+    assert_eq!(focused.borrow().as_slice(), ["2026-08-16"]);
+    assert_eq!(
+        changed.borrow().as_slice(),
+        ["2026-08-15", "2026-08-15,2026-08-16"],
+        "Enter after deselection must toggle the pointer-focused date back on"
+    );
+}
+
+/// An adjacent-month copy can represent a date selected in another visible
+/// month, but React Aria reports the outside copy unselected and inert.
+#[gpui::test]
+fn calendar_outside_selected_copy_is_unselected_and_inert(cx: &mut TestAppContext) {
+    let changes = events();
+    let changed = changes.clone();
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let record = recorded.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    state.update(cx, |state, _| {
+        state.toggle(Date::new(2026, 9, 1), SelectionMode::Single);
+        state.set_anchor(Date::new(2026, 8, 15));
+    });
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let record = record.clone();
+        Calendar::new(state_for_view.clone())
+            .on_change(move |date, _, _| {
+                changes
+                    .borrow_mut()
+                    .push(date.map_or_else(|| "none".into(), |date| date.format_iso()));
+            })
+            .cell(move |state| {
+                record_cell(&record, &state);
+                gpui::div().w(px(20.)).h(px(20.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let outside = cell_of(&recorded, "2026-09-01");
+    assert!(outside.is_outside_month && outside.is_disabled && !outside.is_selected);
+    click(cx, cal_col_x(0), cal_row_y(0));
+    click(cx, cal_col_x(1), cal_row_y(5));
+    assert!(
+        changed.borrow().is_empty(),
+        "neither outside-month edge may report a selection"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).selected()),
+        Some(Date::new(2026, 9, 1)),
+        "outside presses must preserve the selected adjacent-month date"
+    );
+}
+
+/// Multi-month layouts render the boundary date once in each month grid. The
+/// two copies must remain distinct: one is an inert outside-month cell and the
+/// other is the real in-month cell.
+#[gpui::test]
+fn calendar_multimonth_boundary_cells_keep_independent_state(cx: &mut TestAppContext) {
+    let recorded = Rc::new(RefCell::new(Vec::new()));
+    let record = recorded.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state;
+    let _cx = open_host(cx, move || {
+        let record = record.clone();
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .visible_duration(VisibleDuration::Months(2))
+            .cell(move |state| {
+                if matches!(
+                    state.date.format_iso().as_str(),
+                    "2026-08-31" | "2026-09-01"
+                ) {
+                    record
+                        .borrow_mut()
+                        .push((state.date.format_iso(), state.is_outside_month));
+                }
+                gpui::div().w(px(20.)).h(px(20.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let mut boundary = recorded.borrow().clone();
+    boundary.sort();
+    assert_eq!(
+        boundary,
+        [
+            ("2026-08-31".into(), false),
+            ("2026-08-31".into(), true),
+            ("2026-09-01".into(), false),
+            ("2026-09-01".into(), true),
+        ],
+        "each grid must keep its in-month and outside-month copy independent"
     );
 }
 

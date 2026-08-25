@@ -275,8 +275,8 @@ type OnChangeAll = std::sync::Arc<dyn Fn(&[Date], &mut Window, &mut App) + 'stat
 
 /// What `Calendar.Cell`'s render function is handed.
 ///
-/// v3's render props for the cell, one field each: `formattedDate` is the
-/// localized day label, and the four flags say what the cell is.
+/// v3's render props for the cell: `formattedDate` is the localized day label,
+/// and the state fields say what the cell is.
 #[derive(Clone, Debug)]
 pub struct CalendarCellState {
     /// The date this cell draws.
@@ -595,7 +595,7 @@ struct Frame<'a> {
     /// Every selected date, for the multiple mode.
     selected_dates: &'a [Date],
     today: Date,
-    interactive: bool,
+    cursor: &'a Entity<Option<Date>>,
     base: &'a str,
     /// The date wearing the focus ring: `focusedValue` when the caller controls
     /// it, otherwise wherever the arrow keys have walked to. `None` while the
@@ -605,18 +605,29 @@ struct Frame<'a> {
 
 impl Calendar {
     /// One day cell, shared by the month, week and day views.
-    fn day_cell(&self, date: Date, frame: &Frame<'_>, key: String, cx: &App) -> gpui::AnyElement {
+    fn day_cell(
+        &self,
+        date: Date,
+        outside_month: bool,
+        frame: &Frame<'_>,
+        key: String,
+        cx: &App,
+    ) -> gpui::AnyElement {
         let colors = cx.colors();
         let accent = colors.accent;
-        // In the multiple mode membership of the set is what marks a date.
-        let is_sel = if self.selection_mode == herogpui_core::SelectionMode::Multiple {
-            frame.selected_dates.contains(&date)
-        } else {
-            frame.selected == Some(date)
-        };
-        let is_today = date == frame.today;
-        let selectable = frame.interactive && self.constraints.allows(date);
         let unavailable = self.constraints.is_unavailable(date);
+        let disabled = outside_month || self.is_disabled || self.constraints.out_of_range(date);
+        let focusable = !disabled;
+        let eligible = focusable && !unavailable;
+        let selectable = eligible && !self.is_read_only;
+        // In the multiple mode membership of the set is what marks a date.
+        let is_sel = eligible
+            && if self.selection_mode == herogpui_core::SelectionMode::Multiple {
+                frame.selected_dates.contains(&date)
+            } else {
+                frame.selected == Some(date)
+            };
+        let is_today = date == frame.today;
 
         // Uniform circular hit area centred in the slot.
         let mut circle = gpui::div()
@@ -634,7 +645,9 @@ impl Calendar {
             accent.color
         };
 
-        if is_sel {
+        if outside_month {
+            circle = circle.text_color(colors.muted);
+        } else if is_sel {
             circle = circle
                 .bg(marker)
                 .text_color(if self.is_invalid {
@@ -643,38 +656,39 @@ impl Calendar {
                     accent.foreground
                 })
                 .font_weight(gpui::FontWeight::SEMIBOLD);
-        } else if !selectable {
-            // Out-of-range and unavailable days both read as non-interactive;
-            // unavailable ones keep a rule through them so the reason is
-            // distinguishable.
+        } else if disabled || unavailable {
+            // v3 dims both states and reserves the line-through for disabled
+            // in-month dates; unavailable dates remain focusable.
             circle = circle.text_color(colors.muted);
-            if unavailable {
+            if disabled {
                 circle = circle.line_through();
             }
         } else {
             circle = circle.text_color(colors.foreground);
-            let hover_bg = colors.default.soft_hover();
-            let pressed_bg = colors.default.color;
-            circle = circle.cursor_pointer().hover(move |s| s.bg(hover_bg));
-            // `.calendar__cell[data-pressed]` fills with `bg-default` and scales
-            // to 0.95.
-            circle = crate::anim::pressed(
-                circle,
-                crate::anim::PressBox {
-                    height: px(36.),
-                    padding_x: None,
-                    width: Some(px(36.)),
-                    min_width: None,
-                    text_size: px(14.),
-                    line_height: px(20.),
-                    gap: px(0.),
-                    radius: px(18.),
-                    shrink_x: true,
-                    scale: crate::anim::PRESSED_SCALE_DEEP,
-                },
-                cx,
-            )
-            .active(move |s| s.bg(pressed_bg));
+            if selectable {
+                let hover_bg = colors.default.soft_hover();
+                let pressed_bg = colors.default.color;
+                circle = circle.cursor_pointer().hover(move |s| s.bg(hover_bg));
+                // `.calendar__cell[data-pressed]` fills with `bg-default` and scales
+                // to 0.95.
+                circle = crate::anim::pressed(
+                    circle,
+                    crate::anim::PressBox {
+                        height: px(36.),
+                        padding_x: None,
+                        width: Some(px(36.)),
+                        min_width: None,
+                        text_size: px(14.),
+                        line_height: px(20.),
+                        gap: px(0.),
+                        radius: px(18.),
+                        shrink_x: true,
+                        scale: crate::anim::PRESSED_SCALE_DEEP,
+                    },
+                    cx,
+                )
+                .active(move |s| s.bg(pressed_bg));
+            }
             if is_today {
                 circle = circle.border_1().border_color(marker);
             }
@@ -683,17 +697,27 @@ impl Calendar {
         // `.calendar__cell` takes `status-focused`, independently of selection,
         // so it shows on an unselected date too. A ring rather than a border:
         // a border shrinks the 36px circle as the cursor lands on it.
-        let circle =
-            crate::util::with_focus_ring(circle, frame.focused == Some(date), true, Vec::new(), cx);
+        let circle = crate::util::with_focus_ring(
+            circle,
+            !outside_month && frame.focused == Some(date),
+            true,
+            Vec::new(),
+            cx,
+        );
         let mut circle = circle;
 
         if selectable {
+            let cursor = frame.cursor.clone();
             let st = self.state.clone();
             let selection_mode = self.selection_mode;
             let on_change = self.on_change.clone();
             let on_change_all = self.on_change_all.clone();
             let on_focus = self.on_focus_change.clone();
             circle = circle.on_click(move |_, window, cx| {
+                cursor.update(cx, |focused, cx| {
+                    *focused = Some(date);
+                    cx.notify();
+                });
                 if let Some(cb) = &on_focus {
                     cb(date, window, cx);
                 }
@@ -730,9 +754,9 @@ impl Calendar {
                     formatted_date: date.day.to_string().into(),
                     is_selected: is_sel,
                     is_unavailable: unavailable,
-                    is_outside_month: false,
+                    is_outside_month: outside_month,
                     is_today,
-                    is_disabled: !selectable,
+                    is_disabled: disabled,
                 })),
                 None => circle.child(date.day.to_string()),
             })
@@ -749,6 +773,7 @@ impl Calendar {
                         .bg(if is_sel { accent.foreground } else { marker }),
                 )
             })
+            .when(outside_month, |cell| cell.opacity(0.5))
             .into_any_element()
     }
 
@@ -769,10 +794,8 @@ impl Calendar {
             }))
     }
 
-    /// The 7-column grid for a single month, with its lead blanks and the
-    /// muted spill into the next month.
+    /// The 7-column grid for a single month, including both adjacent months.
     fn month_grid(&self, y: i32, m: u32, frame: &Frame<'_>, cx: &App) -> gpui::AnyElement {
-        let muted = cx.colors().muted;
         let lead = self.constraints.lead_cells(y, m);
         let dim = days_in_month(y, m) as usize;
         let rows = self.constraints.rows(y, m);
@@ -785,7 +808,15 @@ impl Calendar {
             for c in 0..7 {
                 let idx = r * 7 + c;
                 let slot: gpui::AnyElement = if idx < lead {
-                    gpui::div().flex_1().h(px(34.)).into_any_element()
+                    let (py, pm) = add_months(y, m, -1);
+                    let day = days_in_month(py, pm) as usize - lead + idx + 1;
+                    self.day_cell(
+                        Date::new(py, pm, day as u32),
+                        true,
+                        frame,
+                        format!("{}-{y}-{m}-outside-{py}-{pm}-d{day}", frame.base),
+                        cx,
+                    )
                 } else {
                     let day_num = idx - lead + 1;
                     if day_num > dim {
@@ -797,31 +828,17 @@ impl Calendar {
                         // the only identity a caller has.
                         let nd = day_num - dim;
                         let (ny, nm) = next_month(y, m);
-                        let slot = gpui::div()
-                            .flex_1()
-                            .h(px(34.))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .text_size(px(12.5))
-                            .text_color(muted);
-                        match &self.cell {
-                            Some(render) => slot
-                                .child(render(CalendarCellState {
-                                    date: Date::new(ny, nm, nd as u32),
-                                    formatted_date: nd.to_string().into(),
-                                    is_selected: false,
-                                    is_unavailable: false,
-                                    is_outside_month: true,
-                                    is_today: false,
-                                    is_disabled: true,
-                                }))
-                                .into_any_element(),
-                            None => slot.child(nd.to_string()).into_any_element(),
-                        }
+                        self.day_cell(
+                            Date::new(ny, nm, nd as u32),
+                            true,
+                            frame,
+                            format!("{}-{y}-{m}-outside-{ny}-{nm}-d{nd}", frame.base),
+                            cx,
+                        )
                     } else {
                         self.day_cell(
                             Date::new(y, m, day_num as u32),
+                            false,
                             frame,
                             format!("{}-{y}-{m}-d{day_num}", frame.base),
                             cx,
@@ -1103,7 +1120,7 @@ impl RenderOnce for Calendar {
             selected,
             selected_dates: &selected_dates,
             today: Date::today(),
-            interactive: !self.is_disabled && !self.is_read_only,
+            cursor: &cursor,
             base: &base,
             focused: ring_at,
         };
@@ -1310,7 +1327,7 @@ impl RenderOnce for Calendar {
         // week, Page Up/Down move the visible section, and Enter takes the
         // date the ring is on.
         if !self.is_disabled && !year_picker_open {
-            let held = cursor;
+            let held = cursor.clone();
             let focus = grid_focus.clone();
             let prev_control = prev_focus.clone();
             let next_control = next_focus.clone();
@@ -1643,6 +1660,7 @@ impl RenderOnce for Calendar {
                 for &date in chunk {
                     line = line.child(self.day_cell(
                         date,
+                        false,
                         &frame,
                         format!("{base}-{}", date.format_iso()),
                         cx,
