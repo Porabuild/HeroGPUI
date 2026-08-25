@@ -1037,13 +1037,14 @@ impl RenderOnce for Table {
         // ---- rows --------------------------------------------------------
         // Depth-first, and only through the parents that are open: a nested row
         // is not rendered at all until its parent is expanded.
-        let mut flat: Vec<(TableRow, usize, bool, SharedString)> = Vec::new();
+        let mut flat: Vec<(TableRow, usize, bool, SharedString, Option<SharedString>)> = Vec::new();
         fn flatten(
             rows: Vec<TableRow>,
             depth: usize,
             path: &str,
+            parent: Option<&SharedString>,
             expanded: &[SharedString],
-            out: &mut Vec<(TableRow, usize, bool, SharedString)>,
+            out: &mut Vec<(TableRow, usize, bool, SharedString, Option<SharedString>)>,
         ) {
             for (index, mut row) in rows.into_iter().enumerate() {
                 let key = match &row.key {
@@ -1054,9 +1055,9 @@ impl RenderOnce for Table {
                 let children = std::mem::take(&mut row.children);
                 let has_children = !children.is_empty();
                 let is_open = expanded.contains(&key);
-                out.push((row, depth, has_children, key.clone()));
+                out.push((row, depth, has_children, key.clone(), parent.cloned()));
                 if has_children && is_open {
-                    flatten(children, depth + 1, key.as_ref(), expanded, out);
+                    flatten(children, depth + 1, key.as_ref(), Some(&key), expanded, out);
                 }
             }
         }
@@ -1064,11 +1065,19 @@ impl RenderOnce for Table {
             std::mem::take(&mut self.rows),
             0,
             "",
+            None,
             &self.expanded_keys,
             &mut flat,
         );
-        let visible_collection_keys: Vec<SharedString> =
-            virtual_keys.unwrap_or_else(|| flat.iter().map(|(_, _, _, key)| key.clone()).collect());
+        let tree_rows: Vec<(bool, Option<SharedString>)> = if virtual_keys.is_none() {
+            flat.iter()
+                .map(|(_, _, has_children, _, parent)| (*has_children, parent.clone()))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let visible_collection_keys: Vec<SharedString> = virtual_keys
+            .unwrap_or_else(|| flat.iter().map(|(_, _, _, key, _)| key.clone()).collect());
         let cursor_key = row_cursor.read(cx).clone();
         let cursor_valid = cursor_key.as_ref().is_none_or(|key| {
             visible_collection_keys.contains(key) && !self.disabled_keys.contains(key)
@@ -1094,7 +1103,8 @@ impl RenderOnce for Table {
         };
         // Whether any row in this table is expandable at all: a flat table
         // keeps its cells flush, rather than reserving a chevron's width.
-        let tree_column_has_children = flat.iter().any(|(_, _, has, _)| *has);
+        let tree_column_has_children = flat.iter().any(|(_, _, has, _, _)| *has);
+        let expanded_keys = std::rc::Rc::new(std::mem::take(&mut self.expanded_keys));
 
         // Everything a row needs, held once. The virtual path builds its rows
         // inside a `'static` closure, so it cannot borrow `self` -- and having
@@ -1122,7 +1132,7 @@ impl RenderOnce for Table {
             selected_keys: self.selected_keys.clone(),
             row_keys: visible_collection_keys,
             disabled_keys: self.disabled_keys.clone(),
-            expanded: self.expanded_keys.clone(),
+            expanded: expanded_keys.clone(),
             on_expanded_change: self.on_expanded_change.clone(),
             on_selection_change: self.on_selection_change.clone(),
             selection_own: selection_own.clone(),
@@ -1153,6 +1163,8 @@ impl RenderOnce for Table {
             let fixed_virtual = self.row_height.is_some() && self.virtual_rows.is_some();
             let fixed_scroll = virtual_scroll_now.clone();
             let variable_scroll = virtual_list_state.clone();
+            let expanded = expanded_keys;
+            let on_expanded = self.on_expanded_change.clone();
             if !stops.is_empty() {
                 wrapper = wrapper.on_key_down(move |event, window, cx| {
                     if !table_focus_for_keys.is_focused(window) {
@@ -1163,6 +1175,62 @@ impl RenderOnce for Table {
                         .as_ref()
                         .and_then(|key| keys.iter().position(|row| row == key))
                         .filter(|index| stops.contains(index));
+                    // Pinned React Aria `useTableRow`: horizontal keys belong
+                    // to the focused tree row before the list resolver sees
+                    // them. Right opens; Left closes or returns to the parent.
+                    let key_name = event.keystroke.key.as_str();
+                    if let Some(index) = from {
+                        let focused_key = &keys[index];
+                        if let Some((has_children, parent)) = tree_rows.get(index) {
+                            if key_name == "right"
+                                && *has_children
+                                && !expanded.contains(focused_key)
+                            {
+                                if let Some(cb) = &on_expanded {
+                                    let mut next = expanded.as_ref().clone();
+                                    next.push(focused_key.clone());
+                                    cb(&next, window, cx);
+                                }
+                                crate::util::set_focus_visible(true, cx);
+                                cx.stop_propagation();
+                                return;
+                            } else if key_name == "left" {
+                                if *has_children && expanded.contains(focused_key) {
+                                    if let Some(cb) = &on_expanded {
+                                        let mut next = expanded.as_ref().clone();
+                                        next.retain(|key| key != focused_key);
+                                        cb(&next, window, cx);
+                                    }
+                                    crate::util::set_focus_visible(true, cx);
+                                    cx.stop_propagation();
+                                    return;
+                                } else if let Some(parent) = parent {
+                                    if let Some(parent_index) =
+                                        keys.iter().position(|key| key == parent)
+                                    {
+                                        held.update(cx, |value, cx| {
+                                            *value = Some(parent.clone());
+                                            cx.notify();
+                                        });
+                                        if fixed_virtual {
+                                            fixed_scroll.scroll_to_item(
+                                                parent_index,
+                                                gpui::ScrollStrategy::Center,
+                                            );
+                                        } else if let Some(state) = &variable_scroll {
+                                            state.scroll_to(gpui::ListOffset {
+                                                item_ix: parent_index,
+                                                offset_in_item: px(0.),
+                                            });
+                                        }
+                                        crate::util::set_focus_visible(true, cx);
+                                        cx.stop_propagation();
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    }
                     match crate::list_nav::resolve(
                         &stops,
                         from,
@@ -1285,7 +1353,7 @@ impl RenderOnce for Table {
                 .w_full(),
             );
         } else {
-            for (i, (row_data, depth, has_children, tree_key)) in flat.into_iter().enumerate() {
+            for (i, (row_data, depth, has_children, tree_key, _)) in flat.into_iter().enumerate() {
                 body = body.child(ctx.row(i, row_data, depth, has_children, &tree_key, None, cx));
             }
         }
@@ -1423,7 +1491,7 @@ struct RowCtx {
     selected_keys: Vec<SharedString>,
     row_keys: Vec<SharedString>,
     disabled_keys: Vec<SharedString>,
-    expanded: Vec<SharedString>,
+    expanded: std::rc::Rc<Vec<SharedString>>,
     on_expanded_change: Option<OnExpandedChange>,
     on_selection_change: Option<OnSelectionChange>,
     selection_own: Option<gpui::Entity<Vec<SharedString>>>,
@@ -1576,15 +1644,22 @@ impl RowCtx {
                         if let Some(cb) = on_expanded.clone() {
                             let key = toggle_key.clone();
                             let before = expanded_before.clone();
+                            let focus = self.focus.clone();
+                            let cursor = self.cursor_own.clone();
                             chevron = chevron.on_click(move |_, window, cx| {
                                 cx.stop_propagation();
-                                let mut next = before.clone();
+                                let mut next = before.as_ref().clone();
                                 if let Some(at) = next.iter().position(|k| *k == key) {
                                     next.remove(at);
                                 } else {
                                     next.push(key.clone());
                                 }
                                 cb(&next, window, cx);
+                                window.focus(&focus);
+                                cursor.update(cx, |value, cx| {
+                                    *value = Some(key.clone());
+                                    cx.notify();
+                                });
                             });
                         }
                     }

@@ -896,7 +896,7 @@ fn table_passive_non_div_cell_content_activates_its_row(cx: &mut TestAppContext)
 }
 
 #[gpui::test]
-fn table_tree_chevron_does_not_move_the_row_cursor(cx: &mut TestAppContext) {
+fn table_tree_chevron_moves_the_row_cursor_to_its_row(cx: &mut TestAppContext) {
     let expanded = Rc::new(Cell::new(true));
     let recorded = events();
     let expanded_for_view = expanded.clone();
@@ -947,14 +947,8 @@ fn table_tree_chevron_does_not_move_the_row_cursor(cx: &mut TestAppContext) {
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        [
-            "action:2",
-            "expanded:",
-            "action:1",
-            "action:0",
-            "action:1"
-        ],
-        "collapsing a preceding branch must preserve the sibling's row key and remap action and navigation to its visible index"
+        ["action:2", "expanded:", "action:0", "action:0", "action:1"],
+        "the chevron must restore its row focus before the collapsed collection remaps navigation"
     );
 }
 

@@ -112,6 +112,14 @@ POINTER_CARET = ('Input', 'TextField', 'TextArea')
 # sorting was mouse-only.
 SORT_KEYS = ('Table',)
 
+# A `Table::tree_row` inherits React Aria Table's row keyboard contract: Right
+# expands a collapsed parent, Left collapses an expanded parent, and Left on a
+# child returns the roving cursor to its parent. HeroUI documents the chevron
+# composition but not these inherited keys, so this is derived from the pinned
+# `react-aria` 3.51.0 `useTableRow` source. `virtual_rows` remains a flat-row
+# factory and cannot claim this composition until it accepts tree metadata.
+TREE_KEYS = ('Table',)
+
 # Closing an overlay hands the focus back to what opened it. Only a surface that
 # *took* the focus has to: the pickers and the popover leave it on the trigger,
 # so the menu is the one with something to return. A dialog's trigger belongs to
@@ -286,6 +294,11 @@ EVIDENCE = {
     ('ListBox', 'scroll-into-view'): ('list_box.rs', r'scroll_to_item'),
     ('Dropdown', 'scroll-into-view'): ('dropdown.rs', r'scroll_to_item'),
     ('Table', 'sort-keys'): ('table.rs', r'sort_focus'),
+    ('Table', 'tree-keys'): (
+        'table.rs',
+        r'(?s)tree_rows\.get\(index\).*?key_name == "right"'
+        r'.*?key_name == "left".*?Some\(parent\.clone\(\)\)',
+    ),
     ('Input', 'pointer-caret'): ('input.rs', r'fn char_at_x'),
     ('TextField', 'pointer-caret'): ('input.rs', r'closest_index_for_x'),
     ('Accordion', 'activation'): ('accordion.rs', r'tab_stop_handle'),
@@ -348,12 +361,12 @@ def main():
     # every total.
     derived = dict.fromkeys(
         ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + AREA_KEYS
-        + FOCUS_OPEN + TEXT_KEYS + POINTER_CARET + SORT_KEYS + FOCUS_RETURN
+        + FOCUS_OPEN + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS + FOCUS_RETURN
         + SCROLL_INTO_VIEW + CALENDAR_PAGING + PANEL_FOCUS
     )
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'area-keys',
-                      'focus-open', 'text-keys', 'pointer-caret', 'sort-keys',
+                      'focus-open', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
                       'focus-return', 'scroll-into-view', 'calendar-paging',
                       'panel-focus'):
             key = (page, claim)

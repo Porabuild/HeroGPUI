@@ -69,6 +69,141 @@ fn table_tree_chevron_reports_expand_then_collapse(cx: &mut TestAppContext) {
     );
 }
 
+#[gpui::test]
+fn table_tree_right_expands_and_left_collapses_the_focused_parent(cx: &mut TestAppContext) {
+    let expanded = Rc::new(RefCell::new(Vec::<SharedString>::new()));
+    let expanded_for_view = expanded;
+    let recorded = events();
+    let recorded_for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let expanded = expanded_for_view.clone();
+        let expanded_now = expanded.borrow().clone();
+        let recorded = recorded_for_view.clone();
+        Table::new(vec![])
+            .id("table-tree-keys")
+            .column(TableColumn::new("Name").default_width(px(320.)))
+            .tree_column(0)
+            .expanded_keys(expanded_now)
+            .tree_row(
+                TableRow::new(vec![gpui::div().child("Parent").into_any_element()])
+                    .key("parent")
+                    .children(vec![TableRow::new(vec![gpui::div()
+                        .child("Child")
+                        .into_any_element()])
+                    .key("child")]),
+            )
+            .on_expanded_change(move |keys, window, _| {
+                *expanded.borrow_mut() = keys.to_vec();
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(AsRef::<str>::as_ref)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+                window.refresh();
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    cx.update(|_, cx| herogpui_components::util::set_focus_visible(false, cx));
+    press(cx, "right");
+    assert!(
+        cx.update(|_, cx| herogpui_components::util::focus_visible(cx)),
+        "a handled tree key must still record keyboard focus visibility"
+    );
+    flush_frame(cx);
+    press(cx, "left");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["parent", ""],
+        "Right must expand the focused parent and Left must collapse it again"
+    );
+}
+
+#[gpui::test]
+fn table_tree_left_on_a_child_moves_the_cursor_to_its_parent(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-tree-parent-key")
+            .column(TableColumn::new("Name").default_width(px(320.)))
+            .tree_column(0)
+            .expanded_keys([SharedString::from("parent")])
+            .tree_row(
+                TableRow::new(vec![gpui::div().child("Parent").into_any_element()])
+                    .key("parent")
+                    .children(vec![TableRow::new(vec![gpui::div()
+                        .child("Child")
+                        .into_any_element()])
+                    .key("child")]),
+            )
+            .on_row_click(move |index, _, _, _| {
+                recorded.borrow_mut().push(index.to_string());
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "down");
+    press(cx, "left");
+    press(cx, "enter");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["0"],
+        "Left on a child must move the row cursor to its parent before Enter activates"
+    );
+}
+
+#[gpui::test]
+fn callbackless_table_tree_consumes_an_expand_key(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .on_key_down(move |event, _, _| {
+                recorded.borrow_mut().push(event.keystroke.key.clone());
+            })
+            .child(
+                Table::new(vec![])
+                    .id("table-tree-controlled-read-only")
+                    .column(TableColumn::new("Name").default_width(px(320.)))
+                    .tree_column(0)
+                    .tree_row(
+                        TableRow::new(vec![gpui::div().child("Parent").into_any_element()])
+                            .key("parent")
+                            .children(vec![TableRow::new(vec![gpui::div()
+                                .child("Child")
+                                .into_any_element()])
+                            .key("child")]),
+                    ),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    recorded.borrow_mut().clear();
+    cx.update(|_, cx| herogpui_components::util::set_focus_visible(false, cx));
+    press(cx, "right");
+
+    assert!(
+        recorded.borrow().is_empty(),
+        "Right on a collapsed parent must not escape a callbackless controlled tree"
+    );
+    assert!(
+        cx.update(|_, cx| herogpui_components::util::focus_visible(cx)),
+        "a consumed tree key must still record keyboard focus visibility"
+    );
+}
+
 /// React Aria's default `disabledBehavior="all"` disables every interaction
 /// on a row, including the expansion button it composes in the tree column.
 #[gpui::test]

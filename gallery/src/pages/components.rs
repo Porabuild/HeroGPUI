@@ -3460,7 +3460,9 @@ impl Gallery {
                     col(vec![
                         para(
                             "A row's children are nested under it, and `expandedKeys` decides \
-                             which parents show theirs. The chevron sits in the tree column.",
+                             which parents show theirs. The chevron sits in the tree column; \
+                             Right expands the focused parent, and Left collapses it or returns \
+                             the row cursor to its parent.",
                             cx,
                         ),
                         {
