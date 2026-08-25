@@ -21,6 +21,8 @@ type OnRowClick = std::sync::Arc<dyn Fn(usize, &ClickEvent, &mut Window, &mut Ap
 type OnSelectionChange = std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
 type OnSortChange = std::sync::Arc<dyn Fn(SortDescriptor, &mut Window, &mut App) + 'static>;
 type OnLoadMore = std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>;
+type VirtualRowKey = std::sync::Arc<dyn Fn(usize) -> SharedString + 'static>;
+type VirtualRow = std::sync::Arc<dyn Fn(usize) -> TableRow + 'static>;
 
 /// Visual variant of a table (`variant`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -208,14 +210,6 @@ impl TableRow {
         self.key = Some(key.into());
         self
     }
-
-    /// The key this row selects under, given its position.
-    fn selection_key(&self, index: usize) -> SharedString {
-        match &self.key {
-            Some(k) => k.clone(),
-            None => SharedString::from(index.to_string()),
-        }
-    }
 }
 
 type OnExpandedChange = std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
@@ -258,6 +252,16 @@ fn row_intent(
         RowActivation::Space if mode != SelectionMode::None => RowIntent::Selection,
         _ => RowIntent::None,
     }
+}
+
+fn select_all_flags(selectable: &[SharedString], selected: &[SharedString]) -> (bool, bool) {
+    let selected_count = selectable
+        .iter()
+        .filter(|key| selected.contains(key))
+        .count();
+    let all_selected = !selectable.is_empty() && selected_count == selectable.len();
+    let indeterminate = !selected.is_empty() && !all_selected;
+    (all_selected, indeterminate)
 }
 
 /// A column with a `defaultWidth` takes it; the rest split what is left.
@@ -308,14 +312,11 @@ pub struct Table {
     /// The row factory a virtual table needs. Cells are `AnyElement`, which
     /// cannot be built up front and then handed out again on the next scroll,
     /// so a virtual table asks for its rows one at a time.
-    virtual_rows: Option<(
-        usize,
-        SharedString,
-        std::sync::Arc<dyn Fn(usize) -> TableRow + 'static>,
-    )>,
+    virtual_rows: Option<(usize, SharedString, VirtualRowKey, VirtualRow)>,
     variant: TableVariant,
     selection_mode: SelectionMode,
     selected_keys: Vec<SharedString>,
+    disabled_keys: Vec<SharedString>,
     is_selection_controlled: bool,
     sort_descriptor: Option<SortDescriptor>,
     show_indicator: bool,
@@ -349,6 +350,7 @@ impl Table {
             variant: TableVariant::Primary,
             selection_mode: SelectionMode::None,
             selected_keys: Vec::new(),
+            disabled_keys: Vec::new(),
             is_selection_controlled: false,
             sort_descriptor: None,
             show_indicator: true,
@@ -438,6 +440,9 @@ impl Table {
     /// `AnyElement`, which is built once and consumed once, so a virtual table
     /// cannot be handed its rows up front -- it has to be able to ask again
     /// every time the viewport moves.
+    /// `key` projects the collection key without building the row. Keyboard
+    /// navigation and select-all need the full collection, but calling `row`
+    /// for every item would defeat virtualization.
     /// `identity` stays stable for one collection and changes when the caller
     /// replaces it, so a visible load-more sentinel can re-arm without building
     /// every row just to compare their keys.
@@ -463,9 +468,15 @@ impl Table {
         mut self,
         count: usize,
         identity: impl Into<SharedString>,
+        key: impl Fn(usize) -> SharedString + 'static,
         row: impl Fn(usize) -> TableRow + 'static,
     ) -> Self {
-        self.virtual_rows = Some((count, identity.into(), std::sync::Arc::new(row)));
+        self.virtual_rows = Some((
+            count,
+            identity.into(),
+            std::sync::Arc::new(key),
+            std::sync::Arc::new(row),
+        ));
         self
     }
 
@@ -521,6 +532,16 @@ impl Table {
     ) -> Self {
         self.selected_keys = keys.into_iter().map(Into::into).collect();
         self.is_selection_controlled = true;
+        self
+    }
+
+    /// React Aria's inherited `disabledKeys` — rows excluded from selection,
+    /// actions and the roving keyboard stops.
+    pub fn disabled_keys(
+        mut self,
+        keys: impl IntoIterator<Item = impl Into<SharedString>>,
+    ) -> Self {
+        self.disabled_keys = keys.into_iter().map(Into::into).collect();
         self
     }
 
@@ -659,6 +680,40 @@ impl RenderOnce for Table {
             Vec::new(),
         );
         self.selected_keys = selected_keys;
+        let virtual_keys = self
+            .virtual_rows
+            .as_ref()
+            .map(|(count, _, key, _)| (0..*count).map(|index| key(index)).collect::<Vec<_>>());
+        let virtual_scroll = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{}-virtual-scroll", self.id).into()),
+            cx,
+            |_, _| gpui::UniformListScrollHandle::new(),
+        );
+        let virtual_scroll_now = virtual_scroll.read(cx).clone();
+        let virtual_list_state = match (
+            self.row_height,
+            self.estimated_row_height,
+            &self.virtual_rows,
+        ) {
+            (None, Some(estimate), Some((count, identity, _, _))) => {
+                let count = *count;
+                let state = window
+                    .use_keyed_state(
+                        gpui::ElementId::Name(format!("{}-list-state-{identity}", self.id).into()),
+                        cx,
+                        move |_, _| {
+                            gpui::ListState::new(count, gpui::ListAlignment::Top, estimate * 3.)
+                        },
+                    )
+                    .read(cx)
+                    .clone();
+                if state.item_count() != count {
+                    state.reset(count);
+                }
+                Some(state)
+            }
+            _ => None,
+        };
         // A sortable header had a click listener and no focus, so sorting was
         // mouse-only. v3's grid roves one tab stop across its cells; this port
         // gives each sortable header its own stop, which is the part that
@@ -695,17 +750,18 @@ impl RenderOnce for Table {
         let muted = colors.muted;
         let secondary = self.variant == TableVariant::Secondary;
         let selectable = self.selection_mode != SelectionMode::None;
-        let full_collection_keys = self.row_keys();
-        let selected_count = full_collection_keys
+        let full_collection_keys = virtual_keys.clone().unwrap_or_else(|| self.row_keys());
+        let selectable_collection_keys: Vec<SharedString> = full_collection_keys
             .iter()
-            .filter(|k| self.selected_keys.contains(k))
-            .count();
+            .filter(|key| !self.disabled_keys.contains(key))
+            .cloned()
+            .collect();
         let load_more_collection = match &self.virtual_rows {
-            Some((count, identity, _)) => LoadMoreCollection::Virtual {
+            Some((count, identity, _, _)) => LoadMoreCollection::Virtual {
                 count: *count,
                 identity: identity.clone(),
             },
-            None => LoadMoreCollection::Rows(full_collection_keys.clone()),
+            None => LoadMoreCollection::Rows(full_collection_keys),
         };
 
         let mut wrapper = gpui::div()
@@ -763,14 +819,13 @@ impl RenderOnce for Table {
                 .w(px(44.))
                 .py(px(10.));
             if self.selection_mode == SelectionMode::Multiple {
-                let all = full_collection_keys;
-                let none_selected = selected_count == 0;
-                let all_selected = !all.is_empty() && selected_count == all.len();
+                let all = selectable_collection_keys;
+                let (all_selected, indeterminate) = select_all_flags(&all, &self.selected_keys);
                 let mut box_el = Checkbox::new(gpui::ElementId::Name(
                     format!("{}-select-all", self.id).into(),
                 ))
                 .is_selected(all_selected)
-                .is_indeterminate(!all_selected && !none_selected);
+                .is_indeterminate(indeterminate);
                 let cb = self.on_selection_change.clone();
                 if cb.is_some() || selection_own.is_some() {
                     let selection_own = selection_own.clone();
@@ -1013,12 +1068,26 @@ impl RenderOnce for Table {
             &mut flat,
         );
         let visible_collection_keys: Vec<SharedString> =
-            flat.iter().map(|(_, _, _, key)| key.clone()).collect();
+            virtual_keys.unwrap_or_else(|| flat.iter().map(|(_, _, _, key)| key.clone()).collect());
+        let cursor_key = row_cursor.read(cx).clone();
+        let cursor_valid = cursor_key.as_ref().is_none_or(|key| {
+            visible_collection_keys.contains(key) && !self.disabled_keys.contains(key)
+        });
+        if !cursor_valid {
+            row_cursor.update(cx, |key, cx| {
+                *key = None;
+                cx.notify();
+            });
+        }
         let cursor_at = if window.is_window_active() && table_focus.is_focused(window) {
-            row_cursor
-                .read(cx)
+            cursor_key
                 .as_ref()
                 .and_then(|key| visible_collection_keys.iter().position(|row| row == key))
+                .filter(|index| {
+                    !self
+                        .disabled_keys
+                        .contains(&visible_collection_keys[*index])
+                })
                 .filter(|_| crate::util::focus_visible(cx))
         } else {
             None
@@ -1052,6 +1121,7 @@ impl RenderOnce for Table {
             selection_mode: self.selection_mode,
             selected_keys: self.selected_keys.clone(),
             row_keys: visible_collection_keys,
+            disabled_keys: self.disabled_keys.clone(),
             expanded: self.expanded_keys.clone(),
             on_expanded_change: self.on_expanded_change.clone(),
             on_selection_change: self.on_selection_change.clone(),
@@ -1066,7 +1136,12 @@ impl RenderOnce for Table {
         // jump, and Enter activates the row -- the same resolver every list here
         // uses, over the rows that exist.
         {
-            let stops: Vec<usize> = (0..flat.len()).collect();
+            let stops: Vec<usize> = ctx
+                .row_keys
+                .iter()
+                .enumerate()
+                .filter_map(|(index, key)| (!self.disabled_keys.contains(key)).then_some(index))
+                .collect();
             let held = row_cursor;
             let on_row_click = self.on_row_click.clone();
             let keys = ctx.row_keys.clone();
@@ -1075,6 +1150,9 @@ impl RenderOnce for Table {
             let selection_own_for_keys = selection_own;
             let selected_now = self.selected_keys.clone();
             let mode = self.selection_mode;
+            let fixed_virtual = self.row_height.is_some() && self.virtual_rows.is_some();
+            let fixed_scroll = virtual_scroll_now.clone();
+            let variable_scroll = virtual_list_state.clone();
             if !stops.is_empty() {
                 wrapper = wrapper.on_key_down(move |event, window, cx| {
                     if !table_focus_for_keys.is_focused(window) {
@@ -1083,7 +1161,8 @@ impl RenderOnce for Table {
                     let from = held
                         .read(cx)
                         .as_ref()
-                        .and_then(|key| keys.iter().position(|row| row == key));
+                        .and_then(|key| keys.iter().position(|row| row == key))
+                        .filter(|index| stops.contains(index));
                     match crate::list_nav::resolve(
                         &stops,
                         from,
@@ -1095,6 +1174,18 @@ impl RenderOnce for Table {
                                 *v = keys.get(next).cloned();
                                 cx.notify();
                             });
+                            if fixed_virtual {
+                                fixed_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
+                            } else if let Some(state) = &variable_scroll {
+                                // Unmeasured rows have no cached height, so
+                                // `scroll_to_reveal_item` cannot locate a far
+                                // target. Jump by logical index; the next
+                                // layout measures that row at the viewport.
+                                state.scroll_to(gpui::ListOffset {
+                                    item_ix: next,
+                                    offset_in_item: px(0.),
+                                });
+                            }
                         }
                         crate::list_nav::Move::Activate => {
                             let Some(index) = from else { return };
@@ -1143,7 +1234,7 @@ impl RenderOnce for Table {
         }
 
         let row_count = match &self.virtual_rows {
-            Some((count, _, _))
+            Some((count, _, _, _))
                 if self.row_height.is_some() || self.estimated_row_height.is_some() =>
             {
                 *count
@@ -1154,34 +1245,7 @@ impl RenderOnce for Table {
         // `estimatedRowHeight` takes the variable-height path: gpui's `list`
         // measures each row it builds, and its state is intrusive, so it lives in
         // the window's keyed store and resets when the count changes.
-        if let (Some(estimate), Some((count, _, factory))) =
-            (self.estimated_row_height, self.virtual_rows.clone())
-        {
-            let height = self.max_h.unwrap_or(px(400.));
-            let state = window
-                .use_keyed_state(
-                    gpui::ElementId::Name(format!("{}-list-state", self.id).into()),
-                    cx,
-                    move |_, _| {
-                        gpui::ListState::new(count, gpui::ListAlignment::Top, estimate * 3.)
-                    },
-                )
-                .read(cx)
-                .clone();
-            if state.item_count() != count {
-                state.reset(count);
-            }
-            let rows = ctx.clone();
-            body = body.child(
-                gpui::list(state, move |i, _window, cx| {
-                    let row_data = factory(i);
-                    let key = row_data.selection_key(i);
-                    rows.row(i, row_data, 0, false, &key, None, cx)
-                })
-                .h(height)
-                .w_full(),
-            );
-        } else if let (Some(row_height), Some((count, _, factory))) =
+        if let (Some(row_height), Some((count, _, key_for_row, factory))) =
             (self.row_height, self.virtual_rows.clone())
         {
             // The body scrolls inside `uniform_list`, which asks for the rows the
@@ -1196,12 +1260,27 @@ impl RenderOnce for Table {
                         range
                             .map(|i| {
                                 let row_data = factory(i);
-                                let key = row_data.selection_key(i);
+                                let key = key_for_row(i);
                                 rows.row(i, row_data, 0, false, &key, Some(row_height), cx)
                             })
                             .collect::<Vec<_>>()
                     },
                 )
+                .track_scroll(virtual_scroll_now)
+                .h(height)
+                .w_full(),
+            );
+        } else if let (Some(state), Some((_, _, key_for_row, factory))) =
+            (virtual_list_state, self.virtual_rows.clone())
+        {
+            let height = self.max_h.unwrap_or(px(400.));
+            let rows = ctx.clone();
+            body = body.child(
+                gpui::list(state, move |i, _window, cx| {
+                    let row_data = factory(i);
+                    let key = key_for_row(i);
+                    rows.row(i, row_data, 0, false, &key, None, cx)
+                })
                 .h(height)
                 .w_full(),
             );
@@ -1343,6 +1422,7 @@ struct RowCtx {
     selection_mode: SelectionMode,
     selected_keys: Vec<SharedString>,
     row_keys: Vec<SharedString>,
+    disabled_keys: Vec<SharedString>,
     expanded: Vec<SharedString>,
     on_expanded_change: Option<OnExpandedChange>,
     on_selection_change: Option<OnSelectionChange>,
@@ -1379,6 +1459,7 @@ impl RowCtx {
         let tree_column_has_children = self.tree_column_has_children;
         let key = tree_key.clone();
         let is_selected = self.selected_keys.contains(&key);
+        let is_disabled = self.disabled_keys.contains(&key);
         let row_header_columns = &self.row_header_columns;
 
         let mut row = gpui::div()
@@ -1409,9 +1490,10 @@ impl RowCtx {
             let mut box_el = Checkbox::new(gpui::ElementId::Name(
                 format!("{}-select-{i}", self.id).into(),
             ))
-            .is_selected(is_selected);
+            .is_selected(is_selected)
+            .is_disabled(is_disabled);
             let cb = self.on_selection_change.clone();
-            if cb.is_some() || self.selection_own.is_some() {
+            if !is_disabled && (cb.is_some() || self.selection_own.is_some()) {
                 let current = self.selected_keys.clone();
                 let key2 = key.clone();
                 let mode = self.selection_mode;
@@ -1472,9 +1554,13 @@ impl RowCtx {
                         .justify_center()
                         .size(px(18.))
                         .flex_shrink_0()
-                        .cursor_pointer()
-                        .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
-                            cx.stop_propagation();
+                        .when(!is_disabled, |chevron| {
+                            chevron.cursor_pointer().on_mouse_down(
+                                gpui::MouseButton::Left,
+                                |_, _, cx| {
+                                    cx.stop_propagation();
+                                },
+                            )
                         })
                         .child(
                             gpui::svg()
@@ -1486,19 +1572,21 @@ impl RowCtx {
                                 })
                                 .text_color(colors.muted),
                         );
-                    if let Some(cb) = on_expanded.clone() {
-                        let key = toggle_key.clone();
-                        let before = expanded_before.clone();
-                        chevron = chevron.on_click(move |_, window, cx| {
-                            cx.stop_propagation();
-                            let mut next = before.clone();
-                            if let Some(at) = next.iter().position(|k| *k == key) {
-                                next.remove(at);
-                            } else {
-                                next.push(key.clone());
-                            }
-                            cb(&next, window, cx);
-                        });
+                    if !is_disabled {
+                        if let Some(cb) = on_expanded.clone() {
+                            let key = toggle_key.clone();
+                            let before = expanded_before.clone();
+                            chevron = chevron.on_click(move |_, window, cx| {
+                                cx.stop_propagation();
+                                let mut next = before.clone();
+                                if let Some(at) = next.iter().position(|k| *k == key) {
+                                    next.remove(at);
+                                } else {
+                                    next.push(key.clone());
+                                }
+                                cb(&next, window, cx);
+                            });
+                        }
                     }
                     cell_el = cell_el.child(chevron);
                 } else if depth > 0 || tree_column_has_children {
@@ -1519,8 +1607,9 @@ impl RowCtx {
         let row_action = self.on_row_click.clone();
         let row_selection = self.on_selection_change.clone();
         let selection_own = self.selection_own.clone();
-        if row_action.is_some()
-            || (self.selectable && (row_selection.is_some() || selection_own.is_some()))
+        if !is_disabled
+            && (row_action.is_some()
+                || (self.selectable && (row_selection.is_some() || selection_own.is_some())))
         {
             let current = self.selected_keys.clone();
             let mode = self.selection_mode;
@@ -1578,7 +1667,8 @@ impl RowCtx {
         // inset shadow, with the first and last three-sided, so the row reads as
         // one continuous outline. One overlay across the row is the same picture
         // and needs no per-cell cases.
-        row.relative()
+        row.when(is_disabled, |row| row.opacity(cx.layout().disabled_opacity))
+            .relative()
             .when(self.cursor == Some(i), |r| {
                 r.child(crate::util::inset_focus_ring(cx))
             })
@@ -1603,6 +1693,13 @@ mod tests {
         assert_eq!(next.direction, SortDirection::Descending);
         let back = SortDescriptor::next(Some(&next), "name");
         assert_eq!(back.direction, SortDirection::Ascending);
+    }
+
+    #[test]
+    fn disabled_only_controlled_selection_is_indeterminate() {
+        let selectable = vec![SharedString::from("alpha")];
+        let selected = vec![SharedString::from("beta")];
+        assert_eq!(select_all_flags(&selectable, &selected), (false, true));
     }
 
     #[test]

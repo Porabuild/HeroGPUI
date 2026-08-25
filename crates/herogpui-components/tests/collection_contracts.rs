@@ -1046,6 +1046,7 @@ fn virtual_table_load_more_rearms_after_same_count_key_replacement(cx: &mut Test
     let for_view = recorded.clone();
     let cx = open_host(cx, move || {
         let page = page_for_view.clone();
+        let key_page = page_for_view.clone();
         let calls = calls_for_view.clone();
         let recorded = for_view.clone();
         let identity = if page_for_view.get() {
@@ -1059,16 +1060,25 @@ fn virtual_table_load_more_rearms_after_same_count_key_replacement(cx: &mut Test
             .row_height(px(80.))
             .max_h(px(160.))
             .scroll_offset(0.)
-            .virtual_rows(1000, identity, move |index| {
-                calls.set(calls.get() + 1);
-                if page.get() {
-                    TableRow::new(vec![tall_cell(format!("Beta {index}"))])
-                        .key(format!("beta-{index}"))
-                } else {
-                    TableRow::new(vec![tall_cell(format!("Alpha {index}"))])
-                        .key(format!("alpha-{index}"))
-                }
-            })
+            .virtual_rows(
+                1000,
+                identity,
+                move |index| {
+                    if key_page.get() {
+                        format!("beta-{index}").into()
+                    } else {
+                        format!("alpha-{index}").into()
+                    }
+                },
+                move |index| {
+                    calls.set(calls.get() + 1);
+                    if page.get() {
+                        TableRow::new(vec![tall_cell(format!("Beta {index}"))])
+                    } else {
+                        TableRow::new(vec![tall_cell(format!("Alpha {index}"))])
+                    }
+                },
+            )
             .on_load_more(move |_, _| recorded.borrow_mut().push("load-more".into()))
             .into_any_element()
     });
@@ -1077,8 +1087,8 @@ fn virtual_table_load_more_rearms_after_same_count_key_replacement(cx: &mut Test
     assert_eq!(recorded.borrow().as_slice(), ["load-more"]);
     let first_page_calls = factory_calls.get();
     assert!(
-        first_page_calls < 1000,
-        "collection identity must not eagerly invoke the factory for every virtual row"
+        first_page_calls <= 16,
+        "two frames of a 160px viewport over 80px rows must stay within visible rows plus bounded overdraw; observed {first_page_calls}"
     );
     second_page.set(true);
     flush_frame(cx);
@@ -1088,7 +1098,8 @@ fn virtual_table_load_more_rearms_after_same_count_key_replacement(cx: &mut Test
         "a virtual same-count collection replacement must carry its explicit identity into the sentinel"
     );
     assert!(
-        factory_calls.get() - first_page_calls < 1000,
-        "replacing the collection must keep factory work bounded to the viewport"
+        factory_calls.get() - first_page_calls <= 16,
+        "replacing the collection must keep factory work bounded to the viewport; observed {}",
+        factory_calls.get() - first_page_calls
     );
 }

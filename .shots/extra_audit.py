@@ -221,6 +221,10 @@ EXTRA_OK_SCOPED = {
     # ...>`, and React Aria's `LoadMoreSentinelProps` defaults it to one
     # viewport. The monolithic Table projects that part's prop onto itself.
     'Table.scroll_offset': 'composition',
+    # HeroUI's Tabs wrapper forwards React Aria Components' Tabs props. The
+    # pinned dependency exposes `keyboardActivation`, but HeroUI's own table
+    # does not repeat that inherited row.
+    'Tabs.keyboard_activation': 'react-aria-inherited',
     # v3 composes one `Slider.Thumb` per value and names each thumb there. The
     # monolithic Slider projects those names as an index-ordered collection.
     'Slider.thumb_names': 'composition',

@@ -126,6 +126,75 @@ fn slider_disabled_thumb_answers_neither_drag_nor_keys(cx: &mut TestAppContext) 
     );
 }
 
+/// `Slider.Thumb` accepts render-function children. The closure receives the
+/// thumb index and that thumb's current value, including after keyboard
+/// changes; two thumbs are required to prove neither value is copied onto its
+/// sibling's slot.
+#[gpui::test]
+fn slider_thumb_content_tracks_each_keyboard_value(cx: &mut TestAppContext) {
+    let snapshots: std::rc::Rc<std::cell::RefCell<Vec<String>>> = Default::default();
+    let changes = events();
+    let snapshots_for_view = snapshots.clone();
+    let changes_for_view = changes.clone();
+    let cx = open_host(cx, move || {
+        let snapshots = snapshots_for_view.clone();
+        let changes = changes_for_view.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Slider::new("pt-slider-content", 0.)
+                    .default_values([20., 80.])
+                    .step(1.)
+                    .thumb(move |index, value| {
+                        snapshots.borrow_mut().push(format!("{index}:{value}"));
+                        gpui::div().size(px(16.)).into_any_element()
+                    })
+                    .on_change_all(move |values, _, _| {
+                        changes.borrow_mut().push(
+                            values
+                                .iter()
+                                .map(ToString::to_string)
+                                .collect::<Vec<_>>()
+                                .join(","),
+                        );
+                    })
+                    .into_any_element(),
+            )
+            .into_any_element()
+    });
+
+    assert!(
+        snapshots
+            .borrow()
+            .ends_with(&["0:20".into(), "1:80".into()]),
+        "the first frame must hand each thumb its own index and value"
+    );
+
+    press(cx, "tab");
+    flush_frame(cx);
+    press(cx, "right");
+    flush_frame(cx);
+    assert_eq!(changes.borrow().as_slice(), ["21,80"]);
+    assert!(
+        snapshots
+            .borrow()
+            .ends_with(&["0:21".into(), "1:80".into()]),
+        "stepping the first thumb must update only its slot value"
+    );
+
+    press(cx, "tab");
+    flush_frame(cx);
+    press(cx, "right");
+    flush_frame(cx);
+    assert_eq!(changes.borrow().as_slice(), ["21,80", "21,81"]);
+    assert!(
+        snapshots
+            .borrow()
+            .ends_with(&["0:21".into(), "1:81".into()]),
+        "after roving, stepping the second thumb must update its own slot"
+    );
+}
+
 /// A disabled swatch answers no click while its neighbours do, and it leaves
 /// the tab order.
 ///

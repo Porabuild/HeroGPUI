@@ -40,7 +40,7 @@
 
 mod harness;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::rc::Rc;
 
@@ -443,16 +443,12 @@ fn table_footer_hosts_pagination_and_reports(cx: &mut TestAppContext) {
     );
 }
 
-/// v3's Table *styles* a disabled row — its `### Interactive States` lists
-/// `:disabled` / `[aria-disabled="true"]` — but its API Reference documents
-/// no prop that sets it (`Table.Content` has no `disabledKeys`, `Table.Row`
-/// has none), so like the progress bar's `[aria-disabled]` there is nothing
-/// to drive here. The port has no spelling either: every row is always a
-/// keyboard stop and always answers its checkbox. This test pins that
-/// contract — if a `disabled_keys`-shaped builder ever appears without being
-/// wired into the row stops, this fails.
+/// HeroUI's `Table.Content` forwards React Aria's inherited `disabledKeys`.
+/// The default `disabledBehavior="all"` removes that row from every
+/// interaction: the roving cursor skips it and its pointer checkbox is inert,
+/// while enabled siblings keep reporting the controlled selection.
 #[gpui::test]
-fn table_every_row_selectable_no_disabled_row_api(cx: &mut TestAppContext) {
+fn table_disabled_keys_skip_keyboard_and_pointer_selection(cx: &mut TestAppContext) {
     let recorded = events();
     let held: Rc<RefCell<Vec<SharedString>>> = Rc::new(RefCell::new(Vec::new()));
     let held_for_view = held;
@@ -464,9 +460,10 @@ fn table_every_row_selectable_no_disabled_row_api(cx: &mut TestAppContext) {
         // caller feeds it back. The 204px wrapper fixes the table at the 44px
         // selection column + a 160px data column.
         let mut table = Table::new(vec![])
-            .id("tbl-nodis")
+            .id("tbl-disabled-keys")
             .columns(vec![TableColumn::new("Name").default_width(px(160.))])
             .selection_mode(SelectionMode::Multiple)
+            .disabled_keys(["beta"])
             .keyed_row("alpha", vec![tall_cell("Alpha")])
             .keyed_row("beta", vec![tall_cell("Beta")])
             .keyed_row("gamma", vec![tall_cell("Gamma")])
@@ -486,32 +483,75 @@ fn table_every_row_selectable_no_disabled_row_api(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    // Keyboard: one Tab, then Down Enter three times — the cursor walks every
-    // row in order and each Enter selects it. Nothing skips a row, because
-    // the keyboard stops *are* every row.
+    // The entry Down lands on Alpha. The next Down skips disabled Beta and
+    // lands on Gamma, so the two Enters select only those enabled rows.
     press(cx, "tab");
     press(cx, "down");
     press(cx, "enter");
     press(cx, "down");
     press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "alpha,gamma"],
+        "the roving cursor must skip the disabled row"
+    );
+
+    // The 44px selection column centres its checkbox at x = 22; Beta is the
+    // second 105px row below the ~37px header, centred near y = 195. A click
+    // on that disabled checkbox must not report or mutate the controlled set.
+    click(cx, 22., 195.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "alpha,gamma"],
+        "a disabled row's checkbox must be inert"
+    );
+}
+
+/// If a focused row becomes disabled between frames, React Aria's default
+/// `disabledBehavior="all"` removes it from activation immediately. The stale
+/// cursor must not let Enter invoke that row; the next Down re-enters at the
+/// first enabled row.
+#[gpui::test]
+fn table_newly_disabled_cursor_cannot_activate(cx: &mut TestAppContext) {
+    let recorded = events();
+    let disable_beta = Rc::new(Cell::new(false));
+    let disabled_for_view = disable_beta.clone();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        let mut table = Table::new(vec![])
+            .id("tbl-dynamic-disabled")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .keyed_row("alpha", vec![tall_cell("Alpha")])
+            .keyed_row("beta", vec![tall_cell("Beta")])
+            .keyed_row("gamma", vec![tall_cell("Gamma")]);
+        if disabled_for_view.get() {
+            table = table.disabled_keys(["beta"]);
+        }
+        table
+            .on_row_click(move |index, _, _, _| {
+                recorded.borrow_mut().push(format!("row:{index}"));
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "down");
+    disable_beta.set(true);
+    cx.update(|window, _| window.refresh());
+    press(cx, "enter");
+    assert!(
+        recorded.borrow().is_empty(),
+        "a row disabled while focused must not answer Enter"
+    );
+
     press(cx, "down");
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["alpha", "alpha,beta", "alpha,beta,gamma"],
-        "every row must be a keyboard stop: Down Down Down Enter Enter Enter \
-         selects all three"
-    );
-
-    // And the same rows answer their checkboxes: the 44px column is `py-2.5`
-    // around a 16px box, so row i's centre is y = 52 + 105i below the header
-    // (90 for row 0) and x = 22. Re-clicking the picked row 0 toggles it off.
-    click(cx, 22., 90.);
-    assert_eq!(
-        recorded.borrow().as_slice(),
-        ["alpha", "alpha,beta", "alpha,beta,gamma", "beta,gamma"],
-        "every row must also answer its checkbox: re-clicking the picked \
-         first row deselects it"
+        ["row:0"],
+        "after the stale cursor clears, Down must re-enter at the first enabled row"
     );
 }
 

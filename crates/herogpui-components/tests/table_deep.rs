@@ -69,6 +69,49 @@ fn table_tree_chevron_reports_expand_then_collapse(cx: &mut TestAppContext) {
     );
 }
 
+/// React Aria's default `disabledBehavior="all"` disables every interaction
+/// on a row, including the expansion button it composes in the tree column.
+#[gpui::test]
+fn disabled_table_tree_chevron_is_inert(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .w(px(320.))
+            .child(
+                Table::new(vec![])
+                    .id("table-tree-disabled")
+                    .column(TableColumn::new("Name").default_width(px(320.)))
+                    .tree_column(0)
+                    .disabled_keys(["parent"])
+                    .tree_row(
+                        TableRow::new(vec![gpui::div().child("Parent").into_any_element()])
+                            .key("parent")
+                            .children(vec![TableRow::new(vec![gpui::div()
+                                .child("Child")
+                                .into_any_element()])
+                            .key("child")]),
+                    )
+                    .on_expanded_change(move |keys, _, _| {
+                        recorded.borrow_mut().push(
+                            keys.iter()
+                                .map(AsRef::<str>::as_ref)
+                                .collect::<Vec<_>>()
+                                .join(","),
+                        );
+                    }),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 29., 58.);
+    assert!(
+        recorded.borrow().is_empty(),
+        "a disabled expandable row must not report an expanded-key change"
+    );
+}
+
 /// `Table.Body.renderEmptyState` is interactive content, not a painted label.
 /// With a 320px table its full-width 40px probe is centred below the ~37px
 /// header and the empty wrapper's 28px top padding, so (160, 85) is inside it.

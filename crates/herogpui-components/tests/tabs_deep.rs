@@ -18,7 +18,7 @@ use std::{cell::RefCell, rc::Rc};
 use gpui::{
     prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, TestAppContext, WindowTextSystem,
 };
-use herogpui_components::{Orientation, TabItem, Tabs, TabsVariant};
+use herogpui_components::{KeyboardActivation, Orientation, TabItem, Tabs, TabsVariant};
 
 use harness::{click, events, open_host, press};
 
@@ -423,5 +423,45 @@ fn tabs_controlled_secondary_vertical_advances_roving_focus(cx: &mut TestAppCont
         !clicked_panel.borrow().is_empty()
             && clicked_panel.borrow().iter().all(|panel| panel == "first"),
         "controlled vertical arrow proposals must keep rendering only the first panel"
+    );
+}
+
+/// Pinned React Aria's `keyboardActivation="manual"` moves the roving focus
+/// with arrows without selecting. Enter activates the focused tab afterward,
+/// so a controlled owner receives exactly one proposal at that point.
+#[gpui::test]
+fn tabs_manual_activation_waits_for_enter(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Tabs::new(
+            "tb-manual",
+            vec![
+                TabItem::new("first", "First"),
+                TabItem::new("second", "Second"),
+                TabItem::new("third", "Third"),
+            ],
+            "first",
+        )
+        .selected_key("first")
+        .keyboard_activation(KeyboardActivation::Manual)
+        .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "right");
+    assert!(
+        recorded.borrow().is_empty(),
+        "manual activation must not select merely because focus moved"
+    );
+
+    cx.update(|window, _| window.refresh());
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["second"],
+        "Enter must activate the manually focused tab"
     );
 }

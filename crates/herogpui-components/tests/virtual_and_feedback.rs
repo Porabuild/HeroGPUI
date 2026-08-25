@@ -46,7 +46,7 @@
 
 mod harness;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -263,9 +263,12 @@ fn virtual_table_rows_click_and_sort(cx: &mut TestAppContext) {
             ])
             // 1000 rows built on demand: the factory must be re-invokable on
             // every scroll, which is exactly what `virtual_rows` is for.
-            .virtual_rows(1000, "virtual-sort-users", move |i| {
-                TableRow::new(vec![probe_cell(i, probes.clone())])
-            })
+            .virtual_rows(
+                1000,
+                "virtual-sort-users",
+                |i| i.to_string().into(),
+                move |i| TableRow::new(vec![probe_cell(i, probes.clone())]),
+            )
             .row_height(px(40.))
             .max_h(px(160.));
         // Sorting is controlled: the caller feeds the reported descriptor
@@ -314,6 +317,66 @@ fn virtual_table_rows_click_and_sort(cx: &mut TestAppContext) {
     );
 }
 
+/// React Aria's pinned `useTable` builds its keyboard delegate from the full
+/// collection and passes the virtual layout delegate alongside it, so rows do
+/// not stop being keyboard destinations merely because they are not painted.
+/// This port's table wrapper takes the tab stop, then the first Down enters at
+/// row 0. Another 31 Downs must move through the collection and scroll row 31
+/// into view, where Enter activates it through the same row action as a pointer
+/// press.
+#[gpui::test]
+fn virtual_table_arrows_scroll_the_focused_row_into_view(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("vt-keys")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .virtual_rows(
+                1000,
+                "virtual-key-users",
+                |i| format!("key-{i:04}").into(),
+                |i| {
+                    TableRow::new(vec![gpui::div()
+                        .child(format!("Row {i}"))
+                        .into_any_element()])
+                },
+            )
+            .row_height(px(40.))
+            // A concrete rowHeight wins when both TableLayout hints exist.
+            .estimated_row_height(px(24.))
+            .max_h(px(160.))
+            .on_row_click(move |i, _, _, _| recorded.borrow_mut().push(format!("row-{i}")))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    for _ in 0..32 {
+        press(cx, "down");
+    }
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-31"],
+        "the entry Down plus 31 moves must activate virtual row 31"
+    );
+
+    // The deferred centre-scroll puts row 31 around the middle of the 160px
+    // body. The preceding row is centred at the body's midpoint, leaving row
+    // 31 in the 40px band immediately below it; with the ~37px header, y = 157
+    // is inside that band. A click there proves the keyboard move caused the
+    // row factory to build row 31 rather than merely letting Enter address an
+    // off-screen index.
+    flush_frame(cx);
+    click(cx, 30., 157.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-31", "row-31"],
+        "the keyboard-focused virtual row must be built at the scrolled position"
+    );
+}
+
 /// `estimatedRowHeight` takes the `gpui::list` path, which measures *each*
 /// built row instead of multiplying one. Rows of two real heights — 45px and
 /// 85px — must lay out without overlapping: a click aimed mid-way down a tall
@@ -332,9 +395,12 @@ fn variable_height_rows_do_not_overlap(cx: &mut TestAppContext) {
         Table::new(vec![])
             .id("vt-var")
             .columns(vec![TableColumn::new("Name").default_width(px(160.))])
-            .virtual_rows(6, "virtual-variable-users", |i| {
-                TableRow::new(vec![var_cell(i)])
-            })
+            .virtual_rows(
+                6,
+                "virtual-variable-users",
+                |i| i.to_string().into(),
+                |i| TableRow::new(vec![var_cell(i)]),
+            )
             .estimated_row_height(px(24.))
             .on_row_click(move |i, _, _, _| recorded.borrow_mut().push(format!("row-{i}")))
             .into_any_element()
@@ -358,6 +424,110 @@ fn variable_height_rows_do_not_overlap(cx: &mut TestAppContext) {
         recorded.borrow().as_slice(),
         ["row-1", "row-3"],
         "rows of two heights must measure and lay out without overlap"
+    );
+}
+
+/// A variable-height virtual table must navigate beyond the rows it has
+/// measured. Logical index scrolling brings the distant row into the viewport
+/// first; the list then measures its real height and the row becomes clickable.
+#[gpui::test]
+fn variable_height_table_keyboard_scrolls_to_an_unmeasured_row(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("vt-var-keys")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .virtual_rows(
+                1000,
+                "virtual-variable-key-users",
+                |i| format!("key-{i:04}").into(),
+                |i| TableRow::new(vec![var_cell(i)]),
+            )
+            .estimated_row_height(px(40.))
+            .max_h(px(160.))
+            .on_row_click(move |i, _, _, _| recorded.borrow_mut().push(format!("row-{i}")))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    for _ in 0..32 {
+        press(cx, "down");
+    }
+    press(cx, "enter");
+    assert_eq!(recorded.borrow().as_slice(), ["row-31"]);
+
+    flush_frame(cx);
+    click(cx, 30., 60.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-31", "row-31"],
+        "the unmeasured keyboard target must be built at the viewport"
+    );
+}
+
+/// Replacing a variable-height collection with the same count but a different
+/// identity must discard its measured heights and logical scroll position.
+/// Otherwise the replacement opens around the old row 31 instead of row 0.
+#[gpui::test]
+fn variable_height_same_count_identity_resets_measurements_and_scroll(cx: &mut TestAppContext) {
+    let recorded = events();
+    let second_page = Rc::new(Cell::new(false));
+    let page_for_view = second_page.clone();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        let key_page = page_for_view.clone();
+        let row_page = page_for_view.clone();
+        let identity = if page_for_view.get() {
+            "variable-beta"
+        } else {
+            "variable-alpha"
+        };
+        Table::new(vec![])
+            .id("vt-var-replace")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .virtual_rows(
+                100,
+                identity,
+                move |i| {
+                    if key_page.get() {
+                        format!("beta-{i}").into()
+                    } else {
+                        format!("alpha-{i}").into()
+                    }
+                },
+                move |i| {
+                    let height = if row_page.get() { 60. } else { 20. };
+                    TableRow::new(vec![gpui::div()
+                        .h(px(height))
+                        .w_full()
+                        .child(format!("Row {i}"))
+                        .into_any_element()])
+                },
+            )
+            .estimated_row_height(px(40.))
+            .max_h(px(160.))
+            .on_row_click(move |i, _, _, _| recorded.borrow_mut().push(format!("row-{i}")))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    for _ in 0..32 {
+        press(cx, "down");
+    }
+    flush_frame(cx);
+    click(cx, 30., 60.);
+    assert_eq!(recorded.borrow().as_slice(), ["row-31"]);
+
+    second_page.set(true);
+    flush_frame(cx);
+    click(cx, 30., 60.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-31", "row-0"],
+        "a new collection identity must start with fresh measurements at row 0"
     );
 }
 

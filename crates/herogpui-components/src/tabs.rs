@@ -28,6 +28,16 @@ impl TabsVariant {
     }
 }
 
+/// When arrow-key focus changes become selection.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum KeyboardActivation {
+    /// Select as focus moves, which is React Aria's default.
+    #[default]
+    Automatic,
+    /// Move focus only; Enter or Space selects the focused tab.
+    Manual,
+}
+
 /// One tab: key + label + panel content.
 pub struct TabItem {
     pub key: SharedString,
@@ -91,6 +101,7 @@ pub struct Tabs {
     variant: TabsVariant,
     is_disabled: bool,
     orientation: Orientation,
+    keyboard_activation: KeyboardActivation,
     on_selection_change: Option<OnChange>,
 }
 
@@ -98,6 +109,12 @@ impl Tabs {
     /// `orientation` — a vertical tab list stacks its tabs.
     pub fn orientation(mut self, orientation: Orientation) -> Self {
         self.orientation = orientation;
+        self
+    }
+
+    /// React Aria's inherited `keyboardActivation`.
+    pub fn keyboard_activation(mut self, activation: KeyboardActivation) -> Self {
+        self.keyboard_activation = activation;
         self
     }
 
@@ -135,6 +152,7 @@ impl Tabs {
             variant: TabsVariant::Primary,
             is_disabled: false,
             orientation: Orientation::Horizontal,
+            keyboard_activation: KeyboardActivation::Automatic,
             on_selection_change: None,
         }
     }
@@ -380,16 +398,16 @@ impl RenderOnce for Tabs {
                             tab = tab.hover(move |s| s.text_color(colors.foreground));
                         }
                     }
-                    if !disabled && (self.on_selection_change.is_some() || selection_own.is_some())
-                    {
+                    if !disabled {
                         // A tab list is one stop and the arrows move within
-                        // it, selecting as they go -- React Aria's automatic
-                        // activation, which is what v3 ships.
+                        // it. Automatic activation selects as focus moves;
+                        // manual activation waits for a press.
                         let key_stops = key_stops.clone();
                         let key_keys = key_keys.clone();
                         let key_cb = self.on_selection_change.clone();
                         let key_own = selection_own.clone();
                         let key_focus = focus_state.clone();
+                        let automatic = self.keyboard_activation == KeyboardActivation::Automatic;
                         tab = tab.on_key_down(move |event, window, cx| {
                             let key = match (vertical, event.keystroke.key.as_str()) {
                                 (false, "right") | (true, "down") => "down",
@@ -413,15 +431,17 @@ impl RenderOnce for Tabs {
                                 state.key = next_key.clone();
                                 cx.notify();
                             });
-                            if let Some(held) = &key_own {
-                                let next_key = next_key.clone();
-                                held.update(cx, |v, cx| {
-                                    *v = next_key;
-                                    cx.notify();
-                                });
-                            }
-                            if let Some(f) = &key_cb {
-                                f(&next_key, window, cx);
+                            if automatic {
+                                if let Some(held) = &key_own {
+                                    let next_key = next_key.clone();
+                                    held.update(cx, |v, cx| {
+                                        *v = next_key;
+                                        cx.notify();
+                                    });
+                                }
+                                if let Some(f) = &key_cb {
+                                    f(&next_key, window, cx);
+                                }
                             }
                             // No refocusing: the next render has the newly
                             // focused tab claim the list's handle.
@@ -502,16 +522,16 @@ impl RenderOnce for Tabs {
                         tab.border_color(gpui::transparent_black())
                             .text_color(colors.muted)
                     };
-                    if !disabled && (self.on_selection_change.is_some() || selection_own.is_some())
-                    {
+                    if !disabled {
                         // A tab list is one stop and the arrows move within
-                        // it, selecting as they go -- React Aria's automatic
-                        // activation, which is what v3 ships.
+                        // it. Automatic activation selects as focus moves;
+                        // manual activation waits for a press.
                         let key_stops = key_stops.clone();
                         let key_keys = key_keys.clone();
                         let key_cb = self.on_selection_change.clone();
                         let key_own = selection_own.clone();
                         let key_focus = focus_state.clone();
+                        let automatic = self.keyboard_activation == KeyboardActivation::Automatic;
                         tab = tab.on_key_down(move |event, window, cx| {
                             let key = match (vertical, event.keystroke.key.as_str()) {
                                 (false, "right") | (true, "down") => "down",
@@ -535,15 +555,17 @@ impl RenderOnce for Tabs {
                                 state.key = next_key.clone();
                                 cx.notify();
                             });
-                            if let Some(held) = &key_own {
-                                let next_key = next_key.clone();
-                                held.update(cx, |v, cx| {
-                                    *v = next_key;
-                                    cx.notify();
-                                });
-                            }
-                            if let Some(f) = &key_cb {
-                                f(&next_key, window, cx);
+                            if automatic {
+                                if let Some(held) = &key_own {
+                                    let next_key = next_key.clone();
+                                    held.update(cx, |v, cx| {
+                                        *v = next_key;
+                                        cx.notify();
+                                    });
+                                }
+                                if let Some(f) = &key_cb {
+                                    f(&next_key, window, cx);
+                                }
                             }
                             // No refocusing: the next render has the newly
                             // focused tab claim the list's handle.

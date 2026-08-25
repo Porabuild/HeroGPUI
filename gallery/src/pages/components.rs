@@ -3368,13 +3368,18 @@ impl Gallery {
                             .column("Email")
                             .row_height(px(40.))
                             .max_h(px(320.))
-                            .virtual_rows(1000, "virtual-users", |i| {
-                                let (name, email) = virtual_user(i);
-                                h::TableRow::new(vec![
-                                    gpui::div().child(name).into_any_element(),
-                                    gpui::div().child(email).into_any_element(),
-                                ])
-                            })
+                            .virtual_rows(
+                                1000,
+                                "virtual-users",
+                                |i| i.to_string().into(),
+                                |i| {
+                                    let (name, email) = virtual_user(i);
+                                    h::TableRow::new(vec![
+                                        gpui::div().child(name).into_any_element(),
+                                        gpui::div().child(email).into_any_element(),
+                                    ])
+                                },
+                            )
                             .into_any_element(),
                         para(
                             "`estimated_row_height` virtualizes rows that differ: gpui's \
@@ -3390,23 +3395,28 @@ impl Gallery {
                             .loader_height(px(44.))
                             .max_h(px(320.))
                             .is_pending(true)
-                            .virtual_rows(1000, "virtual-variable-users", |i| {
-                                let (name, email) = virtual_user(i);
-                                let mut cells = vec![gpui::div()
-                                    .flex()
-                                    .flex_col()
-                                    .child(name)
-                                    .when(i % 3 == 0, |el| {
-                                        el.child(
-                                            gpui::div()
-                                                .text_size(px(12.))
-                                                .child("Signed up this week"),
-                                        )
-                                    })
-                                    .into_any_element()];
-                                cells.push(gpui::div().child(email).into_any_element());
-                                h::TableRow::new(cells)
-                            })
+                            .virtual_rows(
+                                1000,
+                                "virtual-variable-users",
+                                |i| i.to_string().into(),
+                                |i| {
+                                    let (name, email) = virtual_user(i);
+                                    let mut cells = vec![gpui::div()
+                                        .flex()
+                                        .flex_col()
+                                        .child(name)
+                                        .when(i % 3 == 0, |el| {
+                                            el.child(
+                                                gpui::div()
+                                                    .text_size(px(12.))
+                                                    .child("Signed up this week"),
+                                            )
+                                        })
+                                        .into_any_element()];
+                                    cells.push(gpui::div().child(email).into_any_element());
+                                    h::TableRow::new(cells)
+                                },
+                            )
                             .into_any_element(),
                     ]),
                 ),
