@@ -61,12 +61,93 @@
 
 mod harness;
 
-use std::collections::HashSet;
+use std::cell::{Cell, RefCell};
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 use gpui::{prelude::*, TestAppContext};
 use herogpui_components::Pagination;
 
 use harness::{click, events, open_host, press};
+
+#[gpui::test]
+fn link_render_prop_receives_active_page_and_keeps_it_pressable(cx: &mut TestAppContext) {
+    let states = Rc::new(RefCell::new(HashMap::<usize, bool>::new()));
+    let for_view = states.clone();
+    let recorded = events();
+    let for_press = recorded.clone();
+    let page = Rc::new(Cell::new(2usize));
+    let page_for_view = page.clone();
+    let cx = open_host(cx, move || {
+        let states = for_view.clone();
+        let recorded = for_press.clone();
+        let page = page_for_view.clone();
+        Pagination::new("parts-pg-render", page.get(), 5)
+            .link(move |page, is_active| {
+                states.borrow_mut().insert(page, is_active);
+                gpui::div().child(page.to_string()).into_any_element()
+            })
+            .on_change(move |next, window, _| {
+                page.set(next);
+                recorded.borrow_mut().push(next.to_string());
+                window.refresh();
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        *states.borrow(),
+        HashMap::from([(1, false), (2, true), (3, false), (4, false), (5, false)]),
+        "every visible link must receive its page number and only the current page is active"
+    );
+
+    // Medium page 2 is the second 32px cell after the 34px previous button:
+    // prev 0..34, gap 4, page 1 38..70, gap 4, page 2 74..106.
+    click(cx, 90., 16.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["2"],
+        "replacing an active link's child must not disable its press handler"
+    );
+
+    click(cx, 235., 16.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["2", "3"],
+        "the next button must report page 3"
+    );
+    assert_eq!(
+        *states.borrow(),
+        HashMap::from([(1, false), (2, false), (3, true), (4, false), (5, false)]),
+        "after the owner accepts navigation, the render prop must move isActive to page 3"
+    );
+}
+
+#[gpui::test]
+fn custom_navigation_icons_own_the_previous_and_next_slots(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Pagination::new("parts-pg-icons", 3, 5)
+            .previous_icon(gpui::div().w(gpui::px(40.)).h(gpui::px(14.)).child("P"))
+            .next_icon(gpui::div().w(gpui::px(40.)).h(gpui::px(14.)).child("N"))
+            .on_change(move |page, _, _| recorded.borrow_mut().push(page.to_string()))
+            .into_any_element()
+    });
+
+    // A 40px icon plus 10px padding on each side makes each nav button 60px.
+    // x=50 is inside the custom Previous slot but outside the default 34px
+    // button. Five 32px cells and six 4px gaps put custom Next at 244..304,
+    // so x=294 likewise exists only when the custom slot is actually drawn.
+    click(cx, 50., 16.);
+    click(cx, 294., 16.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["2", "4"],
+        "the custom icon geometry must participate in both nav buttons without changing presses"
+    );
+}
 
 /// `Pagination.Link.isDisabled`: a link whose page number is in
 /// `disabled_keys` answers neither a click nor Enter, holds no tab stop, and

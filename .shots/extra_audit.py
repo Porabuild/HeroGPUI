@@ -165,6 +165,8 @@ EXTRA_OK_SCOPED = {
     'Table.footer': 'composition',
     # v3 composes `<Pagination.Summary>Page 1 of 10</Pagination.Summary>`.
     'Pagination.summary': 'composition',
+    'Pagination.previous_icon': 'composition',
+    'Pagination.next_icon': 'composition',
     # v3's Avatar composes `<Avatar.Fallback>JD</Avatar.Fallback>`.
     'Avatar.name': 'composition',
     # v3 composes these as typed child parts -- `<InputGroup.Prefix>`,

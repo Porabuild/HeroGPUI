@@ -8184,43 +8184,58 @@ impl Gallery {
                 ),
                 (
                     "With Summary",
+                    col(vec![h::Pagination::new("pg-summary", page, 12)
+                        .summary(format!(
+                            "Showing {}-{} of 120 items",
+                            (page.saturating_sub(1)) * 10 + 1,
+                            (page * 10).min(120)
+                        ))
+                        .on_change(usize_cb(cx.listener(|this, p: &usize, _, cx| {
+                            this.pagination_page = *p;
+                            cx.notify();
+                        })))
+                        .into_any_element()]),
+                ),
+                (
+                    "Render Props",
                     col(vec![
-                        h::Pagination::new("pg-summary", page, 12)
+                        para(
+                            "`link` receives each page number and `isActive`, so custom page \
+                             content does not have to re-derive the current page.",
+                            cx,
+                        ),
+                        h::Pagination::new("pg-render-props", page, 5)
+                            .link(|page, is_active| {
+                                gpui::div()
+                                    .child(if is_active {
+                                        format!("[{page}]")
+                                    } else {
+                                        page.to_string()
+                                    })
+                                    .into_any_element()
+                            })
                             .on_change(usize_cb(cx.listener(|this, p: &usize, _, cx| {
                                 this.pagination_page = *p;
                                 cx.notify();
                             })))
                             .into_any_element(),
-                        para(
-                            &format!(
-                                "Showing {}-{} of 120 items",
-                                (page.saturating_sub(1)) * 10 + 1,
-                                (page * 10).min(120)
-                            ),
-                            cx,
-                        ),
                     ]),
                 ),
                 (
                     "Custom Icons",
                     col(vec![
                         para(
-                            "`link` is v3's render prop on `Pagination.Item`: the closure is \
-                             handed the page number and whether it is the active one.",
+                            "`previous_icon` and `next_icon` replace the built-in chevrons on \
+                             v3's composed Pagination.PreviousIcon and Pagination.NextIcon parts.",
                             cx,
                         ),
                         h::Pagination::new("pg-custom", page, 5)
-                            .link(|page, is_active| {
-                                gpui::div()
-                                    .px(px(8.))
-                                    .py(px(2.))
-                                    .child(if is_active {
-                                        format!("[{page}]")
-                                    } else {
-                                        format!("{page}")
-                                    })
-                                    .into_any_element()
-                            })
+                            .previous_icon(icon(h::icons::ARROW_LEFT, cx))
+                            .next_icon(icon(h::icons::ARROW_RIGHT, cx))
+                            .on_change(usize_cb(cx.listener(|this, p: &usize, _, cx| {
+                                this.pagination_page = *p;
+                                cx.notify();
+                            })))
                             .into_any_element(),
                     ]),
                 ),

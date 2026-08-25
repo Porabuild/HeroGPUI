@@ -18,6 +18,8 @@ type Link = std::sync::Arc<dyn Fn(usize, bool) -> gpui::AnyElement + 'static>;
 pub struct Pagination {
     /// `link` — v3's render prop for a page link, handed `isActive`.
     link: Option<Link>,
+    previous_icon: Option<gpui::AnyElement>,
+    next_icon: Option<gpui::AnyElement>,
     summary: Option<gpui::SharedString>,
     id: gpui::ElementId,
     page: usize,
@@ -42,6 +44,8 @@ impl Pagination {
     pub fn new(id: impl Into<gpui::ElementId>, page: usize, total: usize) -> Self {
         Self {
             link: None,
+            previous_icon: None,
+            next_icon: None,
             summary: None,
             id: id.into(),
             page: page.max(1),
@@ -66,6 +70,18 @@ impl Pagination {
     /// passes into the same render prop.
     pub fn link(mut self, render: impl Fn(usize, bool) -> gpui::AnyElement + 'static) -> Self {
         self.link = Some(std::sync::Arc::new(render));
+        self
+    }
+
+    /// `Pagination.PreviousIcon.children` — replaces the default previous chevron.
+    pub fn previous_icon(mut self, icon: impl IntoElement) -> Self {
+        self.previous_icon = Some(icon.into_any_element());
+        self
+    }
+
+    /// `Pagination.NextIcon.children` — replaces the default next chevron.
+    pub fn next_icon(mut self, icon: impl IntoElement) -> Self {
+        self.next_icon = Some(icon.into_any_element());
         self
     }
 
@@ -143,6 +159,20 @@ impl RenderOnce for Pagination {
             Size::Lg => px(12.),
         };
         let cell_text = self.size.text_size();
+        let previous_icon = self.previous_icon.unwrap_or_else(|| {
+            gpui::svg()
+                .size(px(14.))
+                .path(icons::CHEVRON_LEFT)
+                .text_color(colors.foreground)
+                .into_any_element()
+        });
+        let next_icon = self.next_icon.unwrap_or_else(|| {
+            gpui::svg()
+                .size(px(14.))
+                .path(icons::CHEVRON_RIGHT)
+                .text_color(colors.foreground)
+                .into_any_element()
+        });
 
         // `.pagination__content` is `gap-1`, not the 16px this used to leave.
         let mut row = gpui::div().flex().items_center().gap(px(4.));
@@ -157,7 +187,7 @@ impl RenderOnce for Pagination {
         row = row.child(
             nav_button(
                 format!("{base}-prev"),
-                icons::CHEVRON_LEFT,
+                previous_icon,
                 prev_enabled,
                 NavStyle {
                     foreground: colors.foreground,
@@ -299,7 +329,7 @@ impl RenderOnce for Pagination {
         row = row.child(
             nav_button(
                 format!("{base}-next"),
-                icons::CHEVRON_RIGHT,
+                next_icon,
                 next_enabled,
                 NavStyle {
                     foreground: colors.foreground,
@@ -362,7 +392,7 @@ struct NavStyle {
 
 fn nav_button(
     id: String,
-    icon: &'static str,
+    icon: gpui::AnyElement,
     enabled: bool,
     style: NavStyle,
     focus: &gpui::FocusHandle,
@@ -418,8 +448,7 @@ fn nav_button(
     } else {
         btn = btn.opacity(disabled_opacity);
     }
-    // gpui svgs do not inherit text colour.
-    btn.child(gpui::svg().size(px(14.)).path(icon).text_color(foreground))
+    btn.child(icon)
 }
 
 enum PageRef {
