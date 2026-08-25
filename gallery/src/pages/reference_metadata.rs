@@ -7563,6 +7563,173 @@ pub(crate) const COMBO_BOX: ReferenceMetadata = ReferenceMetadata {
     styling: COMBO_BOX_STYLING,
 };
 
+const SEPARATOR_REQUIRED_PARTS: &[&str] = &[
+    // The root is the component's only declared part.
+    "Separator",
+];
+
+const SEPARATOR_API: &[ApiDoc] = &[
+    ApiDoc {
+        owner: "Separator",
+        prop: "orientation",
+        ty: "'horizontal' | 'vertical'",
+        default: "'horizontal'",
+        description: "The orientation of the separator.",
+        rust_owner: "Separator",
+        rust: "orientation(Orientation)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "Separator",
+        prop: "variant",
+        ty: "'default' | 'secondary' | 'tertiary'",
+        default: "'default'",
+        description: "The visual variant of the separator.",
+        rust_owner: "Separator",
+        rust: "variant(SeparatorVariant)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "Separator",
+        prop: "className",
+        ty: "string",
+        default: "—",
+        description: "Additional CSS classes; gpui has no class-name surface.",
+        rust_owner: "Separator",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "Separator",
+        prop: "render",
+        ty: "DOMRenderFunction<keyof React.JSX.IntrinsicElements, undefined>",
+        default: "—",
+        description: "Replaces the DOM element; gpui does not substitute DOM nodes.",
+        rust_owner: "Separator",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+];
+
+const SEPARATOR_PARTS: &[PartDoc] = &[
+    // v3's root owns data-slot="separator"; there are no separately exported
+    // child parts.
+    PartDoc {
+        name: "Separator",
+        slot: "separator",
+        description: "Root separator primitive and data-slot owner.",
+        rust_owner: "Separator",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const SEPARATOR_STATES: &[StateDoc] = &[
+    // v3.2.4 documents no interactive states and its stylesheet declares no
+    // state selectors for Separator.
+];
+
+const SEPARATOR_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: ".separator",
+        value: "shrink-0 rounded-sm border-t-0 border-b-0 bg-separator h-px w-full",
+        description: "Base line geometry, color and default horizontal orientation.",
+        rust: "flex_shrink_0 + hairline_radius + colors.separator + w_full/h(border_width)",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".separator--horizontal",
+        value: "h-px w-full",
+        description: "Horizontal separator dimensions.",
+        rust: "Orientation::Horizontal => w_full().h(weight)",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".separator--vertical",
+        value: "h-auto min-h-2 w-px self-stretch",
+        description: "Vertical separator dimensions; the port uses full parent height instead of h-auto/self-stretch.",
+        rust: "Orientation::Vertical => h_full().min_h(px(8.)).w(weight)",
+        status: ImplementationStatus::Partial,
+    },
+    StyleDoc {
+        class_or_token: ".separator--default",
+        value: "bg-separator",
+        description: "Default separator semantic color.",
+        rust: "SeparatorVariant::Default => colors.separator",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".separator--secondary",
+        value: "bg-separator-secondary",
+        description: "Secondary separator semantic color.",
+        rust: "SeparatorVariant::Secondary => colors.separator_secondary()",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".separator--tertiary",
+        value: "bg-separator-tertiary",
+        description: "Tertiary separator semantic color.",
+        rust: "SeparatorVariant::Tertiary => colors.separator_tertiary()",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".separator__container",
+        value: "flex items-center gap-3",
+        description: "Container used when content divides two line segments.",
+        rust: "content branch flex + items_center + gap(px(12.))",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".separator__container--horizontal",
+        value: "w-full flex-row",
+        description: "Horizontal content-container axis.",
+        rust: "horizontal content branch w_full().flex_row()",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".separator__container--vertical",
+        value: "h-full flex-col justify-center",
+        description: "Vertical content-container axis.",
+        rust: "vertical content branch h_full().flex_col().justify_center()",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".separator__line",
+        value: "shrink-0 grow",
+        description: "Each line beside composed content grows into remaining space.",
+        rust: "line flex_shrink_0 + flex_grow()",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".separator__content",
+        value: "inline-flex items-center justify-center text-center whitespace-nowrap text-muted",
+        description: "Centered, non-wrapping composed content.",
+        rust: "content div flex + items_center + justify_center + text_center + whitespace_nowrap + colors.muted",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".separator__content--horizontal / --vertical",
+        value: "text-center",
+        description: "Both orientation-specific content modifiers keep centered text.",
+        rust: "content div text_center()",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+pub(crate) const SEPARATOR: ReferenceMetadata = ReferenceMetadata {
+    page: "Separator",
+    import_line: "use herogpui::components::separator::Separator;",
+    source_module: "separator",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(layout)/separator.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/separator/separator.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/Separator.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/separator.css",
+    required_parts: SEPARATOR_REQUIRED_PARTS,
+    api: SEPARATOR_API,
+    parts: SEPARATOR_PARTS,
+    states: SEPARATOR_STATES,
+    styling: SEPARATOR_STYLING,
+};
+
 pub(crate) const ALL: &[ReferenceMetadata] = &[
     DROPDOWN,
     SLIDER,
@@ -7578,6 +7745,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     RANGE_CALENDAR,
     DRAWER,
     COMBO_BOX,
+    SEPARATOR,
 ];
 
 pub(crate) fn for_import(import_line: &str) -> Option<&'static ReferenceMetadata> {

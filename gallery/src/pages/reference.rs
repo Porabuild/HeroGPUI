@@ -89,13 +89,19 @@ fn metadata_panels(
     .flat_map(|source| source.split(" + "))
     .filter(|source| !source.is_empty())
     .count();
+    let part_suffix = if metadata.required_parts.len() == 1 {
+        "part"
+    } else {
+        "parts"
+    };
     let contract = format!(
-        "{} · HeroUI v{} · source module {} · {} official source links checked in · {} required compound parts",
+        "{} · HeroUI v{} · source module {} · {} official source links checked in · {} required compound {}",
         metadata.page,
         metadata.version,
         metadata.source_module,
         source_count,
-        metadata.required_parts.len()
+        metadata.required_parts.len(),
+        part_suffix
     );
 
     vec![
@@ -141,18 +147,22 @@ fn metadata_panels(
         ),
         (
             "States",
-            detail_table(
-                ["State", "v3 selector", "Rust implementation", "Description"],
-                metadata.states.iter().map(|entry| DetailRow {
-                    cells: [
-                        entry.state.to_owned(),
-                        entry.selector.to_owned(),
-                        format!("{} · {}", entry.rust, entry.status.label()),
-                        entry.description.to_owned(),
-                    ],
-                }),
-                cx,
-            ),
+            if metadata.states.is_empty() {
+                empty_panel("v3 documents no interactive states for this component.", cx)
+            } else {
+                detail_table(
+                    ["State", "v3 selector", "Rust implementation", "Description"],
+                    metadata.states.iter().map(|entry| DetailRow {
+                        cells: [
+                            entry.state.to_owned(),
+                            entry.selector.to_owned(),
+                            format!("{} · {}", entry.rust, entry.status.label()),
+                            entry.description.to_owned(),
+                        ],
+                    }),
+                    cx,
+                )
+            },
         ),
         (
             "Styling Reference",
@@ -1117,6 +1127,35 @@ impl Widget {
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".tabs__panel[data-exiting=\"true\"]"
                 && entry.status == reference_metadata::ImplementationStatus::Unavailable
+        }));
+    }
+
+    #[test]
+    fn separator_metadata_keeps_declared_surface_honest() {
+        let metadata = reference_metadata::for_route(
+            "Separator",
+            "use herogpui::components::separator::Separator;",
+        )
+        .expect("Separator metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for prop in ["orientation", "variant"] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "Separator"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        for prop in ["className", "render"] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Unavailable
+            }));
+        }
+        assert!(metadata.states.is_empty());
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".separator--vertical"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
         }));
     }
 
