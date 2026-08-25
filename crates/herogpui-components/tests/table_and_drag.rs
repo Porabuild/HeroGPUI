@@ -114,6 +114,14 @@ fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
 }
 
+fn press_mod_a(cx: &mut VisualTestContext) {
+    if cfg!(target_os = "macos") {
+        press(cx, "cmd-a");
+    } else {
+        press(cx, "ctrl-a");
+    }
+}
+
 /// A real pointer drag: down at `from`, one move to `to` with the left button
 /// held, up at `to`. See the file doc comment for the event shapes -- this is
 /// the sequence every drag-driven control needs, and a plain `simulate_click`
@@ -350,6 +358,136 @@ fn table_select_all_checkbox_toggles_every_row(cx: &mut TestAppContext) {
         recorded.borrow().as_slice(),
         ["alpha,beta,gamma", ""],
         "the header checkbox must clear every row again"
+    );
+}
+
+/// The pinned React Aria 3.51 `useSelectableCollection` binds `Mod+A` -- the
+/// platform Mod, Control off macOS and Command on macOS -- to `selectAll`, which only runs
+/// in multiple-selection mode. The set it reports is the header checkbox's
+/// select-all target: every selectable, non-disabled key, in row order. The
+/// Table page's own prose never mentions the shortcut, which is exactly the
+/// derived-claim case the sortable-header and tree-row keys are.
+#[gpui::test]
+fn table_ctrl_a_selects_every_enabled_row(cx: &mut TestAppContext) {
+    let recorded = events();
+    let held: Rc<RefCell<Vec<SharedString>>> = Rc::new(RefCell::new(Vec::new()));
+    let held_for_view = held;
+
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        let held_view = held_for_view.clone();
+        let mut table = Table::new(vec![])
+            .id("tbl-ctrl-a")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .keyed_row("alpha", vec![tall_cell("Alpha")])
+            .keyed_row("beta", vec![tall_cell("Beta")])
+            .keyed_row("gamma", vec![tall_cell("Gamma")])
+            .disabled_keys(["beta"])
+            .selected_keys(held_view.borrow().iter().cloned());
+        table = table.on_selection_change(move |keys, _, _| {
+            let joined = keys
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+            recorded.borrow_mut().push(joined);
+            *held_view.borrow_mut() = keys.to_vec();
+        });
+        gpui::div()
+            .w(px(204.))
+            .child(table.into_any_element())
+            .into_any_element()
+    });
+
+    // Tab lands on the table body's stop, the first one on the page: the
+    // sortable-header test proves the wrapper's own stop precedes the stops
+    // of the elements inside it (the header's select-all checkbox included).
+    press(cx, "tab");
+    press(cx, "ctrl-cmd-a");
+    assert!(
+        recorded.borrow().is_empty(),
+        "Mod+A must reject an extra non-platform modifier"
+    );
+    press_mod_a(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha,gamma"],
+        "Ctrl+A on a focused multiple-selection table must report every \
+         selectable non-disabled row and no disabled one"
+    );
+
+    // React Stately's `selectAll` is idempotent once the whole selectable set
+    // is selected. The flush feeds the controlled selection back into the
+    // next render before the second shortcut.
+    flush_frame(cx);
+    press_mod_a(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha,gamma"],
+        "a second Ctrl+A must not clear or re-report an already complete selection"
+    );
+}
+
+#[gpui::test]
+fn table_mod_a_bubbles_from_the_header_checkbox(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("tbl-header-mod-a")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .keyed_row("alpha", vec![tall_cell("Alpha")])
+            .keyed_row("beta", vec![tall_cell("Beta")])
+            .on_selection_change(move |keys, _, _| {
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press_mod_a(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha,beta"],
+        "Mod+A from the header checkbox must bubble to the Table root"
+    );
+}
+
+#[gpui::test]
+fn table_mod_a_reports_an_all_disabled_collection(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("tbl-disabled-mod-a")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .keyed_row("alpha", vec![tall_cell("Alpha")])
+            .keyed_row("beta", vec![tall_cell("Beta")])
+            .disabled_keys(["alpha", "beta"])
+            .on_selection_change(move |keys, _, _| {
+                recorded.borrow_mut().push(keys.len().to_string());
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press_mod_a(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["0"],
+        "a non-empty all-disabled collection must report its empty selectable set"
     );
 }
 

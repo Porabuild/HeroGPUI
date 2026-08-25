@@ -879,7 +879,9 @@ impl RenderOnce for Table {
                 .w(px(44.))
                 .py(px(10.));
             if self.selection_mode == SelectionMode::Multiple {
-                let all = selectable_collection_keys;
+                // The `Mod+A` keydown handler reads the same set, so it gets a
+                // clone rather than the variable itself.
+                let all = selectable_collection_keys.clone();
                 let (all_selected, indeterminate) = select_all_flags(&all, &self.selected_keys);
                 let mut box_el = Checkbox::new(gpui::ElementId::Name(
                     format!("{}-select-all", self.id).into(),
@@ -1236,9 +1238,9 @@ impl RenderOnce for Table {
             let variable_scroll = virtual_list_state.clone();
             let expanded = expanded_keys;
             let on_expanded = self.on_expanded_change.clone();
-            if !stops.is_empty() {
+            if !keys.is_empty() {
                 wrapper = wrapper.on_key_down(move |event, window, cx| {
-                    if !table_focus_for_keys.is_focused(window) {
+                    if !table_focus_for_keys.contains_focused(window, cx) {
                         return;
                     }
                     let from = held
@@ -1250,6 +1252,48 @@ impl RenderOnce for Table {
                     // to the focused tree row before the list resolver sees
                     // them. Right opens; Left closes or returns to the parent.
                     let key_name = event.keystroke.key.as_str();
+                    // Pinned React Aria 3.51 `useSelectableCollection` binds
+                    // `Mod+A` -- the platform Mod, Control here -- to
+                    // `selectAll`, and only when the selection mode is
+                    // multiple. The shortcut matches its modifiers exactly,
+                    // so any extra modifier lets the event fall through.
+                    if key_name == "a"
+                        && event.keystroke.modifiers.secondary()
+                        && !event.keystroke.modifiers.shift
+                        && !event.keystroke.modifiers.alt
+                        && !event.keystroke.modifiers.function
+                        && if cfg!(target_os = "macos") {
+                            !event.keystroke.modifiers.control
+                        } else {
+                            !event.keystroke.modifiers.platform
+                        }
+                        && mode == SelectionMode::Multiple
+                    {
+                        let (all_selected, _) =
+                            select_all_flags(&selectable_collection_keys, &selected_now);
+                        // Pinned React Stately's `selectAll` is idempotent once
+                        // the whole selectable collection is already selected.
+                        if !all_selected {
+                            let next = selectable_collection_keys.clone();
+                            if let Some(held) = &selection_own_for_keys {
+                                held.update(cx, |value, cx| {
+                                    *value = next.clone();
+                                    cx.notify();
+                                });
+                            }
+                            if let Some(cb) = &selection {
+                                cb(&next, window, cx);
+                            }
+                        }
+                        cx.stop_propagation();
+                        return;
+                    }
+                    // Other collection keys belong only to the body's roving
+                    // focus stop. A nested cell action must keep its own Enter
+                    // and Space handling even though Mod+A bubbles to the root.
+                    if !table_focus_for_keys.is_focused(window) {
+                        return;
+                    }
                     if key_name == "escape"
                         && mode != SelectionMode::None
                         && !selected_now.is_empty()

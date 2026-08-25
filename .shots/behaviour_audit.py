@@ -120,6 +120,14 @@ SORT_KEYS = ('Table',)
 # when `virtual_tree_metadata` supplies their cheap preorder tree projection.
 TREE_KEYS = ('Table',)
 
+# A multiple-selection table answers `Mod+A` -- the platform Mod, Ctrl on
+# Windows and Linux, Cmd on macOS -- by selecting every enabled row. v3's own
+# page documents the header checkbox but not this inherited shortcut, so it is
+# derived from the pinned `react-aria` 3.51.0 `useSelectableCollection`
+# source ('Mod+A' -> `selectAll`, multiple-selection mode only), exactly like
+# the tree row keys.
+SELECT_ALL_KEYS = ('Table',)
+
 # Closing an overlay hands the focus back to what opened it. Only a surface that
 # *took* the focus has to: the pickers and the popover leave it on the trigger,
 # so the menu is the one with something to return. A dialog's trigger belongs to
@@ -313,6 +321,14 @@ EVIDENCE = {
         r'(?s)tree_rows\.get\(index\).*?key_name == "right"'
         r'.*?key_name == "left".*?Some\(parent\.clone\(\)\)',
     ),
+    # `Mod+A` on a focused table: the platform-Mod check, the multiple-mode
+    # gate, and the selectable-row set it reports.
+    ('Table', 'select-all'): (
+        'table.rs',
+        r'(?s)key_name == "a".*?modifiers\.secondary\(\).*?modifiers\.platform'
+        r'.*?SelectionMode::Multiple'
+        r'.*?selectable_collection_keys\.clone\(\)',
+    ),
     ('Input', 'pointer-caret'): ('input.rs', r'fn char_at_x'),
     ('TextField', 'pointer-caret'): ('input.rs', r'closest_index_for_x'),
     ('Accordion', 'activation'): ('accordion.rs', r'tab_stop_handle'),
@@ -375,13 +391,14 @@ def main():
     # every total.
     derived = dict.fromkeys(
         ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + AREA_KEYS
-        + FOCUS_OPEN + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS + FOCUS_RETURN
-        + SCROLL_INTO_VIEW + CALENDAR_PAGING + CALENDAR_SECTION_BOUNDS + PANEL_FOCUS
+        + FOCUS_OPEN + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS + SELECT_ALL_KEYS
+        + FOCUS_RETURN + SCROLL_INTO_VIEW + CALENDAR_PAGING + CALENDAR_SECTION_BOUNDS
+        + PANEL_FOCUS
     )
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'area-keys',
                       'focus-open', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
-                      'focus-return', 'scroll-into-view', 'calendar-paging',
+                      'select-all', 'focus-return', 'scroll-into-view', 'calendar-paging',
                       'calendar-section-bounds', 'panel-focus'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach
