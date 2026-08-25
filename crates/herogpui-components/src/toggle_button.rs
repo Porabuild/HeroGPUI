@@ -459,7 +459,7 @@ impl ToggleButtonGroup {
             size: Size::Md,
             is_disabled: false,
             is_detached: false,
-            separators: true,
+            separators: false,
             is_vertical: false,
             disallow_empty_selection: false,
             full_width: false,
@@ -802,5 +802,18 @@ mod tests {
         assert_eq!(plain.selection_key().as_ref(), "bold");
         let keyed = ToggleButton::new("grp-bold").key("bold");
         assert_eq!(keyed.selection_key().as_ref(), "bold");
+    }
+
+    #[test]
+    fn group_separators_are_explicit_composition() {
+        assert!(
+            !ToggleButtonGroup::new("plain").separators,
+            "v3 groups without a Separator child must not synthesize dividers"
+        );
+        assert!(
+            ToggleButtonGroup::new("separated")
+                .separators(true)
+                .separators
+        );
     }
 }

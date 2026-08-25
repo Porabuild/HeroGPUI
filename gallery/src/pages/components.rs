@@ -761,6 +761,7 @@ impl Gallery {
                     "Single selection",
                     row(vec![h::ToggleButtonGroup::new("toggle-single")
                         .selection_mode(SelectionMode::Single)
+                        .separators(true)
                         .selected_keys(single.into_iter().collect::<Vec<_>>())
                         .child_toggle(h::ToggleButton::new("tb-left").key("left").label("Left"))
                         .child_toggle(
@@ -779,6 +780,7 @@ impl Gallery {
                     "Multiple selection",
                     row(vec![h::ToggleButtonGroup::new("toggle-multiple")
                         .selection_mode(SelectionMode::Multiple)
+                        .separators(true)
                         .selected_keys(multiple.iter().cloned().collect::<Vec<_>>())
                         .child_toggle(h::ToggleButton::new("tb-bold").key("bold").label("Bold"))
                         .child_toggle(
@@ -815,12 +817,14 @@ impl Gallery {
                     "Orientation",
                     row(vec![
                         h::ToggleButtonGroup::new("toggle-orientation-horizontal")
+                            .separators(true)
                             .child_toggle(h::ToggleButton::new("tbo-h-1").label("Day"))
                             .child_toggle(h::ToggleButton::new("tbo-h-2").label("Week"))
                             .child_toggle(h::ToggleButton::new("tbo-h-3").label("Month"))
                             .into_any_element(),
                         h::ToggleButtonGroup::new("toggle-orientation-vertical")
                             .orientation(Orientation::Vertical)
+                            .separators(true)
                             .child_toggle(h::ToggleButton::new("tbo-v-1").label("Day"))
                             .child_toggle(h::ToggleButton::new("tbo-v-2").label("Week"))
                             .child_toggle(h::ToggleButton::new("tbo-v-3").label("Month"))
@@ -834,6 +838,7 @@ impl Gallery {
                         .child(
                             h::ToggleButtonGroup::new("toggle-full-width")
                                 .full_width(true)
+                                .separators(true)
                                 .child_toggle(h::ToggleButton::new("tbf-1").label("Left"))
                                 .child_toggle(h::ToggleButton::new("tbf-2").label("Center"))
                                 .child_toggle(h::ToggleButton::new("tbf-3").label("Right")),
@@ -843,7 +848,8 @@ impl Gallery {
                 (
                     "Without Separator",
                     row(vec![h::ToggleButtonGroup::new("toggle-without-separator")
-                        .separators(false)
+                        // v3: omit the `<ToggleButtonGroup.Separator />` child
+                        // composition — the port's default draws no dividers.
                         .child_toggle(h::ToggleButton::new("tbn-1").label("One"))
                         .child_toggle(h::ToggleButton::new("tbn-2").label("Two"))
                         .child_toggle(h::ToggleButton::new("tbn-3").label("Three"))
@@ -855,6 +861,7 @@ impl Gallery {
                         para("Single: exactly one member stays selected.", cx),
                         h::ToggleButtonGroup::new("toggle-selection-single")
                             .selection_mode(SelectionMode::Single)
+                            .separators(true)
                             .child_toggle(h::ToggleButton::new("tbsm-s-1").key("a").label("A"))
                             .child_toggle(h::ToggleButton::new("tbsm-s-2").key("b").label("B"))
                             .child_toggle(h::ToggleButton::new("tbsm-s-3").key("c").label("C"))
@@ -862,6 +869,7 @@ impl Gallery {
                         para("Multiple: any number of members can be selected.", cx),
                         h::ToggleButtonGroup::new("toggle-selection-multiple")
                             .selection_mode(SelectionMode::Multiple)
+                            .separators(true)
                             .child_toggle(h::ToggleButton::new("tbsm-m-1").key("a").label("A"))
                             .child_toggle(h::ToggleButton::new("tbsm-m-2").key("b").label("B"))
                             .child_toggle(h::ToggleButton::new("tbsm-m-3").key("c").label("C"))
@@ -879,6 +887,7 @@ impl Gallery {
                         ),
                         h::ToggleButtonGroup::new("toggle-default-single")
                             .selection_mode(SelectionMode::Single)
+                            .separators(true)
                             .default_selected_keys(["center"])
                             .child_toggle(
                                 h::ToggleButton::new("tbu-s-left").key("left").label("Left")
@@ -897,6 +906,7 @@ impl Gallery {
                         para("Multiple: any number of members can be selected.", cx),
                         h::ToggleButtonGroup::new("toggle-default-multiple")
                             .selection_mode(SelectionMode::Multiple)
+                            .separators(true)
                             .default_selected_keys(["bold", "underline"])
                             .child_toggle(
                                 h::ToggleButton::new("tbu-m-bold").key("bold").label("Bold")
@@ -919,6 +929,7 @@ impl Gallery {
                     row(vec![
                         h::ToggleButtonGroup::new("toggle-vertical")
                             .orientation(Orientation::Vertical)
+                            .separators(true)
                             .child_toggle(h::ToggleButton::new("tbv-1").label("Top"))
                             .child_toggle(h::ToggleButton::new("tbv-2").label("Bottom"))
                             .into_any_element(),
@@ -7596,6 +7607,7 @@ impl Gallery {
                 .child(
                     h::ToggleButtonGroup::new(el_id(format!("toolbar-toggle-{key}")))
                         .selection_mode(SelectionMode::Multiple)
+                        .separators(true)
                         .child_toggle(
                             h::ToggleButton::new(el_id(format!("tbar-{key}-b"))).label("B"),
                         )
