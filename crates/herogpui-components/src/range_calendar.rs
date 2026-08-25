@@ -358,6 +358,21 @@ fn resolve_pick(
     }
 }
 
+/// Where pinned React Stately moves focus after the first keyboard endpoint:
+/// prefer tomorrow, fall back to yesterday, and stay put if neither is valid.
+fn keyboard_range_focus(
+    anchor: Date,
+    constraints: &DateConstraints,
+    allows_non_contiguous_ranges: bool,
+) -> Option<Date> {
+    [add_days(&anchor, 1), add_days(&anchor, -1)]
+        .into_iter()
+        .find(|date| {
+            !constraints.out_of_range(*date)
+                && (allows_non_contiguous_ranges || !constraints.is_unavailable(*date))
+        })
+}
+
 /// The per-frame facts every cell needs, bundled so the helpers below take a
 /// readable argument list.
 struct Frame<'a> {
@@ -365,6 +380,8 @@ struct Frame<'a> {
     preview_end: Option<Date>,
     today: Date,
     cursor: &'a Entity<Option<Date>>,
+    focus_preview: &'a Entity<bool>,
+    selection_before_anchor: &'a Entity<Option<(Date, Date)>>,
     base: &'a str,
     /// The date wearing the focus ring: `focusedValue` when the caller controls
     /// it, otherwise wherever the arrow keys have walked to. `None` while the
@@ -496,16 +513,30 @@ impl RangeCalendar {
             // Tracking the hovered cell is what makes the half-open range
             // preview between the anchor and the cursor.
             let hover_state = self.state.clone();
-            cell = cell.on_hover(move |over, _, cx| {
+            let hover_cursor = frame.cursor.clone();
+            let hover_preview = frame.focus_preview.clone();
+            let hover_focus = self.on_focus_change.clone();
+            cell = cell.on_hover(move |over, window, cx| {
                 let over = *over;
-                hover_state.update(cx, |s, cx| {
+                let selecting = hover_state.update(cx, |s, cx| {
                     if over {
                         s.hovered = Some(date);
                     } else if s.hovered == Some(date) {
                         s.hovered = None;
                     }
                     cx.notify();
+                    s.start.is_some() && s.end.is_none()
                 });
+                if over && selecting {
+                    hover_cursor.update(cx, |focused, cx| {
+                        *focused = Some(date);
+                        cx.notify();
+                    });
+                    hover_preview.update(cx, |preview, _| *preview = true);
+                    if let Some(cb) = &hover_focus {
+                        cb(date, window, cx);
+                    }
+                }
             });
 
             let state = self.state.clone();
@@ -514,15 +545,14 @@ impl RangeCalendar {
             let constraints = self.constraints.clone();
             let allows_non_contiguous_ranges = self.allows_non_contiguous_ranges;
             let cursor = frame.cursor.clone();
+            let focus_preview = frame.focus_preview.clone();
+            let selection_before_anchor = frame.selection_before_anchor.clone();
             cell = cell.on_click(move |_, window, cx| {
-                cursor.update(cx, |focused, cx| {
-                    *focused = Some(date);
-                    cx.notify();
-                });
                 if let Some(cb) = &on_focus {
                     cb(date, window, cx);
                 }
-                let next = state.update(cx, |s, cx| {
+                let (next, previous) = state.update(cx, |s, cx| {
+                    let previous = s.start.zip(s.end);
                     let next = resolve_pick(
                         s.start,
                         s.end,
@@ -536,7 +566,17 @@ impl RangeCalendar {
                         s.user_navigated = true;
                         cx.notify();
                     }
-                    next
+                    (next, previous)
+                });
+                cursor.update(cx, |focused, cx| {
+                    *focused = Some(date);
+                    cx.notify();
+                });
+                focus_preview.update(cx, |preview, _| *preview = false);
+                selection_before_anchor.update(cx, |saved, _| {
+                    if let Some((_, end)) = next {
+                        *saved = if end.is_none() { previous } else { None };
+                    }
                 });
                 if let (Some(cb), Some((start, end))) = (&on_change, next) {
                     cb(Some(start), end, window, cx);
@@ -802,6 +842,16 @@ impl RenderOnce for RangeCalendar {
             cx,
             |_, _| None::<Date>,
         );
+        let focus_preview = window.use_keyed_state(
+            ElementId::Name(format!("{base}-focus-preview").into()),
+            cx,
+            |_, _| false,
+        );
+        let selection_before_anchor = window.use_keyed_state(
+            ElementId::Name(format!("{base}-selection-before-anchor").into()),
+            cx,
+            |_, _| None::<(Date, Date)>,
+        );
         let year_cursor = window.use_keyed_state(
             ElementId::Name(format!("{base}-year-cursor").into()),
             cx,
@@ -818,6 +868,7 @@ impl RenderOnce for RangeCalendar {
             |_, _| 0usize,
         );
         let cursor_at = *cursor.read(cx);
+        let focus_preview_at = *focus_preview.read(cx);
 
         let first_day = self.constraints.first_day_of_week;
 
@@ -825,11 +876,12 @@ impl RenderOnce for RangeCalendar {
             let st = self.state.read(cx);
             (st.anchor(), st.start, st.end, st.hovered, st.user_navigated)
         };
-        let (paint_start, preview_end) = match (selection_start, selection_end, hovered) {
-            (Some(start), None, Some(hovered)) => resolve_pick(
+        let active_preview = hovered.or(focus_preview_at.then_some(cursor_at).flatten());
+        let (paint_start, preview_end) = match (selection_start, selection_end, active_preview) {
+            (Some(start), None, Some(preview)) => resolve_pick(
                 Some(start),
                 None,
-                hovered,
+                preview,
                 &self.constraints,
                 self.allows_non_contiguous_ranges,
             )
@@ -879,6 +931,8 @@ impl RenderOnce for RangeCalendar {
             preview_end,
             today: Date::today(),
             cursor: &cursor,
+            focus_preview: &focus_preview,
+            selection_before_anchor: &selection_before_anchor,
             base: &base,
             focused: ring_at,
         };
@@ -1079,6 +1133,8 @@ impl RenderOnce for RangeCalendar {
         // for a click.
         if !self.is_disabled && !year_picker_open {
             let held = cursor.clone();
+            let focus_preview = focus_preview.clone();
+            let selection_before_anchor = selection_before_anchor.clone();
             let focus = grid_focus.clone();
             let prev_control = prev_focus.clone();
             let next_control = next_focus.clone();
@@ -1108,11 +1164,35 @@ impl RenderOnce for RangeCalendar {
                 let at = from.unwrap_or(from_start);
                 let key = event.keystroke.key.as_str();
                 let shift = event.keystroke.modifiers.shift;
+                if key == "escape" {
+                    let restore = *selection_before_anchor.read(cx);
+                    let cancelled = state.update(cx, |s, cx| {
+                        if s.start.is_some() && s.end.is_none() {
+                            if let Some((start, end)) = restore {
+                                s.start = Some(start);
+                                s.end = Some(end);
+                            } else {
+                                s.start = None;
+                            }
+                            s.hovered = None;
+                            cx.notify();
+                            true
+                        } else {
+                            false
+                        }
+                    });
+                    focus_preview.update(cx, |preview, _| *preview = false);
+                    if cancelled {
+                        selection_before_anchor.update(cx, |saved, _| *saved = None);
+                    }
+                    return;
+                }
                 if matches!(key, "enter" | "space") {
                     if read_only {
                         return;
                     }
-                    let next = state.update(cx, |s, cx| {
+                    let (next, previous) = state.update(cx, |s, cx| {
+                        let previous = s.start.zip(s.end);
                         let next = resolve_pick(
                             s.start,
                             s.end,
@@ -1123,13 +1203,47 @@ impl RenderOnce for RangeCalendar {
                         if let Some((start, end)) = next {
                             s.start = Some(start);
                             s.end = end;
+                            s.hovered = None;
                             s.user_navigated = true;
                             cx.notify();
                         }
-                        next
+                        (next, previous)
                     });
                     if let (Some(cb), Some((start, end))) = (&on_change, next) {
                         cb(Some(start), end, window, cx);
+                    }
+                    if let Some((_, end)) = next {
+                        focus_preview.update(cx, |preview, _| *preview = end.is_none());
+                        selection_before_anchor.update(cx, |saved, _| {
+                            *saved = if end.is_none() { previous } else { None };
+                        });
+                    }
+                    if let Some(next_focus) = next.and_then(|(_, end)| {
+                        end.is_none().then(|| {
+                            keyboard_range_focus(at, &constraints, allows_non_contiguous_ranges)
+                        })?
+                    }) {
+                        held.update(cx, |focused, cx| {
+                            *focused = Some(next_focus);
+                            cx.notify();
+                        });
+                        state.update(cx, |s, cx| {
+                            let next_anchor = calendar_view::anchor_following_focus(
+                                duration,
+                                first_day,
+                                anchor,
+                                visible_start,
+                                visible_end,
+                                next_focus,
+                            );
+                            if next_anchor != anchor {
+                                s.set_anchor(next_anchor);
+                                cx.notify();
+                            }
+                        });
+                        if let Some(cb) = &on_focus {
+                            cb(next_focus, window, cx);
+                        }
                     }
                     return;
                 }
@@ -1152,9 +1266,11 @@ impl RenderOnce for RangeCalendar {
                     *v = Some(next);
                     cx.notify();
                 });
+                focus_preview.update(cx, |preview, _| *preview = true);
                 // React Aria realigns a week/month window only after focus
                 // leaves it. Day views page the whole window directly.
                 state.update(cx, |s, cx| {
+                    s.hovered = None;
                     if matches!(key, "pageup" | "pagedown") {
                         let dir = if key == "pageup" { -1 } else { 1 };
                         let next_anchor = match duration {

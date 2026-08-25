@@ -228,6 +228,419 @@ fn range_calendar_read_only_keeps_grid_navigation_without_selection(cx: &mut Tes
     );
 }
 
+/// A first keyboard endpoint advances the ring one day so a second Enter
+/// completes a range instead of selecting the same day twice.
+#[gpui::test]
+fn range_calendar_first_keyboard_pick_advances_focus(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let changes = events();
+    let changed = changes.clone();
+    let selected = Rc::new(RefCell::new(HashMap::new()));
+    let selected_cells = selected.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        let changes = changes.clone();
+        let selected_cells = selected_cells.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .cell(move |cell| {
+                if !cell.is_outside_month && matches!(cell.date.day, 10 | 11 | 12 | 15) {
+                    selected_cells
+                        .borrow_mut()
+                        .insert(cell.date.day, cell.is_selected);
+                }
+                gpui::div().into_any_element()
+            })
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .on_change(move |start, end, _, _| {
+                changes.borrow_mut().push(format!(
+                    "{}->{}",
+                    start.map(|date| date.format_iso()).unwrap_or_default(),
+                    end.map(|date| date.format_iso()).unwrap_or_default()
+                ));
+            })
+            .into_any_element()
+    });
+
+    let (day10_x, day10_y) = range_day(2026, 8, 10);
+    click(cx, day10_x, day10_y);
+    press(cx, "escape");
+    focused.borrow_mut().clear();
+    changed.borrow_mut().clear();
+
+    let (day15_x, day15_y) = range_day(2026, 8, 15);
+    cx.simulate_mouse_move(
+        point(px(day15_x), px(day15_y)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+    press(cx, "enter");
+    assert_eq!(selected.borrow().get(&10), Some(&true));
+    assert_eq!(selected.borrow().get(&11), Some(&true));
+    assert_eq!(selected.borrow().get(&12), Some(&false));
+    assert_eq!(selected.borrow().get(&15), Some(&false));
+
+    let (day14_x, day14_y) = range_day(2026, 8, 14);
+    cx.simulate_mouse_move(
+        point(px(day14_x), px(day14_y)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+    press(cx, "right");
+    assert_eq!(selected.borrow().get(&12), Some(&true));
+    assert_eq!(selected.borrow().get(&15), Some(&true));
+    press(cx, "space");
+
+    assert_eq!(
+        focused.borrow().as_slice(),
+        ["2026-08-11", "2026-08-14", "2026-08-15"]
+    );
+    assert_eq!(
+        changed.borrow().as_slice(),
+        ["2026-08-10->", "2026-08-10->2026-08-15"]
+    );
+    let value = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.start, state.end)
+    });
+    assert_eq!(
+        value,
+        (Some(Date::new(2026, 8, 10)), Some(Date::new(2026, 8, 15)))
+    );
+}
+
+/// When the following day is unavailable in a contiguous range, pinned
+/// React Stately advances to the previous available day instead.
+#[gpui::test]
+fn range_calendar_keyboard_focus_falls_back_before_an_unavailable_day(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let changes = events();
+    let changed = changes.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        let changes = changes.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .is_date_unavailable(|date| date == Date::new(2026, 8, 11))
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .on_change(move |start, end, _, _| {
+                changes.borrow_mut().push(format!(
+                    "{}->{}",
+                    start.map(|date| date.format_iso()).unwrap_or_default(),
+                    end.map(|date| date.format_iso()).unwrap_or_default()
+                ));
+            })
+            .into_any_element()
+    });
+
+    let (day10_x, day10_y) = range_day(2026, 8, 10);
+    click(cx, day10_x, day10_y);
+    press(cx, "escape");
+    focused.borrow_mut().clear();
+    changed.borrow_mut().clear();
+
+    press(cx, "enter");
+    press(cx, "enter");
+
+    assert_eq!(focused.borrow().as_slice(), ["2026-08-09"]);
+    assert_eq!(
+        changed.borrow().as_slice(),
+        ["2026-08-10->", "2026-08-09->2026-08-10"]
+    );
+}
+
+/// Escape cancels only an in-progress keyboard anchor. It reports no value or
+/// focus change and leaves the grid ready to start a fresh range.
+#[gpui::test]
+fn range_calendar_escape_cancels_a_half_open_keyboard_range(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let changes = events();
+    let changed = changes.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        let changes = changes.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .on_change(move |start, end, _, _| {
+                changes.borrow_mut().push(format!(
+                    "{}->{}",
+                    start.map(|date| date.format_iso()).unwrap_or_default(),
+                    end.map(|date| date.format_iso()).unwrap_or_default()
+                ));
+            })
+            .into_any_element()
+    });
+
+    let (day10_x, day10_y) = range_day(2026, 8, 10);
+    click(cx, day10_x, day10_y);
+    press(cx, "escape");
+    focused.borrow_mut().clear();
+    changed.borrow_mut().clear();
+
+    press(cx, "enter");
+    press(cx, "escape");
+
+    assert_eq!(focused.borrow().as_slice(), ["2026-08-11"]);
+    assert_eq!(changed.borrow().as_slice(), ["2026-08-10->"]);
+    let value = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.start, state.end)
+    });
+    assert_eq!(value, (None, None));
+}
+
+/// Cancelling a pointer anchor leaves focus on its date, so keyboard input can
+/// immediately start a fresh range there.
+#[gpui::test]
+fn range_calendar_escape_keeps_pointer_focus_for_the_next_keyboard_pick(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let changes = events();
+    let changed = changes.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        let changes = changes.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .on_change(move |start, end, _, _| {
+                changes.borrow_mut().push(format!(
+                    "{}->{}",
+                    start.map(|date| date.format_iso()).unwrap_or_default(),
+                    end.map(|date| date.format_iso()).unwrap_or_default()
+                ));
+            })
+            .into_any_element()
+    });
+
+    let (day5_x, day5_y) = range_day(2026, 8, 5);
+    click(cx, day5_x, day5_y);
+    press(cx, "escape");
+    press(cx, "enter");
+
+    assert_eq!(focused.borrow().as_slice(), ["2026-08-05", "2026-08-06"]);
+    assert_eq!(
+        changed.borrow().as_slice(),
+        ["2026-08-05->", "2026-08-05->"]
+    );
+}
+
+/// Cancelling a replacement anchor restores the last committed range rather
+/// than clearing the value it temporarily covered.
+#[gpui::test]
+fn range_calendar_escape_restores_the_committed_range(cx: &mut TestAppContext) {
+    let changes = events();
+    let changed = changes.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .default_value((Date::new(2026, 8, 5), Date::new(2026, 8, 8)))
+            .on_change(move |_, _, _, _| changes.borrow_mut().push("changed".into()))
+            .into_any_element()
+    });
+
+    let (day10_x, day10_y) = range_day(2026, 8, 10);
+    click(cx, day10_x, day10_y);
+    let replacement = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.start, state.end)
+    });
+    assert_eq!(replacement, (Some(Date::new(2026, 8, 10)), None));
+    let reports_before_escape = changed.borrow().len();
+    press(cx, "escape");
+
+    assert_eq!(changed.borrow().len(), reports_before_escape);
+    let value = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.start, state.end)
+    });
+    assert_eq!(
+        value,
+        (Some(Date::new(2026, 8, 5)), Some(Date::new(2026, 8, 8)))
+    );
+}
+
+/// If both adjacent dates are outside the allowed range, the first keyboard
+/// endpoint keeps focus and a second Enter completes a one-day range.
+#[gpui::test]
+fn range_calendar_keyboard_focus_stays_when_both_neighbours_are_invalid(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let changes = events();
+    let changed = changes.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        let changes = changes.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .min_value(Date::new(2026, 8, 10))
+            .max_value(Date::new(2026, 8, 10))
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .on_change(move |start, end, _, _| {
+                changes.borrow_mut().push(format!(
+                    "{}->{}",
+                    start.map(|date| date.format_iso()).unwrap_or_default(),
+                    end.map(|date| date.format_iso()).unwrap_or_default()
+                ));
+            })
+            .into_any_element()
+    });
+
+    let (day10_x, day10_y) = range_day(2026, 8, 10);
+    click(cx, day10_x, day10_y);
+    press(cx, "escape");
+    focused.borrow_mut().clear();
+    changed.borrow_mut().clear();
+
+    press(cx, "enter");
+    press(cx, "enter");
+
+    assert!(focused.borrow().is_empty());
+    assert_eq!(
+        changed.borrow().as_slice(),
+        ["2026-08-10->", "2026-08-10->2026-08-10"]
+    );
+}
+
+/// Non-contiguous mode leaves an unavailable neighbour focusable; it blocks
+/// selection only when the user tries to take it as an endpoint.
+#[gpui::test]
+fn range_calendar_non_contiguous_keyboard_focus_can_advance_to_an_unavailable_day(
+    cx: &mut TestAppContext,
+) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let changes = events();
+    let changed = changes.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        let changes = changes.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .allows_non_contiguous_ranges(true)
+            .is_date_unavailable(|date| date == Date::new(2026, 8, 11))
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .on_change(move |start, end, _, _| {
+                changes.borrow_mut().push(format!(
+                    "{}->{}",
+                    start.map(|date| date.format_iso()).unwrap_or_default(),
+                    end.map(|date| date.format_iso()).unwrap_or_default()
+                ));
+            })
+            .into_any_element()
+    });
+
+    let (day10_x, day10_y) = range_day(2026, 8, 10);
+    click(cx, day10_x, day10_y);
+    press(cx, "escape");
+    focused.borrow_mut().clear();
+    changed.borrow_mut().clear();
+
+    press(cx, "enter");
+    press(cx, "enter");
+
+    assert_eq!(focused.borrow().as_slice(), ["2026-08-11"]);
+    assert_eq!(changed.borrow().as_slice(), ["2026-08-10->"]);
+}
+
+/// Auto-advance across a month edge realigns the visible window so the focused
+/// end remains rendered.
+#[gpui::test]
+fn range_calendar_keyboard_advance_realigns_the_visible_month(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .into_any_element()
+    });
+
+    let (day31_x, day31_y) = range_day(2026, 8, 31);
+    click(cx, day31_x, day31_y);
+    press(cx, "escape");
+    focused.borrow_mut().clear();
+
+    press(cx, "enter");
+
+    assert_eq!(focused.borrow().as_slice(), ["2026-09-01"]);
+    let visible = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.view_year, state.view_month, state.view_day)
+    });
+    assert_eq!(visible, (2026, 9, 1));
+}
+
 /// The calendar grid is the first tab stop. The enabled previous chevron is
 /// next and activates on Enter, proving the nav controls are keyboard-reachable
 /// rather than pointer-only.
