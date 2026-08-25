@@ -309,17 +309,24 @@ impl InputOTP {
 
 impl RenderOnce for InputOTP {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        // `focus_once` takes `cx` mutably, so it runs before the tokens.
+        // The mount-time autofocus decision runs before the tokens. A disabled
+        // field consumes the one-shot without focusing, just like a disabled
+        // native input whose `autofocus` attribute does not rerun if enabled.
         let focused_handle = self.state.read(cx).focus_handle.clone();
         if self.auto_focus {
-            crate::util::focus_once(
-                window,
-                cx,
+            let done = window.use_keyed_state(
                 gpui::ElementId::Name(
                     format!("otp-autofocus-{}", self.state.entity_id().as_u64()).into(),
                 ),
-                &focused_handle,
+                cx,
+                |_, _| false,
             );
+            if !*done.read(cx) {
+                if !self.is_disabled {
+                    window.focus(&focused_handle);
+                }
+                done.update(cx, |done, _| *done = true);
+            }
         }
 
         // Where the row's text starts, remembered from the last frame: a
@@ -379,6 +386,9 @@ impl RenderOnce for InputOTP {
                 let st = self.state.clone();
                 let disabled = self.is_disabled;
                 move |ev: &gpui::MouseDownEvent, window, cx| {
+                    if disabled {
+                        return;
+                    }
                     // The click that *grants* the focus must not disturb a
                     // caret the value placed (a seeded code parks it after
                     // the last filled slot); only a click on an already
@@ -386,7 +396,7 @@ impl RenderOnce for InputOTP {
                     // does when a slot is clicked.
                     let was_focused = fh.is_focused(window);
                     window.focus(&fh);
-                    if disabled || !was_focused {
+                    if !was_focused {
                         return;
                     }
                     // The caret lands on the slot the click hit, measured

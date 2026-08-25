@@ -756,6 +756,47 @@ fn menu_item_content_sees_the_press(cx: &mut TestAppContext) {
     );
 }
 
+/// Pinned `useMenuItem` moves the collection's focused key to the row under a
+/// pointer hover, then reports both `isPressed` and `isFocused` after mouse
+/// down. The render closure must receive both transitions.
+#[gpui::test]
+fn menu_item_content_pointer_press_moves_focus(cx: &mut TestAppContext) {
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let record = recorded.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        Menu::new(
+            "render-props-menu-pointer-focus",
+            vec![MenuItem::new("one", "One"), MenuItem::new("two", "Two")],
+        )
+        .id("rp-menu-pointer-focus")
+        .item_content(move |key, state| {
+            record_interactive(&record, key, state);
+            gpui::div().w(px(40.)).h(px(20.)).into_any_element()
+        })
+        .into_any_element()
+    });
+
+    let centre = point(px(60.), px(60.));
+    cx.simulate_mouse_move(centre, None::<MouseButton>, Modifiers::none());
+    flush_frame(cx);
+    assert!(
+        state_of(&recorded, "two").is_focused,
+        "pointer hover must move the menu's focused key to its row"
+    );
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    let two = state_of(&recorded, "two");
+    assert!(
+        two.is_pressed,
+        "the press must reach the second row's closure"
+    );
+    assert!(
+        two.is_focused,
+        "a pointer press must move the menu's focused key to its row"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // TagGroup::tag_content
 // ---------------------------------------------------------------------------

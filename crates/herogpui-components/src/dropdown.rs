@@ -440,7 +440,7 @@ impl RenderOnce for Menu {
             done.update(cx, |d, _| *d = false);
         } else if focus_first {
             window.focus(&focus_handle);
-        } else {
+        } else if self.on_back.is_none() {
             crate::util::focus_once(window, cx, autofocus, &focus_handle);
         }
 
@@ -581,7 +581,7 @@ impl RenderOnce for Menu {
         }
 
         if !stops.is_empty() {
-            let held = cursor;
+            let held = cursor.clone();
             let stops_for_keys = stops;
             let typed_keys = typed;
             let on_action = self.on_action.clone();
@@ -839,6 +839,27 @@ impl RenderOnce for Menu {
                             },
                             cx,
                         );
+                        let pointer_cursor = cursor.clone();
+                        let pointer_focus = focus_handle.clone();
+                        row = row.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                            window.focus(&pointer_focus);
+                            pointer_cursor.update(cx, |value, cx| {
+                                *value = Some(i);
+                                cx.notify();
+                            });
+                        });
+                        let hover_cursor = cursor.clone();
+                        let hover_focus = focus_handle.clone();
+                        row = row.on_mouse_move(move |_, window, cx| {
+                            if crate::util::focus_visible(cx) || *hover_cursor.read(cx) == Some(i) {
+                                return;
+                            }
+                            window.focus(&hover_focus);
+                            hover_cursor.update(cx, |value, cx| {
+                                *value = Some(i);
+                                cx.notify();
+                            });
+                        });
                     }
                     row = when_selected(row, is_selected, sem_primary(cx));
                     // `.menu-item` takes `status-focused` on the row the keyboard
@@ -1499,6 +1520,11 @@ impl RenderOnce for Dropdown {
             is_open,
             true,
         );
+        let focus_first = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{wrap_base}-focus-first").into()),
+            cx,
+            |_, _| false,
+        );
 
         // `trigger="longPress"` needs to know whether the button is still down
         // when the timer fires, so the press is a piece of state rather than a
@@ -1531,7 +1557,31 @@ impl RenderOnce for Dropdown {
             let own = open_own;
             match self.trigger_kind {
                 DropdownTrigger::Press => {
-                    trigger_wrap = trigger_wrap.on_click(move |_ev: &ClickEvent, w, cx| {
+                    let key_own = own.clone();
+                    let key_open_change = on_open_change.clone();
+                    let key_focus_first = focus_first.clone();
+                    trigger_wrap = trigger_wrap.on_key_down(move |event, window, cx| {
+                        let key = event.keystroke.key.as_str();
+                        if is_open || (key != "enter" && key != "space") {
+                            return;
+                        }
+                        key_focus_first.update(cx, |focus, _| *focus = true);
+                        if let Some(held) = &key_own {
+                            held.update(cx, |value, cx| {
+                                *value = true;
+                                cx.notify();
+                            });
+                        }
+                        if let Some(cb) = &key_open_change {
+                            cb(true, window, cx);
+                        }
+                        cx.stop_propagation();
+                    });
+                    let focus_first = focus_first.clone();
+                    trigger_wrap = trigger_wrap.on_click(move |ev: &ClickEvent, w, cx| {
+                        focus_first.update(cx, |focus, _| {
+                            *focus = matches!(ev, ClickEvent::Keyboard(_));
+                        });
                         // Uncontrolled: flip our own copy, or the trigger would
                         // be inert without a caller handler.
                         if let Some(held) = &own {
@@ -1547,10 +1597,12 @@ impl RenderOnce for Dropdown {
                 }
                 DropdownTrigger::LongPress => {
                     let up_holding = holding.clone();
+                    let pointer_focus_first = focus_first.clone();
                     trigger_wrap = trigger_wrap
                         .on_mouse_down(gpui::MouseButton::Left, {
                             let holding = holding;
                             move |_, window, cx| {
+                                pointer_focus_first.update(cx, |focus, _| *focus = false);
                                 holding.update(cx, |v, _| *v = true);
                                 let holding = holding.clone();
                                 let own = own.clone();
@@ -1611,6 +1663,7 @@ impl RenderOnce for Dropdown {
             )
             .id(gpui::ElementId::Name(format!("{wrap_base}-menu").into()))
             .dropdown_composition()
+            .focus_first(focus_first)
             .exiting(phase == crate::util::OverlayPhase::Exiting)
             .selection_mode(self.selection_mode)
             .selected_keys(self.selected_keys.clone())

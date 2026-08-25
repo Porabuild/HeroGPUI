@@ -673,6 +673,67 @@ fn form_native_blocks_on_min_length(cx: &mut TestAppContext) {
 // ---------------------------------------------------------------------------
 
 #[gpui::test]
+fn input_otp_autofocus_focuses_and_accepts_input_without_a_click(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| OtpState::with_length(cx, 4));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        InputOTP::new(state_for_view.clone())
+            .auto_focus(true)
+            .into_any_element()
+    });
+
+    let focused = cx.update(|window, cx| state.read(cx).focus_handle(cx).is_focused(window));
+    assert!(focused, "autoFocus must focus the first OTP slot on mount");
+
+    press(cx, "1");
+    let code = cx.update(|_, cx| state.read(cx).code());
+    assert_eq!(
+        code, "1",
+        "typing must reach an autofocused OTP without a pointer press"
+    );
+}
+
+#[gpui::test]
+fn input_otp_autofocus_is_a_no_op_when_disabled(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| OtpState::with_length(cx, 4));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        InputOTP::new(state_for_view.clone())
+            .auto_focus(true)
+            .is_disabled(true)
+            .into_any_element()
+    });
+
+    let focused = cx.update(|window, cx| state.read(cx).focus_handle(cx).is_focused(window));
+    assert!(!focused, "autoFocus must not move focus to a disabled OTP");
+    press(cx, "1");
+    let code = cx.update(|_, cx| state.read(cx).code());
+    assert_eq!(code, "", "a disabled OTP must still refuse keystrokes");
+}
+
+#[gpui::test]
+fn input_otp_disabled_autofocus_does_not_rerun_when_enabled(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| OtpState::with_length(cx, 4));
+    let state_for_view = state.clone();
+    let disabled = std::rc::Rc::new(std::cell::Cell::new(true));
+    let disabled_for_view = disabled.clone();
+    let cx = open_host(cx, move || {
+        InputOTP::new(state_for_view.clone())
+            .auto_focus(true)
+            .is_disabled(disabled_for_view.get())
+            .into_any_element()
+    });
+
+    disabled.set(false);
+    cx.update(|window, _| window.refresh());
+    let focused = cx.update(|window, cx| state.read(cx).focus_handle(cx).is_focused(window));
+    assert!(
+        !focused,
+        "autofocus is a mount-time decision and must not rerun when a disabled OTP is enabled"
+    );
+}
+
+#[gpui::test]
 fn input_otp_partial_seed_completes_once_and_again_after_correction(cx: &mut TestAppContext) {
     // A caller-seeded partial value (v3's `value="12"` controlled seed) must
     // leave the next digit for the first empty slot — `set_code` pads with
@@ -1083,11 +1144,8 @@ fn input_otp_click_moves_the_caret(cx: &mut TestAppContext) {
 fn input_otp_disabled_click_does_not_focus(cx: &mut TestAppContext) {
     // v3's `isDisabled` ("Whether the input is disabled") means the control
     // answers no pointer: a click must neither focus it nor start the caret,
-    // and the keys must change nothing. The port's `on_mouse_down` is
-    // attached unconditionally (input_otp.rs), but the disabled handle is
-    // never `track_focus`'d, so the click cannot stick — the focus stays
-    // where it was and the keystroke lands nowhere. This is a regression
-    // guard for that path, not a defect.
+    // and the keys must change nothing. The disabled pointer handler returns
+    // before asking the window to focus its inert handle.
     let state = cx.new(|cx| OtpState::with_length(cx, 4));
     let state_for_view = state.clone();
     let cx = open_host(cx, move || {

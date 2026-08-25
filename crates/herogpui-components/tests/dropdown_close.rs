@@ -149,18 +149,20 @@ fn enter_activates_once_and_closes(cx: &mut TestAppContext) {
         .into_any_element()
     });
 
-    click(cx, 40., 18.);
-    // Opening moves the focus into the panel, so the arrows work without a
-    // click first. Enter must activate exactly once and close exactly once:
-    // gpui fires a focused element's click listener on key up, and the
-    // trigger's listener toggles the menu, so refocusing the trigger inside
-    // this keystroke would reopen it.
-    press(cx, "down");
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "keyboard activation must open the menu"
+    );
+    // Pinned React Aria opens a keyboard-triggered menu with its first enabled
+    // row focused, so Enter activates it without an arrow key first.
     press(cx, "enter");
     assert_eq!(
         fired.borrow().as_slice(),
         ["one"],
-        "Down then Enter must activate the first row exactly once"
+        "Enter must activate the initially focused row exactly once"
     );
     assert_eq!(
         opened.borrow().as_slice(),
@@ -556,6 +558,7 @@ fn submenu_opens_from_hover(cx: &mut TestAppContext) {
     cx.update(|window, _| window.refresh());
 
     assert_eq!(last(&opened), "open:true");
+    press(cx, "enter");
     assert!(fired.borrow().is_empty());
 }
 
