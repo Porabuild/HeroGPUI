@@ -223,8 +223,8 @@ EXTRA_OK_SCOPED = {
     # `SearchField.SearchIcon` is a composed part; replacing it is v3's
     # "Custom Icons" example.
     'SearchField.search_icon': 'composition',
-    # `Checkbox.Indicator` takes children (v3 swaps the glyph per state), and
-    # its "Full Rounded" example rounds `Checkbox.Control` with a class.
+    # `Checkbox.Indicator` takes children (the closure receives CheckboxState),
+    # and its "Full Rounded" example rounds `Checkbox.Control` with a class.
     'Checkbox.indicator': 'composition',
     # v3 builds a Select's list out of `ListBox` parts and its trigger out of
     # `Select.Value`; a monolithic Select takes each as a slot.

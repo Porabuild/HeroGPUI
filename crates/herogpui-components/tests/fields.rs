@@ -151,6 +151,71 @@ fn checkbox_indeterminate_does_not_block_toggle(cx: &mut TestAppContext) {
     );
 }
 
+/// Pinned HeroUI v3.2.4 hands `Checkbox.Indicator` the root field state. In
+/// particular, selected and indeterminate are independent: the custom dash
+/// example is indeterminate without being selected.
+#[gpui::test]
+fn checkbox_indicator_receives_distinct_field_state(cx: &mut TestAppContext) {
+    let states = events();
+    let recorded = states.clone();
+    open_host(cx, move || {
+        let indeterminate_states = states.clone();
+        let selected_states = states.clone();
+        gpui::div()
+            .child(
+                Checkbox::new("cb-indicator-state")
+                    .is_indeterminate(true)
+                    .is_disabled(true)
+                    .is_read_only(true)
+                    .is_invalid(true)
+                    .is_required(true)
+                    .indicator(move |state| {
+                        indeterminate_states.borrow_mut().push(format!(
+                            "{}|{}|{}|{}|{}|{}",
+                            state.is_selected,
+                            state.is_indeterminate,
+                            state.is_disabled,
+                            state.is_read_only,
+                            state.is_invalid,
+                            state.is_required
+                        ));
+                        gpui::div().into_any_element()
+                    }),
+            )
+            .child(
+                Checkbox::new("cb-indicator-selected")
+                    .default_selected(true)
+                    .indicator(move |state| {
+                        selected_states.borrow_mut().push(format!(
+                            "{}|{}|{}|{}|{}|{}",
+                            state.is_selected,
+                            state.is_indeterminate,
+                            state.is_disabled,
+                            state.is_read_only,
+                            state.is_invalid,
+                            state.is_required
+                        ));
+                        gpui::div().into_any_element()
+                    }),
+            )
+            .into_any_element()
+    });
+
+    let recorded = recorded.borrow();
+    assert!(
+        recorded
+            .iter()
+            .any(|state| state == "false|true|true|true|true|true"),
+        "an indeterminate indicator must receive the full field state without inventing selection"
+    );
+    assert!(
+        recorded
+            .iter()
+            .any(|state| state == "true|false|false|false|false|false"),
+        "a selected indicator must receive selection without inventing indeterminate state"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // RadioGroup
 // ---------------------------------------------------------------------------

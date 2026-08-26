@@ -5440,8 +5440,8 @@ impl Gallery {
                     row(vec![
                         h::Checkbox::new("cb-ind-heart")
                             .default_selected(true)
-                            .indicator(move |selected| {
-                                if selected {
+                            .indicator(move |state| {
+                                if state.is_selected {
                                     gpui::svg()
                                         .size(px(10.))
                                         .path(h::icons::HEART_FILL)
@@ -5455,8 +5455,8 @@ impl Gallery {
                             .into_any_element(),
                         h::Checkbox::new("cb-ind-plus")
                             .default_selected(true)
-                            .indicator(move |selected| {
-                                if selected {
+                            .indicator(move |state| {
+                                if state.is_selected {
                                     gpui::svg()
                                         .size(px(10.))
                                         .path(h::icons::PLUS)
@@ -5467,6 +5467,22 @@ impl Gallery {
                                 }
                             })
                             .label(gpui::div().child("Plus"))
+                            .into_any_element(),
+                        h::Checkbox::new("cb-ind-minus")
+                            .is_indeterminate(true)
+                            .indicator(move |state| {
+                                if state.is_indeterminate {
+                                    gpui::div()
+                                        .w(px(10.))
+                                        .h(px(2.))
+                                        .rounded_full()
+                                        .bg(gpui::white())
+                                        .into_any_element()
+                                } else {
+                                    gpui::div().into_any_element()
+                                }
+                            })
+                            .label(gpui::div().child("Indeterminate"))
                             .into_any_element(),
                     ]),
                 ),
@@ -5594,14 +5610,14 @@ impl Gallery {
                     "With Custom Indicator",
                     col(vec![
                         para(
-                            "The group's options carry the same indicator slot a single \
-                             `Checkbox` does; here each one draws a tick of its own.",
+                            "A custom indicator belongs to a standalone Checkbox, not to this \
+                             port's group options; here two standalone checkboxes draw hearts.",
                             cx,
                         ),
                         h::Checkbox::new("cbg-ci-1")
                             .default_selected(true)
-                            .indicator(move |selected| {
-                                if selected {
+                            .indicator(move |state| {
+                                if state.is_selected {
                                     gpui::svg()
                                         .size(px(10.))
                                         .path(h::icons::HEART_FILL)
@@ -5614,8 +5630,8 @@ impl Gallery {
                             .label(gpui::div().child("Email"))
                             .into_any_element(),
                         h::Checkbox::new("cbg-ci-2")
-                            .indicator(move |selected| {
-                                if selected {
+                            .indicator(move |state| {
+                                if state.is_selected {
                                     gpui::svg()
                                         .size(px(10.))
                                         .path(h::icons::HEART_FILL)
