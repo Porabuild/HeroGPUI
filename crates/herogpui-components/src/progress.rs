@@ -251,8 +251,9 @@ pub struct ProgressCircle {
     size_px: gpui::Pixels,
     is_indeterminate: bool,
     show_value: bool,
-    /// `ProgressCircle.ValueLabel`'s render props: `percentage` and `valueText`.
-    value_content: Option<std::sync::Arc<dyn Fn(f32, &str) -> gpui::AnyElement + 'static>>,
+    /// `ProgressCircle.ValueLabel`'s render props: `percentage`, `valueText`,
+    /// and `isIndeterminate`.
+    value_content: Option<std::sync::Arc<dyn Fn(f32, &str, bool) -> gpui::AnyElement + 'static>>,
     /// `formatOptions` — how the generated value label is written.
     format: Option<herogpui_core::NumberFormat>,
 }
@@ -264,7 +265,7 @@ impl ProgressCircle {
             min_value: 0.0,
             max_value: 100.0,
             color: Color::Accent,
-            size_px: px(48.),
+            size_px: px(28.),
             is_indeterminate: false,
             show_value: false,
             value_content: None,
@@ -273,10 +274,10 @@ impl ProgressCircle {
     }
 
     /// `ProgressCircle.ValueLabel`'s render function — handed `percentage`
-    /// (0-100) and `valueText`.
+    /// (0-100), `valueText`, and `isIndeterminate`.
     pub fn value_content(
         mut self,
-        render: impl Fn(f32, &str) -> gpui::AnyElement + 'static,
+        render: impl Fn(f32, &str, bool) -> gpui::AnyElement + 'static,
     ) -> Self {
         self.value_content = Some(std::sync::Arc::new(render));
         self
@@ -308,14 +309,14 @@ impl ProgressCircle {
         self
     }
 
-    /// `size` — the ring's diameter: 32 / 48 / 64px for `sm` / `md` / `lg`.
+    /// `size` — the ring's diameter: 20 / 28 / 36px for `sm` / `md` / `lg`.
     ///
     /// v3 documents the three-step scale, not a pixel value.
     pub fn size(mut self, s: Size) -> Self {
         self.size_px = match s {
-            Size::Sm => px(32.),
-            Size::Md => px(48.),
-            Size::Lg => px(64.),
+            Size::Sm => px(20.),
+            Size::Md => px(28.),
+            Size::Lg => px(36.),
         };
         self
     }
@@ -341,7 +342,11 @@ impl Default for ProgressCircle {
 impl RenderOnce for ProgressCircle {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
-        let arc_color = cx.role(self.color).color;
+        let arc_color = if self.color == Color::Default {
+            colors.default.foreground
+        } else {
+            cx.role(self.color).color
+        };
         // Clamp once at entry, like the bar: a non-percent label formats the
         // clamped value, and the guard keeps `f32::clamp` from panicking on
         // the inverted range `fraction_of` tolerates.
@@ -356,8 +361,86 @@ impl RenderOnce for ProgressCircle {
         } else {
             fraction_of(self.value, self.min_value, self.max_value)
         };
-        // v3 scales the ring weight with the circle, ~10% of the diameter.
-        let stroke_w = self.size_px * 0.1;
+        // v3 uses stroke-width 4 in a 36-unit viewBox.
+        let stroke_w = self.size_px / 9.;
+        let spins = self.is_indeterminate && !cx.reduce_motion();
+        let rotation = std::rc::Rc::new(std::cell::Cell::new(0.0f32));
+        let paint_rotation = rotation.clone();
+
+        let arc = gpui::canvas(
+            move |bounds, _, _| bounds,
+            move |bounds, _, window, _| {
+                if fraction <= 0.0 {
+                    return;
+                }
+                let mut builder = gpui::PathBuilder::stroke(stroke_w);
+                let center = bounds.center();
+                let radius = (bounds.size.width.min(bounds.size.height) / 2.) - stroke_w / 2.;
+                // CSS positive rotation is clockwise in screen coordinates;
+                // this path's mathematical angle increases counter-clockwise.
+                let start = std::f32::consts::FRAC_PI_2 - paint_rotation.get();
+                let sweep = std::f32::consts::TAU * fraction;
+                let steps = ((sweep / 0.05).ceil() as usize).max(2);
+                for i in 0..=steps {
+                    let a = start - sweep * i as f32 / steps as f32;
+                    let p = gpui::point(center.x + radius * a.cos(), center.y - radius * a.sin());
+                    if i == 0 {
+                        builder.move_to(p);
+                    } else {
+                        builder.line_to(p);
+                    }
+                }
+                if let Ok(path) = builder.build() {
+                    window.paint_path(path, arc_color);
+                }
+                // v3's SVG uses stroke-linecap="round". GPUI's public stroke
+                // builder uses butt caps, so complete the same geometry with
+                // a filled disc at each endpoint.
+                for angle in [start, start - sweep] {
+                    let cap_center = gpui::point(
+                        center.x + radius * angle.cos(),
+                        center.y - radius * angle.sin(),
+                    );
+                    let cap_radius = stroke_w / 2.;
+                    let mut cap = gpui::PathBuilder::fill();
+                    for step in 0..16 {
+                        let angle = std::f32::consts::TAU * step as f32 / 16.;
+                        let point = gpui::point(
+                            cap_center.x + cap_radius * angle.cos(),
+                            cap_center.y + cap_radius * angle.sin(),
+                        );
+                        if step == 0 {
+                            cap.move_to(point);
+                        } else {
+                            cap.line_to(point);
+                        }
+                    }
+                    cap.close();
+                    if let Ok(path) = cap.build() {
+                        window.paint_path(path, arc_color);
+                    }
+                }
+            },
+        )
+        .absolute()
+        .inset_0();
+
+        let arc = if spins {
+            arc.with_animation(
+                "progress-circle-spin",
+                gpui::Animation::new(std::time::Duration::from_millis(
+                    crate::anim::PROGRESS_CIRCLE_SPIN_MS,
+                ))
+                .repeat(),
+                move |arc, delta| {
+                    rotation.set(crate::anim::progress_circle_spin_turn(delta));
+                    arc
+                },
+            )
+            .into_any_element()
+        } else {
+            arc.into_any_element()
+        };
 
         gpui::div()
             .relative()
@@ -374,44 +457,11 @@ impl RenderOnce for ProgressCircle {
                     .inset_0()
                     .rounded_full()
                     .border(stroke_w)
-                    .border_color(colors.default.soft_hover()),
+                    .border_color(colors.default.color),
             )
             // `.progress-circle__fill-circle` -- the arc, stroked to the same
             // weight as the track it sits on.
-            .child(
-                gpui::canvas(
-                    move |bounds, _, _| bounds,
-                    move |bounds, _, window, _| {
-                        if fraction <= 0.0 {
-                            return;
-                        }
-                        let mut builder = gpui::PathBuilder::stroke(stroke_w);
-                        let center = bounds.center();
-                        let radius =
-                            (bounds.size.width.min(bounds.size.height) / 2.) - stroke_w / 2.;
-                        let start = std::f32::consts::FRAC_PI_2;
-                        let sweep = std::f32::consts::TAU * fraction;
-                        let steps = ((sweep / 0.05).ceil() as usize).max(2);
-                        for i in 0..=steps {
-                            let a = start - sweep * i as f32 / steps as f32;
-                            let p = gpui::point(
-                                center.x + radius * a.cos(),
-                                center.y - radius * a.sin(),
-                            );
-                            if i == 0 {
-                                builder.move_to(p);
-                            } else {
-                                builder.line_to(p);
-                            }
-                        }
-                        if let Ok(path) = builder.build() {
-                            window.paint_path(path, arc_color);
-                        }
-                    },
-                )
-                .absolute()
-                .inset_0(),
-            )
+            .child(arc)
             .when(self.show_value, |el| {
                 let format = self
                     .format
@@ -432,7 +482,9 @@ impl RenderOnce for ProgressCircle {
                     (fraction * 100., format.format(n))
                 };
                 match &self.value_content {
-                    Some(render) => el.child(render(percentage, &value_text)),
+                    Some(render) => {
+                        el.child(render(percentage, &value_text, self.is_indeterminate))
+                    }
                     None => el.child(
                         gpui::div()
                             .text_size(px(12.))

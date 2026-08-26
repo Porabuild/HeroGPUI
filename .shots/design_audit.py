@@ -837,6 +837,21 @@ CHECKS = [
      r'let mut el = gpui::div\(\)[\s\S]{0,220}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('progress-bar', '.progress-bar__track', 'radius', 'ProgressBar track', SRC + 'progress.rs',
      '\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
+    ('progress-circle', '.progress-circle__track', 'size', 'ProgressCircle md',
+     SRC + 'progress.rs',
+     r'pub fn size\(mut self, s: Size\) -> Self \{\s*self\.size_px = match s \{[\s\S]{0,200}?'
+     r'Size::Md => px\((\d+(?:\.\d*)?)\.\)', None),
+    ('progress-circle', '.progress-circle__track', 'size', 'ProgressCircle default',
+     SRC + 'progress.rs',
+     r'impl ProgressCircle\s*\{[\s\S]{0,400}?size_px: px\((\d+(?:\.\d*)?)\.\)', None),
+    ('progress-circle', '.progress-circle--sm .progress-circle__track', 'size',
+     'ProgressCircle sm', SRC + 'progress.rs',
+     r'pub fn size\(mut self, s: Size\) -> Self \{\s*self\.size_px = match s \{[\s\S]{0,200}?'
+     r'Size::Sm => px\((\d+(?:\.\d*)?)\.\)', None),
+    ('progress-circle', '.progress-circle--lg .progress-circle__track', 'size',
+     'ProgressCircle lg', SRC + 'progress.rs',
+     r'pub fn size\(mut self, s: Size\) -> Self \{\s*self\.size_px = match s \{[\s\S]{0,200}?'
+     r'Size::Lg => px\((\d+(?:\.\d*)?)\.\)', None),
     ('checkbox', '.checkbox__content', 'gap', 'Checkbox row gap', SRC + 'checkbox.rs',
      '`\.checkbox__content` is `gap-3`\.\s+\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('checkbox-group', '[data-slot="checkbox"]', 'mt', 'CheckboxGroup option gap',
@@ -1342,6 +1357,14 @@ THEME_FILES = (
 
 
 NESTED_SELECTOR_CHAINS = {
+    ('progress-circle', '.progress-circle__track'): (
+        '.progress-circle', '.progress-circle__track'),
+    ('progress-circle', '.progress-circle--sm .progress-circle__track'): (
+        '.progress-circle--sm', '.progress-circle__track'),
+    ('progress-circle', '.progress-circle--lg .progress-circle__track'): (
+        '.progress-circle--lg', '.progress-circle__track'),
+    ('progress-circle', '.progress-circle__track-circle'): (
+        '.progress-circle', '.progress-circle__track-circle'),
     ('tabs', '.tabs__list[data-orientation="vertical"]'): (
         '.tabs__list', '&[data-orientation="vertical"]'),
     ('tabs', '.tabs__list[data-orientation="vertical"] .tabs__tab'): (
@@ -1729,6 +1752,12 @@ FILLS = [
      SRC + 'slider.rs', 'sem.color'),
     ('slider', '.slider__thumb::after', 'bg-accent-foreground',
      SRC + 'slider.rs', 'sem.foreground'),
+    ('progress-circle', '.progress-circle__track-circle',
+     'var(--progress-circle-track-stroke)', SRC + 'progress.rs',
+     'colors.default.color'),
+    ('progress-circle', '.progress-circle--default',
+     'var(--default-foreground)', SRC + 'progress.rs',
+     'colors.default.foreground'),
     ('input-otp', '.input-otp__slot', 'bg-field',
      SRC + 'input_otp.rs', 'colors.field.background'),
     ('tabs', '.tabs__list-container', 'bg-default',

@@ -34,6 +34,14 @@ pub const TRANSITION_MS: u64 = 100;
 /// timeline, so [`pressed`] arrives in one frame. See the note there.
 pub const PRESS_MS: u64 = 250;
 
+/// `@keyframes progress-circle-spin`: one linear turn per second.
+pub const PROGRESS_CIRCLE_SPIN_MS: u64 = 1000;
+
+/// Rotation for one `progress-circle-spin` iteration, in radians.
+pub fn progress_circle_spin_turn(delta: f32) -> f32 {
+    delta.clamp(0.0, 1.0) * std::f32::consts::TAU
+}
+
 /// Evaluates a CSS `cubic-bezier(x1, y1, x2, y2)` at `t`.
 ///
 /// v3 names its curves in `--ease-*` tokens and gpui takes an arbitrary easing
@@ -827,6 +835,20 @@ mod tests {
         // and it ramps rather than jumping
         assert!((caret_opacity(0.10) - 0.5).abs() < 1e-6);
         assert!((caret_opacity(0.60) - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn progress_circle_spin_is_one_linear_turn() {
+        assert!(progress_circle_spin_turn(0.0).abs() < 1e-6);
+        assert!((progress_circle_spin_turn(0.25) - std::f32::consts::FRAC_PI_2).abs() < 1e-6);
+        assert!((progress_circle_spin_turn(1.0) - std::f32::consts::TAU).abs() < 1e-6);
+
+        let mut previous = 0.0;
+        for step in 0..=20 {
+            let rotation = progress_circle_spin_turn(step as f32 / 20.0);
+            assert!(rotation >= previous, "spin moved backwards at step {step}");
+            previous = rotation;
+        }
     }
 
     #[test]

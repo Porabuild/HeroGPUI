@@ -48,6 +48,7 @@ IMPLEMENTS = {
     'scale(0.95)': 'PRESSED_SCALE_DEEP',
     'scale: 0.9': 'PRESSED_SCALE_RANGE',
     '@keyframes caret-blink': 'pub fn caret_blink',
+    '@keyframes progress-circle-spin': 'pub fn progress_circle_spin_turn',
     '@keyframes skeleton': 'SkeletonAnimation',
     'animate-pulse': 'SkeletonAnimation',
     'duration-150': 'pub const ENTERING_MS',
@@ -590,6 +591,48 @@ def check_drawer_motion():
     return bad
 
 
+def check_progress_circle_motion():
+    """ProgressCircle's pinned spin duration, loop and reduced-motion gate."""
+    css_path = os.path.join(CACHE, 'progress-circle.css')
+    if not os.path.exists(css_path):
+        print('progress circle motion: no stylesheet')
+        return 1
+    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    anim = io.open(os.path.join(SRC, 'anim.rs'), encoding='utf-8').read()
+    progress = io.open(os.path.join(SRC, 'progress.rs'), encoding='utf-8').read()
+
+    want = re.search(r'animation:\s*progress-circle-spin\s+(\d+)s\s+linear\s+infinite', css)
+    got = re.search(r'pub const PROGRESS_CIRCLE_SPIN_MS:\s*u64\s*=\s*(\d+)', anim)
+    want_ms = int(want.group(1)) * 1000 if want else None
+    got_ms = int(got.group(1)) if got else None
+    wired = bool(re.search(
+        r'with_animation\(\s*"progress-circle-spin"[\s\S]{0,300}?'
+        r'PROGRESS_CIRCLE_SPIN_MS[\s\S]{0,120}?\.repeat\(\)',
+        progress,
+    ))
+    reduced = (
+        'motion-reduce:animate-none' in css
+        and 'self.is_indeterminate && !cx.reduce_motion()' in progress
+    )
+    linear = 'pub fn progress_circle_spin_turn' in anim
+
+    rows = [
+        (want_ms is not None and want_ms == got_ms and wired and linear,
+         'spin', '%sms linear infinite' % want_ms if want_ms is not None else 'unreadable',
+         '%sms linear repeat' % got_ms if got_ms is not None and wired and linear else 'not wired'),
+        (reduced, 'reduced motion', 'animate-none', 'static arc' if reduced else 'missing'),
+    ]
+    print('progress circle motion (v3 CSS vs ProgressCircle):')
+    for same, name, want_value, got_value in rows:
+        print('%s %-14s %-16s %-22s %s' % (
+            ' ' if same else '!', 'progress-circle', name, want_value, got_value
+        ))
+    bad = sum(not same for same, _, _, _ in rows)
+    print('PROGRESS CIRCLE MISMATCHES : %d' % bad)
+    print()
+    return bad
+
+
 def corpus():
     """Everything v3 ships that could name an animation.
 
@@ -654,6 +697,7 @@ def main():
         + check_toggle_button_motion()
         + check_pagination_motion()
         + check_drawer_motion()
+        + check_progress_circle_motion()
     )
     print('UNIMPLEMENTED : %d' % len(missing_impl))
     print('MOTION BAD    : %d' % motion_bad)

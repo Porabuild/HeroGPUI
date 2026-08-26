@@ -721,7 +721,7 @@ fn progress_circle_clamps_value_outside_the_range(cx: &mut TestAppContext) {
         ProgressCircle::new()
             .value(now)
             .show_value_label(true)
-            .value_content(move |percentage, text| {
+            .value_content(move |percentage, text, _| {
                 record.borrow_mut().push(format!("{percentage:.0}|{text}"));
                 gpui::div().child(text.to_owned()).into_any_element()
             })
@@ -757,7 +757,7 @@ fn progress_circle_format_options_change_the_value_text(cx: &mut TestAppContext)
             .value(now)
             .show_value_label(true)
             .format_options(NumberFormat::currency("USD"))
-            .value_content(move |percentage, text| {
+            .value_content(move |percentage, text, _| {
                 record.borrow_mut().push(format!("{percentage:.0}|{text}"));
                 gpui::div().child(text.to_owned()).into_any_element()
             })
@@ -848,11 +848,8 @@ fn meter_value_text_uses_the_clamped_value_for_custom_formats(cx: &mut TestAppCo
     );
 }
 
-/// The circle's indeterminate branch is the bar's opposite: it reuses the
-/// quarter-arc fraction (0.25) as a *value*, handing the closure "25|25%"
-/// — a percentage and a label fabricated from an arc sweep, where the bar's
-/// contract (and React Aria's) says indeterminate progress has no value label
-/// at all.
+/// The circle follows React Aria's indeterminate value contract too: its
+/// quarter arc is geometry rather than a reported percentage or value label.
 #[gpui::test]
 fn progress_circle_indeterminate_reports_no_value_text(cx: &mut TestAppContext) {
     let seen = events();
@@ -862,8 +859,9 @@ fn progress_circle_indeterminate_reports_no_value_text(cx: &mut TestAppContext) 
         ProgressCircle::new()
             .is_indeterminate(true)
             .show_value_label(true)
-            .value_content(move |percentage, text| {
+            .value_content(move |percentage, text, is_indeterminate| {
                 record.borrow_mut().push(format!("{percentage:.0}|{text}"));
+                assert!(is_indeterminate);
                 gpui::div().child(text.to_owned()).into_any_element()
             })
             .into_any_element()

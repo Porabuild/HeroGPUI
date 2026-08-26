@@ -7835,6 +7835,256 @@ pub(crate) const COMBO_BOX: ReferenceMetadata = ReferenceMetadata {
     styling: COMBO_BOX_STYLING,
 };
 
+const PROGRESS_CIRCLE_REQUIRED_PARTS: &[&str] = &[
+    // Keep the compound anatomy visible to reference_audit.py.
+    "ProgressCircle",
+    "ProgressCircle.Track",
+    "ProgressCircle.TrackCircle",
+    "ProgressCircle.FillCircle",
+];
+
+const PROGRESS_CIRCLE_API: &[ApiDoc] = &[
+    ApiDoc {
+        owner: "ProgressCircle",
+        prop: "value",
+        ty: "number",
+        default: "0",
+        description: "Current progress value, clamped to the configured range.",
+        rust_owner: "ProgressCircle",
+        rust: "value(f32)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ProgressCircle",
+        prop: "minValue",
+        ty: "number",
+        default: "0",
+        description: "Minimum value used to normalize progress.",
+        rust_owner: "ProgressCircle",
+        rust: "min_value(f32)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ProgressCircle",
+        prop: "maxValue",
+        ty: "number",
+        default: "100",
+        description: "Maximum value used to normalize progress.",
+        rust_owner: "ProgressCircle",
+        rust: "max_value(f32)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ProgressCircle",
+        prop: "isIndeterminate",
+        ty: "boolean",
+        default: "false",
+        description: "Shows a spinning quarter arc without exposing a value label.",
+        rust_owner: "ProgressCircle",
+        rust: "is_indeterminate(bool)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ProgressCircle",
+        prop: "size",
+        ty: "\"sm\" | \"md\" | \"lg\"",
+        default: "\"md\"",
+        description: "Selects the pinned 20, 28 or 36px track diameter.",
+        rust_owner: "ProgressCircle",
+        rust: "size(Size)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ProgressCircle",
+        prop: "color",
+        ty: "\"default\" | \"accent\" | \"success\" | \"warning\" | \"danger\"",
+        default: "\"accent\"",
+        description: "Semantic fill-circle stroke color.",
+        rust_owner: "ProgressCircle",
+        rust: "color(Color)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ProgressCircle",
+        prop: "formatOptions",
+        ty: "Intl.NumberFormatOptions",
+        default: "{style: \"percent\"}",
+        description: "Formats valueText; the local formatter covers common numeric styles without locale or CLDR data.",
+        rust_owner: "ProgressCircle",
+        rust: "format_options(NumberFormat)",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "ProgressCircle",
+        prop: "children",
+        ty: "ReactNode | (values: ProgressCircleRenderProps) => ReactNode",
+        default: "—",
+        description: "The local ValueLabel closure receives all three documented values, but arbitrary root children are not composed.",
+        rust_owner: "ProgressCircle",
+        rust: "value_content(render) + show_value_label(true)",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "ProgressCircleRenderProps",
+        prop: "percentage",
+        ty: "number",
+        default: "—",
+        description: "Normalized percentage handed to the value renderer.",
+        rust_owner: "ProgressCircle",
+        rust: "value_content(render)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ProgressCircleRenderProps",
+        prop: "valueText",
+        ty: "string",
+        default: "—",
+        description: "Formatted value text handed to the value renderer.",
+        rust_owner: "ProgressCircle",
+        rust: "value_content(render)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ProgressCircleRenderProps",
+        prop: "isIndeterminate",
+        ty: "boolean",
+        default: "—",
+        description: "Current indeterminate state handed to the value renderer.",
+        rust_owner: "ProgressCircle",
+        rust: "value_content(render)",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const PROGRESS_CIRCLE_PARTS: &[PartDoc] = &[
+    PartDoc {
+        name: "ProgressCircle",
+        slot: "progress-circle",
+        description: "Root progress indicator and fixed-size layout box.",
+        rust_owner: "ProgressCircle",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "ProgressCircle.Track",
+        slot: "progress-circle-track",
+        description: "SVG track counterpart represented by a border ring and canvas arc; it is not separately composable.",
+        rust_owner: "ProgressCircle",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "ProgressCircle.TrackCircle",
+        slot: "progress-circle-track-circle",
+        description: "Full default-color ring beneath the progress arc.",
+        rust_owner: "ProgressCircle",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "ProgressCircle.FillCircle",
+        slot: "progress-circle-fill-circle",
+        description: "Semantic-color canvas arc with normalized sweep; custom SVG attributes are unavailable.",
+        rust_owner: "ProgressCircle",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+const PROGRESS_CIRCLE_STATES: &[StateDoc] = &[
+    StateDoc {
+        state: "Determinate",
+        selector: "[aria-valuenow]",
+        description: "Arc sweep and value renderer follow the normalized value.",
+        rust: "fraction_of(value, min_value, max_value)",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Indeterminate",
+        selector: ":not([aria-valuenow])",
+        description: "A quarter arc completes one linear turn per second; reduced motion leaves the same arc static.",
+        rust: "is_indeterminate + progress-circle-spin + reduce_motion",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Disabled",
+        selector: ":disabled / [data-disabled=\"true\"] / [aria-disabled=\"true\"]",
+        description: "The stylesheet has a disabled selector, but the documented component has no disabled prop and the port does not invent one.",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+];
+
+const PROGRESS_CIRCLE_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: ".progress-circle",
+        value: "inline-flex items-center justify-center",
+        description: "Centered fixed-size root.",
+        rust: "flex + items_center + justify_center",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".progress-circle__track",
+        value: "size-7; sm size-5; lg size-9",
+        description: "Pinned desktop diameters are 28px by default, 20px small and 36px large.",
+        rust: "size(Size) => 20 / 28 / 36px",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".progress-circle__track-circle",
+        value: "stroke: var(--default)",
+        description: "Full-opacity semantic default track stroke.",
+        rust: "border_color(colors.default.color)",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".progress-circle__fill-circle",
+        value: "stroke-width 4 in a 36-unit viewBox",
+        description: "Stroke scales to exactly one ninth of the rendered diameter.",
+        rust: "stroke_w = size_px / 9",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".progress-circle__fill-circle",
+        value: "stroke-linecap: round",
+        description: "Filled endpoint discs reproduce the SVG arc's round line caps.",
+        rust: "PathBuilder::stroke + filled endpoint discs",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".progress-circle__fill-circle",
+        value: "stroke-dashoffset 300ms ease-out; motion-reduce none",
+        description: "Value changes redraw immediately because the local canvas has no retained dash-offset transition.",
+        rust: "direct fraction repaint",
+        status: ImplementationStatus::Partial,
+    },
+    StyleDoc {
+        class_or_token: ".progress-circle--default",
+        value: "--progress-circle-stroke: var(--default-foreground)",
+        description: "Default uses the contrasting foreground while other variants use their semantic base color.",
+        rust: "Color::Default => colors.default.foreground",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: "@keyframes progress-circle-spin",
+        value: "1s linear infinite; motion-reduce animate-none",
+        description: "Indeterminate track rotation and its reduced-motion override.",
+        rust: "PROGRESS_CIRCLE_SPIN_MS + progress_circle_spin_turn + reduce_motion",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+pub(crate) const PROGRESS_CIRCLE: ReferenceMetadata = ReferenceMetadata {
+    page: "ProgressCircle",
+    import_line: "use herogpui::components::progress::ProgressCircle;",
+    source_module: "progress",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(feedback)/progress-circle.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/progress-circle/progress-circle.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/ProgressBar.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/progress-circle.css",
+    required_parts: PROGRESS_CIRCLE_REQUIRED_PARTS,
+    api: PROGRESS_CIRCLE_API,
+    parts: PROGRESS_CIRCLE_PARTS,
+    states: PROGRESS_CIRCLE_STATES,
+    styling: PROGRESS_CIRCLE_STYLING,
+};
+
 const SEPARATOR_REQUIRED_PARTS: &[&str] = &[
     // The root is the component's only declared part.
     "Separator",
@@ -8018,6 +8268,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     RANGE_CALENDAR,
     DRAWER,
     COMBO_BOX,
+    PROGRESS_CIRCLE,
     SEPARATOR,
 ];
 

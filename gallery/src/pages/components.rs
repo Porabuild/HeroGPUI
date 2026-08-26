@@ -4997,8 +4997,8 @@ impl Gallery {
                     col(vec![
                         para(
                             "v3 overrides `strokeWidth` on the composed circle parts. The stroke \
-                             here follows the size, so the three sizes are the same three \
-                             thicknesses.",
+                             here keeps v3's fixed 4/36 view-box ratio as the circle scales; \
+                             custom SVG attributes are not exposed by this canvas-backed port.",
                             cx,
                         ),
                         row(Size::ALL
@@ -5040,7 +5040,6 @@ impl Gallery {
                         h::ProgressCircle::new()
                             .value(70.0)
                             .size(Size::Lg)
-                            .show_value_label(true)
                             .into_any_element(),
                     ]),
                 ),

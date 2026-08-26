@@ -500,21 +500,25 @@ fn meter_value_content_forwards_percentage_and_text(cx: &mut TestAppContext) {
     );
 }
 
-/// `ProgressCircle.ValueLabel` is the same pair on the ring.
+/// `ProgressCircle.ValueLabel` receives the ring's values and whether it is
+/// indeterminate.
 #[gpui::test]
-fn progress_circle_value_content_sees_percentage_and_text(cx: &mut TestAppContext) {
+fn progress_circle_value_content_sees_values_and_indeterminate_state(cx: &mut TestAppContext) {
     let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
     let record = seen.clone();
-    let value = Rc::new(RefCell::new(25.0f32));
-    let for_view = value.clone();
+    let state = Rc::new(RefCell::new((25.0f32, false)));
+    let for_view = state.clone();
     let cx = open_host(cx, move || {
         let record = record.clone();
-        let now = *for_view.borrow();
+        let (value, is_indeterminate) = *for_view.borrow();
         ProgressCircle::new()
-            .value(now)
+            .value(value)
+            .is_indeterminate(is_indeterminate)
             .show_value_label(true)
-            .value_content(move |percentage, text| {
-                record.borrow_mut().push(format!("{percentage:.0}|{text}"));
+            .value_content(move |percentage, text, is_indeterminate| {
+                record
+                    .borrow_mut()
+                    .push(format!("{percentage:.0}|{text}|{is_indeterminate}"));
                 gpui::div().child(text.to_owned()).into_any_element()
             })
             .into_any_element()
@@ -522,16 +526,16 @@ fn progress_circle_value_content_sees_percentage_and_text(cx: &mut TestAppContex
 
     assert_eq!(
         last_string(&seen),
-        "25|25%",
-        "a quarter ring must hand 25 and '25%'"
+        "25|25%|false",
+        "a quarter ring must hand its values and determinate state"
     );
 
-    *value.borrow_mut() = 50.0;
+    *state.borrow_mut() = (50.0, true);
     flush_frame(cx);
     assert_eq!(
         last_string(&seen),
-        "50|50%",
-        "writing 50 must move the handed values on the ring as well"
+        "0||true",
+        "an indeterminate ring must hand no values and report its state"
     );
 }
 
