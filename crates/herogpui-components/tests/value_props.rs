@@ -141,10 +141,10 @@ fn select_value_content_hands_placeholder_then_pick(cx: &mut TestAppContext) {
 }
 
 /// `selectionMode="multiple"` is the case `Select.Value` exists for: the
-/// trigger's built-in text would shrink a long selection to "N selected", so
-/// a closure draws all of it. Each pick accumulates through the caller's own
-/// set (the port reports `selected_indices` back and stores nothing), and the
-/// closure observes every item with its text and index.
+/// closure receives every selected item that the built-in value would draw.
+/// Each pick accumulates through the caller's own set (the port reports
+/// `selected_indices` back and stores nothing), and the closure observes every
+/// item with its text and index.
 #[gpui::test]
 fn select_value_content_multiple_lists_every_item(cx: &mut TestAppContext) {
     let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
@@ -215,8 +215,15 @@ fn select_value_content_multiple_lists_every_item(cx: &mut TestAppContext) {
     flush_frame(cx);
     assert_eq!(
         last_string(&seen),
-        "false|Alpha,Beta|0,1|Alpha, Beta",
+        "false|Alpha,Beta|0,1|Alpha and Beta",
         "the second pick must join the first, by text and by index"
+    );
+    click(cx, 60., 138.);
+    flush_frame(cx);
+    assert_eq!(
+        last_string(&seen),
+        "false|Alpha,Beta,Gamma|0,1,2|Alpha, Beta, and Gamma",
+        "the third pick must use ListFormat-style conjunctions instead of plain commas"
     );
 }
 

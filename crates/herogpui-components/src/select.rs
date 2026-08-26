@@ -1,4 +1,4 @@
-//! Select — port of `@heroui/select` (single selection, v1).
+//! Select — port of `@heroui/select` with single and multiple selection.
 
 use gpui::{
     prelude::*, px, App, IntoElement, ParentElement, RenderOnce, SharedString,
@@ -10,6 +10,20 @@ use herogpui_theme::ActiveTheme;
 use crate::{icons, util};
 
 type OnSelectionChange = std::sync::Arc<dyn Fn(Option<usize>, &mut Window, &mut App) + 'static>;
+
+// This port approximates pinned RAC's en-US `Intl.ListFormat` conjunction.
+fn format_selected_names(names: &[String]) -> String {
+    match names {
+        [] => String::new(),
+        [name] => name.clone(),
+        [first, second] => format!("{first} and {second}"),
+        _ => format!(
+            "{}, and {}",
+            names[..names.len() - 1].join(", "),
+            names.last().expect("the multiple-item branch is non-empty")
+        ),
+    }
+}
 
 /// HeroUI Select (controlled).
 #[derive(IntoElement)]
@@ -145,7 +159,7 @@ impl Select {
             default_open: false,
             placement: Placement::BottomStart,
             label: None,
-            placeholder: "Select an option".into(),
+            placeholder: "Select an item".into(),
             description: None,
             variant: FieldVariant::Primary,
             is_disabled: false,
@@ -295,6 +309,19 @@ impl Select {
         selected
             .and_then(|i| self.options.get(i).cloned())
             .unwrap_or_else(|| self.placeholder.clone())
+    }
+
+    fn value_text_multiple(&self) -> SharedString {
+        let names: Vec<String> = self
+            .selected_indices
+            .iter()
+            .filter_map(|i| self.options.get(*i).map(ToString::to_string))
+            .collect();
+        if names.is_empty() {
+            self.placeholder.clone()
+        } else {
+            SharedString::from(format_selected_names(&names))
+        }
     }
 }
 
@@ -543,19 +570,7 @@ impl RenderOnce for Select {
 
         let multiple = self.selection_mode == SelectionMode::Multiple;
         let value_text = if multiple {
-            let names: Vec<String> = self
-                .selected_indices
-                .iter()
-                .filter_map(|i| self.options.get(*i).map(ToString::to_string))
-                .collect();
-            if names.is_empty() {
-                self.placeholder.clone()
-            } else if names.len() <= 2 {
-                SharedString::from(names.join(", "))
-            } else {
-                // Long selections would overflow the trigger.
-                SharedString::from(format!("{} selected", names.len()))
-            }
+            self.value_text_multiple()
         } else {
             self.value_text_single(selected)
         };
@@ -595,11 +610,8 @@ impl RenderOnce for Select {
                     .iter()
                     .filter_map(|i| self.options.get(*i).cloned())
                     .collect();
-                let text = items
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let names = items.iter().map(ToString::to_string).collect::<Vec<_>>();
+                let text = format_selected_names(&names);
                 gpui::div()
                     .flex_1()
                     .min_w_0()
@@ -971,4 +983,29 @@ fn el_name(s: String) -> gpui::ElementId {
 
 fn id_debug(id: &gpui::ElementId) -> String {
     format!("{id:?}").trim_matches('"').to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_value_text_matches_pinned_select_value() {
+        let select = Select::new(
+            "select-default-text",
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .selected_indices([0, 1, 2]);
+
+        assert_eq!(select.value_text_multiple(), "Alpha, Beta, and Gamma");
+        assert_eq!(
+            format_selected_names(&["Alpha".into(), "Beta".into()]),
+            "Alpha and Beta"
+        );
+        assert_eq!(
+            Select::new("select-default-placeholder", Vec::new()).placeholder,
+            "Select an item"
+        );
+    }
 }

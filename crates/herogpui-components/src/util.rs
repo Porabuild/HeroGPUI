@@ -808,8 +808,8 @@ pub struct SelectionValue<'a> {
     pub selected_items: &'a [gpui::SharedString],
     /// Where those items sit in the collection, for a caller keyed by index.
     pub selected_indices: &'a [usize],
-    /// `selectedText` — the same items joined. v3 joins with locale-aware
-    /// separators; without CLDR data this is a comma and a space.
+    /// `selectedText` — the same items joined. Select approximates v3's en-US
+    /// list formatter; the other two use plain comma-space in this port.
     pub selected_text: &'a str,
     /// `isPlaceholder` — nothing is chosen, so the placeholder shows.
     pub is_placeholder: bool,
