@@ -125,6 +125,11 @@ TREE_KEYS = ('Table',)
 # accessibility section, so keep the full-row text search as a derived claim.
 TABLE_TYPEAHEAD = ('Table',)
 
+# Pinned React Aria's Table keyboard delegate pages every body, not only a
+# virtualized one. PageDown reaches the enabled body end; PageUp enters the
+# first column header, which needs a unified header/body focus model.
+TABLE_PAGING = ('Table',)
+
 # Multiple-selection collections answer `Mod+A` -- the platform Mod, Ctrl on
 # Windows and Linux, Cmd on macOS -- by selecting every enabled item. v3's own
 # pages do not enumerate this inherited shortcut, so it is derived from the
@@ -295,6 +300,7 @@ EVIDENCE = {
     ('ColorPicker', 'dismiss'): ('color_picker.rs', r'dismiss_on_press_outside'),
     ('Tooltip', 'dismiss'): ('tooltip.rs', r'dismiss_on_escape'),
     ('NumberField', 'spin-keys'): ('number_field.rs', r'"up" \| "pageup"'),
+    ('Table', 'table-page-down'): ('table.rs', r'"pagedown" => stops\.last\(\)\.copied\(\)'),
     ('Tooltip', 'focus-open'): ('tooltip.rs', r'contains_focused'),
     ('Input', 'text-keys'): ('input.rs', r'fn word_target'),
     ('TextArea', 'text-keys'): ('input.rs', r'fn vertical_target'),
@@ -481,6 +487,11 @@ WONT_DO = {
     ('Modal', 'focus-return'): 'no-handle-for-callers-trigger',
     ('Drawer', 'focus-return'): 'no-handle-for-callers-trigger',
     ('AlertDialog', 'focus-return'): 'no-handle-for-callers-trigger',
+    # Pinned TableKeyboardDelegate lets PageUp leave the body for the first
+    # column header. This port models sortable headers and the body as separate
+    # tab stops, so it falls back to the first enabled row until it has one
+    # roving grid focus model across both regions.
+    ('Table', 'table-page-up-header'): 'missing-header-body-focus-model',
 }
 
 
@@ -512,7 +523,7 @@ def main():
     derived = dict.fromkeys(
         ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + AREA_KEYS
         + FOCUS_OPEN + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS
-        + TABLE_TYPEAHEAD + SELECT_ALL_KEYS
+        + TABLE_TYPEAHEAD + TABLE_PAGING + SELECT_ALL_KEYS
         + ESCAPE_CLEAR_KEYS
         + COMBOBOX_MULTIPLE_KEYS
         + RESIZE_BOUNDS + RESIZE_KEYS
@@ -523,7 +534,8 @@ def main():
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'area-keys',
                       'focus-open', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
-                      'table-typeahead', 'select-all', 'escape-clear', 'resize-bounds',
+                      'table-typeahead', 'table-page-down', 'table-page-up-header',
+                      'select-all', 'escape-clear', 'resize-bounds',
                       'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
                       'calendar-section-bounds', 'panel-focus', 'load-more',
                       'custom-value-multiple', 'multiple-row-keys',

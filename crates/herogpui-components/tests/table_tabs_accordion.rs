@@ -210,6 +210,40 @@ fn table_keyboard_rows_rove_and_activate(cx: &mut TestAppContext) {
     );
 }
 
+/// Pinned React Aria 3.51's Table delegate sends PageDown to the last enabled
+/// row. Its PageUp enters the first column header; this port's split header/body
+/// focus model falls back to the first enabled row instead.
+#[gpui::test]
+fn table_page_keys_rove_a_plain_body_to_its_ends(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("tbl-plain-page")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .keyed_row("alpha", vec![tall_cell("Alpha")])
+            .keyed_row("beta", vec![tall_cell("Beta")])
+            .keyed_row("gamma", vec![tall_cell("Gamma")])
+            .keyed_row("delta", vec![tall_cell("Delta")])
+            .disabled_keys(["alpha", "delta"])
+            .on_row_click(move |i, _, _, _| recorded.borrow_mut().push(format!("row:{i}")))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "pagedown");
+    press(cx, "enter");
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row:2", "row:1"],
+        "PageDown and PageUp must reach the enabled ends of a plain Table body"
+    );
+}
+
 /// A sortable header is its own tab stop (the port's reading of "one stop per
 /// sortable column"), and gpui fires a *focused* element's click listeners on
 /// Enter and Space. The descriptor reported by the keys must be exactly the

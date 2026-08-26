@@ -1614,6 +1614,7 @@ impl RenderOnce for Table {
             let selection_own_for_keys = selection_own;
             let selected_now = self.selected_keys.clone();
             let mode = self.selection_mode;
+            let plain_rows = self.virtual_rows.is_none();
             let fixed_virtual = self.row_height.is_some() && self.virtual_rows.is_some();
             let fixed_page_step = self.row_height.filter(|_| fixed_virtual).map(|row_height| {
                 let viewport_height = f32::from(self.max_h.unwrap_or(px(400.)));
@@ -1896,8 +1897,18 @@ impl RenderOnce for Table {
                     });
                     let is_variable_page =
                         fixed_page_move.is_none() && variable_page_move.is_some();
+                    // Pinned TableKeyboardDelegate sends PageDown to the last
+                    // enabled row. Its PageUp enters the first column header;
+                    // this split focus model falls back to the first row.
+                    let plain_page_move =
+                        from.filter(|_| plain_rows).and_then(|_| match key_name {
+                            "pagedown" => stops.last().copied(),
+                            "pageup" => stops.first().copied(),
+                            _ => None,
+                        });
                     let page_move = fixed_page_move
                         .or(variable_page_move)
+                        .or(plain_page_move)
                         .filter(|next| Some(*next) != from);
                     let navigation = page_move.map_or_else(
                         || crate::list_nav::resolve(&stops, from, key_name, false),
