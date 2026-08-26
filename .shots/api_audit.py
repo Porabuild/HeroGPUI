@@ -83,6 +83,9 @@ ALIAS = {
     # represents all three shapes, including ClearButton's empty selection;
     # the scalar convenience callback cannot represent null.
     'Autocomplete.onChange': 'on_selection_change_all',
+    # ComboBox documents the same scalar/array union. The plural callback is
+    # the builder that proves the multiple-selection half of that contract.
+    'ComboBox.onChange': 'on_selection_change_all',
     # Slider's value/defaultValue are number | number[]; the plural builder
     # proves the multi-thumb form rather than only the scalar.
     'Slider.defaultValue': 'default_values',

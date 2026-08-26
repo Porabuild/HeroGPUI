@@ -135,7 +135,8 @@ ESCAPE_CLEAR_KEYS = ('ListBox', 'TagGroup')
 # Pinned React Stately keeps custom input independent from a ComboBox's
 # multiple selection. Enter on an unmatched value neither replaces the selected
 # set nor reports either selection callback; Enter on a focused row toggles it
-# through the plural callback, clears the query and leaves the list open.
+# through the plural callback, clears the query and leaves the list open. A row
+# press carries the same multiple-mode contract.
 COMBOBOX_MULTIPLE_KEYS = ('ComboBox',)
 
 # HeroUI forwards Table.Column's resize props to React Aria, whose pinned
@@ -406,22 +407,33 @@ EVIDENCE = {
     ),
     ('ComboBox', 'custom-value-multiple'): (
         'combo_box.rs',
-        r'(?s)(?=.*cursor_on_change\.update.*?None)'
-        r'(?=.*key_rows = if open_state.*?self\.allows_custom_value'
-        r'.*?!raw_query\.is_empty\(\))'
-        r'(?=.*allows_custom_value.*?key == "enter".*?held\.read\(cx\)'
-        r'.*?rows\.get\(i\).*?is_none\(\).*?\{'
-        r'(?:(?!on_selection_change_all).)*?if !multiple'
-        r'.*?key_selection_own.*?open_own_keys.*?\*v = false'
-        r'.*?if !multiple.*?on_selection_change'
-        r'.*?if was_open.*?on_open_change)',
+        r'(?s)if allows_custom_value\s*&& key == "enter"'
+        r'.{0,800}?is_none_or\(.{0,500}?cursor_position\(&rows, focused\).{0,200}?\{'
+        r'(?:(?!on_selection_change_all).){0,3500}?if !multiple'
+        r'.{0,800}?key_selection_own.{0,800}?open_own_keys.{0,400}?\*v = false'
+        r'.{0,800}?if !multiple.{0,400}?on_selection_change'
+        r'.{0,800}?if was_open.{0,400}?on_open_change',
     ),
     ('ComboBox', 'multiple-row-keys'): (
         'combo_box.rs',
-        r'(?s)Move::Activate.*?if multiple.*?state\.update'
-        r'.*?set_value\(String::new\(\)\).*?selected_now\.clone\(\)'
-        r'.*?next\.remove\(&item\).*?next\.insert\(item\.clone\(\)\)'
-        r'.*?key_selection_own.*?on_selection_change_all.*?return',
+        r'(?s)\A(?=.*Move::Activate => \{)(?=.*if multiple \{)'
+        r'(?=.*set_value\(String::new\(\)\))'
+        r'(?=.*held\.update)(?=.*hidden_query = Some\(String::new\(\)\))'
+        r'(?=.*selected_now\.clone\(\))(?=.*next\.remove\(&item\))'
+        r'(?=.*next\.insert\(item\.clone\(\)\))(?=.*key_selection_own)'
+        r'(?=.*on_selection_change_all)(?=.*on_input_change)',
+    ),
+    ('ComboBox', 'multiple-row-pointer'): (
+        'combo_box.rs',
+        r'(?s)\A(?=.*Multiple mode toggles membership)(?=.*if multiple)'
+        r'(?=.*selection_own\.clone\(\))(?=.*row_state\.clone\(\))'
+        r'(?=.*cursor_for\(&rows, index, Some\(String::new\(\)\)\))'
+        r'(?=.*on_click)(?=.*focus_handle\.focus\(window\))'
+        r'(?=.*set_value\(String::new\(\)\))'
+        r'(?=.*cursor\.update[^;]*Some\(next_cursor\.clone\(\)\))'
+        r'(?=.*next\.remove\(&value\))(?=.*next\.insert\(value\.clone\(\)\))'
+        r'(?=.*if let Some\(held\) = &own)(?=.*if let Some\(cb\) = &cb)'
+        r'(?=.*if let Some\(cb\) = &input_change)',
     ),
     ('Table', 'load-more'): (
         'table.rs',
@@ -504,7 +516,8 @@ def main():
                       'focus-open', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
                       'select-all', 'escape-clear', 'resize-bounds', 'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
                       'calendar-section-bounds', 'panel-focus', 'load-more',
-                      'custom-value-multiple', 'multiple-row-keys'):
+                      'custom-value-multiple', 'multiple-row-keys',
+                      'multiple-row-pointer'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach
             # the breakdown: reading only EVIDENCE skipped `TextArea`'s

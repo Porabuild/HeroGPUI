@@ -52,6 +52,31 @@ struct FocusOpen {
     was_open: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ComboCursor {
+    key: SharedString,
+    occurrence: usize,
+    hidden_query: Option<String>,
+}
+
+fn cursor_for(rows: &[SharedString], index: usize, hidden_query: Option<String>) -> ComboCursor {
+    let key = rows[index].clone();
+    let occurrence = rows[..index].iter().filter(|item| **item == key).count();
+    ComboCursor {
+        key,
+        occurrence,
+        hidden_query,
+    }
+}
+
+fn cursor_position(rows: &[SharedString], cursor: &ComboCursor) -> Option<usize> {
+    rows.iter()
+        .enumerate()
+        .filter(|(_, item)| **item == cursor.key)
+        .nth(cursor.occurrence)
+        .map(|(index, _)| index)
+}
+
 /// HeroUI ComboBox (controlled open state).
 #[derive(IntoElement)]
 pub struct ComboBox {
@@ -518,6 +543,15 @@ impl RenderOnce for ComboBox {
             cx,
             |_, _| false,
         );
+        let last_query = window.use_keyed_state(
+            gpui::ElementId::Name(format!("combobox-{entity_id}-last-query").into()),
+            cx,
+            |_, _| raw_query.clone(),
+        );
+        if *last_query.read(cx) != raw_query {
+            last_query.update(cx, |value, _| value.clone_from(&raw_query));
+            show_all_items.update(cx, |value, _| *value = false);
+        }
         let display_full_collection =
             *show_all_items.read(cx) || (self.menu_trigger == MenuTrigger::Manual && !open_state);
 
@@ -681,7 +715,7 @@ impl RenderOnce for ComboBox {
         let cursor = window.use_keyed_state(
             gpui::ElementId::Name(format!("combobox-{entity_id}-cursor").into()),
             cx,
-            |_, _| None::<usize>,
+            |_, _| None::<ComboCursor>,
         );
         let cursor_on_change = cursor.clone();
         let validate = self.validate.clone();
@@ -779,7 +813,19 @@ impl RenderOnce for ComboBox {
             input = input.description(description);
         }
 
-        let cursor_at = *cursor.read(cx);
+        let stale_cursor = cursor.read(cx).as_ref().is_some_and(|focused| {
+            let visible = cursor_position(&matches, focused).is_some();
+            let retained_hidden = focused.hidden_query.as_deref() == Some(raw_query.as_str())
+                && cursor_position(&self.items, focused).is_some();
+            self.disabled_keys.contains(&focused.key) || (!visible && !retained_hidden)
+        });
+        if stale_cursor {
+            cursor.update(cx, |value, _| *value = None);
+        }
+        let cursor_at = cursor
+            .read(cx)
+            .as_ref()
+            .and_then(|focused| cursor_position(&matches, focused));
         // React Aria keeps the focused row in view; the panel scrolls and the
         // virtual list scrolls itself. `use_keyed_state` takes `cx` mutably.
         let list_scroll = window.use_keyed_state(
@@ -863,7 +909,7 @@ impl RenderOnce for ComboBox {
                         .is_some_and(|item| !self.disabled_keys.contains(item))
                 })
                 .collect();
-            let held = cursor;
+            let held = cursor.clone();
             let wrap = self.should_focus_wrap;
             let virtual_rows = self.row_height.is_some();
             let key_list_scroll = list_scroll_now.clone();
@@ -875,12 +921,62 @@ impl RenderOnce for ComboBox {
             let show_all_items = show_all_items.clone();
             let on_selection_change = self.on_selection_change.clone();
             let on_selection_change_all = self.on_selection_change_all.clone();
+            let on_input_change = self.on_input_change.clone();
             let selected_now = self.selected_keys.clone();
+            let key_query = raw_query.clone();
+            let key_items = self.items.clone();
+            let key_filter = self.filter.clone();
+            let key_max_items = self.max_items;
+            let key_disabled = self.disabled_keys.clone();
+            let key_menu_trigger = self.menu_trigger;
             let open_own_keys = open_own.clone();
             let on_open_change = self.on_open_change.clone();
             let key_selection_own = selection_own.clone();
             root = root.on_key_down(move |event, window, cx| {
                 let key = event.keystroke.key.as_str();
+                let is_open = open_own_keys
+                    .as_ref()
+                    .map_or(was_open, |held| *held.read(cx));
+                let stale_cursor = held.read(cx).as_ref().is_some_and(|focused| {
+                    let current_query = state.read(cx).value().to_owned();
+                    let lowered = current_query.to_lowercase();
+                    let display_full = current_query == key_query && *show_all_items.read(cx)
+                        || (key_menu_trigger == MenuTrigger::Manual && !is_open);
+                    let current_matches: Vec<SharedString> = match &key_filter {
+                        _ if display_full => {
+                            key_items.iter().take(key_max_items).cloned().collect()
+                        }
+                        Some(filter) => key_items
+                            .iter()
+                            .filter(|item| filter(item.as_ref(), &current_query))
+                            .take(key_max_items)
+                            .cloned()
+                            .collect(),
+                        None if lowered.is_empty() => {
+                            key_items.iter().take(key_max_items).cloned().collect()
+                        }
+                        None => key_items
+                            .iter()
+                            .filter(|item| item.to_lowercase().contains(&lowered))
+                            .take(key_max_items)
+                            .cloned()
+                            .collect(),
+                    };
+                    let current_rows =
+                        if is_open || (allows_custom_value && !current_query.is_empty()) {
+                            current_matches
+                        } else {
+                            key_items.iter().take(key_max_items).cloned().collect()
+                        };
+                    let visible = cursor_position(&current_rows, focused).is_some();
+                    let retained_hidden = focused.hidden_query.as_deref()
+                        == Some(current_query.as_str())
+                        && cursor_position(&key_items, focused).is_some();
+                    key_disabled.contains(&focused.key) || (!visible && !retained_hidden)
+                });
+                if stale_cursor {
+                    held.update(cx, |value, _| *value = None);
+                }
                 // `allowsCustomValue` is the promise behind the drawn hint
                 // "Press Enter to use this value". A no-match query has no
                 // cursor row at all (an empty stop list makes `resolve` report
@@ -891,7 +987,9 @@ impl RenderOnce for ComboBox {
                 if allows_custom_value
                     && key == "enter"
                     && !state.read(cx).value().is_empty()
-                    && held.read(cx).and_then(|i| rows.get(i)).is_none()
+                    && held.read(cx).as_ref().is_none_or(|focused| {
+                        stale_cursor || cursor_position(&rows, focused).is_none()
+                    })
                 {
                     let text = SharedString::from(state.read(cx).value().to_owned());
                     state.update(cx, |st, cx| {
@@ -929,11 +1027,48 @@ impl RenderOnce for ComboBox {
                     }
                     return;
                 }
-                let from = *held.read(cx);
+                if key == "enter" && (stale_cursor || held.read(cx).is_none()) {
+                    let reset_value = if multiple {
+                        String::new()
+                    } else {
+                        selected_now
+                            .iter()
+                            .next()
+                            .map(ToString::to_string)
+                            .unwrap_or_default()
+                    };
+                    let input_changed = state.read(cx).value() != reset_value;
+                    state.update(cx, |value, cx| {
+                        value.set_value(reset_value.clone());
+                        cx.notify();
+                    });
+                    if let Some(held) = &open_own_keys {
+                        held.update(cx, |value, cx| {
+                            *value = false;
+                            cx.notify();
+                        });
+                    }
+                    if input_changed {
+                        if let Some(cb) = &on_input_change {
+                            cb(&reset_value, window, cx);
+                        }
+                    }
+                    if is_open {
+                        if let Some(cb) = &on_open_change {
+                            cb(false, window, cx);
+                        }
+                    }
+                    return;
+                }
+                let from = held
+                    .read(cx)
+                    .as_ref()
+                    .and_then(|focused| cursor_position(&rows, focused));
                 match crate::list_nav::resolve(&stops, from, key, wrap) {
                     crate::list_nav::Move::To(next) => {
+                        let next_cursor = Some(cursor_for(&rows, next, None));
                         held.update(cx, |v, cx| {
-                            *v = Some(next);
+                            *v = next_cursor;
                             cx.notify();
                         });
                         if virtual_rows {
@@ -956,13 +1091,20 @@ impl RenderOnce for ComboBox {
                         }
                     }
                     crate::list_nav::Move::Activate => {
-                        let Some(item) = from.and_then(|i| rows.get(i).cloned()) else {
+                        let Some(item) = held.read(cx).as_ref().map(|focused| focused.key.clone())
+                        else {
                             return;
                         };
                         if multiple {
+                            let had_query = !state.read(cx).value().is_empty();
                             state.update(cx, |st, cx| {
                                 st.set_value(String::new());
                                 cx.notify();
+                            });
+                            held.update(cx, |v, _| {
+                                if let Some(focused) = v {
+                                    focused.hidden_query = Some(String::new());
+                                }
                             });
                             let mut next = selected_now.clone();
                             if !next.remove(&item) {
@@ -978,6 +1120,11 @@ impl RenderOnce for ComboBox {
                             if let Some(cb) = &on_selection_change_all {
                                 let next: Vec<SharedString> = next.into_iter().collect();
                                 cb(&next, window, cx);
+                            }
+                            if had_query {
+                                if let Some(cb) = &on_input_change {
+                                    cb("", window, cx);
+                                }
                             }
                             return;
                         }
@@ -1140,9 +1287,11 @@ impl RenderOnce for ComboBox {
             let indicator: Option<std::rc::Rc<dyn Fn(bool) -> gpui::AnyElement>> =
                 self.indicator.take().map(std::rc::Rc::from);
             let on_change_all = self.on_selection_change_all.clone();
+            let row_input_change = self.on_input_change.clone();
             let on_change_one = self.on_selection_change.clone();
             let on_open = self.on_open_change.clone();
             let row_state = self.state.clone();
+            let row_cursor = cursor;
             let selection_own = selection_own;
             let row_open_own = open_own.clone();
             let row_open_state = open_state;
@@ -1239,7 +1388,18 @@ impl RenderOnce for ComboBox {
                         let own = selection_own.clone();
                         let current = row_selected_keys.clone();
                         let value = item.clone();
+                        let state = row_state.clone();
+                        let cursor = row_cursor.clone();
+                        let next_cursor = cursor_for(&rows, index, Some(String::new()));
+                        let input_change = row_input_change.clone();
                         row = row.on_click(move |_, window, cx| {
+                            let had_query = !state.read(cx).value().is_empty();
+                            state.read(cx).focus_handle.focus(window);
+                            state.update(cx, |st, cx| {
+                                st.set_value(String::new());
+                                cx.notify();
+                            });
+                            cursor.update(cx, |v, _| *v = Some(next_cursor.clone()));
                             let mut next = current.clone();
                             if !next.remove(&value) {
                                 next.insert(value.clone());
@@ -1256,6 +1416,11 @@ impl RenderOnce for ComboBox {
                             if let Some(cb) = &cb {
                                 let next: Vec<SharedString> = next.into_iter().collect();
                                 cb(&next, window, cx);
+                            }
+                            if had_query {
+                                if let Some(cb) = &input_change {
+                                    cb("", window, cx);
+                                }
                             }
                         });
                     }

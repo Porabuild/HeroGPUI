@@ -557,6 +557,8 @@ fn combo_box_multiple_enter_toggles_the_focused_item(cx: &mut TestAppContext) {
     let plural_for_view = plural.clone();
     let opens = events();
     let opens_for_view = opens.clone();
+    let inputs = events();
+    let inputs_for_view = inputs.clone();
     let state = search_state(cx);
     let state_for_assert = state.clone();
     let state_for_view = state;
@@ -565,6 +567,7 @@ fn combo_box_multiple_enter_toggles_the_focused_item(cx: &mut TestAppContext) {
         let singular = singular_for_view.clone();
         let plural = plural_for_view.clone();
         let opens = opens_for_view.clone();
+        let inputs = inputs_for_view.clone();
         ComboBox::new(
             state_for_view.clone(),
             vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
@@ -582,13 +585,13 @@ fn combo_box_multiple_enter_toggles_the_focused_item(cx: &mut TestAppContext) {
             );
         })
         .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
+        .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
         .into_any_element()
     });
 
     click(cx, 60., 18.);
     cx.simulate_input("a");
-    press(cx, "down enter");
-    press(cx, "down enter");
+    press(cx, "down enter enter");
     cx.simulate_input("g");
     press(cx, "down enter");
     assert!(
@@ -597,8 +600,8 @@ fn combo_box_multiple_enter_toggles_the_focused_item(cx: &mut TestAppContext) {
     );
     assert_eq!(
         plural.borrow().as_slice(),
-        ["Beta", "", "Gamma"],
-        "Enter must toggle selected items off and an unselected item on while the list stays open"
+        ["Beta", "Alpha,Beta", "Alpha,Beta,Gamma"],
+        "the focused key must survive query reset by identity so Enter toggles the same item again"
     );
     assert_eq!(
         cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
@@ -609,6 +612,11 @@ fn combo_box_multiple_enter_toggles_the_focused_item(cx: &mut TestAppContext) {
         opens.borrow().as_slice(),
         ["open:true"],
         "multiple-mode row activation must leave the list open"
+    );
+    assert_eq!(
+        inputs.borrow().as_slice(),
+        ["a", "", "g", ""],
+        "typing and selection-driven query resets must both report input changes"
     );
 }
 
@@ -656,6 +664,324 @@ fn combo_box_controlled_multiple_enter_waits_for_the_owner(cx: &mut TestAppConte
         plural.borrow().as_slice(),
         ["Beta", "Beta"],
         "a controlled ComboBox must keep proposing from the owner's unchanged selection"
+    );
+}
+
+#[gpui::test]
+fn combo_box_multiple_pointer_resets_query_and_stays_open(cx: &mut TestAppContext) {
+    let singular = events();
+    let singular_for_view = singular.clone();
+    let plural = events();
+    let plural_for_view = plural.clone();
+    let opens = events();
+    let opens_for_view = opens.clone();
+    let inputs = events();
+    let inputs_for_view = inputs.clone();
+    let state = search_state(cx);
+    let state_for_assert = state.clone();
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let singular = singular_for_view.clone();
+        let plural = plural_for_view.clone();
+        let opens = opens_for_view.clone();
+        let inputs = inputs_for_view.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_value(["Alpha", "Beta"])
+        .on_change(move |item, _, _| singular.borrow_mut().push(item.to_string()))
+        .on_selection_change_all(move |items, _, _| {
+            plural.borrow_mut().push(
+                items
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
+        .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("g");
+    press(cx, "down");
+    click(cx, 60., 64.);
+    press(cx, "enter");
+    click(cx, 60., 64.);
+    assert!(
+        singular.borrow().is_empty(),
+        "multiple-mode pointer picks must not use the singular callback"
+    );
+    assert_eq!(
+        plural.borrow().as_slice(),
+        ["Alpha,Beta,Gamma", "Alpha,Beta", "Beta"],
+        "the first pick must add filtered Gamma, retained Enter must remove Gamma, then the reset list must let the same point remove Alpha"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "",
+        "multiple-mode pointer selection must reset the input query"
+    );
+    assert_eq!(
+        opens.borrow().as_slice(),
+        ["open:true"],
+        "multiple-mode pointer selection must leave the list open"
+    );
+    assert_eq!(
+        inputs.borrow().as_slice(),
+        ["g", ""],
+        "the pointer-driven query reset must report the cleared input exactly once"
+    );
+}
+
+#[gpui::test]
+fn combo_box_multiple_focus_survives_a_capped_collection_reset(cx: &mut TestAppContext) {
+    let plural = events();
+    let plural_for_view = plural.clone();
+    let inputs = events();
+    let inputs_for_view = inputs.clone();
+    let state = search_state(cx);
+    let state_for_assert = state.clone();
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let plural = plural_for_view.clone();
+        let inputs = inputs_for_view.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec![
+                "Alpha".into(),
+                "Beta".into(),
+                "Gamma".into(),
+                "Delta".into(),
+                "Epsilon".into(),
+                "Zeta".into(),
+                "Eta".into(),
+                "Theta".into(),
+                "Needle".into(),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .max_items(2)
+        .on_selection_change_all(move |items, _, _| {
+            plural.borrow_mut().push(
+                items
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("needle");
+    press(cx, "down enter enter");
+    assert_eq!(
+        plural.borrow().as_slice(),
+        ["Needle", ""],
+        "the focused key must survive even when the expanded cap does not render that item"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "",
+        "the first selection must still clear the filtered query"
+    );
+    assert_eq!(
+        inputs.borrow().as_slice(),
+        ["n", "ne", "nee", "need", "needl", "needle", ""]
+    );
+}
+
+#[gpui::test]
+fn combo_box_multiple_external_query_drops_a_stale_focused_key(cx: &mut TestAppContext) {
+    let plural = events();
+    let plural_for_view = plural.clone();
+    let inputs = events();
+    let inputs_for_view = inputs.clone();
+    let opens = events();
+    let opens_for_view = opens.clone();
+    let state = search_state(cx);
+    let state_for_assert = state.clone();
+    let state_for_update = state.clone();
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let plural = plural_for_view.clone();
+        let inputs = inputs_for_view.clone();
+        let opens = opens_for_view.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .on_selection_change_all(move |items, _, _| {
+            plural.borrow_mut().push(
+                items
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
+        .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "down");
+    cx.update(|window, cx| {
+        state_for_update.update(cx, |state, cx| {
+            state.set_value("g");
+            cx.notify();
+        });
+        window.refresh();
+    });
+    press(cx, "enter");
+    assert!(
+        plural.borrow().is_empty(),
+        "a caller-driven query must not let Enter select the stale key: {:?}",
+        plural.borrow().as_slice()
+    );
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "",
+        "Enter without a live focused key must reset the input"
+    );
+    assert_eq!(inputs.borrow().as_slice(), [""]);
+    assert_eq!(opens.borrow().as_slice(), ["open:true", "open:false"]);
+}
+
+#[gpui::test]
+fn combo_box_single_enter_without_focus_restores_the_selected_label(cx: &mut TestAppContext) {
+    let selections = events();
+    let selections_for_view = selections.clone();
+    let inputs = events();
+    let inputs_for_view = inputs.clone();
+    let opens = events();
+    let opens_for_view = opens.clone();
+    let state = search_state(cx);
+    let state_for_assert = state.clone();
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let selections = selections_for_view.clone();
+        let inputs = inputs_for_view.clone();
+        let opens = opens_for_view.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .default_value(["Beta"])
+        .on_change(move |item, _, _| selections.borrow_mut().push(item.to_string()))
+        .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
+        .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("g");
+    press(cx, "enter");
+    assert!(
+        selections.borrow().is_empty(),
+        "Enter without a focused row must not report a new selection"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "Beta",
+        "single mode must restore the selected item's label"
+    );
+    assert_eq!(inputs.borrow().as_slice(), ["g", "Beta"]);
+    assert_eq!(opens.borrow().as_slice(), ["open:true", "open:false"]);
+}
+
+#[gpui::test]
+fn combo_box_multiple_show_all_commits_a_row_outside_the_query(cx: &mut TestAppContext) {
+    let plural = events();
+    let plural_for_view = plural.clone();
+    let opens = events();
+    let opens_for_view = opens.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let plural = plural_for_view.clone();
+        let opens = opens_for_view.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .on_selection_change_all(move |items, _, _| {
+            plural.borrow_mut().push(
+                items
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("g");
+    click(cx, 298., 18.);
+    click(cx, 298., 18.);
+    press(cx, "down enter");
+    assert_eq!(
+        plural.borrow().as_slice(),
+        ["Alpha"],
+        "show-all navigation must commit the focused visible row even when it does not match the query"
+    );
+    assert_eq!(
+        opens.borrow().as_slice(),
+        ["open:true", "open:false", "open:true"],
+        "multiple selection must leave the explicitly reopened full list open"
+    );
+}
+
+#[gpui::test]
+fn combo_box_duplicate_labels_keep_distinct_keyboard_stops(cx: &mut TestAppContext) {
+    let plural = events();
+    let plural_for_view = plural.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let plural = plural_for_view.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Same".into(), "Same".into(), "Other".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .on_selection_change_all(move |items, _, _| {
+            plural.borrow_mut().push(
+                items
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "down down down enter");
+    assert_eq!(
+        plural.borrow().as_slice(),
+        ["Other"],
+        "the second equal label must remain a real stop before navigation reaches the third row"
     );
 }
 
