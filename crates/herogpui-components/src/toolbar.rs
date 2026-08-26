@@ -84,7 +84,7 @@ impl RenderOnce for Toolbar {
         // arrows may visit.
         let scope = cx.focus_handle();
 
-        let mut el = div().flex().items_center().gap(gap);
+        let mut el = div().key_context("Toolbar").flex().items_center().gap(gap);
 
         el = match self.orientation {
             Orientation::Horizontal => el.flex_row(),

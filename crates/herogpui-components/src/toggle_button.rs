@@ -648,8 +648,22 @@ impl RenderOnce for ToggleButtonGroup {
             };
 
             if let Some(movement) = movement {
+                // Pinned `useToolbar` omits the nested group's handler when an
+                // ancestor toolbar owns the arrows. GPUI bubbles key handlers,
+                // so mark the exit and let that ancestor handle this key.
+                if window
+                    .context_stack()
+                    .iter()
+                    .any(|context| context.contains("Toolbar"))
+                {
+                    key_focus_state.update(cx, |state, _| state.edge_exit = true);
+                    window.refresh();
+                    return;
+                }
                 // Cross-axis arrows return above unconsumed. The group owns
-                // only its axis, matching the pinned `useToolbar` handler.
+                // every key on its own axis, including one that cannot move at
+                // an edge, matching the pinned `useToolbar` handler.
+                cx.stop_propagation();
                 let Some(index) = key_focuses
                     .iter()
                     .position(|handle| handle.is_focused(window))
@@ -664,11 +678,7 @@ impl RenderOnce for ToggleButtonGroup {
                     index.checked_sub(1)
                 };
                 if let Some(next) = next {
-                    cx.stop_propagation();
                     window.focus(&key_focuses[next]);
-                } else {
-                    key_focus_state.update(cx, |state, _| state.edge_exit = true);
-                    window.refresh();
                 }
                 return;
             }

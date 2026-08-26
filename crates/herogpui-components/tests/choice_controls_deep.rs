@@ -3,7 +3,7 @@
 //!
 //! The prop surface comes from HeroUI v3's API tables. Inherited behaviour is
 //! pinned to the versions HeroUI v3.2.4 uses: react-aria 3.51.0,
-//! react-stately 3.49.0 and React Aria Components 1.16.0. In those sources:
+//! react-stately 3.49.0 and React Aria Components 1.20.0. In those sources:
 //!
 //! - `useToggleState` ignores updates while read-only, but `useToggle` keeps
 //!   the input focusable because only `isDisabled` reaches `disabled`.
@@ -1121,6 +1121,51 @@ fn toggle_button_group_horizontal_arrows_stop_at_edges(cx: &mut TestAppContext) 
         recorded.borrow().as_slice(),
         ["bold", "underline"],
         "Left at the first member and Right at the last must not wrap"
+    );
+}
+
+/// Pinned react-aria 3.51.0's standalone `useToolbar` stops propagation for
+/// every handled along-axis arrow, even when its focus manager cannot move at
+/// an edge. Cross-axis arrows remain available to the parent below.
+#[gpui::test]
+fn toggle_button_group_consumes_owned_edge_arrow(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let bubbled = events();
+    let outer_seen = bubbled.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let bubbled = bubbled.clone();
+        let [bold, italic, _] = three_toggles("owned-edge");
+        gpui::div()
+            .on_key_down(move |event, _, _| {
+                if event.keystroke.key == "right" {
+                    bubbled.borrow_mut().push("right".into());
+                }
+            })
+            .child(
+                ToggleButtonGroup::new("owned-edge-group")
+                    .on_selection_change(move |next, _, _| {
+                        changes.borrow_mut().push(joined(next));
+                    })
+                    .child_toggle(bold)
+                    .child_toggle(italic),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "right");
+    press(cx, "right");
+    press(cx, "space");
+    assert!(
+        outer_seen.borrow().is_empty(),
+        "a standalone group must consume its along-axis arrow at the edge"
+    );
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["italic"],
+        "the edge arrow must hold focus on the last member"
     );
 }
 
