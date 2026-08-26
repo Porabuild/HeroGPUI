@@ -358,7 +358,13 @@ impl RenderOnce for Modal {
         // footer claim their own space from the flex layout before the body's
         // max height ever binds.
         let scroll_inside = self.scroll == ModalScroll::Inside;
-        let inside_body_max = window.viewport_size().height - px(48.);
+        let inside_body_max = window.viewport_size().height
+            - px(48.)
+            - if self.size == ModalSize::Cover {
+                px(80.)
+            } else {
+                px(0.)
+            };
         // `.modal__dialog`: `w-full` with a `max-w-*` per size, `p-6`, and the
         // floating-panel radius. `Full` drops the radius and the shadow.
         let full = self.size == ModalSize::Full;
@@ -380,6 +386,11 @@ impl RenderOnce for Modal {
                 gpui::Styled::mt_auto,
             )
             .when_some(self.size.max_width(), |e, w| e.max_w(w))
+            .when(
+                scroll_inside && matches!(self.size, ModalSize::Cover | ModalSize::Full),
+                |e| e.h_full().min_h_full(),
+            )
+            .when(self.scroll == ModalScroll::Outside, |e| e.flex_shrink_0())
             .p(px(24.))
             .when(self.scroll == ModalScroll::Inside, |e| {
                 e.max_h(window.viewport_size().height)
@@ -503,6 +514,7 @@ impl RenderOnce for Modal {
         .flex()
         // `.modal__container` is `p-4 sm:p-10`.
         .p(px(40.))
+        .when(full, |e| e.p(px(0.)))
         // `Outside` scrolls here -- the dialog grows and this container moves.
         // `Inside` has the body's own scroller instead; keeping this one would
         // put two scroll containers under the pointer, and a wheel over the
@@ -570,10 +582,11 @@ impl RenderOnce for Modal {
             )
         });
         let zoom = crate::anim::ZoomBox {
-            // The zoom needs a width to scale geometrically; `Cover` and `Full`
-            // have none of their own, so the container's is as close as it gets.
+            // Fixed-width presets scale geometrically. `Cover` and `Full` have
+            // no width here; Full also has no radius, so its zoom-100 rule is
+            // the shared fade with no geometric interpolation.
             width: self.size.max_width(),
-            radius: Some(crate::util::container_radius(cx)),
+            radius: (!full).then(|| crate::util::container_radius(cx)),
             ..Default::default()
         };
         overlay = overlay.child(if exiting {

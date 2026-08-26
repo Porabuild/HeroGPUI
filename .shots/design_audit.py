@@ -672,7 +672,7 @@ CHECKS = [
     # a padded body and a padded footer with a separator between them -- a shape
     # v3 does not have -- so every number here was wrong at once.
     ('modal', '.modal__dialog', 'p', 'Modal dialog p-6', SRC + 'modal.rs',
-     r'\.when_some\(self\.size\.max_width\(\), \|e, w\| e\.max_w\(w\)\)\s*\n\s*\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'let panel = gpui::div\(\)\s*\.relative\(\)[\s\S]*?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('modal', '.modal__header', 'gap', 'Modal header gap-3', SRC + 'modal.rs',
      r'let header = if self\.title[\s\S]*?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('modal', '.modal__heading', 'text', 'Modal heading text-base', SRC + 'modal.rs',

@@ -1315,7 +1315,7 @@ impl Widget {
     }
 
     #[test]
-    fn modal_metadata_keeps_compound_parts_and_full_size_gaps_explicit() {
+    fn modal_metadata_tracks_compound_parts_and_full_size_parity() {
         let metadata = reference_metadata::for_route(
             "Modal",
             "use herogpui::components::modal::{Modal, ModalSize};",
@@ -1341,12 +1341,13 @@ impl Widget {
             }));
         }
         for class_or_token in [
+            ".modal__container--full",
             ".modal__dialog--full",
             ".modal__container--full[data-entering=\"true\"] / [data-exiting=\"true\"]",
         ] {
             assert!(metadata.styling.iter().any(|entry| {
                 entry.class_or_token == class_or_token
-                    && entry.status == reference_metadata::ImplementationStatus::Partial
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
             }));
         }
         assert!(metadata.styling.iter().any(|entry| {

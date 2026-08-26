@@ -7452,6 +7452,13 @@ const MODAL_STYLING: &[StyleDoc] = &[
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
+        class_or_token: ".modal__container--full",
+        value: "p-0 sm:p-0",
+        description: "Full removes the desktop container inset so its dialog reaches every viewport edge.",
+        rust: "overlay p(px(40.)).when(ModalSize::Full, p(px(0.)))",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
         class_or_token: ".modal__dialog",
         value: "relative; flex w-full flex-col; bg-overlay shadow-overlay outline-none; border-radius min(32px, var(--radius-3xl)); p-6; pointer-events-auto",
         description: "Panel surface: overlay background and shadow with the floating-panel radius and a uniform 24px inset.",
@@ -7482,8 +7489,8 @@ const MODAL_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".modal__dialog--scroll-outside",
         value: "h-auto min-h-0 shrink-0",
-        description: "The dialog stays content-sized and the surrounding container scrolls; the port's auto-height panel needs no min-h-0/shrink-0 for that.",
-        rust: "no panel cap; container overflow_y_scroll under ModalScroll::Outside",
+        description: "The dialog stays content-sized and cannot flex-shrink, so tall content creates scroll range on the surrounding container.",
+        rust: "no panel cap + flex_shrink_0; container overflow_y_scroll under ModalScroll::Outside",
         status: ImplementationStatus::Implemented,
     },
     StyleDoc {
@@ -7496,16 +7503,16 @@ const MODAL_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".modal__dialog--cover",
         value: "h-full min-h-full w-full",
-        description: "Fills the viewport width; v3 also stretches the panel to the viewport height, and the port's content-sized panel centres instead.",
-        rust: "ModalSize::Cover -> w_full",
-        status: ImplementationStatus::Partial,
+        description: "Fills the definite-height Inside container on both axes while retaining the normal floating-panel radius and shadow; under Outside, v3's auto-height container leaves it content-sized.",
+        rust: "ModalSize::Cover -> w_full; Inside adds h_full + min_h_full",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".modal__dialog--full",
         value: "h-full min-h-full w-full; rounded-none shadow-none",
-        description: "Width fills the container and the shadow drops; the shared animation wrapper restores rounded corners, while the viewport-height stretch and edge-to-edge container of v3 are not reproduced.",
-        rust: "ModalSize::Full -> w_full + no shadow; ZoomBox radius remains",
-        status: ImplementationStatus::Partial,
+        description: "Fills the edge-to-edge Inside container on both axes and drops the floating-panel radius and shadow; Outside remains content-sized so its container can scroll.",
+        rust: "ModalSize::Full -> w_full + no radius/shadow; Inside adds h_full + min_h_full",
+        status: ImplementationStatus::Implemented,
     },
     StyleDoc {
         class_or_token: ".modal__header",
@@ -7608,9 +7615,9 @@ const MODAL_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".modal__container--full[data-entering=\"true\"] / [data-exiting=\"true\"]",
         value: "slide-in-from-bottom-0 zoom-in-100 / zoom-out-100",
-        description: "Full skips width scaling in both implementations; the port's shared wrapper still lerps container_radius and leaves the open Full panel rounded.",
-        rust: "entering_zoom / exiting with width None and radius Some(container_radius)",
-        status: ImplementationStatus::Partial,
+        description: "Full has no slide or geometric zoom in either implementation; only the shared fade remains.",
+        rust: "entering_zoom / exiting with ZoomBox width and radius both None",
+        status: ImplementationStatus::Implemented,
     },
 ];
 

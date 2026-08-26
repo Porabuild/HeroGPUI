@@ -725,6 +725,35 @@ fn modal_every_size_opens_and_dismisses(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn modal_full_covers_every_viewport_edge_without_backdrop_dismissal(cx: &mut TestAppContext) {
+    still();
+    let closes = events();
+    let recorded = closes.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        Modal::new()
+            .id("pl-modal-full-edges")
+            .is_open(true)
+            .is_dismissible(true)
+            .size(ModalSize::Full)
+            .child(gpui::div().child("body"))
+            .on_open_change(move |v, _, _| recorded.borrow_mut().push(format!("open:{v}")))
+            .into_any_element()
+    });
+
+    for (x, y) in [(8., 8.), (1912., 8.), (8., 1072.), (1912., 1072.)] {
+        click(cx, x, y);
+    }
+    press(cx, "escape");
+
+    assert_eq!(
+        closes.borrow().as_slice(),
+        ["open:false"],
+        "no Full corner is dismissible backdrop, while Escape still proves the dialog is live"
+    );
+}
+
+#[gpui::test]
 fn modal_long_body_scrolls_to_reach_the_deepest_control(cx: &mut TestAppContext) {
     still();
     let hits = events();
@@ -805,6 +834,69 @@ fn modal_long_body_scrolls_to_reach_the_deepest_control(cx: &mut TestAppContext)
 }
 
 #[gpui::test]
+fn modal_cover_inside_scroll_reaches_the_deepest_control(cx: &mut TestAppContext) {
+    still();
+    let hits = events();
+    let probed = hits.clone();
+    let closes = events();
+    let recorded = closes.clone();
+
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        let mut body = gpui::div().flex().flex_col().gap(px(10.));
+        for i in 0..24 {
+            let label = format!("p{i}");
+            let click_label = label.clone();
+            let hit = hits.clone();
+            body = body.child(
+                gpui::div()
+                    .id(gpui::SharedString::from(format!("pl-cover-probe-{i}")))
+                    .w_full()
+                    .h(px(36.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .cursor_pointer()
+                    .on_click(move |_, _, _| hit.borrow_mut().push(click_label.clone()))
+                    .child(label),
+            );
+        }
+        Modal::new()
+            .id("pl-modal-cover-scroll")
+            .is_open(true)
+            .is_dismissible(true)
+            .size(ModalSize::Cover)
+            .child(body)
+            .on_open_change(move |v, _, _| recorded.borrow_mut().push(format!("open:{v}")))
+            .into_any_element()
+    });
+
+    // Cover retains the 40px container inset; its first row therefore starts
+    // at 40 + 24px panel padding + half the row height.
+    click(cx, 960., 82.);
+    assert_eq!(probed.borrow().as_slice(), ["p0"]);
+
+    for _ in 0..6 {
+        wheel(cx, 960., 500., -1000.);
+    }
+    let mut y = 500.;
+    while y < 1030. {
+        click(cx, 960., y);
+        y += 55.;
+    }
+
+    assert!(
+        closes.borrow().is_empty(),
+        "Cover's retained inset must not clip the Inside body or expose backdrop"
+    );
+    assert!(
+        probed.borrow().iter().any(|hit| hit == "p23"),
+        "the deepest Cover row must remain reachable; recorded: {:?}",
+        probed.borrow().as_slice()
+    );
+}
+
+#[gpui::test]
 fn modal_outside_scroll_keeps_each_placement_top_reachable(cx: &mut TestAppContext) {
     still();
     for placement in [
@@ -854,6 +946,72 @@ fn modal_outside_scroll_keeps_each_placement_top_reachable(cx: &mut TestAppConte
             "{placement:?}: the first row of a tall Outside dialog must remain reachable"
         );
     }
+}
+
+#[gpui::test]
+fn modal_full_outside_scroll_keeps_deep_content_reachable(cx: &mut TestAppContext) {
+    still();
+    let hits = events();
+    let probed = hits.clone();
+    let closes = events();
+    let recorded = closes.clone();
+
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        let mut body = gpui::div().flex().flex_col().gap(px(10.));
+        for i in 0..40 {
+            let label = format!("p{i}");
+            let click_label = label.clone();
+            let recorded = hits.clone();
+            body = body.child(
+                gpui::div()
+                    .id(gpui::SharedString::from(format!(
+                        "pl-full-outside-probe-{i}"
+                    )))
+                    .w_full()
+                    .h(px(36.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .cursor_pointer()
+                    .on_click(move |_, _, _| recorded.borrow_mut().push(click_label.clone()))
+                    .child(label),
+            );
+        }
+        Modal::new()
+            .id("pl-modal-full-outside")
+            .is_open(true)
+            .is_dismissible(true)
+            .size(ModalSize::Full)
+            .scroll(ModalScroll::Outside)
+            .child(body)
+            .on_open_change(move |v, _, _| recorded.borrow_mut().push(format!("open:{v}")))
+            .into_any_element()
+    });
+
+    // Full removes the container's 40px inset, so the first row starts at the
+    // panel's 24px padding plus half its 36px height.
+    click(cx, 960., 42.);
+    assert_eq!(probed.borrow().as_slice(), ["p0"]);
+
+    for _ in 0..12 {
+        wheel(cx, 960., 500., -1000.);
+    }
+    let mut y = 500.;
+    while y < 1060. {
+        click(cx, 960., y);
+        y += 55.;
+    }
+
+    assert!(
+        closes.borrow().is_empty(),
+        "Full Outside content must enlarge the panel and scroll, not expose backdrop"
+    );
+    assert!(
+        probed.borrow().iter().any(|hit| hit == "p39"),
+        "the deepest Full Outside row must remain reachable; recorded: {:?}",
+        probed.borrow().as_slice()
+    );
 }
 
 #[gpui::test]
