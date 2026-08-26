@@ -64,8 +64,8 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use gpui::{
-    point, prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, Modifiers, MouseButton,
-    SharedString, TestAppContext, VisualTestContext,
+    point, prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, KeyUpEvent, Keystroke,
+    Modifiers, MouseButton, SharedString, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
     calendar::{Date, CALENDAR_WIDTH},
@@ -458,6 +458,100 @@ fn list_box_item_content_sees_the_press(cx: &mut TestAppContext) {
         state_of(&recorded, "alpha").is_pressed,
         "the frame after the down must hand the press to the closure"
     );
+
+    cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    press(cx, "tab");
+    cx.simulate_keystrokes("enter");
+    flush_frame(cx);
+    assert!(
+        state_of(&recorded, "alpha").is_pressed,
+        "the frame after Enter down must hand the focused row's keyboard press to the closure"
+    );
+    cx.simulate_event(KeyUpEvent {
+        keystroke: Keystroke::parse("enter").unwrap(),
+    });
+    flush_frame(cx);
+    assert!(
+        !state_of(&recorded, "alpha").is_pressed,
+        "Enter up must release the focused row's keyboard press"
+    );
+}
+
+/// A focused option can become disabled between renders. React Aria repairs
+/// collection focus away from it and does not install press behavior on the
+/// disabled row, so the stale cursor must not make Enter press or activate it.
+#[gpui::test]
+fn list_box_item_content_drops_press_when_focused_row_becomes_disabled(cx: &mut TestAppContext) {
+    let disabled = Rc::new(RefCell::new(false));
+    let disabled_for_view = disabled.clone();
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let record = recorded.clone();
+    let actions = events();
+    let acted = actions.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        let item = ListBoxItem::new("alpha", "Alpha").is_disabled(*disabled_for_view.borrow());
+        ListBox::new("rp-lb-disable-press", vec![item])
+            .item_content(move |key, state| {
+                record_interactive(&record, key, state);
+                gpui::div().w(px(40.)).h(px(20.)).into_any_element()
+            })
+            .on_action({
+                let actions = actions.clone();
+                move |key, _, _| actions.borrow_mut().push(key.to_string())
+            })
+            .into_any_element()
+    });
+
+    cx.update(|window, _| window.activate_window());
+    flush_frame(cx);
+    press(cx, "tab");
+    flush_frame(cx);
+    assert!(state_of(&recorded, "alpha").is_focused);
+
+    *disabled.borrow_mut() = true;
+    flush_frame(cx);
+    cx.simulate_keystrokes("enter");
+    flush_frame(cx);
+    let alpha = state_of(&recorded, "alpha");
+    assert!(alpha.is_disabled && !alpha.is_focused && !alpha.is_pressed);
+    assert!(
+        acted.borrow().is_empty(),
+        "a stale cursor must not activate a newly disabled row"
+    );
+}
+
+/// With neither selection nor an action callback, React Aria does not make a
+/// ListBox option pressable. Its render closure must stay idle for pointer and
+/// keyboard input even though the collection itself can receive focus.
+#[gpui::test]
+fn list_box_item_content_is_not_pressed_when_row_has_no_behavior(cx: &mut TestAppContext) {
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let record = recorded.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        ListBox::new(
+            "rp-lb-inert-press",
+            vec![ListBoxItem::new("alpha", "Alpha")],
+        )
+        .selection_mode(SelectionMode::None)
+        .item_content(move |key, state| {
+            record_interactive(&record, key, state);
+            gpui::div().w(px(40.)).h(px(20.)).into_any_element()
+        })
+        .into_any_element()
+    });
+
+    let centre = point(px(60.), px(22.));
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert!(!state_of(&recorded, "alpha").is_pressed);
+    cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
+    press(cx, "tab");
+    cx.simulate_keystrokes("space");
+    flush_frame(cx);
+    assert!(!state_of(&recorded, "alpha").is_pressed);
 }
 
 // ---------------------------------------------------------------------------
@@ -751,6 +845,7 @@ fn menu_item_content_sees_the_press(cx: &mut TestAppContext) {
             vec![MenuItem::new("one", "One"), MenuItem::new("two", "Two")],
         )
         .id("rp-menu-press")
+        .disabled_keys([SharedString::from("two")])
         .item_content(move |key, state| {
             record_interactive(&record, key, state);
             gpui::div().w(px(40.)).h(px(20.)).into_any_element()
@@ -765,6 +860,32 @@ fn menu_item_content_sees_the_press(cx: &mut TestAppContext) {
     assert!(
         state_of(&recorded, "one").is_pressed,
         "the frame after the down must hand the press to the closure"
+    );
+
+    cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    press(cx, "home");
+    cx.simulate_keystrokes("space");
+    flush_frame(cx);
+    assert!(
+        state_of(&recorded, "one").is_pressed,
+        "the frame after Space down must hand the focused menu row's keyboard press to the closure"
+    );
+    cx.simulate_event(KeyUpEvent {
+        keystroke: Keystroke::parse("space").unwrap(),
+    });
+    flush_frame(cx);
+    assert!(
+        !state_of(&recorded, "one").is_pressed,
+        "Space up must release the focused menu row's keyboard press"
+    );
+
+    let disabled = point(px(60.), px(60.));
+    cx.simulate_mouse_down(disabled, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert!(
+        !state_of(&recorded, "two").is_pressed,
+        "a disabled menu row must not report a pointer press"
     );
 }
 

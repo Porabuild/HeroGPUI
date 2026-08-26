@@ -285,7 +285,8 @@ impl ListBox {
     ///
     /// The closure is handed the row's key and the state v3 passes into the same
     /// render prop: `isSelected`, `isFocused`, `isPressed` and `isDisabled`. The
-    /// press is a frame behind the pointer, because gpui reports it to a handler.
+    /// press is a frame behind the pointer or activation key, because gpui
+    /// reports it to a handler.
     pub fn item_content(
         mut self,
         render: impl Fn(&SharedString, util::InteractiveState) -> gpui::AnyElement + 'static,
@@ -449,6 +450,19 @@ impl RenderOnce for ListBox {
             .map(|(i, _)| i)
             .collect();
 
+        if let Some(stale) = cursor_at.filter(|index| !stops.contains(index)) {
+            cursor_at = stops
+                .iter()
+                .copied()
+                .find(|index| *index > stale)
+                .or_else(|| stops.iter().rev().copied().find(|index| *index < stale))
+                .or_else(|| stops.first().copied());
+            cursor.update(cx, |value, cx| {
+                *value = cursor_at;
+                cx.notify();
+            });
+        }
+
         // React Aria moves collection focus on entry to the first selected
         // option, falling back to the first enabled option. Keep the keyed
         // cursor untouched until the user actually navigates, but use that
@@ -496,9 +510,12 @@ impl RenderOnce for ListBox {
             let on_selection_change = self.on_selection_change.clone();
             let on_action = self.on_action.clone();
             let selection_own_for_keys = selection_own.clone();
+            let interaction_for_keys = interaction.clone();
             let entry_at = cursor_at;
             list = list.on_key_down(move |event, window, cx| {
-                let from = (*held.read(cx)).or(entry_at);
+                let from = (*held.read(cx))
+                    .filter(|index| stops_for_keys.contains(index))
+                    .or(entry_at.filter(|index| stops_for_keys.contains(index)));
                 let key_name = event.keystroke.key.as_str();
                 if key_name == "a"
                     && event.keystroke.modifiers.secondary()
@@ -564,9 +581,17 @@ impl RenderOnce for ListBox {
                         }
                     }
                     crate::list_nav::Move::Activate => {
-                        let Some(item_key) = from.and_then(|i| keys.get(i).cloned()) else {
+                        let Some(index) = from else {
                             return;
                         };
+                        let Some(item_key) = keys.get(index).cloned() else {
+                            return;
+                        };
+                        if crate::selection::reports_changes(mode) || on_action.is_some() {
+                            if let Some(slot) = interaction_for_keys.get(index) {
+                                util::begin_keyboard_press(slot, event, window, cx);
+                            }
+                        }
                         let action_key = event.keystroke.key == "enter";
                         let has_primary_action = on_action.is_some()
                             && (mode == SelectionMode::None || selected_now.is_empty());
@@ -794,6 +819,9 @@ impl ListBox {
                 };
                 let disabled = *is_disabled || self.disabled_keys.contains(key);
                 let selected = self.selected_keys.contains(key);
+                let pressable = !disabled
+                    && (crate::selection::reports_changes(self.selection_mode)
+                        || self.on_action.is_some());
 
                 let (fg, hover_bg) = match variant {
                     ListBoxItemVariant::Default => (colors.foreground, colors.default.color),
@@ -863,13 +891,13 @@ impl ListBox {
                     // that draws it. v3's `ListBox.Item` render-props table
                     // lists no `isHovered`, so the hover the slot also tracks
                     // is not handed over.
-                    let (_, is_pressed) =
+                    let (_, recorded_press) =
                         interaction.map(|slot| *slot.read(cx)).unwrap_or_default();
                     row = row.child(render(
                         key,
                         util::InteractiveState {
                             is_hovered: false,
-                            is_pressed,
+                            is_pressed: pressable && recorded_press,
                             is_focused: focused,
                             is_focus_visible: focused && util::focus_visible(cx),
                             is_selected: selected,
@@ -877,8 +905,10 @@ impl ListBox {
                             is_indeterminate: false,
                         },
                     ));
-                    if let Some(slot) = interaction {
-                        row = util::track_interaction(row, slot);
+                    if pressable {
+                        if let Some(slot) = interaction {
+                            row = util::track_interaction(row, slot);
+                        }
                     }
                 } else {
                     row = row.child(

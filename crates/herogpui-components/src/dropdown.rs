@@ -243,7 +243,7 @@ impl Menu {
     /// The closure receives the item's key and the row's state: `isSelected`,
     /// `isIndeterminate`, `isFocused`, `isPressed` and `isDisabled`, which are
     /// the values v3 passes into the same render prop. The press is a frame
-    /// behind the pointer, because gpui reports it to a handler.
+    /// behind the pointer or activation key, because gpui reports it to a handler.
     pub fn item_content(
         mut self,
         render: impl Fn(&SharedString, crate::util::InteractiveState) -> AnyElement + 'static,
@@ -456,6 +456,18 @@ impl RenderOnce for Menu {
             })
             .map(|(i, _)| i)
             .collect();
+        if let Some(stale) = cursor_at.filter(|index| !stops.contains(index)) {
+            cursor_at = stops
+                .iter()
+                .copied()
+                .find(|index| *index > stale)
+                .or_else(|| stops.iter().rev().copied().find(|index| *index < stale))
+                .or_else(|| stops.first().copied());
+            cursor.update(cx, |value, cx| {
+                *value = cursor_at;
+                cx.notify();
+            });
+        }
         if focus_first {
             if let Some(first) = stops.first().copied() {
                 cursor.update(cx, |value, cx| {
@@ -600,9 +612,10 @@ impl RenderOnce for Menu {
             let local_submenu = submenu_state.clone();
             let local_submenu_focus = submenu_focus.clone();
             let dismiss = dismiss.clone();
+            let interaction_for_keys = interaction.clone();
             panel = panel.on_key_down(move |event, window, cx| {
                 let key = event.keystroke.key.as_str();
-                let from = *held.read(cx);
+                let from = (*held.read(cx)).filter(|index| stops_for_keys.contains(index));
                 if key == "left" {
                     if let Some(cb) = &on_back {
                         local_submenu.update(cx, |value, cx| {
@@ -653,6 +666,9 @@ impl RenderOnce for Menu {
                         let Some(item_key) = keys.get(i).cloned() else {
                             return;
                         };
+                        if let Some(slot) = interaction_for_keys.get(i) {
+                            crate::util::begin_keyboard_press(slot, event, window, cx);
+                        }
                         let has_submenu = has_submenu[i];
                         // A submenu trigger opens its child; it is neither a
                         // selection nor a menu-level action in React Aria.
@@ -946,7 +962,7 @@ impl RenderOnce for Menu {
                                 // `isHovered`, so the hover the slot also
                                 // tracks is not handed over; a row is focused
                                 // when the keyboard cursor is on it.
-                                let (_, is_pressed) = interaction
+                                let (_, recorded_press) = interaction
                                     .get(i)
                                     .map(|slot| *slot.read(cx))
                                     .unwrap_or_default();
@@ -954,7 +970,7 @@ impl RenderOnce for Menu {
                                     &key,
                                     crate::util::InteractiveState {
                                         is_hovered: false,
-                                        is_pressed,
+                                        is_pressed: !is_item_disabled && recorded_press,
                                         is_focused: cursor_at == Some(i),
                                         is_focus_visible: cursor_at == Some(i)
                                             && crate::util::focus_visible(cx),
@@ -986,10 +1002,11 @@ impl RenderOnce for Menu {
                         }),
                     );
                     // The slot's hover and press handlers keep the press the
-                    // closure reads current. Attached even on a disabled row:
-                    // the closure is handed `is_disabled` and may draw it.
-                    if let Some(slot) = interaction.get(i) {
-                        row = crate::util::track_interaction(row, slot);
+                    // closure reads current. Disabled rows expose idle state.
+                    if !is_item_disabled {
+                        if let Some(slot) = interaction.get(i) {
+                            row = crate::util::track_interaction(row, slot);
+                        }
                     }
                     if let Some(sc) = shortcut {
                         row = row.child(

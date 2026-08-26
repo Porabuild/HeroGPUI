@@ -852,6 +852,42 @@ fn has_active_keyboard_press(slot: &Interaction, window: &gpui::Window, cx: &App
         })
 }
 
+pub(crate) fn begin_keyboard_press(
+    slot: &Interaction,
+    event: &gpui::KeyDownEvent,
+    window: &gpui::Window,
+    cx: &mut App,
+) {
+    if event.is_held || !matches!(event.keystroke.key.as_str(), "enter" | "space") {
+        return;
+    }
+    let began = slot.update(cx, |state, cx| {
+        if state.1 {
+            false
+        } else {
+            state.1 = true;
+            cx.notify();
+            true
+        }
+    });
+    if began {
+        if cx.try_global::<ActiveKeyboardPresses>().is_none() {
+            cx.set_global(ActiveKeyboardPresses::default());
+        }
+        let active = (
+            window.window_handle().window_id(),
+            event.keystroke.key.clone(),
+            slot.downgrade(),
+        );
+        cx.update_global::<ActiveKeyboardPresses, _>(|pressed, _| {
+            pressed
+                .0
+                .retain(|(_, _, interaction)| interaction.upgrade().is_some());
+            pressed.0.push(active);
+        });
+    }
+}
+
 /// The keyed `(hovered, pressed)` slot for one control.
 ///
 /// gpui tells a *handler* about a hover and a press; a render can only read what
@@ -920,33 +956,7 @@ where
         }
     })
     .on_key_down(move |event, window, cx| {
-        if !event.is_held && matches!(event.keystroke.key.as_str(), "enter" | "space") {
-            let began = key_down.update(cx, |state, cx| {
-                if !state.1 {
-                    state.1 = true;
-                    cx.notify();
-                    true
-                } else {
-                    false
-                }
-            });
-            if began {
-                if cx.try_global::<ActiveKeyboardPresses>().is_none() {
-                    cx.set_global(ActiveKeyboardPresses::default());
-                }
-                let active = (
-                    window.window_handle().window_id(),
-                    event.keystroke.key.clone(),
-                    key_down.downgrade(),
-                );
-                cx.update_global::<ActiveKeyboardPresses, _>(|pressed, _| {
-                    pressed
-                        .0
-                        .retain(|(_, _, interaction)| interaction.upgrade().is_some());
-                    pressed.0.push(active);
-                });
-            }
-        }
+        begin_keyboard_press(&key_down, event, window, cx);
     })
     .on_key_up(move |event, _, cx| {
         if matches!(event.keystroke.key.as_str(), "enter" | "space") {

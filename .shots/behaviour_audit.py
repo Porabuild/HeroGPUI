@@ -304,7 +304,9 @@ EVIDENCE = {
     # handle the panel tracks, or the arrows land on a handle no element owns.
     ('Dropdown', 'panel-focus'): (
         'dropdown.rs',
-        r'(?s:util::focus_once\(window, cx, autofocus, &focus_handle\).{0,4000}?track_focus\(&focus_handle\))',
+        r'(?s:impl RenderOnce for Menu \{(?:(?!\nimpl ).)*?'
+        r'util::focus_once\(window, cx, autofocus, &focus_handle\)'
+        r'(?:(?!\nimpl ).)*?track_focus\(&focus_handle\))',
     ),
     # v3 writes `<SearchField autoFocus>` inside `Autocomplete.Filter`, so the
     # query field takes the focus as the popover opens -- once per opening, or
