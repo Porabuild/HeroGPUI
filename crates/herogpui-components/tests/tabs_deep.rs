@@ -16,8 +16,8 @@ mod harness;
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use gpui::{
-    prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, KeyDownEvent, Keystroke,
-    TestAppContext, VisualTestContext, WindowTextSystem,
+    point, prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, KeyDownEvent, Keystroke,
+    Modifiers, MouseButton, TestAppContext, VisualTestContext, WindowTextSystem,
 };
 use herogpui_components::{Button, KeyboardActivation, Orientation, TabItem, Tabs, TabsVariant};
 
@@ -119,6 +119,173 @@ fn tabs_pointer_selection_hands_off_to_roving_keyboard_focus(cx: &mut TestAppCon
         selected.borrow().as_slice(),
         ["second", "third"],
         "Right after a pointer selection must continue from the pressed tab"
+    );
+}
+
+fn assert_pointer_selection_timing(
+    cx: &mut TestAppContext,
+    variant: TabsVariant,
+    id: &'static str,
+    indicator_id: &'static str,
+) {
+    let recorded = events();
+    let selected = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        Tabs::new(
+            id,
+            vec![
+                TabItem::new("first", "First"),
+                TabItem::new("second", "Second"),
+                TabItem::new("third", "Third"),
+            ],
+            "first",
+        )
+        .variant(variant)
+        .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+        .into_any_element()
+    });
+    flush_frame(cx);
+    flush_frame(cx);
+    flush_frame(cx);
+    flush_frame(cx);
+    let first_indicator = cx
+        .debug_bounds(indicator_id)
+        .expect("the selected-tab indicator must be painted before pointer input");
+
+    let first = cx.update(|window, _| text_width(window.text_system(), "First")) + 32.;
+    let second = cx.update(|window, _| text_width(window.text_system(), "Second")) + 32.;
+    let second_x = 4. + first + second / 2.;
+
+    cx.simulate_mouse_down(
+        point(px(second_x), px(20.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["second"],
+        "pinned useSelectableItem selects on pointer down before any release"
+    );
+
+    cx.simulate_mouse_up(
+        point(px(second_x), px(20.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["second"],
+        "a completed pointer click must report exactly once"
+    );
+
+    let third = cx.update(|window, _| text_width(window.text_system(), "Third")) + 32.;
+    let third_x = 4. + first + second + third / 2.;
+    cx.simulate_mouse_down(
+        point(px(third_x), px(20.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_move(
+        point(px(500.), px(120.)),
+        Some(MouseButton::Left),
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    cx.simulate_mouse_up(
+        point(px(500.), px(120.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["second", "third"],
+        "dragging out must neither revert nor repeat the press-start selection"
+    );
+    std::thread::sleep(Duration::from_millis(300));
+    flush_frame(cx);
+    let indicator = cx
+        .debug_bounds(indicator_id)
+        .expect("the selected-tab indicator must remain painted after dragging out");
+    assert!(
+        f32::from(indicator.origin.x) >= f32::from(first_indicator.origin.x) + first + second - 1.,
+        "dragging out must leave the committed selection on the third tab"
+    );
+}
+
+/// Pinned react-aria 3.51.0's `useSelectableItem` selects a plain Tab on
+/// pointer down. Its pointer-up path does nothing, so dragging out after that
+/// press leaves the new selection committed.
+#[gpui::test]
+fn tabs_select_on_mouse_down_and_keep_a_drag_out(cx: &mut TestAppContext) {
+    assert_pointer_selection_timing(
+        cx,
+        TabsVariant::Primary,
+        "tb-primary-pointer-timing",
+        "Name(\"tb-primary-pointer-timing\")-indicator",
+    );
+    assert_pointer_selection_timing(
+        cx,
+        TabsVariant::Secondary,
+        "tb-secondary-pointer-timing",
+        "Name(\"tb-secondary-pointer-timing\")-indicator",
+    );
+}
+
+fn assert_pointer_release_preserves_roving_focus(
+    cx: &mut TestAppContext,
+    variant: TabsVariant,
+    id: &'static str,
+) {
+    let recorded = events();
+    let selected = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        Tabs::new(
+            id,
+            vec![
+                TabItem::new("first", "First"),
+                TabItem::new("second", "Second"),
+                TabItem::new("third", "Third"),
+            ],
+            "first",
+        )
+        .variant(variant)
+        .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+        .into_any_element()
+    });
+
+    let first = cx.update(|window, _| text_width(window.text_system(), "First")) + 32.;
+    let second = cx.update(|window, _| text_width(window.text_system(), "Second")) + 32.;
+    let second_point = point(px(4. + first + second / 2.), px(20.));
+    cx.simulate_mouse_down(second_point, MouseButton::Left, Modifiers::none());
+    press(cx, "right");
+    assert_eq!(selected.borrow().as_slice(), ["second", "third"]);
+
+    cx.simulate_mouse_up(second_point, MouseButton::Left, Modifiers::none());
+    press(cx, "right");
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["second", "third", "first"],
+        "pointer release must not restore the tab that received pointer down"
+    );
+}
+
+/// A plain Tab's pointer-up path is a no-op in pinned `useSelectableItem`.
+/// Moving with an arrow while the pointer remains held must therefore survive
+/// the eventual release rather than snapping the roving key back.
+#[gpui::test]
+fn tabs_pointer_release_does_not_revert_roving_focus(cx: &mut TestAppContext) {
+    assert_pointer_release_preserves_roving_focus(
+        cx,
+        TabsVariant::Primary,
+        "tb-primary-pointer-held",
+    );
+    assert_pointer_release_preserves_roving_focus(
+        cx,
+        TabsVariant::Secondary,
+        "tb-secondary-pointer-held",
     );
 }
 

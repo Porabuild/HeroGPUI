@@ -871,24 +871,38 @@ impl RenderOnce for Tabs {
                         let own = selection_own.clone();
                         let focus = focus_state.clone();
                         let list_focus_for_click = list_focus.clone();
-                        tab = tab.on_click(move |_, window, cx| {
-                            window.focus(&list_focus_for_click);
-                            focus.update(cx, |state, cx| {
-                                state.key = key.clone();
-                                cx.notify();
-                            });
-                            // Uncontrolled: move our own selection, or pressing
-                            // a tab would do nothing.
-                            if let Some(held) = &own {
-                                held.update(cx, |v, cx| {
-                                    *v = key.clone();
+                        let list_focus_after_pointer = list_focus_for_click.clone();
+                        let select: Rc<dyn Fn(&mut Window, &mut App)> =
+                            Rc::new(move |window, cx| {
+                                window.focus(&list_focus_for_click);
+                                focus.update(cx, |state, cx| {
+                                    state.key = key.clone();
                                     cx.notify();
                                 });
-                            }
-                            if let Some(f) = &cb {
-                                f(&key, window, cx);
-                            }
-                        });
+                                // Uncontrolled: move our own selection, or pressing
+                                // a tab would do nothing.
+                                if let Some(held) = &own {
+                                    held.update(cx, |v, cx| {
+                                        *v = key.clone();
+                                        cx.notify();
+                                    });
+                                }
+                                if let Some(f) = &cb {
+                                    f(&key, window, cx);
+                                }
+                            });
+                        let pointer_select = select.clone();
+                        tab = tab
+                            .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                                pointer_select(window, cx);
+                                let list_focus = list_focus_after_pointer.clone();
+                                window.defer(cx, move |window, _| window.focus(&list_focus));
+                            })
+                            .on_click(move |event, window, cx| {
+                                if matches!(event, gpui::ClickEvent::Keyboard(_)) {
+                                    select(window, cx);
+                                }
+                            });
                     }
                     // `.tab:focus-visible` is `status-focused`.
                     let tab = crate::util::with_focus_ring(
@@ -1014,24 +1028,38 @@ impl RenderOnce for Tabs {
                         let own = selection_own.clone();
                         let focus = focus_state.clone();
                         let list_focus_for_click = list_focus.clone();
-                        tab = tab.on_click(move |_, window, cx| {
-                            window.focus(&list_focus_for_click);
-                            focus.update(cx, |state, cx| {
-                                state.key = key.clone();
-                                cx.notify();
-                            });
-                            // Uncontrolled: move our own selection, or pressing
-                            // a tab would do nothing.
-                            if let Some(held) = &own {
-                                held.update(cx, |v, cx| {
-                                    *v = key.clone();
+                        let list_focus_after_pointer = list_focus_for_click.clone();
+                        let select: Rc<dyn Fn(&mut Window, &mut App)> =
+                            Rc::new(move |window, cx| {
+                                window.focus(&list_focus_for_click);
+                                focus.update(cx, |state, cx| {
+                                    state.key = key.clone();
                                     cx.notify();
                                 });
-                            }
-                            if let Some(f) = &cb {
-                                f(&key, window, cx);
-                            }
-                        });
+                                // Uncontrolled: move our own selection, or pressing
+                                // a tab would do nothing.
+                                if let Some(held) = &own {
+                                    held.update(cx, |v, cx| {
+                                        *v = key.clone();
+                                        cx.notify();
+                                    });
+                                }
+                                if let Some(f) = &cb {
+                                    f(&key, window, cx);
+                                }
+                            });
+                        let pointer_select = select.clone();
+                        tab = tab
+                            .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                                pointer_select(window, cx);
+                                let list_focus = list_focus_after_pointer.clone();
+                                window.defer(cx, move |window, _| window.focus(&list_focus));
+                            })
+                            .on_click(move |event, window, cx| {
+                                if matches!(event, gpui::ClickEvent::Keyboard(_)) {
+                                    select(window, cx);
+                                }
+                            });
                     }
                     // `.tab:focus-visible` is `status-focused`.
                     let tab = crate::util::with_focus_ring(
