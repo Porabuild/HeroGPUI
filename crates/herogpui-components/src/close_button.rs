@@ -55,8 +55,8 @@ impl CloseButton {
 
     /// Supplies a custom icon in place of the default close glyph.
     /// v3's render function for the button's children, handed `isHovered`,
-    /// `isPressed` and `isFocused`. The hover and press are a frame behind the
-    /// pointer, because gpui reports both to a handler.
+    /// `isPressed`, `isFocused` and `isDisabled`. The hover and press are a
+    /// frame behind the pointer, because gpui reports both to a handler.
     pub fn content(
         mut self,
         render: impl Fn(crate::util::InteractiveState) -> AnyElement + 'static,
@@ -95,12 +95,19 @@ impl RenderOnce for CloseButton {
                 cx,
             )
         });
+        if self.is_disabled {
+            if let Some(slot) = &interaction {
+                if *slot.read(cx) != (false, false) {
+                    slot.update(cx, |state, _| *state = (false, false));
+                }
+            }
+        }
 
         let colors = cx.colors();
         let layout = cx.layout();
         // `.close-button` is `h-6 p-1` with a `size-4` glyph.
         let (box_size, icon_size) = (px(24.), px(16.));
-        let hover_bg = colors.default.with_alpha(0.15);
+        let hover_bg = colors.default.hover();
 
         let mut el = div()
             .id(self.id.clone())
@@ -111,13 +118,15 @@ impl RenderOnce for CloseButton {
             .size(box_size)
             .p(px(4.))
             .rounded(crate::util::small_radius(cx))
+            .bg(colors.default.color)
             .text_color(colors.muted);
 
         if self.is_disabled {
             el = el.opacity(layout.disabled_opacity);
         } else {
             el = el
-                .hover(move |s| s.bg(hover_bg).text_color(colors.foreground))
+                .cursor_pointer()
+                .hover(move |s| s.bg(hover_bg))
                 .active(|s| s.opacity(0.7));
         }
 
@@ -127,12 +136,12 @@ impl RenderOnce for CloseButton {
                     .as_ref()
                     .map(|slot| *slot.read(cx))
                     .unwrap_or_default();
+                let is_focused = !self.is_disabled && focus_handle.is_focused(window);
                 el.child(render(crate::util::InteractiveState {
                     is_hovered,
                     is_pressed,
-                    is_focused: focus_handle.is_focused(window),
-                    is_focus_visible: focus_handle.is_focused(window)
-                        && crate::util::focus_visible(cx),
+                    is_focused,
+                    is_focus_visible: is_focused && crate::util::focus_visible(cx),
                     is_selected: false,
                     is_disabled: self.is_disabled,
                     is_indeterminate: false,
@@ -146,8 +155,10 @@ impl RenderOnce for CloseButton {
                     .text_color(colors.muted),
             ),
         };
-        if let Some(slot) = &interaction {
-            el = crate::util::track_interaction(el, slot);
+        if !self.is_disabled {
+            if let Some(slot) = &interaction {
+                el = crate::util::track_interaction(el, slot);
+            }
         }
 
         if let Some(on_press) = self.on_press {

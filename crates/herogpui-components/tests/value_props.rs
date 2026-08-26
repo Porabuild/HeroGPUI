@@ -908,6 +908,125 @@ fn close_button_content_render_prop_sees_pointer_cycle(cx: &mut TestAppContext) 
     );
 }
 
+/// A disabled v3 CloseButton is inert, so its render-prop state must keep
+/// hover and press false while still reporting the disabled flag.
+#[gpui::test]
+fn disabled_close_button_content_never_reports_hover_or_press(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new((true, true, false)));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        CloseButton::new("cb-vc-disabled")
+            .is_disabled(true)
+            .content(move |state: util::InteractiveState| {
+                *record.borrow_mut() = (state.is_hovered, state.is_pressed, state.is_disabled);
+                gpui::div()
+                    .w(px(16.))
+                    .child("x".to_owned())
+                    .into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let centre = point(px(12.), px(12.));
+    cx.simulate_mouse_move(centre, None::<MouseButton>, Modifiers::none());
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+
+    assert_eq!(
+        *seen.borrow(),
+        (false, false, true),
+        "disabled CloseButton.Content must never expose hover or press state"
+    );
+}
+
+/// Disabling an already-hovered or pressed CloseButton must clear the keyed
+/// interaction snapshot rather than handing stale enabled state to content.
+#[gpui::test]
+fn disabling_close_button_clears_render_prop_hover_and_press(cx: &mut TestAppContext) {
+    let disabled = Rc::new(RefCell::new(false));
+    let disabled_for_view = disabled.clone();
+    let seen = Rc::new(RefCell::new((false, false, false)));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        CloseButton::new("cb-vc-disable-transition")
+            .is_disabled(*disabled_for_view.borrow())
+            .content(move |state: util::InteractiveState| {
+                *record.borrow_mut() = (state.is_hovered, state.is_pressed, state.is_disabled);
+                gpui::div()
+                    .w(px(16.))
+                    .child("x".to_owned())
+                    .into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let centre = point(px(12.), px(12.));
+    cx.simulate_mouse_move(centre, None::<MouseButton>, Modifiers::none());
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert_eq!(*seen.borrow(), (true, true, false));
+
+    *disabled.borrow_mut() = true;
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (false, false, true),
+        "disabling CloseButton.Content must clear stale hover and press state"
+    );
+
+    cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
+    cx.simulate_mouse_move(
+        point(px(400.), px(400.)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+    *disabled.borrow_mut() = false;
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (false, false, false),
+        "re-enabling must not revive interaction state missed while disabled"
+    );
+}
+
+/// A disabled CloseButton leaves the tab order, so disabling one that held
+/// keyboard focus must also clear the focus values handed to render content.
+#[gpui::test]
+fn disabling_close_button_clears_render_prop_focus(cx: &mut TestAppContext) {
+    let disabled = Rc::new(RefCell::new(false));
+    let disabled_for_view = disabled.clone();
+    let seen = Rc::new(RefCell::new((false, false, false)));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        CloseButton::new("cb-vc-disable-focus")
+            .is_disabled(*disabled_for_view.borrow())
+            .content(move |state: util::InteractiveState| {
+                *record.borrow_mut() =
+                    (state.is_focused, state.is_focus_visible, state.is_disabled);
+                gpui::div()
+                    .w(px(16.))
+                    .child("x".to_owned())
+                    .into_any_element()
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    flush_frame(cx);
+    assert_eq!(*seen.borrow(), (true, true, false));
+
+    *disabled.borrow_mut() = true;
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (false, false, true),
+        "disabling CloseButton.Content must stop reporting focus"
+    );
+}
+
 /// The focus half for the close button: Tab reaches its tracked handle and
 /// the keyboard flag reaches the closure's `isFocusVisible`.
 #[gpui::test]
