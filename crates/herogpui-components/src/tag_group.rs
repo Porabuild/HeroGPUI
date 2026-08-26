@@ -487,6 +487,26 @@ impl RenderOnce for TagGroup {
                         cx.stop_propagation();
                         return;
                     }
+                    // `useSelectableCollection` also clears a nonempty
+                    // selection on unmodified Escape by default.
+                    if key_name == "escape"
+                        && !event.keystroke.modifiers.modified()
+                        && crate::selection::reports_changes(mode)
+                        && !selected_now.is_empty()
+                    {
+                        let next = HashSet::new();
+                        if let Some(held) = &selection_own_for_keys {
+                            held.update(cx, |value, cx| {
+                                *value = next.clone();
+                                cx.notify();
+                            });
+                        }
+                        if let Some(change) = &on_selection_change {
+                            change(&next, window, cx);
+                        }
+                        cx.stop_propagation();
+                        return;
+                    }
                     match key_name {
                         "delete" | "backspace" => {
                             if let Some(cb) = &remove {

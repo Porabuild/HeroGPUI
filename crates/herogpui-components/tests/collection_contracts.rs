@@ -659,6 +659,84 @@ fn tag_group_mod_a_is_idempotent_for_a_selection_superset(cx: &mut TestAppContex
     );
 }
 
+/// Pinned React Aria 3.51's default `escapeKeyBehavior="clearSelection"`
+/// also reaches TagGroup through its selectable-list behavior.
+#[gpui::test]
+fn tag_group_escape_clears_uncontrolled_selection_and_keeps_focus(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let outer_events = for_view.clone();
+        let selection_events = for_view.clone();
+        gpui::div()
+            .on_key_down(move |event, _, _| {
+                if event.keystroke.key == "escape" {
+                    outer_events.borrow_mut().push("outer-escape".into());
+                }
+            })
+            .child(
+                TagGroup::new(
+                    "contract-tags-escape-clear",
+                    vec![Tag::new("alpha", "Alpha")],
+                )
+                .selection_mode(SelectionMode::Single)
+                .default_selected_keys([SharedString::from("alpha")])
+                .on_selection_change(move |keys, window, _| {
+                    selection_events.borrow_mut().push(sorted_join(keys));
+                    window.refresh();
+                }),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "escape");
+    flush_frame(cx);
+    press(cx, "escape");
+    press(cx, "enter");
+    flush_frame(cx);
+    press(cx, "shift-escape");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["", "outer-escape", "alpha", "outer-escape"],
+        "handled Escape must stop, while empty and modified Escape pass through without losing focus"
+    );
+}
+
+#[gpui::test]
+fn tag_group_escape_clears_a_select_all_result(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-escape-select-all",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .disabled_keys([SharedString::from("beta")])
+        .on_selection_change(move |keys, window, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press_mod_a(cx);
+    flush_frame(cx);
+    press(cx, "escape");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha,gamma", ""],
+        "Escape must clear the enabled selection produced by Mod+A"
+    );
+}
+
 #[gpui::test]
 fn tag_group_default_selected_keys_seed_uncontrolled_state(cx: &mut TestAppContext) {
     let recorded = events();

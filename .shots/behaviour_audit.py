@@ -130,7 +130,7 @@ SELECT_ALL_KEYS = ('Table', 'ListBox', 'TagGroup')
 # A nonempty selectable collection clears on Escape by default and consumes the
 # key only when it changed selection. HeroUI inherits this from pinned React
 # Aria 3.51.0's `useSelectableCollection`.
-ESCAPE_CLEAR_KEYS = ('ListBox',)
+ESCAPE_CLEAR_KEYS = ('ListBox', 'TagGroup')
 
 # HeroUI forwards Table.Column's resize props to React Aria, whose pinned
 # TableColumnLayout clamps every committed width to minWidth (75px by default)
@@ -371,6 +371,12 @@ EVIDENCE = {
         r'.*?!selected_now\.is_empty\(\).*?let next = HashSet::new\(\)'
         r'.*?selection_own_for_keys.*?on_selection_change'
         r'.*?stop_propagation\(\)',
+    ),
+    ('TagGroup', 'escape-clear'): (
+        'tag_group.rs',
+        r'(?s)key_name == "escape".*?!event\.keystroke\.modifiers\.modified\(\)'
+        r'.*?reports_changes\(mode\).*?!selected_now\.is_empty\(\).*?HashSet::new\(\)'
+        r'.*?selection_own_for_keys.*?on_selection_change.*?stop_propagation\(\)',
     ),
     ('Table', 'resize-bounds'): (
         'table.rs',
