@@ -546,6 +546,101 @@ fn fixed_height_virtual_table_page_keys_move_one_viewport(cx: &mut TestAppContex
     );
 }
 
+/// `estimatedRowHeight` virtualizes through the same pinned TableLayout, so
+/// PageUp/PageDown move by one visible rectangle here too. Normal rows measure
+/// 30px, disabled row 5 measures 85px, and the estimate is 40px. The disabled
+/// row still occupies layout space but cannot become a target, so the sequence
+/// starts 2 → 6; later unseen rows use the estimate, producing 10 → 4. Dropping
+/// the disabled height or ignoring measurements lands on different rows.
+#[gpui::test]
+fn variable_height_virtual_table_page_keys_move_one_viewport(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("vt-var-page-keys")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .virtual_rows(
+                20,
+                "virtual-variable-page-key-users",
+                |i| format!("key-{i:02}").into(),
+                |i| {
+                    let height = if i == 5 { 60. } else { 5. };
+                    TableRow::new(vec![gpui::div()
+                        .h(px(height))
+                        .w_full()
+                        .child(format!("Row {i}"))
+                        .into_any_element()])
+                },
+            )
+            .estimated_row_height(px(40.))
+            .max_h(px(160.))
+            .disabled_keys(["key-05"])
+            .on_row_click(move |i, _, _, _| recorded.borrow_mut().push(format!("row-{i}")))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    for _ in 0..3 {
+        press(cx, "down");
+    }
+    press(cx, "pagedown");
+    press(cx, "enter");
+    press(cx, "pagedown");
+    press(cx, "enter");
+    press(cx, "pageup");
+    press(cx, "enter");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-6", "row-10", "row-4"],
+        "page keys must move a variable-height virtual Table by one viewport"
+    );
+}
+
+/// Pinned paging stops as soon as the current row reaches the page boundary.
+/// A row taller than the viewport therefore keeps focus on itself rather than
+/// skipping content that has not fit on screen yet.
+#[gpui::test]
+fn variable_height_table_page_key_stays_on_a_viewport_tall_row(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("vt-var-tall-page")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .virtual_rows(
+                2,
+                "virtual-variable-tall-page-users",
+                |i| format!("key-{i}").into(),
+                |i| {
+                    let height = if i == 0 { 200. } else { 20. };
+                    TableRow::new(vec![gpui::div()
+                        .h(px(height))
+                        .w_full()
+                        .child(format!("Row {i}"))
+                        .into_any_element()])
+                },
+            )
+            .estimated_row_height(px(40.))
+            .max_h(px(160.))
+            .on_row_click(move |i, _, _, _| recorded.borrow_mut().push(format!("row-{i}")))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-0"],
+        "a row that already spans a viewport must not be paged past"
+    );
+}
+
 /// `estimatedRowHeight` takes the `gpui::list` path, which measures *each*
 /// built row instead of multiplying one. Rows of two real heights — 45px and
 /// 85px — must lay out without overlapping: a click aimed mid-way down a tall
@@ -633,6 +728,17 @@ fn variable_height_table_keyboard_scrolls_to_an_unmeasured_row(cx: &mut TestAppC
         recorded.borrow().as_slice(),
         ["row-31", "row-31"],
         "the unmeasured keyboard target must be built at the viewport"
+    );
+
+    // Row 31 is 85px tall and the preceding rows alternate 45/85px. One
+    // 160px PageUp therefore crosses row 30 and lands on row 29; the 40px
+    // estimate alone would incorrectly move three indices to row 28.
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-31", "row-31", "row-29"],
+        "PageUp must use measured variable row heights when they are available"
     );
 }
 
