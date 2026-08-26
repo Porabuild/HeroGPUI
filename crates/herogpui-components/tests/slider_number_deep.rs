@@ -191,6 +191,71 @@ fn range_change_end_reports_the_full_final_array_once(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn one_element_values_drag_reports_array_callbacks(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let changes = for_view.clone();
+        let ends = for_view.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Slider::new("one-controlled", 0.)
+                    .values([90.])
+                    .on_change_all(move |values, _, _| {
+                        changes.borrow_mut().push(format!("change:{}", values[0]));
+                    })
+                    .on_change_end_all(move |values, _, _| {
+                        ends.borrow_mut().push(format!("end:{}", values[0]));
+                    }),
+            )
+            .into_any_element()
+    });
+
+    drag(cx, (540., 10.), (60., 10.));
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["change:10", "end:10"],
+        "the one-element array form must report through its array callbacks"
+    );
+}
+
+#[gpui::test]
+fn one_element_default_values_keyboard_updates_its_array_state(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let changes = for_view.clone();
+        let ends = for_view.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Slider::new("one-uncontrolled", 0.)
+                    .default_values([90.])
+                    .on_change_all(move |values, _, _| {
+                        changes.borrow_mut().push(format!("change:{}", values[0]));
+                    })
+                    .on_change_end_all(move |values, _, _| {
+                        ends.borrow_mut().push(format!("end:{}", values[0]));
+                    }),
+            )
+            .into_any_element()
+    });
+
+    cx.simulate_click(point(px(540.), px(10.)), Modifiers::none());
+    flush_frame(cx);
+    recorded.borrow_mut().clear();
+    press(cx, "left");
+    flush_frame(cx);
+    press(cx, "left");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["change:89", "end:89", "change:88", "end:88"],
+        "the uncontrolled one-element array must persist each keyboard step"
+    );
+}
+
+#[gpui::test]
 fn slider_pointer_and_keyboard_snap_from_min_value(cx: &mut TestAppContext) {
     let recorded = events();
     let for_view = recorded.clone();

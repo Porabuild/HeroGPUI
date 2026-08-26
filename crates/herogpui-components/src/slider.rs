@@ -380,7 +380,14 @@ impl RenderOnce for Slider {
             self.default_value.unwrap_or(self.value),
         );
 
-        let range_mode = self.values.is_some() || self.default_values.is_some();
+        let range_mode = self
+            .values
+            .as_ref()
+            .is_some_and(|values| !values.is_empty())
+            || self
+                .default_values
+                .as_ref()
+                .is_some_and(|values| !values.is_empty());
         let range_default = self
             .default_values
             .clone()
@@ -443,11 +450,12 @@ impl RenderOnce for Slider {
         let restore_range_own = range_own.clone();
         let restore_on_change = self.on_change.clone();
         let restore_on_change_all = self.on_change_all.clone();
+        let restore_range_mode = range_mode;
         let restore_is_disabled = self.is_disabled;
         let restore_disabled_keys = self.disabled_keys.clone();
         let restore: std::sync::Arc<dyn Fn(&mut Window, &mut App)> =
             crate::util::shared(move |window, cx| {
-                if restore_defaults.len() > 1 {
+                if restore_range_mode {
                     if let Some(own) = &restore_range_own {
                         own.update(cx, |current, cx| {
                             *current = restore_defaults.clone();
@@ -819,6 +827,7 @@ impl RenderOnce for Slider {
                         index,
                         next,
                         &keys_thumbs,
+                        range_mode,
                         &range_own_keys,
                         &on_change_keys,
                         &all_keys,
@@ -835,7 +844,7 @@ impl RenderOnce for Slider {
                     );
                     // A keystroke is a finished change, so `onChangeEnd` fires
                     // with it rather than waiting for a release that never comes.
-                    if next_values.len() > 1 {
+                    if range_mode {
                         if let Some(cb) = &end_all_keys {
                             cb(&next_values, window, cx);
                         }
@@ -888,6 +897,7 @@ impl RenderOnce for Slider {
                         index,
                         value,
                         &target_down.thumbs,
+                        range_mode,
                         &range_own_down,
                         &on_change_down,
                         &all_down,
@@ -951,6 +961,7 @@ impl RenderOnce for Slider {
                                     index,
                                     value,
                                     &values,
+                                    range_mode,
                                     &range_own_move,
                                     &on_change_move,
                                     &all_move,
@@ -982,7 +993,7 @@ impl RenderOnce for Slider {
                                 values
                             });
                             if let Some(values) = final_values {
-                                if values.len() > 1 {
+                                if range_mode {
                                     if let Some(cb) = &on_change_end_all {
                                         cb(&values, window, cx);
                                     }
@@ -1087,6 +1098,7 @@ fn set_thumb(
     index: usize,
     value: f32,
     thumbs: &[f32],
+    range_mode: bool,
     range_own: &Option<gpui::Entity<Vec<f32>>>,
     on_change: &Option<OnChange>,
     on_change_all: &Option<OnChangeAll>,
@@ -1094,7 +1106,7 @@ fn set_thumb(
     window: &mut Window,
     cx: &mut App,
 ) -> Vec<f32> {
-    if thumbs.len() > 1 {
+    if range_mode {
         let mut next = thumbs.to_vec();
         if let Some(slot) = next.get_mut(index) {
             let min = index

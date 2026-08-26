@@ -252,6 +252,44 @@ fn controlled_range_reset_reports_both_values_once(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn controlled_one_element_array_reset_reports_its_initial_value(cx: &mut TestAppContext) {
+    let changes = events();
+    let current = Rc::new(RefCell::new(vec![20.]));
+    let for_view = current;
+    let changes_for_view = changes.clone();
+    let cx = open_host(cx, move || {
+        let current = for_view.clone();
+        let changes = changes_for_view.clone();
+        let values = current.borrow().clone();
+        let slider = Slider::new("slider-one-controlled-reset", 0.)
+            .values(values)
+            .thumb_names(["volume"])
+            .on_change_all(move |values, _, _| {
+                *current.borrow_mut() = values.to_vec();
+                changes.borrow_mut().push(format!("{}", values[0]));
+            });
+        let mut form = Form::new();
+        for field in slider.form_fields() {
+            form = form.field(field);
+        }
+        let reset = form.reset_handler();
+        form.child(gpui::div().w(px(600.)).child(slider))
+            .child(
+                Button::new("slider-one-controlled-reset-button")
+                    .label("Reset")
+                    .on_press(move |_, window, cx| reset(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 480., 10.);
+    flush_frame(cx);
+    click(cx, 60., 52.);
+
+    assert_eq!(changes.borrow().as_slice(), ["80", "20"]);
+}
+
+#[gpui::test]
 fn uncontrolled_range_default_values_persist_and_reset(cx: &mut TestAppContext) {
     let submitted = events();
     let for_view = submitted.clone();
@@ -297,6 +335,51 @@ fn uncontrolled_range_default_values_persist_and_reset(cx: &mut TestAppContext) 
         ["20:80", "30:80", "20:80"],
         "an uncontrolled range keeps both seeded values, then restores both on reset"
     );
+}
+
+#[gpui::test]
+fn one_element_default_values_reset_through_the_array_state(cx: &mut TestAppContext) {
+    let changes = events();
+    let submitted = events();
+    let changes_for_view = changes.clone();
+    let submitted_for_view = submitted.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes_for_view.clone();
+        let submitted = submitted_for_view.clone();
+        let slider = Slider::new("slider-one-array-reset", 0.)
+            .default_values([20.])
+            .thumb_names(["volume"])
+            .on_change_all(move |values, _, _| {
+                changes.borrow_mut().push(format!("{}", values[0]));
+            });
+        let mut form = Form::new().on_submit(move |data: &FormData, _, _| {
+            submitted.borrow_mut().push(submit_text(data, "volume"));
+        });
+        for field in slider.form_fields() {
+            form = form.field(field);
+        }
+        let submit = form.submit_handler();
+        let reset = form.reset_handler();
+        form.child(gpui::div().w(px(600.)).child(slider))
+            .child(submit_button("slider-one-array-submit", submit))
+            .child(
+                Button::new("slider-one-array-reset")
+                    .label("Reset")
+                    .on_press(move |_, window, cx| reset(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 480., 10.);
+    flush_frame(cx);
+    click(cx, 60., 52.);
+    flush_frame(cx);
+    click(cx, 60., 109.);
+    flush_frame(cx);
+    click(cx, 60., 52.);
+
+    assert_eq!(changes.borrow().as_slice(), ["80", "20"]);
+    assert_eq!(submitted.borrow().as_slice(), ["80", "20"]);
 }
 
 #[gpui::test]
