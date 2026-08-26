@@ -293,15 +293,21 @@ fn autocomplete_value_content_hands_placeholder_then_pick(cx: &mut TestAppContex
 fn combo_box_value_content_hands_placeholder_then_pick(cx: &mut TestAppContext) {
     let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
     let record = seen.clone();
+    let changes = events();
+    let changed = changes.clone();
     let state = cx.new(|cx| InputState::new(cx));
     let state_for_view = state;
     let cx = open_host(cx, move || {
         let record = record.clone();
+        let changes = changes.clone();
         ComboBox::new(
             state_for_view.clone(),
             vec!["Typst".into(), "Rust".into(), "Go".into()],
         )
         .placeholder("Search")
+        .on_selection_change_all(move |keys, _, _| {
+            changes.borrow_mut().push(keys.len().to_string());
+        })
         .value_content(move |v: util::SelectionValue<'_>| {
             let items = v
                 .selected_items
@@ -343,6 +349,75 @@ fn combo_box_value_content_hands_placeholder_then_pick(cx: &mut TestAppContext) 
         last_string(&seen),
         "false|Typst|0|Typst",
         "the frame after the pick must see the chosen item"
+    );
+
+    click(cx, 60., 18.);
+    press(cx, "ctrl-a");
+    press(cx, "backspace");
+    flush_frame(cx);
+    assert_eq!(
+        last_string(&seen),
+        "true|||",
+        "clearing an uncontrolled ComboBox input must clear ComboBox.Value's selection"
+    );
+    assert_eq!(
+        changed.borrow().as_slice(),
+        ["0"],
+        "clearing the input must report the empty single selection"
+    );
+}
+
+/// Pinned React Stately reports `null` when a controlled ComboBox input is
+/// cleared, but leaves the selected value with its owner. The slice callback
+/// represents that null as an empty selection; the value slot must not change
+/// until the owner accepts the request.
+#[gpui::test]
+fn combo_box_controlled_value_content_waits_for_clear_owner(cx: &mut TestAppContext) {
+    let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    let record = seen.clone();
+    let changes = events();
+    let changed = changes.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    state.update(cx, |state, _| state.set_value("Typst"));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        let changes = changes.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Typst".into(), "Rust".into(), "Go".into()],
+        )
+        .selected_keys(["Typst".into()])
+        .on_selection_change_all(move |keys, _, _| {
+            changes.borrow_mut().push(keys.len().to_string());
+        })
+        .value_content(move |v: util::SelectionValue<'_>| {
+            record
+                .borrow_mut()
+                .push(format!("{}|{}", v.is_placeholder, v.selected_text));
+            v.default_children
+        })
+        .into_any_element()
+    });
+
+    assert_eq!(last_string(&seen), "false|Typst");
+    click(cx, 60., 18.);
+    press(cx, "ctrl-a");
+    press(cx, "backspace");
+    flush_frame(cx);
+    assert_eq!(
+        last_string(&seen),
+        "false|Typst",
+        "a controlled selection must stay owner-driven after the clear request"
+    );
+    assert_eq!(changed.borrow().as_slice(), ["0"]);
+
+    press(cx, "backspace");
+    flush_frame(cx);
+    assert_eq!(
+        changed.borrow().as_slice(),
+        ["0"],
+        "a no-op Backspace on an already empty input must not repeat the clear request"
     );
 }
 

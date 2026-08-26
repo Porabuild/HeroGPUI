@@ -176,7 +176,8 @@ impl ComboBox {
         self
     }
 
-    /// Reports the whole selection, for `selectionMode="multiple"`.
+    /// Reports the whole selection, including an empty single selection when
+    /// the input is cleared.
     pub fn on_selection_change_all(
         mut self,
         handler: impl Fn(&[SharedString], &mut Window, &mut App) + 'static,
@@ -743,11 +744,32 @@ impl RenderOnce for ComboBox {
         let menu_trigger_on_change = self.menu_trigger;
         let allows_empty_collection = self.allows_empty_collection;
         let was_open = open_state;
+        let selection_own_on_change = selection_own.clone();
+        let selected_on_change = self.selected_keys.clone();
+        let selection_mode_on_change = self.selection_mode;
+        let selection_change_on_input = self.on_selection_change_all.clone();
+        let input_value_on_change = raw_query.clone();
         input = input.on_change(move |text, window, cx| {
             if let Some(cb) = &input_change {
                 cb(text, window, cx);
             }
             cursor_on_change.update(cx, |v, _| *v = None);
+
+            if selection_mode_on_change == SelectionMode::Single
+                && !input_value_on_change.is_empty()
+                && text.is_empty()
+                && !selected_on_change.is_empty()
+            {
+                if let Some(held) = &selection_own_on_change {
+                    held.update(cx, |value, cx| {
+                        value.clear();
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &selection_change_on_input {
+                    cb(&[], window, cx);
+                }
+            }
 
             let query = text.to_lowercase();
             let has_matches = match &filter_on_change {

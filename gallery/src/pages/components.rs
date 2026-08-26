@@ -10335,6 +10335,11 @@ impl Gallery {
         let cb_picked = self.demo_text_value("cb-picked");
         let cb_typed = self.demo_text_value("cb-typed");
         let cb_multi = self.demo_selection("cb-multi");
+        let cb_value = self
+            .demo_selections
+            .get("cb-value")
+            .cloned()
+            .unwrap_or_else(|| vec![SharedString::from("Rust")]);
         component_doc_page!(
             "Combo Box",
             crate::pages::Page::ComboBox.description(),
@@ -10507,6 +10512,32 @@ impl Gallery {
                     .label("Languages")
                     .selection_mode(SelectionMode::Multiple)
                     .default_open(true)
+                    .into_any_element()]),
+                ),
+                (
+                    "Value Render Props",
+                    col(vec![h::ComboBox::new(
+                        self.demo_text("cb-value", "Rust", cx),
+                        languages(),
+                    )
+                    .label("Language")
+                    .selected_keys(cb_value.iter().cloned())
+                    .on_selection_change_all(cx.listener(
+                        |this, keys: &[SharedString], _, cx| {
+                            this.set_demo_selection("cb-value", keys.to_vec());
+                            cx.notify();
+                        },
+                    ))
+                    .value_content(|value| {
+                        if value.is_placeholder {
+                            gpui::div()
+                                .text_size(px(14.))
+                                .child("No language selected")
+                                .into_any_element()
+                        } else {
+                            value.default_children
+                        }
+                    })
                     .into_any_element()]),
                 ),
                 (
