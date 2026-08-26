@@ -2667,28 +2667,25 @@ impl Gallery {
                     "Custom Output Display",
                     col(vec![
                         para(
-                            "v3's `Slider.Output` takes a render prop. The value is the caller's \
-                             own state here, so the readout is drawn next to the slider.",
+                            "v3's `Slider.Output` takes a render prop. The closure receives every \
+                             live value and its formatted thumb label.",
                             cx,
                         ),
                         gpui::div()
-                            .flex()
-                            .items_center()
-                            .gap(px(16.))
+                            .w(px(320.))
                             .child(
-                                gpui::div().w(px(320.)).child(
-                                    h::Slider::new("sl-output", volume)
-                                        .label("Brightness")
-                                        .on_change(f32_cb(cx.listener(|this, v: &f32, _, cx| {
-                                            this.set_demo_value("sl-controlled", *v);
-                                            cx.notify();
-                                        }))),
-                                ),
-                            )
-                            .child(
-                                h::Chip::new(format!("{volume:.0}%"))
-                                    .variant(h::ChipVariant::Soft)
-                                    .color(Color::Accent),
+                                h::Slider::new("sl-output", volume)
+                                    .label("Brightness")
+                                    .output(|values, labels| {
+                                        h::Chip::new(format!("{:.0}% ({})", values[0], labels[0]))
+                                            .variant(h::ChipVariant::Soft)
+                                            .color(Color::Accent)
+                                            .into_any_element()
+                                    })
+                                    .on_change(f32_cb(cx.listener(|this, v: &f32, _, cx| {
+                                        this.set_demo_value("sl-controlled", *v);
+                                        cx.notify();
+                                    }))),
                             )
                             .into_any_element(),
                     ]),

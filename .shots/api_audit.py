@@ -241,9 +241,10 @@ ALIAS = {
     'Autocomplete.isPlaceholder': 'value_content',
     'Autocomplete.defaultChildren': 'value_content',
     'ComboBox.selectedItem': 'value_content',
-    # `getThumbValueLabel` formats one thumb's value; the thumb closure is handed
-    # the index and the value, so the caller formats it there.
-    'Slider.getThumbValueLabel': 'thumb',
+    # `Slider.Output` is handed each current value and the corresponding labels
+    # produced by `formatOptions`, so callers can address a thumb by index.
+    'Slider.values': 'output',
+    'Slider.getThumbValueLabel': 'output',
     # Taken positionally or by the state's constructor, so the prop exists --
     # it is just not spelled as a builder.
     'TagGroup.items': 'tags',

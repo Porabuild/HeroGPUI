@@ -29,8 +29,8 @@
 //!   (`Input::content` hands over the state's own handle). That is how the
 //!   values can change at all: a click on the replacement field focuses the
 //!   shared state handle, and the keyboard-visible flag comes from
-//!   `util::set_focus_visible`, the exact function the app root runs on a key
-//!   event (the harness root only moves focus on Tab). Every replacement field
+//!   `util::set_focus_visible`, which the real app focus root and the shared
+//!   harness root both run on a key event. Every replacement field
 //!   is 36px tall at the origin (`util::FIELD_HEIGHT`), so the click is at
 //!   (60, 18).
 //!
@@ -49,8 +49,9 @@ use std::rc::Rc;
 use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext, VisualTestContext};
 use herogpui_components::{
     util, Autocomplete, CloseButton, ColorChannel, ColorField, ColorSlider, ComboBox, DateField,
-    Input, InputState, Meter, NumberField, NumberState, PickerColor, ProgressBar, ProgressCircle,
-    SearchField, Select, SelectionMode, Switch, TextField, TimeField, TimeState,
+    Input, InputState, Meter, NumberField, NumberFormat, NumberState, PickerColor, ProgressBar,
+    ProgressCircle, SearchField, Select, SelectionMode, Slider, Switch, TextField, TimeField,
+    TimeState,
 };
 
 use harness::{click, events, open_host, press};
@@ -508,6 +509,49 @@ fn color_slider_output_hands_colour_and_text(cx: &mut TestAppContext) {
     );
 }
 
+#[gpui::test]
+fn slider_output_hands_formatted_range_and_live_values(cx: &mut TestAppContext) {
+    let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        gpui::div()
+            .w(px(600.))
+            .child(
+                Slider::new("slider-vc-output", 0.)
+                    .default_values([20., 80.])
+                    .format_options(NumberFormat::currency("USD"))
+                    .output(move |values, labels| {
+                        record.borrow_mut().push(format!(
+                            "{},{}|{}",
+                            values[0],
+                            values[1],
+                            labels.join(" \u{2013} ")
+                        ));
+                        gpui::div()
+                            .child(labels.join(" \u{2013} "))
+                            .into_any_element()
+                    }),
+            )
+            .into_any_element()
+    });
+
+    assert_eq!(
+        last_string(&seen),
+        "20,80|$20.00 \u{2013} $80.00",
+        "the output must receive every initial value and its formatted thumb label"
+    );
+
+    press(cx, "tab");
+    press(cx, "right");
+    flush_frame(cx);
+    assert_eq!(
+        last_string(&seen),
+        "21,80|$21.00 \u{2013} $80.00",
+        "stepping the focused thumb must update the output values and labels"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Switch.Content / CloseButton.Content
 // ---------------------------------------------------------------------------
@@ -674,16 +718,8 @@ fn switch_content_sees_focus_and_keyboard_toggle(cx: &mut TestAppContext) {
     flush_frame(cx);
     assert_eq!(
         *seen.borrow(),
-        (true, false, true),
-        "Tab must focus the track; without the keyboard flag there is no ring"
-    );
-
-    cx.update(|_, cx| util::set_focus_visible(true, cx));
-    flush_frame(cx);
-    assert_eq!(
-        *seen.borrow(),
         (true, true, true),
-        "the keyboard flag the app root sets must reach the closure"
+        "Tab must focus the track and report the app root's keyboard-visible flag"
     );
 
     press(cx, "space");
@@ -794,16 +830,8 @@ fn close_button_content_sees_focus_and_keyboard_flag(cx: &mut TestAppContext) {
     flush_frame(cx);
     assert_eq!(
         *seen.borrow(),
-        (true, false),
-        "Tab must focus the button; pointer-less focus has no ring"
-    );
-
-    cx.update(|_, cx| util::set_focus_visible(true, cx));
-    flush_frame(cx);
-    assert_eq!(
-        *seen.borrow(),
         (true, true),
-        "the keyboard flag must reach the closure's is_focus_visible"
+        "Tab must focus the button and report the app root's keyboard-visible flag"
     );
 }
 
@@ -847,8 +875,8 @@ where
         "a fresh field must report empty, and the closure must have run"
     );
 
-    // Click the replacement field: the shared state handle takes the focus.
-    // A pointer focus has no ring, so focus-visible stays off.
+    // The shared state handle takes focus. A click keeps focus-visible off;
+    // Tab records keyboard input at the app root and turns it on.
     match drive {
         FocusDrive::Click => {
             click(cx, 60., 18.);
@@ -861,19 +889,19 @@ where
     }
     assert_eq!(
         *seen.borrow().last().unwrap(),
-        (true, true, false),
-        "the drive must focus the field: is_focused and is_focus_within on, ring off"
+        (true, true, drive == FocusDrive::Tab),
+        "the drive must focus the field and report whether it came from the keyboard"
     );
 
-    // The keyboard flag is what the app root sets on a key event; the ring
-    // follows it while the field stays focused.
-    cx.update(|_, cx| util::set_focus_visible(true, cx));
-    flush_frame(cx);
-    assert_eq!(
-        *seen.borrow().last().unwrap(),
-        (true, true, true),
-        "a focused field whose last input was a key must report focus-visible"
-    );
+    if drive == FocusDrive::Click {
+        cx.update(|_, cx| util::set_focus_visible(true, cx));
+        flush_frame(cx);
+        assert_eq!(
+            *seen.borrow().last().unwrap(),
+            (true, true, true),
+            "a focused field whose last input was a key must report focus-visible"
+        );
+    }
 
     // The flag is a request: dropping it drops the ring, not the focus.
     cx.update(|_, cx| util::set_focus_visible(false, cx));

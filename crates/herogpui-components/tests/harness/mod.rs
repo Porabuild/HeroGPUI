@@ -30,6 +30,7 @@ use gpui::{
     point, prelude::*, px, AnyElement, Context, KeyUpEvent, Keystroke, Modifiers, Render,
     TestAppContext, VisualTestContext, Window,
 };
+use herogpui_components::util;
 use herogpui_theme::ThemeProvider;
 
 /// What the component callbacks recorded, cloned into each closure.
@@ -48,30 +49,8 @@ pub struct Host {
 
 impl Render for Host {
     fn render(&mut self, window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
-        // A minimal stand-in for `util::app_focus_root`: hold the focus when
-        // nothing else does — with no focus there is no key-event chain for the
-        // first Tab to travel down — and move it on Tab. gpui leaves both jobs
-        // to the app root; the gallery installs one, so the harness must too.
-        let root = window
-            .use_keyed_state(
-                gpui::ElementId::Name("host-focus-root".into()),
-                cx,
-                |_, cx| cx.focus_handle(),
-            )
-            .read(cx)
-            .clone();
-        if !root.contains_focused(window, cx) {
-            window.focus(&root);
-        }
-        gpui::div()
-            .track_focus(&root)
-            .on_key_down(|event, window, _| {
-                if event.keystroke.key == "tab" {
-                    window.focus_next();
-                }
-            })
-            .size_full()
-            .child((self.content)())
+        let root = gpui::div().size_full().child((self.content)());
+        util::app_focus_root(root, window, cx)
     }
 }
 

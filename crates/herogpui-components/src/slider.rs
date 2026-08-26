@@ -10,9 +10,27 @@ use herogpui_core::{Color, Orientation};
 use herogpui_theme::ActiveTheme;
 
 type Thumb = std::sync::Arc<dyn Fn(usize, f32) -> gpui::AnyElement + 'static>;
+type Output = std::sync::Arc<dyn Fn(&[f32], &[String]) -> gpui::AnyElement + 'static>;
 type OnChangeAll = std::sync::Arc<dyn Fn(&[f32], &mut Window, &mut App) + 'static>;
 
 type OnChange = std::sync::Arc<dyn Fn(f32, &mut Window, &mut App) + 'static>;
+
+fn format_value_labels(
+    values: &[f32],
+    format: Option<&herogpui_core::NumberFormat>,
+) -> Vec<String> {
+    values
+        .iter()
+        .map(|value| match format {
+            Some(format) => format.format(f64::from(*value)),
+            None => format!("{value}"),
+        })
+        .collect()
+}
+
+fn default_output(labels: &[String]) -> String {
+    labels.join(" \u{2013} ")
+}
 
 /// HeroUI Slider.
 #[derive(IntoElement)]
@@ -43,6 +61,8 @@ pub struct Slider {
     /// `children` on `Slider.Thumb` — v3's render prop, handed each thumb's
     /// `index` and value.
     thumb: Option<Thumb>,
+    /// `Slider.Output`'s render props: every value and its formatted label.
+    output: Option<Output>,
     on_change_all: Option<OnChangeAll>,
     on_change: Option<OnChange>,
     on_change_end: Option<OnChange>,
@@ -89,6 +109,7 @@ impl Slider {
             default_values: None,
             values: None,
             thumb: None,
+            output: None,
             on_change_all: None,
             on_change: None,
             on_change_end: None,
@@ -304,6 +325,16 @@ impl Slider {
     /// is always 0.
     pub fn thumb(mut self, render: impl Fn(usize, f32) -> gpui::AnyElement + 'static) -> Self {
         self.thumb = Some(std::sync::Arc::new(render));
+        self
+    }
+
+    /// `Slider.Output`'s render function — handed every current thumb value
+    /// and the corresponding labels produced by `formatOptions`.
+    pub fn output(
+        mut self,
+        render: impl Fn(&[f32], &[String]) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.output = Some(std::sync::Arc::new(render));
         self
     }
 
@@ -554,7 +585,8 @@ impl RenderOnce for Slider {
 
         // `.slider__output` is `text-sm font-medium tabular-nums` beside the
         // label; the two share the row above the track.
-        if self.label.is_some() || self.show_value {
+        let show_output = self.show_value || self.output.is_some();
+        if self.label.is_some() || show_output {
             el = el.child(
                 gpui::div()
                     .flex()
@@ -563,11 +595,15 @@ impl RenderOnce for Slider {
                     .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(colors.foreground)
                     .child(self.label.clone().unwrap_or_default())
-                    .when(self.show_value, |l| {
-                        l.child(match &self.format {
-                            Some(f) => f.format(value as f64),
-                            None => format!("{value}"),
-                        })
+                    .when(show_output, |l| {
+                        let formatted_values = format_value_labels(&thumbs, self.format.as_ref());
+                        let output = match &self.output {
+                            Some(render) => render(&thumbs, &formatted_values),
+                            None => gpui::div()
+                                .child(default_output(&formatted_values))
+                                .into_any_element(),
+                        };
+                        l.child(output)
                     }),
             );
         }
@@ -1201,4 +1237,16 @@ fn axis_fraction(pos: gpui::Point<gpui::Pixels>, bounds: Bounds<f32>, vertical: 
         return 0.0;
     }
     (reach / extent).clamp(0.0, 1.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{default_output, format_value_labels};
+
+    #[test]
+    fn range_output_formats_every_thumb_and_joins_the_labels() {
+        let format = herogpui_core::NumberFormat::currency("USD");
+        let labels = format_value_labels(&[20., 80.], Some(&format));
+        assert_eq!(default_output(&labels), "$20.00 \u{2013} $80.00");
+    }
 }

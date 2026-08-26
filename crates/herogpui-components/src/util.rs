@@ -763,6 +763,10 @@ where
 struct FocusVisible(bool);
 impl gpui::Global for FocusVisible {}
 
+#[derive(Default)]
+struct ActiveKeyboardPresses(Vec<(gpui::WindowId, String, gpui::WeakEntity<(bool, bool)>)>);
+impl gpui::Global for ActiveKeyboardPresses {}
+
 /// `[data-focus-visible]` — whether a focus ring should be showing.
 ///
 /// A browser rings a control focused by the keyboard and not one focused by a
@@ -819,7 +823,7 @@ pub struct InteractiveState {
     /// `isHovered` — the pointer is over the control. Known one frame late: gpui
     /// reports a hover to a *handler*, not to the render that draws it.
     pub is_hovered: bool,
-    /// `isPressed` — the pointer is down on it, likewise one frame late.
+    /// `isPressed` — the pointer or activation key is down, likewise one frame late.
     pub is_pressed: bool,
     /// `isFocused`
     pub is_focused: bool,
@@ -836,6 +840,17 @@ pub struct InteractiveState {
 
 /// Where a control keeps the hover and press it will report next frame.
 pub type Interaction = gpui::Entity<(bool, bool)>;
+
+fn has_active_keyboard_press(slot: &Interaction, window: &gpui::Window, cx: &App) -> bool {
+    let weak = slot.downgrade();
+    let window_id = window.window_handle().window_id();
+    cx.try_global::<ActiveKeyboardPresses>()
+        .is_some_and(|pressed| {
+            pressed.0.iter().any(|(active_window, _, interaction)| {
+                *active_window == window_id && interaction == &weak
+            })
+        })
+}
 
 /// The keyed `(hovered, pressed)` slot for one control.
 ///
@@ -854,12 +869,16 @@ where
     let hover = slot.clone();
     let down = slot.clone();
     let up = slot.clone();
+    let key_down = slot.clone();
+    let key_up = slot.clone();
     let outside_up = slot.clone();
     let release = gpui::canvas(
         |bounds, _, _| bounds,
         move |_, _, window, _| {
-            window.on_mouse_event(move |event: &gpui::MouseUpEvent, phase, _, cx| {
-                if phase == gpui::DispatchPhase::Capture && event.button == gpui::MouseButton::Left
+            window.on_mouse_event(move |event: &gpui::MouseUpEvent, phase, window, cx| {
+                if phase == gpui::DispatchPhase::Capture
+                    && event.button == gpui::MouseButton::Left
+                    && !has_active_keyboard_press(&outside_up, window, cx)
                 {
                     outside_up.update(cx, |state, cx| {
                         if state.1 {
@@ -890,13 +909,54 @@ where
             }
         });
     })
-    .on_mouse_up(gpui::MouseButton::Left, move |_, _, cx| {
-        up.update(cx, |state, cx| {
-            if state.1 {
-                state.1 = false;
-                cx.notify();
+    .on_mouse_up(gpui::MouseButton::Left, move |_, window, cx| {
+        if !has_active_keyboard_press(&up, window, cx) {
+            up.update(cx, |state, cx| {
+                if state.1 {
+                    state.1 = false;
+                    cx.notify();
+                }
+            });
+        }
+    })
+    .on_key_down(move |event, window, cx| {
+        if !event.is_held && matches!(event.keystroke.key.as_str(), "enter" | "space") {
+            let began = key_down.update(cx, |state, cx| {
+                if !state.1 {
+                    state.1 = true;
+                    cx.notify();
+                    true
+                } else {
+                    false
+                }
+            });
+            if began {
+                if cx.try_global::<ActiveKeyboardPresses>().is_none() {
+                    cx.set_global(ActiveKeyboardPresses::default());
+                }
+                let active = (
+                    window.window_handle().window_id(),
+                    event.keystroke.key.clone(),
+                    key_down.downgrade(),
+                );
+                cx.update_global::<ActiveKeyboardPresses, _>(|pressed, _| {
+                    pressed
+                        .0
+                        .retain(|(_, _, interaction)| interaction.upgrade().is_some());
+                    pressed.0.push(active);
+                });
             }
-        });
+        }
+    })
+    .on_key_up(move |event, _, cx| {
+        if matches!(event.keystroke.key.as_str(), "enter" | "space") {
+            key_up.update(cx, |state, cx| {
+                if state.1 {
+                    state.1 = false;
+                    cx.notify();
+                }
+            });
+        }
     })
     .child(release)
 }
@@ -948,6 +1008,39 @@ where
                 "tab" if event.keystroke.modifiers.shift => window.focus_prev(),
                 "tab" => window.focus_next(),
                 _ => {}
+            }
+        })
+        .on_key_up(|event, window, cx| {
+            if !matches!(event.keystroke.key.as_str(), "enter" | "space")
+                || cx.try_global::<ActiveKeyboardPresses>().is_none()
+            {
+                return;
+            }
+            let window_id = window.window_handle().window_id();
+            let key = event.keystroke.key.as_str();
+            let interactions = cx.update_global::<ActiveKeyboardPresses, _>(|pressed, _| {
+                let mut released = Vec::new();
+                pressed
+                    .0
+                    .retain(|(active_window, active_key, interaction)| {
+                        if *active_window == window_id && active_key == key {
+                            released.push(interaction.clone());
+                            false
+                        } else {
+                            interaction.upgrade().is_some()
+                        }
+                    });
+                released
+            });
+            for interaction in interactions {
+                if let Some(interaction) = interaction.upgrade() {
+                    interaction.update(cx, |state, cx| {
+                        if state.1 {
+                            state.1 = false;
+                            cx.notify();
+                        }
+                    });
+                }
             }
         })
 }

@@ -58,8 +58,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use gpui::{
-    point, prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, Modifiers, MouseButton,
-    TestAppContext, VisualTestContext,
+    point, prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, KeyDownEvent, KeyUpEvent,
+    Keystroke, Modifiers, MouseButton, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
     util, Alert, Button, ButtonGroup, Chip, CloseButton, Link, SelectionMode, ToggleButton,
@@ -756,6 +756,134 @@ fn button_content_render_prop_sees_press(cx: &mut TestAppContext) {
     );
 }
 
+#[gpui::test]
+fn button_content_render_prop_sees_keyboard_press(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new(false));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        gpui::div()
+            .child(Button::new("btn-key-state").full_width(true).content(
+                move |state: util::InteractiveState| {
+                    *record.borrow_mut() = state.is_pressed;
+                    gpui::div().child("state".to_owned()).into_any_element()
+                },
+            ))
+            .child(Button::new("btn-key-next").label("Next"))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    cx.simulate_keystrokes("enter");
+    flush_frame(cx);
+    assert!(
+        *seen.borrow(),
+        "the frame after Enter down must report the held keyboard press"
+    );
+
+    cx.simulate_keystrokes("tab");
+    flush_frame(cx);
+    cx.simulate_event(KeyUpEvent {
+        keystroke: Keystroke::parse("enter").unwrap(),
+    });
+    flush_frame(cx);
+    assert!(
+        !*seen.borrow(),
+        "the frame after Enter up must report the keyboard press lifted"
+    );
+
+    press(cx, "shift-tab");
+    cx.simulate_event(KeyDownEvent {
+        keystroke: Keystroke::parse("space").unwrap(),
+        is_held: true,
+    });
+    flush_frame(cx);
+    assert!(
+        !*seen.borrow(),
+        "a repeated Space without its first keydown must not begin a press"
+    );
+
+    cx.simulate_keystrokes("space");
+    flush_frame(cx);
+    assert!(
+        *seen.borrow(),
+        "the frame after Space down must report the held keyboard press"
+    );
+
+    cx.simulate_mouse_up(
+        point(px(4.), px(500.)),
+        MouseButton::Left,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert!(
+        *seen.borrow(),
+        "an unrelated mouse-up must not release a held keyboard press"
+    );
+
+    cx.simulate_event(KeyUpEvent {
+        keystroke: Keystroke::parse("space").unwrap(),
+    });
+    flush_frame(cx);
+    assert!(
+        !*seen.borrow(),
+        "the frame after Space up must report the keyboard press lifted"
+    );
+}
+
+#[gpui::test]
+fn button_content_render_prop_tracks_interleaved_keyboard_presses(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new((false, false)));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let first = record.clone();
+        let second = record.clone();
+        gpui::div()
+            .child(Button::new("btn-key-first").content(move |state| {
+                first.borrow_mut().0 = state.is_pressed;
+                gpui::div().child("first".to_owned()).into_any_element()
+            }))
+            .child(Button::new("btn-key-second").content(move |state| {
+                second.borrow_mut().1 = state.is_pressed;
+                gpui::div().child("second".to_owned()).into_any_element()
+            }))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    cx.simulate_keystrokes("enter");
+    flush_frame(cx);
+    cx.simulate_keystrokes("tab");
+    flush_frame(cx);
+    cx.simulate_keystrokes("space");
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (true, true),
+        "moving focus may begin a second press without losing the first key's release"
+    );
+
+    cx.simulate_event(KeyUpEvent {
+        keystroke: Keystroke::parse("space").unwrap(),
+    });
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (true, false),
+        "Space up must release only the matching second press"
+    );
+
+    cx.simulate_event(KeyUpEvent {
+        keystroke: Keystroke::parse("enter").unwrap(),
+    });
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (false, false),
+        "Enter up must still release the first press after focus moved"
+    );
+}
+
 /// A second component's render prop must survive a full pointer cycle too, so
 /// the single-hover-listener fix is not button-specific. `ToggleButton` takes
 /// the same `content` closure and hands `isSelected` over with the rest of
@@ -879,16 +1007,8 @@ fn toggle_button_content_render_prop_sees_focus_state(cx: &mut TestAppContext) {
     flush_frame(cx);
     assert_eq!(
         *seen.borrow(),
-        (true, false, false, true),
-        "keyboard focus must reach the content closure without changing selection"
-    );
-
-    cx.update(|_, cx| util::set_focus_visible(true, cx));
-    flush_frame(cx);
-    assert_eq!(
-        *seen.borrow(),
         (true, true, false, true),
-        "the app focus-visible flag must reach the focused toggle's content closure"
+        "keyboard focus and its visible flag must reach the closure without changing selection"
     );
 }
 
