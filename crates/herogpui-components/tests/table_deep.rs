@@ -671,3 +671,392 @@ fn table_escape_clears_a_non_empty_selection(cx: &mut TestAppContext) {
         "Escape must clear the table's non-empty selection"
     );
 }
+
+/// Pinned React Aria extends a multiple selection from the last toggled row
+/// when Shift is held during arrow navigation.
+#[gpui::test]
+fn table_shift_arrows_extend_and_reverse_from_selection_anchor(cx: &mut TestAppContext) {
+    let held = Rc::new(RefCell::new(Vec::<SharedString>::new()));
+    let held_for_view = held;
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let selected = held_for_view.borrow().clone();
+        let held = held_for_view.clone();
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-shift-extend")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .selected_keys(selected)
+            .keyed_row("alpha", vec![gpui::div().child("Alpha").into_any_element()])
+            .keyed_row("beta", vec![gpui::div().child("Beta").into_any_element()])
+            .keyed_row("gamma", vec![gpui::div().child("Gamma").into_any_element()])
+            .on_selection_change(move |keys, window, _| {
+                *held.borrow_mut() = keys.to_vec();
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+                window.refresh();
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab down space");
+    flush_frame(cx);
+    press(cx, "down shift-space");
+    flush_frame(cx);
+    press(cx, "shift-space");
+    flush_frame(cx);
+    press(cx, "up shift-up down");
+    flush_frame(cx);
+    press(cx, "shift-down");
+    flush_frame(cx);
+    press(cx, "shift-up");
+    flush_frame(cx);
+    press(cx, "down shift-enter");
+    flush_frame(cx);
+    press(cx, "ctrl-a");
+    flush_frame(cx);
+    press(cx, "shift-up");
+    flush_frame(cx);
+    press(cx, "ctrl-a");
+    flush_frame(cx);
+    press(cx, "shift-down");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [
+            "alpha",
+            "alpha,beta",
+            "alpha,beta,gamma",
+            "alpha,beta",
+            "alpha,beta,gamma",
+            "alpha,beta",
+            "alpha,beta,gamma",
+            "gamma",
+        ],
+        "Shift+Arrow must rebuild the range from the last toggled row"
+    );
+}
+
+/// Range extension uses the Table's own uncontrolled selection state and skips
+/// disabled rows inside the anchor-to-target span.
+#[gpui::test]
+fn table_uncontrolled_shift_range_skips_disabled_rows(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-shift-uncontrolled")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .disabled_keys([SharedString::from("beta")])
+            .keyed_row("alpha", vec![gpui::div().child("Alpha").into_any_element()])
+            .keyed_row("beta", vec![gpui::div().child("Beta").into_any_element()])
+            .keyed_row("gamma", vec![gpui::div().child("Gamma").into_any_element()])
+            .on_selection_change(move |keys, _, _| {
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab down space");
+    flush_frame(cx);
+    press(cx, "shift-down");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "alpha,gamma"],
+        "an uncontrolled Shift range must exclude disabled collection rows"
+    );
+}
+
+/// The pointer select-all control enters the same pinned `all` selection state
+/// as Mod+A, so the next Shift move collapses to its target row.
+#[gpui::test]
+fn table_header_select_all_resets_the_shift_range(cx: &mut TestAppContext) {
+    let held = Rc::new(RefCell::new(Vec::<SharedString>::new()));
+    let held_for_view = held;
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let selected = held_for_view.borrow().clone();
+        let held = held_for_view.clone();
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-header-all-range")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .selected_keys(selected)
+            .keyed_row("alpha", vec![gpui::div().child("Alpha").into_any_element()])
+            .keyed_row("beta", vec![gpui::div().child("Beta").into_any_element()])
+            .keyed_row("gamma", vec![gpui::div().child("Gamma").into_any_element()])
+            .on_selection_change(move |keys, window, _| {
+                *held.borrow_mut() = keys.to_vec();
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+                window.refresh();
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab down space");
+    flush_frame(cx);
+    click(cx, 22., 18.);
+    flush_frame(cx);
+    press(cx, "shift-tab shift-down");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "alpha,beta,gamma", "beta"],
+        "header select-all must not leave the previous row anchor active"
+    );
+}
+
+/// Home and End carry Shift range semantics only with the platform secondary
+/// modifier in pinned `useSelectableCollection`.
+#[gpui::test]
+fn table_shift_home_end_require_the_secondary_modifier(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-shift-home-end")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .keyed_row("alpha", vec![gpui::div().child("Alpha").into_any_element()])
+            .keyed_row("beta", vec![gpui::div().child("Beta").into_any_element()])
+            .keyed_row("gamma", vec![gpui::div().child("Gamma").into_any_element()])
+            .on_selection_change(move |keys, _, _| {
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab down space");
+    flush_frame(cx);
+    press(cx, "shift-end");
+    assert_eq!(recorded.borrow().as_slice(), ["alpha"]);
+    press(cx, "space");
+    flush_frame(cx);
+    press(cx, "ctrl-shift-home");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "alpha,gamma", "alpha,beta,gamma"],
+        "plain Shift+End must only move focus, while Ctrl+Shift+Home extends"
+    );
+}
+
+/// Pinned row presses route Shift+Click through `extendSelection`, preserving
+/// the anchor established by the prior toggle.
+#[gpui::test]
+fn table_shift_click_extends_from_the_selection_anchor(cx: &mut TestAppContext) {
+    let held = Rc::new(RefCell::new(Vec::<SharedString>::new()));
+    let held_for_view = held;
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let selected = held_for_view.borrow().clone();
+        let held = held_for_view.clone();
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-shift-click")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .selected_keys(selected)
+            .keyed_row("alpha", vec![gpui::div().child("Alpha").into_any_element()])
+            .keyed_row("beta", vec![gpui::div().child("Beta").into_any_element()])
+            .keyed_row("gamma", vec![gpui::div().child("Gamma").into_any_element()])
+            .on_selection_change(move |keys, window, _| {
+                *held.borrow_mut() = keys.to_vec();
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+                window.refresh();
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab down space");
+    flush_frame(cx);
+    let mut modifiers = gpui::Modifiers::none();
+    modifiers.shift = true;
+    cx.simulate_click(gpui::point(px(100.), px(100.)), modifiers);
+    flush_frame(cx);
+    cx.simulate_click(gpui::point(px(100.), px(100.)), modifiers);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "alpha,beta"],
+        "Shift+Click must extend rather than re-anchor and toggle"
+    );
+}
+
+/// Focus entry in pinned `useSelectableCollection` seats the cursor on the
+/// first row before the first arrow, so Shift+Down targets the second row.
+#[gpui::test]
+fn table_first_shift_down_starts_after_the_focused_first_row(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-first-shift-down")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .keyed_row("alpha", vec![gpui::div().child("Alpha").into_any_element()])
+            .keyed_row("beta", vec![gpui::div().child("Beta").into_any_element()])
+            .keyed_row("gamma", vec![gpui::div().child("Gamma").into_any_element()])
+            .on_selection_change(move |keys, _, _| {
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab shift-down");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["beta"],
+        "the first Shift+Down must move below the row focused on entry"
+    );
+}
+
+/// React Stately's raw `all` selection is idempotent even when no enabled key
+/// materializes into the port's selection slice.
+#[gpui::test]
+fn table_mod_a_is_idempotent_when_every_row_is_disabled(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-all-disabled")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .disabled_keys([SharedString::from("alpha"), SharedString::from("beta")])
+            .keyed_row("alpha", vec![gpui::div().child("Alpha").into_any_element()])
+            .keyed_row("beta", vec![gpui::div().child("Beta").into_any_element()])
+            .on_selection_change(move |keys, _, _| {
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab ctrl-a");
+    flush_frame(cx);
+    press(cx, "ctrl-a");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [""],
+        "repeated Mod+A over an empty selectable collection must report once"
+    );
+}
+
+/// Fresh focus starts on the first row, but End still moves to the last row;
+/// Shift alone changes focus without extending selection.
+#[gpui::test]
+fn table_first_shift_end_settles_on_the_last_row(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-first-shift-end")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .keyed_row("alpha", vec![gpui::div().child("Alpha").into_any_element()])
+            .keyed_row("beta", vec![gpui::div().child("Beta").into_any_element()])
+            .keyed_row("gamma", vec![gpui::div().child("Gamma").into_any_element()])
+            .on_selection_change(move |keys, _, _| {
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab shift-end");
+    assert!(recorded.borrow().is_empty());
+    press(cx, "space");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["gamma"],
+        "Shift+End must focus the last row without selecting on its own"
+    );
+}
+
+/// A controlled owner can replace a selection after Mod+A; the raw-all latch
+/// must then yield to the new prop value rather than swallowing the next Mod+A.
+#[gpui::test]
+fn table_controlled_replacement_clears_a_stale_mod_a_latch(cx: &mut TestAppContext) {
+    let held = Rc::new(RefCell::new(Vec::<SharedString>::new()));
+    let held_for_view = held.clone();
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let selected = held_for_view.borrow().clone();
+        let held = held_for_view.clone();
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-controlled-all-replacement")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .selected_keys(selected)
+            .keyed_row("alpha", vec![gpui::div().child("Alpha").into_any_element()])
+            .keyed_row("beta", vec![gpui::div().child("Beta").into_any_element()])
+            .on_selection_change(move |keys, window, _| {
+                *held.borrow_mut() = keys.to_vec();
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+                window.refresh();
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab ctrl-a");
+    flush_frame(cx);
+    *held.borrow_mut() = vec![SharedString::from("alpha")];
+    flush_frame(cx);
+    press(cx, "ctrl-a");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha,beta", "alpha,beta"],
+        "an owner replacement must make Mod+A selectable again"
+    );
+}

@@ -270,6 +270,13 @@ struct TableTypeahead {
     last: Option<std::time::Instant>,
 }
 
+#[derive(Clone, Debug, Default)]
+struct TableSelectionRange {
+    anchor: Option<SharedString>,
+    current: Option<SharedString>,
+    is_all: bool,
+}
+
 impl TableTypeahead {
     fn is_active(&self, now: std::time::Instant) -> bool {
         !self.query.is_empty()
@@ -398,6 +405,55 @@ fn select_all_flags(selectable: &[SharedString], selected: &[SharedString]) -> (
     let all_selected = !selectable.is_empty() && selected_count == selectable.len();
     let indeterminate = !selected.is_empty() && !all_selected;
     (all_selected, indeterminate)
+}
+
+fn same_selection(left: &[SharedString], right: &[SharedString]) -> bool {
+    left.len() == right.len()
+        && left.iter().collect::<std::collections::HashSet<_>>()
+            == right.iter().collect::<std::collections::HashSet<_>>()
+}
+
+fn extend_selection_range(
+    current: &[SharedString],
+    collection: &[SharedString],
+    selectable: &[SharedString],
+    range: &TableSelectionRange,
+    target: &SharedString,
+) -> Vec<SharedString> {
+    if range.is_all {
+        return vec![target.clone()];
+    }
+    let anchor = range.anchor.as_ref().unwrap_or(target);
+    let previous = range.current.as_ref().unwrap_or(target);
+    let mut anchor_at = None;
+    let mut previous_at = None;
+    let mut target_at = None;
+    for (index, key) in collection.iter().enumerate() {
+        anchor_at = anchor_at.or_else(|| (key == anchor).then_some(index));
+        previous_at = previous_at.or_else(|| (key == previous).then_some(index));
+        target_at = target_at.or_else(|| (key == target).then_some(index));
+    }
+    let between = |from: Option<usize>, to: Option<usize>| {
+        from.zip(to)
+            .map(|(from, to)| if from <= to { from..=to } else { to..=from })
+    };
+    let mut next = current.to_vec();
+    if let Some(previous_range) = between(anchor_at, previous_at) {
+        let removed: std::collections::HashSet<&SharedString> =
+            previous_range.map(|index| &collection[index]).collect();
+        next.retain(|key| !removed.contains(key));
+    }
+    if let Some(target_range) = between(anchor_at, target_at) {
+        let selectable: std::collections::HashSet<&SharedString> = selectable.iter().collect();
+        let mut selected: std::collections::HashSet<SharedString> = next.iter().cloned().collect();
+        for index in target_range {
+            let key = &collection[index];
+            if selectable.contains(key) && selected.insert(key.clone()) {
+                next.push(key.clone());
+            }
+        }
+    }
+    next
 }
 
 /// A column with a `defaultWidth` takes it; the rest split what is left.
@@ -846,6 +902,11 @@ impl RenderOnce for Table {
             cx,
             |_, _| None::<SharedString>,
         );
+        let selection_range = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{}-selection-range", self.id).into()),
+            cx,
+            |_, _| TableSelectionRange::default(),
+        );
         let typeahead = window.use_keyed_state(
             gpui::ElementId::Name(format!("{}-typeahead", self.id).into()),
             cx,
@@ -1149,6 +1210,7 @@ impl RenderOnce for Table {
                 let cb = self.on_selection_change.clone();
                 if cb.is_some() || selection_own.is_some() {
                     let selection_own = selection_own.clone();
+                    let selection_range = selection_range.clone();
                     box_el = box_el.on_change(move |_next, window, cx| {
                         // Anything short of everything selects everything.
                         let next: Vec<SharedString> = if all_selected {
@@ -1165,6 +1227,16 @@ impl RenderOnce for Table {
                         if let Some(cb) = &cb {
                             cb(&next, window, cx);
                         }
+                        selection_range.update(cx, |range, _| {
+                            *range = if all_selected {
+                                TableSelectionRange::default()
+                            } else {
+                                TableSelectionRange {
+                                    is_all: true,
+                                    ..TableSelectionRange::default()
+                                }
+                            };
+                        });
                     });
                 }
                 cell = cell.child(box_el);
@@ -1586,6 +1658,7 @@ impl RenderOnce for Table {
             on_expanded_change: self.on_expanded_change.clone(),
             on_selection_change: self.on_selection_change.clone(),
             selection_own: selection_own.clone(),
+            selection_range: selection_range.clone(),
             on_row_click: self.on_row_click.clone(),
             focus: table_focus.clone(),
             cursor_own: row_cursor.clone(),
@@ -1612,6 +1685,7 @@ impl RenderOnce for Table {
             let table_focus_for_keys = table_focus;
             let selection = self.on_selection_change.clone();
             let selection_own_for_keys = selection_own;
+            let selection_range_for_keys = selection_range;
             let selected_now = self.selected_keys.clone();
             let mode = self.selection_mode;
             let plain_rows = self.virtual_rows.is_none();
@@ -1731,9 +1805,13 @@ impl RenderOnce for Table {
                     {
                         let (all_selected, _) =
                             select_all_flags(&selectable_collection_keys, &selected_now);
+                        let materializes_all =
+                            same_selection(&selectable_collection_keys, &selected_now);
+                        let already_all = all_selected
+                            || (selection_range_for_keys.read(cx).is_all && materializes_all);
                         // Pinned React Stately's `selectAll` is idempotent once
                         // the whole selectable collection is already selected.
-                        if !all_selected {
+                        if !already_all {
                             let next = selectable_collection_keys.clone();
                             if let Some(held) = &selection_own_for_keys {
                                 held.update(cx, |value, cx| {
@@ -1744,6 +1822,12 @@ impl RenderOnce for Table {
                             if let Some(cb) = &selection {
                                 cb(&next, window, cx);
                             }
+                            selection_range_for_keys.update(cx, |range, _| {
+                                *range = TableSelectionRange {
+                                    is_all: true,
+                                    ..TableSelectionRange::default()
+                                };
+                            });
                         }
                         cx.stop_propagation();
                         return;
@@ -1768,6 +1852,9 @@ impl RenderOnce for Table {
                         if let Some(cb) = &selection {
                             cb(&next, window, cx);
                         }
+                        selection_range_for_keys.update(cx, |range, _| {
+                            *range = TableSelectionRange::default();
+                        });
                         cx.stop_propagation();
                         return;
                     }
@@ -1910,12 +1997,77 @@ impl RenderOnce for Table {
                         .or(variable_page_move)
                         .or(plain_page_move)
                         .filter(|next| Some(*next) != from);
-                    let navigation = page_move.map_or_else(
-                        || crate::list_nav::resolve(&stops, from, key_name, false),
-                        crate::list_nav::Move::To,
-                    );
+                    let initial_home_end_extends =
+                        !cfg!(target_os = "macos") && modifiers.secondary();
+                    let initial_shift_settle = from.is_none()
+                        && modifiers.shift
+                        && (key_name == "up"
+                            || (matches!(key_name, "home" | "end") && !initial_home_end_extends)
+                            || (key_name == "down" && stops.len() < 2));
+                    let navigation = if from.is_none() && modifiers.shift && key_name == "down" {
+                        stops
+                            .get(1)
+                            .or_else(|| stops.first())
+                            .copied()
+                            .map_or(crate::list_nav::Move::Ignore, crate::list_nav::Move::To)
+                    } else if initial_shift_settle {
+                        (if key_name == "end" {
+                            stops.last()
+                        } else {
+                            stops.first()
+                        })
+                        .copied()
+                        .map_or(crate::list_nav::Move::Ignore, crate::list_nav::Move::To)
+                    } else {
+                        page_move.map_or_else(
+                            || crate::list_nav::resolve(&stops, from, key_name, false),
+                            crate::list_nav::Move::To,
+                        )
+                    };
                     match navigation {
                         crate::list_nav::Move::To(next) => {
+                            let exact_shift_navigation = if cfg!(target_os = "macos") {
+                                !modifiers.control && !modifiers.platform && !modifiers.function
+                            } else {
+                                !modifiers.alt && !modifiers.platform && !modifiers.function
+                            };
+                            let extends_selection = modifiers.shift
+                                && mode == SelectionMode::Multiple
+                                && exact_shift_navigation
+                                && !initial_shift_settle
+                                && Some(next) != from
+                                && (!matches!(key_name, "home" | "end")
+                                    || (!cfg!(target_os = "macos") && modifiers.secondary()));
+                            if extends_selection {
+                                if let Some(target) = keys.get(next) {
+                                    let range = selection_range_for_keys.read(cx).clone();
+                                    let next_selection = extend_selection_range(
+                                        &selected_now,
+                                        &keys,
+                                        &selectable_collection_keys,
+                                        &range,
+                                        target,
+                                    );
+                                    selection_range_for_keys.update(cx, |range, _| {
+                                        if range.anchor.is_none() {
+                                            range.anchor = Some(target.clone());
+                                        }
+                                        range.current = Some(target.clone());
+                                        range.is_all = false;
+                                    });
+                                    if !same_selection(&next_selection, &selected_now) {
+                                        if let Some(held) = &selection_own_for_keys {
+                                            held.update(cx, |value, cx| {
+                                                *value = next_selection.clone();
+                                                cx.notify();
+                                            });
+                                        }
+                                        if let Some(cb) = &selection {
+                                            cb(&next_selection, window, cx);
+                                        }
+                                    }
+                                }
+                            }
                             held.update(cx, |v, cx| {
                                 *v = keys.get(next).cloned();
                                 cx.notify();
@@ -1957,20 +2109,63 @@ impl RenderOnce for Table {
                                 }
                                 RowIntent::Selection => {
                                     if let Some(key) = keys.get(index) {
-                                        let next = crate::selection::next_selection(
-                                            &selected_now,
-                                            key,
-                                            mode,
-                                            false,
-                                        );
-                                        if let Some(held) = &selection_own_for_keys {
-                                            held.update(cx, |value, cx| {
-                                                *value = next.clone();
-                                                cx.notify();
-                                            });
+                                        let was_selected = selected_now.contains(key);
+                                        let extends_selection =
+                                            modifiers.shift && mode == SelectionMode::Multiple;
+                                        let next = if extends_selection {
+                                            let range = selection_range_for_keys.read(cx).clone();
+                                            extend_selection_range(
+                                                &selected_now,
+                                                &keys,
+                                                &selectable_collection_keys,
+                                                &range,
+                                                key,
+                                            )
+                                        } else {
+                                            crate::selection::next_selection(
+                                                &selected_now,
+                                                key,
+                                                mode,
+                                                false,
+                                            )
+                                        };
+                                        let changed = !same_selection(&next, &selected_now);
+                                        if changed {
+                                            if let Some(held) = &selection_own_for_keys {
+                                                held.update(cx, |value, cx| {
+                                                    *value = next.clone();
+                                                    cx.notify();
+                                                });
+                                            }
+                                            if let Some(cb) = &selection {
+                                                cb(&next, window, cx);
+                                            }
                                         }
-                                        if let Some(cb) = &selection {
-                                            cb(&next, window, cx);
+                                        if extends_selection && changed {
+                                            selection_range_for_keys.update(cx, |range, _| {
+                                                if range.anchor.is_none() {
+                                                    range.anchor = Some(key.clone());
+                                                }
+                                                range.current = Some(key.clone());
+                                                range.is_all = false;
+                                            });
+                                        } else if !extends_selection
+                                            && mode == SelectionMode::Multiple
+                                            && !was_selected
+                                        {
+                                            selection_range_for_keys.update(cx, |range, _| {
+                                                range.anchor = Some(key.clone());
+                                                range.current = Some(key.clone());
+                                                range.is_all = false;
+                                            });
+                                        } else if !extends_selection
+                                            && mode == SelectionMode::Multiple
+                                        {
+                                            selection_range_for_keys.update(cx, |range, _| {
+                                                if range.is_all {
+                                                    *range = TableSelectionRange::default();
+                                                }
+                                            });
                                         }
                                     }
                                 }
@@ -2258,6 +2453,7 @@ struct RowCtx {
     on_expanded_change: Option<OnExpandedChange>,
     on_selection_change: Option<OnSelectionChange>,
     selection_own: Option<gpui::Entity<Vec<SharedString>>>,
+    selection_range: gpui::Entity<TableSelectionRange>,
     on_row_click: Option<OnRowClick>,
     focus: gpui::FocusHandle,
     cursor_own: gpui::Entity<Option<SharedString>>,
@@ -2329,6 +2525,7 @@ impl RowCtx {
                 let key2 = key.clone();
                 let mode = self.selection_mode;
                 let selection_own = self.selection_own.clone();
+                let selection_range = self.selection_range.clone();
                 box_el = box_el.on_change(move |_next, window, cx| {
                     cx.stop_propagation();
                     let next = crate::selection::next_selection(&current, &key2, mode, false);
@@ -2340,6 +2537,19 @@ impl RowCtx {
                     }
                     if let Some(cb) = &cb {
                         cb(&next, window, cx);
+                    }
+                    if mode == SelectionMode::Multiple && !is_selected {
+                        selection_range.update(cx, |range, _| {
+                            range.anchor = Some(key2.clone());
+                            range.current = Some(key2.clone());
+                            range.is_all = false;
+                        });
+                    } else if mode == SelectionMode::Multiple {
+                        selection_range.update(cx, |range, _| {
+                            if range.is_all {
+                                *range = TableSelectionRange::default();
+                            }
+                        });
                     }
                 });
             }
@@ -2453,6 +2663,14 @@ impl RowCtx {
         {
             let current = self.selected_keys.clone();
             let mode = self.selection_mode;
+            let selection_range = self.selection_range.clone();
+            let range_collection = self.row_keys.clone();
+            let range_selectable: Vec<SharedString> = self
+                .row_keys
+                .iter()
+                .filter(|key| !self.disabled_keys.contains(key))
+                .cloned()
+                .collect();
             let moved = self.cursor_own.clone();
             let focus = self.focus.clone();
             let focus_for_click = self.focus.clone();
@@ -2486,16 +2704,56 @@ impl RowCtx {
                             }
                         }
                         RowIntent::Selection => {
-                            let next =
-                                crate::selection::next_selection(&current, &key, mode, false);
-                            if let Some(held) = &selection_own {
-                                held.update(cx, |value, cx| {
-                                    *value = next.clone();
-                                    cx.notify();
-                                });
+                            let was_selected = current.contains(&key);
+                            let extends_selection =
+                                ev.modifiers().shift && mode == SelectionMode::Multiple;
+                            let next = if extends_selection {
+                                let range = selection_range.read(cx).clone();
+                                extend_selection_range(
+                                    &current,
+                                    &range_collection,
+                                    &range_selectable,
+                                    &range,
+                                    &key,
+                                )
+                            } else {
+                                crate::selection::next_selection(&current, &key, mode, false)
+                            };
+                            let changed = !same_selection(&next, &current);
+                            if changed {
+                                if let Some(held) = &selection_own {
+                                    held.update(cx, |value, cx| {
+                                        *value = next.clone();
+                                        cx.notify();
+                                    });
+                                }
+                                if let Some(cb) = &row_selection {
+                                    cb(&next, w, cx);
+                                }
                             }
-                            if let Some(cb) = &row_selection {
-                                cb(&next, w, cx);
+                            if extends_selection && changed {
+                                selection_range.update(cx, |range, _| {
+                                    if range.anchor.is_none() {
+                                        range.anchor = Some(key.clone());
+                                    }
+                                    range.current = Some(key.clone());
+                                    range.is_all = false;
+                                });
+                            } else if !extends_selection
+                                && mode == SelectionMode::Multiple
+                                && !was_selected
+                            {
+                                selection_range.update(cx, |range, _| {
+                                    range.anchor = Some(key.clone());
+                                    range.current = Some(key.clone());
+                                    range.is_all = false;
+                                });
+                            } else if !extends_selection && mode == SelectionMode::Multiple {
+                                selection_range.update(cx, |range, _| {
+                                    if range.is_all {
+                                        *range = TableSelectionRange::default();
+                                    }
+                                });
                             }
                         }
                         RowIntent::None => {}
