@@ -16,10 +16,10 @@ mod harness;
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use gpui::{
-    prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, TestAppContext, VisualTestContext,
-    WindowTextSystem,
+    prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, KeyDownEvent, Keystroke,
+    TestAppContext, VisualTestContext, WindowTextSystem,
 };
-use herogpui_components::{KeyboardActivation, Orientation, TabItem, Tabs, TabsVariant};
+use herogpui_components::{Button, KeyboardActivation, Orientation, TabItem, Tabs, TabsVariant};
 
 use harness::{click, events, open_host, press};
 
@@ -119,6 +119,229 @@ fn tabs_pointer_selection_hands_off_to_roving_keyboard_focus(cx: &mut TestAppCon
         selected.borrow().as_slice(),
         ["second", "third"],
         "Right after a pointer selection must continue from the pressed tab"
+    );
+}
+
+/// Pinned `useTabPanel` puts a selected panel with no tabbable child into the
+/// tab order. The second Tab therefore leaves the list, and arrow keys from
+/// the plain panel must not continue roving or selecting tabs.
+#[gpui::test]
+fn tabs_second_tab_lands_on_the_panel_and_mutes_arrows(cx: &mut TestAppContext) {
+    let recorded = events();
+    let selected = recorded.clone();
+    let after_presses = events();
+    let after = after_presses.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        let after_presses = after_presses.clone();
+        gpui::div()
+            .child(
+                Tabs::new(
+                    "tb-panel-stop",
+                    vec![
+                        TabItem::new("first", "First").content(gpui::div().child("First panel")),
+                        TabItem::new("second", "Second").content(gpui::div().child("Second panel")),
+                        TabItem::new("third", "Third").content(gpui::div().child("Third panel")),
+                    ],
+                    "first",
+                )
+                .on_selection_change(move |key, _, _| {
+                    recorded.borrow_mut().push(key.to_string());
+                }),
+            )
+            .child(
+                Button::new("tb-panel-after")
+                    .label("After tabs")
+                    .on_press(move |_, _, _| after_presses.borrow_mut().push("after".into())),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    assert!(
+        after.borrow().is_empty(),
+        "the second Tab must stop on the plain panel before the following button"
+    );
+    press(cx, "right");
+    assert!(
+        selected.borrow().is_empty(),
+        "the selected panel must own focus after the second Tab"
+    );
+
+    press(cx, "shift-tab");
+    press(cx, "right");
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["second"],
+        "reverse Tab from the panel must return to the roving list stop"
+    );
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        after.borrow().as_slice(),
+        ["after"],
+        "Tab from the plain panel must reach the following button"
+    );
+    press(cx, "shift-tab");
+    press(cx, "enter");
+    assert_eq!(
+        after.borrow().as_slice(),
+        ["after"],
+        "reverse Tab must leave the following button before the panel probe"
+    );
+    press(cx, "left");
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["second"],
+        "reverse Tab from the following control must stop on the plain panel"
+    );
+}
+
+/// A panel with a tabbable child is not itself a stop in pinned `useTabPanel`.
+/// The second Tab must reach that child directly rather than adding an extra
+/// wrapper stop before it.
+#[gpui::test]
+fn tabs_second_tab_enters_the_panels_first_tabbable_child(cx: &mut TestAppContext) {
+    let recorded = events();
+    let pressed = recorded.clone();
+    let cx = open_host(cx, move || {
+        let button_events = recorded.clone();
+        let selection_events = recorded.clone();
+        gpui::div()
+            .child(
+                Tabs::new(
+                    "tb-panel-child",
+                    vec![
+                        TabItem::new("first", "First").content(
+                            gpui::div().child(
+                                Button::new("tb-panel-button")
+                                    .label("Panel action")
+                                    .on_press(move |_, _, _| {
+                                        button_events.borrow_mut().push("pressed".into());
+                                    }),
+                            ),
+                        ),
+                        TabItem::new("second", "Second").content(gpui::div().child("Second panel")),
+                    ],
+                    "first",
+                )
+                .on_selection_change(move |key, _, _| {
+                    selection_events.borrow_mut().push(key.to_string());
+                }),
+            )
+            .child(Button::new("tb-panel-child-after").label("After tabs"))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        pressed.borrow().as_slice(),
+        ["pressed"],
+        "the first tabbable panel child must be the second stop"
+    );
+
+    press(cx, "tab");
+    press(cx, "shift-tab");
+    press(cx, "enter");
+    assert_eq!(
+        pressed.borrow().as_slice(),
+        ["pressed", "pressed"],
+        "reverse Tab from the following control must reach the panel child"
+    );
+
+    press(cx, "shift-tab");
+    press(cx, "right");
+    assert_eq!(
+        pressed.borrow().as_slice(),
+        ["pressed", "pressed", "second"],
+        "reverse Tab from the first panel child must return to the roving list stop"
+    );
+}
+
+/// A disabled tab list contributes no stop, but it does not disable the
+/// selected panel's own controls. Pinned `useTabPanel` therefore yields
+/// directly to the first tabbable panel child rather than its wrapper.
+#[gpui::test]
+fn tabs_all_disabled_enters_the_panels_first_tabbable_child(cx: &mut TestAppContext) {
+    let recorded = events();
+    let pressed = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        Tabs::new(
+            "tb-disabled-panel-child",
+            vec![TabItem::new("first", "First").content(
+                gpui::div().child(
+                    Button::new("tb-disabled-panel-button")
+                        .label("Panel action")
+                        .on_press(move |_, _, _| recorded.borrow_mut().push("pressed".into())),
+                ),
+            )],
+            "first",
+        )
+        .is_disabled(true)
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        pressed.borrow().as_slice(),
+        ["pressed"],
+        "the panel child must be the first stop when every tab is disabled"
+    );
+}
+
+/// Windows sends repeated Tab key-downs while the key is held and only one
+/// key-up at release. The synthetic wrapper must not add a repeat stop before
+/// the first real panel child.
+#[gpui::test]
+fn tabs_all_disabled_held_tab_advances_past_the_panel_child(cx: &mut TestAppContext) {
+    let recorded = events();
+    let pressed = recorded.clone();
+    let cx = open_host(cx, move || {
+        let child_events = recorded.clone();
+        let after_events = recorded.clone();
+        gpui::div()
+            .child(
+                Tabs::new(
+                    "tb-disabled-held-tab",
+                    vec![TabItem::new("first", "First").content(
+                        gpui::div().child(
+                            Button::new("tb-disabled-held-child")
+                                .label("Panel action")
+                                .on_press(move |_, _, _| {
+                                    child_events.borrow_mut().push("child".into());
+                                }),
+                        ),
+                    )],
+                    "first",
+                )
+                .is_disabled(true),
+            )
+            .child(
+                Button::new("tb-disabled-held-after")
+                    .label("After tabs")
+                    .on_press(move |_, _, _| after_events.borrow_mut().push("after".into())),
+            )
+            .into_any_element()
+    });
+
+    cx.simulate_keystrokes("tab");
+    cx.simulate_event(KeyDownEvent {
+        keystroke: Keystroke::parse("tab").expect("tab is a valid keystroke"),
+        is_held: true,
+    });
+    press(cx, "enter");
+    assert_eq!(
+        pressed.borrow().as_slice(),
+        ["after"],
+        "the first repeat must advance from the panel child to the following stop"
     );
 }
 

@@ -606,6 +606,17 @@ impl RenderOnce for Tabs {
                     cx,
                 )
             });
+        let active_idx = self.items.iter().position(|item| item.key == selected_key);
+        let active_has_content =
+            active_idx.is_some_and(|index| self.items[index].content.is_some());
+        let panel_focus = active_has_content.then(|| {
+            crate::util::tab_stop_handle(
+                gpui::ElementId::Name(format!("{base_id}-panel-focus").into()),
+                window,
+                cx,
+            )
+        });
+        let has_enabled_tab = !self.is_disabled && self.items.iter().any(|item| !item.is_disabled);
         let mut separator_motions = self
             .items
             .iter()
@@ -1025,9 +1036,28 @@ impl RenderOnce for Tabs {
             }
         }
 
+        if let Some(panel_focus) = panel_focus.clone() {
+            list = list.on_key_down(move |event, window, cx| {
+                if event.keystroke.key != "tab" || event.keystroke.modifiers.shift {
+                    return;
+                }
+                cx.stop_propagation();
+                crate::util::set_focus_visible(true, cx);
+                // The wrapper is a real stop so reverse traversal can reach a
+                // plain panel. Probe one stop past it: a child stays inside;
+                // otherwise reclaim the wrapper as the correct destination.
+                window.focus_next();
+                if panel_focus.is_focused(window) {
+                    window.focus_next();
+                }
+                if !panel_focus.contains_focused(window, cx) {
+                    window.focus(&panel_focus);
+                }
+            });
+        }
+
         // Active panel
         let mut items = self.items;
-        let active_idx = items.iter().position(|i| i.key == selected_key);
         // `.tabs__list-container` is `relative`, holds the scroller, and hangs
         // the two `size-4` chevrons off its edges -- `hidden` until there is
         // something to scroll to in that direction (`start-1`/`end-1`, centred
@@ -1188,6 +1218,11 @@ impl RenderOnce for Tabs {
 
         if let Some(idx) = active_idx {
             if let Some(content) = items.swap_remove(idx).content {
+                let panel_focus = panel_focus.expect("a rendered panel has a focus handle");
+                let panel_focus_for_keys = panel_focus.clone();
+                let panel_focus_for_key_up = panel_focus.clone();
+                let list_focus_for_panel = list_focus;
+                let probe_on_key_up = !has_enabled_tab;
                 // `.tabs__panel` is `w-full p-2`, with `mt-4` horizontally or
                 // `ms-4` vertically.
                 el = el.child(
@@ -1196,6 +1231,62 @@ impl RenderOnce for Tabs {
                         .p(px(8.))
                         .when(vertical, |panel| panel.ml(px(16.)))
                         .when(!vertical, |panel| panel.mt(px(16.)))
+                        .track_focus(&panel_focus)
+                        .on_key_down(move |event, window, cx| {
+                            if event.keystroke.key != "tab" {
+                                return;
+                            }
+                            if event.keystroke.modifiers.shift {
+                                cx.stop_propagation();
+                                crate::util::set_focus_visible(true, cx);
+                                // Skip the wrapper only from a real child stop.
+                                // A programmatically focused non-stop descendant
+                                // should land on it when moving backward.
+                                let skip_panel = !panel_focus_for_keys.is_focused(window)
+                                    && window.focused(cx).is_some_and(|handle| handle.tab_stop);
+                                window.focus_prev();
+                                if skip_panel && panel_focus_for_keys.is_focused(window) {
+                                    window.focus_prev();
+                                    if has_enabled_tab && !list_focus_for_panel.is_focused(window) {
+                                        window.focus(&list_focus_for_panel);
+                                    }
+                                }
+                            } else if probe_on_key_up
+                                && event.is_held
+                                && panel_focus_for_keys.is_focused(window)
+                            {
+                                // The first held repeat arrives before key-up
+                                // has removed the synthetic wrapper stop. Walk
+                                // the child it stands in for and then one real
+                                // step, skipping the wrapper again on wrap.
+                                cx.stop_propagation();
+                                window.focus_next();
+                                if panel_focus_for_keys.contains_focused(window, cx)
+                                    && !panel_focus_for_keys.is_focused(window)
+                                {
+                                    window.focus_next();
+                                    if panel_focus_for_keys.is_focused(window) {
+                                        window.focus_next();
+                                    }
+                                }
+                            }
+                        })
+                        .on_key_up(move |event, window, cx| {
+                            if !probe_on_key_up
+                                || event.keystroke.key != "tab"
+                                || event.keystroke.modifiers.shift
+                                || !panel_focus_for_key_up.is_focused(window)
+                            {
+                                return;
+                            }
+                            // An all-disabled list has no focused tab whose
+                            // key-down can run the forward probe. Tab key-up is
+                            // delivered to the wrapper it just reached.
+                            window.focus_next();
+                            if !panel_focus_for_key_up.contains_focused(window, cx) {
+                                window.focus(&panel_focus_for_key_up);
+                            }
+                        })
                         .child(content),
                 );
             }
