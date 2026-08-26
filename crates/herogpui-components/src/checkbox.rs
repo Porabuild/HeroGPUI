@@ -11,7 +11,7 @@ use herogpui_theme::ActiveTheme;
 
 use crate::icons;
 
-/// Field state handed to `Checkbox.Indicator`'s render function.
+/// Field state handed to Checkbox's children and indicator render functions.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct CheckboxState {
     pub is_selected: bool,
@@ -51,6 +51,8 @@ pub struct Checkbox {
     /// `Checkbox.Indicator` children — v3 swaps the glyph per field state,
     /// which is its "Custom Indicator" example.
     indicator: Option<Box<dyn Fn(CheckboxState) -> AnyElement + 'static>>,
+    /// Checkbox root children render function, handed the live field state.
+    content: Option<Box<dyn Fn(CheckboxState) -> AnyElement + 'static>>,
     /// A round control instead of `rounded-md`. v3's "Full Rounded" example
     /// does it with `className="rounded-full"` on `Checkbox.Control`.
     is_round: bool,
@@ -100,6 +102,13 @@ impl Checkbox {
         self
     }
 
+    /// Checkbox root children render function, handed the live field state.
+    /// Replaces labels and extended static children when set.
+    pub fn content(mut self, render: impl Fn(CheckboxState) -> AnyElement + 'static) -> Self {
+        self.content = Some(Box::new(render));
+        self
+    }
+
     /// A fully round control, which v3's "Full Rounded" example asks for with
     /// `rounded-full` on `Checkbox.Control`.
     pub fn is_round(mut self, v: bool) -> Self {
@@ -135,6 +144,7 @@ impl Checkbox {
             is_invalid: false,
             variant: herogpui_core::FieldVariant::Primary,
             indicator: None,
+            content: None,
             is_round: false,
             description: None,
             error_message: None,
@@ -352,7 +362,7 @@ impl RenderOnce for Checkbox {
         let (box_px, icon_px, text) = (px(16.), px(12.), px(14.));
 
         let active = checked || self.is_indeterminate;
-        let indicator_state = CheckboxState {
+        let checkbox_state = CheckboxState {
             is_selected: checked,
             is_indeterminate: self.is_indeterminate,
             is_disabled: self.is_disabled,
@@ -410,7 +420,7 @@ impl RenderOnce for Checkbox {
         // A caller-drawn indicator replaces both marks, the way
         // `Checkbox.Indicator`'s render prop does.
         if let Some(render) = &self.indicator {
-            boxel = boxel.child(render(indicator_state));
+            boxel = boxel.child(render(checkbox_state));
         } else if self.is_indeterminate {
             boxel = boxel.child(
                 gpui::div()
@@ -436,6 +446,9 @@ impl RenderOnce for Checkbox {
             cx,
         );
 
+        let children = self
+            .content
+            .map_or(self.children, |render| vec![render(checkbox_state)]);
         let row = gpui::div()
             .id(self.id.clone())
             .when(!self.is_disabled, |el| el.track_focus(&focus_handle))
@@ -448,7 +461,7 @@ impl RenderOnce for Checkbox {
             })
             .children(
                 std::iter::once(boxel.into_any_element())
-                    .chain(self.children)
+                    .chain(children)
                     .chain(self.is_required.then(|| {
                         gpui::div()
                             .text_color(colors.danger.color)

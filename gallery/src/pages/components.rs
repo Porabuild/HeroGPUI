@@ -5424,15 +5424,19 @@ impl Gallery {
                     "Render Props",
                     col(vec![h::Checkbox::new("cb-render")
                         .is_selected(cb_controlled)
-                        .label(gpui::div().child(if cb_controlled {
-                            "Terms accepted"
-                        } else {
-                            "Accept terms"
-                        }))
                         .on_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                             this.set_demo_flag("cb-controlled", *v);
                             cx.notify();
                         })))
+                        .content(|state| {
+                            gpui::div()
+                                .child(if state.is_selected {
+                                    "Terms accepted"
+                                } else {
+                                    "Accept terms"
+                                })
+                                .into_any_element()
+                        })
                         .into_any_element()]),
                 ),
                 (

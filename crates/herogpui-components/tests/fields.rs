@@ -47,16 +47,16 @@
 
 mod harness;
 
-use std::collections::HashSet;
+use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
 use gpui::{prelude::*, px, SharedString, TestAppContext};
 use herogpui_components::{
-    Button, Checkbox, CheckboxGroup, CheckboxOption, Form, FormData, FormField, Input, InputState,
-    NumberField, NumberState, RadioGroup, RadioOption, Switch, SwitchGroup, Time, TimeField,
-    TimeState,
+    Button, Checkbox, CheckboxGroup, CheckboxOption, CheckboxState, Form, FormData, FormField,
+    Input, InputState, NumberField, NumberState, RadioGroup, RadioOption, Switch, SwitchGroup,
+    Time, TimeField, TimeState,
 };
 
-use harness::{click, events, open_host, press};
+use harness::{click, events, open_host, press, Events};
 
 /// The keys of a selection joined in a stable order.
 ///
@@ -66,6 +66,18 @@ fn sorted_join(keys: &HashSet<SharedString>) -> String {
     let mut keys: Vec<String> = keys.iter().map(ToString::to_string).collect();
     keys.sort();
     keys.join(",")
+}
+
+fn record_checkbox_state(states: &Events, state: CheckboxState) {
+    states.borrow_mut().push(format!(
+        "{}|{}|{}|{}|{}|{}",
+        state.is_selected,
+        state.is_indeterminate,
+        state.is_disabled,
+        state.is_read_only,
+        state.is_invalid,
+        state.is_required
+    ));
 }
 
 /// A submission rendered the way the gallery's own Form demo renders it:
@@ -170,15 +182,7 @@ fn checkbox_indicator_receives_distinct_field_state(cx: &mut TestAppContext) {
                     .is_invalid(true)
                     .is_required(true)
                     .indicator(move |state| {
-                        indeterminate_states.borrow_mut().push(format!(
-                            "{}|{}|{}|{}|{}|{}",
-                            state.is_selected,
-                            state.is_indeterminate,
-                            state.is_disabled,
-                            state.is_read_only,
-                            state.is_invalid,
-                            state.is_required
-                        ));
+                        record_checkbox_state(&indeterminate_states, state);
                         gpui::div().into_any_element()
                     }),
             )
@@ -186,15 +190,7 @@ fn checkbox_indicator_receives_distinct_field_state(cx: &mut TestAppContext) {
                 Checkbox::new("cb-indicator-selected")
                     .default_selected(true)
                     .indicator(move |state| {
-                        selected_states.borrow_mut().push(format!(
-                            "{}|{}|{}|{}|{}|{}",
-                            state.is_selected,
-                            state.is_indeterminate,
-                            state.is_disabled,
-                            state.is_read_only,
-                            state.is_invalid,
-                            state.is_required
-                        ));
+                        record_checkbox_state(&selected_states, state);
                         gpui::div().into_any_element()
                     }),
             )
@@ -213,6 +209,95 @@ fn checkbox_indicator_receives_distinct_field_state(cx: &mut TestAppContext) {
             .iter()
             .any(|state| state == "true|false|false|false|false|false"),
         "a selected indicator must receive selection without inventing indeterminate state"
+    );
+}
+
+/// Pinned HeroUI v3.2.4 calls Checkbox root children with the live
+/// `CheckboxFieldRenderProps`, not an owner-derived snapshot.
+#[gpui::test]
+fn checkbox_content_receives_live_field_state(cx: &mut TestAppContext) {
+    let states = events();
+    let recorded = states.clone();
+    let cx = open_host(cx, move || {
+        let states = states.clone();
+        Checkbox::new("cb-content-state")
+            .is_indeterminate(true)
+            .is_invalid(true)
+            .is_required(true)
+            .label(
+                gpui::div()
+                    .debug_selector(|| "cb-static-label".to_owned())
+                    .child("Static label"),
+            )
+            .content(move |state| {
+                record_checkbox_state(&states, state);
+                gpui::div()
+                    .debug_selector(|| "cb-live-content".to_owned())
+                    .child("Live state")
+                    .into_any_element()
+            })
+            .into_any_element()
+    });
+
+    click(cx, 8., 11.);
+    assert!(
+        cx.debug_bounds("cb-static-label").is_none(),
+        "functional root content must replace static children"
+    );
+    assert!(
+        cx.debug_bounds("cb-live-content").is_some(),
+        "the replacement assertion requires painted functional content"
+    );
+    let recorded = recorded.borrow();
+    assert!(
+        recorded
+            .iter()
+            .any(|state| state == "false|true|false|false|true|true"),
+        "root content must receive the initial field state"
+    );
+    assert!(
+        recorded
+            .iter()
+            .any(|state| state == "true|true|false|false|true|true"),
+        "uncontrolled selection must rerender root content with the live state"
+    );
+}
+
+#[gpui::test]
+fn checkbox_controlled_content_rerenders_after_owner_accepts_change(cx: &mut TestAppContext) {
+    let for_view_selected = Rc::new(RefCell::new(false));
+    let states = events();
+    let recorded = states.clone();
+    let cx = open_host(cx, move || {
+        let selected_value = *for_view_selected.borrow();
+        let selected = for_view_selected.clone();
+        let states = states.clone();
+        Checkbox::new("cb-controlled-content-state")
+            .is_selected(selected_value)
+            .on_change(move |next, window, _| {
+                *selected.borrow_mut() = next;
+                window.refresh();
+            })
+            .content(move |state| {
+                record_checkbox_state(&states, state);
+                gpui::div().child("Controlled state").into_any_element()
+            })
+            .into_any_element()
+    });
+
+    click(cx, 8., 11.);
+    let recorded = recorded.borrow();
+    assert!(
+        recorded
+            .iter()
+            .any(|state| state == "false|false|false|false|false|false"),
+        "controlled content must receive the owner's initial value"
+    );
+    assert!(
+        recorded
+            .iter()
+            .any(|state| state == "true|false|false|false|false|false"),
+        "controlled content must rerender after the owner accepts the reported change"
     );
 }
 
