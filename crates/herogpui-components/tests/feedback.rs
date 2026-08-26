@@ -782,7 +782,8 @@ fn progress_circle_format_options_change_the_value_text(cx: &mut TestAppContext)
 /// closure an *empty* value text — React Aria generates no value label at all
 /// while `isIndeterminate` is set. The closure still runs (a "Loading…"
 /// renderer draws its own text), proving the empty string is the contract,
-/// not a missing call.
+/// not a missing call. A nonzero stored value keeps the percentage assertion
+/// from passing vacuously.
 #[gpui::test]
 fn progress_bar_indeterminate_reports_no_value_text(cx: &mut TestAppContext) {
     let seen = events();
@@ -790,6 +791,7 @@ fn progress_bar_indeterminate_reports_no_value_text(cx: &mut TestAppContext) {
     open_host(cx, move || {
         let record = record.clone();
         ProgressBar::new()
+            .value(73.0)
             .is_indeterminate(true)
             .show_value_label(true)
             .value_content(move |percentage, text| {

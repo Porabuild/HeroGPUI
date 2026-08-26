@@ -159,6 +159,11 @@ impl RenderOnce for ProgressBar {
                     SharedString::from(format.format(n))
                 }
             });
+            let percentage = if self.is_indeterminate {
+                0.0
+            } else {
+                fraction * 100.
+            };
             el = el.child(
                 gpui::div()
                     .flex()
@@ -167,8 +172,9 @@ impl RenderOnce for ProgressBar {
                     .text_color(colors.foreground)
                     .child(self.label.clone().unwrap_or_default())
                     .when(self.show_value, |l| match &self.value_content {
-                        // `percentage` is 0-100, as v3 passes it.
-                        Some(render) => l.child(render(fraction * 100., &value_text)),
+                        // `percentage` is 0-100, with 0 standing in for v3's
+                        // undefined indeterminate percentage.
+                        Some(render) => l.child(render(percentage, &value_text)),
                         None => l.child(value_text.to_string()),
                     }),
             );
