@@ -1437,6 +1437,10 @@ impl RenderOnce for Table {
             let selected_now = self.selected_keys.clone();
             let mode = self.selection_mode;
             let fixed_virtual = self.row_height.is_some() && self.virtual_rows.is_some();
+            let fixed_page_step = self.row_height.filter(|_| fixed_virtual).map(|row_height| {
+                let viewport_height = f32::from(self.max_h.unwrap_or(px(400.)));
+                ((viewport_height / f32::from(row_height)).ceil() as usize).saturating_sub(1)
+            });
             let fixed_scroll = virtual_scroll_now.clone();
             let variable_scroll = virtual_list_state.clone();
             let expanded = expanded_keys;
@@ -1566,12 +1570,33 @@ impl RenderOnce for Table {
                             }
                         }
                     }
-                    match crate::list_nav::resolve(
-                        &stops,
-                        from,
-                        event.keystroke.key.as_str(),
-                        false,
-                    ) {
+                    let page_move =
+                        from.zip(fixed_page_step)
+                            .and_then(|(from, step)| match key_name {
+                                "pagedown" => {
+                                    let boundary = from.saturating_add(step).min(keys.len() - 1);
+                                    stops
+                                        .iter()
+                                        .copied()
+                                        .find(|stop| *stop >= boundary)
+                                        .or_else(|| stops.last().copied())
+                                }
+                                "pageup" => {
+                                    let boundary = from.saturating_sub(step);
+                                    stops
+                                        .iter()
+                                        .rev()
+                                        .copied()
+                                        .find(|stop| *stop <= boundary)
+                                        .or_else(|| stops.first().copied())
+                                }
+                                _ => None,
+                            });
+                    let navigation = page_move.map_or_else(
+                        || crate::list_nav::resolve(&stops, from, key_name, false),
+                        crate::list_nav::Move::To,
+                    );
+                    match navigation {
                         crate::list_nav::Move::To(next) => {
                             held.update(cx, |v, cx| {
                                 *v = keys.get(next).cloned();

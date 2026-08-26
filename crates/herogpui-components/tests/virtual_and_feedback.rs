@@ -500,6 +500,52 @@ fn virtual_table_arrows_scroll_the_focused_row_into_view(cx: &mut TestAppContext
     );
 }
 
+/// Pinned React Aria's `GridKeyboardDelegate` moves PageUp/PageDown by one
+/// visible rectangle. With 40px rows in a 160px viewport, row 2 pages to row
+/// 5, then row 8, and PageUp returns to row 5.
+#[gpui::test]
+fn fixed_height_virtual_table_page_keys_move_one_viewport(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("vt-page-keys")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .virtual_rows(
+                20,
+                "virtual-page-key-users",
+                |i| format!("key-{i:02}").into(),
+                |i| {
+                    TableRow::new(vec![gpui::div()
+                        .child(format!("Row {i}"))
+                        .into_any_element()])
+                },
+            )
+            .row_height(px(40.))
+            .max_h(px(160.))
+            .on_row_click(move |i, _, _, _| recorded.borrow_mut().push(format!("row-{i}")))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    for _ in 0..3 {
+        press(cx, "down");
+    }
+    press(cx, "pagedown");
+    press(cx, "enter");
+    press(cx, "pagedown");
+    press(cx, "enter");
+    press(cx, "pageup");
+    press(cx, "enter");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row-5", "row-8", "row-5"],
+        "PageDown and PageUp must move by one virtual viewport"
+    );
+}
+
 /// `estimatedRowHeight` takes the `gpui::list` path, which measures *each*
 /// built row instead of multiplying one. Rows of two real heights — 45px and
 /// 85px — must lay out without overlapping: a click aimed mid-way down a tall
