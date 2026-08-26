@@ -32,9 +32,10 @@ something:
   crate inherits it with `lints.workspace = true`. A crate that forgets that
   line silently opts out of everything, which is why `.shots/lint.ps1` checks
   for it *before* running clippy.
-- `clippy.toml` carries `msrv`, which mirrors `rust-version = "1.87"` in the
-  manifest. That number is read off the code, not chosen: `u64::is_multiple_of`
-  (`format.rs`, `range_calendar.rs`) is stable since 1.87.
+- `clippy.toml` carries `msrv`, which mirrors `rust-version = "1.98"` in the
+  manifest. This unpublished pre-1.0 workspace tracks the stable toolchain
+  pinned in `rust-toolchain.toml` rather than carrying an older compatibility
+  floor.
 
 Run the gate with `.shots/lint.ps1`; it is `cargo clippy --workspace
 --all-targets -- -D warnings` plus the inheritance check. `--all-targets`
