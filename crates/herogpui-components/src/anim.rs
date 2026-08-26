@@ -34,6 +34,16 @@ pub const TRANSITION_MS: u64 = 100;
 /// timeline, so [`pressed`] arrives in one frame. See the note there.
 pub const PRESS_MS: u64 = 250;
 
+/// `progress-bar-indeterminate`: one sweep every 1.5 seconds.
+pub const PROGRESS_BAR_INDETERMINATE_MS: u64 = 1500;
+/// `.progress-bar__fill` width transition duration.
+pub const PROGRESS_BAR_FILL_MS: u64 = 300;
+
+/// v3's indeterminate ProgressBar curve.
+pub fn progress_bar_indeterminate_ease() -> impl Fn(f32) -> f32 {
+    |t| cubic_bezier(0.65, 0.0, 0.35, 1.0, t)
+}
+
 /// `@keyframes progress-circle-spin`: one linear turn per second.
 pub const PROGRESS_CIRCLE_SPIN_MS: u64 = 1000;
 

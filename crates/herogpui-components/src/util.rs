@@ -58,6 +58,12 @@ pub fn hairline_radius(cx: &App) -> Pixels {
     layout.capped(layout.radius_sm())
 }
 
+/// `rounded-xs` — the small ProgressBar track.
+pub fn micro_radius(cx: &App) -> Pixels {
+    let layout = cx.layout();
+    layout.capped(layout.radius_xs())
+}
+
 /// Corner radius of a form field — `--field-radius`.
 pub fn field_radius(cx: &App) -> Pixels {
     let layout = cx.layout();

@@ -344,7 +344,8 @@ describe -- the builder takes a closure and hands the values over:
 | Tag children | `tag_content(\|tag, state\|)` |
 | Radio children | `option_content(\|label, state\|)` |
 | Calendar.Cell / RangeCalendar.Cell | `cell(\|state\|)` |
-| ProgressBar / Meter / ProgressCircle ValueLabel | `value_content(\|percentage, text\|)` |
+| ProgressBar / ProgressCircle ValueLabel | `value_content(\|percentage, text, is_indeterminate\|)` |
+| Meter ValueLabel | `value_content(\|percentage, text\|)` |
 | ColorSlider.Output | `output(\|color, text\|)` |
 
 `util::InteractiveState` is the state struct, and two of its fields cost a frame:

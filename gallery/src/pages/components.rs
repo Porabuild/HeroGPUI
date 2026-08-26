@@ -4863,7 +4863,7 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    col(vec![h::Meter::new(value)
+                    col(vec![h::Meter::new("meter-usage", value)
                         .label("Disk usage")
                         .show_value(true)
                         .into_any_element()]),
@@ -4872,23 +4872,27 @@ impl Gallery {
                     "Colors",
                     col(Color::ALL
                         .iter()
-                        .map(|c| h::Meter::new(value).color(*c))
+                        .enumerate()
+                        .map(|(index, c)| h::Meter::new(("meter-color", index), value).color(*c))
                         .els()),
                 ),
                 (
                     "Sizes",
                     col(Size::ALL
                         .iter()
-                        .map(|s| h::Meter::new(value).size(*s))
+                        .enumerate()
+                        .map(|(index, s)| h::Meter::new(("meter-size", index), value).size(*s))
                         .els()),
                 ),
                 (
                     "Without Label",
-                    col(vec![h::Meter::new(value).into_any_element()]),
+                    col(vec![
+                        h::Meter::new("meter-no-label", value).into_any_element()
+                    ]),
                 ),
                 (
                     "Custom Value Scale",
-                    col(vec![h::Meter::new(320.)
+                    col(vec![h::Meter::new("meter-custom-scale", 320.)
                         .min_value(0.)
                         .max_value(500.)
                         .label("Storage")
@@ -4909,7 +4913,7 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    col(vec![h::ProgressBar::new()
+                    col(vec![h::ProgressBar::new("progress-usage")
                         .value(65.0)
                         .label("Uploading")
                         .show_value_label(true)
@@ -4919,21 +4923,26 @@ impl Gallery {
                     "Colors",
                     col(Color::ALL
                         .iter()
-                        .map(|c| h::ProgressBar::new().value(65.0).color(*c))
+                        .enumerate()
+                        .map(|(index, c)| {
+                            h::ProgressBar::new(("progress-color", index))
+                                .value(65.0)
+                                .color(*c)
+                        })
                         .els()),
                 ),
                 (
                     "Sizes",
                     col(vec![
-                        h::ProgressBar::new()
+                        h::ProgressBar::new("progress-size-sm")
                             .value(40.0)
                             .size(Size::Sm)
                             .into_any_element(),
-                        h::ProgressBar::new()
+                        h::ProgressBar::new("progress-size-md")
                             .value(60.0)
                             .size(Size::Md)
                             .into_any_element(),
-                        h::ProgressBar::new()
+                        h::ProgressBar::new("progress-size-lg")
                             .value(80.0)
                             .size(Size::Lg)
                             .into_any_element(),
@@ -4941,18 +4950,20 @@ impl Gallery {
                 ),
                 (
                     "Without Label",
-                    col(vec![h::ProgressBar::new().value(65.0).into_any_element()]),
+                    col(vec![h::ProgressBar::new("progress-no-label")
+                        .value(65.0)
+                        .into_any_element()]),
                 ),
                 (
                     "Indeterminate",
-                    col(vec![h::ProgressBar::new()
+                    col(vec![h::ProgressBar::new("progress-indeterminate")
                         .is_indeterminate(true)
                         .label("Uploading")
                         .into_any_element()]),
                 ),
                 (
                     "Custom Value Scale",
-                    col(vec![h::ProgressBar::new()
+                    col(vec![h::ProgressBar::new("progress-custom-scale")
                         .value(320.0)
                         .min_value(0.0)
                         .max_value(500.0)

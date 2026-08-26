@@ -835,8 +835,26 @@ CHECKS = [
      '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
     ('tabs', '.tabs', 'gap', 'Tabs root gap', SRC + 'tabs.rs',
      r'let mut el = gpui::div\(\)[\s\S]{0,220}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
-    ('progress-bar', '.progress-bar__track', 'radius', 'ProgressBar track', SRC + 'progress.rs',
-     '\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
+    ('progress-bar', '.progress-bar__track', 'h', 'ProgressBar md track', SRC + 'progress.rs',
+     r'let \(h, radius\) = match self\.size \{[\s\S]{0,300}?'
+     r'Size::Md => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('progress-bar', '.progress-bar__track', 'radius', 'ProgressBar md radius',
+     SRC + 'progress.rs',
+     r'Size::Md => \(px\(8\.\), crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('progress-bar', '.progress-bar--sm .progress-bar__track', 'h',
+     'ProgressBar sm track', SRC + 'progress.rs',
+     r'let \(h, radius\) = match self\.size \{[\s\S]{0,300}?'
+     r'Size::Sm => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('progress-bar', '.progress-bar--sm .progress-bar__track', 'radius',
+     'ProgressBar sm radius', SRC + 'progress.rs',
+     r'Size::Sm => \(px\(4\.\), crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('progress-bar', '.progress-bar--lg .progress-bar__track', 'h',
+     'ProgressBar lg track', SRC + 'progress.rs',
+     r'let \(h, radius\) = match self\.size \{[\s\S]{0,300}?'
+     r'Size::Lg => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('progress-bar', '.progress-bar--lg .progress-bar__track', 'radius',
+     'ProgressBar lg radius', SRC + 'progress.rs',
+     r'Size::Lg => \(px\(12\.\), crate::util::(\w+_radius)\(cx\)\)', helper_px),
     ('progress-circle', '.progress-circle__track', 'size', 'ProgressCircle md',
      SRC + 'progress.rs',
      r'pub fn size\(mut self, s: Size\) -> Self \{\s*self\.size_px = match s \{[\s\S]{0,200}?'
@@ -996,11 +1014,21 @@ CHECKS = [
      r'let mut root = div\(\)[\s\S]{0,300}?\.flex\(\)\s*\.flex_col\(\)\s*'
      r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('progress-bar', '.progress-bar', 'gap', 'ProgressBar wrapper gap', SRC + 'progress.rs',
-     r'let mut el = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\.w_full\(\)',
+     r'let mut el = gpui::div\(\)[\s\S]{0,180}?\.flex\(\)\s*\.flex_col\(\)\s*'
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.w_full\(\)',
+     None),
+    ('progress-bar', '[data-slot="label"]', 'text', 'ProgressBar label text',
+     SRC + 'progress.rs',
+     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.font_weight\(gpui::FontWeight::MEDIUM\)',
+     None),
+    ('progress-bar', '.progress-bar__output', 'text', 'ProgressBar output text',
+     SRC + 'progress.rs',
+     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.font_weight\(gpui::FontWeight::MEDIUM\)',
      None),
     # A Meter renders a ProgressBar, so it is the same wrapper.
     ('meter', '.meter', 'gap', 'Meter wrapper gap -> ProgressBar', SRC + 'progress.rs',
-     r'let mut el = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\.w_full\(\)',
+     r'let mut el = gpui::div\(\)[\s\S]{0,180}?\.flex\(\)\s*\.flex_col\(\)\s*'
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.w_full\(\)',
      None),
     ('slider', '.slider', 'gap', 'Slider wrapper gap', SRC + 'slider.rs',
      r'let mut el = gpui::div\(\)\s*\.flex\(\)\s*\.flex_col\(\)\s*'
@@ -1357,6 +1385,16 @@ THEME_FILES = (
 
 
 NESTED_SELECTOR_CHAINS = {
+    ('progress-bar', '.progress-bar__track'): (
+        '.progress-bar', '.progress-bar__track'),
+    ('progress-bar', '.progress-bar--sm .progress-bar__track'): (
+        '.progress-bar--sm', '.progress-bar__track'),
+    ('progress-bar', '.progress-bar--lg .progress-bar__track'): (
+        '.progress-bar--lg', '.progress-bar__track'),
+    ('progress-bar', '[data-slot="label"]'): (
+        '.progress-bar', '[data-slot="label"]'),
+    ('progress-bar', '.progress-bar__output'): (
+        '.progress-bar', '.progress-bar__output'),
     ('progress-circle', '.progress-circle__track'): (
         '.progress-circle', '.progress-circle__track'),
     ('progress-circle', '.progress-circle--sm .progress-circle__track'): (
@@ -1752,6 +1790,10 @@ FILLS = [
      SRC + 'slider.rs', 'sem.color'),
     ('slider', '.slider__thumb::after', 'bg-accent-foreground',
      SRC + 'slider.rs', 'sem.foreground'),
+    ('progress-bar', '.progress-bar__track', 'bg-default',
+     SRC + 'progress.rs', 'let progress_track_color = colors.default.color'),
+    ('progress-bar', '.progress-bar--default', 'var(--default-foreground)',
+     SRC + 'progress.rs', 'let progress_fill_color = if self.color == Color::Default'),
     ('progress-circle', '.progress-circle__track-circle',
      'var(--progress-circle-track-stroke)', SRC + 'progress.rs',
      'colors.default.color'),

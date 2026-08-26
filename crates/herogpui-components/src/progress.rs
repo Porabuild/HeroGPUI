@@ -6,9 +6,102 @@ use gpui::{
 use herogpui_core::{Color, Size};
 use herogpui_theme::ActiveTheme;
 
+#[derive(Clone)]
+struct ProgressBarMotion {
+    target: f32,
+    generation: usize,
+    from: f32,
+    width: std::rc::Rc<std::cell::Cell<f32>>,
+}
+
+impl ProgressBarMotion {
+    fn retarget(&mut self, target: f32, animate: bool) -> bool {
+        let mut changed = false;
+        if (self.target - target).abs() > f32::EPSILON {
+            self.target = target;
+            self.generation = self.generation.wrapping_add(1);
+            self.from = self.width.get();
+            changed = true;
+        }
+        if !animate && (self.width.get() - target).abs() > f32::EPSILON {
+            self.from = target;
+            self.width.set(target);
+            changed = true;
+        }
+        changed
+    }
+}
+
+struct ProgressBarMotionFrame {
+    generation: usize,
+    from: f32,
+    to: f32,
+    width: std::rc::Rc<std::cell::Cell<f32>>,
+    animate: bool,
+}
+
+impl ProgressBarMotionFrame {
+    fn render(self, fill: gpui::Div) -> gpui::AnyElement {
+        if !self.animate {
+            self.width.set(self.to);
+            return fill.w(gpui::relative(self.to)).into_any_element();
+        }
+
+        let width = self.width;
+        let from = self.from;
+        let to = self.to;
+        fill.with_animation(
+            gpui::ElementId::Name(format!("progress-bar-fill-width-{}", self.generation).into()),
+            gpui::Animation::new(std::time::Duration::from_millis(
+                crate::anim::PROGRESS_BAR_FILL_MS,
+            ))
+            .with_easing(|t| crate::anim::Curve::Out.at(t)),
+            move |fill, delta| {
+                let next = from + (to - from) * delta;
+                width.set(next);
+                fill.w(gpui::relative(next))
+            },
+        )
+        .into_any_element()
+    }
+}
+
+fn progress_bar_motion(
+    id: &gpui::ElementId,
+    target: f32,
+    animate: bool,
+    window: &mut Window,
+    cx: &mut App,
+) -> ProgressBarMotionFrame {
+    let state = window.use_keyed_state(
+        gpui::ElementId::Name(format!("progress-bar-{id:?}-fill-motion").into()),
+        cx,
+        |_, _| ProgressBarMotion {
+            target,
+            generation: 0,
+            from: target,
+            width: std::rc::Rc::new(std::cell::Cell::new(target)),
+        },
+    );
+    let mut current = state.read(cx).clone();
+    if current.retarget(target, animate) {
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    let should_animate =
+        animate && current.generation != 0 && (current.width.get() - target).abs() > f32::EPSILON;
+    ProgressBarMotionFrame {
+        generation: current.generation,
+        from: current.from,
+        to: target,
+        width: current.width,
+        animate: should_animate,
+    }
+}
+
 /// Linear progress bar.
 #[derive(IntoElement)]
 pub struct ProgressBar {
+    id: gpui::ElementId,
     value: f32,
     min_value: f32,
     max_value: f32,
@@ -19,15 +112,16 @@ pub struct ProgressBar {
     show_value: bool,
     value_label: Option<SharedString>,
     /// `ProgressBar.ValueLabel`'s render props: the closure is handed
-    /// `percentage` and `valueText`.
-    value_content: Option<std::sync::Arc<dyn Fn(f32, &str) -> gpui::AnyElement + 'static>>,
+    /// `percentage`, `valueText`, and `isIndeterminate`.
+    value_content: Option<std::sync::Arc<dyn Fn(f32, &str, bool) -> gpui::AnyElement + 'static>>,
     /// `formatOptions` — how the generated value label is written.
     format: Option<herogpui_core::NumberFormat>,
 }
 
 impl ProgressBar {
-    pub fn new() -> Self {
+    pub fn new(id: impl Into<gpui::ElementId>) -> Self {
         Self {
+            id: id.into(),
             value: 0.0,
             min_value: 0.0,
             max_value: 100.0,
@@ -64,12 +158,11 @@ impl ProgressBar {
         self
     }
 
-    /// `ProgressBar.ValueLabel`'s render function — handed the `percentage`
-    /// (0-100) and the `valueText` v3 passes it, so a caller can draw the
-    /// read-out instead of taking the generated one.
+    /// `ProgressBar.ValueLabel`'s render function — handed `percentage`,
+    /// `valueText`, and `isIndeterminate`.
     pub fn value_content(
         mut self,
-        render: impl Fn(f32, &str) -> gpui::AnyElement + 'static,
+        render: impl Fn(f32, &str, bool) -> gpui::AnyElement + 'static,
     ) -> Self {
         self.value_content = Some(std::sync::Arc::new(render));
         self
@@ -109,25 +202,24 @@ impl ProgressBar {
     }
 }
 
-impl Default for ProgressBar {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl RenderOnce for ProgressBar {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let sem = cx.role(self.color);
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
-        let h = match self.size {
-            Size::Sm => px(4.),
-            Size::Md => px(8.),
-            Size::Lg => px(16.),
+        let progress_fill_color = if self.color == Color::Default {
+            colors.default.foreground
+        } else {
+            cx.role(self.color).color
         };
-        // Clamp once at entry: the fill already clamps, but a non-percent
-        // label formats `self.value` raw, so an over-max Meter read "$1,500.00"
-        // beside a full bar. React Aria clamps *before* formatting, so the
-        // label is written from the clamped value. Guarded because
+        let progress_track_color = colors.default.color;
+        let text_color = colors.foreground;
+        let (h, radius) = match self.size {
+            Size::Sm => (px(4.), crate::util::micro_radius(cx)),
+            Size::Md => (px(8.), crate::util::hairline_radius(cx)),
+            Size::Lg => (px(12.), crate::util::mark_radius(cx)),
+        };
+        // Clamp once at entry so the fill, percentage and every formatted
+        // label use the same value, matching React Aria's clamp-before-format
+        // behavior. Guarded because
         // `f32::clamp` panics when min > max, which `fraction_of` tolerates.
         let value = if self.min_value <= self.max_value {
             self.value.clamp(self.min_value, self.max_value)
@@ -135,16 +227,28 @@ impl RenderOnce for ProgressBar {
             self.value
         };
         let fraction = fraction_of(self.value, self.min_value, self.max_value);
+        let fill_motion = progress_bar_motion(
+            &self.id,
+            if self.is_indeterminate { 0.4 } else { fraction },
+            !self.is_indeterminate && !cx.reduce_motion(),
+            window,
+            cx,
+        );
 
-        let mut el = gpui::div().flex().flex_col().gap(px(4.)).w_full();
+        let mut el = gpui::div()
+            .id(self.id.clone())
+            .flex()
+            .flex_col()
+            .gap(px(4.))
+            .w_full();
 
         // `.progress-bar__output` / `.meter__output` is the value beside the
         // label, in the row above the track.
         if self.label.is_some() || self.show_value {
-            let value_text = self.value_label.clone().unwrap_or_else(|| {
-                if self.is_indeterminate {
-                    SharedString::from("")
-                } else {
+            let value_text = if self.is_indeterminate {
+                SharedString::from("")
+            } else {
+                self.value_label.clone().unwrap_or_else(|| {
                     let format = self
                         .format
                         .clone()
@@ -157,8 +261,8 @@ impl RenderOnce for ProgressBar {
                         value as f64
                     };
                     SharedString::from(format.format(n))
-                }
-            });
+                })
+            };
             let percentage = if self.is_indeterminate {
                 0.0
             } else {
@@ -168,13 +272,16 @@ impl RenderOnce for ProgressBar {
                 gpui::div()
                     .flex()
                     .justify_between()
-                    .text_size(px(12.))
-                    .text_color(colors.foreground)
+                    .text_size(px(14.))
+                    .font_weight(gpui::FontWeight::MEDIUM)
+                    .text_color(text_color)
                     .child(self.label.clone().unwrap_or_default())
                     .when(self.show_value, |l| match &self.value_content {
                         // `percentage` is 0-100, with 0 standing in for v3's
                         // undefined indeterminate percentage.
-                        Some(render) => l.child(render(percentage, &value_text)),
+                        Some(render) => {
+                            l.child(render(percentage, &value_text, self.is_indeterminate))
+                        }
                         None => l.child(value_text.to_string()),
                     }),
             );
@@ -186,25 +293,28 @@ impl RenderOnce for ProgressBar {
             .w_full()
             .h(h)
             .overflow_hidden()
-            .rounded(crate::util::hairline_radius(cx))
-            .bg(colors.default.soft_hover());
+            .rounded(radius)
+            .bg(progress_track_color);
 
-        // Indeterminate bars sweep a short segment; reduced motion falls back
-        // to a static two-thirds fill so the state is still legible.
+        // Indeterminate bars sweep a 40% segment; reduced motion leaves that
+        // same segment static so the state is still legible.
         let track = if self.is_indeterminate && !cx.reduce_motion() {
-            let fill = sem.color;
             track
                 .child(
                     gpui::div()
                         .relative()
                         .h_full()
-                        .w(gpui::relative(0.35))
-                        .rounded(crate::util::hairline_radius(cx))
-                        .bg(fill)
+                        .w(gpui::relative(0.4))
+                        .rounded(radius)
+                        .bg(progress_fill_color)
                         .with_animation(
-                            "progress-indeterminate",
-                            gpui::Animation::new(std::time::Duration::from_millis(1200)).repeat(),
-                            |el, delta| el.left(gpui::relative(delta * 1.35 - 0.35)),
+                            "progress-bar-indeterminate",
+                            gpui::Animation::new(std::time::Duration::from_millis(
+                                crate::anim::PROGRESS_BAR_INDETERMINATE_MS,
+                            ))
+                            .with_easing(crate::anim::progress_bar_indeterminate_ease())
+                            .repeat(),
+                            |el, delta| el.left(gpui::relative(delta * 1.8 - 0.4)),
                         ),
                 )
                 .into_any_element()
@@ -213,18 +323,16 @@ impl RenderOnce for ProgressBar {
                 .child(
                     gpui::div()
                         .h_full()
-                        .rounded(crate::util::hairline_radius(cx))
-                        .bg(sem.color)
-                        .w(gpui::relative(0.66)),
+                        .rounded(radius)
+                        .bg(progress_fill_color)
+                        .w(gpui::relative(0.4)),
                 )
                 .into_any_element()
         } else {
-            let indicator = gpui::div()
-                .h_full()
-                .rounded(crate::util::hairline_radius(cx))
-                .bg(sem.color)
-                .w(gpui::relative(fraction));
-            track.child(indicator).into_any_element()
+            let indicator = gpui::div().h_full().rounded(radius).bg(progress_fill_color);
+            track
+                .child(fill_motion.render(indicator))
+                .into_any_element()
         };
 
         el.child(track)
@@ -239,6 +347,44 @@ fn fraction_of(value: f32, min: f32, max: f32) -> f32 {
         return 0.0;
     }
     ((value - min) / span).clamp(0.0, 1.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProgressBarMotion;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    fn close(left: f32, right: f32) -> bool {
+        (left - right).abs() < f32::EPSILON
+    }
+
+    #[test]
+    fn progress_bar_motion_reverses_from_current_width_and_snaps_without_motion() {
+        let width = Rc::new(Cell::new(0.25));
+        let mut motion = ProgressBarMotion {
+            target: 0.25,
+            generation: 0,
+            from: 0.25,
+            width: width.clone(),
+        };
+
+        assert!(motion.retarget(0.75, true));
+        assert_eq!(motion.generation, 1);
+        assert!(close(motion.from, 0.25));
+        assert!(close(width.get(), 0.25));
+
+        width.set(0.5);
+        assert!(motion.retarget(0.1, true));
+        assert_eq!(motion.generation, 2);
+        assert!(close(motion.from, 0.5));
+        assert!(close(width.get(), 0.5));
+
+        assert!(motion.retarget(0.9, false));
+        assert_eq!(motion.generation, 3);
+        assert!(close(motion.from, 0.9));
+        assert!(close(width.get(), 0.9));
+    }
 }
 
 /// Circular progress ring (`ProgressCircle`).

@@ -7835,6 +7835,268 @@ pub(crate) const COMBO_BOX: ReferenceMetadata = ReferenceMetadata {
     styling: COMBO_BOX_STYLING,
 };
 
+const PROGRESS_BAR_REQUIRED_PARTS: &[&str] = &[
+    // Keep the compound anatomy visible to reference_audit.py.
+    "ProgressBar",
+    "ProgressBar.Output",
+    "ProgressBar.Track",
+    "ProgressBar.Fill",
+];
+
+const PROGRESS_BAR_API: &[ApiDoc] = &[
+    ApiDoc {
+        owner: "ProgressBar",
+        prop: "value",
+        ty: "number",
+        default: "0",
+        description: "Current value, clamped to the configured range.",
+        rust_owner: "ProgressBar",
+        rust: "value(f32)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ProgressBar",
+        prop: "minValue",
+        ty: "number",
+        default: "0",
+        description: "Minimum value used to normalize the fill.",
+        rust_owner: "ProgressBar",
+        rust: "min_value(f32)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ProgressBar",
+        prop: "maxValue",
+        ty: "number",
+        default: "100",
+        description: "Maximum value used to normalize the fill.",
+        rust_owner: "ProgressBar",
+        rust: "max_value(f32)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ProgressBar",
+        prop: "isIndeterminate",
+        ty: "boolean",
+        default: "false",
+        description: "Shows the pinned unbounded sweep without reporting a value label.",
+        rust_owner: "ProgressBar",
+        rust: "is_indeterminate(bool)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ProgressBar",
+        prop: "size",
+        ty: "\"sm\" | \"md\" | \"lg\"",
+        default: "\"md\"",
+        description: "Selects the 4, 8 or 12px track height and matching radius.",
+        rust_owner: "ProgressBar",
+        rust: "size(Size)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ProgressBar",
+        prop: "color",
+        ty: "\"default\" | \"accent\" | \"success\" | \"warning\" | \"danger\"",
+        default: "\"accent\"",
+        description: "Semantic fill color; default uses the contrasting default foreground.",
+        rust_owner: "ProgressBar",
+        rust: "color(Color)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ProgressBar",
+        prop: "formatOptions",
+        ty: "Intl.NumberFormatOptions",
+        default: "{style: \"percent\"}",
+        description: "Formats valueText; the local formatter covers common numeric styles without locale or CLDR data.",
+        rust_owner: "ProgressBar",
+        rust: "format_options(NumberFormat)",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "ProgressBar",
+        prop: "valueLabel",
+        ty: "ReactNode",
+        default: "—",
+        description: "Replaces the generated formatted value text; the port accepts text rather than arbitrary content.",
+        rust_owner: "ProgressBar",
+        rust: "value_label(text)",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "ProgressBar",
+        prop: "children",
+        ty: "ReactNode | (values: ProgressBarRenderProps) => ReactNode",
+        default: "—",
+        description: "The local ValueLabel closure receives all documented values, while the root anatomy is composed through dedicated builders.",
+        rust_owner: "ProgressBar",
+        rust: "label(text) + value_content(render) + show_value_label(true)",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "ProgressBarRenderProps",
+        prop: "percentage",
+        ty: "number",
+        default: "—",
+        description: "Normalized percentage; the port uses 0 as the indeterminate stand-in for React Aria's undefined value.",
+        rust_owner: "ProgressBar",
+        rust: "value_content(render)",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "ProgressBarRenderProps",
+        prop: "valueText",
+        ty: "string",
+        default: "—",
+        description: "Formatted text, or an empty string while indeterminate.",
+        rust_owner: "ProgressBar",
+        rust: "value_content(render)",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "ProgressBarRenderProps",
+        prop: "isIndeterminate",
+        ty: "boolean",
+        default: "—",
+        description: "Current indeterminate state handed to the value renderer.",
+        rust_owner: "ProgressBar",
+        rust: "value_content(render)",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const PROGRESS_BAR_PARTS: &[PartDoc] = &[
+    PartDoc {
+        name: "ProgressBar",
+        slot: "progress-bar",
+        description: "Root layout and progress state owner.",
+        rust_owner: "ProgressBar",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "ProgressBar.Output",
+        slot: "progress-bar-output",
+        description:
+            "Formatted output beside the label; customized through the value-content closure.",
+        rust_owner: "ProgressBar",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "ProgressBar.Track",
+        slot: "progress-bar-track",
+        description: "Default-color clipped track; it is not separately composable.",
+        rust_owner: "ProgressBar",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "ProgressBar.Fill",
+        slot: "progress-bar-fill",
+        description:
+            "Semantic determinate fill or indeterminate sweep; it is not separately composable.",
+        rust_owner: "ProgressBar",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+const PROGRESS_BAR_STATES: &[StateDoc] = &[
+    StateDoc {
+        state: "Determinate",
+        selector: "[aria-valuenow]",
+        description: "Fill width and output follow the normalized value.",
+        rust: "fraction_of(value, min_value, max_value)",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Indeterminate",
+        selector: ":not([aria-valuenow])",
+        description: "A 40% fill sweeps with the pinned 1.5s curve; reduced motion leaves it static.",
+        rust: "is_indeterminate + progress-bar-indeterminate + reduce_motion",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Disabled",
+        selector: ":disabled / [data-disabled=\"true\"] / [aria-disabled=\"true\"]",
+        description: "The stylesheet declares disabled treatment, but the documented API has no disabled prop and the port does not invent one.",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+];
+
+const PROGRESS_BAR_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: ".progress-bar",
+        value: "grid w-full gap-1; label/output above track",
+        description: "The port uses an equivalent full-width column with a justified label/output row.",
+        rust: "flex_col + gap(px(4.)) + justify_between",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: "[data-slot=label] / .progress-bar__output",
+        value: "text-sm font-medium; output tabular-nums",
+        description: "Text size and weight match; GPUI does not request tabular numeral font features on the output alone.",
+        rust: "text_size(px(14.)) + FontWeight::MEDIUM",
+        status: ImplementationStatus::Partial,
+    },
+    StyleDoc {
+        class_or_token: ".progress-bar__track",
+        value: "h-2 rounded-sm bg-default; sm h-1 rounded-xs; lg h-3 rounded-md",
+        description: "Track heights, radii, clipping and semantic background follow the pinned size variants.",
+        rust: "Size => (4/8/12px, micro/hairline/mark radius) + colors.default.color",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".progress-bar__fill",
+        value: "absolute start-0 top-0 h-full; matching size radius",
+        description: "The local fill occupies the track height and uses its radius.",
+        rust: "relative fill + h_full + rounded(radius)",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".progress-bar--default",
+        value: "--progress-bar-fill: var(--default-foreground)",
+        description: "Default uses the contrasting foreground; other variants use their semantic base color.",
+        rust: "progress_fill_color",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".progress-bar__fill",
+        value: "width 300ms ease-out; motion-reduce transition-none",
+        description: "Determinate changes interpolate from the currently rendered width and preserve position during reversal.",
+        rust: "PROGRESS_BAR_FILL_MS + Curve::Out + progress_bar_motion",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: "@keyframes progress-bar-indeterminate",
+        value: "40% width; translateX(-100% to 350%); 1.5s cubic-bezier(0.65,0,0.35,1) infinite",
+        description: "The listener-free fill reproduces the pinned unbounded sweep.",
+        rust: "PROGRESS_BAR_INDETERMINATE_MS + progress_bar_indeterminate_ease + relative(delta * 1.8 - 0.4)",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: "motion-reduce:animate-none",
+        value: "static 40% fill",
+        description: "Reduced motion keeps the indeterminate state legible without sweeping.",
+        rust: "reduce_motion + relative(0.4)",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+pub(crate) const PROGRESS_BAR: ReferenceMetadata = ReferenceMetadata {
+    page: "ProgressBar",
+    import_line: "use herogpui::components::progress::ProgressBar;",
+    source_module: "progress",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(feedback)/progress-bar.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/progress-bar/progress-bar.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/ProgressBar.tsx + https://github.com/adobe/react-spectrum/blob/react-aria@3.51.0/packages/react-aria/src/progress/useProgressBar.ts",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/progress-bar.css",
+    required_parts: PROGRESS_BAR_REQUIRED_PARTS,
+    api: PROGRESS_BAR_API,
+    parts: PROGRESS_BAR_PARTS,
+    states: PROGRESS_BAR_STATES,
+    styling: PROGRESS_BAR_STYLING,
+};
+
 const PROGRESS_CIRCLE_REQUIRED_PARTS: &[&str] = &[
     // Keep the compound anatomy visible to reference_audit.py.
     "ProgressCircle",
@@ -8268,6 +8530,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     RANGE_CALENDAR,
     DRAWER,
     COMBO_BOX,
+    PROGRESS_BAR,
     PROGRESS_CIRCLE,
     SEPARATOR,
 ];

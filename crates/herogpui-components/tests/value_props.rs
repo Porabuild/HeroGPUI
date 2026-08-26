@@ -425,26 +425,26 @@ fn combo_box_controlled_value_content_waits_for_clear_owner(cx: &mut TestAppCont
 // ProgressBar / Meter / ProgressCircle ValueLabel
 // ---------------------------------------------------------------------------
 
-/// `ProgressBar.ValueLabel` is handed `percentage` (0-100) and the formatted
-/// `valueText`. Drive the *value* by changing the `Rc` the render closure
-/// reads; the percentage and the text must both move. Compared as formatted
-/// strings (`"{:.0}"` of the percentage, and the component's own `"25%"`
-/// text), never as floats.
+/// `ProgressBar.ValueLabel` is handed `percentage`, formatted `valueText`, and
+/// `isIndeterminate`. Drive both value and mode through the source state.
 #[gpui::test]
-fn progress_bar_value_content_sees_percentage_and_text(cx: &mut TestAppContext) {
+fn progress_bar_value_content_sees_values_and_indeterminate_state(cx: &mut TestAppContext) {
     let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
     let record = seen.clone();
-    let value = Rc::new(RefCell::new(25.0f32));
-    let for_view = value.clone();
+    let state = Rc::new(RefCell::new((25.0f32, false)));
+    let for_view = state.clone();
     let cx = open_host(cx, move || {
         let record = record.clone();
-        let now = *for_view.borrow();
-        ProgressBar::new()
-            .value(now)
+        let (value, is_indeterminate) = *for_view.borrow();
+        ProgressBar::new("value-props-progress")
+            .value(value)
+            .is_indeterminate(is_indeterminate)
             .label("Loading")
             .show_value_label(true)
-            .value_content(move |percentage, text| {
-                record.borrow_mut().push(format!("{percentage:.0}|{text}"));
+            .value_content(move |percentage, text, is_indeterminate| {
+                record
+                    .borrow_mut()
+                    .push(format!("{percentage:.0}|{text}|{is_indeterminate}"));
                 gpui::div().child(text.to_owned()).into_any_element()
             })
             .into_any_element()
@@ -452,16 +452,44 @@ fn progress_bar_value_content_sees_percentage_and_text(cx: &mut TestAppContext) 
 
     assert_eq!(
         last_string(&seen),
-        "25|25%",
-        "value 25 must hand 25 as the percentage and '25%' as the text"
+        "25|25%|false",
+        "value 25 must hand its values and determinate state"
     );
 
-    *value.borrow_mut() = 75.0;
+    *state.borrow_mut() = (75.0, true);
     flush_frame(cx);
     assert_eq!(
         last_string(&seen),
-        "75|75%",
-        "writing 75 to the source value must move both handed values"
+        "0||true",
+        "indeterminate progress must hand no values and report its state"
+    );
+}
+
+/// A determinate custom `valueLabel` replaces only the formatted text; the raw
+/// percentage and mode still reach the render function unchanged.
+#[gpui::test]
+fn progress_bar_value_label_replaces_generated_text(cx: &mut TestAppContext) {
+    let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    let record = seen.clone();
+    open_host(cx, move || {
+        let record = record.clone();
+        ProgressBar::new("value-props-progress-label")
+            .value(25.0)
+            .value_label("75% left")
+            .show_value_label(true)
+            .value_content(move |percentage, text, is_indeterminate| {
+                record
+                    .borrow_mut()
+                    .push(format!("{percentage:.0}|{text}|{is_indeterminate}"));
+                gpui::div().child(text.to_owned()).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        last_string(&seen),
+        "25|75% left|false",
+        "valueLabel must replace the text without changing the percentage or mode"
     );
 }
 
@@ -476,7 +504,7 @@ fn meter_value_content_forwards_percentage_and_text(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let record = record.clone();
         let now = *for_view.borrow();
-        Meter::new(now)
+        Meter::new("value-props-meter", now)
             .show_value(true)
             .value_content(move |percentage, text| {
                 record.borrow_mut().push(format!("{percentage:.0}|{text}"));

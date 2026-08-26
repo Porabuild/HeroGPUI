@@ -48,6 +48,7 @@ IMPLEMENTS = {
     'scale(0.95)': 'PRESSED_SCALE_DEEP',
     'scale: 0.9': 'PRESSED_SCALE_RANGE',
     '@keyframes caret-blink': 'pub fn caret_blink',
+    '@keyframes progress-bar-indeterminate': 'pub fn progress_bar_indeterminate_ease',
     '@keyframes progress-circle-spin': 'pub fn progress_circle_spin_turn',
     '@keyframes skeleton': 'SkeletonAnimation',
     'animate-pulse': 'SkeletonAnimation',
@@ -64,7 +65,6 @@ IMPLEMENTS = {
     '--tooltip-close-delay': 'tooltip_close_delay',
     '--skeleton-animation': 'skeleton_animation',
     'transition-colors': 'pub const TRANSITION_MS',
-    'progress indeterminate': 'progress-indeterminate',
     'spinner': 'with_transformation',
 }
 
@@ -633,6 +633,148 @@ def check_progress_circle_motion():
     return bad
 
 
+def check_progress_bar_motion():
+    """ProgressBar's pinned indeterminate geometry, easing and fallback."""
+    css_path = os.path.join(CACHE, 'progress-bar.css')
+    if not os.path.exists(css_path):
+        print('progress bar motion: no stylesheet')
+        return 1
+    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    anim = io.open(os.path.join(SRC, 'anim.rs'), encoding='utf-8').read()
+    progress = io.open(os.path.join(SRC, 'progress.rs'), encoding='utf-8').read()
+
+    want = re.search(
+        r'animation:\s*progress-bar-indeterminate\s+([\d.]+)s\s+'
+        r'cubic-bezier\(0\.65,\s*0,\s*0\.35,\s*1\)\s+infinite',
+        css,
+    )
+    got = re.search(r'pub const PROGRESS_BAR_INDETERMINATE_MS:\s*u64\s*=\s*(\d+)', anim)
+    want_ms = round(float(want.group(1)) * 1000) if want else None
+    got_ms = int(got.group(1)) if got else None
+    curve = bool(re.search(
+        r'pub fn progress_bar_indeterminate_ease\(\).*?'
+        r'cubic_bezier\(0\.65,\s*0\.0,\s*0\.35,\s*1\.0,\s*t\)',
+        anim,
+        re.S,
+    ))
+    wired = bool(re.search(
+        r'with_animation\(\s*"progress-bar-indeterminate"[\s\S]{0,360}?'
+        r'PROGRESS_BAR_INDETERMINATE_MS[\s\S]{0,180}?'
+        r'with_easing\(crate::anim::progress_bar_indeterminate_ease\(\)\)'
+        r'[\s\S]{0,80}?\.repeat\(\)',
+        progress,
+    ))
+    want_width_match = re.search(
+        r'&:not\(\[aria-valuenow\]\)[\s\S]*?'
+        r'\.progress-bar__fill\s*\{[\s\S]*?@apply\s+w-(\d+)/(\d+)',
+        css,
+    )
+    keyframes = re.search(
+        r'@keyframes\s+progress-bar-indeterminate\s*\{[\s\S]*?'
+        r'translateX\((-?[\d.]+)%\)[\s\S]*?translateX\((-?[\d.]+)%\)',
+        css,
+    )
+    got_geometry = re.search(
+        r'let track = if self\.is_indeterminate\s*&&\s*!cx\.reduce_motion\(\)'
+        r'[\s\S]{0,900}?'
+        r'\.w\(gpui::relative\(([\d.]+)\)\)[\s\S]{0,700}?'
+        r'delta\s*\*\s*([\d.]+)\s*([-+])\s*([\d.]+)',
+        progress,
+    )
+    want_width = (
+        int(want_width_match.group(1)) / int(want_width_match.group(2))
+        if want_width_match and int(want_width_match.group(2)) != 0
+        else None
+    )
+    want_start = (
+        want_width * float(keyframes.group(1)) / 100
+        if want_width is not None and keyframes
+        else None
+    )
+    want_span = (
+        want_width * (float(keyframes.group(2)) - float(keyframes.group(1))) / 100
+        if want_width is not None and keyframes
+        else None
+    )
+    got_width = float(got_geometry.group(1)) if got_geometry else None
+    got_span = float(got_geometry.group(2)) if got_geometry else None
+    got_start = (
+        float(got_geometry.group(4)) * (-1 if got_geometry.group(3) == '-' else 1)
+        if got_geometry
+        else None
+    )
+    geometry = (
+        want_width is not None
+        and want_start is not None
+        and want_span is not None
+        and got_width is not None
+        and got_start is not None
+        and got_span is not None
+        and abs(want_width - got_width) < 0.0001
+        and abs(want_start - got_start) < 0.0001
+        and abs(want_span - got_span) < 0.0001
+    )
+    static_width = re.search(
+        r'else if self\.is_indeterminate\s*\{[\s\S]{0,500}?'
+        r'\.w\(gpui::relative\(([\d.]+)\)\)',
+        progress,
+    )
+    static_width_value = float(static_width.group(1)) if static_width else None
+    reduced = (
+        'motion-reduce:animate-none' in css
+        and want_width is not None
+        and static_width_value is not None
+        and abs(want_width - static_width_value) < 0.0001
+    )
+    want_fill = re.search(
+        r'transition:\s*width\s+(\d+)ms\s+var\(--ease-out\)', css
+    )
+    got_fill = re.search(r'pub const PROGRESS_BAR_FILL_MS:\s*u64\s*=\s*(\d+)', anim)
+    want_fill_ms = int(want_fill.group(1)) if want_fill else None
+    got_fill_ms = int(got_fill.group(1)) if got_fill else None
+    fill_transition = (
+        want_fill_ms is not None
+        and want_fill_ms == got_fill_ms
+        and 'progress_bar_motion(' in progress
+        and 'PROGRESS_BAR_FILL_MS' in progress
+        and '.with_easing(|t| crate::anim::Curve::Out.at(t))' in progress
+        and '!self.is_indeterminate && !cx.reduce_motion()' in progress
+    )
+    reversal = (
+        'self.from = self.width.get();' in progress
+        and 'width.set(next);' in progress
+    )
+    instance_scoped = '.id(self.id.clone())' in progress
+    rows = [
+        (want_ms is not None and want_ms == got_ms and curve and wired,
+         'spin', '%sms cubic-bezier' % want_ms if want_ms is not None else 'unreadable',
+         '%sms pinned curve' % got_ms if got_ms is not None and curve and wired else 'not wired'),
+        (geometry, 'geometry',
+         ('%.0f%%; %.0f%% to %.0f%%' %
+          (want_width * 100, float(keyframes.group(1)), float(keyframes.group(2))))
+         if want_width is not None and keyframes else 'unreadable',
+         'derived full sweep' if geometry else 'mismatch'),
+        (reduced, 'reduced motion',
+         'animate-none at %.0f%%' % (want_width * 100) if want_width is not None else 'unreadable',
+         'static %.0f%%' % (static_width_value * 100) if reduced else 'missing'),
+        (fill_transition, 'fill width',
+         '%sms ease-out' % want_fill_ms if want_fill_ms is not None else 'unreadable',
+         '%sms Out' % got_fill_ms if got_fill_ms is not None and fill_transition else 'not wired'),
+        (reversal, 'fill reversal', 'current rendered width', 'preserved' if reversal else 'endpoint jump'),
+        (instance_scoped, 'instance scope', 'independent timelines',
+         'stable root id' if instance_scoped else 'shared animation chain'),
+    ]
+    print('progress bar motion (v3 CSS vs ProgressBar):')
+    for same, name, want_value, got_value in rows:
+        print('%s %-14s %-16s %-22s %s' % (
+            ' ' if same else '!', 'progress-bar', name, want_value, got_value
+        ))
+    bad = sum(not same for same, _, _, _ in rows)
+    print('PROGRESS BAR MISMATCHES : %d' % bad)
+    print()
+    return bad
+
+
 def corpus():
     """Everything v3 ships that could name an animation.
 
@@ -657,8 +799,6 @@ def main():
         needle = name
         if name == 'scale(0.97)':
             needle = 'scale(0.97)'
-        elif name == 'progress indeterminate':
-            needle = 'isIndeterminate'
         elif name == 'spinner':
             needle = 'Spinner'
         present[name] = needle in bundle
@@ -698,6 +838,7 @@ def main():
         + check_pagination_motion()
         + check_drawer_motion()
         + check_progress_circle_motion()
+        + check_progress_bar_motion()
     )
     print('UNIMPLEMENTED : %d' % len(missing_impl))
     print('MOTION BAD    : %d' % motion_bad)

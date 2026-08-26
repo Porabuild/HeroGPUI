@@ -14,6 +14,7 @@ use crate::progress::ProgressBar;
 /// optional label and fill color.
 #[derive(IntoElement)]
 pub struct Meter {
+    id: gpui::ElementId,
     value: f32,
     min_value: f32,
     max_value: f32,
@@ -46,8 +47,9 @@ impl Meter {
         self
     }
 
-    pub fn new(value: f32) -> Self {
+    pub fn new(id: impl Into<gpui::ElementId>, value: f32) -> Self {
         Self {
+            id: id.into(),
             value_content: None,
             value,
             min_value: 0.0,
@@ -107,7 +109,7 @@ impl Meter {
 
 impl RenderOnce for Meter {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        let mut p = ProgressBar::new()
+        let mut p = ProgressBar::new(self.id)
             .value(self.value)
             .min_value(self.min_value)
             .max_value(self.max_value)
@@ -118,7 +120,7 @@ impl RenderOnce for Meter {
             p = p.format_options(format);
         }
         if let Some(render) = self.value_content {
-            p = p.value_content(move |percentage, text| render(percentage, text));
+            p = p.value_content(move |percentage, text, _| render(percentage, text));
         }
         if let Some(vl) = self.value_label {
             p = p.value_label(vl);

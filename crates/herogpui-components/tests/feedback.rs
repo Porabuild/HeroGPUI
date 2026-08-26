@@ -586,10 +586,10 @@ fn progress_bar_clamps_value_outside_the_range(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let record = record.clone();
         let now = *for_view.borrow();
-        ProgressBar::new()
+        ProgressBar::new("feedback-progress-clamp")
             .value(now)
             .show_value_label(true)
-            .value_content(move |percentage, text| {
+            .value_content(move |percentage, text, _| {
                 record.borrow_mut().push(format!("{percentage:.0}|{text}"));
                 gpui::div().child(text.to_owned()).into_any_element()
             })
@@ -634,12 +634,12 @@ fn progress_bar_format_options_change_the_value_text(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let record = record.clone();
         let now = *for_view.borrow();
-        ProgressBar::new()
+        ProgressBar::new("feedback-progress-format")
             .value(now)
             .max_value(1000.0)
             .show_value_label(true)
             .format_options(NumberFormat::currency("USD"))
-            .value_content(move |percentage, text| {
+            .value_content(move |percentage, text, _| {
                 record.borrow_mut().push(format!("{percentage:.0}|{text}"));
                 gpui::div().child(text.to_owned()).into_any_element()
             })
@@ -673,7 +673,7 @@ fn meter_custom_range_formats_and_clamps(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let record = record.clone();
         let now = *for_view.borrow();
-        Meter::new(now)
+        Meter::new("feedback-meter-format", now)
             .min_value(500.0)
             .max_value(1000.0)
             .show_value(true)
@@ -790,12 +790,14 @@ fn progress_bar_indeterminate_reports_no_value_text(cx: &mut TestAppContext) {
     let record = seen.clone();
     open_host(cx, move || {
         let record = record.clone();
-        ProgressBar::new()
+        ProgressBar::new("feedback-progress-indeterminate")
             .value(73.0)
+            .value_label("must stay hidden")
             .is_indeterminate(true)
             .show_value_label(true)
-            .value_content(move |percentage, text| {
+            .value_content(move |percentage, text, is_indeterminate| {
                 record.borrow_mut().push(format!("{percentage:.0}|{text}"));
+                assert!(is_indeterminate);
                 gpui::div().child(text.to_owned()).into_any_element()
             })
             .into_any_element()
@@ -810,9 +812,8 @@ fn progress_bar_indeterminate_reports_no_value_text(cx: &mut TestAppContext) {
 
 /// React Aria clamps `value` *before* formatting, so a custom-style label on
 /// an out-of-range value shows the clamped amount: 1500 against max 1000
-/// reads "$1,000.00", and 400 against min 500 reads "$500.00". The fill and
-/// percentage clamp here, but the label is written from the raw value — the
-/// same over-max value reads "$1,500.00" next to a full bar.
+/// reads "$1,000.00", and 400 against min 500 reads "$500.00". The fill,
+/// percentage and label must all use that same clamped value.
 #[gpui::test]
 fn meter_value_text_uses_the_clamped_value_for_custom_formats(cx: &mut TestAppContext) {
     let seen = events();
@@ -822,7 +823,7 @@ fn meter_value_text_uses_the_clamped_value_for_custom_formats(cx: &mut TestAppCo
     let cx = open_host(cx, move || {
         let record = record.clone();
         let now = *for_view.borrow();
-        Meter::new(now)
+        Meter::new("feedback-meter-clamp", now)
             .min_value(500.0)
             .max_value(1000.0)
             .show_value(true)
