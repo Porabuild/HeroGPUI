@@ -151,7 +151,7 @@ fn button_press_reports_once(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn button_disabled_and_pending_do_not_press(cx: &mut TestAppContext) {
+fn button_disabled_skips_focus_while_pending_retains_it_without_pressing(cx: &mut TestAppContext) {
     let presses = events();
     let recorded = presses.clone();
     let cx = open_host(cx, move || {
@@ -188,24 +188,32 @@ fn button_disabled_and_pending_do_not_press(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    // A click on either inert button must reach no handler at all.
-    click(cx, 960., 18.);
-    click(cx, 960., 58.);
+    // From the unfocused root, Tab must skip disabled and stop on pending.
+    press(cx, "tab");
+    flush_frame(cx);
+    press(cx, "space");
     assert!(
         recorded.borrow().is_empty(),
-        "disabled and pending buttons must not record a press"
+        "a focused pending button must not activate"
     );
 
-    // Neither inert button is a tab stop: `track_focus` (what puts an element
-    // in the order) is gated on interactivity, so one Tab must skip both and
-    // land on the probe.
+    // The next Tab moves from pending to the live probe.
     press(cx, "tab");
     flush_frame(cx);
     press(cx, "space");
     assert_eq!(
         recorded.borrow().as_slice(),
         ["probe"],
-        "Tab must skip the disabled and pending buttons and reach the probe"
+        "Tab after the focusable pending button must reach the probe"
+    );
+
+    // Pointer activation is suppressed for both inert states as well.
+    click(cx, 960., 18.);
+    click(cx, 960., 58.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["probe"],
+        "disabled and pending buttons must not record pointer presses"
     );
 }
 
@@ -544,8 +552,8 @@ fn link_press_reports_and_disabled_is_inert(cx: &mut TestAppContext) {
 
 /// A disabled Link must leave the tab order, like every other disabled control
 /// in this port (`track_focus` is what puts an element in the order; Button,
-/// CloseButton and ToggleButton all gate it on interactivity, and AGENTS.md
-/// says the same: v3 gives a disabled control nothing to move to).
+/// CloseButton and ToggleButton all omit it when disabled, and AGENTS.md says
+/// the same: v3 gives a disabled control nothing to move to).
 ///
 /// Link used to register its focus handle and ring it unconditionally, so Tab
 /// landed on the dead control and Space did nothing — which reads exactly like
@@ -683,6 +691,151 @@ fn alert_close_reports(cx: &mut TestAppContext) {
 // ---------------------------------------------------------------------------
 // Render props
 // ---------------------------------------------------------------------------
+
+/// Pinned React Aria keeps a pending Button focusable while disabling its
+/// hover and press interactions, and hands `isPending` to the children render
+/// function independently from `isDisabled`.
+#[gpui::test]
+fn button_content_render_prop_reports_pending_and_retains_focus(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new((false, false, false, false, false)));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        Button::new("btn-pending-state")
+            .full_width(true)
+            .is_pending(true)
+            .content(move |state: util::InteractiveState| {
+                *record.borrow_mut() = (
+                    state.is_pending,
+                    state.is_disabled,
+                    state.is_focused,
+                    state.is_hovered,
+                    state.is_pressed,
+                );
+                gpui::div().child("pending".to_owned()).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        *seen.borrow(),
+        (true, false, false, false, false),
+        "pending must be reported separately from disabled"
+    );
+
+    press(cx, "tab");
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (true, false, true, false, false),
+        "a pending button must retain its focus stop without becoming interactive"
+    );
+
+    let centre = point(px(960.), px(18.));
+    cx.simulate_mouse_move(centre, None::<MouseButton>, Modifiers::none());
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (true, false, true, false, false),
+        "pending must suppress hover and press render state"
+    );
+}
+
+/// Entering an inert pending period must clear the keyed interaction slot.
+/// Otherwise a pointer that leaves while handlers are detached resurfaces as
+/// a stale hover as soon as pending ends.
+#[gpui::test]
+fn button_pending_transition_clears_stale_interaction_state(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new((false, false)));
+    let record = seen.clone();
+    let pending = Rc::new(RefCell::new(false));
+    let for_view = pending.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        Button::new("btn-pending-transition")
+            .full_width(true)
+            .is_pending(*for_view.borrow())
+            .content(move |state: util::InteractiveState| {
+                *record.borrow_mut() = (state.is_hovered, state.is_pending);
+                gpui::div().child("state".to_owned()).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    cx.simulate_mouse_move(
+        point(px(960.), px(18.)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    assert_eq!(*seen.borrow(), (true, false));
+
+    *pending.borrow_mut() = true;
+    flush_frame(cx);
+    assert_eq!(*seen.borrow(), (false, true));
+
+    cx.simulate_mouse_move(
+        point(px(4.), px(500.)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    *pending.borrow_mut() = false;
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (false, false),
+        "ending pending must not revive hover recorded before the inert period"
+    );
+}
+
+/// A disabled native button cannot retain focus. GPUI keeps the keyed focus
+/// handle alive across renders, so the render-prop state must gate that stale
+/// handle when `is_disabled` changes after focus was already inside.
+#[gpui::test]
+fn disabling_button_clears_render_prop_focus(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new((false, false, false)));
+    let record = seen.clone();
+    let disabled = Rc::new(RefCell::new(false));
+    let for_view = disabled.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        Button::new("btn-disable-focus")
+            .full_width(true)
+            .is_disabled(*for_view.borrow())
+            .content(move |state: util::InteractiveState| {
+                *record.borrow_mut() =
+                    (state.is_focused, state.is_focus_visible, state.is_disabled);
+                gpui::div().child("state".to_owned()).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (true, true, false),
+        "the enabled button must report keyboard focus"
+    );
+
+    *disabled.borrow_mut() = true;
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (false, false, true),
+        "disabling Button.Content must stop reporting focus"
+    );
+
+    *disabled.borrow_mut() = false;
+    flush_frame(cx);
+    assert_eq!(
+        *seen.borrow(),
+        (false, false, false),
+        "re-enabling must not restore focus without a new user action"
+    );
+}
 
 #[gpui::test]
 fn button_content_render_prop_sees_press(cx: &mut TestAppContext) {

@@ -355,6 +355,7 @@ impl RenderOnce for ToggleButton {
                 is_focus_visible: focused && crate::util::focus_visible(cx),
                 is_selected,
                 is_disabled: self.is_disabled,
+                is_pending: false,
                 is_indeterminate: false,
             }));
         } else if let Some(label) = self.label {

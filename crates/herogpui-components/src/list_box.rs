@@ -902,6 +902,7 @@ impl ListBox {
                             is_focus_visible: focused && util::focus_visible(cx),
                             is_selected: selected,
                             is_disabled: disabled,
+                            is_pending: false,
                             is_indeterminate: false,
                         },
                     ));

@@ -144,6 +144,7 @@ impl RenderOnce for CloseButton {
                     is_focus_visible: is_focused && crate::util::focus_visible(cx),
                     is_selected: false,
                     is_disabled: self.is_disabled,
+                    is_pending: false,
                     is_indeterminate: false,
                 }))
             }

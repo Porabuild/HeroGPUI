@@ -344,6 +344,7 @@ fn palette() -> Vec<h::PickerColor> {
 impl Gallery {
     pub fn page_button(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let clicks = self.button_clicks;
+        let pending_foreground = cx.colors().accent.foreground;
         component_doc_page!(
             "Button",
             crate::pages::Page::Button.description(),
@@ -420,8 +421,26 @@ impl Gallery {
                     "Pending & disabled",
                     row(vec![
                         h::Button::new("btn-pending")
-                            .label("Uploading")
                             .is_pending(true)
+                            .content(move |state| {
+                                gpui::div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(8.))
+                                    .when(state.is_pending, |content| {
+                                        content.child(
+                                            h::Spinner::new("btn-pending-spinner")
+                                                .size(h::SpinnerSize::Sm)
+                                                .current_color(pending_foreground),
+                                        )
+                                    })
+                                    .child(if state.is_pending {
+                                        "Uploading"
+                                    } else {
+                                        "Upload"
+                                    })
+                                    .into_any_element()
+                            })
                             .into_any_element(),
                         h::Button::new("btn-disabled")
                             .label("Disabled")

@@ -399,6 +399,7 @@ impl RenderOnce for TagGroup {
                             is_focus_visible: focused && ring_visible,
                             is_selected: selected,
                             is_disabled: disabled,
+                            is_pending: false,
                             is_indeterminate: false,
                         },
                     ))

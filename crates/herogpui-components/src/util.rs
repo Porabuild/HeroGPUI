@@ -821,7 +821,8 @@ pub struct SelectionValue<'a> {
 ///
 /// Every pressable control in v3 hands its children a function and passes these
 /// in: `{isHovered, isPressed, isFocused, isFocusVisible, isSelected,
-/// isDisabled}`. This port draws each of those states itself, and a component
+/// isDisabled}`; Button additionally supplies `isPending`. This port draws
+/// each of those states itself, and a component
 /// that also takes a content closure hands the same values over rather than
 /// leaving a caller to re-derive them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -839,6 +840,8 @@ pub struct InteractiveState {
     pub is_selected: bool,
     /// `isDisabled`
     pub is_disabled: bool,
+    /// `isPending` — Button is waiting for an operation while remaining focusable.
+    pub is_pending: bool,
     /// `isIndeterminate` — a multi-selection row where some but not all of the
     /// group's keys are chosen.
     pub is_indeterminate: bool,

@@ -11,7 +11,7 @@ use gpui::{
 use herogpui_core::{Size, Variant};
 use herogpui_theme::ActiveTheme;
 
-use crate::{spinner::Spinner, util};
+use crate::util;
 
 /// A press handler. `Arc` rather than `Box` because it is bound twice: the
 /// pointer's `on_click` and the keyboard's Enter/Space both run it.
@@ -41,7 +41,7 @@ pub struct Button {
     id: ElementId,
     label: Option<SharedString>,
     /// v3's `children`-as-a-function: handed `{isHovered, isPressed, isFocused,
-    /// isFocusVisible}` and drawn in place of the label.
+    /// isFocusVisible, isDisabled, isPending}` and drawn in place of the label.
     content: Option<std::sync::Arc<dyn Fn(util::InteractiveState) -> AnyElement + 'static>>,
     variant: Variant,
     size: Size,
@@ -81,7 +81,7 @@ impl Button {
     }
 
     /// v3's render function for a button's children, handed `isHovered`,
-    /// `isPressed`, `isFocused` and `isFocusVisible`.
+    /// `isPressed`, `isFocused`, `isFocusVisible`, `isDisabled` and `isPending`.
     ///
     /// The hover and the press are a frame behind the pointer: gpui reports both
     /// to a handler, so the render that draws them can only read what the last
@@ -132,7 +132,8 @@ impl Button {
         self
     }
 
-    /// `isPending` — swaps the leading content for a spinner and blocks presses.
+    /// `isPending` — blocks presses and hover while retaining the tab stop and focus ring.
+    /// A `content` closure receives the pending state and owns any loading indicator.
     pub fn is_pending(mut self, v: bool) -> Self {
         self.is_pending = v;
         self
@@ -292,8 +293,8 @@ fn apply_variant(
     }
 }
 
-/// The text colour `variant` paints. Needed because gpui svgs never inherit
-/// `text_color`, so a pending spinner has to be told what "current" means.
+/// The text colour `variant` paints, for child svgs that cannot inherit
+/// `text_color` from their parent.
 pub fn button_foreground(variant: Variant, cx: &App) -> gpui::Hsla {
     let colors = cx.colors();
     match variant {
@@ -369,7 +370,15 @@ impl RenderOnce for Button {
         // Copied out: `hover_fade` below takes `&mut App`, and holding the
         // `layout` borrow across it would be a second borrow of `cx`.
         let disabled_opacity = layout.disabled_opacity;
-        let interactive = !self.is_disabled && !self.is_pending;
+        let focusable = !self.is_disabled;
+        let interactive = focusable && !self.is_pending;
+        if !interactive {
+            if let Some(slot) = &interaction {
+                if *slot.read(cx) != (false, false) {
+                    slot.update(cx, |state, _| *state = (false, false));
+                }
+            }
+        }
         // v3's `transition-colors`: the fill eases rather than switching on the
         // frame the pointer arrives. The variant then leaves the background
         // alone so the two do not fight over it.
@@ -428,7 +437,7 @@ impl RenderOnce for Button {
         // `.button:focus-visible` is `status-focused`: a 2px ring, offset from
         // the button by another in the background colour. A disabled button is
         // not a tab stop, which is what `pointer-events-none` amounts to here.
-        if interactive {
+        if focusable {
             el = util::ring_if_focused(
                 el.track_focus(&focus_handle),
                 &focus_handle,
@@ -439,26 +448,24 @@ impl RenderOnce for Button {
             );
         }
 
-        if self.is_disabled {
+        if self.is_disabled || self.is_pending {
             el = el.opacity(disabled_opacity);
         }
 
-        // `isPending` replaces the leading icon with a spinner, matching the
-        // documented render-prop pattern.
-        if self.is_pending {
-            let spinner_id = ElementId::Name(format!("{:?}-spinner", self.id).into());
-            el = el
-                .child(Spinner::new(spinner_id).current_color(button_foreground(self.variant, cx)));
-        } else if let Some(start) = self.start_content {
+        if let Some(start) = self.start_content {
             el = el.child(start);
         }
 
         if let Some(render) = self.content.clone() {
-            let (is_hovered, is_pressed) = interaction
-                .as_ref()
-                .map(|slot| *slot.read(cx))
-                .unwrap_or_default();
-            let focused = focus_handle.is_focused(window);
+            let (is_hovered, is_pressed) = if interactive {
+                interaction
+                    .as_ref()
+                    .map(|slot| *slot.read(cx))
+                    .unwrap_or_default()
+            } else {
+                (false, false)
+            };
+            let focused = focusable && focus_handle.is_focused(window);
             el = el.child(render(util::InteractiveState {
                 is_hovered,
                 is_pressed,
@@ -466,13 +473,16 @@ impl RenderOnce for Button {
                 is_focus_visible: focused && util::focus_visible(cx),
                 is_selected: false,
                 is_disabled: self.is_disabled,
+                is_pending: self.is_pending,
                 is_indeterminate: false,
             }));
         } else if let Some(label) = self.label {
             el = el.child(label.to_string());
         }
-        if let Some(slot) = &interaction {
-            el = util::track_interaction(el, slot);
+        if interactive {
+            if let Some(slot) = &interaction {
+                el = util::track_interaction(el, slot);
+            }
         }
         el = el.children(self.children);
 

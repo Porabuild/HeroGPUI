@@ -976,6 +976,7 @@ impl RenderOnce for Menu {
                                             && crate::util::focus_visible(cx),
                                         is_selected,
                                         is_disabled: is_item_disabled,
+                                        is_pending: false,
                                         is_indeterminate,
                                     },
                                 )
