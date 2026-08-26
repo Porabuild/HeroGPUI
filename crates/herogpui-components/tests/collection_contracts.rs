@@ -737,6 +737,71 @@ fn tag_group_escape_clears_a_select_all_result(cx: &mut TestAppContext) {
     );
 }
 
+/// Pinned React Aria removes the entire selection when Delete or Backspace is
+/// pressed on a selected tag, but reports only the focused tag otherwise.
+#[gpui::test]
+fn tag_group_remove_key_reports_the_selected_set_or_focused_tag(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-remove-selection",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .selected_keys([SharedString::from("alpha"), SharedString::from("gamma")])
+        .on_remove(move |keys, _, _| recorded.borrow_mut().push(sorted_join(keys)))
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "delete");
+    press(cx, "right");
+    press(cx, "backspace");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha,gamma", "beta"],
+        "a selected focused tag must remove the selection, while an unselected focused tag removes alone"
+    );
+}
+
+#[gpui::test]
+fn tag_group_remove_key_reads_the_uncontrolled_selection(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-remove-uncontrolled",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_selected_keys([SharedString::from("alpha"), SharedString::from("gamma")])
+        .on_remove(move |keys, _, _| recorded.borrow_mut().push(sorted_join(keys)))
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "delete");
+    press_mod_a(cx);
+    flush_frame(cx);
+    press(cx, "delete");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha,gamma", "alpha,beta,gamma"],
+        "keyboard removal must read the live uncontrolled selection"
+    );
+}
+
 #[gpui::test]
 fn tag_group_default_selected_keys_seed_uncontrolled_state(cx: &mut TestAppContext) {
     let recorded = events();
@@ -800,7 +865,11 @@ fn tag_group_remove_button_does_not_toggle_selection(cx: &mut TestAppContext) {
         )
         .selection_mode(SelectionMode::Single)
         .tag_content(|_, _| gpui::div().w(px(40.)).h(px(20.)).into_any_element())
-        .on_remove(move |key, _, _| removed.borrow_mut().push(format!("remove:{key}")))
+        .on_remove(move |keys, _, _| {
+            removed
+                .borrow_mut()
+                .push(format!("remove:{}", sorted_join(keys)));
+        })
         .on_selection_change(move |keys, _, _| {
             selected
                 .borrow_mut()

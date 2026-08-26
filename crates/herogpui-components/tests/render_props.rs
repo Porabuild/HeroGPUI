@@ -1017,7 +1017,7 @@ fn tag_group_without_content_needs_no_slot(cx: &mut TestAppContext) {
             *held.borrow_mut() = keys.clone();
             window.refresh();
         })
-        .on_remove(move |key, _, _| removed.borrow_mut().push(key.to_string()))
+        .on_remove(move |keys, _, _| removed.borrow_mut().push(sorted_join(keys)))
         .into_any_element()
     });
 

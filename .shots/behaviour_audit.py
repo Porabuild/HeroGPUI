@@ -256,7 +256,11 @@ EVIDENCE = {
     ('Toolbar', 'arrow-nav'): ('toolbar.rs', r'focus_next'),
     ('TagGroup', 'arrow-nav'): ('tag_group.rs', r'list_nav::resolve'),
     ('ColorSwatchPicker', 'arrow-nav'): ('color_picker.rs', r'list_nav::resolve'),
-    ('TagGroup', 'remove-key'): ('tag_group.rs', r'"delete" \| "backspace"'),
+    ('TagGroup', 'remove-key'): (
+        'tag_group.rs',
+        r'(?s)"delete" \| "backspace".*?selected_now\.contains\(&key_for_remove\)'
+        r'.*?cb\(&selected_now.*?HashSet::from\(\[key_for_remove\.clone\(\)\]\)',
+    ),
     # Dismissal: the panel reads the press, and Escape reads wherever the focus
     # is -- on the panel when it holds it, on the component root otherwise (a
     # panel that claims the focus silences the calendar grid inside it).

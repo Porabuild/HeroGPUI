@@ -1695,9 +1695,9 @@ impl Gallery {
                     "With Remove Button",
                     col(vec![h::TagGroup::new("tg-remove-button", tags())
                         .label("Skills")
-                        .on_remove(cx.listener(|this, key: &SharedString, _, cx| {
-                            this.tags.retain(|k| k != key);
-                            this.tag_selection.remove(key);
+                        .on_remove(cx.listener(|this, keys: &HashSet<SharedString>, _, cx| {
+                            this.tags.retain(|key| !keys.contains(key));
+                            this.tag_selection.retain(|key| !keys.contains(key));
                             cx.notify();
                         }))
                         .into_any_element()]),
@@ -1708,9 +1708,9 @@ impl Gallery {
                         .label("Team")
                         .description("Remove a tag to see the group update.")
                         .empty_state("All tags removed")
-                        .on_remove(cx.listener(|this, key: &SharedString, _, cx| {
-                            this.tags.retain(|k| k != key);
-                            this.tag_selection.remove(key);
+                        .on_remove(cx.listener(|this, keys: &HashSet<SharedString>, _, cx| {
+                            this.tags.retain(|key| !keys.contains(key));
+                            this.tag_selection.retain(|key| !keys.contains(key));
                             cx.notify();
                         }))
                         .into_any_element()]),

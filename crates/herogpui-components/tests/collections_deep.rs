@@ -262,8 +262,10 @@ fn tag_group_delete_last_tag_leaves_the_tab_order(cx: &mut TestAppContext) {
             .flex()
             .flex_col()
             .child(
-                TagGroup::new("tg-delete-last", current).on_remove(move |key, _, cx| {
-                    removed.borrow_mut().push(format!("remove:{key}"));
+                TagGroup::new("tg-delete-last", current).on_remove(move |keys, _, cx| {
+                    removed
+                        .borrow_mut()
+                        .push(format!("remove:{}", sorted_join(keys)));
                     tags.borrow_mut().clear();
                     cx.refresh_windows();
                 }),

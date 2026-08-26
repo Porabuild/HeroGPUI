@@ -72,7 +72,7 @@ impl Tag {
 }
 
 type OnSelectionChange = Arc<dyn Fn(&HashSet<SharedString>, &mut Window, &mut App) + 'static>;
-type OnRemove = Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
+type OnRemove = Arc<dyn Fn(&HashSet<SharedString>, &mut Window, &mut App) + 'static>;
 
 /// HeroUI TagGroup.
 #[derive(IntoElement)]
@@ -195,10 +195,12 @@ impl TagGroup {
         self
     }
 
-    /// Adds a remove button to every tag.
+    /// Adds a remove button to every tag. The button reports its own key;
+    /// Delete or Backspace reports the whole selection when the focused tag is
+    /// selected, and otherwise reports only the focused key.
     pub fn on_remove(
         mut self,
-        handler: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
+        handler: impl Fn(&HashSet<SharedString>, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_remove = Some(Arc::new(handler));
         self
@@ -437,14 +439,15 @@ impl RenderOnce for TagGroup {
                             // selectable tag. Its press belongs to the button,
                             // never to the tag behind it.
                             cx.stop_propagation();
-                            on_remove(&key, window, cx);
+                            on_remove(&HashSet::from([key.clone()]), window, cx);
                         });
                 }
                 chip = chip.child(close);
             }
 
-            // React Aria's TagGroup: the arrows move between tags and Delete or
-            // Backspace removes the focused one.
+            // React Aria's TagGroup: the arrows move between tags. Delete or
+            // Backspace removes the selection when the focused tag belongs to
+            // it, and otherwise removes only the focused tag.
             if !disabled {
                 let stops = enabled.clone();
                 let moved = cursor.clone();
@@ -511,7 +514,11 @@ impl RenderOnce for TagGroup {
                         "delete" | "backspace" => {
                             if let Some(cb) = &remove {
                                 cx.stop_propagation();
-                                cb(&key_for_remove, window, cx);
+                                if selected_now.contains(&key_for_remove) {
+                                    cb(&selected_now, window, cx);
+                                } else {
+                                    cb(&HashSet::from([key_for_remove.clone()]), window, cx);
+                                }
                             }
                         }
                         key @ ("left" | "right" | "home" | "end") => {

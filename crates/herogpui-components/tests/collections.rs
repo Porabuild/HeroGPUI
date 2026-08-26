@@ -302,7 +302,7 @@ fn tag_group_remove_reports_the_key(cx: &mut TestAppContext) {
             ],
         )
         .tag_content(|_, _| gpui::div().w(px(40.)).h(px(20.)).into_any_element())
-        .on_remove(move |key, _, _| events.borrow_mut().push(key.to_string()))
+        .on_remove(move |keys, _, _| events.borrow_mut().push(sorted_join(keys)))
         .into_any_element()
     });
 
@@ -328,7 +328,7 @@ fn tag_group_roving_focus_survives_removal(cx: &mut TestAppContext) {
     // the clamp, nothing would claim the group's handle any more and the keys
     // would reach no tag at all.
     //
-    // A TagGroup never removes a tag itself — `on_remove` only reports the key
+    // A TagGroup never removes tags itself — `on_remove` only reports the keys
     // and the *caller* drops it — so the test owns the list and shortens it
     // inside the handler, which is how the component is actually used.
     let tags = Rc::new(RefCell::new(vec![
@@ -343,9 +343,9 @@ fn tag_group_roving_focus_survives_removal(cx: &mut TestAppContext) {
         let events = events.clone();
         let current = tags.borrow().clone();
         TagGroup::new("tg-roving", current)
-            .on_remove(move |key, _, cx| {
-                events.borrow_mut().push(key.to_string());
-                tags.borrow_mut().retain(|tag| tag.key() != key);
+            .on_remove(move |keys, _, cx| {
+                events.borrow_mut().push(sorted_join(keys));
+                tags.borrow_mut().retain(|tag| !keys.contains(tag.key()));
                 // A real app drops the tag from its own state here and asks for
                 // a redraw; without the refresh the next keypress would arrive
                 // against the frame that still shows the removed tag.
