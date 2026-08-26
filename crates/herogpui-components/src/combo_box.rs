@@ -676,6 +676,14 @@ impl RenderOnce for ComboBox {
             }
         }
 
+        // Which suggestion the keyboard is on. Input edits clear it, matching
+        // React Stately's focused-key reset before the filtered list changes.
+        let cursor = window.use_keyed_state(
+            gpui::ElementId::Name(format!("combobox-{entity_id}-cursor").into()),
+            cx,
+            |_, _| None::<usize>,
+        );
+        let cursor_on_change = cursor.clone();
         let validate = self.validate.clone();
         let mut input = Input::new(self.state.clone())
             .variant(self.variant)
@@ -705,6 +713,7 @@ impl RenderOnce for ComboBox {
             if let Some(cb) = &input_change {
                 cb(text, window, cx);
             }
+            cursor_on_change.update(cx, |v, _| *v = None);
 
             let query = text.to_lowercase();
             let has_matches = match &filter_on_change {
@@ -770,12 +779,6 @@ impl RenderOnce for ComboBox {
             input = input.description(description);
         }
 
-        // Which suggestion the keyboard is on.
-        let cursor = window.use_keyed_state(
-            gpui::ElementId::Name(format!("combobox-{entity_id}-cursor").into()),
-            cx,
-            |_, _| None::<usize>,
-        );
         let cursor_at = *cursor.read(cx);
         // React Aria keeps the focused row in view; the panel scrolls and the
         // virtual list scrolls itself. `use_keyed_state` takes `cx` mutably.
@@ -848,7 +851,7 @@ impl RenderOnce for ComboBox {
         // Up, down, Home, End and Enter walk the suggestions; the inner input
         // keeps left and right for the caret.
         if !self.is_disabled && !self.is_read_only {
-            let key_rows = if open_state {
+            let key_rows = if open_state || (self.allows_custom_value && !raw_query.is_empty()) {
                 matches.clone()
             } else {
                 self.items.iter().take(self.max_items).cloned().collect()
@@ -871,18 +874,20 @@ impl RenderOnce for ComboBox {
             let was_open = open_state;
             let show_all_items = show_all_items.clone();
             let on_selection_change = self.on_selection_change.clone();
+            let on_selection_change_all = self.on_selection_change_all.clone();
+            let selected_now = self.selected_keys.clone();
             let open_own_keys = open_own.clone();
             let on_open_change = self.on_open_change.clone();
             let key_selection_own = selection_own.clone();
             root = root.on_key_down(move |event, window, cx| {
                 let key = event.keystroke.key.as_str();
                 // `allowsCustomValue` is the promise behind the drawn hint
-                // "Press Enter to use this value": Enter selects the typed text
-                // when nothing is under the cursor. A no-match query has no
+                // "Press Enter to use this value". A no-match query has no
                 // cursor row at all (an empty stop list makes `resolve` report
-                // Ignore, so the Activate arm never runs), and React Aria
-                // commits the text and fires onSelectionChange either way. With
-                // a row under the cursor the normal Activate path owns Enter.
+                // Ignore, so the Activate arm never runs). The existing
+                // single-value commit remains single-mode only; React Aria
+                // keeps multiple-mode custom input independent from the
+                // selected items.
                 if allows_custom_value
                     && key == "enter"
                     && !state.read(cx).value().is_empty()
@@ -893,15 +898,17 @@ impl RenderOnce for ComboBox {
                         st.set_value(text.to_string());
                         cx.notify();
                     });
-                    // Uncontrolled: record the pick in the selection too, or
-                    // `ComboBox.Value` would never see it.
-                    if let Some(held) = &key_selection_own {
-                        let mut next = std::collections::BTreeSet::new();
-                        next.insert(text.clone());
-                        held.update(cx, |v, cx| {
-                            *v = next;
-                            cx.notify();
-                        });
+                    if !multiple {
+                        // Uncontrolled: record the pick in the selection too,
+                        // or `ComboBox.Value` would never see it.
+                        if let Some(held) = &key_selection_own {
+                            let mut next = std::collections::BTreeSet::new();
+                            next.insert(text.clone());
+                            held.update(cx, |v, cx| {
+                                *v = next;
+                                cx.notify();
+                            });
+                        }
                     }
                     held.update(cx, |v, _| *v = None);
                     if let Some(held) = &open_own_keys {
@@ -910,8 +917,10 @@ impl RenderOnce for ComboBox {
                             cx.notify();
                         });
                     }
-                    if let Some(cb) = &on_selection_change {
-                        cb(&text, window, cx);
+                    if !multiple {
+                        if let Some(cb) = &on_selection_change {
+                            cb(&text, window, cx);
+                        }
                     }
                     if was_open {
                         if let Some(cb) = &on_open_change {
@@ -950,6 +959,28 @@ impl RenderOnce for ComboBox {
                         let Some(item) = from.and_then(|i| rows.get(i).cloned()) else {
                             return;
                         };
+                        if multiple {
+                            state.update(cx, |st, cx| {
+                                st.set_value(String::new());
+                                cx.notify();
+                            });
+                            let mut next = selected_now.clone();
+                            if !next.remove(&item) {
+                                next.insert(item.clone());
+                            }
+                            if let Some(held) = &key_selection_own {
+                                let next = next.clone();
+                                held.update(cx, |v, cx| {
+                                    *v = next;
+                                    cx.notify();
+                                });
+                            }
+                            if let Some(cb) = &on_selection_change_all {
+                                let next: Vec<SharedString> = next.into_iter().collect();
+                                cb(&next, window, cx);
+                            }
+                            return;
+                        }
                         // Taking a suggestion fills the field and closes the
                         // list, the way a click does.
                         state.update(cx, |st, cx| {

@@ -475,6 +475,191 @@ fn autocomplete_controlled_query_update_does_not_focus_a_match(cx: &mut TestAppC
 }
 
 #[gpui::test]
+fn combo_box_custom_enter_preserves_multiple_selection(cx: &mut TestAppContext) {
+    let singular = events();
+    let singular_for_view = singular.clone();
+    let plural = events();
+    let plural_for_view = plural.clone();
+    let opens = events();
+    let opens_for_view = opens.clone();
+    let values = events();
+    let values_for_view = values.clone();
+    let state = search_state(cx);
+    let state_for_assert = state.clone();
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let singular = singular_for_view.clone();
+        let plural = plural_for_view.clone();
+        let opens = opens_for_view.clone();
+        let values = values_for_view.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_value(["Alpha", "Beta"])
+        .allows_custom_value(true)
+        .allows_empty_collection(true)
+        .on_change(move |item, _, _| singular.borrow_mut().push(item.to_string()))
+        .on_selection_change_all(move |items, _, _| {
+            plural.borrow_mut().push(
+                items
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
+        .value_content(move |value| {
+            values.borrow_mut().push(value.selected_text.to_owned());
+            value.default_children
+        })
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "down");
+    cx.simulate_input("zig");
+    press(cx, "enter");
+    press(cx, "down enter");
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "zig",
+        "custom text must remain in the input"
+    );
+    assert!(
+        singular.borrow().is_empty(),
+        "multiple-mode custom text must not report a singular selection"
+    );
+    assert!(
+        plural.borrow().is_empty(),
+        "multiple-mode custom text must not report a plural selection change"
+    );
+    assert_eq!(
+        values.borrow().last().map(String::as_str),
+        Some("Alpha, Beta"),
+        "custom text must not replace the existing multiple selection"
+    );
+    assert_eq!(
+        opens.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "custom Enter must close the still-open empty list exactly once"
+    );
+}
+
+#[gpui::test]
+fn combo_box_multiple_enter_toggles_the_focused_item(cx: &mut TestAppContext) {
+    let singular = events();
+    let singular_for_view = singular.clone();
+    let plural = events();
+    let plural_for_view = plural.clone();
+    let opens = events();
+    let opens_for_view = opens.clone();
+    let state = search_state(cx);
+    let state_for_assert = state.clone();
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let singular = singular_for_view.clone();
+        let plural = plural_for_view.clone();
+        let opens = opens_for_view.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_value(["Alpha", "Beta"])
+        .on_change(move |item, _, _| singular.borrow_mut().push(item.to_string()))
+        .on_selection_change_all(move |items, _, _| {
+            plural.borrow_mut().push(
+                items
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("a");
+    press(cx, "down enter");
+    press(cx, "down enter");
+    cx.simulate_input("g");
+    press(cx, "down enter");
+    assert!(
+        singular.borrow().is_empty(),
+        "multiple-mode keyboard picks must not use the singular callback"
+    );
+    assert_eq!(
+        plural.borrow().as_slice(),
+        ["Beta", "", "Gamma"],
+        "Enter must toggle selected items off and an unselected item on while the list stays open"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "",
+        "multiple-mode row activation must reset the input text"
+    );
+    assert_eq!(
+        opens.borrow().as_slice(),
+        ["open:true"],
+        "multiple-mode row activation must leave the list open"
+    );
+}
+
+#[gpui::test]
+fn combo_box_controlled_multiple_enter_waits_for_the_owner(cx: &mut TestAppContext) {
+    let singular = events();
+    let singular_for_view = singular.clone();
+    let plural = events();
+    let plural_for_view = plural.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let singular = singular_for_view.clone();
+        let plural = plural_for_view.clone();
+        ComboBox::new(
+            state_for_view.clone(),
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .selected_keys(["Alpha".into(), "Beta".into()])
+        .on_change(move |item, _, _| singular.borrow_mut().push(item.to_string()))
+        .on_selection_change_all(move |items, window, _| {
+            plural.borrow_mut().push(
+                items
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+            // Re-render the unchanged controlled prop, as an owner declining
+            // the proposed selection would.
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "down enter enter");
+    assert!(
+        singular.borrow().is_empty(),
+        "controlled multiple picks must not use the singular callback"
+    );
+    assert_eq!(
+        plural.borrow().as_slice(),
+        ["Beta", "Beta"],
+        "a controlled ComboBox must keep proposing from the owner's unchanged selection"
+    );
+}
+
+#[gpui::test]
 fn combo_box_typing_filters_and_click_selects(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();

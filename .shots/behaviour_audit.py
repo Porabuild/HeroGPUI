@@ -132,6 +132,12 @@ SELECT_ALL_KEYS = ('Table', 'ListBox', 'TagGroup')
 # Aria 3.51.0's `useSelectableCollection`.
 ESCAPE_CLEAR_KEYS = ('ListBox', 'TagGroup')
 
+# Pinned React Stately keeps custom input independent from a ComboBox's
+# multiple selection. Enter on an unmatched value neither replaces the selected
+# set nor reports either selection callback; Enter on a focused row toggles it
+# through the plural callback, clears the query and leaves the list open.
+COMBOBOX_MULTIPLE_KEYS = ('ComboBox',)
+
 # HeroUI forwards Table.Column's resize props to React Aria, whose pinned
 # TableColumnLayout clamps every committed width to minWidth (75px by default)
 # and maxWidth. A draggable line without those bounds is not the same control.
@@ -398,6 +404,25 @@ EVIDENCE = {
         r'.*?floor\(\).*?\.min\(max_width\).*?\.max\(min_width\)'
         r'.*?stop_propagation\(\)',
     ),
+    ('ComboBox', 'custom-value-multiple'): (
+        'combo_box.rs',
+        r'(?s)(?=.*cursor_on_change\.update.*?None)'
+        r'(?=.*key_rows = if open_state.*?self\.allows_custom_value'
+        r'.*?!raw_query\.is_empty\(\))'
+        r'(?=.*allows_custom_value.*?key == "enter".*?held\.read\(cx\)'
+        r'.*?rows\.get\(i\).*?is_none\(\).*?\{'
+        r'(?:(?!on_selection_change_all).)*?if !multiple'
+        r'.*?key_selection_own.*?open_own_keys.*?\*v = false'
+        r'.*?if !multiple.*?on_selection_change'
+        r'.*?if was_open.*?on_open_change)',
+    ),
+    ('ComboBox', 'multiple-row-keys'): (
+        'combo_box.rs',
+        r'(?s)Move::Activate.*?if multiple.*?state\.update'
+        r'.*?set_value\(String::new\(\)\).*?selected_now\.clone\(\)'
+        r'.*?next\.remove\(&item\).*?next\.insert\(item\.clone\(\)\)'
+        r'.*?key_selection_own.*?on_selection_change_all.*?return',
+    ),
     ('Table', 'load-more'): (
         'table.rs',
         r'(?s)virtual_end_is_near.*?last_item_size\.is_some_and'
@@ -468,6 +493,7 @@ def main():
         ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + AREA_KEYS
         + FOCUS_OPEN + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS + SELECT_ALL_KEYS
         + ESCAPE_CLEAR_KEYS
+        + COMBOBOX_MULTIPLE_KEYS
         + RESIZE_BOUNDS + RESIZE_KEYS
         + LOAD_MORE
         + FOCUS_RETURN + SCROLL_INTO_VIEW + CALENDAR_PAGING + CALENDAR_SECTION_BOUNDS
@@ -477,7 +503,8 @@ def main():
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'area-keys',
                       'focus-open', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
                       'select-all', 'escape-clear', 'resize-bounds', 'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
-                      'calendar-section-bounds', 'panel-focus', 'load-more'):
+                      'calendar-section-bounds', 'panel-focus', 'load-more',
+                      'custom-value-multiple', 'multiple-row-keys'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach
             # the breakdown: reading only EVIDENCE skipped `TextArea`'s
