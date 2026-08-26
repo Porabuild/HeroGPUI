@@ -93,9 +93,7 @@ fn main() {
             // the screenshot and smoke scripts do not interrupt whatever you are
             // doing. The window still renders, which is what those scripts need;
             // only the activation is skipped.
-            let unfocused = std::env::var("HEROGPUI_UNFOCUSED")
-                .map(|v| v == "1")
-                .unwrap_or(false);
+            let unfocused = std::env::var("HEROGPUI_UNFOCUSED").is_ok_and(|v| v == "1");
             let window = cx
                 .open_window(
                     WindowOptions {

@@ -36,8 +36,7 @@ impl ThemeProvider {
         // env var stands in for it; `set_reduce_motion` is the app-level
         // override, matching v3's `data-reduce-motion` precedence.
         let reduce_motion = std::env::var("HEROGPUI_REDUCE_MOTION")
-            .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
-            .unwrap_or(false);
+            .is_ok_and(|v| v != "0" && !v.eq_ignore_ascii_case("false"));
         cx.set_global(Self {
             active: id,
             themes,

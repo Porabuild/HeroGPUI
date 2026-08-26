@@ -31,8 +31,7 @@ impl Date {
         // std has no civil-date API; derive from UNIX epoch days.
         let secs = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
+            .map_or(0, |d| d.as_secs() as i64);
         let days = secs.div_euclid(86_400);
         civil_from_days(days)
     }
@@ -88,13 +87,8 @@ pub fn days_in_month(year: i32, month: u32) -> u32 {
     match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,
-        2 => {
-            if is_leap(year) {
-                29
-            } else {
-                28
-            }
-        }
+        2 if is_leap(year) => 29,
+        2 => 28,
         _ => 28,
     }
 }
