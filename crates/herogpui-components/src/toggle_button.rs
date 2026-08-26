@@ -78,7 +78,7 @@ impl ToggleButton {
     pub fn selection_key(&self) -> SharedString {
         self.key.clone().unwrap_or_else(|| match &self.id {
             ElementId::Name(name) => name.clone(),
-            other => SharedString::from(format!("{other:?}")),
+            other => other.to_string().into(),
         })
     }
 

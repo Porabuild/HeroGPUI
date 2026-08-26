@@ -969,6 +969,32 @@ fn toggle_button_group_defaults_to_single_selection(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn toggle_button_group_numeric_and_string_ids_keep_their_own_keys(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        ToggleButtonGroup::new("numeric-id-group")
+            .full_width(true)
+            .default_selected_keys(["7"])
+            .on_selection_change(move |next, _, _| changes.borrow_mut().push(joined(next)))
+            .child_toggle(ToggleButton::new(7).label("Seven"))
+            .child_toggle(ToggleButton::new("bold").label("Bold"))
+            .into_any_element()
+    });
+
+    // A full-width two-member group divides the 1920px test window into 960px
+    // slots; md height centres them at y=18.
+    click(cx, 480., 18.);
+    click(cx, 1440., 18.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["", "bold"],
+        "the numeric member must answer its public-spelling seed and string ids must stay intact"
+    );
+}
+
+#[gpui::test]
 fn toggle_button_group_default_selected_keys_holds_uncontrolled_state(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();
