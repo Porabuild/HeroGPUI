@@ -1168,13 +1168,13 @@ impl RenderOnce for Tabs {
             .child(
                 gpui::div()
                     .id(gpui::ElementId::Name(format!("{base_id}-scroller").into()))
-                    // A flex box, so the `flex_shrink_0` list inside keeps its
-                    // content width (`w-max`) instead of being stretched to the
-                    // scroller -- a stretched list is never wider than its box
-                    // and never scrolls.
+                    // Match the scroller's flex axis to the list: its
+                    // `flex_shrink_0` then preserves content width horizontally
+                    // and content height vertically. A stretched list never
+                    // exceeds the viewport and therefore never scrolls.
                     .flex()
                     .when(!vertical, |e| e.w_full().overflow_x_scroll())
-                    .when(vertical, |e| e.h_full().overflow_y_scroll())
+                    .when(vertical, |e| e.h_full().flex_col().overflow_y_scroll())
                     .track_scroll(&scroll)
                     .child(list),
             )
@@ -1253,7 +1253,7 @@ impl RenderOnce for Tabs {
         let mut el = gpui::div()
             .track_focus(&recovery_focus)
             .flex()
-            .when(vertical, |root| root.flex_row())
+            .when(vertical, |root| root.flex_row().h_full())
             .when(!vertical, |root| root.flex_col())
             .gap(px(8.))
             .child(container);

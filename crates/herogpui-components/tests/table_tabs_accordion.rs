@@ -49,8 +49,8 @@ use gpui::{
     ScrollWheelEvent, SharedString, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
-    Accordion, AccordionItem, DisclosureGroup, Pagination, SelectionMode, SortDescriptor,
-    SortDirection, TabItem, Table, TableColumn, Tabs,
+    Accordion, AccordionItem, DisclosureGroup, Orientation, Pagination, SelectionMode,
+    SortDescriptor, SortDirection, TabItem, Table, TableColumn, Tabs,
 };
 
 use harness::{click, events, open_host, press, Events};
@@ -695,6 +695,76 @@ fn tabs_overflow_scroller_chevrons_scroll_the_list(cx: &mut TestAppContext) {
     flush_frame(cx);
     click(cx, starts[3] + 8., 20.);
     assert_eq!(recorded.borrow().as_slice(), ["five", "four"]);
+}
+
+/// Vertical overflow uses the same 80%-of-viewport contract on the y axis.
+/// Ten 32px tabs, nine 4px gaps and 8px list padding make a 364px column in a
+/// 160px viewport; the next chevron scrolls it by 128px, moving tab five's top
+/// from y=148 to y=20. The y=24 probe would miss after the old fixed 120px step.
+#[gpui::test]
+fn tabs_vertical_overflow_chevrons_scroll_the_list(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .h(px(160.))
+            .child(
+                Tabs::new(
+                    "tb-vertical-overflow",
+                    vec![
+                        TabItem::new("one", "One"),
+                        TabItem::new("two", "Two"),
+                        TabItem::new("three", "Three"),
+                        TabItem::new("four", "Four"),
+                        TabItem::new("five", "Five"),
+                        TabItem::new("six", "Six"),
+                        TabItem::new("seven", "Seven"),
+                        TabItem::new("eight", "Eight"),
+                        TabItem::new("nine", "Nine"),
+                        TabItem::new("ten", "Ten"),
+                    ],
+                    "one",
+                )
+                .orientation(Orientation::Vertical)
+                .on_selection_change(move |key, _, _| {
+                    recorded.borrow_mut().push(key.to_string());
+                })
+                .into_any_element(),
+            )
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    flush_frame(cx);
+    flush_frame(cx);
+
+    click(cx, 40., 164.);
+    assert!(
+        recorded.borrow().is_empty(),
+        "tab five must start clipped below the vertical viewport"
+    );
+
+    click(cx, 40., 148.);
+    flush_frame(cx);
+    click(cx, 40., 24.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["five"],
+        "the vertical chevron must move the list by 80% of its viewport"
+    );
+
+    flush_frame(cx);
+    flush_frame(cx);
+    flush_frame(cx);
+    click(cx, 40., 12.);
+    flush_frame(cx);
+    click(cx, 40., 32.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["five", "one"],
+        "the previous vertical chevron must restore the same viewport-relative step"
+    );
 }
 
 /// Pinned React Aria hands the tab-list scroller to its selectable collection,

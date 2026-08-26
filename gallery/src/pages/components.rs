@@ -8430,6 +8430,7 @@ impl Gallery {
                     "Overflow",
                     col(vec![
                         para("More tabs than fit scroll along their axis.", cx),
+                        para("Horizontal", cx),
                         // The list only overflows inside a bounded box, which is
                         // how v3's own example frames it.
                         gpui::div()
@@ -8447,6 +8448,26 @@ impl Gallery {
                                     .collect(),
                                 "t1",
                             ))
+                            .into_any_element(),
+                        para("Vertical", cx),
+                        gpui::div()
+                            .h(px(200.))
+                            .child(
+                                h::Tabs::new(
+                                    "tabs-overflow-vertical",
+                                    (1..=8)
+                                        .map(|n| {
+                                            h::TabItem::new(
+                                                SharedString::from(format!("v{n}")),
+                                                SharedString::from(format!("Section {n}")),
+                                            )
+                                            .content(gpui::div().child(format!("Content {n}")))
+                                        })
+                                        .collect(),
+                                    "v1",
+                                )
+                                .orientation(Orientation::Vertical),
+                            )
                             .into_any_element(),
                     ]),
                 ),
