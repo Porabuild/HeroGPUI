@@ -140,6 +140,92 @@ fn select_value_content_hands_placeholder_then_pick(cx: &mut TestAppContext) {
     );
 }
 
+/// Pinned React Aria derives `Select.Value.isPlaceholder` from resolved
+/// selected collection nodes. A stale index that resolves to no option must
+/// therefore report the placeholder with empty item and index slices.
+#[gpui::test]
+fn select_value_content_out_of_range_seed_reports_placeholder(cx: &mut TestAppContext) {
+    let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    let record = seen.clone();
+    let _cx = open_host(cx, move || {
+        let record = record.clone();
+        Select::new(
+            "sel-vc-stale",
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .value(Some(5))
+        .value_content(move |v: util::SelectionValue<'_>| {
+            let items = v
+                .selected_items
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+            let indices = v
+                .selected_indices
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+            record.borrow_mut().push(format!(
+                "{}|{}|{}|{}",
+                v.is_placeholder, items, indices, v.selected_text
+            ));
+            v.default_children
+        })
+        .into_any_element()
+    });
+
+    assert_eq!(
+        last_string(&seen),
+        "true|||",
+        "an unresolved selected index must not masquerade as a chosen option"
+    );
+}
+
+/// Resolved multiple selections likewise omit stale indices while retaining
+/// every collection node that still exists.
+#[gpui::test]
+fn select_value_content_filters_out_of_range_multiple_indices(cx: &mut TestAppContext) {
+    let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    let record = seen.clone();
+    let _cx = open_host(cx, move || {
+        let record = record.clone();
+        Select::new(
+            "sel-vc-stale-multiple",
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .selected_indices([0, 5])
+        .value_content(move |v: util::SelectionValue<'_>| {
+            let items = v
+                .selected_items
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+            let indices = v
+                .selected_indices
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(",");
+            record.borrow_mut().push(format!(
+                "{}|{}|{}|{}",
+                v.is_placeholder, items, indices, v.selected_text
+            ));
+            v.default_children
+        })
+        .into_any_element()
+    });
+
+    assert_eq!(
+        last_string(&seen),
+        "false|Alpha|0|Alpha",
+        "multiple value slots must expose only indices that resolve to options"
+    );
+}
+
 /// `selectionMode="multiple"` is the case `Select.Value` exists for: the
 /// closure receives every selected item that the built-in value would draw.
 /// Each pick accumulates through the caller's own set (the port reports

@@ -574,11 +574,20 @@ impl RenderOnce for Select {
         } else {
             self.value_text_single(selected)
         };
-        let has_value = if multiple {
-            !self.selected_indices.is_empty()
+        let mut chosen: Vec<usize> = if multiple {
+            self.selected_indices
+                .iter()
+                .copied()
+                .filter(|index| self.options.get(*index).is_some())
+                .collect()
         } else {
-            selected.is_some()
+            selected
+                .filter(|index| self.options.get(*index).is_some())
+                .into_iter()
+                .collect()
         };
+        chosen.sort_unstable();
+        let has_value = !chosen.is_empty();
 
         // What the trigger draws when the caller does not: v3's
         // `defaultChildren`, which a `Select.Value` closure can hand straight
@@ -597,15 +606,6 @@ impl RenderOnce for Select {
         // `Select.Value` — a caller-drawn value replaces the trigger's text.
         let value_slot = match &self.value_content {
             Some(render) => {
-                let chosen: Vec<usize> = if !has_value {
-                    Vec::new()
-                } else if multiple {
-                    let mut all: Vec<usize> = self.selected_indices.iter().copied().collect();
-                    all.sort_unstable();
-                    all
-                } else {
-                    selected.into_iter().collect()
-                };
                 let items: Vec<SharedString> = chosen
                     .iter()
                     .filter_map(|i| self.options.get(*i).cloned())
