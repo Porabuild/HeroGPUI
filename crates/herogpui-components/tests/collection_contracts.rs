@@ -161,6 +161,78 @@ fn list_box_mod_a_is_idempotent_for_a_selection_superset(cx: &mut TestAppContext
     );
 }
 
+/// Pinned React Aria 3.51's default `escapeKeyBehavior="clearSelection"`
+/// clears a nonempty selection while leaving the collection focus in place.
+#[gpui::test]
+fn list_box_escape_clears_uncontrolled_selection_and_keeps_focus(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let outer_events = for_view.clone();
+        let selection_events = for_view.clone();
+        gpui::div()
+            .on_key_down(move |event, _, _| {
+                if event.keystroke.key == "escape" {
+                    outer_events.borrow_mut().push("outer-escape".into());
+                }
+            })
+            .child(
+                ListBox::new(
+                    "contract-list-escape-clear",
+                    vec![ListBoxItem::new("alpha", "Alpha")],
+                )
+                .selection_mode(SelectionMode::Single)
+                .default_selected_keys([SharedString::from("alpha")])
+                .on_selection_change(move |keys, window, _| {
+                    selection_events.borrow_mut().push(sorted_join(keys));
+                    window.refresh();
+                }),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "escape");
+    flush_frame(cx);
+    press(cx, "escape");
+    press(cx, "space");
+    flush_frame(cx);
+    press(cx, "shift-escape");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["", "outer-escape", "alpha", "outer-escape"],
+        "handled Escape must stop, while empty and modified Escape pass through without losing focus"
+    );
+}
+
+#[gpui::test]
+fn list_box_escape_clears_a_seed_when_every_option_is_disabled(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ListBox::new(
+            "contract-list-disabled-escape-clear",
+            vec![ListBoxItem::new("alpha", "Alpha")],
+        )
+        .selection_mode(SelectionMode::Single)
+        .disabled_keys([SharedString::from("alpha")])
+        .default_selected_keys([SharedString::from("alpha")])
+        .on_selection_change(move |keys, _, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "escape");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [""],
+        "the focused collection must clear a seed even when it has no enabled row stop"
+    );
+}
+
 #[gpui::test]
 fn list_box_default_selected_keys_seed_uncontrolled_state(cx: &mut TestAppContext) {
     let recorded = events();

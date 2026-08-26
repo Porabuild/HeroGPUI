@@ -127,6 +127,11 @@ TREE_KEYS = ('Table',)
 # `selectAll`, multiple-selection mode only).
 SELECT_ALL_KEYS = ('Table', 'ListBox')
 
+# A nonempty selectable collection clears on Escape by default and consumes the
+# key only when it changed selection. HeroUI inherits this from pinned React
+# Aria 3.51.0's `useSelectableCollection`.
+ESCAPE_CLEAR_KEYS = ('ListBox',)
+
 # HeroUI forwards Table.Column's resize props to React Aria, whose pinned
 # TableColumnLayout clamps every committed width to minWidth (75px by default)
 # and maxWidth. A draggable line without those bounds is not the same control.
@@ -346,6 +351,15 @@ EVIDENCE = {
         r'.*?next\.iter\(\)\.all.*?selected_now\.contains.*?if !all_selected'
         r'.*?on_selection_change.*?stop_propagation\(\)',
     ),
+    ('ListBox', 'escape-clear'): (
+        'list_box.rs',
+        r'(?s)if !stops\.is_empty\(\) \|\| !self\.selected_keys\.is_empty\(\)'
+        r'.*?key_name == "escape".*?!event\.keystroke\.modifiers\.modified\(\)'
+        r'.*?reports_changes\(mode\)'
+        r'.*?!selected_now\.is_empty\(\).*?let next = HashSet::new\(\)'
+        r'.*?selection_own_for_keys.*?on_selection_change'
+        r'.*?stop_propagation\(\)',
+    ),
     ('Table', 'resize-bounds'): (
         'table.rs',
         r'(?s)DEFAULT_COLUMN_MIN_WIDTH: f32 = 75\..*?floor\(\)\.min\(max\)\.max\(min\)',
@@ -425,6 +439,7 @@ def main():
     derived = dict.fromkeys(
         ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + AREA_KEYS
         + FOCUS_OPEN + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS + SELECT_ALL_KEYS
+        + ESCAPE_CLEAR_KEYS
         + RESIZE_BOUNDS + RESIZE_KEYS
         + FOCUS_RETURN + SCROLL_INTO_VIEW + CALENDAR_PAGING + CALENDAR_SECTION_BOUNDS
         + PANEL_FOCUS
@@ -432,7 +447,7 @@ def main():
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'area-keys',
                       'focus-open', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
-                      'select-all', 'resize-bounds', 'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
+                      'select-all', 'escape-clear', 'resize-bounds', 'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
                       'calendar-section-bounds', 'panel-focus'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach

@@ -468,7 +468,7 @@ impl RenderOnce for ListBox {
             .then_some(cursor_at)
             .flatten();
 
-        if !stops.is_empty() {
+        if !stops.is_empty() || !self.selected_keys.is_empty() {
             let held = cursor.clone();
             let stops_for_keys = stops;
             let wrap = self.should_focus_wrap;
@@ -527,6 +527,26 @@ impl RenderOnce for ListBox {
                         if let Some(cb) = &on_selection_change {
                             cb(&next, window, cx);
                         }
+                    }
+                    cx.stop_propagation();
+                    return;
+                }
+                // Pinned `useSelectableCollection` clears a nonempty selection
+                // on Escape by default and leaves an empty collection alone.
+                if key_name == "escape"
+                    && !event.keystroke.modifiers.modified()
+                    && crate::selection::reports_changes(mode)
+                    && !selected_now.is_empty()
+                {
+                    let next = HashSet::new();
+                    if let Some(held) = &selection_own_for_keys {
+                        held.update(cx, |value, cx| {
+                            *value = next.clone();
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &on_selection_change {
+                        cb(&next, window, cx);
                     }
                     cx.stop_propagation();
                     return;
