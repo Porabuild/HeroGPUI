@@ -122,6 +122,40 @@ fn tabs_pointer_selection_hands_off_to_roving_keyboard_focus(cx: &mut TestAppCon
     );
 }
 
+/// Pinned `useSingleSelectListState` enables duplicate selection events for
+/// Tabs. Clicking or activating the already-selected tab must still notify a
+/// controlled owner, even though the selected key itself does not change.
+#[gpui::test]
+fn tabs_already_selected_tab_reports_every_activation(cx: &mut TestAppContext) {
+    let recorded = events();
+    let selected = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        Tabs::new(
+            "tb-repeat-selection",
+            vec![
+                TabItem::new("first", "First"),
+                TabItem::new("second", "Second"),
+            ],
+            "first",
+        )
+        .selected_key("first")
+        .on_selection_change(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+        .into_any_element()
+    });
+
+    let first = cx.update(|window, _| text_width(window.text_system(), "First")) + 32.;
+    click(cx, 4. + first / 2., 20.);
+    press(cx, "enter");
+    press(cx, "space");
+
+    assert_eq!(
+        selected.borrow().as_slice(),
+        ["first", "first", "first"],
+        "pointer, Enter, and Space must each report the already-selected key"
+    );
+}
+
 /// Pinned `useTabPanel` puts a selected panel with no tabbable child into the
 /// tab order. The second Tab therefore leaves the list, and arrow keys from
 /// the plain panel must not continue roving or selecting tabs.
@@ -199,6 +233,56 @@ fn tabs_second_tab_lands_on_the_panel_and_mutes_arrows(cx: &mut TestAppContext) 
         ["second"],
         "reverse Tab from the following control must stop on the plain panel"
     );
+}
+
+/// A selected tab without content has no TabPanel stop. Moving from a tab with
+/// content to one without it must remove that stop, and moving back must add it
+/// again without leaving stale focus state behind.
+#[gpui::test]
+fn tabs_uncontrolled_content_switch_updates_panel_traversal(cx: &mut TestAppContext) {
+    let after_presses = events();
+    let after = after_presses.clone();
+    let cx = open_host(cx, move || {
+        let after_presses = after_presses.clone();
+        gpui::div()
+            .child(Tabs::new(
+                "tb-content-switch",
+                vec![
+                    TabItem::new("first", "First").content(gpui::div().child("First panel")),
+                    TabItem::new("second", "Second"),
+                ],
+                "first",
+            ))
+            .child(
+                Button::new("tb-content-switch-after")
+                    .label("After tabs")
+                    .on_press(move |_, _, _| after_presses.borrow_mut().push("after".into())),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "right");
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        after.borrow().as_slice(),
+        ["after"],
+        "a no-content selection must leave the list directly for the next stop"
+    );
+
+    press(cx, "shift-tab");
+    press(cx, "left");
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        after.borrow().as_slice(),
+        ["after"],
+        "restoring content must put the plain panel back before the next stop"
+    );
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(after.borrow().as_slice(), ["after", "after"]);
 }
 
 /// A panel with a tabbable child is not itself a stop in pinned `useTabPanel`.
@@ -712,6 +796,149 @@ fn tabs_controlled_owner_update_does_not_steal_focused_key(cx: &mut TestAppConte
     );
 }
 
+/// When a controlled owner selects a tab with no panel, the focused control in
+/// the old panel disappears. The next Tab must re-enter on the selected tab,
+/// and the following Tab must leave directly for the next external stop.
+#[gpui::test]
+fn tabs_controlled_no_content_update_releases_removed_panel_focus(cx: &mut TestAppContext) {
+    let selected_key = Rc::new(RefCell::new(String::from("first")));
+    let selected_for_view = selected_key.clone();
+    let proposals = events();
+    let proposed = proposals.clone();
+    let panel_presses = events();
+    let panel = panel_presses.clone();
+    let after_presses = events();
+    let after = after_presses.clone();
+    let cx = open_host(cx, move || {
+        let proposals = proposals.clone();
+        let panel_presses = panel_presses.clone();
+        let after_presses = after_presses.clone();
+        gpui::div()
+            .child(Button::new("tb-controlled-no-content-before").label("Before tabs"))
+            .child(
+                Tabs::new(
+                    "tb-controlled-no-content",
+                    vec![
+                        TabItem::new("first", "First").content(
+                            gpui::div().child(
+                                Button::new("tb-controlled-panel-button")
+                                    .label("Panel action")
+                                    .on_press(move |_, _, _| {
+                                        panel_presses.borrow_mut().push("panel".into());
+                                    }),
+                            ),
+                        ),
+                        TabItem::new("second", "Second"),
+                    ],
+                    "first",
+                )
+                .selected_key(selected_for_view.borrow().clone())
+                .on_selection_change(move |key, _, _| {
+                    proposals.borrow_mut().push(key.to_string());
+                }),
+            )
+            .child(
+                Button::new("tb-controlled-no-content-after")
+                    .label("After tabs")
+                    .on_press(move |_, _, _| after_presses.borrow_mut().push("after".into())),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(panel.borrow().as_slice(), ["panel"]);
+
+    *selected_key.borrow_mut() = String::from("second");
+    cx.update(|window, _| window.refresh());
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        after.borrow().as_slice(),
+        ["after"],
+        "two Tabs after the focused panel unmounts must reach the following stop"
+    );
+    assert!(
+        proposed.borrow().is_empty(),
+        "focus recovery must not reactivate the already-selected no-content tab"
+    );
+}
+
+/// A controlled selection change also removes the focused child when both the
+/// old and new tabs have panels. Recovery must re-enter on the selected tab,
+/// pass through the new plain panel, and then leave for the following stop.
+#[gpui::test]
+fn tabs_controlled_content_update_releases_removed_panel_focus(cx: &mut TestAppContext) {
+    let selected_key = Rc::new(RefCell::new(String::from("first")));
+    let selected_for_view = selected_key.clone();
+    let proposals = events();
+    let proposed = proposals.clone();
+    let panel_presses = events();
+    let panel = panel_presses.clone();
+    let after_presses = events();
+    let after = after_presses.clone();
+    let cx = open_host(cx, move || {
+        let proposals = proposals.clone();
+        let panel_presses = panel_presses.clone();
+        let after_presses = after_presses.clone();
+        gpui::div()
+            .child(Button::new("tb-controlled-content-before").label("Before tabs"))
+            .child(
+                Tabs::new(
+                    "tb-controlled-content",
+                    vec![
+                        TabItem::new("first", "First").content(
+                            gpui::div().child(
+                                Button::new("tb-controlled-content-panel-button")
+                                    .label("Panel action")
+                                    .on_press(move |_, _, _| {
+                                        panel_presses.borrow_mut().push("panel".into());
+                                    }),
+                            ),
+                        ),
+                        TabItem::new("second", "Second").content(gpui::div().child("Second panel")),
+                    ],
+                    "first",
+                )
+                .selected_key(selected_for_view.borrow().clone())
+                .on_selection_change(move |key, _, _| {
+                    proposals.borrow_mut().push(key.to_string());
+                }),
+            )
+            .child(
+                Button::new("tb-controlled-content-after")
+                    .label("After tabs")
+                    .on_press(move |_, _, _| after_presses.borrow_mut().push("after".into())),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(panel.borrow().as_slice(), ["panel"]);
+
+    *selected_key.borrow_mut() = String::from("second");
+    cx.update(|window, _| window.refresh());
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        after.borrow().as_slice(),
+        ["after"],
+        "three Tabs after the focused panel changes must reach the following stop"
+    );
+    assert!(
+        proposed.borrow().is_empty(),
+        "focus recovery must not activate the externally selected content tab"
+    );
+}
+
 /// Pinned list state repairs a removed focused key to the next surviving
 /// enabled key, falling back to the previous one only when there is no next
 /// item. The controlled selection remains independent throughout.
@@ -812,8 +1039,8 @@ fn tabs_controlled_secondary_vertical_advances_roving_focus(cx: &mut TestAppCont
 }
 
 /// Pinned React Aria's `keyboardActivation="manual"` moves the roving focus
-/// with arrows without selecting. Enter activates the focused tab afterward,
-/// so a controlled owner receives exactly one proposal at that point.
+/// with arrows without selecting. Enter and Space activate the focused tab
+/// afterward, so a controlled owner receives one proposal per completed press.
 #[gpui::test]
 fn tabs_manual_activation_waits_for_enter(cx: &mut TestAppContext) {
     let recorded = events();
@@ -848,5 +1075,11 @@ fn tabs_manual_activation_waits_for_enter(cx: &mut TestAppContext) {
         recorded.borrow().as_slice(),
         ["second"],
         "Enter must activate the manually focused tab"
+    );
+    press(cx, "space");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["second", "second"],
+        "Space must activate the manually focused tab"
     );
 }

@@ -529,8 +529,9 @@ impl RenderOnce for Tabs {
             },
         );
         let mut focus_now = focus_state.read(cx).clone();
+        let selection_changed = focus_now.selected_key != selected_key;
         let focus_valid = enabled_keys.contains(&focus_now.key);
-        if focus_now.selected_key != selected_key && !list_focus.is_focused(window) {
+        if selection_changed && !list_focus.is_focused(window) {
             focus_now.key = focus_seed;
         } else if !focus_valid {
             let old_index = focus_now
@@ -552,7 +553,7 @@ impl RenderOnce for Tabs {
                 })
                 .unwrap_or(focus_seed);
         }
-        if focus_now.selected_key != selected_key || focus_now.enabled_keys != enabled_keys {
+        if selection_changed || focus_now.enabled_keys != enabled_keys {
             focus_now.selected_key = selected_key.clone();
             focus_now.enabled_keys = enabled_keys;
             focus_state.update(cx, |state, _| *state = focus_now.clone());
@@ -609,13 +610,25 @@ impl RenderOnce for Tabs {
         let active_idx = self.items.iter().position(|item| item.key == selected_key);
         let active_has_content =
             active_idx.is_some_and(|index| self.items[index].content.is_some());
-        let panel_focus = active_has_content.then(|| {
-            crate::util::tab_stop_handle(
-                gpui::ElementId::Name(format!("{base_id}-panel-focus").into()),
-                window,
+        let panel_focus = crate::util::tab_stop_handle(
+            gpui::ElementId::Name(format!("{base_id}-panel-focus").into()),
+            window,
+            cx,
+        );
+        let recover_replaced_panel_focus =
+            selection_changed && panel_focus.contains_focused(window, cx);
+        let panel_focus = active_has_content.then_some(panel_focus);
+        let recovery_focus = window
+            .use_keyed_state(
+                gpui::ElementId::Name(format!("{base_id}-focus-recovery").into()),
                 cx,
+                |_, cx| cx.focus_handle(),
             )
-        });
+            .read(cx)
+            .clone();
+        if recover_replaced_panel_focus {
+            window.focus(&recovery_focus);
+        }
         let has_enabled_tab = !self.is_disabled && self.items.iter().any(|item| !item.is_disabled);
         let mut separator_motions = self
             .items
@@ -1210,6 +1223,7 @@ impl RenderOnce for Tabs {
         // `.tabs` is `flex gap-2`: horizontal tabs stack their panel below;
         // vertical tabs place it beside the list.
         let mut el = gpui::div()
+            .track_focus(&recovery_focus)
             .flex()
             .when(vertical, |root| root.flex_row())
             .when(!vertical, |root| root.flex_col())
