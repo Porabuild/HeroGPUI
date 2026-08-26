@@ -3297,30 +3297,39 @@ impl Gallery {
         let build = |id: &'static str| {
             h::Table::new(vec!["Name".into(), "Role".into(), "Status".into()])
                 .id(id)
-                .row(vec![
-                    gpui::div().child("Tony Reichert").into_any_element(),
-                    gpui::div().child("CEO").into_any_element(),
-                    h::Chip::new("Active")
-                        .color(Color::Success)
-                        .size(Size::Sm)
-                        .into_any_element(),
-                ])
-                .row(vec![
-                    gpui::div().child("Zoey Lang").into_any_element(),
-                    gpui::div().child("Tech Lead").into_any_element(),
-                    h::Chip::new("Paused")
-                        .color(Color::Warning)
-                        .size(Size::Sm)
-                        .into_any_element(),
-                ])
-                .row(vec![
-                    gpui::div().child("Jane Fisher").into_any_element(),
-                    gpui::div().child("Designer").into_any_element(),
-                    h::Chip::new("Vacation")
-                        .color(Color::Danger)
-                        .size(Size::Sm)
-                        .into_any_element(),
-                ])
+                .tree_row(
+                    h::TableRow::new(vec![
+                        gpui::div().child("Tony Reichert").into_any_element(),
+                        gpui::div().child("CEO").into_any_element(),
+                        h::Chip::new("Active")
+                            .color(Color::Success)
+                            .size(Size::Sm)
+                            .into_any_element(),
+                    ])
+                    .text_value("Tony Reichert"),
+                )
+                .tree_row(
+                    h::TableRow::new(vec![
+                        gpui::div().child("Zoey Lang").into_any_element(),
+                        gpui::div().child("Tech Lead").into_any_element(),
+                        h::Chip::new("Paused")
+                            .color(Color::Warning)
+                            .size(Size::Sm)
+                            .into_any_element(),
+                    ])
+                    .text_value("Zoey Lang"),
+                )
+                .tree_row(
+                    h::TableRow::new(vec![
+                        gpui::div().child("Jane Fisher").into_any_element(),
+                        gpui::div().child("Designer").into_any_element(),
+                        h::Chip::new("Vacation")
+                            .color(Color::Danger)
+                            .size(Size::Sm)
+                            .into_any_element(),
+                    ])
+                    .text_value("Jane Fisher"),
+                )
         };
         component_doc_page!(
             "Table",
@@ -3459,6 +3468,7 @@ impl Gallery {
                                     ])
                                 },
                             )
+                            .virtual_text_value(|i| virtual_user(i).0.into())
                             .into_any_element(),
                         para(
                             "`estimated_row_height` virtualizes rows that differ: gpui's \
@@ -3496,6 +3506,7 @@ impl Gallery {
                                     h::TableRow::new(cells)
                                 },
                             )
+                            .virtual_text_value(|i| virtual_user(i).0.into())
                             .into_any_element(),
                     ]),
                 ),

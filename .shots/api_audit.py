@@ -557,6 +557,7 @@ PART_STRUCTS = {
     'Table.Content': ['Table'],
     'Table.Header': ['Table'],
     'Table.LoadMore': ['Table'],
+    'Table.Row': ['TableRow'],
     'Table.SortableColumnHeader': ['Table'],
     'Tabs.Tab': ['TabItem'],
     'TagGroup.List': ['TagGroup'],

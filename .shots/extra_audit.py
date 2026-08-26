@@ -171,6 +171,9 @@ EXTRA_OK_SCOPED = {
     # HeroUI forwards the inherited React Aria Column `maxWidth` prop even
     # though its Table.Column table omits it alongside other inherited props.
     'Table.max_width': 'react-aria-inherited',
+    # HeroUI forwards React Aria Row's inherited `textValue`; cells are opaque
+    # in gpui, so the row must expose that searchable text explicitly.
+    'Table.text_value': 'react-aria-inherited',
     # MenuItem/ListBoxItem expose compound child slots rather than root props.
     'Dropdown.shortcut': 'composition',
     'Dropdown.submenu': 'composition',
@@ -196,6 +199,7 @@ EXTRA_OK_SCOPED = {
     # of a virtual table come from a function, because the Virtualizer calls it
     # again every time the viewport moves.
     'Table.virtual_rows': 'composition',
+    'Table.virtual_text_value': 'composition',
     'Table.virtual_tree_metadata': 'composition',
     'InputGroup.prefix': 'composition',
     'InputGroup.suffix': 'composition',

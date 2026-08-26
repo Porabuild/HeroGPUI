@@ -148,7 +148,7 @@ pub fn typeahead(
     query: &str,
     repeat: bool,
 ) -> Option<usize> {
-    let needle = query.trim().to_lowercase();
+    let needle = query.to_lowercase();
     if needle.is_empty() || stops.is_empty() {
         return None;
     }

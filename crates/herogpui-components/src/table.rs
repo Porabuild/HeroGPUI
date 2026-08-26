@@ -23,6 +23,7 @@ type OnSortChange = std::sync::Arc<dyn Fn(SortDescriptor, &mut Window, &mut App)
 type OnLoadMore = std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>;
 type VirtualRowKey = std::sync::Arc<dyn Fn(usize) -> SharedString + 'static>;
 type VirtualRow = std::sync::Arc<dyn Fn(usize) -> TableRow + 'static>;
+type VirtualRowText = std::sync::Arc<dyn Fn(usize) -> SharedString + 'static>;
 type VirtualTree = std::sync::Arc<dyn Fn(usize) -> VirtualTreeMetadata + 'static>;
 
 const DEFAULT_COLUMN_MIN_WIDTH: f32 = 75.;
@@ -196,6 +197,7 @@ impl From<&str> for TableColumn {
 /// One row (`Table.Row`).
 pub struct TableRow {
     key: Option<SharedString>,
+    text_value: Option<SharedString>,
     cells: Vec<AnyElement>,
     /// The rows nested under this one. v3 calls them the row's `children`, and
     /// `expandedKeys` decides which parents show theirs.
@@ -218,6 +220,7 @@ impl TableRow {
     pub fn new(cells: Vec<AnyElement>) -> Self {
         Self {
             key: None,
+            text_value: None,
             cells,
             children: Vec::new(),
         }
@@ -232,6 +235,15 @@ impl TableRow {
     /// The selection key. Defaults to the row's index.
     pub fn key(mut self, key: impl Into<SharedString>) -> Self {
         self.key = Some(key.into());
+        self
+    }
+
+    /// The plain-text value used by the table's typeahead.
+    ///
+    /// Cells are opaque `AnyElement`s, so rows without this value do not
+    /// participate in typeahead even when a cell visibly draws text.
+    pub fn text_value(mut self, value: impl Into<SharedString>) -> Self {
+        self.text_value = Some(value.into());
         self
     }
 }
@@ -250,6 +262,106 @@ enum RowIntent {
     Action,
     Selection,
     None,
+}
+
+#[derive(Clone, Debug, Default)]
+struct TableTypeahead {
+    query: String,
+    last: Option<std::time::Instant>,
+}
+
+impl TableTypeahead {
+    fn is_active(&self, now: std::time::Instant) -> bool {
+        !self.query.is_empty()
+            && self
+                .last
+                .is_some_and(|last| now.duration_since(last) <= crate::list_nav::TYPEAHEAD_TIMEOUT)
+    }
+
+    fn push(&mut self, key: &str, now: std::time::Instant) -> String {
+        if self
+            .last
+            .is_none_or(|last| now.duration_since(last) > crate::list_nav::TYPEAHEAD_TIMEOUT)
+        {
+            self.query.clear();
+        }
+        self.last = Some(now);
+        self.query.push_str(key);
+        self.query.clone()
+    }
+
+    fn clear(&mut self) {
+        self.query.clear();
+        self.last = None;
+    }
+}
+
+#[derive(Clone)]
+struct TableTypeaheadNavigation {
+    state: gpui::Entity<TableTypeahead>,
+    labels: Vec<String>,
+    virtual_indices: Option<Vec<usize>>,
+    virtual_text: Option<VirtualRowText>,
+    stops: Vec<usize>,
+    keys: Vec<SharedString>,
+    cursor: gpui::Entity<Option<SharedString>>,
+    fixed_virtual: bool,
+    fixed_scroll: gpui::UniformListScrollHandle,
+    variable_scroll: Option<gpui::ListState>,
+}
+
+impl TableTypeaheadNavigation {
+    fn push(
+        &self,
+        character: &str,
+        now: std::time::Instant,
+        clear_on_failure: bool,
+        cx: &mut App,
+    ) -> bool {
+        let from = self
+            .cursor
+            .read(cx)
+            .as_ref()
+            .and_then(|key| self.keys.iter().position(|row| row == key))
+            .filter(|index| self.stops.contains(index));
+        let mut query = String::new();
+        self.state.update(cx, |state, _| {
+            query = state.push(character, now);
+        });
+        let projected_labels = self
+            .virtual_text
+            .as_ref()
+            .zip(self.virtual_indices.as_ref())
+            .map(|(text_value, indices)| {
+                indices
+                    .iter()
+                    .map(|index| text_value(*index).to_string())
+                    .collect::<Vec<_>>()
+            });
+        let searchable_labels = projected_labels.as_ref().unwrap_or(&self.labels);
+        let Some(next) =
+            crate::list_nav::typeahead(searchable_labels, &self.stops, from, &query, false)
+        else {
+            if clear_on_failure {
+                self.state.update(cx, |state, _| state.clear());
+            }
+            return false;
+        };
+        self.cursor.update(cx, |value, cx| {
+            *value = self.keys.get(next).cloned();
+            cx.notify();
+        });
+        if self.fixed_virtual {
+            self.fixed_scroll
+                .scroll_to_item(next, gpui::ScrollStrategy::Center);
+        } else if let Some(state) = &self.variable_scroll {
+            state.scroll_to(gpui::ListOffset {
+                item_ix: next,
+                offset_in_item: px(0.),
+            });
+        }
+        true
+    }
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -337,6 +449,7 @@ pub struct Table {
     /// cannot be built up front and then handed out again on the next scroll,
     /// so a virtual table asks for its rows one at a time.
     virtual_rows: Option<(usize, SharedString, VirtualRowKey, VirtualRow)>,
+    virtual_text_value: Option<VirtualRowText>,
     virtual_tree_metadata: Option<VirtualTree>,
     variant: TableVariant,
     selection_mode: SelectionMode,
@@ -372,6 +485,7 @@ impl Table {
             gap: None,
             padding: None,
             virtual_rows: None,
+            virtual_text_value: None,
             virtual_tree_metadata: None,
             variant: TableVariant::Primary,
             selection_mode: SelectionMode::None,
@@ -503,6 +617,16 @@ impl Table {
             std::sync::Arc::new(key),
             std::sync::Arc::new(row),
         ));
+        self
+    }
+
+    /// Projects each virtual row's `textValue` without building its cells.
+    /// Virtual rows do not participate in typeahead unless this is supplied.
+    pub fn virtual_text_value(
+        mut self,
+        text_value: impl Fn(usize) -> SharedString + 'static,
+    ) -> Self {
+        self.virtual_text_value = Some(std::sync::Arc::new(text_value));
         self
     }
 
@@ -721,6 +845,11 @@ impl RenderOnce for Table {
             gpui::ElementId::Name(format!("{}-cursor", self.id).into()),
             cx,
             |_, _| None::<SharedString>,
+        );
+        let typeahead = window.use_keyed_state(
+            gpui::ElementId::Name(format!("{}-typeahead", self.id).into()),
+            cx,
+            |_, _| TableTypeahead::default(),
         );
         let (selected_keys, selection_own) = crate::util::controlled(
             window,
@@ -1374,6 +1503,26 @@ impl RenderOnce for Table {
         );
         let visible_collection_keys: Vec<SharedString> = virtual_visible_keys
             .unwrap_or_else(|| flat.iter().map(|(_, _, _, key, _)| key.clone()).collect());
+        let typeahead_labels: Vec<String> = virtual_projection.as_ref().map_or_else(
+            || {
+                flat.iter()
+                    .map(|(row, _, _, _, _)| {
+                        row.text_value
+                            .as_ref()
+                            .map(ToString::to_string)
+                            .unwrap_or_default()
+                    })
+                    .collect()
+            },
+            |_| Vec::new(),
+        );
+        let virtual_typeahead_indices = virtual_projection.as_ref().map(|(_, visible)| {
+            visible
+                .iter()
+                .map(|(source_index, _, _)| *source_index)
+                .collect::<Vec<_>>()
+        });
+        let virtual_text_value = self.virtual_text_value.clone();
         let cursor_key = row_cursor.read(cx).clone();
         let cursor_valid = cursor_key.as_ref().is_none_or(|key| {
             visible_collection_keys.contains(key) && !self.disabled_keys.contains(key)
@@ -1454,6 +1603,10 @@ impl RenderOnce for Table {
                 .filter_map(|(index, key)| (!self.disabled_keys.contains(key)).then_some(index))
                 .collect();
             let held = row_cursor;
+            let typeahead = typeahead;
+            let labels = typeahead_labels;
+            let virtual_indices = virtual_typeahead_indices;
+            let virtual_text = virtual_text_value;
             let on_row_click = self.on_row_click.clone();
             let keys = ctx.row_keys.clone();
             let table_focus_for_keys = table_focus;
@@ -1473,6 +1626,62 @@ impl RenderOnce for Table {
             let expanded = expanded_keys;
             let on_expanded = self.on_expanded_change.clone();
             if !keys.is_empty() {
+                let typeahead_navigation = std::rc::Rc::new(TableTypeaheadNavigation {
+                    state: typeahead,
+                    labels,
+                    virtual_indices,
+                    virtual_text,
+                    stops: stops.clone(),
+                    keys: keys.clone(),
+                    cursor: held.clone(),
+                    fixed_virtual,
+                    fixed_scroll: fixed_scroll.clone(),
+                    variable_scroll: variable_scroll.clone(),
+                });
+                let capture_typeahead = typeahead_navigation.clone();
+                let capture_typeahead_up = typeahead_navigation.clone();
+                let capture_focus = table_focus_for_keys.clone();
+                let capture_focus_up = table_focus_for_keys.clone();
+                wrapper = wrapper.capture_key_down(move |event, window, cx| {
+                    if !capture_focus.contains_focused(window, cx) {
+                        return;
+                    }
+                    let key_name = event.keystroke.key.as_str();
+                    let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
+                    let modifiers = &event.keystroke.modifiers;
+                    let now = std::time::Instant::now();
+                    let is_space = key_name == "space" || typed == " ";
+                    if is_space
+                        && capture_typeahead.state.read(cx).is_active(now)
+                        && !modifiers.control
+                        && !modifiers.platform
+                        && !modifiers.alt
+                    {
+                        cx.stop_propagation();
+                        capture_typeahead.push(" ", now, false, cx);
+                    }
+                });
+                wrapper = wrapper.capture_key_up(move |event, window, cx| {
+                    if !capture_focus_up.contains_focused(window, cx) {
+                        return;
+                    }
+                    let key_name = event.keystroke.key.as_str();
+                    let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
+                    let modifiers = &event.keystroke.modifiers;
+                    let is_space = key_name == "space" || typed == " ";
+                    if is_space
+                        && capture_typeahead_up
+                            .state
+                            .read(cx)
+                            .is_active(std::time::Instant::now())
+                        && !modifiers.control
+                        && !modifiers.platform
+                        && !modifiers.alt
+                    {
+                        cx.stop_propagation();
+                    }
+                });
+                let key_typeahead = typeahead_navigation;
                 wrapper = wrapper.on_key_down(move |event, window, cx| {
                     if !table_focus_for_keys.contains_focused(window, cx) {
                         return;
@@ -1486,6 +1695,22 @@ impl RenderOnce for Table {
                     // to the focused tree row before the list resolver sees
                     // them. Right opens; Left closes or returns to the parent.
                     let key_name = event.keystroke.key.as_str();
+                    let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
+                    let modifiers = &event.keystroke.modifiers;
+                    let now = std::time::Instant::now();
+                    let is_space = key_name == "space" || typed == " ";
+                    let is_character = {
+                        let mut chars = key_name.chars();
+                        chars.next().is_some() && chars.next().is_none() && !is_space
+                    };
+                    let is_typeahead =
+                        is_character && !modifiers.control && !modifiers.platform && !modifiers.alt;
+                    if is_typeahead {
+                        if key_typeahead.push(typed, now, true, cx) {
+                            cx.stop_propagation();
+                        }
+                        return;
+                    }
                     // Pinned React Aria 3.51 `useSelectableCollection` binds
                     // `Mod+A` -- the platform Mod, Control here -- to
                     // `selectAll`, and only when the selection mode is

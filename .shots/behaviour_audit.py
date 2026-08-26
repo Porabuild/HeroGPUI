@@ -120,6 +120,11 @@ SORT_KEYS = ('Table',)
 # when `virtual_tree_metadata` supplies their cheap preorder tree projection.
 TREE_KEYS = ('Table',)
 
+# React Aria's Table wires `useTypeSelect` through `TableKeyboardDelegate`.
+# HeroUI inherits that behavior without restating it in the Table page's short
+# accessibility section, so keep the full-row text search as a derived claim.
+TABLE_TYPEAHEAD = ('Table',)
+
 # Multiple-selection collections answer `Mod+A` -- the platform Mod, Ctrl on
 # Windows and Linux, Cmd on macOS -- by selecting every enabled item. v3's own
 # pages do not enumerate this inherited shortcut, so it is derived from the
@@ -355,6 +360,7 @@ EVIDENCE = {
         r'(?s)tree_rows\.get\(index\).*?key_name == "right"'
         r'.*?key_name == "left".*?Some\(parent\.clone\(\)\)',
     ),
+    ('Table', 'table-typeahead'): ('table.rs', r'list_nav::typeahead\(\s*searchable_labels'),
     # `Mod+A` on a focused table: the platform-Mod check, the multiple-mode
     # gate, and the selectable-row set it reports.
     ('Table', 'select-all'): (
@@ -505,7 +511,8 @@ def main():
     # every total.
     derived = dict.fromkeys(
         ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + AREA_KEYS
-        + FOCUS_OPEN + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS + SELECT_ALL_KEYS
+        + FOCUS_OPEN + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS
+        + TABLE_TYPEAHEAD + SELECT_ALL_KEYS
         + ESCAPE_CLEAR_KEYS
         + COMBOBOX_MULTIPLE_KEYS
         + RESIZE_BOUNDS + RESIZE_KEYS
@@ -516,7 +523,8 @@ def main():
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'area-keys',
                       'focus-open', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
-                      'select-all', 'escape-clear', 'resize-bounds', 'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
+                      'table-typeahead', 'select-all', 'escape-clear', 'resize-bounds',
+                      'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
                       'calendar-section-bounds', 'panel-focus', 'load-more',
                       'custom-value-multiple', 'multiple-row-keys',
                       'multiple-row-pointer'):

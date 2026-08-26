@@ -3,7 +3,7 @@
 
 mod harness;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use gpui::{prelude::*, px, SharedString, TestAppContext, VisualTestContext};
@@ -244,6 +244,276 @@ fn disabled_table_tree_chevron_is_inert(cx: &mut TestAppContext) {
     assert!(
         recorded.borrow().is_empty(),
         "a disabled expandable row must not report an expanded-key change"
+    );
+}
+
+/// Pinned `TableKeyboardDelegate.getKeyForSearch` searches row text, wraps,
+/// and skips rows excluded from the roving collection. The typeahead only
+/// moves focus; Enter proves which row it found.
+#[gpui::test]
+fn table_typeahead_uses_row_text_and_skips_disabled_matches(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-typeahead-text")
+            .column(TableColumn::new("Name").default_width(px(320.)))
+            .disabled_keys(["delta"])
+            .tree_row(
+                TableRow::new(vec![gpui::div().child("Dawn").into_any_element()])
+                    .key("dawn")
+                    .text_value("Dawn"),
+            )
+            .tree_row(
+                TableRow::new(vec![gpui::div().child("Delta").into_any_element()])
+                    .key("delta")
+                    .text_value("Delta"),
+            )
+            .tree_row(
+                TableRow::new(vec![gpui::div().child("Denmark").into_any_element()])
+                    .key("denmark")
+                    .text_value("Denmark"),
+            )
+            .on_row_click(move |index, _, _, _| recorded.borrow_mut().push(index.to_string()))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "d e");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["2"],
+        "the growing 'de' query must skip disabled Delta and focus Denmark"
+    );
+}
+
+/// Pinned `useTypeSelect` appends repeated letters verbatim. A failed `dd`
+/// query clears the buffer but leaves focus on Dawn; it does not turn the
+/// second `d` into a request for the next d-row.
+#[gpui::test]
+fn table_typeahead_does_not_cycle_a_repeated_letter(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-typeahead-repeat")
+            .column(TableColumn::new("Name").default_width(px(320.)))
+            .tree_row(
+                TableRow::new(vec![gpui::div().child("Dawn").into_any_element()])
+                    .key("dawn")
+                    .text_value("Dawn"),
+            )
+            .tree_row(
+                TableRow::new(vec![gpui::div().child("Denmark").into_any_element()])
+                    .key("denmark")
+                    .text_value("Denmark"),
+            )
+            .on_row_click(move |index, _, _, _| recorded.borrow_mut().push(index.to_string()))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "d d");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["0"],
+        "a repeated letter must not cycle to the next matching row"
+    );
+}
+
+/// Once pinned `useTypeSelect` has a query, Space extends it instead of
+/// activating the current row. This distinguishes "New York" from "New".
+#[gpui::test]
+fn table_typeahead_includes_space_after_the_query_starts(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-typeahead-space")
+            .column(TableColumn::new("Name").default_width(px(320.)))
+            .tree_row(
+                TableRow::new(vec![gpui::div().child("New").into_any_element()])
+                    .key("new")
+                    .text_value("New"),
+            )
+            .tree_row(
+                TableRow::new(vec![gpui::div().child("New York").into_any_element()])
+                    .key("new-york")
+                    .text_value("New York"),
+            )
+            .on_row_click(move |index, _, _, _| recorded.borrow_mut().push(index.to_string()))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "n e w space");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["1"],
+        "Space inside a live query must distinguish the longer prefix"
+    );
+}
+
+/// Pinned `getStringForKey` accepts any single printable character, not only
+/// letters and digits.
+#[gpui::test]
+fn table_typeahead_accepts_punctuation(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-typeahead-punctuation")
+            .column(TableColumn::new("Name").default_width(px(320.)))
+            .tree_row(
+                TableRow::new(vec![gpui::div().child("-Dash").into_any_element()])
+                    .key("dash")
+                    .text_value("-Dash"),
+            )
+            .on_row_click(move |index, _, _, _| recorded.borrow_mut().push(index.to_string()))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "-");
+    press(cx, "enter");
+    assert_eq!(recorded.borrow().as_slice(), ["0"]);
+}
+
+/// `useTypeSelect` clears its query after one second. A later Space activates
+/// selection again, even when no other key arrived to clear our lazy buffer.
+#[gpui::test]
+fn table_typeahead_timeout_restores_space_activation(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-typeahead-timeout")
+            .column(TableColumn::new("Name").default_width(px(320.)))
+            .selection_mode(SelectionMode::Multiple)
+            .tree_row(
+                TableRow::new(vec![gpui::div().child("North").into_any_element()])
+                    .key("north")
+                    .text_value("North"),
+            )
+            .on_selection_change(move |keys, _, _| {
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "n");
+    std::thread::sleep(std::time::Duration::from_millis(1020));
+    press(cx, "space");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["north"],
+        "Space after the query timeout must select the focused row"
+    );
+}
+
+/// Pinned `useTypeSelect` intercepts Space during capture while a query is
+/// live, before a focused row checkbox can arm its own keyboard activation.
+#[gpui::test]
+fn table_typeahead_space_precedes_a_focused_row_checkbox(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("table-typeahead-checkbox")
+            .column(TableColumn::new("Name").default_width(px(320.)))
+            .selection_mode(SelectionMode::Multiple)
+            .tree_row(
+                TableRow::new(vec![gpui::div().child("North").into_any_element()])
+                    .key("north")
+                    .text_value("North"),
+            )
+            .on_selection_change(move |keys, _, _| {
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "n");
+    click(cx, 22., 58.);
+    recorded.borrow_mut().clear();
+    press(cx, "space");
+    assert!(
+        recorded.borrow().is_empty(),
+        "Space extending a live query must not toggle the focused row checkbox"
+    );
+}
+
+/// A virtual table's collection still owns every row's text value even though
+/// the viewport builds only nearby elements. Typeahead must find an offscreen
+/// enabled match without eagerly constructing the full row set.
+#[gpui::test]
+fn virtual_table_typeahead_searches_unbuilt_row_text(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let builds = Rc::new(Cell::new(0usize));
+    let builds_for_view = builds.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        let builds = builds_for_view.clone();
+        Table::new(vec![])
+            .id("table-typeahead-virtual")
+            .column(TableColumn::new("Name").default_width(px(320.)))
+            .row_height(px(40.))
+            .max_h(px(160.))
+            .disabled_keys(["25"])
+            .virtual_rows(
+                50,
+                "typeahead-rows",
+                |index| SharedString::from(index.to_string()),
+                move |index| {
+                    builds.set(builds.get() + 1);
+                    TableRow::new(vec![gpui::div()
+                        .child(format!("Row {index}"))
+                        .into_any_element()])
+                    .key(index.to_string())
+                },
+            )
+            .virtual_text_value(|index| match index {
+                25 => SharedString::from("Zeta"),
+                40 => SharedString::from("Zulu"),
+                _ => SharedString::from(format!("Row {index}")),
+            })
+            .on_row_click(move |index, _, _, _| recorded.borrow_mut().push(index.to_string()))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "z");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["40"],
+        "typeahead must skip disabled offscreen Zeta and focus offscreen Zulu"
+    );
+    assert!(
+        builds.get() < 50,
+        "projecting typeahead text must not eagerly construct every virtual row"
     );
 }
 
