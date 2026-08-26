@@ -188,6 +188,7 @@ struct OverlayRegistration {
     phase: OverlayPhase,
     keep_exiting: bool,
     exit_generation: u64,
+    escape_capture: Option<std::sync::Arc<dyn Fn(&mut gpui::Window, &mut App) -> DismissResult>>,
 }
 
 /// A direct handle to one registration returned by [`overlay_scope`].
@@ -246,6 +247,47 @@ fn is_topmost(token: &OverlayToken, cx: &mut App) -> bool {
             .max_by_key(|entry| entry.read(cx).order)
             .is_some_and(|entry| entry == registration)
     })
+}
+
+/// Gives an overlay a document-level Escape handler.
+///
+/// React Aria uses this for Tooltip because focus may sit anywhere else in the
+/// document while hover keeps the tip open. [`app_focus_root`] invokes the
+/// handler during capture, before a focused descendant can answer the key.
+/// The newest open captured handler wins even when a non-capturing overlay was
+/// registered later, matching the document listener's precedence.
+pub fn capture_escape(
+    token: &OverlayToken,
+    handler: impl Fn(&mut gpui::Window, &mut App) -> DismissResult + 'static,
+    cx: &mut App,
+) {
+    if let Some(registration) = token.registration.upgrade() {
+        let handler = shared(handler);
+        registration.update(cx, |state, _| state.escape_capture = Some(handler));
+    }
+}
+
+fn dismiss_captured_escape(window: &mut gpui::Window, cx: &mut App) -> bool {
+    let window_id = window.window_handle().window_id();
+    ensure_overlay_stack(cx);
+    let handler = cx.update_global::<OverlayStack, _>(|stack, cx| {
+        prune_overlay_stack(stack, cx);
+        stack
+            .entries
+            .iter()
+            .filter_map(|entry| entry.upgrade())
+            .filter(|entry| entry.read(cx).window_id == window_id)
+            .filter_map(|entry| {
+                let state = entry.read(cx);
+                state
+                    .escape_capture
+                    .clone()
+                    .map(|handler| (state.order, handler))
+            })
+            .max_by_key(|(order, _)| *order)
+            .map(|(_, handler)| handler)
+    });
+    handler.is_some_and(|handler| handler(window, cx) == DismissResult::Handled)
 }
 
 /// Closes a floating panel on Escape and on a press outside it.
@@ -582,6 +624,7 @@ pub fn overlay_scope_with_exit(
         phase: OverlayPhase::Closed,
         keep_exiting,
         exit_generation: 0,
+        escape_capture: None,
     });
     let current = registration.read(cx).clone();
 
@@ -1021,6 +1064,11 @@ where
     }
     el.track_focus(&root)
         .capture_any_mouse_down(|_, _, cx| set_focus_visible(false, cx))
+        .capture_key_down(|event, window, cx| {
+            if event.keystroke.key == "escape" && dismiss_captured_escape(window, cx) {
+                cx.stop_propagation();
+            }
+        })
         .on_key_down(|event, window, cx| {
             set_focus_visible(true, cx);
             match event.keystroke.key.as_str() {
@@ -1272,6 +1320,7 @@ mod overlay_stack_tests {
             phase: OverlayPhase::Open,
             keep_exiting: false,
             exit_generation: 0,
+            escape_capture: None,
         })
     }
 

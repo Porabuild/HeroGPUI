@@ -340,7 +340,19 @@ impl RenderOnce for Tooltip {
         }
 
         let hover_state = state.clone();
-        let escape_state = state;
+        let dismiss_tooltip = util::shared(move |cx: &mut App| {
+            state.update(cx, |s, cx| {
+                if s.open {
+                    s.open = false;
+                    cx.notify();
+                }
+                if !s.focus_dismissed {
+                    s.focus_dismissed = true;
+                    cx.notify();
+                }
+            });
+            util::DismissResult::Handled
+        });
         let mut wrapper = gpui::div()
             // `on_hover` needs a stateful element, so the wrapper carries the id.
             .id(key.clone())
@@ -396,18 +408,10 @@ impl RenderOnce for Tooltip {
             open,
             true,
         );
+        let captured_dismiss = dismiss_tooltip.clone();
+        util::capture_escape(&overlay_token, move |_window, cx| captured_dismiss(cx), cx);
         wrapper = util::dismiss_on_escape_with_token(wrapper, overlay_token, move |_window, cx| {
-            escape_state.update(cx, |s, cx| {
-                if s.open {
-                    s.open = false;
-                    cx.notify();
-                }
-                if !s.focus_dismissed {
-                    s.focus_dismissed = true;
-                    cx.notify();
-                }
-            });
-            util::DismissResult::Handled
+            dismiss_tooltip(cx)
         });
 
         // A tooltip leaves the way every other overlay does: `overlay_scope`

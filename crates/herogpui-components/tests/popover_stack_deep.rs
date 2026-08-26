@@ -6,7 +6,7 @@ use std::{cell::Cell, cell::RefCell, rc::Rc, time::Duration};
 
 use gpui::{canvas, point, prelude::*, px, AnyElement, Modifiers, MouseButton, TestAppContext};
 use harness::{click, events, open_host, press};
-use herogpui_components::{util, Button, Popover, Tooltip};
+use herogpui_components::{util, Button, Popover, Tooltip, TooltipHover};
 
 fn still() {
     std::env::set_var("HEROGPUI_REDUCE_MOTION", "1");
@@ -46,6 +46,25 @@ fn custom_exit_phase_probe(
         move |_, window, cx| {
             let (phase, _) = util::overlay_scope_with_exit(window, cx, key, open, true, exit_ms);
             seen.borrow_mut().push(format!("{phase:?}"));
+        },
+        |_, _, _, _| {},
+    )
+    .size_0()
+    .into_any_element()
+}
+
+fn nested_tooltip_open_probe(id: &'static str, seen: Rc<RefCell<Vec<bool>>>) -> AnyElement {
+    canvas(
+        move |_, window, cx| {
+            let open = window.with_id(std::any::type_name::<Tooltip>(), |window| {
+                window
+                    .use_keyed_state(gpui::ElementId::Name(id.into()), cx, |_, _| {
+                        TooltipHover::closed()
+                    })
+                    .read(cx)
+                    .is_open()
+            });
+            seen.borrow_mut().push(open);
         },
         |_, _, _, _| {},
     )
@@ -586,5 +605,76 @@ fn closed_tooltip_does_not_swallow_parent_popover_escape(cx: &mut TestAppContext
         popover_recorded.borrow().as_slice(),
         ["popover:false"],
         "a closed tooltip must not consume its parent popover's Escape"
+    );
+}
+
+#[gpui::test]
+fn open_tooltip_inside_popover_answers_escape_before_its_parent(cx: &mut TestAppContext) {
+    still();
+    let popover_changes = events();
+    let popover_recorded = popover_changes.clone();
+    let popover_open = Rc::new(RefCell::new(true));
+    let tooltip_states = Rc::new(RefCell::new(Vec::<bool>::new()));
+    let tooltip_seen = tooltip_states.clone();
+
+    let cx = open_host(cx, move || {
+        let popover_changes = popover_changes.clone();
+        let is_popover_open = *popover_open.borrow();
+        Popover::new(Button::new("popover-open-tooltip-trigger").label("Trigger"))
+            .id("popover-open-tooltip-popover")
+            .is_open(is_popover_open)
+            .show_close_button(false)
+            .on_open_change({
+                let popover_open = popover_open.clone();
+                move |value, window, _| {
+                    *popover_open.borrow_mut() = value;
+                    popover_changes
+                        .borrow_mut()
+                        .push(format!("popover:{value}"));
+                    window.refresh();
+                }
+            })
+            .child(nested_tooltip_open_probe(
+                "popover-open-tooltip-tip",
+                tooltip_seen.clone(),
+            ))
+            .child(
+                Tooltip::new("Open tip")
+                    .id("popover-open-tooltip-tip")
+                    .delay(0)
+                    .child(gpui::div().w(px(120.)).h(px(36.)).child("Tip trigger")),
+            )
+            .into_any_element()
+    });
+
+    let mut opened = false;
+    'rows: for y in (10..1080).step_by(20) {
+        for x in (10..1920).step_by(20) {
+            cx.simulate_mouse_move(point(px(x as f32), px(y as f32)), None, Modifiers::none());
+            cx.refresh().unwrap();
+            if tooltip_states.borrow().last().copied() == Some(true) {
+                opened = true;
+                break 'rows;
+            }
+        }
+    }
+    assert!(
+        opened,
+        "the pointer sweep must open the nested tooltip; last states: {:?}",
+        tooltip_states.borrow().last()
+    );
+
+    press(cx, "escape");
+    // The old defect also left the parent open after one Escape; the second
+    // assertion is what proves the tooltip actually yielded the stack slot.
+    assert!(
+        popover_recorded.borrow().is_empty(),
+        "the first Escape belongs to the open tooltip"
+    );
+    press(cx, "escape");
+    assert_eq!(
+        popover_recorded.borrow().as_slice(),
+        ["popover:false"],
+        "after the tooltip consumes one Escape, the next must close its parent"
     );
 }
