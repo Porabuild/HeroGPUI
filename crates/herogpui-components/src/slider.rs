@@ -19,12 +19,11 @@ fn format_value_labels(
     values: &[f32],
     format: Option<&herogpui_core::NumberFormat>,
 ) -> Vec<String> {
+    let default_format = herogpui_core::NumberFormat::decimal();
+    let format = format.unwrap_or(&default_format);
     values
         .iter()
-        .map(|value| match format {
-            Some(format) => format.format(f64::from(*value)),
-            None => format!("{value}"),
-        })
+        .map(|value| format.format(f64::from(*value)))
         .collect()
 }
 

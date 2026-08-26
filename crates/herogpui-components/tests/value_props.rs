@@ -627,6 +627,34 @@ fn slider_output_hands_formatted_range_and_live_values(cx: &mut TestAppContext) 
     );
 }
 
+/// Without `formatOptions`, pinned RAC still creates an Intl decimal formatter,
+/// so each `getThumbValueLabel` groups thousands before Slider.Output joins the
+/// labels. The explicit maximum keeps both seeded thumbs inside the range.
+#[gpui::test]
+fn slider_output_default_labels_group_thousands(cx: &mut TestAppContext) {
+    let seen = events();
+    let record = seen.clone();
+    open_host(cx, move || {
+        let record = record.clone();
+        Slider::new("slider-vc-default-grouping", 0.)
+            .max_value(10_000.)
+            .default_values([1200., 5000.])
+            .output(move |_, labels| {
+                record.borrow_mut().push(labels.join(" \u{2013} "));
+                gpui::div()
+                    .child(labels.join(" \u{2013} "))
+                    .into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        last_string(&seen),
+        "1,200 \u{2013} 5,000",
+        "format-less output must use the grouped decimal labels v3 gets from Intl"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Switch.Content / CloseButton.Content
 // ---------------------------------------------------------------------------
