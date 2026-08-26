@@ -558,6 +558,107 @@ fn tag_group_horizontal_arrows_wrap(cx: &mut TestAppContext) {
     );
 }
 
+/// Pinned React Aria 3.51 routes TagGroup through the same selectable-list
+/// Mod+A handler as ListBox, excluding disabled tags.
+#[gpui::test]
+fn tag_group_multiple_selects_every_enabled_tag_on_mod_a(cx: &mut TestAppContext) {
+    let selected = Rc::new(RefCell::new(HashSet::<SharedString>::new()));
+    let recorded = events();
+    let selected_for_view = selected;
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let selected = selected_for_view.clone();
+        let held = selected.borrow().clone();
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-mod-a",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .disabled_keys([SharedString::from("beta")])
+        .selected_keys(held)
+        .on_selection_change(move |keys, window, _| {
+            *selected.borrow_mut() = keys.clone();
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press_mod_a(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha,gamma"],
+        "Mod+A must select every enabled tag in multiple mode"
+    );
+}
+
+#[gpui::test]
+fn tag_group_uncontrolled_mod_a_persists_before_the_next_toggle(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-uncontrolled-mod-a",
+            vec![Tag::new("alpha", "Alpha"), Tag::new("beta", "Beta")],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_selected_keys([SharedString::from("alpha")])
+        .on_selection_change(move |keys, window, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press_mod_a(cx);
+    flush_frame(cx);
+    press(cx, "right");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha,beta", "alpha"],
+        "the uncontrolled select-all result must become the next toggle's current selection"
+    );
+}
+
+#[gpui::test]
+fn tag_group_mod_a_is_idempotent_for_a_selection_superset(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-mod-a-idempotent",
+            vec![Tag::new("alpha", "Alpha"), Tag::new("beta", "Beta")],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .selected_keys([
+            SharedString::from("alpha"),
+            SharedString::from("beta"),
+            SharedString::from("stale"),
+        ])
+        .on_selection_change(move |keys, _, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press_mod_a(cx);
+    assert!(
+        recorded.borrow().is_empty(),
+        "Mod+A must not report or drop stale keys once every enabled tag is selected"
+    );
+}
+
 #[gpui::test]
 fn tag_group_default_selected_keys_seed_uncontrolled_state(cx: &mut TestAppContext) {
     let recorded = events();

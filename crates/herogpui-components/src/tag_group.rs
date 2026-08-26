@@ -267,6 +267,10 @@ impl RenderOnce for TagGroup {
             .copied()
             .find(|i| *i >= at)
             .or_else(|| enabled.first().copied());
+        let enabled_keys: HashSet<SharedString> = enabled
+            .iter()
+            .map(|index| self.tags[*index].key.clone())
+            .collect();
         let owns_focus = window.is_window_active() && group_focus.is_focused(window);
         // One hover/press slot per tag, for a `tag_content` closure.
         let interaction: Vec<crate::util::Interaction> = if self.tag_content.is_some() {
@@ -446,42 +450,77 @@ impl RenderOnce for TagGroup {
                 let moved = cursor.clone();
                 let remove = self.on_remove.clone();
                 let key_for_remove = tag.key.clone();
-                chip =
-                    chip.on_key_down(
-                        move |event, window, cx| match event.keystroke.key.as_str() {
-                            "delete" | "backspace" => {
-                                if let Some(cb) = &remove {
-                                    cx.stop_propagation();
-                                    cb(&key_for_remove, window, cx);
-                                }
-                            }
-                            key @ ("left" | "right" | "home" | "end") => {
-                                let key = match key {
-                                    "right" => "down",
-                                    "left" => "up",
-                                    other => other,
-                                };
-                                // React Aria gives TagGroup a horizontal
-                                // keyboard delegate. The list owns its axis
-                                // and Home/End; Up/Down fall through to an
-                                // enclosing scroller.
-                                cx.stop_propagation();
-                                let crate::list_nav::Move::To(next) =
-                                    crate::list_nav::resolve(&stops, Some(index), key, true)
-                                else {
-                                    return;
-                                };
-                                // No refocusing: the next render has the tag
-                                // at `next` claim the group's handle, so the
-                                // focus goes with it.
-                                moved.update(cx, |v, cx| {
-                                    *v = next;
+                let mode = self.selection_mode;
+                let selected_now = self.selected_keys.clone();
+                let selectable_keys = enabled_keys.clone();
+                let on_selection_change = self.on_selection_change.clone();
+                let selection_own_for_keys = selection_own.clone();
+                chip = chip.on_key_down(move |event, window, cx| {
+                    let key_name = event.keystroke.key.as_str();
+                    // Pinned React Aria 3.51 routes TagGroup through
+                    // `useSelectableCollection`, including Mod+A select-all.
+                    if key_name == "a"
+                        && event.keystroke.modifiers.secondary()
+                        && !event.keystroke.modifiers.shift
+                        && !event.keystroke.modifiers.alt
+                        && !event.keystroke.modifiers.function
+                        && if cfg!(target_os = "macos") {
+                            !event.keystroke.modifiers.control
+                        } else {
+                            !event.keystroke.modifiers.platform
+                        }
+                        && mode == SelectionMode::Multiple
+                    {
+                        let all_selected =
+                            selectable_keys.iter().all(|key| selected_now.contains(key));
+                        if !all_selected {
+                            if let Some(held) = &selection_own_for_keys {
+                                held.update(cx, |value, cx| {
+                                    *value = selectable_keys.clone();
                                     cx.notify();
                                 });
                             }
-                            _ => {}
-                        },
-                    );
+                            if let Some(change) = &on_selection_change {
+                                change(&selectable_keys, window, cx);
+                            }
+                        }
+                        cx.stop_propagation();
+                        return;
+                    }
+                    match key_name {
+                        "delete" | "backspace" => {
+                            if let Some(cb) = &remove {
+                                cx.stop_propagation();
+                                cb(&key_for_remove, window, cx);
+                            }
+                        }
+                        key @ ("left" | "right" | "home" | "end") => {
+                            let key = match key {
+                                "right" => "down",
+                                "left" => "up",
+                                other => other,
+                            };
+                            // React Aria gives TagGroup a horizontal
+                            // keyboard delegate. The list owns its axis
+                            // and Home/End; Up/Down fall through to an
+                            // enclosing scroller.
+                            cx.stop_propagation();
+                            let crate::list_nav::Move::To(next) =
+                                crate::list_nav::resolve(&stops, Some(index), key, true)
+                            else {
+                                return;
+                            };
+                            // No refocusing: the next render has the tag
+                            // at `next` claim the group's handle, so the
+                            // focus goes with it.
+                            moved.update(cx, |v, cx| {
+                                *v = next;
+                                cx.notify();
+                            });
+                        }
+                        _ => {}
+                    }
+                });
             }
 
             if selectable && !disabled {

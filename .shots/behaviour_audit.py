@@ -125,7 +125,7 @@ TREE_KEYS = ('Table',)
 # pages do not enumerate this inherited shortcut, so it is derived from the
 # pinned React Aria 3.51.0 `useSelectableCollection` source (`Mod+A` ->
 # `selectAll`, multiple-selection mode only).
-SELECT_ALL_KEYS = ('Table', 'ListBox')
+SELECT_ALL_KEYS = ('Table', 'ListBox', 'TagGroup')
 
 # A nonempty selectable collection clears on Escape by default and consumes the
 # key only when it changed selection. HeroUI inherits this from pinned React
@@ -356,6 +356,12 @@ EVIDENCE = {
         r'.*?mode == SelectionMode::Multiple.*?stops_for_keys.*?filter_map'
         r'.*?next\.iter\(\)\.all.*?selected_now\.contains.*?if !all_selected'
         r'.*?on_selection_change.*?stop_propagation\(\)',
+    ),
+    ('TagGroup', 'select-all'): (
+        'tag_group.rs',
+        r'(?s)key_name == "a".*?modifiers\.secondary\(\).*?modifiers\.platform'
+        r'.*?mode == SelectionMode::Multiple.*?selectable_keys.*?if !all_selected'
+        r'.*?selection_own_for_keys.*?on_selection_change.*?stop_propagation\(\)',
     ),
     ('ListBox', 'escape-clear'): (
         'list_box.rs',
