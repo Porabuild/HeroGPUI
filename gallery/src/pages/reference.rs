@@ -1315,6 +1315,48 @@ impl Widget {
     }
 
     #[test]
+    fn modal_metadata_keeps_compound_parts_and_full_size_gaps_explicit() {
+        let metadata = reference_metadata::for_route(
+            "Modal",
+            "use herogpui::components::modal::{Modal, ModalSize};",
+        )
+        .expect("Modal metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for required in metadata.required_parts {
+            assert!(
+                metadata.parts.iter().any(|part| part.name == *required),
+                "registered Modal part disappeared: {required}"
+            );
+        }
+        for (owner, prop) in [
+            ("Modal.Backdrop", "isDismissable"),
+            ("Modal.Container", "size"),
+            ("Modal.CloseTrigger", "children"),
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == owner
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Partial
+            }));
+        }
+        for class_or_token in [
+            ".modal__dialog--full",
+            ".modal__container--full[data-entering=\"true\"] / [data-exiting=\"true\"]",
+        ] {
+            assert!(metadata.styling.iter().any(|entry| {
+                entry.class_or_token == class_or_token
+                    && entry.status == reference_metadata::ImplementationStatus::Partial
+            }));
+        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token
+                == ".modal__container--scroll-outside / .modal__backdrop:has(.modal__container--scroll-outside)"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+    }
+
+    #[test]
     fn metadata_validation_rejects_bogus_method_owner_and_page() {
         let metadata = reference_metadata::for_route(
             "Dropdown",
