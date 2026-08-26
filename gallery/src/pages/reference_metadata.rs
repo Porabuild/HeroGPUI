@@ -2296,7 +2296,7 @@ const RADIO_GROUP_API: &[ApiDoc] = &[
         prop: "children",
         ty: "ReactNode | RadioButtonRenderFunction",
         default: "—",
-        description: "Clickable control and label content; the port keeps the control first and customizes the label body.",
+        description: "Clickable control and label content; the port keeps the control first and exposes only root field state, not RadioButtonRenderProps.",
         rust_owner: "RadioGroup",
         rust: "option_content(render)",
         status: ImplementationStatus::Partial,
@@ -2308,7 +2308,7 @@ const RADIO_GROUP_API: &[ApiDoc] = &[
         default: "—",
         description: "Current option selection supplied to a custom renderer.",
         rust_owner: "RadioGroup",
-        rust: "indicator(render)",
+        rust: "option_content(render) + indicator(render)",
         status: ImplementationStatus::Implemented,
     },
     ApiDoc {
@@ -2318,7 +2318,7 @@ const RADIO_GROUP_API: &[ApiDoc] = &[
         default: "—",
         description: "Current option disabled state supplied to a custom renderer.",
         rust_owner: "RadioGroup",
-        rust: "indicator(render)",
+        rust: "option_content(render) + indicator(render)",
         status: ImplementationStatus::Implemented,
     },
     ApiDoc {
@@ -2328,7 +2328,7 @@ const RADIO_GROUP_API: &[ApiDoc] = &[
         default: "—",
         description: "Current group read-only state supplied to a custom renderer.",
         rust_owner: "RadioGroup",
-        rust: "indicator(render)",
+        rust: "option_content(render) + indicator(render)",
         status: ImplementationStatus::Implemented,
     },
     ApiDoc {
@@ -2338,7 +2338,7 @@ const RADIO_GROUP_API: &[ApiDoc] = &[
         default: "—",
         description: "Resolved invalid state supplied to a custom renderer.",
         rust_owner: "RadioGroup",
-        rust: "indicator(render)",
+        rust: "option_content(render) + indicator(render)",
         status: ImplementationStatus::Implemented,
     },
     ApiDoc {
@@ -2348,7 +2348,7 @@ const RADIO_GROUP_API: &[ApiDoc] = &[
         default: "—",
         description: "Current required state supplied to a custom renderer.",
         rust_owner: "RadioGroup",
-        rust: "indicator(render)",
+        rust: "option_content(render) + indicator(render)",
         status: ImplementationStatus::Implemented,
     },
 ];
@@ -2423,8 +2423,8 @@ const RADIO_GROUP_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Hovered",
         selector: ".radio [data-slot=\"radio-content\"][data-hovered=\"true\"]",
-        description: "v3 changes the unselected indicator fill and field border on hover; the port tracks hover for render props but does not reproduce every CSS layer.",
-        rust: "util::track_interaction",
+        description: "v3 changes the unselected indicator fill and field border on hover; the port does not reproduce those hover layers.",
+        rust: "interaction feeds the pressed dot only",
         status: ImplementationStatus::Partial,
     },
     StateDoc {
@@ -2465,8 +2465,8 @@ const RADIO_GROUP_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Invalid",
         selector: ".radio[data-invalid=\"true\"]",
-        description: "Controlled or message-derived invalid state outlines every control and displays the group error.",
-        rust: "is_invalid || error_message.is_some()",
+        description: "Group invalid state outlines every control; a per-radio error outlines only its own control.",
+        rust: "self.is_invalid || group error || option error",
         status: ImplementationStatus::Implemented,
     },
     StateDoc {

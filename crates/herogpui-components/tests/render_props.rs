@@ -15,15 +15,17 @@
 //! one frame late where gpui reports it to a handler, so the cycle is
 //! event -> `flush_frame` -> read the closure's latest snapshot.
 //!
-//! Five of the eight closures are handed `util::InteractiveState`. TagGroup
+//! Four of the eight closures are handed `util::InteractiveState`. TagGroup
 //! wires its hover/press through `util::interaction` + `util::track_interaction`
 //! (gated on the closure being set — see the no-closure test); ListBox, Menu
-//! and RadioGroup hand over hardcoded `false` for the hover but read the
-//! press from the interaction slot, so their state-change tests assert what
-//! they do deliver (selection and cursor focus) and separate
+//! and Dropdown hand over hardcoded `false` for the hover but read the press
+//! from the interaction slot, so their state-change tests assert what they do
+//! deliver (selection and cursor focus) and separate
 //! defect tests pin the press, which v3's `ListBox.Item` and `Dropdown.Item`
 //! tables list as `isPressed` and which the port's own doc comments promise
 //! "a frame behind the pointer".
+//! RadioGroup instead hands its root closure `RadioOptionState`, matching v3's
+//! field-level selected, disabled, read-only, invalid and required values.
 //!
 //! Geometry is derived from the components' own constants, never guessed:
 //!
@@ -69,8 +71,8 @@ use herogpui_components::{
     calendar::{Date, CALENDAR_WIDTH},
     util::InteractiveState,
     Button, Calendar, CalendarCellState, CalendarState, DateConstraints, DateRangeState, Dropdown,
-    ListBox, ListBoxItem, Menu, MenuItem, RadioGroup, RangeCalendar, RangeCalendarCellState,
-    SelectionMode, Tag, TagGroup, VisibleDuration,
+    ListBox, ListBoxItem, Menu, MenuItem, RadioGroup, RadioOption, RadioOptionState, RangeCalendar,
+    RangeCalendarCellState, SelectionMode, Tag, TagGroup, VisibleDuration,
 };
 
 use harness::{click, events, open_host, press};
@@ -101,6 +103,16 @@ fn record_interactive(map: &Interactives, key: &SharedString, state: Interactive
 }
 
 fn state_of(map: &Interactives, key: &str) -> InteractiveState {
+    map.borrow().get(key).copied().unwrap_or_default()
+}
+
+type RadioStates = Rc<RefCell<HashMap<String, RadioOptionState>>>;
+
+fn record_radio_state(map: &RadioStates, key: &SharedString, state: RadioOptionState) {
+    map.borrow_mut().insert(key.to_string(), state);
+}
+
+fn radio_state_of(map: &RadioStates, key: &str) -> RadioOptionState {
     map.borrow().get(key).copied().unwrap_or_default()
 }
 
@@ -1052,10 +1064,68 @@ fn tag_group_without_content_needs_no_slot(cx: &mut TestAppContext) {
 // RadioGroup::option_content
 // ---------------------------------------------------------------------------
 
+#[gpui::test]
+fn radio_group_option_content_hands_v3_field_state(cx: &mut TestAppContext) {
+    let recorded = Rc::new(RefCell::new(Vec::new()));
+    let record = recorded.clone();
+    let _cx = open_host(cx, move || {
+        let record = record.clone();
+        RadioGroup::new("rp-rg-field-state", vec!["One".into()])
+            .is_disabled(true)
+            .is_invalid(true)
+            .is_required(true)
+            .is_read_only(true)
+            .option_content(move |_, state| {
+                record.borrow_mut().push((
+                    state.is_selected,
+                    state.is_disabled,
+                    state.is_read_only,
+                    state.is_invalid,
+                    state.is_required,
+                ));
+                gpui::div().into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [(false, true, true, true, true)],
+        "the Radio root render prop must receive every pinned field-level state"
+    );
+}
+
+#[gpui::test]
+fn radio_group_option_content_keeps_per_option_state_local(cx: &mut TestAppContext) {
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let record = recorded.clone();
+    let _cx = open_host(cx, move || {
+        let record = record.clone();
+        RadioGroup::new(
+            "rp-rg-local-field-state",
+            vec![
+                RadioOption::new("One")
+                    .is_disabled(true)
+                    .error_message("Unavailable"),
+                RadioOption::new("Two"),
+            ],
+        )
+        .option_content(move |label, state| {
+            record_radio_state(&record, label, state);
+            gpui::div().into_any_element()
+        })
+        .into_any_element()
+    });
+
+    let one = radio_state_of(&recorded, "One");
+    let two = radio_state_of(&recorded, "Two");
+    assert!(one.is_disabled && one.is_invalid);
+    assert!(!two.is_disabled && !two.is_invalid);
+}
+
 /// The closure runs once per option on the first frame — a panic here is the
 /// button's defect class on a fourth component — and records the option's
-/// label. The roving stop starts at the first option, but `is_focused` is the
-/// actual window focus, so every row is idle before Tab enters the group.
+/// label and field state before any interaction occurs.
 #[gpui::test]
 fn radio_group_option_content_renders_at_all(cx: &mut TestAppContext) {
     let recorded = Rc::new(RefCell::new(HashMap::new()));
@@ -1067,33 +1137,37 @@ fn radio_group_option_content_renders_at_all(cx: &mut TestAppContext) {
             vec!["One".into(), "Two".into(), "Three".into()],
         )
         .option_content(move |label, state| {
-            record_interactive(&record, label, state);
+            record_radio_state(&record, label, state);
             gpui::div().w(px(40.)).h(px(20.)).into_any_element()
         })
         .into_any_element()
     });
 
-    let one = state_of(&recorded, "One");
+    let one = radio_state_of(&recorded, "One");
     assert!(
-        !one.is_focused && !one.is_selected,
-        "the first option must be idle before the group receives focus"
+        !one.is_selected
+            && !one.is_disabled
+            && !one.is_read_only
+            && !one.is_invalid
+            && !one.is_required,
+        "the first option must receive an idle field state"
     );
     for label in ["Two", "Three"] {
-        let state = state_of(&recorded, label);
+        let state = radio_state_of(&recorded, label);
         assert!(
-            !state.is_focused && !state.is_selected,
-            "{label} must be idle on the first frame"
+            !state.is_selected
+                && !state.is_disabled
+                && !state.is_read_only
+                && !state.is_invalid
+                && !state.is_required,
+            "{label} must receive an idle field state"
         );
     }
 }
 
-/// What a RadioGroup hands its options' closure: the selection, from the
-/// pointer and the roving arrows, and the focused row that follows it. The
-/// hover stays hardcoded false (the radio's own draw is an `active` style,
-/// not a slot); the press comes from the interaction slot and its documented
-/// delivery is the press test's subject.
+/// Selection in the root field state follows both pointer and arrow changes.
 #[gpui::test]
-fn radio_group_option_content_tracks_selection_and_focus(cx: &mut TestAppContext) {
+fn radio_group_option_content_tracks_selection(cx: &mut TestAppContext) {
     let recorded = Rc::new(RefCell::new(HashMap::new()));
     let picks = events();
     let picked = picks.clone();
@@ -1107,7 +1181,7 @@ fn radio_group_option_content_tracks_selection_and_focus(cx: &mut TestAppContext
         )
         .default_value("One")
         .option_content(move |label, state| {
-            record_interactive(&record, label, state);
+            record_radio_state(&record, label, state);
             gpui::div().w(px(40.)).h(px(20.)).into_any_element()
         })
         .on_change(move |value, _, _| picks.borrow_mut().push(value.to_string()))
@@ -1116,7 +1190,7 @@ fn radio_group_option_content_tracks_selection_and_focus(cx: &mut TestAppContext
 
     // Seeded selection: row 0 is set, and the roving stop sits on it.
     assert!(
-        state_of(&recorded, "One").is_selected,
+        radio_state_of(&recorded, "One").is_selected,
         "the default selection must reach the closure"
     );
 
@@ -1126,16 +1200,12 @@ fn radio_group_option_content_tracks_selection_and_focus(cx: &mut TestAppContext
     click(cx, 48., 46.);
     flush_frame(cx);
     assert!(
-        state_of(&recorded, "Two").is_selected,
+        radio_state_of(&recorded, "Two").is_selected,
         "the clicked option must report selected"
     );
     assert!(
-        !state_of(&recorded, "One").is_selected,
+        !radio_state_of(&recorded, "One").is_selected,
         "the earlier selection must be replaced"
-    );
-    assert!(
-        state_of(&recorded, "Two").is_focused,
-        "a pointer press must focus the clicked radio immediately"
     );
     assert_eq!(picked.borrow().as_slice(), ["Two"]);
 
@@ -1144,55 +1214,9 @@ fn radio_group_option_content_tracks_selection_and_focus(cx: &mut TestAppContext
     press(cx, "tab");
     press(cx, "down");
     flush_frame(cx);
-    let three = state_of(&recorded, "Three");
-    assert!(
-        three.is_selected && three.is_focused,
-        "the arrow must select the third option and focus it"
-    );
+    let three = radio_state_of(&recorded, "Three");
+    assert!(three.is_selected, "the arrow must select the third option");
     assert_eq!(picked.borrow().as_slice(), ["Two", "Three"]);
-
-    // Pointer contract as delivered: the hover is the row's own paint, not a
-    // value the closure can read.
-    cx.simulate_mouse_move(
-        point(px(48.), px(10.)),
-        None::<MouseButton>,
-        Modifiers::none(),
-    );
-    flush_frame(cx);
-    assert!(
-        !state_of(&recorded, "One").is_hovered,
-        "RadioGroup does not hand the hover to the option_content closure"
-    );
-}
-
-/// The `option_content` doc comment promises "the press is a frame behind the
-/// pointer, because gpui reports it to a handler rather than to the render
-/// that draws it", and the shared `InteractiveState` struct carries the field.
-/// `radio_group.rs` builds the state from the interaction slot, so the press
-/// the control is animating reaches a caller's closure.
-#[gpui::test]
-fn radio_group_option_content_sees_the_press(cx: &mut TestAppContext) {
-    let recorded = Rc::new(RefCell::new(HashMap::new()));
-    let record = recorded.clone();
-    let cx = open_host(cx, move || {
-        let record = record.clone();
-        RadioGroup::new("rp-rg-press", vec!["One".into(), "Two".into()])
-            .option_content(move |label, state| {
-                record_interactive(&record, label, state);
-                gpui::div().w(px(40.)).h(px(20.)).into_any_element()
-            })
-            .into_any_element()
-    });
-
-    // Row 0 (20px tall, 68px wide) centres at (48, 10).
-    let centre = point(px(48.), px(10.));
-    cx.simulate_mouse_move(centre, None::<MouseButton>, Modifiers::none());
-    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
-    flush_frame(cx);
-    assert!(
-        state_of(&recorded, "One").is_pressed,
-        "the frame after the down must hand the press to the closure"
-    );
 }
 
 // ---------------------------------------------------------------------------

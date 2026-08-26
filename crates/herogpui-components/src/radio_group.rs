@@ -71,7 +71,7 @@ impl From<&str> for RadioOption {
     }
 }
 
-/// State handed to a custom `Radio.Indicator` renderer.
+/// Field state handed to the root `Radio` and `Radio.Indicator` renderers.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RadioOptionState {
     pub is_selected: bool,
@@ -93,9 +93,8 @@ pub struct RadioGroup {
     /// behavior for a live [`crate::form::FormField`].
     form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
     /// `Radio`'s `children`-as-a-function: handed the option and its state.
-    option_content: Option<
-        std::sync::Arc<dyn Fn(&SharedString, crate::util::InteractiveState) -> gpui::AnyElement>,
-    >,
+    option_content:
+        Option<std::sync::Arc<dyn Fn(&SharedString, RadioOptionState) -> gpui::AnyElement>>,
     /// `Radio.Indicator` children — replaces the built-in dot per option.
     indicator: Option<std::sync::Arc<dyn Fn(&SharedString, RadioOptionState) -> gpui::AnyElement>>,
     /// The `<Description>` v3 composes inside a `<Radio>`, per option and in the
@@ -145,14 +144,11 @@ impl RadioGroup {
         self
     }
 
-    /// `Radio`'s render function — handed the option's label and the state v3
-    /// passes into the same render prop, `isSelected` included.
-    ///
-    /// The press is a frame behind the pointer, because gpui reports it to a
-    /// handler rather than to the render that draws it.
+    /// `Radio`'s root render function — handed the option's label and v3's
+    /// field state: selected, disabled, read-only, invalid and required.
     pub fn option_content(
         mut self,
-        render: impl Fn(&SharedString, crate::util::InteractiveState) -> gpui::AnyElement + 'static,
+        render: impl Fn(&SharedString, RadioOptionState) -> gpui::AnyElement + 'static,
     ) -> Self {
         self.option_content = Some(std::sync::Arc::new(render));
         self
@@ -428,8 +424,7 @@ impl RenderOnce for RadioGroup {
         };
 
         // One hover/press slot per option. The row's press grows the selected
-        // indicator from 6px to 8px, and an `option_content` closure reads the
-        // same state rather than maintaining a second listener path.
+        // indicator from 6px to 8px.
         let interaction: Vec<crate::util::Interaction> = (0..self.options.len())
             .map(|i| {
                 crate::util::interaction(
@@ -483,6 +478,8 @@ impl RenderOnce for RadioGroup {
                 .or_else(|| self.descriptions.get(i).and_then(|text| text.clone()));
             let error_message = option.error_message;
             let is_selected = selected == Some(i);
+            let option_invalid =
+                self.is_invalid || self.error_message.is_some() || error_message.is_some();
             // `Radio.isDisabled` — the option's own switch, beside the
             // group-wide `is_disabled`: dimmed (`status-disabled`'s opacity,
             // v3's "reduced opacity, no pointer events"), no pointer
@@ -497,7 +494,7 @@ impl RenderOnce for RadioGroup {
                 is_selected,
                 is_disabled: row_disabled,
                 is_read_only: self.is_read_only,
-                is_invalid,
+                is_invalid: option_invalid,
                 is_required: self.is_required,
             };
             // `.radio__control` has no border (`--field-border-width: 0`); it is
@@ -530,7 +527,7 @@ impl RenderOnce for RadioGroup {
             // `status-invalid-field` is a 1px danger outline over whatever the
             // control already paints — it does not replace the fill, and v3
             // applies it whether or not the option is selected.
-            if is_invalid {
+            if option_invalid {
                 circle_el = circle_el.border_1().border_color(colors.danger.color);
             }
 
@@ -594,27 +591,7 @@ impl RenderOnce for RadioGroup {
                 .when(row_disabled, |r| r.opacity(layout.disabled_opacity))
                 .child(circle_el)
                 .child(match &self.option_content {
-                    Some(render) => {
-                        let focused =
-                            !row_disabled && i == cursor_index && group_focus.is_focused(window);
-                        // The slot's press is a frame behind the pointer,
-                        // because gpui reports it to a handler rather than to
-                        // the render that draws it. v3's `RadioFieldRenderProps`
-                        // list no `isHovered`, so the hover the slot also
-                        // tracks is not handed over.
-                        render(
-                            &label,
-                            crate::util::InteractiveState {
-                                is_hovered: false,
-                                is_pressed,
-                                is_focused: focused,
-                                is_focus_visible: focused && crate::util::focus_visible(cx),
-                                is_selected: Some(i) == selected,
-                                is_disabled: row_disabled,
-                                is_indeterminate: false,
-                            },
-                        )
-                    }
+                    Some(render) => render(&label, option_state),
                     None => label.to_string().into_any_element(),
                 });
             if !row_disabled && !self.is_read_only {

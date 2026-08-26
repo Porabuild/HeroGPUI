@@ -639,23 +639,16 @@ fn controlled_radio_reset_reports_the_default_to_its_owner(cx: &mut TestAppConte
 fn radio_group_read_only_arrows_move_focus_without_selecting(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();
-    let focused = Rc::new(RefCell::new(String::new()));
-    let focus_seen = focused.clone();
+    let read_only = Rc::new(RefCell::new(true));
+    let read_only_for_view = read_only.clone();
     let cx = open_host(cx, move || {
         let changes = changes.clone();
-        let focused = focused.clone();
         RadioGroup::new(
             "readonly-radios",
             vec!["One".into(), "Two".into(), "Three".into()],
         )
         .default_value("One")
-        .is_read_only(true)
-        .option_content(move |label, state| {
-            if state.is_focused {
-                *focused.borrow_mut() = label.to_string();
-            }
-            gpui::div().child(label.to_string()).into_any_element()
-        })
+        .is_read_only(*read_only_for_view.borrow())
         .on_change(move |index, _, _| changes.borrow_mut().push(index.to_string()))
         .into_any_element()
     });
@@ -665,14 +658,17 @@ fn radio_group_read_only_arrows_move_focus_without_selecting(cx: &mut TestAppCon
     flush_frame(cx);
 
     assert_eq!(
-        focus_seen.borrow().as_str(),
-        "Two",
-        "Down must move focus to the next radio even when selection is read-only"
-    );
-    assert_eq!(
         recorded.borrow().as_slice(),
         [] as [&str; 0],
         "moving focus in a read-only group must not report a selection"
+    );
+    *read_only.borrow_mut() = false;
+    flush_frame(cx);
+    press(cx, "space");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Two"],
+        "after read-only ends, Space must activate the row Down focused"
     );
 }
 
@@ -720,42 +716,46 @@ fn radio_group_home_and_end_are_unconsumed_no_ops(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn radio_group_read_only_pointer_moves_focus_without_selection(cx: &mut TestAppContext) {
-    let focused = Rc::new(RefCell::new(String::new()));
-    let focus_seen = focused.clone();
+    let read_only = Rc::new(RefCell::new(true));
+    let read_only_for_view = read_only.clone();
     let selected = Rc::new(RefCell::new(String::new()));
     let selected_seen = selected.clone();
+    let changes = events();
+    let recorded = changes.clone();
     let cx = open_host(cx, move || {
-        let focused = focused.clone();
         let selected = selected.clone();
+        let changes = changes.clone();
         RadioGroup::new(
             "readonly-pointer-radios",
             vec!["One".into(), "Two".into(), "Three".into()],
         )
         .value("One")
-        .is_read_only(true)
+        .is_read_only(*read_only_for_view.borrow())
         .option_content(move |label, state| {
-            if state.is_focused {
-                *focused.borrow_mut() = label.to_string();
-            }
             if state.is_selected {
                 *selected.borrow_mut() = label.to_string();
             }
             gpui::div().child(label.to_string()).into_any_element()
         })
+        .on_change(move |value, _, _| changes.borrow_mut().push(value.to_string()))
         .into_any_element()
     });
 
     click(cx, 48., 46.);
     flush_frame(cx);
     assert_eq!(
-        focus_seen.borrow().as_str(),
-        "Two",
-        "a read-only controlled radio without a callback must focus the clicked option"
-    );
-    assert_eq!(
         selected_seen.borrow().as_str(),
         "One",
         "read-only pointer focus must not change the controlled selection"
+    );
+    assert!(recorded.borrow().is_empty());
+    *read_only.borrow_mut() = false;
+    flush_frame(cx);
+    press(cx, "space");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Two"],
+        "after read-only ends, Space must activate the row the pointer focused"
     );
 }
 
