@@ -36,7 +36,10 @@ use gpui::{
     TestAppContext, VisualTestContext,
 };
 use harness::{click, events, open_host, press, Events};
-use herogpui_components::{Button, Drawer, DrawerPlacement, Modal, ModalSize, Placement, Popover};
+use herogpui_components::{
+    Button, Drawer, DrawerPlacement, Modal, ModalPlacement, ModalScroll, ModalSize, Placement,
+    Popover,
+};
 
 /// Pins the layout by enabling reduced motion **before** the first frame.
 ///
@@ -799,4 +802,102 @@ fn modal_long_body_scrolls_to_reach_the_deepest_control(cx: &mut TestAppContext)
         "the deepest probe must be reachable after scrolling; recorded: {:?}",
         probed.borrow().as_slice()
     );
+}
+
+#[gpui::test]
+fn modal_outside_scroll_keeps_each_placement_top_reachable(cx: &mut TestAppContext) {
+    still();
+    for placement in [
+        ModalPlacement::Auto,
+        ModalPlacement::Center,
+        ModalPlacement::Top,
+        ModalPlacement::Bottom,
+    ] {
+        let hits = events();
+        let probed = hits.clone();
+
+        let cx = open_host(cx, move || {
+            let mut body = gpui::div().flex().flex_col().gap(px(10.));
+            for i in 0..40 {
+                let label = format!("p{i}");
+                let click_label = label.clone();
+                let recorded = hits.clone();
+                body = body.child(
+                    gpui::div()
+                        .id(gpui::SharedString::from(format!("pl-outside-probe-{i}")))
+                        .w_full()
+                        .h(px(36.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .cursor_pointer()
+                        .on_click(move |_, _, _| recorded.borrow_mut().push(click_label.clone()))
+                        .child(label),
+                );
+            }
+            Modal::new()
+                .id("pl-modal-outside")
+                .is_open(true)
+                .placement(placement)
+                .scroll(ModalScroll::Outside)
+                .child(body)
+                .into_any_element()
+        });
+
+        // v3 top-aligns an Outside dialog in its scrolling backdrop. Once a
+        // dialog overflows, every placement starts at the scroll origin: the
+        // first row is at padding 40 + panel padding 24 + half its 36px box.
+        click(cx, 960., 82.);
+        assert_eq!(
+            probed.borrow().as_slice(),
+            ["p0"],
+            "{placement:?}: the first row of a tall Outside dialog must remain reachable"
+        );
+    }
+}
+
+#[gpui::test]
+fn modal_outside_scroll_preserves_each_fitting_placement(cx: &mut TestAppContext) {
+    still();
+    for (placement, row_y) in [
+        (ModalPlacement::Auto, 540.),
+        (ModalPlacement::Center, 540.),
+        (ModalPlacement::Top, 82.),
+        (ModalPlacement::Bottom, 998.),
+    ] {
+        let hits = events();
+        let probed = hits.clone();
+
+        let cx = open_host(cx, move || {
+            let recorded = hits.clone();
+            Modal::new()
+                .id("pl-modal-outside-fitting")
+                .is_open(true)
+                .placement(placement)
+                .scroll(ModalScroll::Outside)
+                .child(
+                    gpui::div()
+                        .id("pl-outside-fitting-probe")
+                        .w_full()
+                        .h(px(36.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .cursor_pointer()
+                        .on_click(move |_, _, _| recorded.borrow_mut().push("hit".to_owned()))
+                        .child("probe"),
+                )
+                .into_any_element()
+        });
+
+        // The test viewport is 1080px high. After the container's 40px
+        // padding, the 84px panel (24 + 36 + 24) starts at y=498 for a
+        // centered placement, y=40 for Top, and y=956 for Bottom.
+        click(cx, 960., row_y);
+        assert_eq!(
+            probed.borrow().as_slice(),
+            ["hit"],
+            "{placement:?}: a fitting Outside dialog must keep its v3 placement"
+        );
+    }
 }

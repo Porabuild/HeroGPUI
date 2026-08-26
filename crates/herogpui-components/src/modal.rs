@@ -367,6 +367,18 @@ impl RenderOnce for Modal {
             .flex()
             .flex_col()
             .w_full()
+            .when(
+                self.scroll == ModalScroll::Outside
+                    && matches!(
+                        self.placement,
+                        ModalPlacement::Center | ModalPlacement::Auto
+                    ),
+                gpui::Styled::my_auto,
+            )
+            .when(
+                self.scroll == ModalScroll::Outside && self.placement == ModalPlacement::Bottom,
+                gpui::Styled::mt_auto,
+            )
             .when_some(self.size.max_width(), |e, w| e.max_w(w))
             .p(px(24.))
             .when(self.scroll == ModalScroll::Inside, |e| {
@@ -498,21 +510,28 @@ impl RenderOnce for Modal {
         // -- the scrim comes up under the pointer and the next press dismisses
         // the modal. See `.modal__body`'s comment.
         .when(self.scroll == ModalScroll::Outside, |e| {
-            e.overflow_y_scroll()
+            // v3 scrolls the top-aligned backdrop and positions the dialog
+            // within it with auto margins. Centering an oversized flex child
+            // gives it a negative origin that no scroll offset can reach.
+            e.flex_col().items_center().justify_start().overflow_y_scroll()
         })
         .when(
-            matches!(
-                self.placement,
-                ModalPlacement::Center | ModalPlacement::Auto
-            ),
+            self.scroll == ModalScroll::Inside
+                && matches!(
+                    self.placement,
+                    ModalPlacement::Center | ModalPlacement::Auto
+                ),
             |e| e.items_center().justify_center(),
         )
-        .when(self.placement == ModalPlacement::Top, |e| {
-            e.items_start().justify_center()
-        })
-        .when(self.placement == ModalPlacement::Bottom, |e| {
-            e.items_end().justify_center()
-        });
+        .when(
+            self.scroll == ModalScroll::Inside && self.placement == ModalPlacement::Top,
+            |e| e.items_start().justify_center(),
+        )
+        .when(
+            self.scroll == ModalScroll::Inside
+                && self.placement == ModalPlacement::Bottom,
+            |e| e.items_end().justify_center(),
+        );
         if let Some(on_escape) = keyboard_dismiss {
             overlay = crate::util::dismiss_on_escape_with_token(
                 overlay,
