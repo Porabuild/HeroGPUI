@@ -773,6 +773,8 @@ impl RenderOnce for Table {
             |_, _| gpui::UniformListScrollHandle::new(),
         );
         let virtual_scroll_now = virtual_scroll.read(cx).clone();
+        let load_more_virtual_scroll = (self.row_height.is_some() && self.virtual_rows.is_some())
+            .then(|| virtual_scroll_now.clone());
         let virtual_list_state = match (
             self.row_height,
             self.estimated_row_height,
@@ -797,6 +799,10 @@ impl RenderOnce for Table {
             }
             _ => None,
         };
+        let load_more_variable_scroll = virtual_list_state
+            .clone()
+            .zip(self.estimated_row_height)
+            .map(|(state, estimate)| (state, virtual_visible_count, estimate));
         // A sortable header had a click listener and no focus, so sorting was
         // mouse-only. v3's grid roves one tab stop across its cells; this port
         // gives each sortable header its own stop, which is the part that
@@ -1732,19 +1738,52 @@ impl RenderOnce for Table {
             if let Some(cb) = self.on_load_more.clone() {
                 let state = load_more_state;
                 let scroll_offset = self.load_more_offset;
+                let virtual_scroll = load_more_virtual_scroll;
+                let variable_scroll = load_more_variable_scroll;
                 table = table.child(
                     gpui::canvas(
                         move |bounds, window, cx| {
-                            // Overflowing ancestors intersect their bounds into
-                            // the content mask before prepainting children. The
-                            // sentinel can therefore observe the same viewport
-                            // intersection v3's IntersectionObserver does,
-                            // without owning its parent's scroll handle.
+                            // Plain rows place this canvas at the real content
+                            // end, so ancestor masks provide its viewport
+                            // intersection. Virtual rows keep that end inside
+                            // their own scroll state instead.
                             let mask = window.content_mask().bounds;
-                            let visible = bounds.right() >= mask.left()
+                            let in_view = bounds.right() >= mask.left()
                                 && bounds.left() <= mask.right()
                                 && bounds.bottom() >= mask.top()
                                 && bounds.top() <= mask.bottom() + mask.size.height * scroll_offset;
+                            let virtual_end_is_near = if let Some(handle) = &virtual_scroll {
+                                let scroll = handle.0.borrow();
+                                scroll.last_item_size.is_some_and(|size| {
+                                    let remaining = size.contents.height
+                                        + scroll.base_handle.offset().y
+                                        - size.item.height;
+                                    remaining <= size.item.height * scroll_offset
+                                })
+                            } else if let Some((state, count, estimate)) = &variable_scroll {
+                                let viewport = state.viewport_bounds();
+                                let viewport_height = viewport.size.height;
+                                let top = state.logical_scroll_top();
+                                // Unmeasured ListState rows have zero height,
+                                // so project the unseen tail from the caller's
+                                // layout estimate instead.
+                                let remaining = *estimate * count.saturating_sub(top.item_ix)
+                                    - top.offset_in_item
+                                    - viewport_height;
+                                let margin = viewport_height * scroll_offset;
+                                let measured_end_is_near = *count == 0
+                                    || state.bounds_for_item(count.saturating_sub(1)).is_some_and(
+                                        |bounds| bounds.bottom() <= viewport.bottom() + margin,
+                                    );
+                                measured_end_is_near || (scroll_offset > 0. && remaining <= margin)
+                            } else {
+                                true
+                            };
+                            let visible = if virtual_scroll.is_some() || variable_scroll.is_some() {
+                                virtual_end_is_near
+                            } else {
+                                in_view
+                            };
                             let previous = state.read(cx).clone();
                             let collection_changed = previous
                                 .1

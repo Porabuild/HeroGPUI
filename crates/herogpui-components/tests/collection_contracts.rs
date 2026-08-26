@@ -12,7 +12,10 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::rc::Rc;
 
-use gpui::{prelude::*, px, SharedString, TestAppContext, VisualTestContext};
+use gpui::{
+    point, prelude::*, px, ScrollDelta, ScrollWheelEvent, SharedString, TestAppContext,
+    VisualTestContext,
+};
 use herogpui_components::{
     Button, ListBox, ListBoxItem, SelectionMode, TabItem, Table, TableColumn, TableRow, Tabs, Tag,
     TagGroup, VirtualTreeMetadata,
@@ -28,6 +31,15 @@ fn sorted_join(keys: &HashSet<SharedString>) -> String {
 
 fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
+}
+
+fn wheel(cx: &mut VisualTestContext, x: f32, y: f32, dy: f32) {
+    cx.simulate_event(ScrollWheelEvent {
+        position: point(px(x), px(y)),
+        delta: ScrollDelta::Pixels(point(px(0.), px(dy))),
+        ..Default::default()
+    });
+    flush_frame(cx);
 }
 
 fn press_mod_a(cx: &mut VisualTestContext) {
@@ -1333,12 +1345,25 @@ fn virtual_table_load_more_rearms_after_same_count_key_replacement(cx: &mut Test
     });
 
     flush_frame(cx);
-    assert_eq!(recorded.borrow().as_slice(), ["load-more"]);
+    assert!(
+        recorded.borrow().is_empty(),
+        "a virtual table must not request the next page while row 0 is visible"
+    );
     let first_page_calls = factory_calls.get();
     assert!(
         first_page_calls <= 16,
         "two frames of a 160px viewport over 80px rows must stay within visible rows plus bounded overdraw; observed {first_page_calls}"
     );
+    wheel(cx, 20., 100., -80000.);
+    assert_eq!(recorded.borrow().as_slice(), ["load-more"]);
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["load-more"],
+        "a virtual sentinel that remains at the end must report only once"
+    );
+    let replacement_start_calls = factory_calls.get();
     second_page.set(true);
     flush_frame(cx);
     assert_eq!(
@@ -1347,8 +1372,85 @@ fn virtual_table_load_more_rearms_after_same_count_key_replacement(cx: &mut Test
         "a virtual same-count collection replacement must carry its explicit identity into the sentinel"
     );
     assert!(
-        factory_calls.get() - first_page_calls <= 16,
+        factory_calls.get() - replacement_start_calls <= 16,
         "replacing the collection must keep factory work bounded to the viewport; observed {}",
-        factory_calls.get() - first_page_calls
+        factory_calls.get() - replacement_start_calls
+    );
+}
+
+#[gpui::test]
+fn variable_height_virtual_table_load_more_waits_until_the_collection_end_is_near(
+    cx: &mut TestAppContext,
+) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("contract-variable-virtual-table-load-end")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .estimated_row_height(px(80.))
+            .max_h(px(400.))
+            .virtual_rows(
+                32,
+                "variable-virtual-tail-data",
+                |index| format!("row-{index}").into(),
+                |index| TableRow::new(vec![tall_cell(format!("row {index}"))]),
+            )
+            .on_load_more(move |_, _| recorded.borrow_mut().push("load-more".into()))
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    assert!(
+        recorded.borrow().is_empty(),
+        "a variable-height virtual table must not request the next page at row 0"
+    );
+    press(cx, "tab");
+    for _ in 0..32 {
+        press(cx, "down");
+    }
+    flush_frame(cx);
+    assert_eq!(recorded.borrow().as_slice(), ["load-more"]);
+}
+
+#[gpui::test]
+fn variable_height_virtual_table_exact_load_more_uses_the_real_last_row(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("contract-variable-virtual-table-exact-load-end")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .estimated_row_height(px(80.))
+            .max_h(px(400.))
+            .scroll_offset(0.)
+            .virtual_rows(
+                32,
+                "variable-virtual-short-tail-data",
+                |index| format!("row-{index}").into(),
+                |index| {
+                    TableRow::new(vec![gpui::div()
+                        .h(px(40.))
+                        .child(format!("row {index}"))
+                        .into_any_element()])
+                },
+            )
+            .on_load_more(move |_, _| recorded.borrow_mut().push("load-more".into()))
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    assert!(recorded.borrow().is_empty());
+    press(cx, "tab");
+    for _ in 0..32 {
+        press(cx, "down");
+    }
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["load-more"],
+        "an overestimated row height must not hide the real last row from an exact sentinel"
     );
 }

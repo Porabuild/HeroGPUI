@@ -143,6 +143,12 @@ RESIZE_BOUNDS = ('Table',)
 # those inherited keys.
 RESIZE_KEYS = ('Table',)
 
+# `Table.LoadMore` is an end-of-collection sentinel. HeroUI documents the
+# visibility trigger in the composed part's prop table and Async Loading
+# example rather than under Accessibility, so this inherited behavior is a
+# derived claim like Table's resize keys.
+LOAD_MORE = ('Table',)
+
 # Closing an overlay hands the focus back to what opened it. Only a surface that
 # *took* the focus has to: the pickers and the popover leave it on the trigger,
 # so the menu is the one with something to return. A dialog's trigger belongs to
@@ -376,6 +382,12 @@ EVIDENCE = {
         r'.*?floor\(\).*?\.min\(max_width\).*?\.max\(min_width\)'
         r'.*?stop_propagation\(\)',
     ),
+    ('Table', 'load-more'): (
+        'table.rs',
+        r'(?s)virtual_end_is_near.*?last_item_size\.is_some_and'
+        r'.*?logical_scroll_top\(\).*?bounds_for_item.*?scroll_offset > 0\.'
+        r'.*?remaining <= margin',
+    ),
     ('Input', 'pointer-caret'): ('input.rs', r'fn char_at_x'),
     ('TextField', 'pointer-caret'): ('input.rs', r'closest_index_for_x'),
     ('Accordion', 'activation'): ('accordion.rs', r'tab_stop_handle'),
@@ -441,6 +453,7 @@ def main():
         + FOCUS_OPEN + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS + SELECT_ALL_KEYS
         + ESCAPE_CLEAR_KEYS
         + RESIZE_BOUNDS + RESIZE_KEYS
+        + LOAD_MORE
         + FOCUS_RETURN + SCROLL_INTO_VIEW + CALENDAR_PAGING + CALENDAR_SECTION_BOUNDS
         + PANEL_FOCUS
     )
@@ -448,7 +461,7 @@ def main():
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'area-keys',
                       'focus-open', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
                       'select-all', 'escape-clear', 'resize-bounds', 'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
-                      'calendar-section-bounds', 'panel-focus'):
+                      'calendar-section-bounds', 'panel-focus', 'load-more'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach
             # the breakdown: reading only EVIDENCE skipped `TextArea`'s
