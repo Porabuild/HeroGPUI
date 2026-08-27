@@ -9608,9 +9608,9 @@ impl Gallery {
                     "With Arrow",
                     col(vec![
                         para(
-                            "`.popover` has no arrow in v3's stylesheet -- the panel is anchored \
-                             to its trigger and offset instead, which is what `offset` sets \
-                             here.",
+                            "`Popover.Arrow` uses v3's built-in 12px curve, follows the resolved \
+                             side when the panel flips, and preserves the configured offset from \
+                             its trigger.",
                             cx,
                         ),
                         gpui::div()
@@ -9619,6 +9619,7 @@ impl Gallery {
                             .flex_col()
                             .items_start()
                             .min_h(px(160.))
+                            .pl(px(48.))
                             .child(
                                 h::Popover::new(
                                     h::Button::new("po-arrow-trigger")
@@ -9627,6 +9628,7 @@ impl Gallery {
                                 )
                                 .id("po-arrow")
                                 .default_open(self.overlays_open)
+                                .show_arrow(true)
                                 .offset(px(12.))
                                 .title("Anchored")
                                 .child(gpui::div().child("Twelve pixels clear of the trigger.")),

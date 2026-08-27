@@ -89,14 +89,12 @@ SLOT = {
 # A claim this port answers differently, with the reason.
 WONT_COMPOSE = {
     # v3's floating panels can grow a little triangle pointing at the trigger
-    # (`<Popover.Overlay showArrow>`); v3 removed `showArrow` from the v3 prop
-    # tables, `extra_audit.py` would report the builder, and every sheet styles
-    # the arrow only as a fill colour and a rotation. Nothing here draws one.
+    # (`<Popover.Arrow>`); the picker/menu surfaces do not expose
+    # that compound part in this port.
     ('autocomplete', 'popover-overlay-arrow'): 'no-arrow-prop',
     ('combo-box', 'popover-overlay-arrow'): 'no-arrow-prop',
     ('select', 'popover-overlay-arrow'): 'no-arrow-prop',
     ('dropdown', 'popover-overlay-arrow'): 'no-arrow-prop',
-    ('popover', 'popover-overlay-arrow'): 'no-arrow-prop',
     # v3 lets a `<Label>` *wrap* its control (`label.css` styles a checkbox and
     # a radio inside one). This port's `field::Label` takes text, and a
     # `Checkbox` or `Radio` draws its own label beside the box -- which is the
@@ -128,6 +126,7 @@ PART_EVIDENCE = {
     ('Drawer', 'Heading'): r'title',
     ('Dropdown', 'Section'): r'SectionLabel',
     ('Popover', 'Dialog'): r'panel',
+    ('Popover', 'Arrow'): r'show_arrow|arrow_rotation',
     ('Slider', 'Output'): r'value_label|output',
     ('Table', 'Collection'): r'rows|virtual_rows',
     ('Table', 'ColumnResizer'): r'allows_resizing',
@@ -142,7 +141,6 @@ PART_EVIDENCE = {
 
 # A documented part this port does not render, with the reason.
 WONT_RENDER = {
-    ('Popover', 'Arrow'): 'no-arrow-prop',
     # `Kbd.Abbr` is a `<abbr>` for screen readers, with no geometry -- the same
     # row `part_audit.py` records as `no-a11y-element`.
     ('Kbd', 'Abbr'): 'no-a11y-element',

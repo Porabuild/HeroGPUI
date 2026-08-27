@@ -65,6 +65,7 @@ EXTRA_OK = {
     'footer_child': 'composition',
     'hide_close_button': 'composition',
     'show_close_button': 'composition',
+    'show_arrow': 'composition',
     'show_value': 'composition',
     'show_value_label': 'composition',
     'show_label': 'composition',

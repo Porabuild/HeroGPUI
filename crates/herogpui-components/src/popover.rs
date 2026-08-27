@@ -23,6 +23,8 @@ enum PopoverSide {
 }
 
 impl PopoverSide {
+    const ALL: [Self; 4] = [Self::Top, Self::Bottom, Self::Left, Self::Right];
+
     fn opposite(self) -> Self {
         match self {
             Self::Top => Self::Bottom,
@@ -31,14 +33,156 @@ impl PopoverSide {
             Self::Right => Self::Left,
         }
     }
+
+    fn index(self) -> usize {
+        match self {
+            Self::Top => 0,
+            Self::Bottom => 1,
+            Self::Left => 2,
+            Self::Right => 3,
+        }
+    }
+
+    fn arrow_rotation(self) -> f32 {
+        match self {
+            Self::Top => 0.,
+            Self::Bottom => std::f32::consts::PI,
+            Self::Left => -std::f32::consts::FRAC_PI_2,
+            Self::Right => std::f32::consts::FRAC_PI_2,
+        }
+    }
 }
 
 struct PopoverPositioner {
     trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+    resolved: std::rc::Rc<std::cell::Cell<Option<PopoverResolved>>>,
     placement: PopoverPlacement,
     offset: Pixels,
     should_flip: bool,
+    show_arrow: bool,
     children: Vec<AnyElement>,
+}
+
+#[derive(Clone, Copy)]
+struct PopoverResolved {
+    trigger: Bounds<Pixels>,
+    panel: Bounds<Pixels>,
+    side: PopoverSide,
+}
+
+struct PopoverArrow {
+    resolved: std::rc::Rc<std::cell::Cell<Option<PopoverResolved>>>,
+    children: Vec<AnyElement>,
+}
+
+impl PopoverArrow {
+    fn new(
+        resolved: std::rc::Rc<std::cell::Cell<Option<PopoverResolved>>>,
+        color: gpui::Hsla,
+    ) -> Self {
+        let children = PopoverSide::ALL
+            .map(|side| {
+                gpui::div()
+                    .absolute()
+                    .size(px(12.))
+                    .debug_selector(|| "popover-arrow".to_owned())
+                    .child(
+                        gpui::svg()
+                            .size(px(12.))
+                            .path(crate::icons::TOOLTIP_ARROW)
+                            .text_color(color)
+                            .with_transformation(gpui::Transformation::rotate(gpui::radians(
+                                side.arrow_rotation(),
+                            ))),
+                    )
+                    .into_any_element()
+            })
+            .into_iter()
+            .collect();
+        Self { resolved, children }
+    }
+}
+
+impl Element for PopoverArrow {
+    type RequestLayoutState = Vec<LayoutId>;
+    type PrepaintState = Option<usize>;
+
+    fn id(&self) -> Option<gpui::ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, Self::RequestLayoutState) {
+        let children = self
+            .children
+            .iter_mut()
+            .map(|child| child.request_layout(window, cx))
+            .collect::<Vec<_>>();
+        let layout = window.request_layout(
+            Style {
+                position: Position::Absolute,
+                display: Display::Flex,
+                ..Style::default()
+            },
+            children.iter().copied(),
+            cx,
+        );
+        (layout, children)
+    }
+
+    fn prepaint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        children: &mut Self::RequestLayoutState,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Self::PrepaintState {
+        let resolved = self.resolved.get()?;
+        let index = resolved.side.index();
+        let bounds = window.layout_bounds(children[index]);
+        let offset =
+            PopoverPositioner::arrow_origin(resolved.side, resolved.trigger, resolved.panel)
+                - bounds.origin;
+        let offset = point(offset.x.round(), offset.y.round());
+        window.with_element_offset(offset, |window| {
+            self.children[index].prepaint(window, cx);
+        });
+        Some(index)
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut Self::RequestLayoutState,
+        selected: &mut Self::PrepaintState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        if let Some(index) = *selected {
+            self.children[index].paint(window, cx);
+        }
+    }
+}
+
+impl IntoElement for PopoverArrow {
+    type Element = Self;
+
+    fn into_element(self) -> Self::Element {
+        self
+    }
 }
 
 struct PopoverTriggerMeasure {
@@ -118,15 +262,19 @@ impl IntoElement for PopoverTriggerMeasure {
 impl PopoverPositioner {
     fn new(
         trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+        resolved: std::rc::Rc<std::cell::Cell<Option<PopoverResolved>>>,
         placement: PopoverPlacement,
         offset: Pixels,
         should_flip: bool,
+        show_arrow: bool,
     ) -> Self {
         Self {
             trigger,
+            resolved,
             placement,
             offset,
             should_flip,
+            show_arrow,
             children: Vec::new(),
         }
     }
@@ -165,10 +313,11 @@ impl PopoverPositioner {
             return preferred;
         }
         let opposite = preferred.opposite();
+        let arrow = if self.show_arrow { px(12.) } else { px(0.) };
         let extent = match preferred {
             PopoverSide::Top | PopoverSide::Bottom => popup.height + self.offset,
             PopoverSide::Left | PopoverSide::Right => popup.width + self.offset,
-        };
+        } + arrow;
         if extent <= self.available(preferred, trigger, viewport) {
             preferred
         } else if extent <= self.available(opposite, trigger, viewport) {
@@ -184,13 +333,14 @@ impl PopoverPositioner {
 
     fn origin(
         &self,
+        side: PopoverSide,
         trigger: Bounds<Pixels>,
         popup: Size<Pixels>,
         viewport: Size<Pixels>,
     ) -> gpui::Point<Pixels> {
         use herogpui_core::PlacementAlign;
 
-        let side = self.resolved_side(trigger, popup, viewport);
+        let gap = self.offset + if self.show_arrow { px(12.) } else { px(0.) };
         let align = self.placement.align();
         let aligned_x = match align {
             PlacementAlign::Start => trigger.left(),
@@ -203,10 +353,10 @@ impl PopoverPositioner {
             PlacementAlign::End => trigger.bottom() - popup.height,
         };
         let mut origin = match side {
-            PopoverSide::Top => point(aligned_x, trigger.top() - popup.height - self.offset),
-            PopoverSide::Bottom => point(aligned_x, trigger.bottom() + self.offset),
-            PopoverSide::Left => point(trigger.left() - popup.width - self.offset, aligned_y),
-            PopoverSide::Right => point(trigger.right() + self.offset, aligned_y),
+            PopoverSide::Top => point(aligned_x, trigger.top() - popup.height - gap),
+            PopoverSide::Bottom => point(aligned_x, trigger.bottom() + gap),
+            PopoverSide::Left => point(trigger.left() - popup.width - gap, aligned_y),
+            PopoverSide::Right => point(trigger.right() + gap, aligned_y),
         };
 
         let max_x = (viewport.width - popup.width).max(px(0.));
@@ -224,6 +374,38 @@ impl PopoverPositioner {
         }
         origin
     }
+
+    fn arrow_origin(
+        side: PopoverSide,
+        trigger: Bounds<Pixels>,
+        panel: Bounds<Pixels>,
+    ) -> gpui::Point<Pixels> {
+        let size = px(12.);
+        let max_x = (panel.right() - size).max(panel.left());
+        let max_y = (panel.bottom() - size).max(panel.top());
+        match side {
+            PopoverSide::Top => point(
+                (trigger.center().x - size / 2.)
+                    .max(panel.left())
+                    .min(max_x),
+                panel.bottom(),
+            ),
+            PopoverSide::Bottom => point(
+                (trigger.center().x - size / 2.)
+                    .max(panel.left())
+                    .min(max_x),
+                panel.top() - size,
+            ),
+            PopoverSide::Left => point(
+                panel.right(),
+                (trigger.center().y - size / 2.).max(panel.top()).min(max_y),
+            ),
+            PopoverSide::Right => point(
+                panel.left() - size,
+                (trigger.center().y - size / 2.).max(panel.top()).min(max_y),
+            ),
+        }
+    }
 }
 
 impl ParentElement for PopoverPositioner {
@@ -238,7 +420,7 @@ struct PopoverPositionerState {
 
 impl Element for PopoverPositioner {
     type RequestLayoutState = PopoverPositionerState;
-    type PrepaintState = ();
+    type PrepaintState = bool;
 
     fn id(&self) -> Option<gpui::ElementId> {
         None
@@ -280,28 +462,31 @@ impl Element for PopoverPositioner {
         state: &mut Self::RequestLayoutState,
         window: &mut Window,
         cx: &mut App,
-    ) {
+    ) -> Self::PrepaintState {
         if state.children.is_empty() {
-            return;
+            return false;
         }
         let Some(trigger) = self.trigger.get() else {
-            return;
+            return false;
         };
-        let mut minimum = point(Pixels::MAX, Pixels::MAX);
-        let mut maximum = gpui::Point::default();
-        for layout in &state.children {
-            let child = window.layout_bounds(*layout);
-            minimum = minimum.min(&child.origin);
-            maximum = maximum.max(&child.bottom_right());
-        }
-        let popup = (maximum - minimum).into();
-        let offset = self.origin(trigger, popup, window.viewport_size()) - bounds.origin;
+        let popup = window.layout_bounds(state.children[0]).size;
+        let side = self.resolved_side(trigger, popup, window.viewport_size());
+        let origin = self.origin(side, trigger, popup, window.viewport_size());
+        self.resolved.set(Some(PopoverResolved {
+            trigger,
+            panel: Bounds {
+                origin,
+                size: popup,
+            },
+            side,
+        }));
+        let offset = origin - bounds.origin;
         let offset = point(offset.x.round(), offset.y.round());
         window.with_element_offset(offset, |window| {
-            for child in &mut self.children {
-                child.prepaint(window, cx);
-            }
+            self.children[0].prepaint(window, cx);
         });
+
+        true
     }
 
     fn paint(
@@ -310,13 +495,14 @@ impl Element for PopoverPositioner {
         _: Option<&InspectorElementId>,
         _: Bounds<Pixels>,
         _: &mut Self::RequestLayoutState,
-        _: &mut Self::PrepaintState,
+        prepainted: &mut Self::PrepaintState,
         window: &mut Window,
         cx: &mut App,
     ) {
-        for child in &mut self.children {
-            child.paint(window, cx);
+        if !*prepainted {
+            return;
         }
+        self.children[0].paint(window, cx);
     }
 }
 
@@ -341,6 +527,7 @@ pub struct Popover {
     placement: PopoverPlacement,
     title: Option<SharedString>,
     show_close_button: bool,
+    show_arrow: bool,
     offset: Pixels,
     should_flip: bool,
     on_open_change: Option<OnOpenChange>,
@@ -359,6 +546,7 @@ impl Popover {
             should_flip: true,
             title: None,
             show_close_button: false,
+            show_arrow: false,
             on_open_change: None,
             children: Vec::new(),
         }
@@ -415,6 +603,12 @@ impl Popover {
         self
     }
 
+    /// Composes `Popover.Arrow` using v3's built-in 12px curved arrow.
+    pub fn show_arrow(mut self, v: bool) -> Self {
+        self.show_arrow = v;
+        self
+    }
+
     /// Toggle handler wired to the trigger click.
     pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_open_change = Some(std::sync::Arc::new(f));
@@ -456,6 +650,7 @@ impl RenderOnce for Popover {
         // theme tokens.
         let base = format!("{:?}", self.id);
         let anchor_bounds = std::rc::Rc::new(std::cell::Cell::new(None::<Bounds<Pixels>>));
+        let resolved = std::rc::Rc::new(std::cell::Cell::new(None::<PopoverResolved>));
         let root_focus = window
             .use_keyed_state(
                 gpui::ElementId::Name(format!("{base}-root-focus").into()),
@@ -608,6 +803,12 @@ impl RenderOnce for Popover {
             panel = panel.child(header_row);
         }
         panel = panel.children(self.children);
+        if self.show_arrow {
+            panel = panel.child(PopoverArrow::new(
+                resolved.clone(),
+                colors.overlay.background,
+            ));
+        }
 
         // The panel owns the dialog scope. Its handle is not a tab stop, but
         // the close affordance and child controls are, and Tab wraps among
@@ -657,10 +858,16 @@ impl RenderOnce for Popover {
             )
         };
 
-        root = root.child(
-            PopoverPositioner::new(anchor_bounds, self.placement, self.offset, self.should_flip)
-                .child(panel),
-        );
+        let positioner = PopoverPositioner::new(
+            anchor_bounds,
+            resolved,
+            self.placement,
+            self.offset,
+            self.should_flip,
+            self.show_arrow,
+        )
+        .child(panel);
+        root = root.child(positioner);
         root
     }
 }

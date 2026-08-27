@@ -642,6 +642,7 @@ fn popover_should_flip_moves_an_overflowing_bottom_panel_above(cx: &mut TestAppC
                     .default_open(true)
                     .placement(Placement::Bottom)
                     .should_flip(true)
+                    .show_arrow(true)
                     .show_close_button(false)
                     .child(
                         gpui::div()
@@ -661,12 +662,20 @@ fn popover_should_flip_moves_an_overflowing_bottom_panel_above(cx: &mut TestAppC
     let bounds = cx
         .debug_bounds("pl-pop-flip-probe")
         .expect("open popover probe must render");
+    let arrow = cx
+        .debug_bounds("popover-arrow")
+        .expect("Popover.Arrow must render on the resolved side");
 
-    // Requested below, the 68px panel would start at y=1044 and overflow the
-    // 1080px test window. React Aria's default `shouldFlip=true` changes the
-    // orientation, so it lands at y=924..992 and the 36px probe inside its
-    // 16px padding spans y=940..976. Snapping instead would leave the panel at
-    // y=1012..1080, where this point cannot hit it.
+    // Requested below, the 68px panel plus 12px Arrow would start at y=1056
+    // and overflow the 1080px test window. React Aria's default
+    // `shouldFlip=true` changes the orientation, so the panel lands at
+    // y=912..980, its probe spans y=928..964, and the downward Arrow occupies
+    // y=980..992 with the configured 8px remaining before the trigger.
+    assert_eq!(
+        (arrow.origin.y, arrow.bottom()),
+        (px(980.), px(992.)),
+        "the arrow must follow the resolved top side; got {arrow:?}"
+    );
     click(cx, 36., 958.);
     assert_eq!(
         recorded.borrow().as_slice(),

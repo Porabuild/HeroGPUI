@@ -1585,7 +1585,11 @@ impl Widget {
         }
         assert!(metadata.parts.iter().any(|part| {
             part.name == "Popover.Arrow"
-                && part.status == reference_metadata::ImplementationStatus::Unavailable
+                && part.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".popover [data-slot=popover-overlay-arrow]"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
     }
 
