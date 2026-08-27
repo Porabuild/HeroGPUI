@@ -8162,6 +8162,15 @@ impl Gallery {
                         .default_expanded_keys(["item-1"])
                         .into_any_element()]),
                 ),
+                (
+                    "Disabled Group",
+                    col(vec![h::DisclosureGroup::new("disclosure-disabled-group")
+                        .item("returns", "Returns", gpui::div().child("Thirty days."))
+                        .item("warranty", "Warranty", gpui::div().child("Two years."))
+                        .default_expanded_keys(["returns"])
+                        .is_disabled(true)
+                        .into_any_element()]),
+                ),
             ],
             cx,
         )
@@ -11086,20 +11095,13 @@ impl Gallery {
                 ),
                 (
                     "Multiple selection",
-                    col(vec![
-                        h::Select::new("sel-multi", languages())
-                            .label("Languages")
-                            .placeholder("Pick several")
-                            .selection_mode(SelectionMode::Multiple)
-                            .selected_indices(self.select_multi.iter().copied())
-                            .is_open(true)
-                            .on_selection_change_all(cx.listener(|this, next: &[usize], _, cx| {
-                                this.select_multi = next.to_vec();
-                                cx.notify();
-                            }))
-                            .into_any_element(),
-                        para(&format!("{} selected", self.select_multi.len()), cx),
-                    ]),
+                    col(vec![h::Select::new("sel-multi", languages())
+                        .label("Languages")
+                        .placeholder("Pick several")
+                        .selection_mode(SelectionMode::Multiple)
+                        .default_selected_indices([0, 2])
+                        .default_open(true)
+                        .into_any_element()]),
                 ),
             ],
             cx,

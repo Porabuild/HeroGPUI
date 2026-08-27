@@ -860,6 +860,124 @@ fn select_multiple_accumulates_and_keeps_the_panel_open(cx: &mut TestAppContext)
     );
 }
 
+/// Pinned Select accepts a `Key[]` as `defaultValue`. In multiple mode that
+/// seed belongs to the Select: later picks toggle against the held set even
+/// when the caller only observes `onChange` and never feeds a controlled value
+/// back.
+#[gpui::test]
+fn select_uncontrolled_multiple_default_accumulates_and_toggles(cx: &mut TestAppContext) {
+    let picks = events();
+    let recorded = picks.clone();
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new(
+            "sel-multi-default",
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_selected_indices([0, 2])
+        .default_open(true)
+        .on_selection_change_all(move |keys, _, _| {
+            picks.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    // Row *i* centres at y = 66 + 36i inside the already-open popover.
+    click(cx, 60., 102.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["0,1,2"],
+        "the first pick must extend the uncontrolled default array"
+    );
+
+    click(cx, 60., 66.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["0,1,2", "1,2"],
+        "a later pick must toggle against the Select-owned current set"
+    );
+}
+
+#[gpui::test]
+fn select_uncontrolled_multiple_keyboard_toggles_and_stays_open(cx: &mut TestAppContext) {
+    let picks = events();
+    let recorded = picks.clone();
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new(
+            "sel-multi-default-keys",
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_selected_indices([0])
+        .on_selection_change_all(move |keys, _, _| {
+            picks.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down down down enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["0,1"],
+        "Enter must toggle the highlighted row against the uncontrolled default"
+    );
+
+    // The multiple popover remains open after keyboard activation, so its
+    // third row still answers a pointer press.
+    click(cx, 60., 138.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["0,1", "0,1,2"],
+        "keyboard activation must not close a multiple Select"
+    );
+}
+
+#[gpui::test]
+fn select_controlled_multiple_waits_for_owner_acceptance(cx: &mut TestAppContext) {
+    let picks = events();
+    let recorded = picks.clone();
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new(
+            "sel-multi-controlled-reject",
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .selected_indices([0])
+        .default_open(true)
+        .on_selection_change_all(move |keys, _, _| {
+            picks.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    click(cx, 60., 102.);
+    click(cx, 60., 138.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["0,1", "0,2"],
+        "controlled proposals must keep starting from the owner-supplied set"
+    );
+}
+
 /// React Aria's typeahead, which `list_nav::typeahead` implements, works in
 /// both shapes: typed on a *closed* select it picks the matching option where
 /// it stands (no popover), and typed on an *open* one it moves the highlight,

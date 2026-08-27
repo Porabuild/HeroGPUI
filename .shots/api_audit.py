@@ -79,6 +79,11 @@ ALIAS = {
     # documented value type rather than only matching the prop name.
     'Calendar.value': 'values', 'Calendar.defaultValue': 'default_values',
     'Calendar.onChange': 'on_change_all',
+    # Select documents the same scalar/array union. The plural builders prove
+    # that multiple selection is controlled, seeded and reported as a set.
+    'Select.value': 'selected_indices',
+    'Select.defaultValue': 'default_selected_indices',
+    'Select.onChange': 'on_selection_change_all',
     # Autocomplete's onChange is Key | Key[] | null. The slice callback
     # represents all three shapes, including ClearButton's empty selection;
     # the scalar convenience callback cannot represent null.

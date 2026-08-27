@@ -2001,6 +2001,107 @@ fn multiple_select_form_data_tracks_live_selected_values(cx: &mut TestAppContext
 }
 
 #[gpui::test]
+fn uncontrolled_multiple_select_form_resets_to_its_default_values(cx: &mut TestAppContext) {
+    let submitted = events();
+    let submitted_for_view = submitted.clone();
+    let cx = open_host(cx, move || {
+        let submitted = submitted_for_view.clone();
+        let select = Select::new("default-multiple-select-form", select_cities())
+            .name("cities")
+            .selection_mode(SelectionMode::Multiple)
+            .default_selected_indices([0, 2]);
+        let form = Form::new()
+            .field(select.form_field().expect("named select field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(
+                    data.get_all("cities")
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            });
+        let submit = form.submit_handler();
+        let reset = form.reset_handler();
+        form.child(select)
+            .child(
+                Button::new("default-multiple-select-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .child(
+                Button::new("default-multiple-select-reset")
+                    .label("Reset")
+                    .on_press(move |_, window, cx| reset(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    // Add Beta to the default Alpha/Gamma set, close the list, and submit.
+    click(cx, 60., 18.);
+    click(cx, 60., 102.);
+    click(cx, 60., 18.);
+    click(cx, 60., 70.);
+
+    // Reset restores the initial array held by the uncontrolled Select.
+    click(cx, 60., 122.);
+    click(cx, 60., 70.);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["Alpha,Beta,Gamma", "Alpha,Gamma"],
+        "FormData must follow the live multiple selection and its uncontrolled reset"
+    );
+}
+
+#[gpui::test]
+fn controlled_multiple_select_form_waits_for_owner_acceptance(cx: &mut TestAppContext) {
+    let changes = events();
+    let submitted = changes.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let selection_changes = changes.clone();
+        let select = Select::new("rejected-multiple-select-form", select_cities())
+            .name("cities")
+            .selection_mode(SelectionMode::Multiple)
+            .selected_indices([0])
+            .on_selection_change_all(move |next, _, _| {
+                selection_changes.borrow_mut().push(format!(
+                    "change:{}",
+                    next.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ));
+            });
+        let form = Form::new()
+            .field(select.form_field().expect("named select field"))
+            .on_submit(move |data: &FormData, _, _| {
+                changes
+                    .borrow_mut()
+                    .push(format!("submit:{}", submit_select(data, "cities")));
+            });
+        let submit = form.submit_handler();
+        form.child(select)
+            .child(
+                Button::new("rejected-multiple-select-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    click(cx, 60., 102.);
+    click(cx, 60., 18.);
+    click(cx, 60., 70.);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["change:0,1", "submit:Alpha"],
+        "a controlled proposal must not reach FormData until its owner accepts it"
+    );
+}
+
+#[gpui::test]
 fn disabled_multiple_select_is_omitted_from_submission(cx: &mut TestAppContext) {
     let submitted = events();
     let submitted_for_view = submitted.clone();

@@ -42,6 +42,8 @@ pub struct Select {
     default_value: Option<usize>,
     /// Backs `selectionMode="multiple"`; `selected` backs `single`.
     selected_indices: BTreeSet<usize>,
+    is_multiple_controlled: bool,
+    default_selected_indices: BTreeSet<usize>,
     selection_mode: SelectionMode,
     /// `isOpen` — `None` leaves the component holding the flag, seeded from
     /// `defaultOpen`.
@@ -159,6 +161,8 @@ impl Select {
             is_controlled: false,
             default_value: None,
             selected_indices: BTreeSet::new(),
+            is_multiple_controlled: false,
+            default_selected_indices: BTreeSet::new(),
             selection_mode: SelectionMode::Single,
             is_open: None,
             default_open: false,
@@ -207,13 +211,18 @@ impl Select {
         } else {
             self.default_value
         };
+        let selected_indices = if self.is_multiple_controlled {
+            &self.selected_indices
+        } else {
+            &self.default_selected_indices
+        };
         sync_select_form(
             &self.form_state,
             select_form_value(
                 self.selection_mode,
                 &self.options,
                 selected,
-                &self.selected_indices,
+                selected_indices,
             ),
             self.is_invalid,
             !self.is_disabled,
@@ -233,6 +242,14 @@ impl Select {
     /// The chosen indices under `selectionMode="multiple"`.
     pub fn selected_indices(mut self, indices: impl IntoIterator<Item = usize>) -> Self {
         self.selected_indices = indices.into_iter().collect();
+        self.is_multiple_controlled = true;
+        self
+    }
+
+    /// `defaultValue` under `selectionMode="multiple"` — the uncontrolled
+    /// initial selection.
+    pub fn default_selected_indices(mut self, indices: impl IntoIterator<Item = usize>) -> Self {
+        self.default_selected_indices = indices.into_iter().collect();
         self
     }
 
@@ -327,9 +344,8 @@ impl Select {
             .unwrap_or_else(|| self.placeholder.clone())
     }
 
-    fn value_text_multiple(&self) -> SharedString {
-        let names: Vec<String> = self
-            .selected_indices
+    fn value_text_multiple(&self, selected_indices: &BTreeSet<usize>) -> SharedString {
+        let names: Vec<String> = selected_indices
             .iter()
             .filter_map(|i| self.options.get(*i).map(ToString::to_string))
             .collect();
@@ -367,11 +383,24 @@ impl RenderOnce for Select {
             self.default_value,
         );
         let multiple = self.selection_mode == SelectionMode::Multiple;
+        let (selected_indices, indices_own) = util::controlled(
+            window,
+            cx,
+            gpui::ElementId::Name(format!("{:?}-values", self.id).into()),
+            self.is_multiple_controlled
+                .then_some(self.selected_indices.clone()),
+            self.default_selected_indices.clone(),
+        );
         let form_default_indices = if multiple {
+            let reset_indices = if self.is_multiple_controlled {
+                self.selected_indices.clone()
+            } else {
+                self.default_selected_indices.clone()
+            };
             let slot = window.use_keyed_state(
                 el_name(format!("select-{}-form-default", id_debug(&self.id))),
                 cx,
-                |_, _| self.selected_indices.clone(),
+                move |_, _| reset_indices,
             );
             slot.read(cx).clone()
         } else {
@@ -383,22 +412,27 @@ impl RenderOnce for Select {
                 self.selection_mode,
                 &self.options,
                 selected,
-                &self.selected_indices,
+                &selected_indices,
             ),
             self.is_invalid,
             !self.is_disabled,
         );
         let reset_own = value_own.clone();
+        let reset_indices_own = indices_own.clone();
         let reset_state = self.form_state.clone();
         let reset_change = self
             .is_controlled
             .then(|| self.on_selection_change.clone())
             .flatten();
-        let reset_change_all = self.on_selection_change_all.clone();
+        let reset_change_all = self
+            .is_multiple_controlled
+            .then(|| self.on_selection_change_all.clone())
+            .flatten();
         let reset_index = self.default_value;
         let reset_options = self.options.clone();
         let reset_mode = self.selection_mode;
         self.form_state.borrow_mut().restore = (reset_own.is_some()
+            || (multiple && reset_indices_own.is_some())
             || reset_change.is_some()
             || (multiple && reset_change_all.is_some()))
         .then(|| {
@@ -406,6 +440,12 @@ impl RenderOnce for Select {
                 if reset_mode == SelectionMode::Multiple {
                     reset_state.borrow_mut().value =
                         select_form_value(reset_mode, &reset_options, None, &form_default_indices);
+                    if let Some(held) = &reset_indices_own {
+                        held.update(cx, |selected, cx| {
+                            *selected = form_default_indices.clone();
+                            cx.notify();
+                        });
+                    }
                     if let Some(on_change) = &reset_change_all {
                         let keys: Vec<usize> = form_default_indices.iter().copied().collect();
                         on_change(&keys, window, cx);
@@ -557,10 +597,13 @@ impl RenderOnce for Select {
             let typed = typeahead;
             let open_own_keys = open_own.clone();
             let value_own_keys = value_own.clone();
+            let indices_own_keys = indices_own.clone();
+            let selected_indices_keys = selected_indices.clone();
             let form_state_keys = self.form_state.clone();
             let form_options_keys = self.options.clone();
             let on_open_change = self.on_open_change.clone();
             let on_select = self.on_selection_change.clone();
+            let on_select_all = self.on_selection_change_all.clone();
             let was_open = is_open;
             let virtual_rows = self.row_height.is_some();
             let key_list_scroll = list_scroll_now.clone();
@@ -644,6 +687,29 @@ impl RenderOnce for Select {
                             // keystroke -- doing it here as well would toggle the
                             // list back open.
                             let Some(index) = from else { return };
+                            if multiple {
+                                let mut next = selected_indices_keys.clone();
+                                if !next.remove(&index) {
+                                    next.insert(index);
+                                }
+                                if let Some(held) = &indices_own_keys {
+                                    form_state_keys.borrow_mut().value = select_form_value(
+                                        SelectionMode::Multiple,
+                                        &form_options_keys,
+                                        None,
+                                        &next,
+                                    );
+                                    held.update(cx, |selected, cx| {
+                                        *selected = next.clone();
+                                        cx.notify();
+                                    });
+                                }
+                                if let Some(cb) = &on_select_all {
+                                    let next: Vec<usize> = next.into_iter().collect();
+                                    cb(&next, window, cx);
+                                }
+                                return;
+                            }
                             if let Some(held) = &value_own_keys {
                                 form_state_keys.borrow_mut().value = crate::form::FormValue::Text(
                                     form_options_keys.get(index).cloned().unwrap_or_default(),
@@ -681,12 +747,12 @@ impl RenderOnce for Select {
         }
 
         let value_text = if multiple {
-            self.value_text_multiple()
+            self.value_text_multiple(&selected_indices)
         } else {
             self.value_text_single(selected)
         };
         let mut chosen: Vec<usize> = if multiple {
-            self.selected_indices
+            selected_indices
                 .iter()
                 .copied()
                 .filter(|index| self.options.get(*index).is_some())
@@ -761,7 +827,13 @@ impl RenderOnce for Select {
                     let pressed = pressed.clone();
                     cx.defer(move |_| pressed.set(false));
                 })
-                .on_click(move |_, window, cx| {
+                .on_click(move |event, window, cx| {
+                    // Enter and Space activate the highlighted option before
+                    // gpui synthesizes this trigger click. Multiple selection
+                    // keeps the popover open for the next pick.
+                    if multiple && open && matches!(event, gpui::ClickEvent::Keyboard(_)) {
+                        return;
+                    }
                     // Uncontrolled: flip our own copy, or the trigger would be
                     // inert without a caller handler.
                     if let Some(held) = &own {
@@ -905,7 +977,6 @@ impl RenderOnce for Select {
             // a virtual list drawing the same row as a short one.
             let options = self.options.clone();
             let sections = self.sections.clone();
-            let selected_indices = self.selected_indices.clone();
             let opt_disabled_keys = self.disabled_keys.clone();
             let indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>> =
                 self.indicator.take().map(Rc::from);
@@ -990,15 +1061,33 @@ impl RenderOnce for Select {
 
                 if panel_interactive && !opt_disabled {
                     if multiple {
-                        if let Some(cb) = on_change_all.clone() {
+                        if indices_own.is_some() || on_change_all.is_some() {
                             let current = selected_indices.clone();
+                            let own = indices_own.clone();
+                            let cb = on_change_all.clone();
+                            let form_state_pick = form_state_rows.clone();
+                            let options = options.clone();
                             item = item.on_click(move |_, window, cx| {
                                 let mut next = current.clone();
                                 if !next.remove(&i) {
                                     next.insert(i);
                                 }
-                                let next: Vec<usize> = next.into_iter().collect();
-                                cb(&next, window, cx);
+                                if let Some(held) = &own {
+                                    form_state_pick.borrow_mut().value = select_form_value(
+                                        SelectionMode::Multiple,
+                                        &options,
+                                        None,
+                                        &next,
+                                    );
+                                    held.update(cx, |selected, cx| {
+                                        *selected = next.clone();
+                                        cx.notify();
+                                    });
+                                }
+                                if let Some(cb) = &cb {
+                                    let next: Vec<usize> = next.into_iter().collect();
+                                    cb(&next, window, cx);
+                                }
                             });
                         }
                     } else if on_change_one.is_some() || value_own.is_some() || open_own.is_some() {
@@ -1172,7 +1261,10 @@ mod tests {
         .selection_mode(SelectionMode::Multiple)
         .selected_indices([0, 1, 2]);
 
-        assert_eq!(select.value_text_multiple(), "Alpha, Beta, and Gamma");
+        assert_eq!(
+            select.value_text_multiple(&select.selected_indices),
+            "Alpha, Beta, and Gamma"
+        );
         assert_eq!(
             format_selected_names(&["Alpha".into(), "Beta".into()]),
             "Alpha and Beta"
