@@ -42,8 +42,8 @@ the builders this crate exposes:
 
 | | |
 |---|---|
-| documented props considered | 758 |
-| implemented | 709 |
+| documented props considered | 763 |
+| implemented | 714 |
 | deliberately not ported | 49 |
 | real gaps | 0 |
 
@@ -164,6 +164,8 @@ Wayland/X11 dev packages on Linux; nothing extra on Windows).
 ```bash
 cargo build                     # builds library + gallery
 cargo run -p herogpui-gallery   # open the component gallery
+cargo install herogpui-gallery  # install the gallery CLI from crates.io
+herogpui-gallery                # launch the installed CLI
 npx herogpui                    # launch a published native gallery binary
 ```
 
@@ -173,6 +175,10 @@ The Rust library will be distributed through crates.io. The npm package is only 
 optional launcher for the native gallery; it does not contain the component
 library. Until the first `v0.1.0` release, clone this repository and use
 `herogpui = { path = "../HeroGPUI/crates/herogpui" }`.
+
+```bash
+cargo add herogpui
+```
 
 ```toml
 [dependencies]
@@ -260,7 +266,7 @@ Switch::new("wifi").is_selected(self.wifi_on).on_change(move |v, _w, cx| { /* ..
 
 ## Documentation
 
-- **Gallery:** `cargo run -p herogpui-gallery` — the fifteen v3 categories,
+- **Gallery:** `cargo run -p herogpui-gallery` or `cargo install herogpui-gallery` — the fifteen v3 categories,
   live examples, `HEROGPUI_PAGE` / `HEROGPUI_THEME` env vars for screenshots,
   `.shots/capture2.ps1`
 - **LLM docs:** `llms.txt` at repo root

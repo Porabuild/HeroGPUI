@@ -703,65 +703,7 @@ fn source_for(import_line: &str) -> Option<&'static str> {
 }
 
 fn source_for_module(module: &str) -> Option<&'static str> {
-    Some(match module {
-        "accordion" => include_str!("../../../crates/herogpui-components/src/accordion.rs"),
-        "alert" => include_str!("../../../crates/herogpui-components/src/alert.rs"),
-        "alert_dialog" => include_str!("../../../crates/herogpui-components/src/alert_dialog.rs"),
-        "autocomplete" => include_str!("../../../crates/herogpui-components/src/autocomplete.rs"),
-        "avatar" => include_str!("../../../crates/herogpui-components/src/avatar.rs"),
-        "badge" => include_str!("../../../crates/herogpui-components/src/badge.rs"),
-        "breadcrumbs" => include_str!("../../../crates/herogpui-components/src/breadcrumbs.rs"),
-        "button" => include_str!("../../../crates/herogpui-components/src/button.rs"),
-        "button_group" => include_str!("../../../crates/herogpui-components/src/button_group.rs"),
-        "calendar" => include_str!("../../../crates/herogpui-components/src/calendar.rs"),
-        "card" => include_str!("../../../crates/herogpui-components/src/card.rs"),
-        "checkbox" => include_str!("../../../crates/herogpui-components/src/checkbox.rs"),
-        "chip" => include_str!("../../../crates/herogpui-components/src/chip.rs"),
-        "close_button" => include_str!("../../../crates/herogpui-components/src/close_button.rs"),
-        "color_picker" => include_str!("../../../crates/herogpui-components/src/color_picker.rs"),
-        "combo_box" => include_str!("../../../crates/herogpui-components/src/combo_box.rs"),
-        "date_picker" => include_str!("../../../crates/herogpui-components/src/date_picker.rs"),
-        "disclosure" => include_str!("../../../crates/herogpui-components/src/disclosure.rs"),
-        "drawer" => include_str!("../../../crates/herogpui-components/src/drawer.rs"),
-        "dropdown" => include_str!("../../../crates/herogpui-components/src/dropdown.rs"),
-        "field" => include_str!("../../../crates/herogpui-components/src/field.rs"),
-        "form" => include_str!("../../../crates/herogpui-components/src/form.rs"),
-        "input" => include_str!("../../../crates/herogpui-components/src/input.rs"),
-        "input_group" => include_str!("../../../crates/herogpui-components/src/input_group.rs"),
-        "input_otp" => include_str!("../../../crates/herogpui-components/src/input_otp.rs"),
-        "kbd" => include_str!("../../../crates/herogpui-components/src/kbd.rs"),
-        "link" => include_str!("../../../crates/herogpui-components/src/link.rs"),
-        "list_box" => include_str!("../../../crates/herogpui-components/src/list_box.rs"),
-        "meter" => include_str!("../../../crates/herogpui-components/src/meter.rs"),
-        "modal" => include_str!("../../../crates/herogpui-components/src/modal.rs"),
-        "number_field" => include_str!("../../../crates/herogpui-components/src/number_field.rs"),
-        "pagination" => include_str!("../../../crates/herogpui-components/src/pagination.rs"),
-        "popover" => include_str!("../../../crates/herogpui-components/src/popover.rs"),
-        "progress" => include_str!("../../../crates/herogpui-components/src/progress.rs"),
-        "radio_group" => include_str!("../../../crates/herogpui-components/src/radio_group.rs"),
-        "range_calendar" => {
-            include_str!("../../../crates/herogpui-components/src/range_calendar.rs")
-        }
-        "scroll_shadow" => include_str!("../../../crates/herogpui-components/src/scroll_shadow.rs"),
-        "select" => include_str!("../../../crates/herogpui-components/src/select.rs"),
-        "separator" => include_str!("../../../crates/herogpui-components/src/separator.rs"),
-        "skeleton" => include_str!("../../../crates/herogpui-components/src/skeleton.rs"),
-        "slider" => include_str!("../../../crates/herogpui-components/src/slider.rs"),
-        "spinner" => include_str!("../../../crates/herogpui-components/src/spinner.rs"),
-        "surface" => include_str!("../../../crates/herogpui-components/src/surface.rs"),
-        "switch" => include_str!("../../../crates/herogpui-components/src/switch.rs"),
-        "table" => include_str!("../../../crates/herogpui-components/src/table.rs"),
-        "tabs" => include_str!("../../../crates/herogpui-components/src/tabs.rs"),
-        "tag_group" => include_str!("../../../crates/herogpui-components/src/tag_group.rs"),
-        "textarea" => include_str!("../../../crates/herogpui-components/src/textarea.rs"),
-        "time_field" => include_str!("../../../crates/herogpui-components/src/time_field.rs"),
-        "toast" => include_str!("../../../crates/herogpui-components/src/toast.rs"),
-        "toggle_button" => include_str!("../../../crates/herogpui-components/src/toggle_button.rs"),
-        "toolbar" => include_str!("../../../crates/herogpui-components/src/toolbar.rs"),
-        "tooltip" => include_str!("../../../crates/herogpui-components/src/tooltip.rs"),
-        "typography" => include_str!("../../../crates/herogpui-components/src/typography.rs"),
-        _ => return None,
-    })
+    herogpui_components::gallery_source::source_for(module)
 }
 
 #[cfg(test)]
@@ -850,10 +792,7 @@ mod tests {
     #[test]
     fn button_reference_reads_public_inherent_builders() {
         let owners = BTreeSet::from(["Button".to_owned()]);
-        let methods = methods_for(
-            include_str!("../../../crates/herogpui-components/src/button.rs"),
-            &owners,
-        );
+        let methods = methods_for(source_for_module("button").unwrap(), &owners);
 
         assert!(methods.iter().any(|method| method.name == "variant"));
         assert!(methods.iter().any(|method| method.name == "on_press"));
@@ -930,10 +869,7 @@ mod tests {
     #[test]
     fn methods_after_multiline_signature_are_included() {
         let owners = BTreeSet::from(["Form".to_owned()]);
-        let methods = methods_for(
-            include_str!("../../../crates/herogpui-components/src/form.rs"),
-            &owners,
-        );
+        let methods = methods_for(source_for_module("form").unwrap(), &owners);
 
         assert!(methods.iter().any(|method| method.name == "on_submit"));
     }
@@ -979,10 +915,7 @@ impl Widget {
     #[test]
     fn table_parser_reaches_methods_after_braces_in_docs() {
         let owners = BTreeSet::from(["Table".to_owned()]);
-        let methods = methods_for(
-            include_str!("../../../crates/herogpui-components/src/table.rs"),
-            &owners,
-        );
+        let methods = methods_for(source_for_module("table").unwrap(), &owners);
 
         assert!(methods.iter().any(|method| method.name == "row_height"));
     }
@@ -1934,10 +1867,7 @@ impl Widget {
     #[test]
     fn inherent_child_builder_is_not_duplicated() {
         let owners = BTreeSet::from(["ToggleButton".to_owned()]);
-        let methods = methods_for(
-            include_str!("../../../crates/herogpui-components/src/toggle_button.rs"),
-            &owners,
-        );
+        let methods = methods_for(source_for_module("toggle_button").unwrap(), &owners);
 
         assert_eq!(
             methods

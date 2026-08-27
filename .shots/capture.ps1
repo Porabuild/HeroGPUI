@@ -15,7 +15,7 @@ public class Win {
 
 foreach ($pg in $Pages) {
     $env:HEROGPUI_PAGE = $pg
-    $p = Start-Process -FilePath "E:\work\HeroGPUI\target\debug\gallery.exe" -PassThru -WorkingDirectory "E:\work\HeroGPUI"
+    $p = Start-Process -FilePath "E:\work\HeroGPUI\target\debug\herogpui-gallery.exe" -PassThru -WorkingDirectory "E:\work\HeroGPUI"
     $ok = $false
     for ($try = 0; $try -lt 20 -and -not $ok; $try++) {
         Start-Sleep -Milliseconds 700

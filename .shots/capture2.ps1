@@ -127,7 +127,7 @@ $Pages = $PageList.Split(",")
 foreach ($pg in $Pages) {
     $env:HEROGPUI_PAGE = $pg
     if ($Theme) { $env:HEROGPUI_THEME = "dark" }
-    # Hide the *console*, not the app. `gallery.exe` is a console-subsystem
+    # Hide the *console*, not the app. `herogpui-gallery.exe` is a console-subsystem
     # binary, so launching it pops a console window that takes focus.
     # `CreateNoWindow` is the CREATE_NO_WINDOW creation flag: it suppresses that
     # console and nothing else, so the gpui window is still created and still
@@ -136,7 +136,7 @@ foreach ($pg in $Pages) {
     # window from taking focus.
     if (-not $interactive) { $env:HEROGPUI_UNFOCUSED = "1" }
     $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = "E:\work\HeroGPUI\target\debug\gallery.exe"
+    $psi.FileName = "E:\work\HeroGPUI\target\debug\herogpui-gallery.exe"
     $psi.WorkingDirectory = "E:\work\HeroGPUI"
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true

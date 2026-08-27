@@ -26,7 +26,7 @@ param(
     [int]$Width = 1200
 )
 
-$exe = "E:\work\HeroGPUI\target\debug\gallery.exe"
+$exe = "E:\work\HeroGPUI\target\debug\herogpui-gallery.exe"
 if (-not (Test-Path $exe)) { throw "build the gallery first: cargo build --workspace" }
 
 # Keep in sync with Page::title in gallery/src/pages/mod.rs.

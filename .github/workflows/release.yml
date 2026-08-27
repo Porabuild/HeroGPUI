@@ -37,16 +37,16 @@ jobs:
       matrix:
         include:
           - runner: windows-2025
-            source: target/release/gallery.exe
+            source: target/release/herogpui-gallery.exe
             asset: x86_64-pc-windows-msvc.exe
           - runner: macos-15
-            source: target/release/gallery
+            source: target/release/herogpui-gallery
             asset: aarch64-apple-darwin
           - runner: ubuntu-24.04
-            source: target/release/gallery
+            source: target/release/herogpui-gallery
             asset: x86_64-unknown-linux-gnu
           - runner: ubuntu-24.04-arm
-            source: target/release/gallery
+            source: target/release/herogpui-gallery
             asset: aarch64-unknown-linux-gnu
     runs-on: ${{ matrix.runner }}
     steps:
@@ -133,12 +133,12 @@ jobs:
         if: env.BOOTSTRAP_CRATES_IO_TOKEN == ''
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
-        run: cargo publish --workspace --exclude herogpui-gallery --locked
+        run: cargo publish --workspace --locked
       - name: Bootstrap the first crates.io release
         if: env.BOOTSTRAP_CRATES_IO_TOKEN != ''
         env:
           CARGO_REGISTRY_TOKEN: ${{ env.BOOTSTRAP_CRATES_IO_TOKEN }}
-        run: cargo publish --workspace --exclude herogpui-gallery --locked
+        run: cargo publish --workspace --locked
 
   npm:
     needs: [plan, github-release, crates-io]

@@ -29,6 +29,8 @@ pub mod dropdown;
 pub mod field;
 pub mod filter;
 pub mod form;
+#[cfg(feature = "gallery-source")]
+pub mod gallery_source;
 pub mod icons;
 pub mod input;
 pub mod input_group;

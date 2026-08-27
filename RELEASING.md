@@ -1,7 +1,8 @@
 # Releasing HeroGPUI
 
-HeroGPUI uses one version for four crates.io libraries, the native gallery
-binaries, the optional npm gallery launcher, and the Git tag.
+HeroGPUI uses one version for four crates.io libraries, the crates.io gallery
+CLI, the native gallery binaries, the optional npm gallery launcher, and the
+Git tag.
 
 ## One-time setup
 
@@ -9,12 +10,12 @@ binaries, the optional npm gallery launcher, and the Git tag.
    tracked tree. The repository URL does not resolve until this is done.
 2. Create a protected `release` GitHub environment and protect `v*` tags.
 3. Enable immutable GitHub Releases.
-4. Reserve the four crates.io names and the `herogpui` npm name. They were
+4. Reserve the five crates.io names and the `herogpui` npm name. They were
    unclaimed when checked on 2026-08-27, but registry ownership is first-come.
 5. For the first tag only, add short-lived `CRATES_IO_TOKEN` and `NPM_TOKEN`
    secrets to the `release` environment. Scope them to publishing these package
    names.
-6. After that first workflow succeeds, configure trusted publishers for all four crates and the npm package to the
+6. After that first workflow succeeds, configure trusted publishers for all five crates and the npm package to the
    `heroui-inc/HeroGPUI` repository, `release.yml` workflow, and `release`
    environment. npm must allow `npm publish`.
 7. Only after every trusted publisher is configured, delete the two bootstrap
@@ -32,7 +33,8 @@ binaries, the optional npm gallery launcher, and the Git tag.
    cargo package -p herogpui-theme --allow-dirty --no-verify --list
    cargo package -p herogpui-components --allow-dirty --no-verify --list
    cargo package -p herogpui --allow-dirty --no-verify --list
-   cargo publish --workspace --exclude herogpui-gallery --dry-run --allow-dirty --locked --no-verify
+   cargo package -p herogpui-gallery --allow-dirty --no-verify --list
+   cargo publish --workspace --dry-run --allow-dirty --locked --no-verify
    Push-Location npm
    npm ci
    npm test
@@ -45,7 +47,8 @@ binaries, the optional npm gallery launcher, and the Git tag.
    anything. It then generates SHA-256 checksums and attestations, creates the
    immutable GitHub Release, publishes the Rust crates, and finally publishes
    the npm launcher after its downloadable binaries exist.
-5. Verify a new project with `cargo add herogpui` and launch the gallery with
+5. Verify a new project with `cargo add herogpui`, install the gallery with
+   `cargo install herogpui-gallery`, and launch the prebuilt gallery with
    `npx herogpui` on at least one clean machine.
 
 If a registry publish partially succeeds, never reuse or overwrite a published

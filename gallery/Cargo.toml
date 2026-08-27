@@ -5,18 +5,20 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+readme.workspace = true
 repository.workspace = true
-publish = false
+keywords.workspace = true
+categories.workspace = true
 
 [[bin]]
-name = "gallery"
+name = "herogpui-gallery"
 path = "src/main.rs"
 
 [dependencies]
 gpui.workspace = true
 herogpui-core.workspace = true
 herogpui-theme.workspace = true
-herogpui-components.workspace = true
+herogpui-components = { workspace = true, features = ["gallery-source"] }
 herogpui.workspace = true
 
 [lints]

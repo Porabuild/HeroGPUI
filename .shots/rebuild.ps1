@@ -1,4 +1,4 @@
-# Builds the workspace after making sure nothing still holds `gallery.exe`.
+# Builds the workspace after making sure nothing still holds `herogpui-gallery.exe`.
 #
 # `smoke.ps1` and `capture2.ps1` launch the gallery dozens of times, and Windows
 # keeps the image locked for a moment after the process dies, so a build started
@@ -7,10 +7,10 @@
 # than a failed build.
 param([switch]$Quiet)
 
-$exe = "E:\work\HeroGPUI\target\debug\gallery.exe"
-$stale = "E:\work\HeroGPUI\target\debug\gallery.locked.exe"
+$exe = "E:\work\HeroGPUI\target\debug\herogpui-gallery.exe"
+$stale = "E:\work\HeroGPUI\target\debug\herogpui-gallery.locked.exe"
 
-Get-Process -Name gallery -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Get-Process -Name herogpui-gallery -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 # Opening the image for read/write can succeed while *deleting* it still fails --
 # cargo needs DELETE access, and a closed process (or an antivirus scan) can hold
@@ -23,7 +23,7 @@ if (Test-Path $exe) {
         catch { Start-Sleep -Milliseconds 300 }
     }
     if (Test-Path $exe) {
-        Write-Host "could not move gallery.exe aside; the build will likely fail" -ForegroundColor Yellow
+        Write-Host "could not move herogpui-gallery.exe aside; the build will likely fail" -ForegroundColor Yellow
     }
 }
 

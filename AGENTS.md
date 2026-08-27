@@ -137,7 +137,7 @@ Read the diff.
     Check the result is not a uniform frame before saving, then open it and
     verify the requested page and section are actually in the image. A perfectly
     rendered Introduction page is still a failed ComboBox capture.
-  - `gallery.exe` is a **console-subsystem** binary, so every launch pops a
+  - `herogpui-gallery.exe` is a **console-subsystem** binary, so every launch pops a
     console window and takes focus — 76 times in a smoke run. Launch it through
     `ProcessStartInfo` with `CreateNoWindow = $true` (the CREATE_NO_WINDOW
     creation flag), which suppresses that console and nothing else.
@@ -222,7 +222,7 @@ Read the diff.
   to prevent, so an unfocused launch no longer steals the foreground on the way
   up.
 - Build with `.shots/rebuild.ps1`, not plain `cargo build`, after any capture or
-  smoke run. Windows keeps `gallery.exe` locked for a while after the process
+  smoke run. Windows keeps `herogpui-gallery.exe` locked for a while after the process
   exits, so the build fails with `Access is denied. (os error 5)` — and the next
   capture then silently screenshots the *previous* binary, which is worse than a
   failed build.

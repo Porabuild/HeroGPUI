@@ -176,7 +176,7 @@ if ($Overlays) { $env:HEROGPUI_OPEN_OVERLAYS = "1" } else { $env:HEROGPUI_OPEN_O
 if ($ReduceMotion) { $env:HEROGPUI_REDUCE_MOTION = "1" } else { $env:HEROGPUI_REDUCE_MOTION = $null }
 
 $psi = New-Object System.Diagnostics.ProcessStartInfo
-$psi.FileName = "E:\work\HeroGPUI\target\debug\gallery.exe"
+$psi.FileName = "E:\work\HeroGPUI\target\debug\herogpui-gallery.exe"
 $psi.WorkingDirectory = "E:\work\HeroGPUI"
 $psi.UseShellExecute = $false
 $psi.CreateNoWindow = $true

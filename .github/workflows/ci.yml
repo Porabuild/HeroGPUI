@@ -33,7 +33,13 @@ jobs:
       - run: cargo package -p herogpui-theme --allow-dirty --no-verify --list
       - run: cargo package -p herogpui-components --allow-dirty --no-verify --list
       - run: cargo package -p herogpui --allow-dirty --no-verify --list
-      - run: cargo publish --workspace --exclude herogpui-gallery --dry-run --allow-dirty --locked --no-verify
+      - run: cargo package -p herogpui-gallery --allow-dirty --no-verify --list
+      - run: cargo publish --workspace --dry-run --allow-dirty --locked --no-verify
+      - name: Install gallery CLI through Cargo
+        shell: pwsh
+        run: |
+          cargo install --path gallery --locked --debug --root target/install-smoke
+          if (-not (Test-Path target/install-smoke/bin/herogpui-gallery.exe)) { exit 1 }
 
   npm-launcher:
     runs-on: ubuntu-24.04

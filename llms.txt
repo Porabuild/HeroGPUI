@@ -16,7 +16,7 @@ macOS and Linux.
 - **Core:** `herogpui-core` — `Color`, `Variant`, `FieldVariant`, `Prominence`,
   `Backdrop`, `Size`, `SizeXl`, `Orientation`, `SelectionMode`, OKLCH math
 - **Components:** `herogpui-components` — one module per `@heroui/*` package
-- **Gallery:** `cargo run -p herogpui-gallery` — living docs, the fifteen v3
+- **Gallery:** `cargo run -p herogpui-gallery` or `cargo install herogpui-gallery` — living docs, the fifteen v3
   categories, theme switcher
 
 **This is v3 only.** v2 names (`content1..4`, numbered 50–900 scales,
