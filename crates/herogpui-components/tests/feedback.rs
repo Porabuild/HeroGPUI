@@ -51,9 +51,10 @@ use std::time::Duration;
 use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
 use harness::{click, events, open_host, press, Events};
 use herogpui_components::{
-    pause_toasts, toast_store, Alert, Avatar, AvatarGroup, AvatarVariant, Badge, BadgePlacement,
-    BadgeVariant, Color, Meter, NumberFormat, ProgressBar, ProgressCircle, Size, Skeleton, Spinner,
-    SpinnerSize, Toast, ToastPlacement, ToastViewport,
+    clear_toasts, dismiss_toast, pause_toasts, toast_store, Alert, Avatar, AvatarGroup,
+    AvatarVariant, Badge, BadgePlacement, BadgeVariant, Color, Meter, NumberFormat, ProgressBar,
+    ProgressCircle, Size, Skeleton, Spinner, SpinnerSize, Toast, ToastData, ToastPlacement,
+    ToastViewport,
 };
 use herogpui_theme::SkeletonAnimation;
 
@@ -528,6 +529,69 @@ fn toast_on_close_fires_once_when_a_timed_toast_is_dismissed_by_hand(cx: &mut Te
         *closed.borrow(),
         1,
         "the dormant timer must not report a second close"
+    );
+}
+
+/// Pinned React Stately's `ToastQueue.clear()` drops the queue without calling
+/// each toast's `onClose`. A timed Rust toast still has a sleeping task, so the
+/// clear path must retire that task's close claim as well as removing the row;
+/// otherwise its next 100ms tick reports a close that upstream never emits.
+#[gpui::test]
+fn toast_clear_does_not_report_timed_toasts_as_individually_closed(cx: &mut TestAppContext) {
+    still();
+    let closed = Rc::new(RefCell::new(0usize));
+    let count = closed.clone();
+    cx.update(move |cx| {
+        Toast::new("Cleared")
+            .timeout(Duration::from_millis(300))
+            .on_close(move |_| *count.borrow_mut() += 1)
+            .push(None, cx);
+    });
+    let cx = open_host(cx, || ToastViewport::new().into_any_element());
+
+    cx.update(|_window, cx| clear_toasts(cx));
+    cx.update(|_window, cx| {
+        assert!(toast_store(cx).read(cx).toasts().is_empty());
+    });
+    cx.executor().advance_clock(Duration::from_millis(500));
+    assert_eq!(
+        *closed.borrow(),
+        0,
+        "clearing the queue must not later invoke an individual onClose"
+    );
+}
+
+/// A custom queue may reinsert an explicit key. Clearing the old toast retires
+/// only that lifecycle; the replacement must still report its own dismissal.
+#[gpui::test]
+fn toast_reused_id_gets_a_fresh_close_lifecycle(cx: &mut TestAppContext) {
+    let id = cx.update(|cx| Toast::new("Old").timeout(Duration::ZERO).push(None, cx));
+    cx.update(clear_toasts);
+    let closed = Rc::new(RefCell::new(0usize));
+    let count = closed.clone();
+    cx.update(move |cx| {
+        toast_store(cx).update(cx, |store, cx| {
+            store.insert(ToastData {
+                id,
+                color: Color::Accent,
+                title: "Replacement".into(),
+                description: None,
+                closable: true,
+                indicator: None,
+                indicator_set: false,
+                is_loading: false,
+                action: None,
+                on_close: Some(std::sync::Arc::new(move |_| *count.borrow_mut() += 1)),
+            });
+            cx.notify();
+        });
+    });
+
+    cx.update(|cx| dismiss_toast(id, cx));
+    assert_eq!(
+        *closed.borrow(),
+        1,
+        "reusing a cleared id must not suppress the replacement's onClose"
     );
 }
 

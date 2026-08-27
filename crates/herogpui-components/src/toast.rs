@@ -167,6 +167,11 @@ impl ToastStore {
 
     /// `clear` — drop all of them.
     pub fn clear(&mut self) {
+        // React Stately's `ToastQueue.clear()` does not call each toast's
+        // `onClose`. Retire every id before its sleeping timer wakes, or the
+        // timer's missing-row path would claim and report that close later.
+        self.reported
+            .extend(self.toasts.iter().map(|toast| toast.id));
         self.toasts.clear();
         self.timeouts.clear();
         self.timer_generations.clear();
@@ -208,6 +213,10 @@ impl ToastStore {
             self.next_id += 1;
         }
         let id = data.id;
+        // Explicit ids may be reused by a custom queue. A newly inserted
+        // toast owns a fresh close lifecycle even when an older toast with the
+        // same id was dismissed or cleared.
+        self.reported.remove(&id);
         self.toasts.insert(0, data);
         id
     }
