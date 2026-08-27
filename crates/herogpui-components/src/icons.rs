@@ -13,6 +13,7 @@ pub const CHEVRON_DOWN: &str = "herogpui/icons/chevron_down.svg";
 pub const CHEVRON_UP: &str = "herogpui/icons/chevron_up.svg";
 pub const TOOLTIP_ARROW: &str = "herogpui/icons/tooltip_arrow.svg";
 pub const ALERT_TRIANGLE: &str = "herogpui/icons/alert_triangle.svg";
+pub const INFO_CIRCLE: &str = "herogpui/icons/info_circle.svg";
 pub const CHEVRON_LEFT: &str = "herogpui/icons/chevron_left.svg";
 pub const CHEVRON_RIGHT: &str = "herogpui/icons/chevron_right.svg";
 pub const CLOSE: &str = "herogpui/icons/close.svg";

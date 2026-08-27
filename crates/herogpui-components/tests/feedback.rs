@@ -46,6 +46,7 @@ mod harness;
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
@@ -567,7 +568,7 @@ fn toast_clear_does_not_report_timed_toasts_as_individually_closed(cx: &mut Test
 fn toast_reused_id_gets_a_fresh_close_lifecycle(cx: &mut TestAppContext) {
     let id = cx.update(|cx| Toast::new("Old").timeout(Duration::ZERO).push(None, cx));
     cx.update(clear_toasts);
-    let closed = Rc::new(RefCell::new(0usize));
+    let closed = std::sync::Arc::new(AtomicUsize::new(0));
     let count = closed.clone();
     cx.update(move |cx| {
         toast_store(cx).update(cx, |store, cx| {
@@ -581,7 +582,9 @@ fn toast_reused_id_gets_a_fresh_close_lifecycle(cx: &mut TestAppContext) {
                 indicator_set: false,
                 is_loading: false,
                 action: None,
-                on_close: Some(std::sync::Arc::new(move |_| *count.borrow_mut() += 1)),
+                on_close: Some(std::sync::Arc::new(move |_| {
+                    count.fetch_add(1, Ordering::Relaxed);
+                })),
             });
             cx.notify();
         });
@@ -589,10 +592,120 @@ fn toast_reused_id_gets_a_fresh_close_lifecycle(cx: &mut TestAppContext) {
 
     cx.update(|cx| dismiss_toast(id, cx));
     assert_eq!(
-        *closed.borrow(),
+        closed.load(Ordering::Relaxed),
         1,
         "reusing a cleared id must not suppress the replacement's onClose"
     );
+}
+
+/// The public queue method has the same callback contract as the convenience
+/// free function: one close, one callback, and no later timer duplicate.
+#[gpui::test]
+fn toast_store_close_reports_on_close_once(cx: &mut TestAppContext) {
+    let closed = Rc::new(RefCell::new(0usize));
+    let count = closed.clone();
+    let id = cx.update(move |cx| {
+        Toast::new("Queue close")
+            .timeout(Duration::from_millis(300))
+            .on_close(move |_| *count.borrow_mut() += 1)
+            .push(None, cx)
+    });
+
+    cx.update(|cx| {
+        let store = toast_store(cx);
+        herogpui_components::ToastStore::close(&store, id, cx);
+    });
+    assert_eq!(*closed.borrow(), 1);
+    cx.executor().advance_clock(Duration::from_millis(500));
+    assert_eq!(
+        *closed.borrow(),
+        1,
+        "the retired timer must not duplicate ToastStore::close"
+    );
+}
+
+/// A queue-supplied key must reserve its numeric slot. Otherwise the next
+/// Toast::push would reuse that key and one close would remove both entries.
+#[gpui::test]
+fn toast_store_add_keeps_generated_keys_unique(cx: &mut TestAppContext) {
+    let explicit = cx.update(|cx| {
+        let store = toast_store(cx);
+        herogpui_components::ToastStore::add(
+            &store,
+            ToastData {
+                id: 7,
+                color: Color::Default,
+                title: "Explicit".into(),
+                description: None,
+                closable: true,
+                indicator: None,
+                indicator_set: false,
+                is_loading: false,
+                action: None,
+                on_close: None,
+            },
+            cx,
+        )
+    });
+    let generated = cx.update(|cx| {
+        Toast::new("Generated")
+            .timeout(Duration::ZERO)
+            .push(None, cx)
+    });
+
+    assert_eq!((explicit, generated), (7, 8));
+}
+
+/// Pinned v3 makes every non-frontmost toast pointer-inert and hides its close
+/// button from interaction. A stacked viewport must therefore expose exactly
+/// the newest toast's close action to Tab, regardless of paint order.
+#[gpui::test]
+fn toast_stack_keyboard_reaches_only_the_frontmost_close(cx: &mut TestAppContext) {
+    still();
+    let (older, front) = cx.update(|cx| {
+        let older = Toast::new("Older").timeout(Duration::ZERO).push(None, cx);
+        let front = Toast::new("Front").timeout(Duration::ZERO).push(None, cx);
+        (older, front)
+    });
+    let cx = open_host(cx, || ToastViewport::new().into_any_element());
+
+    press(cx, "tab");
+    press(cx, "enter");
+    cx.update(|_window, cx| {
+        let ids = toast_store(cx)
+            .read(cx)
+            .toasts()
+            .iter()
+            .map(|toast| toast.id)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            ids,
+            [older],
+            "the first reachable close action must belong to the frontmost toast"
+        );
+        assert!(ids.iter().all(|id| *id != front));
+    });
+}
+
+/// The pinned `toast(message)` helper stores `variant: "default"` unless the
+/// caller selects a semantic variant or uses a variant convenience method.
+#[gpui::test]
+fn toast_new_uses_the_default_variant(cx: &mut TestAppContext) {
+    let id = cx.update(|cx| Toast::new("Plain").timeout(Duration::ZERO).push(None, cx));
+    cx.update(|cx| {
+        let store = toast_store(cx);
+        let toast = store
+            .read(cx)
+            .toasts()
+            .iter()
+            .find(|toast| toast.id == id)
+            .expect("new toast is queued");
+        assert_eq!(
+            toast.color,
+            Color::Default,
+            "Toast::new must match the pinned helper's default variant"
+        );
+    });
 }
 
 // ---------------------------------------------------------------------------

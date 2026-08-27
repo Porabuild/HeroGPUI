@@ -1098,13 +1098,15 @@ fn toast_action_button_reports_and_dismisses(cx: &mut TestAppContext) {
     let rec = events();
     let action_rec = rec.clone();
     let (id_a, id_b) = cx.update(|cx| {
+        // The action toast must be newest/frontmost: pinned v3 makes every
+        // stacked toast behind it pointer- and keyboard-inert.
+        let b = Toast::new("Sibling").timeout(Duration::ZERO).push(None, cx);
         let a = Toast::new("Has an action")
             .timeout(Duration::ZERO)
             .action("Undo", move |_| {
                 action_rec.borrow_mut().push("undo".to_owned());
             })
             .push(None, cx);
-        let b = Toast::new("Sibling").timeout(Duration::ZERO).push(None, cx);
         (a, b)
     });
     let cx = open_host(cx, || ToastViewport::new().into_any_element());

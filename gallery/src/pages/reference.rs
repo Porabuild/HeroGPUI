@@ -1393,6 +1393,42 @@ impl Widget {
     }
 
     #[test]
+    fn toast_metadata_tracks_queue_lifecycle_and_frontmost_interaction() {
+        let metadata = reference_metadata::for_route(
+            "Toast",
+            "use herogpui::components::toast::{Toast, ToastViewport};",
+        )
+        .expect("Toast metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for prop in [
+            "add",
+            "close",
+            "pauseAll",
+            "resumeAll",
+            "clear",
+            "subscribe",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "ToastQueue"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Frontmost"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".toast__title"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata
+            .api_source
+            .contains("react-stately/src/toast/useToastState.ts"));
+    }
+
+    #[test]
     fn color_field_metadata_tracks_complete_render_state_and_compound_parts() {
         let metadata = reference_metadata::for_route(
             "ColorField",

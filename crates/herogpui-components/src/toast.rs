@@ -155,18 +155,41 @@ impl ToastStore {
         self.paused
     }
 
-    /// `add` — queue a toast and return its id, v3's toast key.
-    pub fn add(&mut self, data: ToastData) -> u64 {
-        self.insert(data)
+    /// `add` — queue a toast, notify subscribers, and return its id.
+    pub fn add(store: &Entity<Self>, data: ToastData, cx: &mut App) -> u64 {
+        store.update(cx, |store, cx| {
+            let id = store.insert(data);
+            cx.notify();
+            id
+        })
     }
 
-    /// `close` — drop one toast by id.
-    pub fn close(&mut self, id: u64) {
-        self.dismiss(id);
+    /// `close` — drop one toast by id and report its `onClose` once.
+    pub fn close(store: &Entity<Self>, id: u64, cx: &mut App) {
+        let on_close = store.update(cx, |store, cx| {
+            let callback = if store.claim_close(id) {
+                store.on_close(id)
+            } else {
+                None
+            };
+            store.dismiss(id);
+            cx.notify();
+            callback
+        });
+        if let Some(callback) = on_close {
+            callback(cx);
+        }
     }
 
-    /// `clear` — drop all of them.
-    pub fn clear(&mut self) {
+    /// `clear` — drop all of them and notify subscribers.
+    pub fn clear(store: &Entity<Self>, cx: &mut App) {
+        store.update(cx, |store, cx| {
+            store.clear_inner();
+            cx.notify();
+        });
+    }
+
+    fn clear_inner(&mut self) {
         // React Stately's `ToastQueue.clear()` does not call each toast's
         // `onClose`. Retire every id before its sleeping timer wakes, or the
         // timer's missing-row path would claim and report that close later.
@@ -196,10 +219,6 @@ impl ToastStore {
         self.reported.insert(id)
     }
 
-    pub fn push(&mut self, data: ToastData) -> u64 {
-        self.insert(data)
-    }
-
     fn dismiss(&mut self, id: u64) {
         self.toasts.retain(|t| t.id != id);
         self.timeouts.remove(&id);
@@ -211,6 +230,8 @@ impl ToastStore {
         if data.id == 0 {
             data.id = self.next_id;
             self.next_id += 1;
+        } else if data.id >= self.next_id {
+            self.next_id = data.id.saturating_add(1);
         }
         let id = data.id;
         // Explicit ids may be reused by a custom queue. A newly inserted
@@ -260,7 +281,7 @@ pub struct Toast {
 impl Toast {
     pub fn new(title: impl Into<SharedString>) -> Self {
         Self {
-            color: Color::Accent,
+            color: Color::Default,
             title: title.into(),
             description: None,
             closable: true,
@@ -359,7 +380,7 @@ impl Toast {
         let (id, generation) = store.update(cx, |s, cx| {
             let id = s.next_id;
             s.next_id += 1;
-            let pushed = s.push(ToastData {
+            let pushed = s.insert(ToastData {
                 id,
                 color: self.color,
                 title: self.title.clone(),
@@ -466,30 +487,13 @@ pub fn push_toast(toast: Toast, cx: &mut App) -> u64 {
 /// Dismisses one toast by id, running its `onClose`.
 pub fn dismiss_toast(id: u64, cx: &mut App) {
     let store = toast_store(cx);
-    let on_close = store.update(cx, |s, cx| {
-        // Claim the report before dismissing: a later path — the timer waking
-        // to find the toast already gone — must not run the handler again.
-        let cb = if s.claim_close(id) {
-            s.on_close(id)
-        } else {
-            None
-        };
-        s.dismiss(id);
-        cx.notify();
-        cb
-    });
-    if let Some(cb) = on_close {
-        cb(cx);
-    }
+    ToastStore::close(&store, id, cx);
 }
 
 /// `toast.clear()` — closes every toast.
 pub fn clear_toasts(cx: &mut App) {
     let store = toast_store(cx);
-    store.update(cx, |s, cx| {
-        s.clear();
-        cx.notify();
-    });
+    ToastStore::clear(&store, cx);
 }
 
 /// `toast.pauseAll()` / `toast.resumeAll()` — stops and restarts every clock.
@@ -631,13 +635,19 @@ fn toast_card(
     // horizontal inset since a div cannot be scaled.
     let shrink = (1.0 - scale_factor * depth as f32).clamp(0.5, 1.0);
     let width = px(f32::from(width) * shrink);
-    ToastCardEl { t, width }.into_any_element()
+    ToastCardEl {
+        t,
+        width,
+        frontmost: depth == 0,
+    }
+    .into_any_element()
 }
 
 #[derive(IntoElement)]
 struct ToastCardEl {
     t: ToastData,
     width: gpui::Pixels,
+    frontmost: bool,
 }
 
 impl RenderOnce for ToastCardEl {
@@ -646,7 +656,7 @@ impl RenderOnce for ToastCardEl {
         // real keyboard tab stop. The handle has to be created before the
         // theme tokens are read: `use_keyed_state` takes `cx` mutably and
         // `colors` borrows it.
-        let close_focus = if self.t.closable {
+        let close_focus = if self.t.closable && self.frontmost {
             Some(crate::util::tab_stop_handle(
                 gpui::ElementId::Name(format!("toast-close-{}-focus", self.t.id).into()),
                 window,
@@ -657,6 +667,12 @@ impl RenderOnce for ToastCardEl {
         };
         let colors = cx.colors();
         let sem = cx.role(self.t.color);
+        let title_color = match self.t.color {
+            Color::Default => colors.overlay.foreground,
+            Color::Accent | Color::Success | Color::Warning | Color::Danger => {
+                sem.soft_foreground()
+            }
+        };
 
         let mut card = gpui::div()
             .w(self.width)
@@ -667,7 +683,7 @@ impl RenderOnce for ToastCardEl {
             .py(px(12.))
             .rounded(crate::util::container_radius(cx))
             .bg(colors.surface.background)
-            .text_color(colors.surface.foreground)
+            .text_color(colors.overlay.foreground)
             .border(cx.layout().border_width)
             .border_color(colors.border)
             .when(!cx.layout().overlay_shadow.is_empty(), |c| {
@@ -722,6 +738,7 @@ impl RenderOnce for ToastCardEl {
                 .text_size(px(14.))
                 .line_height(px(20.))
                 .font_weight(gpui::FontWeight::MEDIUM)
+                .text_color(title_color)
                 .truncate()
                 .child(self.t.title.to_string()),
         );
@@ -740,19 +757,21 @@ impl RenderOnce for ToastCardEl {
         // `.toast__action` — the button v3 configures with `actionProps`.
         if let Some((label, on_press)) = self.t.action.clone() {
             let id = self.t.id;
-            card = card.child(
-                crate::button::Button::new(gpui::ElementId::Name(
-                    format!("toast-action-{id}").into(),
-                ))
-                .label(label)
-                .variant(herogpui_core::Variant::Secondary)
-                .size(herogpui_core::Size::Sm)
-                .on_press(move |_, _, cx| {
+            let mut action = crate::button::Button::new(gpui::ElementId::Name(
+                format!("toast-action-{id}").into(),
+            ))
+            .label(label)
+            .variant(herogpui_core::Variant::Secondary)
+            .size(herogpui_core::Size::Sm)
+            .is_disabled(!self.frontmost);
+            if self.frontmost {
+                action = action.on_press(move |_, _, cx| {
                     on_press(cx);
                     // v3's action closes the toast it belongs to.
                     dismiss_toast(id, cx);
-                }),
-            );
+                });
+            }
+            card = card.child(action);
         }
 
         if self.t.closable {
@@ -769,27 +788,31 @@ impl RenderOnce for ToastCardEl {
                 .border(cx.layout().border_width)
                 .border_color(colors.border)
                 .bg(colors.overlay.background)
-                .rounded(crate::util::small_radius(cx))
-                .cursor_pointer();
-            let hover_bg = colors.default.soft_hover();
-            close_btn = close_btn.hover(move |s| s.bg(hover_bg));
-            close_btn = close_btn.on_click(move |_, _, cx| dismiss_toast(id, cx));
-            // A keyboard tab stop that rings on focus-visible — gpui builds
-            // its tab order from `track_focus` handles, and the Enter/Space
-            // activation fires the click listener above on its own.
-            // (The branch implies `closable`, which is what created the
-            // handle.)
-            let close_focus = close_focus
-                .as_ref()
-                .expect("a closable toast created its close handle");
-            close_btn = crate::util::ring_if_focused(
-                close_btn.track_focus(close_focus),
-                close_focus,
-                true,
-                Vec::new(),
-                window,
-                cx,
-            );
+                .rounded(crate::util::small_radius(cx));
+            if self.frontmost {
+                close_btn = close_btn.cursor_pointer();
+                let hover_bg = colors.default.soft_hover();
+                close_btn = close_btn.hover(move |s| s.bg(hover_bg));
+                close_btn = close_btn.on_click(move |_, _, cx| dismiss_toast(id, cx));
+                // A keyboard tab stop that rings on focus-visible — gpui builds
+                // its tab order from `track_focus` handles, and the Enter/Space
+                // activation fires the click listener above on its own.
+                let close_focus = close_focus
+                    .as_ref()
+                    .expect("a frontmost closable toast created its close handle");
+                close_btn = crate::util::ring_if_focused(
+                    close_btn.track_focus(close_focus),
+                    close_focus,
+                    true,
+                    Vec::new(),
+                    window,
+                    cx,
+                );
+            } else {
+                // Pinned CSS hides and disables the close affordance behind
+                // the front toast.
+                close_btn = close_btn.opacity(0.);
+            }
             card = card.child(
                 close_btn.child(
                     gpui::svg()
@@ -817,10 +840,20 @@ impl RenderOnce for ToastCardEl {
 /// `.toast--<variant> .toast__indicator`.
 fn default_indicator(color: Color) -> Option<&'static str> {
     match color {
+        Color::Accent => Some(icons::INFO_CIRCLE),
         Color::Success => Some(icons::CHECK),
         Color::Warning => Some(icons::ALERT_TRIANGLE),
         Color::Danger => Some(icons::CLOSE_CIRCLE),
-        // A default or accent toast carries no status, so it carries no glyph.
-        _ => None,
+        Color::Default => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accent_uses_the_pinned_info_indicator() {
+        assert_eq!(default_indicator(Color::Accent), Some(icons::INFO_CIRCLE));
     }
 }
