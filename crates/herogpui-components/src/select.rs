@@ -389,6 +389,23 @@ impl RenderOnce for Select {
             |_, _| crate::list_nav::Typeahead::default(),
         );
 
+        // Pinned `usePopover` closes when focus leaves the trigger-plus-list
+        // scope. Blur deliberately leaves focus on its destination.
+        let blur_base = format!("select-{}", id_debug(&self.id));
+        let blur_close_own = open_own.clone();
+        let blur_open_change = self.on_open_change.clone();
+        let blur_scope = util::close_on_blur(window, cx, &blur_base, is_open, move |window, cx| {
+            if let Some(held) = &blur_close_own {
+                held.update(cx, |v, cx| {
+                    *v = false;
+                    cx.notify();
+                });
+            }
+            if let Some(cb) = &blur_open_change {
+                cb(false, window, cx);
+            }
+        });
+
         let sem = cx.role(Color::Accent);
         let colors = cx.colors();
         let layout = cx.layout();
@@ -973,7 +990,7 @@ impl RenderOnce for Select {
             ));
         }
 
-        root
+        root.track_focus(&blur_scope)
     }
 }
 

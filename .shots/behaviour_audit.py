@@ -216,6 +216,13 @@ OVERLAY_DISMISS = (
     'DatePicker', 'DateRangePicker', 'ColorPicker', 'Tooltip',
 )
 
+# Pinned React Aria `usePopover` closes these picker panels when focus leaves
+# the trigger-plus-panel scope. Blur dismissal does not return focus to the
+# trigger; the destination keeps it.
+CLOSE_ON_BLUR = (
+    'Select', 'Autocomplete', 'DatePicker', 'DateRangePicker', 'ColorPicker',
+)
+
 # A disabled native control is not successful: it contributes no FormData,
 # does not satisfy `required`, and cannot block submission with stale validity.
 # The text family shares InputState; NumberField reaches it through
@@ -317,6 +324,17 @@ EVIDENCE = {
     ('DateRangePicker', 'dismiss'): ('date_picker.rs', r'dismiss_on_escape'),
     ('ColorPicker', 'dismiss'): ('color_picker.rs', r'dismiss_on_press_outside'),
     ('Tooltip', 'dismiss'): ('tooltip.rs', r'dismiss_on_escape'),
+    ('Select', 'close-on-blur'): ('select.rs', r'util::close_on_blur'),
+    ('Autocomplete', 'close-on-blur'): ('autocomplete.rs', r'util::close_on_blur'),
+    ('DatePicker', 'close-on-blur'): (
+        'date_picker.rs',
+        r'(?s)close_on_blur\(.*?&format!\("dp-\{\}"',
+    ),
+    ('DateRangePicker', 'close-on-blur'): (
+        'date_picker.rs',
+        r'(?s)close_on_blur\(.*?&format!\("drp-\{\}"',
+    ),
+    ('ColorPicker', 'close-on-blur'): ('color_picker.rs', r'util::close_on_blur'),
     ('NumberField', 'spin-keys'): ('number_field.rs', r'"up" \| "pageup"'),
     ('Table', 'table-page-down'): ('table.rs', r'"pagedown" => stops\.last\(\)\.copied\(\)'),
     ('Tooltip', 'focus-open'): ('tooltip.rs', r'contains_focused'),
@@ -566,13 +584,17 @@ def main():
         key = (page, 'disabled-form-omission')
         if key not in EVIDENCE and key not in WONT_DO:
             unmapped.append('%-14s %-14s' % key)
+    for page in CLOSE_ON_BLUR:
+        key = (page, 'close-on-blur')
+        if key not in EVIDENCE and key not in WONT_DO:
+            unmapped.append('%-14s %-14s' % key)
 
     # The derived claims first, so their numbers land in the same totals.
     # Deduplicated: a component appears in several of these tuples (a text area
     # has both the keys and the caret), and counting it once per tuple inflated
     # every total.
     derived = dict.fromkeys(
-        ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + AREA_KEYS
+        ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + CLOSE_ON_BLUR + SPIN_KEYS + AREA_KEYS
         + FOCUS_OPEN + TOOLTIP_SEQUENCE + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS
         + TABLE_TYPEAHEAD + TABLE_PAGING + SELECT_ALL_KEYS
         + ESCAPE_CLEAR_KEYS
@@ -589,7 +611,7 @@ def main():
                       'select-all', 'escape-clear', 'resize-bounds',
                       'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
                       'calendar-section-bounds', 'panel-focus', 'load-more',
-                      'disabled-form-omission',
+                      'disabled-form-omission', 'close-on-blur',
                       'custom-value-multiple', 'multiple-row-keys',
                       'multiple-row-pointer'):
             key = (page, claim)

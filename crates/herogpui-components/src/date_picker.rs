@@ -384,17 +384,37 @@ impl RenderOnce for DatePicker {
             self.is_open,
             self.default_open,
         );
+        let open = is_open && !self.is_disabled;
         let (overlay_phase, dismissal_token) = crate::util::overlay_scope(
             window,
             cx,
             gpui::ElementId::Name(format!("dp-{}-overlay", self.state.entity_id().as_u64()).into()),
-            is_open && !self.is_disabled,
+            open,
             // Pickers have no exit animation; remove the calendar immediately
             // so a chosen cell cannot receive the same press again.
             false,
         );
         let panel_visible = overlay_phase != crate::util::OverlayPhase::Closed;
         let panel_open = overlay_phase == crate::util::OverlayPhase::Open;
+        let blur_open_own = open_own.clone();
+        let blur_open_change = self.on_open_change.clone();
+        let blur_scope = crate::util::close_on_blur(
+            window,
+            cx,
+            &format!("dp-{}", self.state.entity_id().as_u64()),
+            open,
+            move |window, cx| {
+                if let Some(held) = &blur_open_own {
+                    held.update(cx, |value, cx| {
+                        *value = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(callback) = &blur_open_change {
+                    callback(false, window, cx);
+                }
+            },
+        );
         let selected = self.state.read(cx).selected;
         let selected_text = selected.map(|date| date.format_iso()).unwrap_or_default();
         self.form_state.borrow_mut().value =
@@ -688,7 +708,7 @@ impl RenderOnce for DatePicker {
             ));
         }
 
-        root
+        root.track_focus(&blur_scope)
     }
 }
 
@@ -1119,19 +1139,39 @@ impl RenderOnce for DateRangePicker {
             self.is_open,
             self.default_open,
         );
+        let open = is_open && !self.is_disabled;
         let (overlay_phase, dismissal_token) = crate::util::overlay_scope(
             window,
             cx,
             gpui::ElementId::Name(
                 format!("drp-{}-overlay", self.state.entity_id().as_u64()).into(),
             ),
-            is_open && !self.is_disabled,
+            open,
             // Pickers have no exit animation; remove the calendar immediately
             // so a chosen cell cannot receive the same press again.
             false,
         );
         let panel_visible = overlay_phase != crate::util::OverlayPhase::Closed;
         let panel_open = overlay_phase == crate::util::OverlayPhase::Open;
+        let blur_open_own = open_own.clone();
+        let blur_open_change = self.on_open_change.clone();
+        let blur_scope = crate::util::close_on_blur(
+            window,
+            cx,
+            &format!("drp-{}", self.state.entity_id().as_u64()),
+            open,
+            move |window, cx| {
+                if let Some(held) = &blur_open_own {
+                    held.update(cx, |value, cx| {
+                        *value = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(callback) = &blur_open_change {
+                    callback(false, window, cx);
+                }
+            },
+        );
         let (start, end) = {
             let st = self.state.read(cx);
             (st.start, st.end)
@@ -1575,7 +1615,7 @@ impl RenderOnce for DateRangePicker {
             root = root.opacity(cx.layout().disabled_opacity);
         }
 
-        root
+        root.track_focus(&blur_scope)
     }
 }
 

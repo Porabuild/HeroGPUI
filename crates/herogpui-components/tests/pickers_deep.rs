@@ -68,11 +68,13 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use gpui::{
-    point, prelude::*, px, ElementId, Modifiers, MouseButton, TestAppContext, VisualTestContext,
+    point, prelude::*, px, ElementId, Focusable, Modifiers, MouseButton, TestAppContext,
+    VisualTestContext,
 };
 use harness::{click, events, open_host, press, Events};
 use herogpui_components::{
-    Autocomplete, ComboBox, Drawer, DrawerPlacement, InputState, MenuTrigger, Select, SelectionMode,
+    Autocomplete, ComboBox, Drawer, DrawerPlacement, Input, InputState, MenuTrigger, Select,
+    SelectionMode,
 };
 
 /// An `InputState` entity for the search-field-backed controls, created before
@@ -136,6 +138,40 @@ fn drag(cx: &mut VisualTestContext, from: (f32, f32), to: (f32, f32)) {
 // ---------------------------------------------------------------------------
 // Autocomplete
 // ---------------------------------------------------------------------------
+
+#[gpui::test]
+fn autocomplete_programmatic_focus_departure_closes_without_refocusing(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let search = search_state(cx);
+    let next = search_state(cx);
+    let search_for_view = search;
+    let next_for_view = next.clone();
+
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        gpui::div()
+            .child(
+                Autocomplete::new(search_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                    .default_open(true)
+                    .on_open_change(move |open, _, _| {
+                        opens.borrow_mut().push(format!("open:{open}"));
+                    }),
+            )
+            .child(Input::new(next_for_view.clone()))
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    cx.update(|window, cx| {
+        let next = next.read(cx).focus_handle(cx);
+        window.focus(&next);
+    });
+    flush_frame(cx);
+
+    assert_eq!(opened.borrow().as_slice(), ["open:false"]);
+    assert!(cx.update(|window, cx| next.read(cx).focus_handle(cx).is_focused(window)));
+}
 
 /// `allowsEmptyCollection` keeps the popover mounted when a query matches
 /// nothing: v3 documents it as *"Whether the autocomplete allows an empty
@@ -1483,6 +1519,73 @@ fn select_wrap_joins_both_ends(cx: &mut TestAppContext) {
         ["Some(0)", "Some(2)"],
         "up past the start must wrap to the last option"
     );
+}
+
+/// Pinned React Aria `usePopover`: an open Select's list also closes when the
+/// *focus* leaves it, and the keystroke that moved the focus is not swallowed.
+/// Tab from the trigger lands on the next control while the list dismisses:
+/// `onOpenChange(false)` reports exactly once, the rows are gone, and the next
+/// input owns the focus. That direct probe catches a focus-stealing closer.
+#[gpui::test]
+fn select_tab_to_the_next_control_closes_and_keeps_the_focus_moving(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let next = search_state(cx);
+    let next_for_view = next.clone();
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let opened_open = opens.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(160.))
+            .child(
+                // Two options put Alpha's row centre at y 66 and Beta's at
+                // y 102, both clear of the Input the gap parks below (y 196+).
+                Select::new("sel-blur-out", vec!["Alpha".into(), "Beta".into()])
+                    .on_change(move |i, _, _| changes.borrow_mut().push(format!("{i:?}")))
+                    .on_open_change(move |open, _, _| {
+                        opened_open.borrow_mut().push(format!("open:{open}"));
+                    }),
+            )
+            .child(Input::new(next_for_view.clone()))
+            .into_any_element()
+    });
+
+    // Open by pointer, as every test above does: the mouse-down claims the
+    // trigger's focus, so the focus starts inside the surface that closes on
+    // its loss. The flush renders the armed, open state before any key lands.
+    click(cx, 60., 18.);
+    assert_eq!(opened.borrow().as_slice(), ["open:true"]);
+    flush_frame(cx);
+
+    press(cx, "tab");
+    // One frame for the focus change to fire the blur closer...
+    flush_frame(cx);
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "Tabbing off an open select must report onOpenChange(false) exactly once"
+    );
+    // ...and one more for the panel to leave the tree outright, so the
+    // closed-proof clicks hit-test the frame without it.
+    flush_frame(cx);
+    assert!(
+        cx.update(|window, cx| next.read(cx).focus_handle(cx).is_focused(window)),
+        "Tab must leave focus on the next control rather than return it to the Select"
+    );
+
+    // Where the rows were: two clicks must find nothing there any more.
+    click(cx, 60., 66.);
+    assert!(
+        recorded.borrow().is_empty(),
+        "a click where Alpha was must find no panel after the blur close"
+    );
+    click(cx, 60., 102.);
+    assert!(recorded.borrow().is_empty());
 }
 
 // ---------------------------------------------------------------------------

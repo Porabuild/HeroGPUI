@@ -48,13 +48,15 @@ use std::{
     rc::Rc,
 };
 
-use gpui::{point, prelude::*, px, Modifiers, MouseButton, SharedString, TestAppContext};
+use gpui::{
+    point, prelude::*, px, Focusable, Modifiers, MouseButton, SharedString, TestAppContext,
+};
 use harness::{click, events, open_host, press};
 use herogpui_components::{
     calendar::{Date, CALENDAR_WIDTH},
     Button, Calendar, CalendarState, ColorPicker, DateConstraints, DateRangeState, Disclosure,
-    DisclosureGroup, PageBehavior, PickerColor, RangeCalendar, Select, SelectionMode, Toolbar,
-    VisibleDuration, Weekday,
+    DisclosureGroup, Input, InputState, PageBehavior, PickerColor, RangeCalendar, Select,
+    SelectionMode, Toolbar, VisibleDuration, Weekday,
 };
 
 /// Column *c*'s centre in a bare Calendar: seven cells across `CALENDAR_WIDTH`
@@ -731,6 +733,42 @@ fn color_picker_trigger_opens_and_area_reports(cx: &mut TestAppContext) {
         [expected_hex],
         "the popover must be gone after escape"
     );
+}
+
+#[gpui::test]
+fn pointer_open_color_picker_closes_when_focus_moves_elsewhere(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let open = Rc::new(RefCell::new(false));
+    let next = cx.new(|cx| InputState::new(cx));
+    let next_for_view = next.clone();
+
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        let open = open.clone();
+        let is_open = *open.borrow();
+        gpui::div()
+            .child(
+                ColorPicker::new("cp-blur", PickerColor::hsb(210.0, 0.5, 0.6))
+                    .is_open(is_open)
+                    .on_open_change(move |value, window, _| {
+                        *open.borrow_mut() = value;
+                        opens.borrow_mut().push(format!("open:{value}"));
+                        window.refresh();
+                    }),
+            )
+            .child(Input::new(next_for_view.clone()))
+            .into_any_element()
+    });
+
+    click(cx, 60., 12.);
+    assert_eq!(opened.borrow().as_slice(), ["open:true"]);
+
+    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx)));
+    cx.update(|window, _| window.refresh());
+
+    assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
+    assert!(cx.update(|window, cx| next.read(cx).focus_handle(cx).is_focused(window)));
 }
 
 // ---------------------------------------------------------------------------

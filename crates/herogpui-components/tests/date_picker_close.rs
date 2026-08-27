@@ -35,10 +35,10 @@
 
 mod harness;
 
-use gpui::{prelude::*, TestAppContext};
+use gpui::{prelude::*, Focusable, TestAppContext};
 use herogpui_components::{
     calendar::{CalendarState, Date, CALENDAR_WIDTH},
-    Calendar, DateConstraints, DatePicker, DateRangePicker, DateRangeState,
+    Calendar, DateConstraints, DatePicker, DateRangePicker, DateRangeState, Input, InputState,
 };
 
 use harness::{click, events, open_host};
@@ -48,6 +48,70 @@ fn day_coords() -> (f32, f32) {
     let cell_w = (f32::from(CALENDAR_WIDTH) - 12.) / 7.;
     let day_x = 12. + 6. * (cell_w + 2.) + cell_w / 2.;
     (day_x, 128.)
+}
+
+fn input_state(cx: &mut TestAppContext) -> gpui::Entity<InputState> {
+    cx.new(|cx| InputState::new(cx))
+}
+
+#[gpui::test]
+fn date_picker_focus_departure_closes_without_refocusing(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let picker = cx.new(|cx| CalendarState::new(cx));
+    let next = input_state(cx);
+    let next_for_view = next.clone();
+
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        gpui::div()
+            .child(
+                DatePicker::new(picker.clone())
+                    .default_open(true)
+                    .on_open_change(move |open, _, _| {
+                        opens.borrow_mut().push(format!("open:{open}"));
+                    }),
+            )
+            .child(Input::new(next_for_view.clone()))
+            .into_any_element()
+    });
+
+    cx.update(|window, _| window.refresh());
+    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx)));
+    cx.update(|window, _| window.refresh());
+
+    assert_eq!(opened.borrow().as_slice(), ["open:false"]);
+    assert!(cx.update(|window, cx| next.read(cx).focus_handle(cx).is_focused(window)));
+}
+
+#[gpui::test]
+fn date_range_picker_focus_departure_closes_without_refocusing(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let picker = cx.new(|cx| DateRangeState::new(cx));
+    let next = input_state(cx);
+    let next_for_view = next.clone();
+
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        gpui::div()
+            .child(
+                DateRangePicker::new(picker.clone())
+                    .default_open(true)
+                    .on_open_change(move |open, _, _| {
+                        opens.borrow_mut().push(format!("open:{open}"));
+                    }),
+            )
+            .child(Input::new(next_for_view.clone()))
+            .into_any_element()
+    });
+
+    cx.update(|window, _| window.refresh());
+    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx)));
+    cx.update(|window, _| window.refresh());
+
+    assert_eq!(opened.borrow().as_slice(), ["open:false"]);
+    assert!(cx.update(|window, cx| next.read(cx).focus_handle(cx).is_focused(window)));
 }
 
 #[gpui::test]

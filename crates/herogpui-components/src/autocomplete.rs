@@ -434,6 +434,22 @@ impl RenderOnce for Autocomplete {
             util::overlay_scope(window, cx, el_name(format!("{base}-overlay")), open, false);
         let overlay_active = overlay_phase != util::OverlayPhase::Closed;
 
+        // `usePopover` closes when focus leaves the trigger-plus-panel scope.
+        // Unlike Escape, blur leaves focus on its destination.
+        let blur_close_own = open_own.clone();
+        let blur_open_change = self.on_open_change.clone();
+        let blur_scope = util::close_on_blur(window, cx, &base, open, move |window, cx| {
+            if let Some(held) = &blur_close_own {
+                held.update(cx, |v, cx| {
+                    *v = false;
+                    cx.notify();
+                });
+            }
+            if let Some(cb) = &blur_open_change {
+                cb(false, window, cx);
+            }
+        });
+
         // The trigger is what holds focus, so the open list can be walked with
         // the arrows. A disabled control leaves the tab order.
         let focus_handle = if self.is_disabled {
@@ -814,6 +830,9 @@ impl RenderOnce for Autocomplete {
         } else {
             root.max_w(px(320.))
         };
+        // The blur scope spans this one root, so a focus move between the
+        // trigger and the search field inside the panel stays inside it.
+        root = root.track_focus(&blur_scope);
 
         // Arrows, Home, End and Enter walk the list while the search field has
         // the focus: the input keeps left and right for the caret, so the rest

@@ -3005,6 +3005,16 @@ impl RenderOnce for ColorPicker {
             true,
         );
         let exiting = phase == util::OverlayPhase::Exiting;
+        // Blur closes the logical open state without pulling focus back to the
+        // trigger. Exit animation frames do not keep this watch armed.
+        let group_scope = util::close_on_blur(window, cx, &base, overlay_open, {
+            let cb = self.on_open_change.clone();
+            move |window: &mut Window, cx: &mut App| {
+                if let Some(cb) = &cb {
+                    cb(false, window, cx);
+                }
+            }
+        });
         let colors = cx.colors();
         let layout = cx.layout();
         let trigger_pressed = std::rc::Rc::new(std::cell::Cell::new(false));
@@ -3053,6 +3063,7 @@ impl RenderOnce for ColorPicker {
         }
         let trigger = util::ring_if_focused(trigger, &trigger_focus, true, Vec::new(), window, cx);
         root = root.child(trigger);
+        root = root.track_focus(&group_scope);
 
         if phase == util::OverlayPhase::Closed {
             return root;
