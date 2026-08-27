@@ -10,16 +10,21 @@
 
 mod harness;
 
+use std::{cell::RefCell, rc::Rc, sync::Arc};
+
 use gpui::{
     point, prelude::*, px, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
     ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
-    ColorArea, ColorChannel, ColorField, ColorSlider, ColorSpace, InputState, PickerColor,
+    Button, ColorArea, ColorChannel, ColorField, ColorSlider, ColorSpace, Form, FormData,
+    InputState, PickerColor,
 };
 use herogpui_core::Orientation;
 
 use harness::{click, events, open_host, press};
+
+type Submit = Arc<dyn Fn(&mut gpui::Window, &mut gpui::App)>;
 
 fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
@@ -940,4 +945,503 @@ fn disabled_controls_and_read_only_channel_field_are_inert(cx: &mut TestAppConte
     press(cx, "up");
     wheel(cx, 50., 134., 1.);
     assert!(recorded.borrow().is_empty());
+}
+
+fn submit_text(data: &FormData, name: &str) -> String {
+    data.get(name)
+        .map_or_else(|| "omitted".to_owned(), |value| value.as_text().to_string())
+}
+
+#[gpui::test]
+fn color_slider_saturation_form_uses_percent_units(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        let slider = ColorSlider::new(
+            "saturation-form-units",
+            PickerColor::hsb(0., 0.25, 1.),
+            ColorChannel::Saturation,
+        )
+        .name("saturation");
+        let form = Form::new().field(slider.form_field().expect("named saturation slider"));
+        assert_eq!(
+            submit_text(&form.data(cx), "saturation"),
+            "25",
+            "HeroUI's hidden range input submits saturation on its 0..100 scale"
+        );
+    });
+}
+
+fn submit_button(id: &'static str, submit: Submit) -> Button {
+    Button::new(id)
+        .label("Submit")
+        .on_press(move |_, window, cx| submit(window, cx))
+}
+
+fn reset_button(id: &'static str, reset: Submit) -> Button {
+    Button::new(id)
+        .label("Reset")
+        .on_press(move |_, window, cx| reset(window, cx))
+}
+
+/// React Aria ColorSlider submits the hidden range input's channel number.
+/// A disabled input is not successful; reset restores `defaultValue`.
+#[gpui::test]
+fn uncontrolled_color_slider_form_reads_channel_after_pointer_change(cx: &mut TestAppContext) {
+    let submitted = events();
+    let for_view = submitted.clone();
+    let seed = PickerColor::hsb(0., 1., 1.);
+    let cx = open_host(cx, move || {
+        let submitted = for_view.clone();
+        let slider = ColorSlider::new("hue-live", seed, ColorChannel::Hue)
+            .default_value(seed)
+            .length(px(240.))
+            .show_label(false)
+            .name("hue");
+        let form = Form::new()
+            .field(slider.form_field().expect("named slider field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_text(data, "hue"));
+            });
+        let submit = form.submit_handler();
+        form.child(slider)
+            .child(submit_button("hue-live-submit", submit))
+            .into_any_element()
+    });
+
+    // 240px track, local x=60 is 90°. Form stacks a 16px track then a 36px
+    // button with a 16px gap, so submit sits at y=32..68.
+    click(cx, 60., 8.);
+    flush_frame(cx);
+    click(cx, 60., 50.);
+    assert_eq!(submitted.borrow().as_slice(), ["90"]);
+}
+
+#[gpui::test]
+fn controlled_color_slider_form_waits_for_owner_acceptance(cx: &mut TestAppContext) {
+    let submitted = events();
+    let current = Rc::new(RefCell::new(PickerColor::hsb(0., 1., 1.)));
+    let for_view = current;
+    let submitted_for_view = submitted.clone();
+    let cx = open_host(cx, move || {
+        let current = for_view.clone();
+        let submitted = submitted_for_view.clone();
+        let value = *current.borrow();
+        let slider = ColorSlider::new("hue-owned", value, ColorChannel::Hue)
+            .length(px(240.))
+            .show_label(false)
+            .name("hue")
+            .on_change(move |color, _, _| {
+                *current.borrow_mut() = color;
+            });
+        let form = Form::new()
+            .field(slider.form_field().expect("named slider field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_text(data, "hue"));
+            });
+        let submit = form.submit_handler();
+        form.child(slider)
+            .child(submit_button("hue-owned-submit", submit))
+            .into_any_element()
+    });
+
+    click(cx, 60., 8.);
+    flush_frame(cx);
+    click(cx, 60., 50.);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["90"],
+        "a controlled slider submits the channel only after the owner writes it back"
+    );
+}
+
+#[gpui::test]
+fn controlled_color_slider_form_keeps_owner_value_until_accepted(cx: &mut TestAppContext) {
+    let submitted = events();
+    let current = Rc::new(RefCell::new(PickerColor::hsb(0., 1., 1.)));
+    let for_view = current;
+    let submitted_for_view = submitted.clone();
+    let cx = open_host(cx, move || {
+        let current = for_view.clone();
+        let submitted = submitted_for_view.clone();
+        let value = *current.borrow();
+        let slider = ColorSlider::new("hue-ignored", value, ColorChannel::Hue)
+            .length(px(240.))
+            .show_label(false)
+            .name("hue")
+            .on_change(move |_, _, _| {});
+        let form = Form::new()
+            .field(slider.form_field().expect("named slider field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_text(data, "hue"));
+            });
+        let submit = form.submit_handler();
+        form.child(slider)
+            .child(submit_button("hue-ignored-submit", submit))
+            .into_any_element()
+    });
+
+    click(cx, 60., 8.);
+    flush_frame(cx);
+    click(cx, 60., 50.);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["0"],
+        "an owner that ignores onChange keeps the last accepted channel"
+    );
+}
+
+#[gpui::test]
+fn disabled_color_slider_is_not_a_successful_form_control(cx: &mut TestAppContext) {
+    let submitted = events();
+    let for_view = submitted.clone();
+    let seed = PickerColor::hsb(90., 1., 1.);
+    let cx = open_host(cx, move || {
+        let submitted = for_view.clone();
+        let slider = ColorSlider::new("hue-disabled", seed, ColorChannel::Hue)
+            .default_value(seed)
+            .length(px(240.))
+            .show_label(false)
+            .name("hue")
+            .is_disabled(true);
+        let form = Form::new()
+            .field(
+                slider
+                    .form_field()
+                    .expect("disabled field remains registered"),
+            )
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_text(data, "hue"));
+            });
+        let submit = form.submit_handler();
+        form.child(slider)
+            .child(submit_button("hue-disabled-submit", submit))
+            .into_any_element()
+    });
+
+    click(cx, 60., 50.);
+    assert_eq!(submitted.borrow().as_slice(), ["omitted"]);
+}
+
+#[gpui::test]
+fn uncontrolled_color_slider_reset_restores_default_before_next_submit(cx: &mut TestAppContext) {
+    let submitted = events();
+    let for_view = submitted.clone();
+    let seed = PickerColor::hsb(0., 1., 1.);
+    let cx = open_host(cx, move || {
+        let submitted = for_view.clone();
+        let slider = ColorSlider::new("hue-reset", seed, ColorChannel::Hue)
+            .default_value(seed)
+            .length(px(240.))
+            .show_label(false)
+            .name("hue");
+        let form = Form::new()
+            .field(slider.form_field().expect("named slider field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_text(data, "hue"));
+            });
+        let submit = form.submit_handler();
+        let reset = form.reset_handler();
+        form.child(slider)
+            .child(submit_button("hue-reset-submit", submit))
+            .child(reset_button("hue-reset-button", reset))
+            .into_any_element()
+    });
+
+    click(cx, 60., 8.);
+    flush_frame(cx);
+    click(cx, 60., 50.);
+    flush_frame(cx);
+    click(cx, 60., 102.);
+    flush_frame(cx);
+    click(cx, 60., 50.);
+    assert_eq!(submitted.borrow().as_slice(), ["90", "0"]);
+}
+
+#[gpui::test]
+fn controlled_color_slider_reset_reports_the_initial_value_once(cx: &mut TestAppContext) {
+    let changes = events();
+    let current = Rc::new(RefCell::new(PickerColor::hsb(0., 1., 1.)));
+    let for_view = current;
+    let changes_for_view = changes.clone();
+    let cx = open_host(cx, move || {
+        let current = for_view.clone();
+        let changes = changes_for_view.clone();
+        let value = *current.borrow();
+        let slider = ColorSlider::new("hue-controlled-reset", value, ColorChannel::Hue)
+            .length(px(240.))
+            .show_label(false)
+            .name("hue")
+            .on_change(move |color, _, _| {
+                *current.borrow_mut() = color;
+                changes.borrow_mut().push(format!("{:.0}", color.hue));
+            });
+        let form = Form::new().field(slider.form_field().expect("named slider field"));
+        let reset = form.reset_handler();
+        form.child(slider)
+            .child(reset_button("hue-controlled-reset-button", reset))
+            .into_any_element()
+    });
+
+    click(cx, 60., 8.);
+    flush_frame(cx);
+    click(cx, 60., 50.);
+    assert_eq!(changes.borrow().as_slice(), ["90", "0"]);
+}
+
+/// React Aria ColorField submits hex text, or the channel number when `channel`
+/// is set. Disabled inputs are omitted; reset restores the seeded colour.
+#[gpui::test]
+fn uncontrolled_color_field_form_reads_hex_after_typing(cx: &mut TestAppContext) {
+    let submitted = events();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state;
+    let for_view = submitted.clone();
+    let seed = PickerColor::from_hex("#FF0000").expect("red");
+    let cx = open_host(cx, move || {
+        let submitted = for_view.clone();
+        let field = ColorField::new("brand-live", seed)
+            .default_value(seed)
+            .state(state_for_view.clone())
+            .name("brand");
+        let form = Form::new()
+            .field(field.form_field().expect("named color field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_text(data, "brand"));
+            });
+        let submit = form.submit_handler();
+        form.child(field)
+            .child(submit_button("brand-live-submit", submit))
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("00ff00");
+    flush_frame(cx);
+    click(cx, 60., 70.);
+    assert_eq!(submitted.borrow().as_slice(), ["#00FF00"]);
+}
+
+#[gpui::test]
+fn uncontrolled_channel_color_field_form_reads_channel_after_step(cx: &mut TestAppContext) {
+    let submitted = events();
+    let state = cx.new(|cx| InputState::with_value(cx, "180"));
+    let state_for_view = state;
+    let for_view = submitted.clone();
+    let seed = PickerColor::hsb(180., 1., 1.);
+    let cx = open_host(cx, move || {
+        let submitted = for_view.clone();
+        let field = ColorField::new("hue-field-live", seed)
+            .default_value(seed)
+            .state(state_for_view.clone())
+            .color_space(ColorSpace::Hsl)
+            .channel(ColorChannel::Hue)
+            .name("hue");
+        let form = Form::new()
+            .field(field.form_field().expect("named channel field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_text(data, "hue"));
+            });
+        let submit = form.submit_handler();
+        form.child(field)
+            .child(submit_button("hue-field-live-submit", submit))
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "up");
+    flush_frame(cx);
+    click(cx, 60., 70.);
+    assert_eq!(submitted.borrow().as_slice(), ["181"]);
+}
+
+#[gpui::test]
+fn controlled_color_field_form_waits_for_owner_acceptance(cx: &mut TestAppContext) {
+    let submitted = events();
+    let current = Rc::new(RefCell::new(PickerColor::hsb(180., 1., 1.)));
+    let state = cx.new(|cx| InputState::with_value(cx, "180"));
+    let state_for_view = state;
+    let for_view = current;
+    let submitted_for_view = submitted.clone();
+    let cx = open_host(cx, move || {
+        let current = for_view.clone();
+        let submitted = submitted_for_view.clone();
+        let value = *current.borrow();
+        let field = ColorField::new("hue-field-owned", value)
+            .state(state_for_view.clone())
+            .color_space(ColorSpace::Hsl)
+            .channel(ColorChannel::Hue)
+            .name("hue")
+            .on_change(move |color, _, _| {
+                if let Some(color) = color {
+                    *current.borrow_mut() = color;
+                }
+            });
+        let form = Form::new()
+            .field(field.form_field().expect("named channel field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_text(data, "hue"));
+            });
+        let submit = form.submit_handler();
+        form.child(field)
+            .child(submit_button("hue-field-owned-submit", submit))
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "up");
+    flush_frame(cx);
+    click(cx, 60., 70.);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["181"],
+        "a controlled field submits the channel only after the owner writes it back"
+    );
+}
+
+#[gpui::test]
+fn controlled_color_field_form_keeps_owner_value_until_accepted(cx: &mut TestAppContext) {
+    let submitted = events();
+    let current = Rc::new(RefCell::new(PickerColor::hsb(180., 1., 1.)));
+    let state = cx.new(|cx| InputState::with_value(cx, "180"));
+    let state_for_view = state;
+    let for_view = current;
+    let submitted_for_view = submitted.clone();
+    let cx = open_host(cx, move || {
+        let current = for_view.clone();
+        let submitted = submitted_for_view.clone();
+        let value = *current.borrow();
+        let field = ColorField::new("hue-field-ignored", value)
+            .state(state_for_view.clone())
+            .color_space(ColorSpace::Hsl)
+            .channel(ColorChannel::Hue)
+            .name("hue")
+            .on_change(move |_, _, _| {});
+        let form = Form::new()
+            .field(field.form_field().expect("named channel field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_text(data, "hue"));
+            });
+        let submit = form.submit_handler();
+        form.child(field)
+            .child(submit_button("hue-field-ignored-submit", submit))
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "up");
+    flush_frame(cx);
+    click(cx, 60., 70.);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["180"],
+        "an owner that ignores onChange keeps the last accepted channel"
+    );
+}
+
+#[gpui::test]
+fn disabled_color_field_is_not_a_successful_form_control(cx: &mut TestAppContext) {
+    let submitted = events();
+    let state = cx.new(|cx| InputState::with_value(cx, "#FF0000"));
+    let state_for_view = state;
+    let for_view = submitted.clone();
+    let seed = PickerColor::from_hex("#FF0000").expect("red");
+    let cx = open_host(cx, move || {
+        let submitted = for_view.clone();
+        let field = ColorField::new("brand-disabled", seed)
+            .default_value(seed)
+            .state(state_for_view.clone())
+            .name("brand")
+            .is_disabled(true);
+        let form = Form::new()
+            .field(
+                field
+                    .form_field()
+                    .expect("disabled field remains registered"),
+            )
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_text(data, "brand"));
+            });
+        let submit = form.submit_handler();
+        form.child(field)
+            .child(submit_button("brand-disabled-submit", submit))
+            .into_any_element()
+    });
+
+    click(cx, 60., 70.);
+    assert_eq!(submitted.borrow().as_slice(), ["omitted"]);
+}
+
+#[gpui::test]
+fn uncontrolled_color_field_reset_restores_default_before_next_submit(cx: &mut TestAppContext) {
+    let submitted = events();
+    let state = cx.new(|cx| InputState::with_value(cx, "180"));
+    let state_for_view = state;
+    let for_view = submitted.clone();
+    let seed = PickerColor::hsb(180., 1., 1.);
+    let cx = open_host(cx, move || {
+        let submitted = for_view.clone();
+        let field = ColorField::new("hue-field-reset", seed)
+            .default_value(seed)
+            .state(state_for_view.clone())
+            .color_space(ColorSpace::Hsl)
+            .channel(ColorChannel::Hue)
+            .name("hue");
+        let form = Form::new()
+            .field(field.form_field().expect("named channel field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_text(data, "hue"));
+            });
+        let submit = form.submit_handler();
+        let reset = form.reset_handler();
+        form.child(field)
+            .child(submit_button("hue-field-reset-submit", submit))
+            .child(reset_button("hue-field-reset-button", reset))
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "up");
+    flush_frame(cx);
+    click(cx, 60., 70.);
+    flush_frame(cx);
+    click(cx, 60., 122.);
+    flush_frame(cx);
+    click(cx, 60., 70.);
+    assert_eq!(submitted.borrow().as_slice(), ["181", "180"]);
+}
+
+#[gpui::test]
+fn controlled_color_field_reset_reports_the_initial_value_once(cx: &mut TestAppContext) {
+    let changes = events();
+    let current = Rc::new(RefCell::new(PickerColor::hsb(180., 1., 1.)));
+    let state = cx.new(|cx| InputState::with_value(cx, "180"));
+    let state_for_view = state;
+    let for_view = current;
+    let changes_for_view = changes.clone();
+    let cx = open_host(cx, move || {
+        let current = for_view.clone();
+        let changes = changes_for_view.clone();
+        let value = *current.borrow();
+        let field = ColorField::new("hue-field-controlled-reset", value)
+            .state(state_for_view.clone())
+            .color_space(ColorSpace::Hsl)
+            .channel(ColorChannel::Hue)
+            .name("hue")
+            .on_change(move |color, _, _| {
+                if let Some(color) = color {
+                    *current.borrow_mut() = color;
+                    changes.borrow_mut().push(format!("{:.0}", color.hue));
+                }
+            });
+        let form = Form::new().field(field.form_field().expect("named channel field"));
+        let reset = form.reset_handler();
+        form.child(field)
+            .child(reset_button("hue-field-controlled-reset-button", reset))
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "up");
+    flush_frame(cx);
+    click(cx, 60., 70.);
+    assert_eq!(changes.borrow().as_slice(), ["181", "180"]);
 }

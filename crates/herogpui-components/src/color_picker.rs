@@ -4,7 +4,7 @@
 //! All six components share the [`PickerColor`] value type and the
 //! [`ColorChannel`] / [`ColorSpace`] vocabulary that React Aria uses.
 
-use std::sync::Arc;
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use gpui::{
     div, prelude::*, px, App, Bounds, ElementId, Entity, Hsla, InteractiveElement, IntoElement,
@@ -1246,6 +1246,74 @@ fn report_color_change(
     }
 }
 
+fn live_color_form_state(
+    value: crate::form::FormValue,
+) -> Rc<RefCell<crate::form::LiveFormFieldState>> {
+    Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+        value,
+        is_invalid: false,
+        is_successful: true,
+        focus: None,
+        restore: None,
+    }))
+}
+
+fn sync_color_form_state(
+    state: &Rc<RefCell<crate::form::LiveFormFieldState>>,
+    value: crate::form::FormValue,
+    is_successful: bool,
+    is_invalid: bool,
+) {
+    let mut state = state.borrow_mut();
+    state.value = value;
+    state.is_successful = is_successful;
+    state.is_invalid = is_invalid;
+}
+
+/// React Aria ColorSlider submits the channel number of a hidden range input.
+fn color_slider_form_value(
+    value: PickerColor,
+    channel: ColorChannel,
+    space: ColorSpace,
+) -> crate::form::FormValue {
+    let value = value.channel_in(channel, space);
+    let value = if matches!(
+        channel,
+        ColorChannel::Saturation | ColorChannel::Brightness | ColorChannel::Lightness
+    ) {
+        value * 100.0
+    } else {
+        value
+    };
+    crate::form::FormValue::Number(f64::from(value))
+}
+
+/// React Aria ColorField submits the hex text, or the channel number when
+/// `channel` is set (ColorChannelField is a NumberField).
+fn color_field_form_value(
+    value: PickerColor,
+    channel: Option<ColorChannel>,
+    space: ColorSpace,
+) -> crate::form::FormValue {
+    match channel {
+        None => crate::form::FormValue::Text(value.to_hex().into()),
+        Some(channel) => {
+            crate::form::FormValue::Number(f64::from(value.channel_in(channel, space)))
+        }
+    }
+}
+
+fn color_field_display_text(
+    value: PickerColor,
+    channel: Option<ColorChannel>,
+    space: ColorSpace,
+) -> String {
+    match channel {
+        None => value.to_hex(),
+        Some(channel) => format_color_channel_value(value, channel, space),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // ColorSlider
 // ---------------------------------------------------------------------------
@@ -1273,6 +1341,7 @@ pub struct ColorSlider {
     is_disabled: bool,
     on_change: Option<OnColorChange>,
     on_change_end: Option<OnColorChange>,
+    form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
 }
 
 impl ColorSlider {
@@ -1291,6 +1360,7 @@ impl ColorSlider {
             is_disabled: false,
             on_change: None,
             on_change_end: None,
+            form_state: live_color_form_state(crate::form::FormValue::Number(0.0)),
         }
     }
 
@@ -1312,13 +1382,16 @@ impl ColorSlider {
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
-        Some(
-            crate::form::FormField::number_value(
-                name,
-                self.value.channel_in(self.channel, self.color_space) as f64,
-            )
-            .is_required(false),
-        )
+        let value = self.default_value.unwrap_or(self.value);
+        // A disabled range input is not a successful control in HTML, so the
+        // field stays registered and is omitted from FormData.
+        sync_color_form_state(
+            &self.form_state,
+            color_slider_form_value(value, self.channel, self.color_space),
+            !self.is_disabled,
+            false,
+        );
+        Some(crate::form::FormField::live(name, self.form_state.clone()).is_required(false))
     }
 
     /// `defaultValue` — the uncontrolled initial colour.
@@ -1478,6 +1551,52 @@ impl RenderOnce for ColorSlider {
             self.default_value.unwrap_or(self.value),
         );
         self.value = resolved;
+        let form_default = window.use_keyed_state(
+            ElementId::Name(format!("{:?}-slider-form-default", self.id).into()),
+            cx,
+            |_, _| None::<PickerColor>,
+        );
+        if form_default.read(cx).is_none() {
+            let initial = self.value;
+            form_default.update(cx, |slot, cx| {
+                *slot = Some(initial);
+                cx.notify();
+            });
+        }
+        let restore_default = form_default.read(cx).unwrap_or(self.value);
+        // Submit the resolved colour's channel. Uncontrolled keyed state is
+        // current after interaction; a controlled owner must accept the change
+        // before the next render writes it here.
+        sync_color_form_state(
+            &self.form_state,
+            color_slider_form_value(self.value, self.channel, self.color_space),
+            !self.is_disabled,
+            false,
+        );
+        let restore_own = own.clone();
+        let restore_on_change = self.on_change.clone();
+        let restore_form_state = self.form_state.clone();
+        let restore_channel = self.channel;
+        let restore_space = self.color_space;
+        let restore_is_disabled = self.is_disabled;
+        let restore: Arc<dyn Fn(&mut Window, &mut App)> = util::shared(move |window, cx| {
+            if let Some(own) = &restore_own {
+                own.update(cx, |current, cx| {
+                    *current = restore_default;
+                    cx.notify();
+                });
+            }
+            if let Some(callback) = &restore_on_change {
+                callback(restore_default, window, cx);
+            }
+            sync_color_form_state(
+                &restore_form_state,
+                color_slider_form_value(restore_default, restore_channel, restore_space),
+                !restore_is_disabled,
+                false,
+            );
+        });
+        self.form_state.borrow_mut().restore = Some(restore);
         // The handle the keys arrive on. `use_keyed_state` takes `cx` mutably, so
         // it precedes the theme tokens.
         let focus_handle = window.use_keyed_state(
@@ -1486,6 +1605,7 @@ impl RenderOnce for ColorSlider {
             |_, cx| cx.focus_handle().tab_stop(true),
         );
         let focus_handle = focus_handle.read(cx).clone();
+        self.form_state.borrow_mut().focus = Some(focus_handle.clone());
         let bounds_slot = window.use_keyed_state(
             ElementId::Name(format!("{:?}-slider-bounds", self.id).into()),
             cx,
@@ -1956,6 +2076,7 @@ pub struct ColorField {
     is_invalid: bool,
     is_read_only: bool,
     is_required: bool,
+    form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
 }
 
 impl ColorField {
@@ -2011,6 +2132,9 @@ impl ColorField {
             is_invalid: false,
             is_read_only: false,
             is_required: false,
+            form_state: live_color_form_state(
+                crate::form::FormValue::Text(SharedString::default()),
+            ),
         }
     }
 
@@ -2039,8 +2163,21 @@ impl ColorField {
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
+        let value = self.default_value.unwrap_or(self.value);
+        let validity = crate::validation::resolve(
+            self.is_invalid,
+            &self.validation_errors,
+            self.validate.as_ref().and_then(|f| f(&value)),
+            None,
+        );
+        sync_color_form_state(
+            &self.form_state,
+            color_field_form_value(value, self.channel, self.color_space),
+            !self.is_disabled,
+            validity.is_invalid,
+        );
         Some(
-            crate::form::FormField::text_value(name, self.value.to_hex())
+            crate::form::FormField::live(name, self.form_state.clone())
                 .is_required(self.is_required)
                 .validation_behavior(self.validation_behavior),
         )
@@ -2158,10 +2295,7 @@ impl ColorField {
     /// The text form of the current value, honouring `channel` and
     /// `colorSpace`.
     fn display_text(&self) -> String {
-        match self.channel {
-            None => self.value.to_hex(),
-            Some(channel) => format_color_channel_value(self.value, channel, self.color_space),
-        }
+        color_field_display_text(self.value, self.channel, self.color_space)
     }
 }
 
@@ -2298,10 +2432,6 @@ impl RenderOnce for ColorField {
             self.default_value.unwrap_or(self.value),
         );
         self.value = resolved;
-        let colors = cx.colors();
-        let layout = cx.layout();
-        let text = self.display_text();
-
         // v3 order: the controlled flag, then server errors, then `validate`.
         let validity = crate::validation::resolve(
             self.is_invalid,
@@ -2309,6 +2439,66 @@ impl RenderOnce for ColorField {
             self.validate.as_ref().and_then(|f| f(&self.value)),
             None,
         );
+        let form_default = window.use_keyed_state(
+            ElementId::Name(format!("{:?}-field-form-default", self.id).into()),
+            cx,
+            |_, _| None::<PickerColor>,
+        );
+        if form_default.read(cx).is_none() {
+            let initial = self.value;
+            form_default.update(cx, |slot, cx| {
+                *slot = Some(initial);
+                cx.notify();
+            });
+        }
+        let restore_default = form_default.read(cx).unwrap_or(self.value);
+        // Submit the resolved colour. Uncontrolled keyed state is current after
+        // a parsed change; a controlled owner must accept it first.
+        sync_color_form_state(
+            &self.form_state,
+            color_field_form_value(self.value, self.channel, self.color_space),
+            !self.is_disabled,
+            validity.is_invalid,
+        );
+        let restore_own = own.clone();
+        let restore_on_change = self.on_change.clone();
+        let restore_form_state = self.form_state.clone();
+        let restore_input = self.state.clone();
+        let restore_channel = self.channel;
+        let restore_space = self.color_space;
+        let restore_is_disabled = self.is_disabled;
+        let restore: Arc<dyn Fn(&mut Window, &mut App)> = util::shared(move |window, cx| {
+            if let Some(own) = &restore_own {
+                own.update(cx, |current, cx| {
+                    *current = restore_default;
+                    cx.notify();
+                });
+            }
+            if let Some(state) = &restore_input {
+                let text =
+                    color_field_display_text(restore_default, restore_channel, restore_space);
+                state.update(cx, |state, cx| {
+                    state.set_value(text);
+                    cx.notify();
+                });
+            }
+            if let Some(callback) = &restore_on_change {
+                callback(Some(restore_default), window, cx);
+            }
+            sync_color_form_state(
+                &restore_form_state,
+                color_field_form_value(restore_default, restore_channel, restore_space),
+                !restore_is_disabled,
+                false,
+            );
+        });
+        self.form_state.borrow_mut().restore = Some(restore);
+        if let Some(state) = &self.state {
+            self.form_state.borrow_mut().focus = Some(state.read(cx).focus_handle.clone());
+        }
+        let colors = cx.colors();
+        let layout = cx.layout();
+        let text = self.display_text();
 
         // Editable mode: delegate the text handling to Input and parse on every
         // keystroke, so `onChange` reports exactly what v3's does.
@@ -3017,7 +3207,7 @@ impl RenderOnce for ColorPicker {
         });
         let colors = cx.colors();
         let layout = cx.layout();
-        let trigger_pressed = std::rc::Rc::new(std::cell::Cell::new(false));
+        let trigger_pressed = Rc::new(std::cell::Cell::new(false));
 
         // Trigger: swatch plus the hex value.
         let mut trigger = div()
