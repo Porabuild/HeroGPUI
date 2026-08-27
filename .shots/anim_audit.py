@@ -288,6 +288,72 @@ def check_switch_motion():
     return sum(not same for same, _, _, _ in rows)
 
 
+def check_color_area_motion():
+    """ColorArea thumb width/height transition against its component CSS."""
+    css_path = os.path.join(CACHE, 'color-area.css')
+    src_path = os.path.join(SRC, 'color_picker.rs')
+    if not os.path.exists(css_path):
+        print('color area motion: no stylesheet')
+        return 1
+    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    src = io.open(src_path, encoding='utf-8').read()
+    thumb = re.search(r'\.color-area__thumb\s*\{(.*)\n\}', css, re.S)
+    body = thumb.group(1) if thumb else ''
+    want_width = re.search(r'width\s+(\d+)ms\s+var\(--ease-([\w-]+)\)', body)
+    want_height = re.search(r'height\s+(\d+)ms\s+var\(--ease-([\w-]+)\)', body)
+    got_ms = re.search(r'const COLOR_AREA_THUMB_TRANSITION_MS:\s*u64\s*=\s*(\d+)', src)
+    got_curve = re.search(
+        r'COLOR_AREA_THUMB_TRANSITION_MS\)\)\s*\.with_easing\(\|t\|\s*'
+        r'crate::anim::Curve::(\w+)\.at\(t\)\)',
+        src,
+        re.S,
+    )
+    required = (thumb, want_width, want_height, got_ms, got_curve)
+    if any(value is None for value in required):
+        print('color area motion: unreadable')
+        return 1
+    want_curve = CURVES.get(want_width.group(2))
+    timing = (
+        want_width.group(1) == want_height.group(1) == got_ms.group(1)
+        and want_width.group(2) == want_height.group(2)
+        and want_curve == got_curve.group(1)
+    )
+    geometry = (
+        'COLOR_AREA_THUMB_IDLE_PX' in src
+        and 'COLOR_AREA_THUMB_DRAGGING_PX' in src
+        and 'place_color_area_thumb(thumb, next)' in src
+    )
+    reduced = (
+        body.find('transition:') < body.find('motion-reduce:transition-none')
+        and 'if cx.reduce_motion()' in src.split('fn color_area_thumb_motion(', 1)[1].split(
+            '/// ColorArea', 1
+        )[0]
+    )
+    listener_free = (
+        '.child(thumb_motion.render(thumb_visual))' in src
+        and 'thumb = thumb.on_hover' in src
+    )
+    reversal = 'current.from = current.size.get();' in src
+    rows = [
+        (timing, 'width + height', '%sms %s' % (want_width.group(1), want_curve),
+         '%sms %s' % (got_ms.group(1), got_curve.group(1))),
+        (geometry, 'drag geometry', '16px to 20px', 'animated size' if geometry else 'missing'),
+        (reduced, 'reduced motion', 'transition-none', 'direct size' if reduced else 'missing'),
+        (listener_free, 'animation owner', 'listener-free visual',
+         'child visual' if listener_free else 'listener wrapper'),
+        (reversal, 'reversal', 'current rendered size', 'preserved' if reversal else 'endpoint jump'),
+    ]
+    print('color area motion (v3 CSS vs ColorArea):')
+    for same, name, want, got in rows:
+        print('%s %-14s %-16s %-22s %s' % (
+            ' ' if same else '!', 'color-area', name, want, got
+        ))
+    bad = sum(not same for same, _, _, _ in rows)
+    print('COLOR AREA MISMATCHES : %d' % bad)
+    print()
+    return bad
+
+
 def check_select_motion():
     """Select must apply both halves of its pinned list-surface motion."""
     src_path = os.path.join(SRC, 'select.rs')
@@ -987,6 +1053,7 @@ def main():
     motion_bad = (
         check_motions()
         + check_switch_motion()
+        + check_color_area_motion()
         + check_select_motion()
         + check_autocomplete_motion()
         + check_tabs_motion()

@@ -1867,6 +1867,31 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Render Function",
+                    col(vec![h::ColorArea::new("ca-render-state", value)
+                        .default_value(value)
+                        .thumb(|state| {
+                            gpui::div()
+                                .absolute()
+                                .inset_0()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .child(
+                                    gpui::div()
+                                        .size(px(if state.is_dragging { 6. } else { 4. }))
+                                        .rounded_full()
+                                        .bg(if state.is_hovered {
+                                            gpui::black()
+                                        } else {
+                                            gpui::white()
+                                        }),
+                                )
+                                .into_any_element()
+                        })
+                        .into_any_element()]),
+                ),
+                (
                     "Saturation & brightness",
                     col(vec![
                         h::ColorArea::new("ca-main", value)

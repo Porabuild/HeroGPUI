@@ -11738,6 +11738,65 @@ pub(crate) const TAG_GROUP: ReferenceMetadata = ReferenceMetadata {
     styling: TAG_GROUP_STYLING,
 };
 
+const COLOR_AREA_REQUIRED_PARTS: &[&str] = &["ColorArea", "ColorArea.Thumb"];
+
+const COLOR_AREA_API: &[ApiDoc] = &[
+    ApiDoc { owner: "ColorArea", prop: "value", ty: "string | Color", default: "—", description: "Controlled color; pointer and keyboard changes wait for owner acceptance.", rust_owner: "ColorArea", rust: "new(id, PickerColor)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorArea", prop: "defaultValue", ty: "string | Color", default: "—", description: "Seeds picker-owned color state once.", rust_owner: "ColorArea", rust: "default_value(PickerColor)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorArea", prop: "onChange", ty: "(color: Color) => void", default: "—", description: "Reports each changed pointer coordinate or keyboard step.", rust_owner: "ColorArea", rust: "on_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorArea", prop: "onChangeEnd", ty: "(color: Color) => void", default: "—", description: "Reports once on pointer release and once for each completed keyboard change.", rust_owner: "ColorArea", rust: "on_change_end(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorArea", prop: "xChannel", ty: "ColorChannel", default: "saturation", description: "Selects the horizontal channel and its pinned step/range.", rust_owner: "ColorArea", rust: "x_channel(ColorChannel)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorArea", prop: "yChannel", ty: "ColorChannel", default: "brightness", description: "Selects the vertical channel, increasing toward the top.", rust_owner: "ColorArea", rust: "y_channel(ColorChannel)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorArea", prop: "colorSpace", ty: "ColorSpace", default: "—", description: "Selects HSB, HSL, or RGB channel interpretation and default axes.", rust_owner: "ColorArea", rust: "color_space(ColorSpace)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorArea", prop: "isDisabled", ty: "boolean", default: "false", description: "Dims the complete area and removes focus, pointer, and keyboard interaction.", rust_owner: "ColorArea", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorArea", prop: "showDots", ty: "boolean", default: "false", description: "Overlays the pinned eight-pixel precision grid.", rust_owner: "ColorArea", rust: "show_dots(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorArea", prop: "children", ty: "ReactNode | RenderFunction", default: "ColorArea.Thumb", description: "The monolithic area always owns the thumb; its child render state is exposed through the thumb builder.", rust_owner: "ColorArea", rust: "thumb(render)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ColorArea", prop: "className / render", ty: "string / DOMRenderFunction", default: "—", description: "Browser classes and DOM root substitution are unavailable; size provides the desktop geometry customization point.", rust_owner: "ColorArea", rust: "size(width, height)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ColorArea.Thumb", prop: "children", ty: "ReactNode | ((state: ColorThumbRenderProps) => ReactNode)", default: "—", description: "Caller content receives color, dragging, hovered, focused, focus-visible, and disabled state.", rust_owner: "ColorArea", rust: "thumb(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorArea.Thumb", prop: "className", ty: "string | RenderFunction", default: "—", description: "Browser class customization is unavailable.", rust_owner: "ColorArea", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorArea.Thumb", prop: "style", ty: "CSSProperties | RenderFunction", default: "—", description: "Browser inline-style render functions are unavailable.", rust_owner: "ColorArea", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorArea.Thumb", prop: "render", ty: "DOMRenderFunction", default: "—", description: "The thumb DOM element cannot be replaced; caller content is composed inside its stable owner.", rust_owner: "ColorArea", rust: "thumb(render)", status: ImplementationStatus::Partial },
+];
+
+const COLOR_AREA_PARTS: &[PartDoc] = &[
+    PartDoc { name: "ColorArea", slot: "color-area", description: "Two-dimensional gradient, value owner, focus target, and pointer/keyboard interaction surface.", rust_owner: "ColorArea", status: ImplementationStatus::Implemented },
+    PartDoc { name: "ColorArea.Thumb", slot: "color-area-thumb", description: "Positioned current-color indicator with live render state and drag geometry.", rust_owner: "ColorArea", status: ImplementationStatus::Implemented },
+];
+
+const COLOR_AREA_STATES: &[StateDoc] = &[
+    StateDoc { state: "Disabled", selector: ".color-area[data-disabled=true] / thumb", description: "Whole-control opacity applies and every interaction/render-state flag is masked except disabled.", rust: "is_disabled", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Dragging", selector: ".color-area__thumb[data-dragging=true]", description: "Pointer down grows the thumb from 16px to 20px and reaches the thumb render state even when the color is unchanged.", rust: "dragging keyed state + ColorAreaThumbState", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Hovered", selector: "ColorThumbRenderProps.isHovered", description: "The stable thumb owner reports hover without placing listeners above a changing animation id.", rust: "thumb_hovered keyed state", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focused", selector: "ColorThumbRenderProps.isFocused", description: "Pointer and keyboard focus are reported from the area focus handle.", rust: "ColorAreaThumbState", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus visible", selector: ".color-area__thumb[data-focus-visible=true]", description: "Keyboard-origin focus rings the thumb, not the whole gradient, and reaches render state.", rust: "with_focus_ring(thumb) + focus_visible", status: ImplementationStatus::Implemented },
+];
+
+const COLOR_AREA_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".color-area", value: "relative w-full max-w-56 aspect-square shrink-0 rounded-2xl", description: "The default desktop area is the pinned 224px square with 16px corners; size can override both axes.", rust: "224x224 + size(width, height) + soft_radius", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-area inner shadow", value: "inset 0 0 0 1px rgba(0,0,0,.1)", description: "The port uses a theme border rather than the pinned translucent inner shadow.", rust: "border(theme border)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".color-area--show-dots::after", value: "1px white/.2 radial dots; background-size 8px 8px", description: "Two-pixel translucent dots are centered in an eight-pixel grid because GPUI has no repeating radial background.", rust: "show_dots 8px grid", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".color-area__thumb", value: "size-4 rounded-xl border-[3px] border-white", description: "Idle size, circular radius, white border, and current-color fill match.", rust: "16px + rounded(12) + border(3)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-area__thumb shadows", value: "outer and inset 1px rgba(0,0,0,.1)", description: "The pinned thumb shadows are not drawn.", rust: "—", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: ".color-area__thumb transition", value: "width/height 150ms ease-out; reduced-motion none", description: "A listener-free visual child interpolates the current size, preserves reversal position, and switches directly under reduced motion.", rust: "color_area_thumb_motion", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-area__thumb[data-dragging=true]", value: "size-5", description: "Active drag size is 20px while the stable owner keeps hover continuity.", rust: "COLOR_AREA_THUMB_DRAGGING_PX", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-area__thumb[data-focus-visible=true]", value: "status-focused", description: "The shared status ring is applied to the animated thumb visual.", rust: "with_focus_ring(thumb)", status: ImplementationStatus::Implemented },
+];
+
+pub(crate) const COLOR_AREA: ReferenceMetadata = ReferenceMetadata {
+    page: "ColorArea",
+    import_line: "use herogpui::components::color_picker::ColorArea;",
+    source_module: "color_picker",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(colors)/color-area.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/color-area/color-area.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/ColorArea.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/ColorThumb.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/color-area.css",
+    required_parts: COLOR_AREA_REQUIRED_PARTS,
+    api: COLOR_AREA_API,
+    parts: COLOR_AREA_PARTS,
+    states: COLOR_AREA_STATES,
+    styling: COLOR_AREA_STYLING,
+};
+
 const COLOR_PICKER_REQUIRED_PARTS: &[&str] =
     &["ColorPicker", "ColorPicker.Trigger", "ColorPicker.Popover"];
 
@@ -12023,6 +12082,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     DROPDOWN,
     LIST_BOX,
     TAG_GROUP,
+    COLOR_AREA,
     COLOR_PICKER,
     COLOR_FIELD,
     SLIDER,

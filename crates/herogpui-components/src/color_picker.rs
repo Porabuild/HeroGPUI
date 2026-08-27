@@ -4,11 +4,17 @@
 //! All six components share the [`PickerColor`] value type and the
 //! [`ColorChannel`] / [`ColorSpace`] vocabulary that React Aria uses.
 
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    sync::Arc,
+    time::Duration,
+};
 
 use gpui::{
-    div, prelude::*, px, App, Bounds, ElementId, Entity, Hsla, InteractiveElement, IntoElement,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, RenderOnce, SharedString, Styled, Window,
+    div, prelude::*, px, Animation, AnimationExt, App, Bounds, ElementId, Entity, Hsla,
+    InteractiveElement, IntoElement, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels,
+    RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::{FieldVariant, Placement, SizeXl};
 use herogpui_theme::ActiveTheme;
@@ -539,6 +545,119 @@ impl RenderOnce for ColorSwatch {
 // ColorArea
 // ---------------------------------------------------------------------------
 
+/// State handed to `ColorArea.Thumb`'s render function.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ColorAreaThumbState {
+    pub color: PickerColor,
+    pub is_dragging: bool,
+    pub is_hovered: bool,
+    pub is_focused: bool,
+    pub is_focus_visible: bool,
+    pub is_disabled: bool,
+}
+
+const COLOR_AREA_THUMB_IDLE_PX: f32 = 16.0;
+const COLOR_AREA_THUMB_DRAGGING_PX: f32 = 20.0;
+const COLOR_AREA_THUMB_TRANSITION_MS: u64 = 150;
+
+#[derive(Clone)]
+struct ColorAreaThumbMotion {
+    dragging: bool,
+    generation: usize,
+    from: f32,
+    size: Rc<Cell<f32>>,
+}
+
+struct ColorAreaThumbMotionFrame {
+    generation: usize,
+    from: f32,
+    to: f32,
+    size: Rc<Cell<f32>>,
+    animate: bool,
+}
+
+impl ColorAreaThumbMotionFrame {
+    fn render(self, thumb: gpui::Div) -> gpui::AnyElement {
+        if !self.animate {
+            self.size.set(self.to);
+            return place_color_area_thumb(thumb, self.to).into_any_element();
+        }
+
+        let size = self.size;
+        let from = self.from;
+        let to = self.to;
+        thumb
+            .with_animation(
+                ElementId::Name(format!("color-area-thumb-size-{}", self.generation).into()),
+                Animation::new(Duration::from_millis(COLOR_AREA_THUMB_TRANSITION_MS))
+                    .with_easing(|t| crate::anim::Curve::Out.at(t)),
+                move |thumb, delta| {
+                    let next = from + (to - from) * delta;
+                    size.set(next);
+                    place_color_area_thumb(thumb, next)
+                },
+            )
+            .into_any_element()
+    }
+}
+
+fn place_color_area_thumb(thumb: gpui::Div, size: f32) -> gpui::Div {
+    let inset = (COLOR_AREA_THUMB_DRAGGING_PX - size) / 2.0;
+    thumb.size(px(size)).ml(px(inset)).mt(px(inset))
+}
+
+fn color_area_thumb_motion(
+    id: &ElementId,
+    dragging: bool,
+    window: &mut Window,
+    cx: &mut App,
+) -> ColorAreaThumbMotionFrame {
+    let state = window.use_keyed_state(
+        ElementId::Name(format!("{id:?}-thumb-motion").into()),
+        cx,
+        |_, _| ColorAreaThumbMotion {
+            dragging,
+            generation: 0,
+            from: if dragging {
+                COLOR_AREA_THUMB_DRAGGING_PX
+            } else {
+                COLOR_AREA_THUMB_IDLE_PX
+            },
+            size: Rc::new(Cell::new(if dragging {
+                COLOR_AREA_THUMB_DRAGGING_PX
+            } else {
+                COLOR_AREA_THUMB_IDLE_PX
+            })),
+        },
+    );
+    let mut current = state.read(cx).clone();
+    let to = if dragging {
+        COLOR_AREA_THUMB_DRAGGING_PX
+    } else {
+        COLOR_AREA_THUMB_IDLE_PX
+    };
+    if current.dragging != dragging {
+        current.dragging = dragging;
+        current.generation = current.generation.wrapping_add(1);
+        current.from = current.size.get();
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    if cx.reduce_motion() && (current.size.get() - to).abs() > f32::EPSILON {
+        current.from = to;
+        current.size.set(to);
+        state.update(cx, |stored, _| *stored = current.clone());
+    }
+    ColorAreaThumbMotionFrame {
+        generation: current.generation,
+        from: current.from,
+        to,
+        size: current.size,
+        animate: current.generation != 0
+            && !cx.reduce_motion()
+            && (current.from - to).abs() > f32::EPSILON,
+    }
+}
+
 /// ColorArea — a two-dimensional gradient for picking two channels at once.
 #[derive(IntoElement)]
 pub struct ColorArea {
@@ -555,6 +674,7 @@ pub struct ColorArea {
     height: Pixels,
     is_disabled: bool,
     show_dots: bool,
+    thumb: Option<Arc<dyn Fn(ColorAreaThumbState) -> gpui::AnyElement + 'static>>,
     on_change: Option<OnColorChange>,
     on_change_end: Option<OnColorChange>,
 }
@@ -568,10 +688,11 @@ impl ColorArea {
             color_space: None,
             x_channel: ColorChannel::Saturation,
             y_channel: ColorChannel::Brightness,
-            width: px(240.),
-            height: px(180.),
+            width: px(224.),
+            height: px(224.),
             is_disabled: false,
             show_dots: false,
+            thumb: None,
             on_change: None,
             on_change_end: None,
         }
@@ -625,6 +746,17 @@ impl ColorArea {
         self
     }
 
+    /// `ColorArea.Thumb`'s render function — the closure receives the live
+    /// color and interaction state while the built-in thumb keeps ownership
+    /// of positioning, focus and pointer behavior.
+    pub fn thumb(
+        mut self,
+        render: impl Fn(ColorAreaThumbState) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.thumb = Some(Arc::new(render));
+        self
+    }
+
     pub fn on_change(
         mut self,
         handler: impl Fn(PickerColor, &mut Window, &mut App) + 'static,
@@ -658,8 +790,9 @@ impl RenderOnce for ColorArea {
             self.default_value.unwrap_or(self.value),
         );
         self.value = resolved;
-        // `.color-area:focus-visible` is `status-focused`. `use_keyed_state`
-        // takes `cx` mutably, so the handle precedes the theme.
+        // `.color-area__thumb[data-focus-visible]` is `status-focused`.
+        // `use_keyed_state` takes `cx` mutably, so the handle precedes the
+        // theme.
         let area_focus = util::tab_stop_handle(
             ElementId::Name(format!("{:?}-area-focus", self.id).into()),
             window,
@@ -675,6 +808,11 @@ impl RenderOnce for ColorArea {
         );
         let dragging = window.use_keyed_state(
             ElementId::Name(format!("{:?}-area-dragging", self.id).into()),
+            cx,
+            |_, _| false,
+        );
+        let thumb_hovered = window.use_keyed_state(
+            ElementId::Name(format!("{:?}-area-thumb-hovered", self.id).into()),
             cx,
             |_, _| false,
         );
@@ -799,7 +937,7 @@ impl RenderOnce for ColorArea {
         // `showDots` — the dot-grid overlay. gpui has no repeating background,
         // so the grid is drawn as rows of small translucent dots.
         if self.show_dots {
-            const STEP: f32 = 12.0;
+            const STEP: f32 = 8.0;
             let cols = (f32::from(self.width) / STEP).floor().max(1.0) as usize;
             let rows = (f32::from(self.height) / STEP).floor().max(1.0) as usize;
             let mut grid = div().absolute().inset_0().flex().flex_col();
@@ -827,29 +965,64 @@ impl RenderOnce for ColorArea {
             area = area.child(grid);
         }
 
-        // Thumb: y is inverted because brightness grows upward.
-        area = area.child(
+        let is_dragging = !self.is_disabled && *dragging.read(cx);
+        let is_focused = !self.is_disabled && area_focus.is_focused(window);
+        let is_focus_visible = is_focused && util::focus_visible(cx);
+        let thumb_state = ColorAreaThumbState {
+            color: self.value,
+            is_dragging,
+            is_hovered: !self.is_disabled && *thumb_hovered.read(cx),
+            is_focused,
+            is_focus_visible,
+            is_disabled: self.is_disabled,
+        };
+        let thumb_content = self.thumb.as_ref().map(|render| render(thumb_state));
+        let thumb_motion = color_area_thumb_motion(&self.id, is_dragging, window, cx);
+        let thumb_visual = util::with_focus_ring(
             div()
-                .absolute()
-                .left(px(f32::from(self.width) * x_norm - 8.))
-                .top(px(f32::from(self.height) * (1.0 - y_norm) - 8.))
-                .size(px(16.))
-                // `.color-area__thumb` is `rounded-xl`, which on a 16px box is
-                // a circle -- gpui clamps a radius to half the box, as a
-                // browser does.
+                // `.color-area__thumb` is `rounded-xl`, which is circular at
+                // both the idle and dragging sizes.
                 .rounded(px(12.))
                 // `.color-area__thumb` is `border: 3px solid white`.
                 .border(px(3.))
                 .border_color(gpui::white())
                 .bg(self.value.to_hsla()),
+            is_focus_visible,
+            true,
+            Vec::new(),
+            cx,
         );
+        // The stable 20px wrapper owns hover. The changing animation id lives
+        // on its listener-free visual child, so a drag transition cannot drop
+        // the interaction path or a caller-provided child.
+        let mut thumb = div()
+            .id(ElementId::Name(format!("{:?}-area-thumb", self.id).into()))
+            .absolute()
+            .left(px(
+                f32::from(self.width) * x_norm - COLOR_AREA_THUMB_DRAGGING_PX / 2.0
+            ))
+            .top(px(
+                f32::from(self.height) * (1.0 - y_norm) - COLOR_AREA_THUMB_DRAGGING_PX / 2.0
+            ))
+            .size(px(COLOR_AREA_THUMB_DRAGGING_PX))
+            .child(thumb_motion.render(thumb_visual))
+            .when_some(thumb_content, |thumb, content| thumb.child(content));
+        if !self.is_disabled {
+            let hovered = thumb_hovered;
+            thumb = thumb.on_hover(move |is_hovered, _, cx| {
+                hovered.update(cx, |value, cx| {
+                    if *value != *is_hovered {
+                        *value = *is_hovered;
+                        cx.notify();
+                    }
+                });
+            });
+        }
+        area = area.child(thumb);
 
         if self.is_disabled {
             return area.opacity(cx.layout().disabled_opacity);
         }
-
-        // `.color-area:focus-visible` is `status-focused`.
-        area = util::ring_if_focused(area, &area_focus, true, Vec::new(), window, cx);
 
         // v3's ColorArea inherits React Aria's keyboard: the arrows move the
         // thumb, left/right on the x channel and up/down on the y, and Page
@@ -927,7 +1100,12 @@ impl RenderOnce for ColorArea {
                     if event.modifiers.alt || event.modifiers.control || event.modifiers.platform {
                         return;
                     }
-                    down_dragging.update(cx, |value, _| *value = true);
+                    down_dragging.update(cx, |value, cx| {
+                        if !*value {
+                            *value = true;
+                            cx.notify();
+                        }
+                    });
                     window.focus(&down_focus);
                     if let Some(next) = area_color_from_pointer(
                         &down_bounds,
@@ -3253,7 +3431,7 @@ impl RenderOnce for ColorPicker {
         let colors = cx.colors();
         let layout = cx.layout();
         let popover_radius = layout.capped(layout.radius_lg() * 2.5);
-        let trigger_pressed = Rc::new(std::cell::Cell::new(false));
+        let trigger_pressed = Rc::new(Cell::new(false));
 
         // Trigger: swatch plus the hex value.
         let mut trigger = div()

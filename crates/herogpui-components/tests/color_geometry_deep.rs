@@ -17,8 +17,8 @@ use gpui::{
     ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
-    Button, ColorArea, ColorChannel, ColorField, ColorSlider, ColorSpace, Form, FormData,
-    InputState, PickerColor,
+    Button, ColorArea, ColorAreaThumbState, ColorChannel, ColorField, ColorSlider, ColorSpace,
+    Form, FormData, InputState, PickerColor,
 };
 use herogpui_core::Orientation;
 
@@ -373,6 +373,86 @@ fn pressing_current_color_ends_without_reporting_a_change(cx: &mut TestAppContex
     click(cx, 50., 50.);
     click(cx, 120., 128.);
     assert_eq!(recorded.borrow().as_slice(), ["area-end", "slider-end"]);
+}
+
+/// Pinned React Aria 1.20.0 gives `ColorThumb` children its live color,
+/// dragging, hover, focus, focus-visible and disabled state. The area remains
+/// the pointer target, so pressing the current coordinate must still expose a
+/// drag even though it reports no color change.
+#[gpui::test]
+fn color_area_thumb_receives_live_interaction_state(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new(ColorAreaThumbState::default()));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        ColorArea::new("thumb-state-area", PickerColor::hsb(180., 0.5, 0.5))
+            .default_value(PickerColor::hsb(180., 0.5, 0.5))
+            .size(px(100.), px(100.))
+            .thumb(move |state| {
+                *record.borrow_mut() = state;
+                gpui::div().size_full().into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(seen.borrow().color, PickerColor::hsb(180., 0.5, 0.5));
+    assert!(!seen.borrow().is_dragging, "the initial thumb is idle");
+
+    let centre = point(px(50.), px(50.));
+    cx.simulate_mouse_move(centre, None::<MouseButton>, Modifiers::none());
+    flush_frame(cx);
+    assert!(seen.borrow().is_hovered, "the thumb must report hover");
+
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert!(
+        seen.borrow().is_dragging,
+        "pressing the current value must still report a live drag"
+    );
+    assert!(seen.borrow().is_focused, "pointer down focuses the thumb");
+    assert!(
+        !seen.borrow().is_focus_visible,
+        "pointer focus must not invent keyboard-visible focus"
+    );
+
+    cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert!(!seen.borrow().is_dragging, "release must end the drag");
+
+    press(cx, "right");
+    flush_frame(cx);
+    assert!(
+        seen.borrow().is_focus_visible,
+        "a keyboard event on the focused area must expose focus-visible"
+    );
+}
+
+#[gpui::test]
+fn disabled_color_area_thumb_masks_interaction_state(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new(ColorAreaThumbState::default()));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        ColorArea::new("disabled-thumb-state", PickerColor::hsb(180., 0.5, 0.5))
+            .is_disabled(true)
+            .thumb(move |state| {
+                *record.borrow_mut() = state;
+                gpui::div().size_full().into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let thumb = point(px(112.), px(112.));
+    cx.simulate_mouse_move(thumb, None::<MouseButton>, Modifiers::none());
+    cx.simulate_mouse_down(thumb, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+
+    let state = *seen.borrow();
+    assert!(state.is_disabled);
+    assert!(!state.is_hovered);
+    assert!(!state.is_dragging);
+    assert!(!state.is_focused);
+    assert!(!state.is_focus_visible);
 }
 
 #[gpui::test]

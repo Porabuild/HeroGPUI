@@ -1291,6 +1291,36 @@ impl Widget {
     }
 
     #[test]
+    fn color_area_metadata_tracks_thumb_state_and_pinned_motion() {
+        let metadata = reference_metadata::for_route(
+            "ColorArea",
+            "use herogpui::components::color_picker::ColorArea;",
+        )
+        .expect("ColorArea metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "ColorArea.Thumb"
+                && entry.prop == "children"
+                && entry.rust == "thumb(render)"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        for state in ["Dragging", "Hovered", "Focused", "Focus visible"] {
+            assert!(metadata.states.iter().any(|entry| {
+                entry.state == state
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".color-area__thumb transition"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata
+            .api_source
+            .contains("react-aria-components/src/ColorThumb.tsx"));
+    }
+
+    #[test]
     fn color_field_metadata_tracks_complete_render_state_and_compound_parts() {
         let metadata = reference_metadata::for_route(
             "ColorField",

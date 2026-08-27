@@ -144,10 +144,11 @@ CHECKS = [
      r'`\.color-area` is `rounded-2xl`[\s\S]{0,120}?util::(\w+_radius)', helper_px),
     ('color-area', '.color-area__thumb', 'size', 'ColorArea thumb',
      SRC + 'color_picker.rs',
-     r'Thumb: y is inverted[\s\S]{0,600}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'const COLOR_AREA_THUMB_IDLE_PX:\s*f32\s*=\s*(\d+(?:\.\d*)?)', None),
     ('color-area', '.color-area__thumb', 'border', 'ColorArea thumb border',
      SRC + 'color_picker.rs',
-     r'Thumb: y is inverted[\s\S]{0,600}?\.border\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.color-area__thumb` is `border: 3px solid white`[\s\S]{0,100}?'
+     r'\.border\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('button-group', '.button-group__separator', 'radius', 'ButtonGroup separator -> util::_radius',
      SRC + 'button_group.rs',
      r'let separator_radius = util::(\w+_radius)', helper_px),
