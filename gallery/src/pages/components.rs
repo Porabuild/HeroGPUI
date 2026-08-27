@@ -9927,8 +9927,8 @@ impl Gallery {
                     "Custom Queues",
                     col(vec![
                         para(
-                            "`maxVisibleToasts` caps a queue: the ones past the cap wait their \
-                             turn. Push four and watch two of them queue.",
+                            "`maxVisibleToasts` caps visibility without dropping overflow: the \
+                             ones past the cap wait their turn. Push four and watch one queue.",
                             cx,
                         ),
                         row(vec![h::Button::new("toast-queue")
@@ -9938,7 +9938,7 @@ impl Gallery {
                             .on_press(|_, _, cx| {
                                 for n in 1..=4 {
                                     h::Toast::new(format!("Message {n}"))
-                                        .description("Two are visible at a time.")
+                                        .description("Three are visible at a time.")
                                         .push(Some(std::time::Duration::from_secs(3)), cx);
                                 }
                             })

@@ -1022,9 +1022,10 @@ fn variable_height_same_count_identity_resets_measurements_and_scroll(cx: &mut T
 // Toast queue lifecycle
 // ---------------------------------------------------------------------------
 
-/// `ToastStore::push` caps the queue at `DEFAULT_MAX_VISIBLE_TOASTS` (3),
-/// evicting the oldest beyond it — v3's `maxVisibleToasts` on the provider.
-/// Five pushes must leave the newest three, in insertion order.
+/// Pinned v3's `maxVisibleToasts` is visual-only: overflow remains queued and
+/// React Stately unshifts each new toast, so five pushes under a three-toast
+/// viewport must retain all five, draw the newest three, then reveal the next
+/// waiting toast when the frontmost one closes.
 #[gpui::test]
 fn toast_queue_respects_its_limit(cx: &mut TestAppContext) {
     let ids: Vec<u64> = cx.update(|cx| {
@@ -1039,22 +1040,50 @@ fn toast_queue_respects_its_limit(cx: &mut TestAppContext) {
     assert_eq!(ids.len(), 5, "five pushes must issue five distinct ids");
 
     cx.update(|cx| {
-        let toasts = toast_store(cx).read(cx).toasts();
+        let store = toast_store(cx);
+        let store = store.read(cx);
+        let toasts = store.toasts();
         assert_eq!(
             toasts.len(),
-            herogpui_components::DEFAULT_MAX_VISIBLE_TOASTS,
-            "the store must keep only the newest three of five"
+            5,
+            "maxVisibleToasts is visual-only, so overflow must remain queued"
         );
-        for (n, (kept, title)) in toasts.iter().zip(["T3", "T4", "T5"]).enumerate() {
+        for (n, (kept, title)) in toasts
+            .iter()
+            .zip(["T5", "T4", "T3", "T2", "T1"])
+            .enumerate()
+        {
             assert_eq!(
                 kept.id,
-                ids[2 + n],
-                "the survivors keep their ids and order"
+                ids[4 - n],
+                "every queued toast keeps its id in newest-first order"
             );
             assert_eq!(kept.title.as_ref(), title, "the title matches the id");
         }
-        // The evicted pair must not linger by id either.
-        assert!(toasts.iter().all(|t| t.id != ids[0] && t.id != ids[1]));
+        assert_eq!(
+            store
+                .visible_toasts(3)
+                .iter()
+                .map(|toast| toast.id)
+                .collect::<Vec<_>>(),
+            [ids[4], ids[3], ids[2]],
+            "the newest three queued toasts must be visible"
+        );
+    });
+
+    cx.update(|cx| herogpui_components::dismiss_toast(ids[4], cx));
+    cx.update(|cx| {
+        let store = toast_store(cx);
+        let toasts = store.read(cx);
+        assert_eq!(
+            toasts
+                .visible_toasts(3)
+                .iter()
+                .map(|toast| toast.id)
+                .collect::<Vec<_>>(),
+            [ids[3], ids[2], ids[1]],
+            "closing the frontmost toast must reveal the next queued toast"
+        );
     });
 }
 

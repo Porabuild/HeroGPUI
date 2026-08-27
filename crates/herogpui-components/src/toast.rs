@@ -127,6 +127,12 @@ impl ToastStore {
         &self.toasts
     }
 
+    /// The newest toasts currently exposed by `maxVisibleToasts`; overflow
+    /// remains queued until a visible toast closes.
+    pub fn visible_toasts(&self, max_visible: usize) -> &[ToastData] {
+        &self.toasts[..self.toasts.len().min(max_visible.max(1))]
+    }
+
     /// `pauseAll` — stop every toast's dismissal clock.
     pub fn pause_all(&mut self) {
         self.paused = true;
@@ -175,19 +181,8 @@ impl ToastStore {
         self.reported.insert(id)
     }
 
-    /// Pushes a toast, evicting the oldest beyond `max_visible`.
-    pub fn push_capped(&mut self, data: ToastData, max_visible: usize) -> u64 {
-        let cap = max_visible.max(1);
-        while self.toasts.len() >= cap {
-            self.toasts.remove(0);
-        }
-        let id = data.id;
-        self.toasts.push(data);
-        id
-    }
-
     pub fn push(&mut self, data: ToastData) -> u64 {
-        self.push_capped(data, DEFAULT_MAX_VISIBLE_TOASTS)
+        self.insert(data)
     }
 
     fn dismiss(&mut self, id: u64) {
@@ -201,7 +196,7 @@ impl ToastStore {
             self.next_id += 1;
         }
         let id = data.id;
-        self.toasts.push(data);
+        self.toasts.insert(0, data);
         id
     }
 }
@@ -536,14 +531,14 @@ impl Default for ToastViewport {
 
 impl RenderOnce for ToastViewport {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let all: Vec<ToastData> = match cx.try_global::<ToastHub>() {
-            Some(hub) => hub.store.read(cx).toasts().to_vec(),
+        let mut toasts: Vec<ToastData> = match cx.try_global::<ToastHub>() {
+            Some(hub) => hub
+                .store
+                .read(cx)
+                .visible_toasts(self.max_visible_toasts)
+                .to_vec(),
             None => Vec::new(),
         };
-
-        // Show the newest `max_visible_toasts`.
-        let skip = all.len().saturating_sub(self.max_visible_toasts);
-        let toasts: Vec<ToastData> = all.into_iter().skip(skip).collect();
 
         let mut region = gpui::div().absolute().flex().flex_col().gap(self.gap);
 
@@ -562,15 +557,21 @@ impl RenderOnce for ToastViewport {
             }
         };
 
-        // The newest toast is at the end, so depth counts back from there.
+        // Pinned React Stately unshifts new entries, so index zero is the
+        // frontmost toast. A bottom stack draws it last so it sits nearest the
+        // edge; a top stack draws it first. Either way its depth stays zero.
         let width = self.width;
         let scale = self.scale_factor;
+        let top = self.placement.is_top();
+        if !top {
+            toasts.reverse();
+        }
         let last = toasts.len().saturating_sub(1);
         region.children(
             toasts
                 .into_iter()
                 .enumerate()
-                .map(move |(i, t)| toast_card(t, width, last - i, scale)),
+                .map(move |(i, t)| toast_card(t, width, if top { i } else { last - i }, scale)),
         )
     }
 }

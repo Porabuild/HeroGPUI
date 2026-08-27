@@ -304,14 +304,10 @@ fn toast_pause_keeps_the_rendered_card_alive_and_dismissable(cx: &mut TestAppCon
     });
 }
 
-/// The store caps its queue at `DEFAULT_MAX_VISIBLE_TOASTS` (3) in insertion
-/// order, and the viewport renders only its own `maxVisibleToasts` newest.
-/// With a one-card viewport the two limits meet: pushing A, B, C, D evicts A
-/// while the store keeps insertion order [B, C, D], and only D is drawn. Each
-/// dismissal then reveals the next-newest at the *same* frontmost slot — the
-/// eviction never leaves a gap and never reorders. This is the queue limit's
-/// order of eviction under arrival pressure, driven through the viewport the
-/// store-level suite never opens.
+/// Pinned v3's visibility limit never evicts queue entries. With a one-card
+/// viewport, pushing A, B, C, D retains the newest-first queue [D, C, B, A]
+/// while only D is drawn. Each dismissal then reveals the next-newest at the
+/// same frontmost slot until even the initially hidden A becomes visible.
 #[gpui::test]
 fn toast_viewport_reveals_the_newest_next_as_toasts_leave(cx: &mut TestAppContext) {
     still();
@@ -330,9 +326,8 @@ fn toast_viewport_reveals_the_newest_next_as_toasts_leave(cx: &mut TestAppContex
             .into_any_element()
     });
 
-    // Four pushes against the 3-toast store cap: T1 is evicted immediately
-    // and the survivors keep insertion order — the oldest of the rest goes
-    // first, not the newest.
+    // React Stately unshifts every toast and `maxVisibleToasts` affects only
+    // rendering, so all four entries remain in newest-first order.
     cx.update(|_window, cx| {
         let ids: Vec<u64> = toast_store(cx)
             .read(cx)
@@ -342,16 +337,15 @@ fn toast_viewport_reveals_the_newest_next_as_toasts_leave(cx: &mut TestAppContex
             .collect();
         assert_eq!(
             ids,
-            [b, c, d],
-            "the fourth push must evict the oldest survivor (T1), in insertion order"
+            [d, c, b, a],
+            "the fourth push must retain every toast in newest-first order"
         );
         assert!(a != b && a != c && a != d, "the ids must be distinct");
     });
 
-    // The one-card viewport draws only the newest (skip = len - 1 = 2), so
-    // the frontmost slot is D's. Its close button answers at the bottom-centre
-    // point (1164, 1042), and each dismissal slides the next survivor into
-    // that exact slot.
+    // The one-card viewport draws only D. Its close button answers at the
+    // bottom-centre point (1164, 1042), and each dismissal slides the next
+    // queued toast into that exact slot.
     flush_frame(cx);
     click(cx, 1164., 1042.);
     cx.update(|_window, cx| {
@@ -363,7 +357,7 @@ fn toast_viewport_reveals_the_newest_next_as_toasts_leave(cx: &mut TestAppContex
             .collect();
         assert_eq!(
             ids,
-            [b, c],
+            [c, b, a],
             "the first click must dismiss the newest drawn (D)"
         );
     });
@@ -378,8 +372,17 @@ fn toast_viewport_reveals_the_newest_next_as_toasts_leave(cx: &mut TestAppContex
             .collect();
         assert_eq!(
             ids,
-            [b],
+            [b, a],
             "the second click must dismiss the next-newest (C)"
+        );
+    });
+    flush_frame(cx);
+    click(cx, 1164., 1042.);
+    cx.update(|_window, cx| {
+        assert_eq!(
+            toast_store(cx).read(cx).toasts()[0].id,
+            a,
+            "the third click must reveal the initially hidden oldest toast"
         );
     });
     flush_frame(cx);
@@ -387,7 +390,7 @@ fn toast_viewport_reveals_the_newest_next_as_toasts_leave(cx: &mut TestAppContex
     cx.update(|_window, cx| {
         assert!(
             toast_store(cx).read(cx).toasts().is_empty(),
-            "the third click must dismiss the last survivor (B)"
+            "the fourth click must dismiss the final queued toast"
         );
     });
 }
