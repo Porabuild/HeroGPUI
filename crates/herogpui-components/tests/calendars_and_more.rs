@@ -1185,7 +1185,7 @@ fn disclosure_toggles_and_group_reports(cx: &mut TestAppContext) {
             .flex_col()
             .gap(px(100.))
             .child(
-                Disclosure::new("General")
+                Disclosure::new("calendars-single-disclosure", "General")
                     .is_expanded(is_expanded)
                     .on_expanded_change(move |next, window, _| {
                         *single_open.borrow_mut() = next;
@@ -1195,13 +1195,18 @@ fn disclosure_toggles_and_group_reports(cx: &mut TestAppContext) {
                     .child(gpui::div().h(px(20.))),
             )
             .child(
-                DisclosureGroup::new()
+                DisclosureGroup::new("calendars-disclosure-group")
                     .item("grp-a", "Alpha", gpui::div().h(px(20.)))
                     .item("grp-b", "Beta", gpui::div().h(px(20.)))
                     .expanded_keys(expanded_set)
-                    .on_toggle(move |key, window, _| {
-                        expanded.borrow_mut().insert(key.clone());
-                        group_keys.borrow_mut().push(key.to_string());
+                    .on_expanded_change(move |keys, window, _| {
+                        *expanded.borrow_mut() = keys.clone();
+                        let key = keys
+                            .iter()
+                            .next()
+                            .map(ToString::to_string)
+                            .unwrap_or_default();
+                        group_keys.borrow_mut().push(key);
                         window.refresh();
                     }),
             )

@@ -36,8 +36,6 @@
 //! * **DisclosureGroup** — props: `expandedKeys`, `defaultExpandedKeys`,
 //!   `onExpandedChange: (keys: Set<Key>) => void`, `allowsMultipleExpanded`
 //!   (default `false` — expanding one collapses the others), `isDisabled`.
-//!   The port exposes only `expanded_keys` + `on_toggle(key)`: no mode, no
-//!   default seed, no disabled; it never collapses anything itself.
 //! * **Pagination** — v3 is a composition (`Pagination.Link/Previous/Next/
 //!   Ellipsis`); the v2 `page`/`total`/`siblings`/`boundaries` props were
 //!   **removed** ("Removed (compose items manually)"). The port keeps the v2
@@ -89,15 +87,15 @@
 
 mod harness;
 
-use std::{cell::RefCell, collections::HashSet, rc::Rc};
+use std::collections::HashSet;
 
 use gpui::{
     prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, SharedString, TestAppContext,
     VisualTestContext,
 };
 use herogpui_components::{
-    Accordion, AccordionItem, Breadcrumbs, Button, Crumb, DisclosureGroup, Orientation, Pagination,
-    Toolbar,
+    Accordion, AccordionItem, Breadcrumbs, Button, Crumb, Disclosure, DisclosureGroup, Orientation,
+    Pagination, Toolbar,
 };
 
 use harness::{click, events, open_host, press, Events};
@@ -539,11 +537,59 @@ fn accordion_identical_item_keys_stay_independent_per_instance(cx: &mut TestAppC
 //
 // v3 documents `expandedKeys`/`defaultExpandedKeys`/`onExpandedChange`,
 // `allowsMultipleExpanded` (default false: expanding one collapses the rest)
-// and `isDisabled`. This port exposes only `expanded_keys` and
-// `on_toggle(key)`: it has no mode prop and never collapses anything — the
-// caller's set is rendered verbatim. These tests pin that actual contract
-// (keyboard toggling works; both items stay open exactly when the caller's
-// set says so) rather than the v3 default the port cannot express.
+// and `isDisabled`. The group owns its set when `expandedKeys` is absent and
+// reports the complete next set from both controlled and uncontrolled modes.
+
+#[gpui::test]
+fn disclosure_uncontrolled_press_opens_and_closes_its_body(cx: &mut TestAppContext) {
+    let pressed = events();
+    let probes = pressed.clone();
+    let cx = open_host(cx, move || {
+        let pressed = pressed.clone();
+        Disclosure::new("nav-uncontrolled-disclosure", "Details")
+            .child(probe("nvd-uncontrolled-body", "body", pressed))
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    click(cx, 60., 62.);
+    assert_eq!(probes.borrow().as_slice(), ["body"]);
+
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    click(cx, 60., 62.);
+    assert_eq!(
+        probes.borrow().as_slice(),
+        ["body"],
+        "the body must leave the hit-test tree after the uncontrolled close"
+    );
+}
+
+#[gpui::test]
+fn disclosure_default_expanded_seeds_uncontrolled_state(cx: &mut TestAppContext) {
+    let pressed = events();
+    let probes = pressed.clone();
+    let cx = open_host(cx, move || {
+        let pressed = pressed.clone();
+        Disclosure::new("nav-default-disclosure", "Details")
+            .default_expanded(true)
+            .child(probe("nvd-default-body", "body", pressed))
+            .into_any_element()
+    });
+
+    click(cx, 60., 62.);
+    assert_eq!(probes.borrow().as_slice(), ["body"]);
+
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    click(cx, 60., 62.);
+    assert_eq!(
+        probes.borrow().as_slice(),
+        ["body"],
+        "the default seed must not be reapplied after the disclosure closes"
+    );
+}
 
 // `redundant_clone` falsely fires on the `toggled.clone()` below: the host
 // re-renders the `Fn` content closure every frame, so the recorder must stay
@@ -551,70 +597,218 @@ fn accordion_identical_item_keys_stay_independent_per_instance(cx: &mut TestAppC
 // clone is load-bearing, and "used once" only looks at one call.
 #[allow(clippy::redundant_clone)]
 #[gpui::test]
-fn disclosure_group_keyboard_toggles_and_keeps_both_open(cx: &mut TestAppContext) {
+fn disclosure_group_default_seed_and_single_mode_replace_the_open_item(cx: &mut TestAppContext) {
     let toggled = events();
     let reported = toggled.clone();
     let pressed = events();
     let probes = pressed.clone();
-    let held: Rc<RefCell<HashSet<SharedString>>> = Rc::new(RefCell::new(HashSet::new()));
-    let held_for_view = held.clone();
     let cx = open_host(cx, move || {
         let toggled = toggled.clone();
         let pressed = pressed.clone();
-        let held_view = held_for_view.clone();
-        let set = held_view.borrow().clone();
-        DisclosureGroup::new()
-            // The caller owns the set (the port is controlled); it *inserts*
-            // every toggled key, which is the only way two items could ever
-            // be open at once — the component itself never collapses.
-            .expanded_keys(set)
+        DisclosureGroup::new("nav-disclosure-group")
+            .default_expanded_keys(["dga"])
             .item(
                 "dga",
                 "Alpha",
                 probe("nvd-dg-probe-a", "A-body", pressed.clone()),
             )
-            .item(
-                "dgb",
-                "Beta",
-                probe("nvd-dg-probe-b", "B-body", pressed),
-            )
-            .on_toggle(move |key, window, _| {
-                toggled.borrow_mut().push(key.to_string());
-                held_view.borrow_mut().insert(key.clone());
-                window.refresh();
+            .item("dgb", "Beta", probe("nvd-dg-probe-b", "B-body", pressed))
+            .on_expanded_change(move |keys, _window, _| {
+                toggled.borrow_mut().push(sorted_join(keys));
             })
             .into_any_element()
     });
 
-    // Each trigger is a md Button (36px, a tab stop) stretched to the group
-    // width. Tab lands on the first and Space toggles it; the second
-    // trigger's seat is pushed down by the first item's open body.
+    // Alpha begins open from `defaultExpandedKeys`, so its body pushes Beta's
+    // trigger to y 88..124. Tab reaches Alpha, then Beta; Enter replaces Alpha
+    // with Beta because the default mode allows only one expanded item.
     press(cx, "tab");
-    press(cx, "space");
-    flush_frame(cx);
-    assert_eq!(reported.borrow().as_slice(), ["dga"]);
     press(cx, "tab");
     press(cx, "enter");
     flush_frame(cx);
     assert_eq!(
         reported.borrow().as_slice(),
-        ["dga", "dgb"],
-        "Tab must step from the first disclosure's trigger to the second's, \
-         which Enter toggles"
+        ["dgb"],
+        "the default single-expand mode must report only the newly opened key"
     );
 
-    // With both items open the probes' seats are exact: trigger A 0..36, its
-    // p-2 body 36..88 with the probe at 44..80 (centre 62); trigger B
-    // 88..124, its body 124..176 with the probe at 132..168 (centre 150).
-    // Both answering in one frame proves the group kept both expanded — the
-    // port renders its caller's set and collapses nothing itself.
+    // Alpha is now closed: Beta moves to y 36..72 and its open body sits at
+    // y 72..124 with the probe at 80..116 (centre 98). Reaching that probe
+    // proves the uncontrolled set, not merely the callback, changed.
+    click(cx, 60., 98.);
+    assert_eq!(
+        probes.borrow().as_slice(),
+        ["B-body"],
+        "the newly expanded body must replace the seeded body in layout"
+    );
+}
+
+#[gpui::test]
+fn disclosure_group_controlled_value_waits_for_the_owner(cx: &mut TestAppContext) {
+    let changed = events();
+    let reported = changed.clone();
+    let pressed = events();
+    let probes = pressed.clone();
+    let cx = open_host(cx, move || {
+        let changed = changed.clone();
+        let pressed = pressed.clone();
+        DisclosureGroup::new("nav-controlled-disclosure-group")
+            .expanded_keys(["dga"])
+            .item(
+                "dga",
+                "Alpha",
+                probe("nvd-controlled-a", "A-body", pressed.clone()),
+            )
+            .item("dgb", "Beta", probe("nvd-controlled-b", "B-body", pressed))
+            .on_expanded_change(move |keys, _, _| {
+                changed.borrow_mut().push(sorted_join(keys));
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    flush_frame(cx);
+    assert_eq!(
+        reported.borrow().as_slice(),
+        ["dgb"],
+        "a controlled group must report the proposed replacement set"
+    );
+
+    click(cx, 60., 62.);
+    assert_eq!(
+        probes.borrow().as_slice(),
+        ["A-body"],
+        "the controlled body must stay on the owner's value until it is accepted"
+    );
+}
+
+#[gpui::test]
+fn disclosure_group_multiple_mode_keeps_both_items_open(cx: &mut TestAppContext) {
+    let changed = events();
+    let reported = changed.clone();
+    let pressed = events();
+    let probes = pressed.clone();
+    let cx = open_host(cx, move || {
+        let changed = changed.clone();
+        let pressed = pressed.clone();
+        DisclosureGroup::new("nav-multiple-disclosure-group")
+            .allows_multiple_expanded(true)
+            .default_expanded_keys(["dga"])
+            .item(
+                "dga",
+                "Alpha",
+                probe("nvd-multiple-a", "A-body", pressed.clone()),
+            )
+            .item("dgb", "Beta", probe("nvd-multiple-b", "B-body", pressed))
+            .on_expanded_change(move |keys, _, _| {
+                changed.borrow_mut().push(sorted_join(keys));
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    flush_frame(cx);
+    assert_eq!(reported.borrow().as_slice(), ["dga,dgb"]);
+
     click(cx, 60., 62.);
     click(cx, 60., 150.);
     assert_eq!(
         probes.borrow().as_slice(),
         ["A-body", "B-body"],
-        "expanding the second item must not collapse the first: both open \
-         bodies' controls answer, which is exactly what the caller's set says"
+        "multiple mode must retain both expanded bodies in layout"
+    );
+}
+
+#[gpui::test]
+fn disclosure_group_disabled_blocks_every_trigger(cx: &mut TestAppContext) {
+    let changed = events();
+    let reported = changed.clone();
+    let cx = open_host(cx, move || {
+        let changed = changed.clone();
+        DisclosureGroup::new("nav-disabled-disclosure-group")
+            .is_disabled(true)
+            .item("dga", "Alpha", gpui::div().h(px(36.)))
+            .item("dgb", "Beta", gpui::div().h(px(36.)))
+            .on_expanded_change(move |keys, _, _| {
+                changed.borrow_mut().push(sorted_join(keys));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    click(cx, 60., 54.);
+    press(cx, "tab");
+    press(cx, "enter");
+    assert!(
+        reported.borrow().is_empty(),
+        "a disabled group must expose no actionable trigger"
+    );
+}
+
+#[gpui::test]
+fn disclosure_group_single_mode_normalizes_a_multi_key_default(cx: &mut TestAppContext) {
+    let changed = events();
+    let reported = changed.clone();
+    let pressed = events();
+    let probes = pressed.clone();
+    let cx = open_host(cx, move || {
+        let changed = changed.clone();
+        let pressed = pressed.clone();
+        DisclosureGroup::new("nav-normalized-disclosure-group")
+            .default_expanded_keys(["dga", "dgb"])
+            .item(
+                "dga",
+                "Alpha",
+                probe("nvd-normalized-a", "A-body", pressed.clone()),
+            )
+            .item("dgb", "Beta", probe("nvd-normalized-b", "B-body", pressed))
+            .on_expanded_change(move |keys, _, _| {
+                changed.borrow_mut().push(sorted_join(keys));
+            })
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    assert_eq!(
+        reported.borrow().as_slice(),
+        ["dga"],
+        "normalizing an invalid default must report the retained key once"
+    );
+    click(cx, 60., 62.);
+    click(cx, 60., 150.);
+    assert_eq!(
+        probes.borrow().as_slice(),
+        ["A-body"],
+        "single mode must retain only the first matching default key"
+    );
+}
+
+#[gpui::test]
+fn disclosure_group_duplicate_titles_keep_distinct_key_identity(cx: &mut TestAppContext) {
+    let changed = events();
+    let reported = changed.clone();
+    let cx = open_host(cx, move || {
+        let changed = changed.clone();
+        DisclosureGroup::new("nav-duplicate-title-disclosure-group")
+            .item("dga", "Details", gpui::div().h(px(36.)))
+            .item("dgb", "Details", gpui::div().h(px(36.)))
+            .on_expanded_change(move |keys, _, _| {
+                changed.borrow_mut().push(sorted_join(keys));
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        reported.borrow().as_slice(),
+        ["dgb"],
+        "equal labels must not collapse distinct keyed trigger identities"
     );
 }
 

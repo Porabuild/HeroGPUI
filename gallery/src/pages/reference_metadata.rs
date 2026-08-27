@@ -9529,6 +9529,157 @@ pub(crate) const TABLE: ReferenceMetadata = ReferenceMetadata {
     styling: TABLE_STYLING,
 };
 
+const DISCLOSURE_REQUIRED_PARTS: &[&str] = &[
+    "DisclosureGroup",
+    "Disclosure",
+    "Disclosure.Heading",
+    "Disclosure.Trigger",
+    "Disclosure.Indicator",
+    "Disclosure.Content",
+    "Disclosure.Body",
+];
+
+const DISCLOSURE_API: &[ApiDoc] = &[
+    ApiDoc { owner: "DisclosureGroup", prop: "expandedKeys", ty: "Set<Key>", default: "—", description: "The currently expanded items (controlled).", rust_owner: "DisclosureGroup", rust: "expanded_keys(keys)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DisclosureGroup", prop: "defaultExpandedKeys", ty: "Iterable<Key>", default: "—", description: "The initially expanded items (uncontrolled).", rust_owner: "DisclosureGroup", rust: "default_expanded_keys(keys)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DisclosureGroup", prop: "onExpandedChange", ty: "(keys: Set<Key>) => void", default: "—", description: "Reports the complete next expanded set.", rust_owner: "DisclosureGroup", rust: "on_expanded_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DisclosureGroup", prop: "allowsMultipleExpanded", ty: "boolean", default: "false", description: "Allows more than one item to remain expanded.", rust_owner: "DisclosureGroup", rust: "allows_multiple_expanded(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DisclosureGroup", prop: "isDisabled", ty: "boolean", default: "false", description: "Disables every disclosure trigger in the group.", rust_owner: "DisclosureGroup", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DisclosureGroup", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Composed disclosure items; GPUI builds keyed items through a typed method.", rust_owner: "DisclosureGroup", rust: "item(key, title, content)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DisclosureGroup", prop: "className", ty: "string", default: "—", description: "Additional CSS classes.", rust_owner: "DisclosureGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Disclosure", prop: "isExpanded", ty: "boolean", default: "false", description: "Controls whether the panel is expanded.", rust_owner: "Disclosure", rust: "is_expanded(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Disclosure", prop: "defaultExpanded", ty: "boolean", default: "false", description: "Initial expanded state when the disclosure owns its state; inherited from pinned React Aria.", rust_owner: "Disclosure", rust: "default_expanded(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Disclosure", prop: "onExpandedChange", ty: "(isExpanded: boolean) => void", default: "—", description: "Reports the proposed expanded state.", rust_owner: "Disclosure", rust: "on_expanded_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Disclosure", prop: "isDisabled", ty: "boolean", default: "false", description: "Disables the disclosure trigger.", rust_owner: "Disclosure", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Disclosure", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Compound heading, trigger and panel children; the GPUI control builds the trigger and accepts body children.", rust_owner: "Disclosure", rust: "—", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Disclosure", prop: "className", ty: "string", default: "—", description: "Additional CSS classes.", rust_owner: "Disclosure", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Disclosure", prop: "render", ty: "DOMRenderFunction<DisclosureRenderProps>", default: "—", description: "DOM element substitution has no GPUI equivalent.", rust_owner: "Disclosure", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Disclosure.Trigger", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Custom trigger content; the port accepts an id and title and builds a HeroGPUI Button.", rust_owner: "Disclosure", rust: "new(id, title)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Disclosure.Trigger", prop: "className", ty: "string", default: "—", description: "Additional trigger classes.", rust_owner: "Disclosure", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Disclosure.Content", prop: "children", ty: "ReactNode", default: "—", description: "Panel body content supplied through ParentElement composition.", rust_owner: "Disclosure", rust: "—", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Disclosure.Content", prop: "className", ty: "string", default: "—", description: "Additional content classes.", rust_owner: "Disclosure", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Disclosure.Content", prop: "render", ty: "DOMRenderFunction<DisclosureContentRenderProps>", default: "—", description: "DOM element substitution has no GPUI equivalent.", rust_owner: "Disclosure", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "DisclosureRenderProps", prop: "isExpanded", ty: "boolean", default: "—", description: "Current expanded state; drawn internally but not delegated to a child closure.", rust_owner: "Disclosure", rust: "is_expanded(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DisclosureRenderProps", prop: "isDisabled", ty: "boolean", default: "—", description: "Current disabled state; drawn internally but not delegated to a child closure.", rust_owner: "Disclosure", rust: "is_disabled(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DisclosureGroupRenderProps", prop: "expandedKeys", ty: "Set<Key>", default: "—", description: "Current expanded keys; used to draw the group but not delegated to a child closure.", rust_owner: "DisclosureGroup", rust: "expanded_keys(keys)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DisclosureGroupRenderProps", prop: "isDisabled", ty: "boolean", default: "—", description: "Current group disabled state; drawn internally but not delegated to a child closure.", rust_owner: "DisclosureGroup", rust: "is_disabled(bool)", status: ImplementationStatus::Partial },
+];
+
+const DISCLOSURE_PARTS: &[PartDoc] = &[
+    PartDoc {
+        name: "DisclosureGroup",
+        slot: "disclosure-group",
+        description: "Full-width owner of the expanded key set.",
+        rust_owner: "DisclosureGroup",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "Disclosure",
+        slot: "disclosure",
+        description: "Relative root for one trigger and panel.",
+        rust_owner: "Disclosure",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "Disclosure.Heading",
+        slot: "disclosure-heading",
+        description: "Heading wrapper is built into the monolithic trigger row.",
+        rust_owner: "Disclosure",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "Disclosure.Trigger",
+        slot: "disclosure-trigger",
+        description: "A built-in HeroGPUI Button rather than a separately composable trigger.",
+        rust_owner: "Disclosure",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "Disclosure.Indicator",
+        slot: "disclosure-indicator",
+        description: "Built-in 16px chevron whose glyph reflects expansion.",
+        rust_owner: "Disclosure",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "Disclosure.Content",
+        slot: "disclosure-content",
+        description: "Mounted panel container while expanded.",
+        rust_owner: "Disclosure",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "Disclosure.Body",
+        slot: "disclosure-body",
+        description: "Eight-pixel padded body around caller content.",
+        rust_owner: "Disclosure",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const DISCLOSURE_STATES: &[StateDoc] = &[
+    StateDoc {
+        state: "Expanded",
+        selector: ".disclosure[data-expanded=true]",
+        description: "Shows the body and uses the expanded indicator glyph.",
+        rust: "is_expanded(bool) / expanded_keys",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Disabled",
+        selector: ".disclosure[data-disabled=true] / .disclosure-group[data-disabled=true]",
+        description: "Disables one trigger or every trigger in the group.",
+        rust: "is_disabled(bool)",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Focus visible",
+        selector: ".disclosure__trigger[data-focus-visible=true]",
+        description: "The built-in Button owns keyboard focus and its focus ring.",
+        rust: "Button tab_stop_handle + ring_if_focused",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Single expansion",
+        selector: ".disclosure-group:not([data-allows-multiple-expanded])",
+        description: "Opening one item replaces the previous expanded set by default.",
+        rust: "allows_multiple_expanded(false)",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Multiple expansion",
+        selector: ".disclosure-group[data-allows-multiple-expanded=true]",
+        description: "Opt-in mode toggles membership without closing siblings.",
+        rust: "allows_multiple_expanded(true)",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const DISCLOSURE_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".disclosure-group", value: "w-full; contain: layout style", description: "Full width matches; GPUI has no CSS layout/style containment toggle.", rust: "w_full()", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".disclosure", value: "relative", description: "The root establishes the indicator/content positioning context.", rust: "relative()", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".disclosure__heading", value: "flex", description: "The heading and trigger are represented by one built-in Button row.", rust: "Button", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".disclosure__trigger", value: "inline-block no-highlight; interactive cursor; focused and disabled status utilities", description: "Pointer, focus and disabled behavior come from Button, but the trigger is not independently styled or composed.", rust: "Button::new(trigger_id).is_disabled(bool)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".disclosure__indicator", value: "ms-auto size-4 shrink-0 text-inherit; transform 250ms; reduced-motion none", description: "Size and trailing placement match; the port swaps chevron glyphs in one frame instead of rotating one glyph.", rust: "end_content(svg size(px(16.)))", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".disclosure__content", value: "height 200ms ease-out-quad; opacity 200ms ease-out; overflow clip; reduced-motion none", description: "The port fades entry for 200ms but does not interpolate measured height and removes content immediately on collapse.", rust: "anim::entering + Motion::DISCLOSURE", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".disclosure__body", value: "p-2", description: "Eight-pixel inset around panel content.", rust: "p(px(8.))", status: ImplementationStatus::Implemented },
+];
+
+pub(crate) const DISCLOSURE: ReferenceMetadata = ReferenceMetadata {
+    page: "Disclosure",
+    import_line: "use herogpui::components::disclosure::{Disclosure, DisclosureGroup};",
+    source_module: "disclosure",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(navigation)/disclosure.mdx + https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(navigation)/disclosure-group.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/disclosure/disclosure.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/disclosure-group/disclosure-group.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/Disclosure.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/disclosure.css + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/disclosure-group.css",
+    required_parts: DISCLOSURE_REQUIRED_PARTS,
+    api: DISCLOSURE_API,
+    parts: DISCLOSURE_PARTS,
+    states: DISCLOSURE_STATES,
+    styling: DISCLOSURE_STYLING,
+};
+
 pub(crate) const ALL: &[ReferenceMetadata] = &[
     DROPDOWN,
     SLIDER,
@@ -9552,6 +9703,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     SELECT,
     TOOLTIP,
     TABLE,
+    DISCLOSURE,
 ];
 
 pub(crate) fn for_import(import_line: &str) -> Option<&'static ReferenceMetadata> {

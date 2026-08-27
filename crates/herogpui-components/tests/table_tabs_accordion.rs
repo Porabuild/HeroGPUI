@@ -1115,12 +1115,14 @@ fn disclosure_group_third_item_reports_with_bodies_pushing(cx: &mut TestAppConte
         // between them rendered.
         let mut expanded = HashSet::new();
         expanded.insert(SharedString::from("first"));
-        DisclosureGroup::new()
+        DisclosureGroup::new("table-tabs-disclosure-group")
             .expanded_keys(expanded)
             .item("first", "Basic settings", gpui::div().h(px(40.)))
             .item("second", "Advanced settings", gpui::div().h(px(40.)))
             .item("third", "Team plan", gpui::div().h(px(40.)))
-            .on_toggle(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+            .on_expanded_change(move |keys, _, _| {
+                recorded.borrow_mut().push(sorted_join(keys));
+            })
             .into_any_element()
     });
 

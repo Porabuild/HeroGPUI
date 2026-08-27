@@ -241,6 +241,14 @@ COMBOBOX_BLUR_COMMIT = ('ComboBox',)
 SUCCESSFUL_FORM_CONTROLS = (
     'Input', 'TextField', 'TextArea', 'SearchField', 'NumberField', 'InputOTP',
 )
+
+# Pinned React Stately 3.49.0 gives DisclosureGroup a controlled/uncontrolled
+# expanded set, single-expand default, multiple opt-in and whole-group disabled
+# state. HeroUI forwards that primitive unchanged, but its page has no separate
+# Accessibility prose for these state transitions, so keep them as derived
+# behavior rather than letting the prop-name audit stand in for implementation.
+DISCLOSURE_GROUP_STATE = ('DisclosureGroup',)
+DISCLOSURE_STATE = ('Disclosure',)
 FORM_TEXT_SUCCESS = (
     r'(?s)pub fn text\(state: Entity<InputState>\)'
     r'(?:(?!pub fn number\().)*?successful_of: Some\(.*?is_successful'
@@ -549,6 +557,32 @@ EVIDENCE = {
     ('Pagination', 'activation'): ('pagination.rs', r'tab_stop_handle'),
     ('Switch', 'activation'): ('switch.rs', r'tab_stop_handle'),
     ('ToggleButton', 'activation'): ('toggle_button.rs', r'tab_stop_handle'),
+    ('DisclosureGroup', 'default-expanded'): (
+        'disclosure.rs',
+        r'(?s)default_expanded_keys.*?crate::util::controlled\(.*?self\.default_expanded',
+    ),
+    ('DisclosureGroup', 'controlled-expanded'): (
+        'disclosure.rs',
+        r'(?s)crate::util::controlled\(.*?self\.expanded.*?if let Some\(held\) = &own',
+    ),
+    ('DisclosureGroup', 'selection-modes'): (
+        'disclosure.rs',
+        r'accordion::next_expanded\(&current, &key, allows_multiple\)',
+    ),
+    ('DisclosureGroup', 'default-normalization'): (
+        'disclosure.rs',
+        r'(?s)!self\.allows_multiple_expanded.*?expanded_own\.is_some\(\)'
+        r'.*?expanded\.len\(\) > 1.*?find_map.*?held\.update.*?window\.defer',
+    ),
+    ('DisclosureGroup', 'group-disabled'): (
+        'disclosure.rs',
+        r'\.is_disabled\(self\.is_disabled\)',
+    ),
+    ('Disclosure', 'controlled-uncontrolled'): (
+        'disclosure.rs',
+        r'(?s:impl RenderOnce for Disclosure \{.*?crate::util::controlled\('
+        r'.*?self\.is_expanded.*?self\.default_expanded.*?held\.update)',
+    ),
 }
 
 # Documented behaviour this port does not implement, with the reason.
@@ -629,6 +663,8 @@ def main():
         + LOAD_MORE
         + FOCUS_RETURN + SCROLL_INTO_VIEW + CALENDAR_PAGING + CALENDAR_SECTION_BOUNDS
         + PANEL_FOCUS + SUCCESSFUL_FORM_CONTROLS
+        + DISCLOSURE_GROUP_STATE
+        + DISCLOSURE_STATE
     )
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'area-keys',
@@ -640,7 +676,10 @@ def main():
                       'calendar-section-bounds', 'panel-focus', 'load-more',
                       'disabled-form-omission', 'close-on-blur', 'blur-commit',
                       'custom-value-multiple', 'multiple-row-keys',
-                      'multiple-row-pointer'):
+                      'multiple-row-pointer', 'default-expanded',
+                      'controlled-expanded', 'selection-modes',
+                      'default-normalization', 'group-disabled',
+                      'controlled-uncontrolled'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach
             # the breakdown: reading only EVIDENCE skipped `TextArea`'s

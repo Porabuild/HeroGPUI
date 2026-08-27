@@ -8108,39 +8108,47 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    col(vec![h::Disclosure::new("Shipping details")
-                        .child(gpui::div().child("Ships in 2-4 business days."))
-                        .into_any_element()]),
+                    col(vec![h::Disclosure::new(
+                        "disclosure-usage",
+                        "Shipping details"
+                    )
+                    .child(gpui::div().child("Ships in 2-4 business days."))
+                    .into_any_element()]),
                 ),
                 (
                     "Controlled",
                     col(vec![
-                        h::DisclosureGroup::new()
+                        h::DisclosureGroup::new("disclosure-controlled")
                             .item("returns", "Returns", gpui::div().child("Thirty days."))
                             .item("warranty", "Warranty", gpui::div().child("Two years."))
                             .expanded_keys(group.clone())
-                            .on_toggle(cx.listener(|this, key: &SharedString, _, cx| {
-                                toggle_key(&mut this.disclosure_group_expanded, key);
-                                cx.notify();
-                            }))
+                            .on_expanded_change(cx.listener(
+                                |this, keys: &HashSet<SharedString>, _, cx| {
+                                    this.disclosure_group_expanded = keys.clone();
+                                    cx.notify();
+                                },
+                            ))
                             .into_any_element(),
                         para(&format!("{} expanded", group.len()), cx),
                     ]),
                 ),
                 (
                     "Single",
-                    col(vec![h::Disclosure::new("Shipping details")
-                        .is_expanded(expanded)
-                        .on_expanded_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
-                            this.disclosure_expanded = *v;
-                            cx.notify();
-                        })))
-                        .child(gpui::div().child("Ships in 2-4 business days."))
-                        .into_any_element()]),
+                    col(vec![h::Disclosure::new(
+                        "disclosure-single",
+                        "Shipping details"
+                    )
+                    .is_expanded(expanded)
+                    .on_expanded_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                        this.disclosure_expanded = *v;
+                        cx.notify();
+                    })))
+                    .child(gpui::div().child("Ships in 2-4 business days."))
+                    .into_any_element()]),
                 ),
                 (
                     "Group",
-                    col(vec![h::DisclosureGroup::new()
+                    col(vec![h::DisclosureGroup::new("disclosure-group")
                         .item(
                             "item-1",
                             "Returns",
@@ -8151,11 +8159,7 @@ impl Gallery {
                             "Warranty",
                             gpui::div().child("Two years of coverage."),
                         )
-                        .expanded_keys(group)
-                        .on_toggle(cx.listener(|this, key: &SharedString, _, cx| {
-                            toggle_key(&mut this.disclosure_group_expanded, key);
-                            cx.notify();
-                        }))
+                        .default_expanded_keys(["item-1"])
                         .into_any_element()]),
                 ),
             ],

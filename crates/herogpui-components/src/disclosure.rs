@@ -8,15 +8,18 @@
 use std::collections::HashSet;
 
 use gpui::{
-    px, AnyElement, App, IntoElement, ParentElement, RenderOnce, SharedString, Styled, Window,
+    px, AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement, RenderOnce,
+    SharedString, Styled, Window,
 };
 use herogpui_theme::ActiveTheme;
 
 /// Single Disclosure — like an accordion with one item.
 #[derive(IntoElement)]
 pub struct Disclosure {
+    id: ElementId,
     title: SharedString,
-    is_expanded: bool,
+    is_expanded: Option<bool>,
+    default_expanded: bool,
     is_disabled: bool,
     children: Vec<AnyElement>,
     on_toggle: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
@@ -32,10 +35,12 @@ impl Disclosure {
         self
     }
 
-    pub fn new(title: impl Into<SharedString>) -> Self {
+    pub fn new(id: impl Into<ElementId>, title: impl Into<SharedString>) -> Self {
         Self {
+            id: id.into(),
             title: title.into(),
-            is_expanded: false,
+            is_expanded: None,
+            default_expanded: false,
             is_disabled: false,
             children: Vec::new(),
             on_toggle: None,
@@ -43,7 +48,13 @@ impl Disclosure {
     }
 
     pub fn is_expanded(mut self, v: bool) -> Self {
-        self.is_expanded = v;
+        self.is_expanded = Some(v);
+        self
+    }
+
+    /// `defaultExpanded` — seeds the disclosure's own expansion state.
+    pub fn default_expanded(mut self, v: bool) -> Self {
+        self.default_expanded = v;
         self
     }
 
@@ -67,12 +78,18 @@ impl RenderOnce for Disclosure {
         // `.disclosure__body` is `p-2`. Rendering it as a one-item accordion
         // gave it a card, a 16px trigger row and a separator that v3's sheet
         // has no rule for.
-        let expanded = self.is_expanded;
+        let (expanded, expanded_own) = crate::util::controlled(
+            window,
+            cx,
+            ElementId::Name(format!("{:?}-expanded", self.id).into()),
+            self.is_expanded,
+            self.default_expanded,
+        );
         let cb = self.on_toggle.clone();
         // `.disclosure__trigger` is `inline-block` with the focus ring on it;
         // v3 passes a Button, which is what this builds.
-        let trigger = crate::button::Button::new(gpui::ElementId::Name(
-            format!("{}-disclosure-trigger", self.title).into(),
+        let trigger = crate::button::Button::new(ElementId::Name(
+            format!("{:?}-trigger", self.id).into(),
         ))
         .variant(if expanded {
             herogpui_core::Variant::Secondary
@@ -95,14 +112,26 @@ impl RenderOnce for Disclosure {
                 .into_any_element(),
         )
         .on_press(move |_, w, cx| {
+            if let Some(held) = &expanded_own {
+                held.update(cx, |expanded, cx| {
+                    *expanded = !*expanded;
+                    cx.notify();
+                });
+            }
             if let Some(f) = &cb {
                 f(!expanded, w, cx);
             }
         });
 
-        let mut el = gpui::div().relative().flex().flex_col().child(trigger);
-        // v3 keeps the panel mounted and animates its height; `overlay_phase`
-        // is what gives a collapsing body its exit here.
+        let mut el = gpui::div()
+            .id(self.id)
+            .relative()
+            .flex()
+            .flex_col()
+            .child(trigger);
+        // v3 transitions measured height and opacity. gpui cannot animate an
+        // unmeasured content height, so this preserves the 200ms entry fade;
+        // collapsed content leaves the tree immediately.
         if expanded {
             el = el.child(
                 crate::anim::entering(
@@ -128,17 +157,26 @@ impl RenderOnce for Disclosure {
 /// Group of Disclosures — mirrors Accordion but with `Disclosure` naming.
 #[derive(IntoElement)]
 pub struct DisclosureGroup {
+    id: ElementId,
     items: Vec<(SharedString, SharedString, Vec<AnyElement>)>,
-    expanded: HashSet<SharedString>,
-    on_toggle: Option<std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>>,
+    expanded: Option<HashSet<SharedString>>,
+    default_expanded: HashSet<SharedString>,
+    allows_multiple_expanded: bool,
+    is_disabled: bool,
+    on_expanded_change:
+        Option<std::sync::Arc<dyn Fn(&HashSet<SharedString>, &mut Window, &mut App) + 'static>>,
 }
 
 impl DisclosureGroup {
-    pub fn new() -> Self {
+    pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
+            id: id.into(),
             items: Vec::new(),
-            expanded: HashSet::new(),
-            on_toggle: None,
+            expanded: None,
+            default_expanded: HashSet::new(),
+            allows_multiple_expanded: false,
+            is_disabled: false,
+            on_expanded_change: None,
         }
     }
 
@@ -153,43 +191,105 @@ impl DisclosureGroup {
         self
     }
 
-    pub fn expanded_keys(mut self, keys: HashSet<SharedString>) -> Self {
-        self.expanded = keys;
+    /// `expandedKeys` — the caller-owned expanded set.
+    pub fn expanded_keys(
+        mut self,
+        keys: impl IntoIterator<Item = impl Into<SharedString>>,
+    ) -> Self {
+        self.expanded = Some(keys.into_iter().map(Into::into).collect());
         self
     }
 
-    pub fn on_toggle(mut self, f: impl Fn(&SharedString, &mut Window, &mut App) + 'static) -> Self {
-        self.on_toggle = Some(std::sync::Arc::new(f));
+    /// `defaultExpandedKeys` — seeds the group's own expanded set.
+    pub fn default_expanded_keys(
+        mut self,
+        keys: impl IntoIterator<Item = impl Into<SharedString>>,
+    ) -> Self {
+        self.default_expanded = keys.into_iter().map(Into::into).collect();
         self
     }
-}
 
-impl Default for DisclosureGroup {
-    fn default() -> Self {
-        Self::new()
+    /// `allowsMultipleExpanded` — otherwise opening one item closes the rest.
+    pub fn allows_multiple_expanded(mut self, v: bool) -> Self {
+        self.allows_multiple_expanded = v;
+        self
+    }
+
+    /// `isDisabled` — disables every disclosure in the group.
+    pub fn is_disabled(mut self, v: bool) -> Self {
+        self.is_disabled = v;
+        self
+    }
+
+    /// `onExpandedChange` — reports the complete next expanded set.
+    pub fn on_expanded_change(
+        mut self,
+        f: impl Fn(&HashSet<SharedString>, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_expanded_change = Some(std::sync::Arc::new(f));
+        self
     }
 }
 
 impl RenderOnce for DisclosureGroup {
-    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let (mut expanded, expanded_own) = crate::util::controlled(
+            window,
+            cx,
+            ElementId::Name(format!("{:?}-expanded", self.id).into()),
+            self.expanded,
+            self.default_expanded,
+        );
+        if !self.allows_multiple_expanded && expanded_own.is_some() && expanded.len() > 1 {
+            let retained = self
+                .items
+                .iter()
+                .find_map(|(key, _, _)| expanded.contains(key).then(|| key.clone()));
+            let next = retained.into_iter().collect::<HashSet<_>>();
+            if let Some(held) = &expanded_own {
+                let held_next = next.clone();
+                held.update(cx, |expanded, cx| {
+                    *expanded = held_next;
+                    cx.notify();
+                });
+            }
+            if let Some(callback) = self.on_expanded_change.clone() {
+                let reported = next.clone();
+                window.defer(cx, move |window, cx| callback(&reported, window, cx));
+            }
+            expanded = next;
+        }
         // `.disclosure-group` is `w-full` and nothing else: v3's group *is* a
         // column of `Disclosure`s, one of which may be open, so this renders
         // them rather than an `Accordion` -- which would give every row the
         // card, the padded trigger and the separator the sheet has no rule for.
-        let mut el = gpui::div().w_full().flex().flex_col();
+        let mut el = gpui::div().id(self.id.clone()).w_full().flex().flex_col();
         for (key, title, children) in self.items {
-            let expanded = self.expanded.contains(&key);
-            let cb = self.on_toggle.clone();
-            el = el.child(
-                Disclosure::new(title)
-                    .is_expanded(expanded)
-                    .on_expanded_change(move |_next, window, cx| {
-                        if let Some(f) = &cb {
-                            f(&key, window, cx);
-                        }
-                    })
-                    .children(children),
-            );
+            let is_expanded = expanded.contains(&key);
+            let mut disclosure = Disclosure::new(key.clone(), title)
+                .is_expanded(is_expanded)
+                .is_disabled(self.is_disabled)
+                .children(children);
+            if expanded_own.is_some() || self.on_expanded_change.is_some() {
+                let current = expanded.clone();
+                let own = expanded_own.clone();
+                let cb = self.on_expanded_change.clone();
+                let allows_multiple = self.allows_multiple_expanded;
+                disclosure = disclosure.on_expanded_change(move |_next, window, cx| {
+                    let next = crate::accordion::next_expanded(&current, &key, allows_multiple);
+                    if let Some(held) = &own {
+                        let held_next = next.clone();
+                        held.update(cx, |expanded, cx| {
+                            *expanded = held_next;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(f) = &cb {
+                        f(&next, window, cx);
+                    }
+                });
+            }
+            el = el.child(disclosure);
         }
         el.into_any_element()
     }

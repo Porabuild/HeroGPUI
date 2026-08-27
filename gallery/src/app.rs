@@ -328,7 +328,7 @@ Enter inserts a newline here, and a long paragraph wraps inside the field instea
         let mut accordion_open = HashSet::new();
         accordion_open.insert(SharedString::from("1"));
         let mut disclosure_group_expanded = HashSet::new();
-        disclosure_group_expanded.insert(SharedString::from("item-1"));
+        disclosure_group_expanded.insert(SharedString::from("returns"));
         let mut toggle_multiple = HashSet::new();
         toggle_multiple.insert(SharedString::from("bold"));
         toggle_multiple.insert(SharedString::from("underline"));

@@ -148,6 +148,9 @@ EXTRA_OK = {
 
 # Scoped exceptions, when a bare name would excuse the wrong component.
 EXTRA_OK_SCOPED = {
+    # v3 composes Disclosure children; the monolithic GPUI group names each
+    # disclosure and its body in one builder call.
+    'DisclosureGroup.item': 'composition',
     # v3 composes the item's supporting text inside Accordion.Item.
     'Accordion.subtitle': 'composition',
     # v3's ColorArea takes its dimensions from `className`.
