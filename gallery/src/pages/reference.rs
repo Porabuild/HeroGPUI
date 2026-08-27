@@ -1267,6 +1267,52 @@ impl Widget {
     }
 
     #[test]
+    fn date_field_metadata_keeps_compound_anatomy_and_limits_explicit() {
+        let metadata = reference_metadata::for_route(
+            "DateField",
+            "use herogpui::components::date_picker::DateField;",
+        )
+        .expect("DateField metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for required in metadata.required_parts {
+            assert!(
+                metadata.parts.iter().any(|part| part.name == *required),
+                "registered DateField part disappeared: {required}"
+            );
+        }
+        for prop in [
+            "fullWidth",
+            "isRequired",
+            "isInvalid",
+            "validationBehavior",
+            "granularity",
+            "isDisabled",
+            "isReadOnly",
+            "name",
+            "autoFocus",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "DateField"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.parts.iter().any(|entry| {
+            entry.name == "DateField.InputContainer"
+                && entry.status == reference_metadata::ImplementationStatus::Unavailable
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == "unsupported trailing steppers"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".date-input-group transitions"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+    }
+
+    #[test]
     fn range_calendar_metadata_keeps_range_state_and_style_gaps_explicit() {
         let metadata = reference_metadata::for_route(
             "RangeCalendar",
