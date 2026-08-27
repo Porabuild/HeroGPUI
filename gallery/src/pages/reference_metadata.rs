@@ -11633,9 +11633,115 @@ pub(crate) const LIST_BOX: ReferenceMetadata = ReferenceMetadata {
     styling: LIST_BOX_STYLING,
 };
 
+const TAG_GROUP_REQUIRED_PARTS: &[&str] = &["TagGroup", "TagGroup.List", "Tag", "Tag.RemoveButton"];
+
+const TAG_GROUP_API: &[ApiDoc] = &[
+    ApiDoc { owner: "TagGroup", prop: "selectionMode", ty: "\"none\" | \"single\" | \"multiple\"", default: "\"none\"", description: "Chooses inert, single, or multiple tag selection.", rust_owner: "TagGroup", rust: "selection_mode(SelectionMode)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TagGroup", prop: "selectedKeys", ty: "Selection", default: "—", description: "Controlled selected keys; the owner must accept reported changes.", rust_owner: "TagGroup", rust: "selected_keys(keys)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TagGroup", prop: "defaultSelectedKeys", ty: "Selection", default: "—", description: "Seeds the group's uncontrolled selected-key set once.", rust_owner: "TagGroup", rust: "default_selected_keys(keys)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TagGroup", prop: "onSelectionChange", ty: "(keys: Selection) => void", default: "—", description: "Reports the complete selected-key set after pointer and keyboard changes.", rust_owner: "TagGroup", rust: "on_selection_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TagGroup", prop: "disabledKeys", ty: "Iterable<Key>", default: "—", description: "Removes matching tags from pointer and keyboard interaction.", rust_owner: "TagGroup", rust: "disabled_keys(keys)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TagGroup", prop: "isDisabled", ty: "boolean", default: "false", description: "Disables every tag and remove action in the group.", rust_owner: "TagGroup", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TagGroup", prop: "onRemove", ty: "(keys: Set<Key>) => void", default: "—", description: "Adds remove actions and reports one pointer key or the keyboard-selected set.", rust_owner: "TagGroup", rust: "on_remove(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TagGroup", prop: "size", ty: "\"sm\" | \"md\" | \"lg\"", default: "\"md\"", description: "Sets padding, type size, and large-tag radius for every tag.", rust_owner: "TagGroup", rust: "size(Size)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TagGroup", prop: "variant", ty: "\"default\" | \"surface\"", default: "\"default\"", description: "Selects the unselected background and hover token for every tag.", rust_owner: "TagGroup", rust: "variant(TagVariant)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TagGroup", prop: "disallowEmptySelection", ty: "boolean", default: "false", description: "Inherited MultipleSelection policy blocks the final-key toggle and Escape clearing.", rust_owner: "TagGroup", rust: "disallow_empty_selection(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TagGroup", prop: "escapeKeyBehavior", ty: "\"clearSelection\" | \"none\"", default: "\"clearSelection\"", description: "Pinned default clearing is implemented; callers can suppress it only with disallowEmptySelection.", rust_owner: "TagGroup", rust: "fixed clearSelection", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "TagGroup", prop: "selectionBehavior", ty: "\"toggle\" | \"replace\"", default: "\"toggle\"", description: "The port implements pinned toggle selection only.", rust_owner: "TagGroup", rust: "fixed toggle behavior", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "TagGroup", prop: "shouldSelectOnPressUp", ty: "boolean", default: "false", description: "GPUI activation occurs on click release and is not caller-configurable.", rust_owner: "TagGroup", rust: "fixed release activation", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "TagGroup", prop: "onAction", ty: "(key: Key) => void", default: "—", description: "Tags expose selection and removal but no separate item action callback.", rust_owner: "TagGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "TagGroup", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "The constructor collection plus label and description builders provide the compound content.", rust_owner: "TagGroup", rust: "new(id, tags) / label / description", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TagGroup", prop: "errorMessage", ty: "ReactNode", default: "—", description: "The port has no validation or error-message slot on TagGroup.", rust_owner: "TagGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "TagGroup", prop: "className / render", ty: "string / DOMRenderFunction", default: "—", description: "Browser CSS classes and DOM root substitution are unavailable.", rust_owner: "TagGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "TagGroup.List", prop: "items", ty: "Iterable<T>", default: "—", description: "The constructor accepts the complete typed tag collection.", rust_owner: "TagGroup", rust: "new(id, tags)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TagGroup.List", prop: "renderEmptyState", ty: "(props: TagListRenderProps) => ReactNode", default: "—", description: "A custom string replaces the built-in empty message, without list render props.", rust_owner: "TagGroup", rust: "empty_state(text)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "TagGroup.List", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Static tags are supplied as the constructor collection; dynamic list render state is unavailable.", rust_owner: "TagGroup", rust: "new(id, tags)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "TagGroup.List", prop: "className / render", ty: "string / DOMRenderFunction", default: "—", description: "The list part cannot be replaced or styled through browser classes.", rust_owner: "TagGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Tag", prop: "id", ty: "Key", default: "—", description: "Stable tag identity used for selection and removal callbacks.", rust_owner: "Tag", rust: "new(key, label)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Tag", prop: "textValue", ty: "string", default: "—", description: "The constructor label is the tag's visible and keyboard text.", rust_owner: "Tag", rust: "new(key, label)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Tag", prop: "isDisabled", ty: "boolean", default: "false", description: "Disables one tag independently from disabledKeys.", rust_owner: "Tag", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Tag", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Replacement content receives selected, disabled, hovered, pressed, focused, and focus-visible state.", rust_owner: "TagGroup", rust: "tag_content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Tag", prop: "onAction", ty: "() => void", default: "—", description: "The port exposes group selection and removal callbacks only.", rust_owner: "Tag", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Tag", prop: "className / render", ty: "string / DOMRenderFunction", default: "—", description: "DOM attributes, link behavior, and element substitution are unavailable.", rust_owner: "Tag", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Tag.RemoveButton", prop: "children", ty: "ReactNode", default: "close icon", description: "The built-in close icon is automatic when onRemove is set; callers cannot replace it independently.", rust_owner: "TagGroup", rust: "automatic remove action", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Tag.RemoveButton", prop: "className", ty: "string", default: "—", description: "Browser class customization is unavailable.", rust_owner: "TagGroup", rust: "—", status: ImplementationStatus::Unavailable },
+];
+
+const TAG_GROUP_PARTS: &[PartDoc] = &[
+    PartDoc {
+        name: "TagGroup",
+        slot: "tag-group",
+        description: "Field-like root owning selection, removal, label, and description.",
+        rust_owner: "TagGroup",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "TagGroup.List",
+        slot: "tag-group-list",
+        description:
+            "Wrapping horizontal list and empty-state owner, rendered inside the monolithic root.",
+        rust_owner: "TagGroup",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "Tag",
+        slot: "tag",
+        description: "Focusable selectable item with optional prefix and caller-rendered content.",
+        rust_owner: "Tag",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "Tag.RemoveButton",
+        slot: "tag-remove-button",
+        description:
+            "Automatic per-tag remove action; independent custom button content is unavailable.",
+        rust_owner: "TagGroup",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+const TAG_GROUP_STATES: &[StateDoc] = &[
+    StateDoc { state: "Selected", selector: ".tag[data-selected=true]", description: "Uses accent-soft foreground and fill, including its selected hover token.", rust: "selected_keys", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Disabled", selector: ".tag[data-disabled=true]", description: "Dims the tag and removes selection, removal, and roving-focus behavior.", rust: "is_disabled / disabled_keys", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Hovered", selector: ".tag[data-hovered=true]", description: "Selectable enabled tags use the variant-specific hover fill and expose hover render state.", rust: "hover chrome + tag_content", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Pressed", selector: ".tag[data-pressed=true]", description: "The pinned stylesheet has no pressed visual rule; selectable enabled tags expose pressed render state.", rust: "interaction + tag_content", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focused", selector: ".tag[data-focused=true]", description: "One enabled tag owns the group's roving focus handle.", rust: "cursor keyed state", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus visible", selector: ".tag[data-focus-visible=true]", description: "Keyboard focus draws the status ring and reaches tag render state.", rust: "with_focus_ring + tag_content", status: ImplementationStatus::Implemented },
+];
+
+const TAG_GROUP_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".tag-group", value: "relative flex flex-col gap-1", description: "Root positioning, column layout, and four-pixel field-part spacing match.", rust: "relative + flex_col + gap(4)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".tag-group__list", value: "relative flex flex-wrap gap-1.5", description: "The tag list wraps with six-pixel gaps.", rust: "relative + flex_wrap + gap(6)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".tag-group description / errorMessage", value: "p-1", description: "Description inset matches; TagGroup has no error-message slot.", rust: "description p(4)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".tag", value: "relative inline-flex items-center gap-1 rounded-xl font-medium", description: "Core geometry and typography match; GPUI has no selectable-text or browser highlight properties.", rust: "relative + flex + items_center + gap(4) + small_radius + MEDIUM", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".tag transitions", value: "color/scale/opacity/background 100ms ease-smooth; shadow 100ms ease-out", description: "Tag colors and state chrome still change on a frame rather than interpolating.", rust: "immediate state colors", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: ".tag--sm / --md / --lg", value: "8x2 12px / 8x4 12px / 10x6 14px", description: "All size paddings and type sizes match, including the large 16px radius.", rust: "metrics(Size) + radius(Size)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".tag--default", value: "bg-default text-default-foreground; bg-default-hover", description: "Default fill, foreground, and unselected hover token match.", rust: "TagVariant::Default", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".tag--surface", value: "bg-surface text-surface-foreground; bg-surface-hover", description: "Borderless surface fill, foreground, and derived hover token match.", rust: "TagVariant::Surface + SurfaceColor::hover", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".tag selected", value: "bg-accent-soft text-accent-soft-foreground; bg-accent-soft-hover", description: "Selected and selected-hover semantic tokens match.", rust: "selected_keys", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".tag svg", value: "size-3 text-current", description: "Prefix and remove glyphs use the fixed 12px size and resolved tag foreground.", rust: "svg size(12) + tag_foreground", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".tag__remove-button", value: "size-3 text-inherit", description: "Box size and inherited color match; the port does not expose the composed CloseButton surface independently.", rust: "12px remove action", status: ImplementationStatus::Partial },
+];
+
+pub(crate) const TAG_GROUP: ReferenceMetadata = ReferenceMetadata {
+    page: "TagGroup",
+    import_line: "use herogpui::components::tag_group::{Tag, TagGroup};",
+    source_module: "tag_group",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(collections)/tag-group.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/tag-group/tag-group.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/tag/tag.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/TagGroup.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria/src/tag/useTagGroup.ts",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/tag-group.css + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/tag.css + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/close-button.css",
+    required_parts: TAG_GROUP_REQUIRED_PARTS,
+    api: TAG_GROUP_API,
+    parts: TAG_GROUP_PARTS,
+    states: TAG_GROUP_STATES,
+    styling: TAG_GROUP_STYLING,
+};
+
 pub(crate) const ALL: &[ReferenceMetadata] = &[
     DROPDOWN,
     LIST_BOX,
+    TAG_GROUP,
     SLIDER,
     BUTTON,
     CHECKBOX,

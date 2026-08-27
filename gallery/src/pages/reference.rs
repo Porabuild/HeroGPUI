@@ -1227,6 +1227,39 @@ impl Widget {
     }
 
     #[test]
+    fn tag_group_metadata_tracks_inherited_selection_and_compound_parts() {
+        let metadata = reference_metadata::for_route(
+            "TagGroup",
+            "use herogpui::components::tag_group::{Tag, TagGroup};",
+        )
+        .expect("TagGroup metadata is registered");
+
+        assert_eq!(metadata.parts.len(), 4);
+        for prop in [
+            "selectionMode",
+            "selectedKeys",
+            "defaultSelectedKeys",
+            "disallowEmptySelection",
+            "onRemove",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "TagGroup"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "Tag"
+                && entry.prop == "children"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".tag--surface"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+    }
+
+    #[test]
     fn dropdown_metadata_does_not_classify_behavior_as_styling() {
         let metadata = reference_metadata::for_import(
             "use herogpui::components::dropdown::{Dropdown, MenuItem};",

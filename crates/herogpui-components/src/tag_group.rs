@@ -296,6 +296,17 @@ impl RenderOnce for TagGroup {
         } else {
             Vec::new()
         };
+        for (index, slot) in interaction.iter().enumerate() {
+            let tag = &self.tags[index];
+            if (self.selection_mode == SelectionMode::None
+                || self.is_disabled
+                || tag.is_disabled
+                || self.disabled_keys.contains(&tag.key))
+                && *slot.read(cx) != (false, false)
+            {
+                slot.update(cx, |state, _| *state = (false, false));
+            }
+        }
         let ring_visible = crate::util::focus_visible(cx);
         let colors = cx.colors();
         let layout = cx.layout();
@@ -338,6 +349,7 @@ impl RenderOnce for TagGroup {
                 self.is_disabled || tag.is_disabled || self.disabled_keys.contains(&tag.key);
             let selected = self.selected_keys.contains(&tag.key);
             let selectable = self.selection_mode != SelectionMode::None;
+            let interactive = selectable && !disabled;
             let tag_foreground = if selected {
                 colors.accent.soft_foreground()
             } else {
@@ -400,10 +412,14 @@ impl RenderOnce for TagGroup {
 
             chip = match &self.tag_content {
                 Some(render) => {
-                    let (is_hovered, is_pressed) = interaction
-                        .get(index)
-                        .map(|slot| *slot.read(cx))
-                        .unwrap_or_default();
+                    let (is_hovered, is_pressed) = if interactive {
+                        interaction
+                            .get(index)
+                            .map(|slot| *slot.read(cx))
+                            .unwrap_or_default()
+                    } else {
+                        (false, false)
+                    };
                     let focused = !disabled && owns_focus && cursor_index == Some(index);
                     chip.child(render(
                         tag,
@@ -421,8 +437,10 @@ impl RenderOnce for TagGroup {
                 }
                 None => chip.child(tag.label.to_string()),
             };
-            if let Some(slot) = interaction.get(index) {
-                chip = crate::util::track_interaction(chip, slot);
+            if interactive {
+                if let Some(slot) = interaction.get(index) {
+                    chip = crate::util::track_interaction(chip, slot);
+                }
             }
 
             if let Some(on_remove) = self.on_remove.clone() {

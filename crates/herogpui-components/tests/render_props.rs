@@ -973,6 +973,81 @@ fn tag_group_tag_content_renders_at_all(cx: &mut TestAppContext) {
     }
 }
 
+#[gpui::test]
+fn disabling_tag_group_tag_content_clears_hover_and_press(cx: &mut TestAppContext) {
+    let disabled = Rc::new(RefCell::new(false));
+    let disabled_for_view = disabled.clone();
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let record = recorded.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        TagGroup::new(
+            "rp-tg-disabled-state",
+            vec![Tag::new("alpha", "Alpha").is_disabled(*disabled_for_view.borrow())],
+        )
+        .selection_mode(SelectionMode::Single)
+        .tag_content(move |tag, state| {
+            record_interactive(&record, tag.key(), state);
+            gpui::div().w(px(40.)).h(px(20.)).into_any_element()
+        })
+        .into_any_element()
+    });
+
+    let centre = point(px(28.), px(14.));
+    cx.simulate_mouse_move(centre, None::<MouseButton>, Modifiers::none());
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    let active = state_of(&recorded, "alpha");
+    assert!(active.is_hovered && active.is_pressed && !active.is_disabled);
+
+    *disabled.borrow_mut() = true;
+    flush_frame(cx);
+    let alpha = state_of(&recorded, "alpha");
+    assert!(
+        alpha.is_disabled && !alpha.is_hovered && !alpha.is_pressed,
+        "a disabled tag must expose disabled state without pointer interaction"
+    );
+
+    cx.simulate_mouse_move(
+        point(px(200.), px(100.)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+    *disabled.borrow_mut() = false;
+    flush_frame(cx);
+    let reenabled = state_of(&recorded, "alpha");
+    assert!(
+        !reenabled.is_disabled && !reenabled.is_hovered && !reenabled.is_pressed,
+        "re-enabling a tag must not restore interaction recorded before it was disabled"
+    );
+}
+
+#[gpui::test]
+fn inert_tag_group_tag_content_never_reports_hover_or_press(cx: &mut TestAppContext) {
+    let recorded = Rc::new(RefCell::new(HashMap::new()));
+    let record = recorded.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        TagGroup::new("rp-tg-inert-state", vec![Tag::new("alpha", "Alpha")])
+            .selection_mode(SelectionMode::None)
+            .tag_content(move |tag, state| {
+                record_interactive(&record, tag.key(), state);
+                gpui::div().w(px(40.)).h(px(20.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let centre = point(px(28.), px(14.));
+    cx.simulate_mouse_move(centre, None::<MouseButton>, Modifiers::none());
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    let alpha = state_of(&recorded, "alpha");
+    assert!(
+        !alpha.is_hovered && !alpha.is_pressed,
+        "a tag without selection or an item action must stay pointer-inert"
+    );
+}
+
 /// The full pointer cycle on a TagGroup chip, one frame behind the pointer
 /// the way the button's test sequences it — and the per-tag keying of the
 /// interaction slots: each chip has its own `{id}-tag-{index}-interaction`
