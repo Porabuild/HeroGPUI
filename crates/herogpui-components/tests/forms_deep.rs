@@ -47,7 +47,8 @@ mod harness;
 use gpui::{prelude::*, px, Focusable, SharedString, TestAppContext};
 use herogpui_components::{
     Button, Description, Fieldset, FieldsetActions, FieldsetGroup, FieldsetLegend, Form, FormData,
-    FormField, Input, InputOTP, InputState, OtpPattern, OtpState, Switch, ValidationBehavior,
+    FormField, Input, InputOTP, InputState, NumberField, NumberState, OtpPattern, OtpState, Switch,
+    ValidationBehavior,
 };
 
 use harness::{click, events, open_host, press};
@@ -82,6 +83,115 @@ fn record_missing(data: &FormData, required: &[&str]) -> String {
 // ---------------------------------------------------------------------------
 // Form
 // ---------------------------------------------------------------------------
+
+#[gpui::test]
+fn disabled_text_and_number_fields_are_omitted_until_enabled(cx: &mut TestAppContext) {
+    let disabled = std::rc::Rc::new(std::cell::Cell::new(true));
+    let disabled_for_view = disabled.clone();
+    let text_state = cx.new(|cx| InputState::with_value(cx, "stale-value"));
+    let number_state = cx.new(|cx| NumberState::new(cx, 42.));
+    let submitted = events();
+    let submitted_for_form = submitted.clone();
+    let form = Form::new()
+        .field(FormField::text(text_state.clone()))
+        .field(FormField::number(number_state.clone()))
+        .on_submit(move |data, _, _| {
+            submitted_for_form.borrow_mut().push(record_data(data));
+        });
+    let submit = form.submit_handler();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                Input::new(text_state.clone())
+                    .name("email")
+                    .is_disabled(disabled_for_view.get()),
+            )
+            .child(
+                NumberField::new(number_state.clone())
+                    .name("amount")
+                    .is_disabled(disabled_for_view.get()),
+            )
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        [""],
+        "disabled text and number inputs must not be successful form controls"
+    );
+
+    disabled.set(false);
+    cx.update(|window, _| window.refresh());
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["", "email=stale-value,amount=42"],
+        "both live fields must become successful after their enabled rerender"
+    );
+}
+
+#[gpui::test]
+fn disabled_otp_is_omitted_until_enabled(cx: &mut TestAppContext) {
+    let disabled = std::rc::Rc::new(std::cell::Cell::new(true));
+    let disabled_for_view = disabled.clone();
+    let state = cx.new(|cx| {
+        let mut state = OtpState::with_length(cx, 4);
+        state.set_code("1234");
+        state
+    });
+    let submitted = events();
+    let submitted_for_form = submitted.clone();
+    let invalids = events();
+    let invalids_for_form = invalids.clone();
+    let state_for_view = state.clone();
+    let form = Form::new()
+        .field(FormField::code("code", state.clone()).is_required(true))
+        .on_submit(move |data, _, _| {
+            submitted_for_form.borrow_mut().push(record_data(data));
+        })
+        .on_invalid(move |data, _, _| {
+            invalids_for_form
+                .borrow_mut()
+                .push(record_missing(data, &["code"]));
+        });
+    let submit = form.submit_handler();
+    let cx = open_host(cx, move || {
+        InputOTP::new(state_for_view.clone())
+            .is_disabled(disabled_for_view.get())
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        [""],
+        "a disabled OTP must be omitted even when its state holds a code"
+    );
+    assert!(
+        invalids.borrow().is_empty(),
+        "a disabled required OTP must not block submission"
+    );
+
+    disabled.set(false);
+    cx.update(|window, _| window.refresh());
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["", "code=1234"],
+        "the live OTP must become successful after its enabled rerender"
+    );
+
+    cx.update(|_, cx| state.update(cx, |state, _| state.clear()));
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(
+        invalids.borrow().as_slice(),
+        ["code"],
+        "the enabled required OTP must resume native validation"
+    );
+}
 
 #[gpui::test]
 fn form_reset_restores_declared_defaults_then_on_reset(cx: &mut TestAppContext) {
@@ -615,6 +725,47 @@ fn form_native_blocks_on_field_validate(cx: &mut TestAppContext) {
         [""],
         "a field validate failure must route the native submit to onInvalid"
     );
+}
+
+#[gpui::test]
+fn form_native_blocks_on_otp_validate(cx: &mut TestAppContext) {
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state = cx.new(|cx| {
+        let mut state = OtpState::with_length(cx, 4);
+        state.set_code("0000");
+        state
+    });
+    let state_for_view = state.clone();
+    let form = Form::new()
+        .field(FormField::code("code", state.clone()))
+        .on_submit(move |data, _, _| {
+            submitted.borrow_mut().push(record_data(data));
+        })
+        .on_invalid(move |data, _, _| {
+            invalid.borrow_mut().push(record_data(data));
+        });
+    let submit = form.submit_handler();
+    let cx = open_host(cx, move || {
+        InputOTP::new(state_for_view.clone())
+            .validate(|_| Some("Code is invalid".into()))
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| submit(window, cx));
+    assert!(
+        submits.borrow().is_empty(),
+        "an OTP validate failure must block native submission"
+    );
+    assert_eq!(
+        invalids.borrow().as_slice(),
+        ["code=0000"],
+        "an OTP validate failure must route the current FormData to onInvalid"
+    );
+    let focused = cx.update(|window, cx| state.read(cx).focus_handle(cx).is_focused(window));
+    assert!(focused, "the invalid OTP must receive failed-submit focus");
 }
 
 #[gpui::test]

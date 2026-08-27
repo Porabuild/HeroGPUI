@@ -28,6 +28,10 @@ pub struct InputState {
     /// whether this field blocks a native submission — the same reason `name`
     /// rides on the state.
     validity: crate::validation::Validity,
+    /// Disabled native controls are not successful and therefore do not
+    /// contribute an entry to FormData. Written by `Input::render` so the
+    /// registered [`crate::form::FormField`] can read the live state.
+    is_successful: bool,
 }
 
 impl InputState {
@@ -41,6 +45,7 @@ impl InputState {
             name: None,
             validation_behavior: crate::form::ValidationBehavior::Native,
             validity: crate::validation::Validity::default(),
+            is_successful: true,
         }
     }
 
@@ -90,6 +95,14 @@ impl InputState {
     /// The resolved validity, as last written by `Input::render`.
     pub(crate) fn validity(&self) -> &crate::validation::Validity {
         &self.validity
+    }
+
+    pub(crate) fn is_successful(&self) -> bool {
+        self.is_successful
+    }
+
+    pub(crate) fn set_successful(&mut self, is_successful: bool) {
+        self.is_successful = is_successful;
     }
 
     pub fn set_value(&mut self, value: impl Into<String>) {
@@ -1014,6 +1027,11 @@ impl RenderOnce for Input {
         if self.state.read(cx).name() != self.name {
             let name = self.name.clone();
             self.state.update(cx, |s, _| s.set_name(name));
+        }
+        let is_successful = !self.is_disabled;
+        if self.state.read(cx).is_successful() != is_successful {
+            self.state
+                .update(cx, |s, _| s.set_successful(is_successful));
         }
         // v3 order: the controlled flag, then server errors, then `validate`,
         // with `errorMessage` as the fallback. Resolved here, ahead of the

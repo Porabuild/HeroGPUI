@@ -49,6 +49,11 @@ pub struct OtpState {
     cells: Vec<char>,
     cursor: usize,
     pub(crate) focus_handle: FocusHandle,
+    /// Disabled native controls are omitted from FormData and native form validation.
+    /// Written by `InputOTP::render` for the registered FormField to read.
+    is_successful: bool,
+    /// Resolved component validation, read by native Form submission.
+    validity: crate::validation::Validity,
 }
 
 impl OtpState {
@@ -70,6 +75,8 @@ impl OtpState {
             cursor: 0,
             // A field is a tab stop: the handle carries that, not the element.
             focus_handle: cx.focus_handle().tab_stop(true),
+            is_successful: true,
+            validity: crate::validation::Validity::default(),
         }
     }
 
@@ -84,6 +91,22 @@ impl OtpState {
     pub fn clear(&mut self) {
         self.cells.iter_mut().for_each(|c| *c = ' ');
         self.cursor = 0;
+    }
+
+    pub(crate) fn is_successful(&self) -> bool {
+        self.is_successful
+    }
+
+    pub(crate) fn set_successful(&mut self, is_successful: bool) {
+        self.is_successful = is_successful;
+    }
+
+    pub(crate) fn validity(&self) -> &crate::validation::Validity {
+        &self.validity
+    }
+
+    pub(crate) fn set_validity(&mut self, validity: crate::validation::Validity) {
+        self.validity = validity;
     }
 }
 
@@ -309,6 +332,11 @@ impl InputOTP {
 
 impl RenderOnce for InputOTP {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let is_successful = !self.is_disabled;
+        if self.state.read(cx).is_successful() != is_successful {
+            self.state
+                .update(cx, |state, _| state.set_successful(is_successful));
+        }
         // The mount-time autofocus decision runs before the tokens. A disabled
         // field consumes the one-shot without focusing, just like a disabled
         // native input whose `autofocus` attribute does not rerun if enabled.
@@ -340,9 +368,6 @@ impl RenderOnce for InputOTP {
             |_, _| None::<gpui::Pixels>,
         );
 
-        let colors = cx.colors();
-        let layout = cx.layout();
-
         // `.input-otp__slot` is `h-10 w-9.5` with `text-sm`, and the row and
         // group are both `gap-2`.
         let (cell_w, cell_h, text, slot_gap) = (px(38.), px(40.), px(14.), px(8.));
@@ -363,7 +388,13 @@ impl RenderOnce for InputOTP {
             self.validate.as_ref().and_then(|f| f(code_now.as_str())),
             None,
         );
+        if self.state.read(cx).validity() != &validity {
+            self.state
+                .update(cx, |state, _| state.set_validity(validity.clone()));
+        }
         let invalid = validity.is_invalid;
+        let colors = cx.colors();
+        let layout = cx.layout();
 
         let mut row = gpui::div()
             .id(gpui::ElementId::Name(

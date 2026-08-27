@@ -168,6 +168,7 @@ impl FormField {
         let read_state = state.clone();
         let name_state = state.clone();
         let behavior_state = state.clone();
+        let successful_state = state.clone();
         let invalid_state = state.clone();
         let focus_state = state;
         Self {
@@ -176,7 +177,9 @@ impl FormField {
             behavior_of: Some(Arc::new(move |cx: &App| {
                 behavior_state.read(cx).validation_behavior()
             })),
-            successful_of: None,
+            successful_of: Some(Arc::new(move |cx: &App| {
+                successful_state.read(cx).is_successful()
+            })),
             invalid_of: Some(Arc::new(move |cx: &App| {
                 invalid_state.read(cx).validity().is_invalid
             })),
@@ -198,6 +201,7 @@ impl FormField {
         let read_state = state.clone();
         let name_state = state.clone();
         let behavior_state = state.clone();
+        let successful_state = state.clone();
         let focus_state = state;
         Self {
             name: None,
@@ -208,7 +212,9 @@ impl FormField {
             behavior_of: Some(Arc::new(move |cx: &App| {
                 behavior_state.read(cx).input.read(cx).validation_behavior()
             })),
-            successful_of: None,
+            successful_of: Some(Arc::new(move |cx: &App| {
+                successful_state.read(cx).input.read(cx).is_successful()
+            })),
             invalid_of: None,
             read: Arc::new(move |cx: &App| FormValue::Number(read_state.read(cx).value())),
             restore: None,
@@ -224,6 +230,8 @@ impl FormField {
     /// An OTP field, read from its [`crate::input_otp::OtpState`].
     pub fn code(name: impl Into<SharedString>, state: Entity<crate::input_otp::OtpState>) -> Self {
         let read_state = state.clone();
+        let successful_state = state.clone();
+        let invalid_state = state.clone();
         let focus_state = state;
         Self {
             name: Some(name.into()),
@@ -235,8 +243,12 @@ impl FormField {
             is_required: false,
             validation_behavior: ValidationBehavior::Native,
             behavior_of: None,
-            successful_of: None,
-            invalid_of: None,
+            successful_of: Some(Arc::new(move |cx: &App| {
+                successful_state.read(cx).is_successful()
+            })),
+            invalid_of: Some(Arc::new(move |cx: &App| {
+                invalid_state.read(cx).validity().is_invalid
+            })),
             focus: Some(Arc::new(move |window, cx| {
                 let fh = focus_state.read(cx).focus_handle.clone();
                 window.focus(&fh);

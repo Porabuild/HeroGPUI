@@ -216,6 +216,19 @@ OVERLAY_DISMISS = (
     'DatePicker', 'DateRangePicker', 'ColorPicker', 'Tooltip',
 )
 
+# A disabled native control is not successful: it contributes no FormData,
+# does not satisfy `required`, and cannot block submission with stale validity.
+# The text family shares InputState; NumberField reaches it through
+# NumberState.input, while InputOTP carries the same live bit on OtpState.
+# Read-only controls deliberately remain successful.
+SUCCESSFUL_FORM_CONTROLS = (
+    'Input', 'TextField', 'TextArea', 'SearchField', 'NumberField', 'InputOTP',
+)
+FORM_TEXT_SUCCESS = (
+    r'(?s)pub fn text\(state: Entity<InputState>\)'
+    r'(?:(?!pub fn number\().)*?successful_of: Some\(.*?is_successful'
+)
+
 
 # (component, claim) -> (module, a pattern that must appear in it).
 #
@@ -310,6 +323,30 @@ EVIDENCE = {
     ('Tooltip', 'global-sequence'): (
         'tooltip.rs',
         r'(?s)(?=.*struct TooltipManager)(?=.*prepare_tooltip_open)(?=.*start_tooltip_cooldown)',
+    ),
+    ('Input', 'disabled-form-omission'): (
+        'form.rs',
+        FORM_TEXT_SUCCESS,
+    ),
+    ('TextField', 'disabled-form-omission'): (
+        'form.rs',
+        FORM_TEXT_SUCCESS,
+    ),
+    ('TextArea', 'disabled-form-omission'): (
+        'form.rs',
+        FORM_TEXT_SUCCESS,
+    ),
+    ('SearchField', 'disabled-form-omission'): (
+        'form.rs',
+        FORM_TEXT_SUCCESS,
+    ),
+    ('NumberField', 'disabled-form-omission'): (
+        'form.rs',
+        r'(?s)pub fn number\((?:(?!pub fn code).)*?successful_of: Some\(.*?is_successful',
+    ),
+    ('InputOTP', 'disabled-form-omission'): (
+        'form.rs',
+        r'(?s)pub fn code\((?:(?!pub fn text_value\().)*?successful_of: Some\(.*?is_successful',
     ),
     ('Input', 'text-keys'): ('input.rs', r'fn word_target'),
     ('TextArea', 'text-keys'): ('input.rs', r'fn vertical_target'),
@@ -525,6 +562,11 @@ def main():
     missing, unmapped = [], []
     by_reason = {}
 
+    for page in SUCCESSFUL_FORM_CONTROLS:
+        key = (page, 'disabled-form-omission')
+        if key not in EVIDENCE and key not in WONT_DO:
+            unmapped.append('%-14s %-14s' % key)
+
     # The derived claims first, so their numbers land in the same totals.
     # Deduplicated: a component appears in several of these tuples (a text area
     # has both the keys and the caret), and counting it once per tuple inflated
@@ -538,7 +580,7 @@ def main():
         + RESIZE_BOUNDS + RESIZE_KEYS
         + LOAD_MORE
         + FOCUS_RETURN + SCROLL_INTO_VIEW + CALENDAR_PAGING + CALENDAR_SECTION_BOUNDS
-        + PANEL_FOCUS
+        + PANEL_FOCUS + SUCCESSFUL_FORM_CONTROLS
     )
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'area-keys',
@@ -547,6 +589,7 @@ def main():
                       'select-all', 'escape-clear', 'resize-bounds',
                       'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
                       'calendar-section-bounds', 'panel-focus', 'load-more',
+                      'disabled-form-omission',
                       'custom-value-multiple', 'multiple-row-keys',
                       'multiple-row-pointer'):
             key = (page, claim)
