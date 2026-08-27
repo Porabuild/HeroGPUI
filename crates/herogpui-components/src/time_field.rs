@@ -421,6 +421,25 @@ fn install_time_field_restore(
     }) as Arc<dyn Fn(&mut Window, &mut App)>);
 }
 
+/// State supplied to v3's TimeField children render function.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TimeFieldRenderState {
+    /// Whether the field is disabled.
+    pub is_disabled: bool,
+    /// Whether controlled, server, custom or bound validation is invalid.
+    pub is_invalid: bool,
+    /// Whether segments can be focused but not edited.
+    pub is_read_only: bool,
+    /// Whether the field is required.
+    pub is_required: bool,
+    /// Whether the field's input owns focus.
+    pub is_focused: bool,
+    /// Whether focus is inside the field.
+    pub is_focus_within: bool,
+    /// Whether keyboard-visible focus chrome should be shown.
+    pub is_focus_visible: bool,
+}
+
 /// HeroUI TimeField.
 #[derive(IntoElement)]
 pub struct TimeField {
@@ -447,7 +466,7 @@ pub struct TimeField {
     /// placeholder colour and inert.
     prefix: Option<gpui::AnyElement>,
     /// See [`TimeField::content`].
-    content: Option<Arc<dyn Fn(util::FieldFocus) -> gpui::AnyElement + 'static>>,
+    content: Option<Arc<dyn Fn(TimeFieldRenderState) -> gpui::AnyElement + 'static>>,
     /// `TimeField.Suffix` — content after the segments
     /// (`.date-input-group__suffix`: `shrink-0 me-3` in the placeholder colour).
     suffix: Option<gpui::AnyElement>,
@@ -606,11 +625,11 @@ impl TimeField {
     }
 
     /// `TimeField.Suffix` — content after the segments.
-    /// v3's field `children`-as-a-function, handed `{isFocused, isFocusWithin,
-    /// isFocusVisible}`; see [`crate::input::Input::content`].
+    /// v3's field `children`-as-a-function, handed the complete
+    /// [`TimeFieldRenderState`].
     pub fn content(
         mut self,
-        render: impl Fn(util::FieldFocus) -> gpui::AnyElement + 'static,
+        render: impl Fn(TimeFieldRenderState) -> gpui::AnyElement + 'static,
     ) -> Self {
         self.content = Some(Arc::new(render));
         self
@@ -789,16 +808,6 @@ impl RenderOnce for TimeField {
         // draws tracks the state's handle, so Tab and clicks move the focus
         // the closure is asked to report.
         let focus_handle = self.state.read(cx).focus_handle.clone();
-        if let Some(render) = self.content.clone() {
-            // v3's field children-as-a-function: the caller builds the parts.
-            let focused = focus_handle.is_focused(window);
-            return render(util::FieldFocus {
-                is_focused: focused,
-                is_focus_within: focus_handle.contains_focused(window, cx),
-                is_focus_visible: focused && util::focus_visible(cx),
-            })
-            .into_any_element();
-        }
         if self.auto_focus {
             util::focus_once(
                 window,
@@ -843,6 +852,19 @@ impl RenderOnce for TimeField {
                 self.granularity,
                 cx,
             );
+        }
+        if let Some(render) = self.content.clone() {
+            let focused = focus_handle.is_focused(window);
+            return render(TimeFieldRenderState {
+                is_disabled: self.is_disabled,
+                is_invalid,
+                is_read_only: self.is_read_only,
+                is_required: self.is_required,
+                is_focused: focused,
+                is_focus_within: focus_handle.contains_focused(window, cx),
+                is_focus_visible: focused && util::focus_visible(cx),
+            })
+            .into_any_element();
         }
 
         // The segments this field shows, in reading order -- `granularity`
