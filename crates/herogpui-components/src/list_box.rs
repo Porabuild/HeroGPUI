@@ -368,8 +368,36 @@ impl RenderOnce for ListBox {
                 move |_, _| gpui::ListState::new(count, gpui::ListAlignment::Top, overdraw),
             )
         };
+        let variable_row_heights =
+            if self.row_height.is_none() && self.estimated_row_height.is_some() {
+                let identities: Vec<String> = self
+                    .items
+                    .iter()
+                    .enumerate()
+                    .map(|(index, item)| match item {
+                        ListBoxItem::Option { key, .. } => format!("option:{key}"),
+                        ListBoxItem::Section(label) => format!("section:{label}"),
+                        ListBoxItem::Separator => format!("separator:{index}"),
+                    })
+                    .collect();
+                let count = identities.len();
+                let heights = window.use_keyed_state(
+                    ElementId::Name(format!("{base}-row-heights").into()),
+                    cx,
+                    |_, _| (Vec::<String>::new(), Vec::<Option<gpui::Pixels>>::new()),
+                );
+                if heights.read(cx).0 != identities {
+                    heights.update(cx, |stored, _| {
+                        *stored = (identities, vec![None; count]);
+                    });
+                }
+                Some(heights)
+            } else {
+                None
+            };
         let list_scroll_now = list_scroll.read(cx).clone();
         let box_scroll_now = box_scroll.read(cx).clone();
+        let list_state_now = list_state.read(cx).clone();
         // The letters typed so far. A search that reset every frame could only
         // ever match one letter.
         let typed = window.use_keyed_state(
@@ -486,7 +514,22 @@ impl RenderOnce for ListBox {
             let held = cursor.clone();
             let stops_for_keys = stops;
             let wrap = self.should_focus_wrap;
-            let virtual_rows = self.row_height.is_some();
+            let fixed_virtual = self.row_height.is_some();
+            let fixed_page_step = self.row_height.map(|row_height| {
+                let viewport_height = self.max_h.unwrap_or(px(400.));
+                ((f32::from(viewport_height) / f32::from(row_height)).ceil() as usize)
+                    .saturating_sub(1)
+            });
+            let variable_scroll = self
+                .row_height
+                .is_none()
+                .then_some(self.estimated_row_height)
+                .flatten()
+                .map(|_| list_state_now.clone());
+            let variable_heights = variable_row_heights.clone();
+            let variable_estimate = self.estimated_row_height;
+            let plain_rows = self.row_height.is_none() && self.estimated_row_height.is_none();
+            let plain_scrollable = plain_rows && self.max_h.is_some();
             let key_list_scroll = list_scroll_now.clone();
             let key_box_scroll = box_scroll_now;
             let keys: Vec<SharedString> = self
@@ -568,14 +611,144 @@ impl RenderOnce for ListBox {
                     cx.stop_propagation();
                     return;
                 }
-                match crate::list_nav::resolve(&stops_for_keys, from, key_name, wrap) {
+                let page_by_step = |from: usize, step: usize| match key_name {
+                    "pagedown" => {
+                        let boundary = from.saturating_add(step).min(keys.len() - 1);
+                        stops_for_keys
+                            .iter()
+                            .copied()
+                            .find(|stop| *stop >= boundary)
+                            .or_else(|| stops_for_keys.last().copied())
+                    }
+                    "pageup" => {
+                        let boundary = from.saturating_sub(step);
+                        stops_for_keys
+                            .iter()
+                            .rev()
+                            .copied()
+                            .find(|stop| *stop <= boundary)
+                            .or_else(|| stops_for_keys.first().copied())
+                    }
+                    _ => None,
+                };
+                let fixed_page_move = from
+                    .zip(fixed_page_step)
+                    .and_then(|(from, step)| page_by_step(from, step));
+                let variable_page_move = from.and_then(|from| {
+                    let viewport_height = variable_scroll.as_ref()?.viewport_bounds().size.height;
+                    let heights = variable_heights.as_ref()?.read(cx);
+                    let estimate = variable_estimate?;
+                    let height_at =
+                        |index: usize| heights.1.get(index).copied().flatten().unwrap_or(estimate);
+                    let mut distance = height_at(from);
+                    let mut target = from;
+                    match key_name {
+                        "pagedown" => {
+                            if distance >= viewport_height {
+                                return Some(target);
+                            }
+                            let boundary = viewport_height - distance;
+                            distance = px(0.);
+                            for next in stops_for_keys.iter().copied().filter(|next| *next > from) {
+                                for index in target..next {
+                                    distance += height_at(index);
+                                }
+                                target = next;
+                                if distance >= boundary {
+                                    break;
+                                }
+                            }
+                            Some(target)
+                        }
+                        "pageup" => {
+                            if distance >= viewport_height {
+                                return Some(target);
+                            }
+                            for previous in stops_for_keys
+                                .iter()
+                                .rev()
+                                .copied()
+                                .filter(|previous| *previous < from)
+                            {
+                                for index in previous..target {
+                                    distance += height_at(index);
+                                }
+                                target = previous;
+                                if distance >= viewport_height {
+                                    break;
+                                }
+                            }
+                            Some(target)
+                        }
+                        _ => None,
+                    }
+                });
+                let is_variable_page = fixed_page_move.is_none() && variable_page_move.is_some();
+                let plain_page_move = from.filter(|_| plain_rows).and_then(|from| {
+                    if !plain_scrollable {
+                        return match key_name {
+                            "pagedown" => stops_for_keys.last().copied(),
+                            "pageup" => stops_for_keys.first().copied(),
+                            _ => None,
+                        };
+                    }
+                    let current = key_box_scroll.bounds_for_item(from)?;
+                    let viewport_height = key_box_scroll.bounds().size.height;
+                    let target = match key_name {
+                        "pagedown" => current.top() - current.size.height + viewport_height,
+                        "pageup" => current.top() + current.size.height - viewport_height,
+                        _ => return None,
+                    };
+                    match key_name {
+                        "pagedown" => stops_for_keys
+                            .iter()
+                            .copied()
+                            .filter(|stop| *stop >= from)
+                            .find(|stop| {
+                                key_box_scroll
+                                    .bounds_for_item(*stop)
+                                    .is_some_and(|bounds| bounds.top() >= target)
+                            })
+                            .or_else(|| stops_for_keys.last().copied()),
+                        "pageup" => stops_for_keys
+                            .iter()
+                            .rev()
+                            .copied()
+                            .filter(|stop| *stop <= from)
+                            .find(|stop| {
+                                key_box_scroll
+                                    .bounds_for_item(*stop)
+                                    .is_some_and(|bounds| bounds.top() <= target)
+                            })
+                            .or_else(|| stops_for_keys.first().copied()),
+                        _ => None,
+                    }
+                });
+                let page_move = fixed_page_move
+                    .or(variable_page_move)
+                    .or(plain_page_move)
+                    .filter(|next| Some(*next) != from);
+                let navigation = page_move.map_or_else(
+                    || crate::list_nav::resolve(&stops_for_keys, from, key_name, wrap),
+                    crate::list_nav::Move::To,
+                );
+                match navigation {
                     crate::list_nav::Move::To(next) => {
                         held.update(cx, |v, cx| {
                             *v = Some(next);
                             cx.notify();
                         });
-                        if virtual_rows {
+                        if fixed_virtual {
                             key_list_scroll.scroll_to_item(next, gpui::ScrollStrategy::Center);
+                        } else if let Some(state) = &variable_scroll {
+                            if is_variable_page || matches!(key_name, "up" | "down") {
+                                state.scroll_to_reveal_item(next);
+                            } else {
+                                state.scroll_to(gpui::ListOffset {
+                                    item_ix: next,
+                                    offset_in_item: px(0.),
+                                });
+                            }
                         } else {
                             key_box_scroll.scroll_to_item(next);
                         }
@@ -677,19 +850,21 @@ impl RenderOnce for ListBox {
         // and multiplies. Its state is intrusive -- the caller has to hold it --
         // so it lives in the window's keyed store, and a change in the item
         // count resets it.
-        if self.estimated_row_height.is_some() {
+        if self.row_height.is_none() && self.estimated_row_height.is_some() {
             let height = self.max_h.unwrap_or(px(400.));
             let count = self.items.len();
             let rows = std::rc::Rc::new(self);
-            let state = list_state.read(cx).clone();
+            let state = list_state_now;
             if state.item_count() != count {
                 state.reset(count);
             }
             let interaction = interaction.clone();
+            let measured_heights =
+                variable_row_heights.expect("estimated row height creates a measurement store");
             return list
                 .child(
                     gpui::list(state, move |index, _window, cx| {
-                        rows.row(
+                        let row = rows.row(
                             index,
                             focused_at,
                             None,
@@ -697,7 +872,31 @@ impl RenderOnce for ListBox {
                             &cursor,
                             selection_own.as_ref(),
                             cx,
-                        )
+                        );
+                        let measured = measured_heights.clone();
+                        div()
+                            .relative()
+                            .w_full()
+                            .child(row)
+                            .child(
+                                gpui::canvas(
+                                    move |bounds: gpui::Bounds<gpui::Pixels>, _, cx| {
+                                        measured.update(cx, |(_, heights), cx| {
+                                            if heights.get(index).copied().flatten()
+                                                != Some(bounds.size.height)
+                                            {
+                                                heights[index] = Some(bounds.size.height);
+                                                cx.notify();
+                                            }
+                                        });
+                                        bounds
+                                    },
+                                    |_, _, _, _| {},
+                                )
+                                .absolute()
+                                .inset_0(),
+                            )
+                            .into_any_element()
                     })
                     .h(height)
                     .w_full(),

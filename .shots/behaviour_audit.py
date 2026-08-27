@@ -135,6 +135,11 @@ TABLE_TYPEAHEAD = ('Table',)
 # first column header, which needs a unified header/body focus model.
 TABLE_PAGING = ('Table',)
 
+# Pinned `ListKeyboardDelegate` moves PageUp/PageDown by one visible rectangle,
+# skips disabled/non-option rows, and uses the enabled ends when the list does
+# not scroll. Fixed, estimated and plain layouts each own their geometry.
+LISTBOX_PAGING = ('ListBox',)
+
 # Multiple-selection collections answer `Mod+A` -- the platform Mod, Ctrl on
 # Windows and Linux, Cmd on macOS -- by selecting every enabled item. v3's own
 # pages do not enumerate this inherited shortcut, so it is derived from the
@@ -349,6 +354,11 @@ EVIDENCE = {
     ),
     ('NumberField', 'spin-keys'): ('number_field.rs', r'"up" \| "pageup"'),
     ('Table', 'table-page-down'): ('table.rs', r'"pagedown" => stops\.last\(\)\.copied\(\)'),
+    ('ListBox', 'listbox-paging'): (
+        'list_box.rs',
+        r'(?s)\A(?=.*fixed_page_step)(?=.*variable_page_move)(?=.*plain_page_move)'
+        r'(?=.*"pagedown")(?=.*"pageup")',
+    ),
     ('Tooltip', 'focus-open'): ('tooltip.rs', r'contains_focused'),
     ('Tooltip', 'global-sequence'): (
         'tooltip.rs',
@@ -612,7 +622,7 @@ def main():
         ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + CLOSE_ON_BLUR + COMBOBOX_BLUR_COMMIT
         + SPIN_KEYS + AREA_KEYS
         + FOCUS_OPEN + TOOLTIP_SEQUENCE + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS
-        + TABLE_TYPEAHEAD + TABLE_PAGING + SELECT_ALL_KEYS
+        + TABLE_TYPEAHEAD + TABLE_PAGING + LISTBOX_PAGING + SELECT_ALL_KEYS
         + ESCAPE_CLEAR_KEYS
         + COMBOBOX_MULTIPLE_KEYS
         + RESIZE_BOUNDS + RESIZE_KEYS
@@ -624,6 +634,7 @@ def main():
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'area-keys',
                       'focus-open', 'global-sequence', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
                       'table-typeahead', 'table-page-down', 'table-page-up-header',
+                      'listbox-paging',
                       'select-all', 'escape-clear', 'resize-bounds',
                       'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
                       'calendar-section-bounds', 'panel-focus', 'load-more',

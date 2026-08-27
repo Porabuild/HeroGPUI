@@ -359,6 +359,218 @@ fn virtual_list_box_arrows_scroll_the_focused_row_into_view(cx: &mut TestAppCont
     );
 }
 
+/// Pinned `ListKeyboardDelegate` pages by one visible rectangle. Four 40px
+/// rows fit this 160px viewport, so the current row plus three more landings
+/// moves row 2 toward disabled row 5, skips it to row 6, then lands on row 9;
+/// PageUp returns to row 6.
+#[gpui::test]
+fn fixed_height_virtual_list_box_page_keys_move_one_viewport(cx: &mut TestAppContext) {
+    let recorded = events();
+    let items: Vec<ListBoxItem> = (0..20)
+        .map(|i| ListBoxItem::new(format!("key-{i:02}"), format!("Item {i}")).is_disabled(i == 5))
+        .collect();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ListBox::new("vlb-fixed-page", items.clone())
+            .row_height(px(40.))
+            .max_h(px(160.))
+            .on_action(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "down");
+    press(cx, "pagedown");
+    press(cx, "pagedown");
+    press(cx, "pageup");
+    press(cx, "enter");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["key-06"],
+        "fixed ListBox paging must skip disabled rows and keep the target actionable"
+    );
+}
+
+/// `estimatedRowHeight` uses measured row heights for rows already built and
+/// the estimate only for unseen rows. The 120px section plus the current row
+/// fills this 160px viewport, so PageDown from row 1 lands on row 3. Treating
+/// the section as the 40px estimate would incorrectly skip onward to row 5.
+#[gpui::test]
+fn estimated_height_virtual_list_box_page_keys_use_measured_sections(cx: &mut TestAppContext) {
+    let recorded = events();
+    let items = vec![
+        ListBoxItem::new("key-00", "Item 0"),
+        ListBoxItem::new("key-01", "Item 1"),
+        ListBoxItem::section("Measured section"),
+        ListBoxItem::new("key-03", "Item 3"),
+        ListBoxItem::new("key-04", "Item 4"),
+        ListBoxItem::new("key-05", "Item 5"),
+    ];
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ListBox::new("vlb-estimated-page", items.clone())
+            .estimated_row_height(px(40.))
+            .heading_height(px(120.))
+            .max_h(px(160.))
+            .on_action(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "pagedown");
+    press(cx, "enter");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["key-03"],
+        "estimated ListBox paging must account for a measured section row"
+    );
+}
+
+/// ListBox's pinned delegate compares candidate tops, unlike Table's Grid
+/// delegate which compares candidate bottoms. With an 80px content block in
+/// the focused row, the next row's top already crosses the 160px page boundary;
+/// a Grid-style accumulated-bottom walk would skip onward.
+#[gpui::test]
+fn estimated_height_list_box_page_down_uses_the_focused_rows_top_boundary(cx: &mut TestAppContext) {
+    let recorded = events();
+    let items: Vec<ListBoxItem> = (0..6)
+        .map(|i| ListBoxItem::new(format!("key-{i:02}"), format!("Item {i}")))
+        .collect();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ListBox::new("vlb-tall-focused-page", items.clone())
+            .estimated_row_height(px(40.))
+            .max_h(px(160.))
+            .item_content(|key, _| {
+                gpui::div()
+                    .h(if key.as_ref() == "key-00" {
+                        px(80.)
+                    } else {
+                        px(20.)
+                    })
+                    .child(key.to_string())
+                    .into_any_element()
+            })
+            .on_action(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "pagedown");
+    press(cx, "enter");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["key-01"],
+        "variable ListBox PageDown must use the focused row's top-based boundary"
+    );
+}
+
+/// An estimated list's adjacent arrow target is already measured in the
+/// viewport overdraw. Moving from row 0 to visible row 1 must not pin row 1 to
+/// the top; the original row remains clickable in its first 36px band.
+#[gpui::test]
+fn estimated_height_list_box_arrow_keeps_a_visible_neighbor_in_place(cx: &mut TestAppContext) {
+    let recorded = events();
+    let items: Vec<ListBoxItem> = (0..10)
+        .map(|i| ListBoxItem::new(format!("key-{i:02}"), format!("Item {i}")))
+        .collect();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ListBox::new("vlb-estimated-arrow-scroll", items.clone())
+            .estimated_row_height(px(40.))
+            .max_h(px(160.))
+            .on_action(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    flush_frame(cx);
+    click(cx, 20., 20.);
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["key-00"],
+        "an adjacent arrow move must reveal without snapping the row to the viewport top"
+    );
+}
+
+/// A plain scrollable ListBox has every row's real bounds. Its 36px options
+/// plus 4px flex gap form 40px starts, so the same 160px viewport pages row 2
+/// to row 6 and back. Without a layout-aware PageUp/PageDown path both keys
+/// are ignored by the shared one-row resolver.
+#[gpui::test]
+fn plain_scrollable_list_box_page_keys_use_laid_out_bounds(cx: &mut TestAppContext) {
+    let recorded = events();
+    let items: Vec<ListBoxItem> = (0..20)
+        .map(|i| ListBoxItem::new(format!("key-{i:02}"), format!("Item {i}")))
+        .collect();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ListBox::new("vlb-plain-page", items.clone())
+            .max_h(px(160.))
+            .on_action(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "down");
+    press(cx, "pagedown");
+    press(cx, "pageup");
+    press(cx, "enter");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["key-02"],
+        "plain ListBox paging must use actual row bounds and keep the target actionable"
+    );
+}
+
+/// Pinned `ListKeyboardDelegate` uses the enabled collection ends when the
+/// ListBox is not scrollable, because there is no shorter visible page to
+/// preserve. Disabled rows at both ends are skipped by the same delegate.
+#[gpui::test]
+fn plain_unbounded_list_box_page_keys_reach_enabled_ends(cx: &mut TestAppContext) {
+    let recorded = events();
+    let items: Vec<ListBoxItem> = (0..10)
+        .map(|i| {
+            ListBoxItem::new(format!("key-{i:02}"), format!("Item {i}"))
+                .is_disabled(i == 0 || i == 9)
+        })
+        .collect();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ListBox::new("vlb-unbounded-page", items.clone())
+            .on_action(move |key, _, _| recorded.borrow_mut().push(key.to_string()))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "down");
+    press(cx, "pagedown");
+    press(cx, "enter");
+    press(cx, "pageup");
+    press(cx, "enter");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["key-08", "key-01"],
+        "unbounded ListBox paging must reach the enabled ends"
+    );
+}
+
 /// A virtual table's rows come from a *factory* — `AnyElement` is built once
 /// and consumed once, so the table asks for the rows the viewport shows. The
 /// probe cell records the index the factory was called with, so the click
