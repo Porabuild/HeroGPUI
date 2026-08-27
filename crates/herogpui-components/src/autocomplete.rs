@@ -17,6 +17,8 @@
 //! is what `Autocomplete.Filter`'s `inputValue` and `onInputChange` address. The
 //! selection is a set of item keys, held by `value` / `defaultValue`.
 
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
+
 use gpui::{
     prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, StatefulInteractiveElement,
     Styled, Window,
@@ -31,6 +33,49 @@ use crate::{
 };
 
 type OnSelectionChange = std::sync::Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
+type AutocompleteFormState = Rc<RefCell<crate::form::LiveFormFieldState>>;
+
+thread_local! {
+    static AUTOCOMPLETE_FORM_STATES: RefCell<
+        HashMap<u64, std::rc::Weak<RefCell<crate::form::LiveFormFieldState>>>,
+    > = RefCell::new(HashMap::new());
+}
+
+fn autocomplete_form_state(entity_id: u64) -> AutocompleteFormState {
+    AUTOCOMPLETE_FORM_STATES.with(|states| {
+        let mut states = states.borrow_mut();
+        if let Some(state) = states.get(&entity_id).and_then(|state| state.upgrade()) {
+            return state;
+        }
+        let state = Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+            value: crate::form::FormValue::Keys(Vec::new()),
+            is_invalid: false,
+            is_successful: true,
+            focus: None,
+            restore: None,
+        }));
+        states.insert(entity_id, Rc::downgrade(&state));
+        state
+    })
+}
+
+fn form_selection_value(
+    selected: &std::collections::BTreeSet<SharedString>,
+) -> crate::form::FormValue {
+    crate::form::FormValue::Keys(selected.iter().cloned().collect())
+}
+
+fn sync_form_state(
+    state: &AutocompleteFormState,
+    selected: &std::collections::BTreeSet<SharedString>,
+    is_disabled: bool,
+    is_invalid: bool,
+) {
+    let mut state = state.borrow_mut();
+    state.value = form_selection_value(selected);
+    state.is_successful = !is_disabled;
+    state.is_invalid = is_invalid;
+}
 
 /// HeroUI Autocomplete.
 #[derive(IntoElement)]
@@ -93,6 +138,7 @@ pub struct Autocomplete {
     input_value: Option<String>,
     on_input_change: Option<std::sync::Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>>,
     on_clear: Option<std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>>,
+    form_state: AutocompleteFormState,
 }
 
 impl Autocomplete {
@@ -209,6 +255,7 @@ impl Autocomplete {
     }
 
     pub fn new(state: Entity<InputState>, items: Vec<SharedString>) -> Self {
+        let form_state = autocomplete_form_state(state.entity_id().as_u64());
         Self {
             name: None,
             state,
@@ -245,6 +292,7 @@ impl Autocomplete {
             placement: Placement::BottomStart,
             on_open_change: None,
             on_selection_change: None,
+            form_state,
         }
     }
 
@@ -257,8 +305,10 @@ impl Autocomplete {
     /// The `Form` field this control submits, when it has a `name`.
     ///
     /// v3 discovers a field through the DOM; gpui gives a child no way to reach
-    /// its ancestor, so the control hands the pair over instead. Borrows, so the
-    /// control is still yours to place:
+    /// its ancestor, so the control hands the pair over instead. The live
+    /// selection survives the next `Autocomplete::new` because it is keyed by
+    /// the search-field entity, the way DateField keys its form state. A
+    /// disabled control stays registered and is omitted from FormData.
     ///
     /// ```ignore
     /// let field = control.form_field();
@@ -266,8 +316,13 @@ impl Autocomplete {
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
+        {
+            let mut state = self.form_state.borrow_mut();
+            state.is_successful = !self.is_disabled;
+            state.is_invalid = self.is_invalid || self.error_message.is_some();
+        }
         Some(
-            crate::form::FormField::keys(name, self.selected_keys.clone())
+            crate::form::FormField::live(name, self.form_state.clone())
                 .is_required(self.is_required),
         )
     }
@@ -569,6 +624,34 @@ impl RenderOnce for Autocomplete {
         let layout = cx.layout();
 
         let is_invalid = self.is_invalid || self.error_message.is_some();
+        sync_form_state(
+            &self.form_state,
+            &self.selected_keys,
+            self.is_disabled,
+            is_invalid,
+        );
+        self.form_state.borrow_mut().focus = focus_handle.clone();
+        let restore_own = selection_own.clone();
+        let restore_state = self.form_state.clone();
+        let restore_default = self.default_value.clone().unwrap_or_default();
+        let restore_all = self.on_selection_change_all.clone();
+        self.form_state.borrow_mut().restore = (restore_own.is_some() || restore_all.is_some())
+            .then(|| {
+                util::shared(move |window: &mut Window, cx: &mut App| {
+                    restore_state.borrow_mut().value = form_selection_value(&restore_default);
+                    if let Some(held) = &restore_own {
+                        let set = restore_default.clone();
+                        held.update(cx, |v, cx| {
+                            *v = set;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &restore_all {
+                        let all: Vec<SharedString> = restore_default.iter().cloned().collect();
+                        cb(&all, window, cx);
+                    }
+                }) as std::sync::Arc<dyn Fn(&mut Window, &mut App)>
+            });
         let can_open = !self.is_disabled;
         // Whether the trigger's open acts are allowed at all: react-stately
         // 3.49.0's `useSelectState` guards `open`/`toggle` — *"Don't open if
@@ -589,7 +672,7 @@ impl RenderOnce for Autocomplete {
         // contradictory reports. The trigger's capture-phase handler runs
         // before the panel's `on_mouse_down_out` in the same dispatch, so the
         // dismissal can see it and leave the close to the trigger's click.
-        let trigger_pressed = std::rc::Rc::new(std::cell::Cell::new(false));
+        let trigger_pressed = Rc::new(std::cell::Cell::new(false));
         // `.autocomplete__trigger` is `relative isolate inline-flex min-h-9
         // rounded-field border bg-field px-3 py-2 text-sm shadow-field`, plus
         // `pe-7` because the indicator sits inside it.
@@ -699,6 +782,7 @@ impl RenderOnce for Autocomplete {
             let own = selection_own.clone();
             let selection_cb = self.on_selection_change_all.clone();
             let clear_cb = self.on_clear.clone();
+            let clear_form_state = self.form_state.clone();
             let hover_bg = colors.default.soft_hover();
             field = field.child(
                 gpui::div()
@@ -735,6 +819,8 @@ impl RenderOnce for Autocomplete {
                                 v.clear();
                                 cx.notify();
                             });
+                            clear_form_state.borrow_mut().value =
+                                crate::form::FormValue::Keys(Vec::new());
                         }
                         if let Some(cb) = &selection_cb {
                             cb(&[], window, cx);
@@ -859,6 +945,7 @@ impl RenderOnce for Autocomplete {
             let on_change_all = self.on_selection_change_all.clone();
             let on_change_one = self.on_selection_change.clone();
             let key_selection_own = selection_own.clone();
+            let key_form_state = self.form_state.clone();
             let selected_now = self.selected_keys.clone();
             let was_open = open;
             root = root.on_key_down(move |event, window, cx| {
@@ -953,6 +1040,7 @@ impl RenderOnce for Autocomplete {
                                 *v = set;
                                 cx.notify();
                             });
+                            key_form_state.borrow_mut().value = form_selection_value(&next);
                         }
                         if let Some(cb) = &on_change_one {
                             cb(&item, window, cx);
@@ -1099,11 +1187,12 @@ impl RenderOnce for Autocomplete {
             let sections = self.sections.clone();
             let row_disabled_keys = self.disabled_keys.clone();
             let row_selected_keys = self.selected_keys.clone();
-            let indicator: Option<std::rc::Rc<dyn Fn(bool) -> gpui::AnyElement>> =
-                self.indicator.take().map(std::rc::Rc::from);
+            let indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>> =
+                self.indicator.take().map(Rc::from);
             let on_change_all = self.on_selection_change_all.clone();
             let on_change_one = self.on_selection_change.clone();
             let row_selection_own = selection_own;
+            let row_form_state = self.form_state.clone();
             let row_open_own = open_own;
             let row_open_change = self.on_open_change.clone();
             let row_trigger_focus = focus_handle;
@@ -1202,6 +1291,7 @@ impl RenderOnce for Autocomplete {
                     let value = item.clone();
                     let current = row_selected_keys.clone();
                     let own = row_selection_own.clone();
+                    let row_form_state = row_form_state.clone();
                     let cb_all = on_change_all.clone();
                     let cb_one = on_change_one.clone();
                     let open_own = row_open_own.clone();
@@ -1225,6 +1315,7 @@ impl RenderOnce for Autocomplete {
                                 *v = set;
                                 cx.notify();
                             });
+                            row_form_state.borrow_mut().value = form_selection_value(&next);
                         }
                         if let Some(cb) = &cb_one {
                             cb(&value, window, cx);

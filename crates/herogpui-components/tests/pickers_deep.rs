@@ -63,7 +63,7 @@
 
 mod harness;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -73,8 +73,8 @@ use gpui::{
 };
 use harness::{click, events, open_host, press, Events};
 use herogpui_components::{
-    Autocomplete, ComboBox, Drawer, DrawerPlacement, Input, InputState, MenuTrigger, Select,
-    SelectionMode,
+    Autocomplete, ComboBox, Drawer, DrawerPlacement, Form, FormData, Input, InputState,
+    MenuTrigger, Select, SelectionMode,
 };
 
 /// An `InputState` entity for the search-field-backed controls, created before
@@ -960,6 +960,415 @@ fn autocomplete_wrap_joins_both_ends(cx: &mut TestAppContext) {
         recorded.borrow().as_slice(),
         ["Alpha", "Gamma"],
         "up past the start must wrap to the last row"
+    );
+}
+
+fn form_entry(data: &FormData, name: &str) -> String {
+    data.get(name)
+        .map_or_else(|| "omitted".to_owned(), |value| value.as_text().to_string())
+}
+
+/// Named Autocomplete must submit the live keyed selection, not the snapshot
+/// `form_field()` saw when the Form was first told about the control.
+#[gpui::test]
+fn autocomplete_form_submits_live_uncontrolled_selection(cx: &mut TestAppContext) {
+    let submitted = events();
+    let submitted_for_form = submitted.clone();
+    let state = search_state(cx);
+    let items = vec!["Alpha".into(), "Beta".into(), "Gamma".into()];
+    let field = Autocomplete::new(state.clone(), items.clone())
+        .name("lang")
+        .default_value(["Alpha"])
+        .form_field()
+        .expect("named Autocomplete");
+    let form = Form::new().field(field).on_submit(move |data, _, _| {
+        submitted_for_form
+            .borrow_mut()
+            .push(form_entry(data, "lang"));
+    });
+    let submit = form.submit_handler();
+    let state_for_rebuild = state.clone();
+    let items_for_rebuild = items.clone();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        Autocomplete::new(state_for_view.clone(), items.clone())
+            .name("lang")
+            .default_value(["Alpha"])
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(submitted.borrow().as_slice(), ["Alpha"]);
+
+    click(cx, 60., 18.);
+    click(cx, 60., 160.);
+    flush_frame(cx);
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["Alpha", "Beta"],
+        "FormData must follow the runtime selection after a pick"
+    );
+    cx.update(|_, cx| {
+        let rebuilt = Autocomplete::new(state_for_rebuild.clone(), items_for_rebuild.clone())
+            .name("lang")
+            .default_value(["Alpha"]);
+        let form = Form::new().field(rebuilt.form_field().expect("rebuilt named Autocomplete"));
+        assert_eq!(
+            form_entry(&form.data(cx), "lang"),
+            "Beta",
+            "rebuilding form_field must not overwrite a live pick with defaultValue"
+        );
+    });
+}
+
+/// A controlled Autocomplete reports the pick but keeps submitting the owner's
+/// value until that owner writes it back through `value`.
+#[gpui::test]
+fn autocomplete_form_waits_for_controlled_owner_acceptance(cx: &mut TestAppContext) {
+    let submitted = events();
+    let submitted_for_form = submitted.clone();
+    let changes = events();
+    let recorded = changes.clone();
+    let current = Rc::new(RefCell::new(vec![gpui::SharedString::from("Alpha")]));
+    let state = search_state(cx);
+    let items = vec!["Alpha".into(), "Beta".into(), "Gamma".into()];
+    let selected = current.borrow().clone();
+    let field = Autocomplete::new(state.clone(), items.clone())
+        .name("lang")
+        .value(selected)
+        .form_field()
+        .expect("named Autocomplete");
+    let form = Form::new().field(field).on_submit(move |data, _, _| {
+        submitted_for_form
+            .borrow_mut()
+            .push(form_entry(data, "lang"));
+    });
+    let submit = form.submit_handler();
+    let state_for_view = state;
+    let current_for_view = current;
+    let cx = open_host(cx, move || {
+        let selected = current_for_view.borrow().clone();
+        let current = current_for_view.clone();
+        let changes = changes.clone();
+        Autocomplete::new(state_for_view.clone(), items.clone())
+            .name("lang")
+            .value(selected)
+            .on_selection_change_all(move |keys, _, _| {
+                changes.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+                *current.borrow_mut() = keys.to_vec();
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    click(cx, 60., 160.);
+    flush_frame(cx);
+    assert_eq!(recorded.borrow().as_slice(), ["Beta"]);
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["Beta"],
+        "once the owner accepts the pick, FormData must follow that value"
+    );
+}
+
+/// Controlled form data stays on the owner's value when the owner ignores the
+/// change callback — the pick must not write through on its own.
+#[gpui::test]
+fn autocomplete_form_keeps_owner_value_when_controlled_pick_is_ignored(cx: &mut TestAppContext) {
+    let submitted = events();
+    let submitted_for_form = submitted.clone();
+    let changes = events();
+    let recorded = changes.clone();
+    let current = Rc::new(RefCell::new(vec![gpui::SharedString::from("Alpha")]));
+    let state = search_state(cx);
+    let items = vec!["Alpha".into(), "Beta".into(), "Gamma".into()];
+    let selected = current.borrow().clone();
+    let field = Autocomplete::new(state.clone(), items.clone())
+        .name("lang")
+        .value(selected)
+        .form_field()
+        .expect("named Autocomplete");
+    let form = Form::new().field(field).on_submit(move |data, _, _| {
+        submitted_for_form
+            .borrow_mut()
+            .push(form_entry(data, "lang"));
+    });
+    let submit = form.submit_handler();
+    let state_for_view = state;
+    let current_for_view = current;
+    let cx = open_host(cx, move || {
+        let selected = current_for_view.borrow().clone();
+        let changes = changes.clone();
+        Autocomplete::new(state_for_view.clone(), items.clone())
+            .name("lang")
+            .value(selected)
+            .on_selection_change_all(move |keys, _, _| {
+                changes.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    click(cx, 60., 160.);
+    flush_frame(cx);
+    assert_eq!(recorded.borrow().as_slice(), ["Beta"]);
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["Alpha"],
+        "a controlled pick that the owner does not accept must not change FormData"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_disabled_form_field_is_omitted(cx: &mut TestAppContext) {
+    let submitted = events();
+    let submitted_for_form = submitted.clone();
+    let state = search_state(cx);
+    let items = vec!["Alpha".into(), "Beta".into()];
+    let field = Autocomplete::new(state.clone(), items.clone())
+        .name("lang")
+        .default_value(["Alpha"])
+        .is_disabled(true)
+        .form_field()
+        .expect("named Autocomplete");
+    let form = Form::new().field(field).on_submit(move |data, _, _| {
+        submitted_for_form
+            .borrow_mut()
+            .push(form_entry(data, "lang"));
+    });
+    let submit = form.submit_handler();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        Autocomplete::new(state_for_view.clone(), items.clone())
+            .name("lang")
+            .default_value(["Alpha"])
+            .is_disabled(true)
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(submitted.borrow().as_slice(), ["omitted"]);
+}
+
+#[gpui::test]
+fn autocomplete_disabled_form_field_becomes_successful_after_rerender(cx: &mut TestAppContext) {
+    let disabled = Rc::new(Cell::new(true));
+    let disabled_for_view = disabled.clone();
+    let submitted = events();
+    let submitted_for_form = submitted.clone();
+    let state = search_state(cx);
+    let items = vec!["Alpha".into(), "Beta".into()];
+    let field = Autocomplete::new(state.clone(), items.clone())
+        .name("lang")
+        .default_value(["Alpha"])
+        .form_field()
+        .expect("named Autocomplete");
+    let form = Form::new().field(field).on_submit(move |data, _, _| {
+        submitted_for_form
+            .borrow_mut()
+            .push(form_entry(data, "lang"));
+    });
+    let submit = form.submit_handler();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        Autocomplete::new(state_for_view.clone(), items.clone())
+            .name("lang")
+            .default_value(["Alpha"])
+            .is_disabled(disabled_for_view.get())
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(submitted.borrow().as_slice(), ["omitted"]);
+
+    disabled.set(false);
+    flush_frame(cx);
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(submitted.borrow().as_slice(), ["omitted", "Alpha"]);
+}
+
+#[gpui::test]
+fn autocomplete_read_only_form_field_remains_successful(cx: &mut TestAppContext) {
+    let submitted = events();
+    let submitted_for_form = submitted.clone();
+    let state = search_state(cx);
+    let items = vec!["Alpha".into(), "Beta".into()];
+    let field = Autocomplete::new(state.clone(), items.clone())
+        .name("lang")
+        .default_value(["Alpha"])
+        .is_read_only(true)
+        .form_field()
+        .expect("named Autocomplete");
+    let form = Form::new().field(field).on_submit(move |data, _, _| {
+        submitted_for_form
+            .borrow_mut()
+            .push(form_entry(data, "lang"));
+    });
+    let submit = form.submit_handler();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        Autocomplete::new(state_for_view.clone(), items.clone())
+            .name("lang")
+            .default_value(["Alpha"])
+            .is_read_only(true)
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(submitted.borrow().as_slice(), ["Alpha"]);
+}
+
+#[gpui::test]
+fn autocomplete_form_reset_restores_uncontrolled_default(cx: &mut TestAppContext) {
+    let submitted = events();
+    let submitted_for_form = submitted.clone();
+    let state = search_state(cx);
+    let items = vec!["Alpha".into(), "Beta".into(), "Gamma".into()];
+    let field = Autocomplete::new(state.clone(), items.clone())
+        .name("lang")
+        .default_value(["Alpha"])
+        .form_field()
+        .expect("named Autocomplete");
+    let form = Form::new().field(field).on_submit(move |data, _, _| {
+        submitted_for_form
+            .borrow_mut()
+            .push(form_entry(data, "lang"));
+    });
+    let submit = form.submit_handler();
+    let reset = form.reset_handler();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        Autocomplete::new(state_for_view.clone(), items.clone())
+            .name("lang")
+            .default_value(["Alpha"])
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    click(cx, 60., 160.);
+    flush_frame(cx);
+    cx.update(|window, cx| submit(window, cx));
+    cx.update(|window, cx| reset(window, cx));
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["Beta", "Alpha"],
+        "native reset must restore defaultValue in FormData without waiting for a repaint"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_form_reset_reports_controlled_default_to_owner(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let picks = events();
+    let recorded_picks = picks.clone();
+    let current = Rc::new(RefCell::new(vec![gpui::SharedString::from("Beta")]));
+    let state = search_state(cx);
+    let items = vec!["Alpha".into(), "Beta".into(), "Gamma".into()];
+    let selected = current.borrow().clone();
+    let field = Autocomplete::new(state.clone(), items.clone())
+        .name("lang")
+        .value(selected)
+        .default_value(["Alpha"])
+        .form_field()
+        .expect("named Autocomplete");
+    let form = Form::new().field(field);
+    let reset = form.reset_handler();
+    let state_for_view = state;
+    let current_for_view = current;
+    let cx = open_host(cx, move || {
+        let selected = current_for_view.borrow().clone();
+        let current = current_for_view.clone();
+        let changes = changes.clone();
+        let picks = picks.clone();
+        Autocomplete::new(state_for_view.clone(), items.clone())
+            .name("lang")
+            .value(selected)
+            .default_value(["Alpha"])
+            .on_selection_change_all(move |keys, _, _| {
+                *current.borrow_mut() = keys.to_vec();
+                changes.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .on_change(move |key, _, _| picks.borrow_mut().push(key.to_string()))
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| reset(window, cx));
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Alpha"],
+        "controlled reset must report defaultValue so the owner can update"
+    );
+    assert!(
+        recorded_picks.borrow().is_empty(),
+        "form reset must not invoke Autocomplete's pick-only scalar callback"
+    );
+}
+
+#[gpui::test]
+fn autocomplete_form_reset_reports_disabled_controlled_default_to_owner(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let current = Rc::new(RefCell::new(vec![gpui::SharedString::from("Beta")]));
+    let state = search_state(cx);
+    let items = vec!["Alpha".into(), "Beta".into()];
+    let selected = current.borrow().clone();
+    let field = Autocomplete::new(state.clone(), items.clone())
+        .name("lang")
+        .value(selected)
+        .default_value(["Alpha"])
+        .is_disabled(true)
+        .form_field()
+        .expect("named Autocomplete");
+    let form = Form::new().field(field);
+    let reset = form.reset_handler();
+    let state_for_view = state;
+    let current_for_view = current;
+    let cx = open_host(cx, move || {
+        let selected = current_for_view.borrow().clone();
+        let current = current_for_view.clone();
+        let changes = changes.clone();
+        Autocomplete::new(state_for_view.clone(), items.clone())
+            .name("lang")
+            .value(selected)
+            .default_value(["Alpha"])
+            .is_disabled(true)
+            .on_selection_change_all(move |keys, _, _| {
+                *current.borrow_mut() = keys.to_vec();
+                changes.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| reset(window, cx));
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Alpha"],
+        "disabled controlled Autocomplete still notifies its owner on reset"
     );
 }
 
