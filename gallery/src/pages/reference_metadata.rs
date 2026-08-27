@@ -4973,6 +4973,172 @@ pub(crate) const TEXT_AREA: ReferenceMetadata = ReferenceMetadata {
     styling: TEXT_AREA_STYLING,
 };
 
+const SEARCH_FIELD_REQUIRED_PARTS: &[&str] = &[
+    "SearchField",
+    "SearchField.Group",
+    "SearchField.Input",
+    "SearchField.SearchIcon",
+    "SearchField.ClearButton",
+];
+
+const SEARCH_FIELD_API: &[ApiDoc] = &[
+    ApiDoc { owner: "SearchField", prop: "children", ty: "ReactNode | (values: SearchFieldRenderProps) => ReactNode", default: "—", description: "Replacement content receives disabled, invalid, read-only, required, focus, value and empty state.", rust_owner: "SearchField", rust: "content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField", prop: "className", ty: "string | render function", default: "—", description: "Browser CSS classes are unavailable.", rust_owner: "SearchField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "SearchField", prop: "style", ty: "CSSProperties | render function", default: "—", description: "Browser inline styles are unavailable.", rust_owner: "SearchField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "SearchField", prop: "fullWidth", ty: "boolean", default: "false", description: "Stretches the root and field to the available width.", rust_owner: "SearchField", rust: "full_width()", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField", prop: "id", ty: "string", default: "—", description: "The caller-owned InputState entity supplies stable GPUI identity instead of a DOM id.", rust_owner: "SearchField", rust: "new(state)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "SearchField", prop: "variant", ty: "\"primary\" | \"secondary\"", default: "\"primary\"", description: "Primary field chrome or the lower-emphasis surface variant.", rust_owner: "SearchField", rust: "variant(FieldVariant)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField", prop: "render", ty: "DOMRenderFunction<..., SearchFieldRenderProps>", default: "—", description: "DOM root substitution has no GPUI equivalent.", rust_owner: "SearchField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "SearchField", prop: "value", ty: "string", default: "—", description: "The caller-owned InputState is the live value source; the local field mutates that shared entity directly rather than proposing changes to an immutable React prop.", rust_owner: "SearchField", rust: "new(state)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "SearchField", prop: "defaultValue", ty: "string", default: "—", description: "Seeds the uncontrolled InputState once.", rust_owner: "SearchField", rust: "default_value(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField", prop: "onChange", ty: "(value: string) => void", default: "—", description: "Reports each accepted query edit.", rust_owner: "SearchField", rust: "on_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField", prop: "isRequired", ty: "boolean", default: "false", description: "Marks the field required for native form validation.", rust_owner: "SearchField", rust: "is_required(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField", prop: "isInvalid", ty: "boolean", default: "—", description: "Forces invalid field chrome and error state.", rust_owner: "SearchField", rust: "is_invalid(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField", prop: "validate", ty: "(value: string) => ValidationError | true | null", default: "—", description: "A callback returns one optional validation message.", rust_owner: "SearchField", rust: "validate(callback)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "SearchField", prop: "validationBehavior", ty: "\"native\" | \"aria\"", default: "\"native\"", description: "Selects blocking native validation or non-blocking ARIA-style validation.", rust_owner: "SearchField", rust: "validation_behavior(ValidationBehavior)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField", prop: "validationErrors", ty: "string[]", default: "—", description: "Server messages take precedence over custom validation.", rust_owner: "SearchField", rust: "validation_errors(errors)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField", prop: "isDisabled", ty: "boolean", default: "false", description: "Removes focus, editing and clear actions and applies disabled opacity.", rust_owner: "SearchField", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField", prop: "isReadOnly", ty: "boolean", default: "false", description: "Keeps focus and selection while suppressing edits and clear actions.", rust_owner: "SearchField", rust: "is_read_only(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField", prop: "name", ty: "string", default: "—", description: "Submission name stored with the current query.", rust_owner: "SearchField", rust: "name(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField", prop: "autoFocus", ty: "boolean", default: "false", description: "Focuses the input on its first render.", rust_owner: "SearchField", rust: "auto_focus(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField", prop: "onSubmit", ty: "(value: string) => void", default: "—", description: "Enter reports the current query.", rust_owner: "SearchField", rust: "on_submit(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField", prop: "onClear", ty: "() => void", default: "—", description: "The clear button and Escape report an explicit clear; deleting the final character does not.", rust_owner: "SearchField", rust: "on_clear(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField", prop: "aria-label / aria-labelledby / aria-describedby / aria-details", ty: "string", default: "—", description: "GPUI 0.2.2 exposes no accessibility attribute tree.", rust_owner: "SearchField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "SearchField.Group", prop: "children", ty: "ReactNode | GroupRenderFunction", default: "—", description: "The port builds the group monolithically; root content can replace the complete composition.", rust_owner: "SearchField", rust: "content(render)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "SearchField.Group", prop: "className", ty: "string | render function", default: "—", description: "Arbitrary group classes are unavailable.", rust_owner: "SearchField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "SearchField.Input", prop: "className", ty: "string", default: "—", description: "Arbitrary input classes are unavailable.", rust_owner: "SearchField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "SearchField.Input", prop: "variant", ty: "\"primary\" | \"secondary\"", default: "\"primary\"", description: "The root variant controls the unified group rather than an independently composed input.", rust_owner: "SearchField", rust: "variant(FieldVariant)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "SearchField.Input", prop: "placeholder", ty: "string", default: "—", description: "Placeholder displayed while the query is empty and unfocused.", rust_owner: "SearchField", rust: "placeholder(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField.Input", prop: "type", ty: "string", default: "\"search\"", description: "SearchField has one fixed input mode, so there is no selectable type builder.", rust_owner: "SearchField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "SearchField.SearchIcon", prop: "children", ty: "ReactNode", default: "search icon", description: "Replaces the leading magnifier.", rust_owner: "SearchField", rust: "search_icon(element)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "SearchField.SearchIcon", prop: "className", ty: "string", default: "—", description: "Arbitrary icon classes are unavailable.", rust_owner: "SearchField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "SearchField.ClearButton", prop: "children", ty: "ReactNode", default: "close icon", description: "The local clear affordance uses the pinned built-in close glyph and does not expose replacement content.", rust_owner: "SearchField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "SearchField.ClearButton", prop: "className", ty: "string", default: "—", description: "Arbitrary clear-button classes are unavailable.", rust_owner: "SearchField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "SearchField.ClearButton", prop: "slot", ty: "\"clear\"", default: "\"clear\"", description: "The built-in clear affordance always owns clear behavior rather than exposing a caller slot.", rust_owner: "SearchField", rust: "on_clear(callback)", status: ImplementationStatus::Partial },
+];
+
+const SEARCH_FIELD_PARTS: &[PartDoc] = &[
+    PartDoc {
+        name: "SearchField",
+        slot: "search-field",
+        description: "Root field state, label, description and error composition.",
+        rust_owner: "SearchField",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "SearchField.Group",
+        slot: "search-field-group",
+        description: "Unified field shell containing icon, editable query and clear affordance.",
+        rust_owner: "SearchField",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "SearchField.Input",
+        slot: "search-field-input",
+        description: "InputState-backed editable search query.",
+        rust_owner: "Input",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "SearchField.SearchIcon",
+        slot: "search-field-search-icon",
+        description: "Built-in or caller-supplied leading icon.",
+        rust_owner: "SearchField",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "SearchField.ClearButton",
+        slot: "search-field-clear-button",
+        description: "Built-in clear action shown only for an editable non-empty query.",
+        rust_owner: "Input",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+const SEARCH_FIELD_STATES: &[StateDoc] = &[
+    StateDoc { state: "Invalid", selector: ".search-field[data-invalid=true]", description: "Hides description and applies invalid group chrome.", rust: "resolved Input validity", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Disabled", selector: ".search-field__group[data-disabled=true]", description: "Applies disabled opacity and removes focus, editing and clear actions.", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus within", selector: ".search-field__group[data-focus-within=true]", description: "Draws focused field chrome while the input owns focus.", rust: "Input focus + apply_field_chrome", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus visible", selector: "[data-focus-visible=true]", description: "Replacement content receives keyboard-visible focus state; built-in chrome uses focus-within.", rust: "SearchFieldRenderState::is_focus_visible", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Hovered", selector: ".search-field__group[data-hovered=true]", description: "Uses hover fill and border while focus is outside the group.", rust: "Input hover + apply_field_chrome", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Empty", selector: ".search-field[data-empty=true]", description: "Removes the clear affordance from hit testing and painting.", rust: "InputState::is_empty", status: ImplementationStatus::Implemented },
+];
+
+const SEARCH_FIELD_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: ".search-field",
+        value: "flex flex-col gap-1",
+        description: "Root field stack and invalid description replacement.",
+        rust: "Input wrapper flex_col + gap(4px)",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".search-field__group",
+        value: "h-9 inline-flex rounded-field border bg-field text-sm shadow-field",
+        description: "Unified 36px field shell, radius, colours and shadow match.",
+        rust: "FIELD_HEIGHT + field_radius + apply_field_chrome",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".search-field__group transitions",
+        value: "background/border 150ms Smooth; shadow 150ms Out; reduced-motion none",
+        description: "State colours and focus shadow switch directly rather than interpolating.",
+        rust: "direct apply_field_chrome state colours",
+        status: ImplementationStatus::Partial,
+    },
+    StyleDoc {
+        class_or_token: ".search-field__input",
+        value: "flex-1 px-3 py-2 text-base sm:text-sm",
+        description:
+            "Text inset and desktop type match; browser search decorations do not exist in GPUI.",
+        rust: "Input row + FIELD_TEXT",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".search-field__search-icon",
+        value: "ms-3 me-0 size-4",
+        description: "Leading icon size and inset match.",
+        rust: "FIELD_ICON + Input px(12px)",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".search-field__clear-button",
+        value: "me-2 size-5; icon size-3",
+        description: "20px clear target with 12px glyph and 8px end inset.",
+        rust: "20px clear div + 12px svg + end padding",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".search-field--secondary",
+        value: "shadow-none; bg default/default-hover/default-focus",
+        description: "Lower-emphasis surface treatment.",
+        rust: "FieldVariant::Secondary in apply_field_chrome",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".search-field--full-width",
+        value: "w-full",
+        description: "Full-width root and group modifier.",
+        rust: "full_width()",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+pub(crate) const SEARCH_FIELD: ReferenceMetadata = ReferenceMetadata {
+    page: "SearchField",
+    import_line: "use herogpui::components::input::SearchField;",
+    source_module: "input",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(forms)/search-field.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/search-field/search-field.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/SearchField.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/search-field.css",
+    required_parts: SEARCH_FIELD_REQUIRED_PARTS,
+    api: SEARCH_FIELD_API,
+    parts: SEARCH_FIELD_PARTS,
+    states: SEARCH_FIELD_STATES,
+    styling: SEARCH_FIELD_STYLING,
+};
+
 const INPUT_OTP_REQUIRED_PARTS: &[&str] = &[
     "InputOTP",
     "InputOTP.Group",
@@ -10968,6 +11134,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     PAGINATION,
     INPUT,
     TEXT_AREA,
+    SEARCH_FIELD,
     INPUT_OTP,
     TABS,
     CALENDAR,

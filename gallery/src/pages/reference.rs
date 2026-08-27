@@ -1049,6 +1049,44 @@ impl Widget {
     }
 
     #[test]
+    fn search_field_metadata_tracks_complete_render_state_and_compound_parts() {
+        let metadata = reference_metadata::for_route(
+            "SearchField",
+            "use herogpui::components::input::SearchField;",
+        )
+        .expect("SearchField metadata is registered");
+
+        assert_eq!(metadata.parts.len(), 5);
+        for prop in [
+            "children",
+            "defaultValue",
+            "onChange",
+            "onSubmit",
+            "onClear",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "SearchField"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "SearchField"
+                && entry.prop == "value"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "SearchField.ClearButton"
+                && entry.prop == "children"
+                && entry.status == reference_metadata::ImplementationStatus::Unavailable
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".search-field__group transitions"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+    }
+
+    #[test]
     fn dropdown_metadata_does_not_classify_behavior_as_styling() {
         let metadata = reference_metadata::for_import(
             "use herogpui::components::dropdown::{Dropdown, MenuItem};",

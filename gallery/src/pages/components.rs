@@ -7029,6 +7029,7 @@ impl Gallery {
         let form_field = self.demo_text("sf-form", "", cx);
         let icons = self.demo_text("sf-icons", "", cx);
         let shortcut = self.demo_text("sf-shortcut", "", cx);
+        let render_props = self.demo_text("sf-render-props", "hero", cx);
         let controlled_text = controlled.read(cx).value().to_owned();
 
         component_doc_page!(
@@ -7140,6 +7141,29 @@ impl Gallery {
                             cx,
                         ),
                     ]),
+                ),
+                (
+                    "Render Props",
+                    col(vec![{
+                        let parts = render_props.clone();
+                        h::SearchField::new(render_props)
+                            .content(move |state| {
+                                h::SearchField::new(parts.clone())
+                                    .label(format!(
+                                        "{} · {} · {}",
+                                        if state.is_empty { "empty" } else { "has value" },
+                                        if state.is_focus_within {
+                                            "focused"
+                                        } else {
+                                            "unfocused"
+                                        },
+                                        state.value
+                                    ))
+                                    .placeholder("Search")
+                                    .into_any_element()
+                            })
+                            .into_any_element()
+                    }]),
                 ),
                 (
                     "With Validation",

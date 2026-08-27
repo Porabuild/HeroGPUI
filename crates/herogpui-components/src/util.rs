@@ -952,12 +952,11 @@ impl gpui::Global for ActiveKeyboardPresses {}
 /// v3's stylesheets style that state. gpui reports *that* an element has focus
 /// but not how the focus arrived, so the app root records which kind of input
 /// was last seen and every ring in the tree reads it.
-/// v3's *field* render props, as one value.
+/// The shared focus portion of v3 field render props.
 ///
-/// Every field in v3 hands its children a function and passes these in:
-/// `{isFocused, isFocusWithin, isFocusVisible}`. A field draws its own focus
-/// chrome from the same three, so a component that also takes a content closure
-/// hands them over rather than leaving a caller to re-derive them.
+/// Fields draw their focus chrome from these three values, so content closures
+/// receive them rather than re-deriving focus. Components with additional
+/// render props embed the same values in their component-specific state.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FieldFocus {
     /// `isFocused` — this control holds the keyboard.

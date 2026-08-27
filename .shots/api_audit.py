@@ -45,8 +45,15 @@ ALIAS = {
     'TimeField.isFocusWithin': 'content',
     'TextField.isFocused': 'content', 'TextField.isFocusVisible': 'content',
     'TextField.isFocusWithin': 'content',
-    'SearchField.isFocused': 'content', 'SearchField.isFocusVisible': 'content',
-    'SearchField.isFocusWithin': 'content',
+    'SearchField.Render Props.isDisabled': 'content',
+    'SearchField.Render Props.isInvalid': 'content',
+    'SearchField.Render Props.isReadOnly': 'content',
+    'SearchField.Render Props.isRequired': 'content',
+    'SearchField.Render Props.isFocused': 'content',
+    'SearchField.Render Props.isFocusWithin': 'content',
+    'SearchField.Render Props.isFocusVisible': 'content',
+    'SearchField.Render Props.value': 'content',
+    'SearchField.Render Props.isEmpty': 'content',
     # The function half of v3's `action` union: what is handed the form data.
     'Form.action': 'on_submit',
     # v3 hands a button's children a function with the interactive state in it;

@@ -22,7 +22,7 @@
 //!   its field is 320px wide, so the chevron that opens the list is at
 //!   (298, 18). The closure's own output sits *inside* the trigger (Select,
 //!   Autocomplete) or under the field (ComboBox), never over the popover rows.
-//! - `FieldFocus` (Input, TextField, SearchField, NumberField, TimeField,
+//! - field state (Input, TextField, SearchField, NumberField, TimeField,
 //!   DateField, ColorField): the closure *replaces* the field's whole stack,
 //!   so its output must draw the parts -- and the focusable input, which this
 //!   port composes by rendering the same field bound to the same state
@@ -50,9 +50,9 @@ use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext, Visual
 use herogpui_components::{
     util, Autocomplete, CloseButton, ColorChannel, ColorField, ColorSlider, ComboBox, Date,
     DateField, DateFieldRenderState, Input, InputState, Meter, NumberField, NumberFieldRenderState,
-    NumberFormat, NumberState, PickerColor, ProgressBar, ProgressCircle, SearchField, Select,
-    SelectionMode, Slider, Switch, TextField, TimeField, TimeFieldRenderState, TimeState,
-    ValidationBehavior,
+    NumberFormat, NumberState, PickerColor, ProgressBar, ProgressCircle, SearchField,
+    SearchFieldRenderState, Select, SelectionMode, Slider, Switch, TextField, TimeField,
+    TimeFieldRenderState, TimeState, ValidationBehavior,
 };
 
 use harness::{click, events, open_host, press};
@@ -1360,7 +1360,7 @@ fn search_field_content_hands_focus_state(cx: &mut TestAppContext) {
         SearchField::new(for_view.clone())
             .content({
                 let value = for_view.clone();
-                move |focus: util::FieldFocus| {
+                move |focus: SearchFieldRenderState| {
                     record.borrow_mut().push((
                         focus.is_focused,
                         focus.is_focus_within,
@@ -1373,6 +1373,71 @@ fn search_field_content_hands_focus_state(cx: &mut TestAppContext) {
             })
             .into_any_element()
     });
+}
+
+#[gpui::test]
+fn search_field_content_hands_complete_field_state(cx: &mut TestAppContext) {
+    let seen = events();
+    let rendered = seen.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state;
+    let _cx = open_host(cx, move || {
+        let seen = seen.clone();
+        SearchField::new(state_for_view.clone())
+            .default_value("query")
+            .is_disabled(true)
+            .is_invalid(true)
+            .is_read_only(true)
+            .is_required(true)
+            .content(move |field| {
+                seen.borrow_mut().push(format!(
+                    "{}:{}:{}:{}:{}:{}",
+                    field.is_disabled,
+                    field.is_invalid,
+                    field.is_read_only,
+                    field.is_required,
+                    field.value,
+                    field.is_empty
+                ));
+                gpui::div().into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        rendered.borrow().last().map(String::as_str),
+        Some("true:true:true:true:query:false")
+    );
+}
+
+#[gpui::test]
+fn search_field_content_tracks_live_value_and_empty_state(cx: &mut TestAppContext) {
+    let seen = events();
+    let rendered = seen.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let seen = seen.clone();
+        let nested = state_for_view.clone();
+        SearchField::new(state_for_view.clone())
+            .content(move |field| {
+                seen.borrow_mut()
+                    .push(format!("{}:{}", field.value, field.is_empty));
+                SearchField::new(nested.clone())
+                    .placeholder("parts")
+                    .into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(rendered.borrow().last().map(String::as_str), Some(":true"));
+    click(cx, 60., 18.);
+    press(cx, "q");
+    flush_frame(cx);
+    assert_eq!(
+        rendered.borrow().last().map(String::as_str),
+        Some("q:false")
+    );
 }
 
 #[gpui::test]

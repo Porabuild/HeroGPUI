@@ -637,6 +637,11 @@ fn multiline_body(b: MultilineBody<'_>, cx: &App) -> gpui::AnyElement {
 pub struct Input {
     /// See [`Input::content`]: v3's field children-as-a-function.
     content: Option<std::sync::Arc<dyn Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static>>,
+    search_content: Option<
+        std::sync::Arc<
+            dyn Fn(crate::util::FieldFocus, bool, SharedString) -> gpui::AnyElement + 'static,
+        >,
+    >,
     /// `validationBehavior` — written into the state on render.
     validation_behavior: Option<crate::form::ValidationBehavior>,
     state: Entity<InputState>,
@@ -712,6 +717,14 @@ impl Input {
         self
     }
 
+    fn search_content(
+        mut self,
+        render: impl Fn(crate::util::FieldFocus, bool, SharedString) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.search_content = Some(std::sync::Arc::new(render));
+        self
+    }
+
     /// `value` — writes through to the bound [`InputState`].
     pub fn value(self, value: impl Into<String>, cx: &mut App) -> Self {
         self.state.update(cx, |s, _| s.set_value(value));
@@ -721,6 +734,7 @@ impl Input {
     pub fn new(state: Entity<InputState>) -> Self {
         Self {
             content: None,
+            search_content: None,
             validation_behavior: None,
             state,
             label: None,
@@ -1089,15 +1103,19 @@ impl RenderOnce for Input {
         let colors = cx.colors();
         let accent = colors.accent;
         let focused = focus_handle.is_focused(window);
+        let field_focus = crate::util::FieldFocus {
+            is_focused: focused,
+            is_focus_within: focus_handle.contains_focused(window, cx),
+            is_focus_visible: focused && crate::util::focus_visible(cx),
+        };
 
         // v3's field children-as-a-function: the caller builds the parts from the
         // focus state, so the field's own stack is skipped entirely.
+        if let Some(render) = self.search_content.clone() {
+            return render(field_focus, validity.is_invalid, value_now.into());
+        }
         if let Some(render) = self.content.clone() {
-            return render(crate::util::FieldFocus {
-                is_focused: focused,
-                is_focus_within: focus_handle.contains_focused(window, cx),
-                is_focus_visible: focused && crate::util::focus_visible(cx),
-            });
+            return render(field_focus);
         }
 
         // Every v3 field is one box: `.input` is `px-3 py-2 text-sm`, which is
@@ -1838,6 +1856,29 @@ impl RenderOnce for TextField {
     }
 }
 
+/// The complete state passed to [`SearchField::content`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SearchFieldRenderState {
+    /// The field cannot receive focus or input.
+    pub is_disabled: bool,
+    /// Controlled, server, or custom validation currently fails.
+    pub is_invalid: bool,
+    /// The value can be selected but not changed.
+    pub is_read_only: bool,
+    /// The field must contain a value before native form submission.
+    pub is_required: bool,
+    /// The input itself owns keyboard focus.
+    pub is_focused: bool,
+    /// The input or another composed child owns keyboard focus.
+    pub is_focus_within: bool,
+    /// Focus was reached through keyboard navigation.
+    pub is_focus_visible: bool,
+    /// The current search query.
+    pub value: SharedString,
+    /// The current search query is empty.
+    pub is_empty: bool,
+}
+
 /// SearchField — port of `@heroui/search-field` (v3).
 ///
 /// An [`Input`] specialised for search: a leading magnifier icon and a clear
@@ -1847,7 +1888,7 @@ impl RenderOnce for TextField {
 pub struct SearchField {
     state: Entity<InputState>,
     /// See [`SearchField::content`]: v3's field children-as-a-function.
-    content: Option<std::sync::Arc<dyn Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static>>,
+    content: Option<std::sync::Arc<dyn Fn(SearchFieldRenderState) -> gpui::AnyElement + 'static>>,
     /// `name` — the submission name, forwarded to the inner `Input`.
     name: Option<SharedString>,
     /// `defaultValue` — forwarded to the inner `Input`.
@@ -1880,11 +1921,11 @@ pub struct SearchField {
 }
 
 impl SearchField {
-    /// v3's field `children`-as-a-function, handed `{isFocused, isFocusWithin,
-    /// isFocusVisible}`; see [`Input::content`].
+    /// v3's field `children`-as-a-function, handed the complete resolved field
+    /// and query state.
     pub fn content(
         mut self,
-        render: impl Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static,
+        render: impl Fn(SearchFieldRenderState) -> gpui::AnyElement + 'static,
     ) -> Self {
         self.content = Some(std::sync::Arc::new(render));
         self
@@ -2037,9 +2078,23 @@ impl RenderOnce for SearchField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
         let validate = self.validate.clone();
+        let content_flags = (self.is_disabled, self.is_read_only, self.is_required);
         let mut input = Input::new(self.state)
             .when_some(self.content, |i, render| {
-                i.content(move |state| render(state))
+                i.search_content(move |focus, is_invalid, value| {
+                    let is_empty = value.is_empty();
+                    render(SearchFieldRenderState {
+                        is_disabled: content_flags.0,
+                        is_invalid,
+                        is_read_only: content_flags.1,
+                        is_required: content_flags.2,
+                        is_focused: focus.is_focused,
+                        is_focus_within: focus.is_focus_within,
+                        is_focus_visible: focus.is_focus_visible,
+                        value,
+                        is_empty,
+                    })
+                })
             })
             .placeholder(self.placeholder)
             .when_some(self.name, |i, n| i.name(n))
