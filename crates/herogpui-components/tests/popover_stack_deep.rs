@@ -249,6 +249,7 @@ fn controlled_popover_contains_tab_and_close_activates_with_enter(cx: &mut TestA
                 Popover::new(Button::new("popover-scope-trigger").label("Trigger"))
                     .id("popover-scope")
                     .is_open(is_open)
+                    .show_close_button(true)
                     .on_open_change({
                         let open = open.clone();
                         move |value, window, _| {
@@ -281,6 +282,33 @@ fn controlled_popover_contains_tab_and_close_activates_with_enter(cx: &mut TestA
 }
 
 #[gpui::test]
+fn popover_does_not_inject_a_close_button_by_default(cx: &mut TestAppContext) {
+    still();
+    let actions = events();
+    let recorded = actions.clone();
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        Popover::new(Button::new("popover-no-close-trigger").label("Trigger"))
+            .id("popover-no-close")
+            .default_open(true)
+            .child(
+                Button::new("popover-no-close-action")
+                    .label("Action")
+                    .on_press(move |_, _, _| actions.borrow_mut().push("action".into())),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["action"],
+        "v3 composes close controls explicitly, so the first tab stop must be caller content"
+    );
+}
+
+#[gpui::test]
 fn popover_close_activates_with_space(cx: &mut TestAppContext) {
     still();
     let changes = events();
@@ -292,6 +320,7 @@ fn popover_close_activates_with_space(cx: &mut TestAppContext) {
         Popover::new(Button::new("popover-space-trigger").label("Trigger"))
             .id("popover-space")
             .is_open(*open.borrow())
+            .show_close_button(true)
             .on_open_change({
                 let open = open.clone();
                 move |value, window, _| {
@@ -544,9 +573,9 @@ fn nested_popover_outside_press_closes_only_the_topmost_overlay(cx: &mut TestApp
             .into_any_element()
     });
 
-    // This is outside both panels. GPUI invokes the Modal's capture listener
-    // before the Popover's, so propagation alone would close the wrong layer.
-    click(cx, 100., 100.);
+    // This is outside both panels. Capture listeners run in registration
+    // order, so propagation alone would close the wrong layer.
+    click(cx, 1000., 100.);
     assert_eq!(
         popover_recorded.borrow().as_slice(),
         ["popover:false"],
@@ -557,7 +586,7 @@ fn nested_popover_outside_press_closes_only_the_topmost_overlay(cx: &mut TestApp
         "the first outside press must not close the outer popover"
     );
 
-    click(cx, 100., 100.);
+    click(cx, 1000., 100.);
     assert_eq!(
         outer_recorded.borrow().as_slice(),
         ["outer:false"],

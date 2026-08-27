@@ -624,7 +624,11 @@ impl RenderOnce for ComboBox {
             let focused = self.state.read(cx).focus_handle.is_focused(window);
             let mut held = *focus_open.read(cx);
             let mut now_open = open_state;
-            if focused && !open_state && held.can_open {
+            if focused && !open_state && held.was_open {
+                // The list closed while the field still has the focus: the
+                // user dismissed it, so it must not come back.
+                held.can_open = false;
+            } else if focused && !open_state && held.can_open {
                 // A fresh focus session: the field taking focus is the
                 // gesture, when there is something to show -- the panel's own
                 // gate of a non-empty result or an allowed empty state.
@@ -646,10 +650,6 @@ impl RenderOnce for ComboBox {
                     held.can_open = false;
                     now_open = true;
                 }
-            } else if focused && !open_state && held.was_open {
-                // The list closed while the field still has the focus: the
-                // user dismissed it, so it must not come back.
-                held.can_open = false;
             }
             if !focused {
                 // The focus left; the next focus session may open again.
@@ -661,15 +661,12 @@ impl RenderOnce for ComboBox {
 
         let on_open_change = self.on_open_change.clone();
         let is_open = open_state;
-        // Whether the pointer went down on the chevron. The panel's
-        // outside-press dismissal treats the trigger as outside its own bounds,
-        // so a press on an *open* list's chevron would dismiss it on the
-        // mouse-down *and* toggle it back open through the chevron's own click
-        // on the mouse-up -- one press, two contradictory reports. The
-        // chevron's capture-phase handler runs before the panel's
-        // `on_mouse_down_out` in the same dispatch, so the dismissal can see it
-        // and leave the close to the chevron's click.
-        let trigger_pressed = std::rc::Rc::new(std::cell::Cell::new(false));
+        // Whether the pointer went down inside the input-plus-panel subtree.
+        // The panel's outside-press listener reads only the panel bounds, so
+        // the input is geometrically outside it even though both belong to the
+        // same ComboBox. Capture the whole subtree for one dispatch: input
+        // presses keep the list open, and the chevron or a row owns its click.
+        let inside_pressed = std::rc::Rc::new(std::cell::Cell::new(false));
         let mut trigger = div()
             .id(gpui::ElementId::Name(
                 format!("combobox-{entity_id}-trigger").into(),
@@ -692,16 +689,10 @@ impl RenderOnce for ComboBox {
             trigger = trigger.cursor_pointer().hover(move |s| s.bg(hover_bg));
             if on_open_change.is_some() || open_own.is_some() {
                 let own = open_own.clone();
-                let pressed = trigger_pressed.clone();
                 let focus_open = focus_open.clone();
                 let show_all_items = show_all_items.clone();
                 let close = close_open.clone();
                 trigger = trigger
-                    .capture_any_mouse_down(move |_, _, cx| {
-                        pressed.set(true);
-                        let pressed = pressed.clone();
-                        cx.defer(move |_| pressed.set(false));
-                    })
                     // The chevron is a separate React Aria button. Focus the
                     // input on press start, but do not let its down bubble into
                     // the input row and also trigger the default focus-open path.
@@ -943,7 +934,15 @@ impl RenderOnce for ComboBox {
         // inline-flex items-center`), and it is the panel's positioning
         // context: `.combo-box__value` sits below the field inside the root,
         // so a value row that appears under it must not push the popover down.
-        let mut input_group = div().relative().child(input.render(window, cx));
+        let inside_pressed_for_group = inside_pressed.clone();
+        let mut input_group = div()
+            .relative()
+            .capture_any_mouse_down(move |_, _, cx| {
+                inside_pressed_for_group.set(true);
+                let pressed = inside_pressed_for_group.clone();
+                cx.defer(move |_| pressed.set(false));
+            })
+            .child(input.render(window, cx));
         let mut root = div()
             // Without a placeholder the inner input has no intrinsic width and
             // the trigger collapses to just its chevron, which is unclickable.
@@ -1298,9 +1297,9 @@ impl RenderOnce for ComboBox {
 
             // React Aria dismisses the list on a press outside it; Escape is
             // read in the field's own key handler above. A press that started
-            // on the chevron trigger is not an outside press: the chevron's
-            // own click owns the close, and the click only fires because the
-            // down was not stolen as a dismissal.
+            // in the input-plus-panel subtree is not outside the ComboBox;
+            // the input keeps the list open, while the chevron and rows own
+            // their respective clicks.
             let dismiss_close = close_open.clone();
             let dismiss_commit = commit_value.clone();
             let dismiss_blur = blur_scope;
@@ -1308,7 +1307,7 @@ impl RenderOnce for ComboBox {
                 panel,
                 dismissal_token,
                 move |window, cx| {
-                    if trigger_pressed.get() {
+                    if inside_pressed.get() {
                         return util::DismissResult::Declined;
                     }
                     dismiss_blur.consume(cx);

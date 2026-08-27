@@ -627,6 +627,88 @@ fn popover_every_placement_opens_from_its_trigger_and_dismisses(cx: &mut TestApp
     }
 }
 
+#[gpui::test]
+fn popover_should_flip_moves_an_overflowing_bottom_panel_above(cx: &mut TestAppContext) {
+    still();
+    let pressed = events();
+    let recorded = pressed.clone();
+    let cx = open_host(cx, move || {
+        let pressed = pressed.clone();
+        gpui::div()
+            .mt(px(1000.))
+            .child(
+                Popover::new(gpui::div().w(px(100.)).h(px(36.)).child("Trigger"))
+                    .id("pl-pop-flip")
+                    .default_open(true)
+                    .placement(Placement::Bottom)
+                    .should_flip(true)
+                    .show_close_button(false)
+                    .child(
+                        gpui::div()
+                            .id("pl-pop-flip-probe")
+                            .debug_selector(|| "pl-pop-flip-probe".to_owned())
+                            .w(px(40.))
+                            .h(px(36.))
+                            .on_click(move |_, _, _| {
+                                pressed.borrow_mut().push("flipped".to_owned());
+                            }),
+                    ),
+            )
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    let bounds = cx
+        .debug_bounds("pl-pop-flip-probe")
+        .expect("open popover probe must render");
+
+    // Requested below, the 68px panel would start at y=1044 and overflow the
+    // 1080px test window. React Aria's default `shouldFlip=true` changes the
+    // orientation, so it lands at y=924..992 and the 36px probe inside its
+    // 16px padding spans y=940..976. Snapping instead would leave the panel at
+    // y=1012..1080, where this point cannot hit it.
+    click(cx, 36., 958.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["flipped"],
+        "shouldFlip must mirror an overflowing bottom panel above its trigger; got {bounds:?}"
+    );
+}
+
+#[gpui::test]
+fn popover_should_flip_false_keeps_the_requested_overflowing_side(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .mt(px(1000.))
+            .child(
+                Popover::new(gpui::div().w(px(100.)).h(px(36.)).child("Trigger"))
+                    .id("pl-pop-no-flip")
+                    .default_open(true)
+                    .placement(Placement::Bottom)
+                    .should_flip(false)
+                    .show_close_button(false)
+                    .child(
+                        gpui::div()
+                            .id("pl-pop-no-flip-probe")
+                            .debug_selector(|| "pl-pop-no-flip-probe".to_owned())
+                            .w(px(40.))
+                            .h(px(36.)),
+                    ),
+            )
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    let bounds = cx
+        .debug_bounds("pl-pop-no-flip-probe")
+        .expect("open popover probe must render");
+    assert!(
+        f32::from(bounds.origin.y) >= 1060.,
+        "shouldFlip=false must preserve the requested bottom orientation; got {bounds:?}"
+    );
+}
+
 /// A popover opened by its controlled `isOpen` answers Escape.
 ///
 /// It did not: `popover.rs` binds `util::dismiss_on_escape` on its root, a key

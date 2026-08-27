@@ -2,7 +2,7 @@
 
 mod harness;
 
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::Cell, cell::RefCell, collections::HashMap, rc::Rc};
 
 use gpui::{prelude::*, px, TestAppContext};
 use harness::{click, events, open_host};
@@ -185,10 +185,13 @@ fn higher_overlay_does_not_dismiss_open_submenu(cx: &mut TestAppContext) {
     let recorded = changes.clone();
     let higher_bounds = Rc::new(RefCell::new(None));
     let higher_bounds_for_render = higher_bounds.clone();
+    let higher_open = Rc::new(Cell::new(false));
+    let higher_open_for_render = higher_open.clone();
 
     let cx = open_host(cx, move || {
         let changes = changes.clone();
         let higher_bounds = higher_bounds_for_render.clone();
+        let higher_open = higher_open_for_render.get();
         gpui::div()
             .flex()
             .gap(px(24.))
@@ -206,7 +209,7 @@ fn higher_overlay_does_not_dismiss_open_submenu(cx: &mut TestAppContext) {
             )
             .child(
                 Popover::new(Button::new("submenu-higher-trigger").label("Higher"))
-                    .is_open(true)
+                    .is_open(higher_open)
                     .on_open_change({
                         move |open, _, _| changes.borrow_mut().push(format!("popover:{open}"))
                     })
@@ -229,6 +232,7 @@ fn higher_overlay_does_not_dismiss_open_submenu(cx: &mut TestAppContext) {
 
     click(cx, 40., 18.);
     click(cx, 40., 64.);
+    higher_open.set(true);
     cx.update(|window, _| window.refresh());
     let bounds = higher_bounds
         .borrow()

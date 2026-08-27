@@ -102,6 +102,10 @@ fn nested_combo_box_escape_closes_child_once_inside_parent(cx: &mut TestAppConte
 
     child_point(cx);
     flush_frame(cx);
+    assert!(
+        events.borrow().is_empty(),
+        "pressing the ComboBox input must not count as an outside dismissal"
+    );
     press(cx, "escape");
     assert_eq!(
         events.borrow().as_slice(),

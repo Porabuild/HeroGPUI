@@ -1,8 +1,9 @@
 //! Popover — port of `@heroui/popover`.
 
 use gpui::{
-    prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
-    SharedString, StatefulInteractiveElement, Styled, Window,
+    point, prelude::*, px, AnyElement, App, Bounds, ClickEvent, Display, Element, GlobalElementId,
+    InspectorElementId, IntoElement, LayoutId, ParentElement, Pixels, Position, RenderOnce,
+    SharedString, Size, StatefulInteractiveElement, Style, Styled, Window,
 };
 use herogpui_theme::ActiveTheme;
 
@@ -12,6 +13,320 @@ use herogpui_theme::ActiveTheme;
 pub use herogpui_core::Placement as PopoverPlacement;
 
 type OnOpenChange = std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>;
+
+#[derive(Clone, Copy)]
+enum PopoverSide {
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
+impl PopoverSide {
+    fn opposite(self) -> Self {
+        match self {
+            Self::Top => Self::Bottom,
+            Self::Bottom => Self::Top,
+            Self::Left => Self::Right,
+            Self::Right => Self::Left,
+        }
+    }
+}
+
+struct PopoverPositioner {
+    trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+    placement: PopoverPlacement,
+    offset: Pixels,
+    should_flip: bool,
+    children: Vec<AnyElement>,
+}
+
+struct PopoverTriggerMeasure {
+    child: AnyElement,
+    bounds: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+}
+
+impl PopoverTriggerMeasure {
+    fn new(
+        child: impl IntoElement,
+        bounds: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+    ) -> Self {
+        Self {
+            child: child.into_any_element(),
+            bounds,
+        }
+    }
+}
+
+impl Element for PopoverTriggerMeasure {
+    type RequestLayoutState = ();
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<gpui::ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, Self::RequestLayoutState) {
+        (self.child.request_layout(window, cx), ())
+    }
+
+    fn prepaint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        bounds: Bounds<Pixels>,
+        _: &mut Self::RequestLayoutState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.bounds.set(Some(bounds));
+        self.child.prepaint(window, cx);
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut Self::RequestLayoutState,
+        _: &mut Self::PrepaintState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        self.child.paint(window, cx);
+    }
+}
+
+impl IntoElement for PopoverTriggerMeasure {
+    type Element = Self;
+
+    fn into_element(self) -> Self::Element {
+        self
+    }
+}
+
+impl PopoverPositioner {
+    fn new(
+        trigger: std::rc::Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
+        placement: PopoverPlacement,
+        offset: Pixels,
+        should_flip: bool,
+    ) -> Self {
+        Self {
+            trigger,
+            placement,
+            offset,
+            should_flip,
+            children: Vec::new(),
+        }
+    }
+
+    fn preferred_side(&self) -> PopoverSide {
+        match self.placement {
+            PopoverPlacement::Left => PopoverSide::Left,
+            PopoverPlacement::Right => PopoverSide::Right,
+            placement if placement.is_above() => PopoverSide::Top,
+            _ => PopoverSide::Bottom,
+        }
+    }
+
+    fn available(
+        &self,
+        side: PopoverSide,
+        trigger: Bounds<Pixels>,
+        viewport: Size<Pixels>,
+    ) -> Pixels {
+        match side {
+            PopoverSide::Top => trigger.top(),
+            PopoverSide::Bottom => viewport.height - trigger.bottom(),
+            PopoverSide::Left => trigger.left(),
+            PopoverSide::Right => viewport.width - trigger.right(),
+        }
+    }
+
+    fn resolved_side(
+        &self,
+        trigger: Bounds<Pixels>,
+        popup: Size<Pixels>,
+        viewport: Size<Pixels>,
+    ) -> PopoverSide {
+        let preferred = self.preferred_side();
+        if !self.should_flip {
+            return preferred;
+        }
+        let opposite = preferred.opposite();
+        let extent = match preferred {
+            PopoverSide::Top | PopoverSide::Bottom => popup.height + self.offset,
+            PopoverSide::Left | PopoverSide::Right => popup.width + self.offset,
+        };
+        if extent <= self.available(preferred, trigger, viewport) {
+            preferred
+        } else if extent <= self.available(opposite, trigger, viewport) {
+            opposite
+        } else if self.available(preferred, trigger, viewport)
+            >= self.available(opposite, trigger, viewport)
+        {
+            preferred
+        } else {
+            opposite
+        }
+    }
+
+    fn origin(
+        &self,
+        trigger: Bounds<Pixels>,
+        popup: Size<Pixels>,
+        viewport: Size<Pixels>,
+    ) -> gpui::Point<Pixels> {
+        use herogpui_core::PlacementAlign;
+
+        let side = self.resolved_side(trigger, popup, viewport);
+        let align = self.placement.align();
+        let aligned_x = match align {
+            PlacementAlign::Start => trigger.left(),
+            PlacementAlign::Center => trigger.center().x - px(f32::from(popup.width) / 2.0),
+            PlacementAlign::End => trigger.right() - popup.width,
+        };
+        let aligned_y = match align {
+            PlacementAlign::Start => trigger.top(),
+            PlacementAlign::Center => trigger.center().y - px(f32::from(popup.height) / 2.0),
+            PlacementAlign::End => trigger.bottom() - popup.height,
+        };
+        let mut origin = match side {
+            PopoverSide::Top => point(aligned_x, trigger.top() - popup.height - self.offset),
+            PopoverSide::Bottom => point(aligned_x, trigger.bottom() + self.offset),
+            PopoverSide::Left => point(trigger.left() - popup.width - self.offset, aligned_y),
+            PopoverSide::Right => point(trigger.right() + self.offset, aligned_y),
+        };
+
+        let max_x = (viewport.width - popup.width).max(px(0.));
+        let max_y = (viewport.height - popup.height).max(px(0.));
+        if matches!(side, PopoverSide::Top | PopoverSide::Bottom) {
+            origin.x = origin.x.max(px(0.)).min(max_x);
+            if self.should_flip {
+                origin.y = origin.y.max(px(0.)).min(max_y);
+            }
+        } else {
+            origin.y = origin.y.max(px(0.)).min(max_y);
+            if self.should_flip {
+                origin.x = origin.x.max(px(0.)).min(max_x);
+            }
+        }
+        origin
+    }
+}
+
+impl ParentElement for PopoverPositioner {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.children.extend(elements);
+    }
+}
+
+struct PopoverPositionerState {
+    children: Vec<LayoutId>,
+}
+
+impl Element for PopoverPositioner {
+    type RequestLayoutState = PopoverPositionerState;
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<gpui::ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, Self::RequestLayoutState) {
+        let children = self
+            .children
+            .iter_mut()
+            .map(|child| child.request_layout(window, cx))
+            .collect::<Vec<_>>();
+        let layout = window.request_layout(
+            Style {
+                position: Position::Absolute,
+                display: Display::Flex,
+                ..Style::default()
+            },
+            children.iter().copied(),
+            cx,
+        );
+        (layout, PopoverPositionerState { children })
+    }
+
+    fn prepaint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        bounds: Bounds<Pixels>,
+        state: &mut Self::RequestLayoutState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        if state.children.is_empty() {
+            return;
+        }
+        let Some(trigger) = self.trigger.get() else {
+            return;
+        };
+        let mut minimum = point(Pixels::MAX, Pixels::MAX);
+        let mut maximum = gpui::Point::default();
+        for layout in &state.children {
+            let child = window.layout_bounds(*layout);
+            minimum = minimum.min(&child.origin);
+            maximum = maximum.max(&child.bottom_right());
+        }
+        let popup = (maximum - minimum).into();
+        let offset = self.origin(trigger, popup, window.viewport_size()) - bounds.origin;
+        let offset = point(offset.x.round(), offset.y.round());
+        window.with_element_offset(offset, |window| {
+            for child in &mut self.children {
+                child.prepaint(window, cx);
+            }
+        });
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut Self::RequestLayoutState,
+        _: &mut Self::PrepaintState,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        for child in &mut self.children {
+            child.paint(window, cx);
+        }
+    }
+}
+
+impl IntoElement for PopoverPositioner {
+    type Element = Self;
+
+    fn into_element(self) -> Self::Element {
+        self
+    }
+}
 
 /// HeroUI Popover (controlled).
 #[derive(IntoElement)]
@@ -26,7 +341,7 @@ pub struct Popover {
     placement: PopoverPlacement,
     title: Option<SharedString>,
     show_close_button: bool,
-    offset: gpui::Pixels,
+    offset: Pixels,
     should_flip: bool,
     on_open_change: Option<OnOpenChange>,
     children: Vec<AnyElement>,
@@ -43,7 +358,7 @@ impl Popover {
             offset: px(8.),
             should_flip: true,
             title: None,
-            show_close_button: true,
+            show_close_button: false,
             on_open_change: None,
             children: Vec::new(),
         }
@@ -73,15 +388,12 @@ impl Popover {
     }
 
     /// `offset` — distance from the trigger, 8px in v3.
-    pub fn offset(mut self, offset: impl Into<gpui::Pixels>) -> Self {
+    pub fn offset(mut self, offset: impl Into<Pixels>) -> Self {
         self.offset = offset.into();
         self
     }
 
     /// `shouldFlip` — lets the panel reposition to stay inside the window.
-    ///
-    /// gpui slides the panel back into the viewport rather than mirroring it to
-    /// the opposite side, which is the closest behaviour `anchored` offers.
     pub fn should_flip(mut self, v: bool) -> Self {
         self.should_flip = v;
         self
@@ -143,6 +455,7 @@ impl RenderOnce for Popover {
         // Both `use_keyed_state` calls take `cx` mutably, so they precede the
         // theme tokens.
         let base = format!("{:?}", self.id);
+        let anchor_bounds = std::rc::Rc::new(std::cell::Cell::new(None::<Bounds<Pixels>>));
         let root_focus = window
             .use_keyed_state(
                 gpui::ElementId::Name(format!("{base}-root-focus").into()),
@@ -214,13 +527,15 @@ impl RenderOnce for Popover {
                 });
         }
 
+        let trigger =
+            PopoverTriggerMeasure::new(trigger_wrap.child(self.trigger), anchor_bounds.clone());
         let mut root = gpui::div()
             .track_focus(&root_focus)
             .relative()
             .flex()
             .flex_col()
             .items_start()
-            .child(trigger_wrap.child(self.trigger));
+            .child(trigger);
 
         if phase == crate::util::OverlayPhase::Closed {
             return root;
@@ -250,7 +565,7 @@ impl RenderOnce for Popover {
             header_row = header_row.child(
                 gpui::div()
                     .text_size(px(14.))
-                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .font_weight(gpui::FontWeight::MEDIUM)
                     .text_color(colors.foreground)
                     .child(title.to_string()),
             );
@@ -280,7 +595,7 @@ impl RenderOnce for Popover {
             .text_color(colors.surface.foreground)
             // `.popover` is `text-sm`.
             .text_size(px(14.))
-            .rounded(crate::util::control_radius(cx))
+            .rounded(crate::util::container_radius(cx))
             // v3 gives a floating panel no border: `.popover` and friends are
             // `bg-overlay shadow-overlay` and a radius, and dark mode's
             // inset hairline is what separates the panel from the page.
@@ -320,10 +635,8 @@ impl RenderOnce for Popover {
                 crate::util::DismissResult::Handled
             });
 
-        let placed = crate::util::placed_panel(self.placement, self.offset);
-
         // v3 fades the panel in on `[data-entering]`.
-        let zoom = crate::anim::ZoomBox::panel(px(12.), crate::util::control_radius(cx))
+        let zoom = crate::anim::ZoomBox::panel(px(12.), crate::util::container_radius(cx))
             .padding_x(px(14.))
             .sized(px(260.));
         let panel = if exiting {
@@ -344,19 +657,10 @@ impl RenderOnce for Popover {
             )
         };
 
-        // `shouldFlip` lets the panel move to stay on screen. gpui's `anchored`
-        // slides it back inside the window rather than mirroring it to the
-        // opposite side, which is the closest primitive available.
-        if self.should_flip {
-            root = root.child(
-                gpui::anchored()
-                    .position_mode(gpui::AnchoredPositionMode::Local)
-                    .snap_to_window()
-                    .child(placed.child(panel)),
-            );
-        } else {
-            root = root.child(placed.child(panel));
-        }
+        root = root.child(
+            PopoverPositioner::new(anchor_bounds, self.placement, self.offset, self.should_flip)
+                .child(panel),
+        );
         root
     }
 }

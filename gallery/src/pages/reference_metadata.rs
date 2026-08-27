@@ -10159,6 +10159,77 @@ pub(crate) const SELECT: ReferenceMetadata = ReferenceMetadata {
     styling: SELECT_STYLING,
 };
 
+const POPOVER_REQUIRED_PARTS: &[&str] = &[
+    "Popover",
+    "Popover.Trigger",
+    "Popover.Content",
+    "Popover.Arrow",
+    "Popover.Dialog",
+    "Popover.Heading",
+];
+
+const POPOVER_API: &[ApiDoc] = &[
+    ApiDoc { owner: "Popover", prop: "children", ty: "React.ReactNode", default: "—", description: "Compound trigger and content children; the port takes the trigger positionally and panel children through ParentElement.", rust_owner: "Popover", rust: "new(trigger)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Popover", prop: "isOpen", ty: "boolean", default: "—", description: "Controlled open state.", rust_owner: "Popover", rust: "is_open(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Popover", prop: "defaultOpen", ty: "boolean", default: "false", description: "Initial uncontrolled open state.", rust_owner: "Popover", rust: "default_open(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Popover", prop: "onOpenChange", ty: "(isOpen: boolean) => void", default: "—", description: "Reports trigger, Escape, outside-press and explicit close changes.", rust_owner: "Popover", rust: "on_open_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Popover.Content", prop: "children", ty: "React.ReactNode", default: "—", description: "Arbitrary GPUI panel children are accepted, but Content is not a separately composable part.", rust_owner: "Popover", rust: "—", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Popover.Content", prop: "placement", ty: "Placement", default: "\"bottom\"", description: "Eight cardinal/start/end placements are available; React Aria's full placement union is not represented.", rust_owner: "Popover", rust: "placement(PopoverPlacement)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Popover.Content", prop: "offset", ty: "number", default: "8", description: "Distance between trigger and panel.", rust_owner: "Popover", rust: "offset(Pixels)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Popover.Content", prop: "shouldFlip", ty: "boolean", default: "true", description: "Changes to the opposite orientation when the preferred side would overflow and the opposite side fits better.", rust_owner: "Popover", rust: "should_flip(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Popover.Content", prop: "className", ty: "string", default: "—", description: "Additional DOM classes have no GPUI analogue.", rust_owner: "Popover", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Popover.Content", prop: "render", ty: "DOMRenderFunction<PopoverRenderProps>", default: "—", description: "DOM element replacement is not available.", rust_owner: "Popover", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Popover.Dialog", prop: "children", ty: "React.ReactNode", default: "—", description: "Panel children render inside the built-in dialog padding, but Dialog is not separately composable.", rust_owner: "Popover", rust: "—", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Popover.Dialog", prop: "className", ty: "string", default: "—", description: "Additional dialog classes.", rust_owner: "Popover", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Popover.Trigger", prop: "children", ty: "React.ReactNode", default: "—", description: "Caller-provided trigger content is the positional constructor argument.", rust_owner: "Popover", rust: "new(trigger)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Popover.Trigger", prop: "className", ty: "string", default: "—", description: "Additional trigger classes.", rust_owner: "Popover", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Popover.Arrow", prop: "children", ty: "React.ReactNode", default: "—", description: "Neither the built-in 12px arrow nor custom arrow content is currently drawn.", rust_owner: "Popover", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Popover.Arrow", prop: "className", ty: "string", default: "—", description: "Additional arrow classes.", rust_owner: "Popover", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Popover.Arrow", prop: "render", ty: "DOMRenderFunction<OverlayArrowRenderProps>", default: "—", description: "Arrow DOM replacement is not available.", rust_owner: "Popover", rust: "—", status: ImplementationStatus::Unavailable },
+];
+
+const POPOVER_PARTS: &[PartDoc] = &[
+    PartDoc { name: "Popover", slot: "popover-root", description: "Controlled or uncontrolled owner of open state, focus scope and dismissal lifecycle.", rust_owner: "Popover", status: ImplementationStatus::Implemented },
+    PartDoc { name: "Popover.Trigger", slot: "popover-trigger", description: "Interactive wrapper around the positional trigger child; not separately replaceable or styled.", rust_owner: "Popover", status: ImplementationStatus::Partial },
+    PartDoc { name: "Popover.Content", slot: "popover", description: "Placement-aware overlay surface with true orientation flipping and pinned entry/exit motion.", rust_owner: "Popover", status: ImplementationStatus::Partial },
+    PartDoc { name: "Popover.Arrow", slot: "popover-overlay-arrow", description: "Pinned source supplies a built-in or caller-provided 12px arrow; the port does not draw this part.", rust_owner: "Popover", status: ImplementationStatus::Unavailable },
+    PartDoc { name: "Popover.Dialog", slot: "popover-dialog", description: "Dialog focus scope and 16px content inset are built into the monolithic panel.", rust_owner: "Popover", status: ImplementationStatus::Partial },
+    PartDoc { name: "Popover.Heading", slot: "title", description: "The title builder draws the medium-weight heading, but Heading is not an independently composable part.", rust_owner: "Popover", status: ImplementationStatus::Partial },
+];
+
+const POPOVER_STATES: &[StateDoc] = &[
+    StateDoc { state: "Entering", selector: ".popover[data-entering=true]", description: "150ms Smooth fade and zoom from 90%; v3's placement-specific 4px translation is not reproduced.", rust: "overlay_scope Open + entering_zoom(Motion::POPOVER_IN)", status: ImplementationStatus::Partial },
+    StateDoc { state: "Exiting", selector: ".popover[data-exiting=true]", description: "Remains mounted for the 100ms Smooth fade and zoom to 95%.", rust: "overlay_scope Exiting + exiting(Motion::LIST_OUT)", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Placement", selector: ".popover[data-placement=*]", description: "Eight placements align to the trigger and shouldFlip resolves the fitting orientation; placement attributes and the wider React Aria union are absent.", rust: "PopoverPositioner + Placement", status: ImplementationStatus::Partial },
+    StateDoc { state: "Focus visible", selector: ".popover__trigger[data-focus-visible=true]", description: "Keyboard focus and its visible ring remain owned by the caller-provided trigger control.", rust: "trigger child focus treatment", status: ImplementationStatus::Partial },
+];
+
+const POPOVER_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".popover surface", value: "bg-overlay p-0 text-sm; min(32px, --radius-3xl); shadow-overlay", description: "Surface colour, 14px text, capped radius and overlay shadow match; the monolithic panel combines root and dialog padding.", rust: "overlay colors + text_size(px(14.)) + container_radius + overlay_shadow", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".popover__dialog", value: "p-4 outline-none", description: "Sixteen-pixel inset and a programmatic dialog focus scope.", rust: "px(px(16.)) + py(px(16.)) + panel_focus", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".popover__heading", value: "font-medium", description: "Heading uses the pinned 500 weight.", rust: "FontWeight::MEDIUM", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".popover[data-entering=true]", value: "150ms ease-smooth fade-in-0 zoom-in-90 + placement slide 4px", description: "Duration, curve, fade and zoom match; transform origin and placement slide are absent.", rust: "Motion::POPOVER_IN + entering_zoom", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".popover[data-exiting=true]", value: "100ms ease-smooth zoom-out-95 fade-out", description: "Exit duration, curve, fade and zoom match.", rust: "Motion::LIST_OUT + exiting", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".popover [data-slot=popover-overlay-arrow]", value: "12px; fill overlay; placement rotation", description: "The compound Arrow part is not drawn.", rust: "—", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: ".popover__trigger", value: "inline-block; 150ms colour/background/shadow transitions; interactive cursor; focus/disabled statuses", description: "The wrapper is interactive and the child owns focus/disabled visuals, but inline-block and these transitions are not reproduced.", rust: "relative flex wrapper + cursor_pointer", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: "reduced motion", value: "motion-reduce: animation none", description: "The panel renders immediately without geometric animation.", rust: "HEROGPUI_REDUCE_MOTION + animation helpers", status: ImplementationStatus::Implemented },
+];
+
+pub(crate) const POPOVER: ReferenceMetadata = ReferenceMetadata {
+    page: "Popover",
+    import_line: "use herogpui::components::popover::{Popover, PopoverPlacement};",
+    source_module: "popover",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(overlays)/popover.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/popover/popover.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/Popover.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/popover.css",
+    required_parts: POPOVER_REQUIRED_PARTS,
+    api: POPOVER_API,
+    parts: POPOVER_PARTS,
+    states: POPOVER_STATES,
+    styling: POPOVER_STYLING,
+};
+
 const TOOLTIP_REQUIRED_PARTS: &[&str] = &[
     "Tooltip",
     "Tooltip.Trigger",
@@ -10713,6 +10784,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     PROGRESS_CIRCLE,
     SEPARATOR,
     SELECT,
+    POPOVER,
     TOOLTIP,
     TABLE,
     ACCORDION,

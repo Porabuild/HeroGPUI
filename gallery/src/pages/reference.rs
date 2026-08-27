@@ -1555,6 +1555,41 @@ impl Widget {
     }
 
     #[test]
+    fn popover_metadata_tracks_compound_anatomy_and_true_flipping() {
+        let metadata = reference_metadata::for_route(
+            "Popover",
+            "use herogpui::components::popover::{Popover, PopoverPlacement};",
+        )
+        .expect("Popover metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for required in metadata.required_parts {
+            assert!(
+                metadata.parts.iter().any(|part| part.name == *required),
+                "registered Popover part disappeared: {required}"
+            );
+        }
+        for prop in ["isOpen", "defaultOpen", "onOpenChange"] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "Popover"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        for prop in ["offset", "shouldFlip"] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "Popover.Content"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.parts.iter().any(|part| {
+            part.name == "Popover.Arrow"
+                && part.status == reference_metadata::ImplementationStatus::Unavailable
+        }));
+    }
+
+    #[test]
     fn select_metadata_tracks_compound_ownership_and_visual_limits() {
         let metadata =
             reference_metadata::for_route("Select", "use herogpui::components::select::Select;")
