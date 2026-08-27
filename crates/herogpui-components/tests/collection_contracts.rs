@@ -61,8 +61,8 @@ fn tall_cell(text: impl Into<SharedString>) -> gpui::AnyElement {
 
 /// React Stately's `SelectionManager::toggleSelection` removes an already
 /// selected key unless `disallowEmptySelection` is true. HeroUI does not
-/// expose that inherited prop in its v3 table, so this pins its default false
-/// behavior without inventing a builder.
+/// repeat that inherited prop in its v3 table, so this pins its default false
+/// behavior alongside the explicit builder tests below.
 #[gpui::test]
 fn list_box_single_reselect_clears_by_default(cx: &mut TestAppContext) {
     let selected = Rc::new(RefCell::new(HashSet::<SharedString>::new()));
@@ -96,6 +96,56 @@ fn list_box_single_reselect_clears_by_default(cx: &mut TestAppContext) {
         ["alpha", ""],
         "reselecting the only selected row must clear the selection"
     );
+}
+
+#[gpui::test]
+fn list_box_disallow_empty_selection_blocks_final_item_reselect(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ListBox::new(
+            "contract-list-keep-final",
+            vec![ListBoxItem::new("alpha", "Alpha")],
+        )
+        .selection_mode(SelectionMode::Single)
+        .default_selected_keys([SharedString::from("alpha")])
+        .disallow_empty_selection(true)
+        .on_selection_change(move |keys, _, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+        })
+        .into_any_element()
+    });
+
+    click(cx, 60., 22.);
+    assert!(
+        recorded.borrow().is_empty(),
+        "a blocked final-key removal must emit no selection change"
+    );
+}
+
+#[gpui::test]
+fn list_box_disallow_empty_selection_keeps_last_multiple_item(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ListBox::new(
+            "contract-list-keep-final-multiple",
+            vec![ListBoxItem::new("alpha", "Alpha")],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_selected_keys([SharedString::from("alpha")])
+        .disallow_empty_selection(true)
+        .on_selection_change(move |keys, _, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "space");
+    assert!(recorded.borrow().is_empty());
 }
 
 /// Pinned React Aria 3.51 binds platform Mod+A to `selectAll` in a
@@ -261,6 +311,39 @@ fn list_box_escape_clears_uncontrolled_selection_and_keeps_focus(cx: &mut TestAp
         ["", "outer-escape", "alpha", "outer-escape"],
         "handled Escape must stop, while empty and modified Escape pass through without losing focus"
     );
+}
+
+#[gpui::test]
+fn list_box_disallow_empty_selection_leaves_escape_unhandled(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let outer_events = for_view.clone();
+        let selection_events = for_view.clone();
+        gpui::div()
+            .on_key_down(move |event, _, _| {
+                if event.keystroke.key == "escape" {
+                    outer_events.borrow_mut().push("outer-escape".into());
+                }
+            })
+            .child(
+                ListBox::new(
+                    "contract-list-keep-escape",
+                    vec![ListBoxItem::new("alpha", "Alpha")],
+                )
+                .selection_mode(SelectionMode::Single)
+                .default_selected_keys([SharedString::from("alpha")])
+                .disallow_empty_selection(true)
+                .on_selection_change(move |keys, _, _| {
+                    selection_events.borrow_mut().push(sorted_join(keys));
+                }),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "escape");
+    assert_eq!(recorded.borrow().as_slice(), ["outer-escape"]);
 }
 
 #[gpui::test]

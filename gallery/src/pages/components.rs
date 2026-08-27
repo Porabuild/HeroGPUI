@@ -1509,6 +1509,30 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Disallow Empty Selection",
+                    col(vec![
+                        para(
+                            "The inherited React Aria policy keeps the final selected row selected, \
+                             including when Escape would otherwise clear the collection.",
+                            cx,
+                        ),
+                        gpui::div()
+                            .w(px(280.))
+                            .child(
+                                h::ListBox::new(
+                                    "lb-keep-selection",
+                                    vec![
+                                        h::ListBoxItem::new("inbox", "Inbox"),
+                                        h::ListBoxItem::new("sent", "Sent"),
+                                    ],
+                                )
+                                .default_selected_keys([SharedString::from("inbox")])
+                                .disallow_empty_selection(true),
+                            )
+                            .into_any_element(),
+                    ]),
+                ),
+                (
                     "Virtualization",
                     col(vec![
                         para(

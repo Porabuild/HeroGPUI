@@ -486,7 +486,7 @@ EVIDENCE = {
         'list_box.rs',
         r'(?s)if !stops\.is_empty\(\) \|\| !self\.selected_keys\.is_empty\(\)'
         r'.*?key_name == "escape".*?!event\.keystroke\.modifiers\.modified\(\)'
-        r'.*?reports_changes\(mode\)'
+        r'.*?reports_changes\(mode\).*?!disallow_empty'
         r'.*?!selected_now\.is_empty\(\).*?let next = HashSet::new\(\)'
         r'.*?selection_own_for_keys.*?on_selection_change'
         r'.*?stop_propagation\(\)',

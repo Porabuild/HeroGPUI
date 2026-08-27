@@ -175,6 +175,7 @@ pub struct ListBox {
     selected_keys: HashSet<SharedString>,
     default_selected_keys: HashSet<SharedString>,
     is_controlled: bool,
+    disallow_empty_selection: bool,
     disabled_keys: HashSet<SharedString>,
     /// Applies to every item unless the item overrides it.
     variant: ListBoxItemVariant,
@@ -213,6 +214,7 @@ impl ListBox {
             selected_keys: HashSet::new(),
             default_selected_keys: HashSet::new(),
             is_controlled: false,
+            disallow_empty_selection: false,
             disabled_keys: HashSet::new(),
             variant: ListBoxItemVariant::Default,
             should_focus_wrap: false,
@@ -251,6 +253,12 @@ impl ListBox {
     /// `defaultSelectedKeys` — seeds the list's own selection state.
     pub fn default_selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.default_selected_keys = keys.into_iter().collect();
+        self
+    }
+
+    /// `disallowEmptySelection` — keeps the final selected item selected.
+    pub fn disallow_empty_selection(mut self, v: bool) -> Self {
+        self.disallow_empty_selection = v;
         self
     }
 
@@ -597,6 +605,7 @@ impl RenderOnce for ListBox {
                 .collect();
             let typed_keys = typed;
             let mode = self.selection_mode;
+            let disallow_empty = self.disallow_empty_selection;
             let selected_now = self.selected_keys.clone();
             let on_selection_change = self.on_selection_change.clone();
             let on_action = self.on_action.clone();
@@ -654,6 +663,7 @@ impl RenderOnce for ListBox {
                 if key_name == "escape"
                     && !event.keystroke.modifiers.modified()
                     && crate::selection::reports_changes(mode)
+                    && !disallow_empty
                     && !selected_now.is_empty()
                 {
                     let next = HashSet::new();
@@ -883,7 +893,7 @@ impl RenderOnce for ListBox {
                             let next = match mode {
                                 SelectionMode::None => selected_now.clone(),
                                 SelectionMode::Single => {
-                                    if selected_now.contains(&item_key) {
+                                    if selected_now.contains(&item_key) && !disallow_empty {
                                         HashSet::new()
                                     } else {
                                         HashSet::from([item_key.clone()])
@@ -891,20 +901,26 @@ impl RenderOnce for ListBox {
                                 }
                                 SelectionMode::Multiple => {
                                     let mut set = selected_now.clone();
-                                    if !set.remove(&item_key) {
+                                    if set.remove(&item_key) {
+                                        if disallow_empty && set.is_empty() {
+                                            set.insert(item_key.clone());
+                                        }
+                                    } else {
                                         set.insert(item_key.clone());
                                     }
                                     set
                                 }
                             };
-                            if let Some(held) = &selection_own_for_keys {
-                                held.update(cx, |value, cx| {
-                                    *value = next.clone();
-                                    cx.notify();
-                                });
-                            }
-                            if let Some(cb) = &on_selection_change {
-                                cb(&next, window, cx);
+                            if next != selected_now {
+                                if let Some(held) = &selection_own_for_keys {
+                                    held.update(cx, |value, cx| {
+                                        *value = next.clone();
+                                        cx.notify();
+                                    });
+                                }
+                                if let Some(cb) = &on_selection_change {
+                                    cb(&next, window, cx);
+                                }
                             }
                             if mode == SelectionMode::Multiple && !was_selected {
                                 selection_range_for_keys.update(cx, |range, _| {
@@ -1267,6 +1283,7 @@ impl ListBox {
                 if !disabled {
                     let key = key.clone();
                     let mode = self.selection_mode;
+                    let disallow_empty = self.disallow_empty_selection;
                     let current = self.selected_keys.clone();
                     let on_selection_change = self.on_selection_change.clone();
                     let on_action = self.on_action.clone();
@@ -1292,7 +1309,7 @@ impl ListBox {
                                 let next = match mode {
                                     SelectionMode::None => current.clone(),
                                     SelectionMode::Single => {
-                                        if current.contains(&key) {
+                                        if current.contains(&key) && !disallow_empty {
                                             HashSet::new()
                                         } else {
                                             HashSet::from([key.clone()])
@@ -1300,20 +1317,26 @@ impl ListBox {
                                     }
                                     SelectionMode::Multiple => {
                                         let mut set = current.clone();
-                                        if !set.remove(&key) {
+                                        if set.remove(&key) {
+                                            if disallow_empty && set.is_empty() {
+                                                set.insert(key.clone());
+                                            }
+                                        } else {
                                             set.insert(key.clone());
                                         }
                                         set
                                     }
                                 };
-                                if let Some(held) = &selection_own {
-                                    held.update(cx, |value, cx| {
-                                        *value = next.clone();
-                                        cx.notify();
-                                    });
-                                }
-                                if let Some(change) = &on_selection_change {
-                                    change(&next, window, cx);
+                                if next != current {
+                                    if let Some(held) = &selection_own {
+                                        held.update(cx, |value, cx| {
+                                            *value = next.clone();
+                                            cx.notify();
+                                        });
+                                    }
+                                    if let Some(change) = &on_selection_change {
+                                        change(&next, window, cx);
+                                    }
                                 }
                             }
                         });
