@@ -288,6 +288,36 @@ def check_switch_motion():
     return sum(not same for same, _, _, _ in rows)
 
 
+def check_select_motion():
+    """Select must apply both halves of its pinned list-surface motion."""
+    src_path = os.path.join(SRC, 'select.rs')
+    if not os.path.exists(src_path):
+        print('select motion: no source')
+        return 1
+    src = io.open(src_path, encoding='utf-8').read()
+    rows = [
+        (
+            'crate::anim::entering_zoom(' in src
+            and 'crate::anim::Motion::LIST_IN' in src,
+            'enter path',
+            'LIST_IN',
+        ),
+        (
+            'overlay_phase == util::OverlayPhase::Exiting' in src
+            and 'crate::anim::exiting(' in src
+            and 'crate::anim::Motion::LIST_OUT' in src,
+            'exit path',
+            'LIST_OUT',
+        ),
+    ]
+    print('select motion wiring:')
+    for same, name, want in rows:
+        print('%s %-14s %-12s %s' % (' ' if same else '!', 'select', name, want))
+    print('SELECT MISMATCHES : %d' % sum(not same for same, _, _ in rows))
+    print()
+    return sum(not same for same, _, _ in rows)
+
+
 def check_tabs_motion():
     """Tabs indicator and separator property transitions."""
     css_path = os.path.join(CACHE, 'tabs.css')
@@ -833,6 +863,7 @@ def main():
     motion_bad = (
         check_motions()
         + check_switch_motion()
+        + check_select_motion()
         + check_tabs_motion()
         + check_toggle_button_motion()
         + check_pagination_motion()

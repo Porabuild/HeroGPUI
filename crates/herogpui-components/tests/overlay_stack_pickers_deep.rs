@@ -57,7 +57,7 @@ fn nested_select_escape_closes_child_then_parent_outside(cx: &mut TestAppContext
             .into_any_element()
     });
 
-    child_point(cx);
+    press(cx, "tab");
     flush_frame(cx);
     press(cx, "escape");
     assert_eq!(

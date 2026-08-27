@@ -340,7 +340,7 @@ impl RenderOnce for Select {
             cx,
             el_name(format!("select-{}-overlay", id_debug(&self.id))),
             is_open,
-            false,
+            true,
         );
         let overlay_active = overlay_phase != util::OverlayPhase::Closed;
         let (selected, value_own) = util::controlled(
@@ -441,6 +441,13 @@ impl RenderOnce for Select {
         field = util::apply_field_chrome(field, self.variant, self.is_invalid, false, cx);
         if !self.is_disabled {
             field = util::ring_if_focused(field, &focus_handle, true, Vec::new(), window, cx);
+        }
+
+        if self.is_invalid || (focus_handle.is_focused(window) && util::focus_visible(cx)) {
+            field = field.bg(match self.variant {
+                FieldVariant::Primary => colors.field.focus(),
+                FieldVariant::Secondary => colors.default.color,
+            });
         }
 
         if !self.is_disabled {
@@ -697,8 +704,10 @@ impl RenderOnce for Select {
                 );
             }
             wrapper = wrapper.child(field);
-            if let Some(desc) = &self.description {
-                wrapper = wrapper.child(crate::field::Description::new(desc.clone()));
+            if !self.is_invalid {
+                if let Some(desc) = &self.description {
+                    wrapper = wrapper.child(crate::field::Description::new(desc.clone()));
+                }
             }
             root = root.child(wrapper);
         } else {
@@ -745,11 +754,12 @@ impl RenderOnce for Select {
         if overlay_active && !self.options.is_empty() {
             let base = format!("select-list-{}", id_debug(&self.id));
             let options_len = self.options.len();
+            let panel_interactive = overlay_phase == util::OverlayPhase::Open;
             let panel = gpui::div()
                 .w_full()
                 .flex()
                 .flex_col()
-                .py(px(6.))
+                .p(px(6.))
                 .bg(colors.overlay.background)
                 .rounded(util::container_radius(cx))
                 // v3 gives a floating panel no border: `.popover` and friends are
@@ -851,14 +861,14 @@ impl RenderOnce for Select {
                         // rounded-2xl px-2 py-1.5 gap-3` at `text-sm`.
                         .min_h(util::FIELD_HEIGHT)
                         .rounded(util::soft_radius(cx))
-                        .px(px(8.))
+                        .px(px(10.))
                         .py(px(6.))
                         .gap(px(12.))
                         .text_size(util::FIELD_TEXT);
 
                 if opt_disabled {
                     item = item.opacity(row_disabled_opacity);
-                } else {
+                } else if panel_interactive {
                     item = item.cursor_pointer().hover(move |s| s.bg(row_hover_bg));
                 }
 
@@ -890,7 +900,7 @@ impl RenderOnce for Select {
                     None => {}
                 }
 
-                if !opt_disabled {
+                if panel_interactive && !opt_disabled {
                     if multiple {
                         if let Some(cb) = on_change_all.clone() {
                             let current = selected_indices.clone();
@@ -978,13 +988,24 @@ impl RenderOnce for Select {
                 }
             }
 
-            let panel = crate::anim::entering_zoom(
-                panel,
-                el_name(format!("{base}-panel")),
-                crate::anim::ZoomBox::panel(px(6.), util::container_radius(cx)),
-                crate::anim::Motion::LIST_IN,
-                cx,
-            );
+            let zoom = crate::anim::ZoomBox::panel(px(6.), util::container_radius(cx));
+            let panel = if overlay_phase == util::OverlayPhase::Exiting {
+                crate::anim::exiting(
+                    panel,
+                    el_name(format!("{base}-panel-out")),
+                    zoom,
+                    crate::anim::Motion::LIST_OUT,
+                    cx,
+                )
+            } else {
+                crate::anim::entering_zoom(
+                    panel,
+                    el_name(format!("{base}-panel")),
+                    zoom,
+                    crate::anim::Motion::LIST_IN,
+                    cx,
+                )
+            };
             root = root.child(util::floating(
                 util::placed_field_panel(self.placement, px(6.)).child(panel),
             ));

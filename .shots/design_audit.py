@@ -927,7 +927,8 @@ CHECKS = [
      '\.size\(px\(36\.\)\)\s+\.rounded_full\(\)(?:\s+\.\w+\(\))*\s+\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('list-box-item', '.list-box-item', 'radius', 'Select row -> util::_radius',
      SRC + 'select.rs',
-     '\.rounded\(util::(\w+_radius)\(cx\)\)\s+\.px\(px\(8\.\)\)', helper_px),
+     r'let mut item = gpui::div\(\)(?:(?!if opt_disabled)[\s\S])*?'
+     r'\.rounded\(util::(\w+_radius)\(cx\)\)', helper_px),
     ('list-box-item', '.list-box-item', 'gap', 'ComboBox row gap', SRC + 'combo_box.rs',
      '\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s+\.rounded\(util::soft_radius', None),
     ('toggle-button', '.toggle-button', 'h', 'ToggleButton md height',

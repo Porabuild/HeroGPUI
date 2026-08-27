@@ -1459,7 +1459,6 @@ impl Widget {
             ".select__value",
             ".select__indicator",
             ".select__popover[data-entering]",
-            ".select__popover .list-box / .list-box-item",
         ] {
             assert!(metadata.styling.iter().any(|entry| {
                 entry.class_or_token == class_or_token
@@ -1472,6 +1471,10 @@ impl Widget {
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".select__popover[data-exiting]"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".select__popover .list-box / .list-box-item"
                 && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
     }
