@@ -568,12 +568,13 @@ fn calendar_min_max_blocks_out_of_range_days(cx: &mut TestAppContext) {
 }
 
 /// A RangeCalendar's range is a two-step anchor/extend interaction: the first
-/// click reports an open-ended range and the second completes the sorted range
-/// in either direction. A click after a complete range starts a new anchor.
+/// The first click holds an internal anchor and the second reports the sorted
+/// completed range in either direction. A click after a complete range starts
+/// a new anchor.
 /// The hover preview between the two ends must drive the drawing and never a
 /// callback.
 #[gpui::test]
-fn range_calendar_click_start_then_end_reports_a_range(cx: &mut TestAppContext) {
+fn range_calendar_click_start_then_end_reports_completed_ranges(cx: &mut TestAppContext) {
     let changes = events();
     let changed = changes.clone();
     let state = cx.new(|cx| DateRangeState::new(cx));
@@ -591,21 +592,17 @@ fn range_calendar_click_start_then_end_reports_a_range(cx: &mut TestAppContext) 
         let changes = changes.clone();
         RangeCalendar::new(state_for_view.clone())
             .on_change(move |start, end, _, _| {
-                let s = start.map(|d| d.format_iso()).unwrap_or_default();
-                let e = end.map(|d| d.format_iso()).unwrap_or_default();
-                changes.borrow_mut().push(format!("{s}->{e}"));
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
             })
             .into_any_element()
     });
 
-    // First click: the anchor. The report is open-ended.
+    // First click: the anchor remains internal selection state.
     let (day5_x, day5_y) = range_day(2026, 8, 5);
     click(cx, day5_x, day5_y);
-    assert_eq!(
-        changed.borrow().as_slice(),
-        ["2026-08-05->"],
-        "the first pick must report the open-ended range"
-    );
+    assert!(changed.borrow().is_empty());
 
     // Hover a later day: the preview paints the range 5..8 (its render reads
     // `state.hovered`), but no callback may fire on its own.
@@ -625,7 +622,7 @@ fn range_calendar_click_start_then_end_reports_a_range(cx: &mut TestAppContext) 
     }
     assert_eq!(
         changed.borrow().len(),
-        1,
+        0,
         "the hover preview must not report anything on its own"
     );
 
@@ -635,7 +632,7 @@ fn range_calendar_click_start_then_end_reports_a_range(cx: &mut TestAppContext) 
     click(cx, day2_x, day2_y);
     assert_eq!(
         changed.borrow().as_slice(),
-        ["2026-08-05->", "2026-08-02->2026-08-05"],
+        ["2026-08-02->2026-08-05"],
         "a second pick earlier than the anchor must complete the sorted range"
     );
 
@@ -646,12 +643,7 @@ fn range_calendar_click_start_then_end_reports_a_range(cx: &mut TestAppContext) 
     click(cx, day12_x, day12_y);
     assert_eq!(
         changed.borrow().as_slice(),
-        [
-            "2026-08-05->",
-            "2026-08-02->2026-08-05",
-            "2026-08-02->",
-            "2026-08-02->2026-08-12",
-        ],
+        ["2026-08-02->2026-08-05", "2026-08-02->2026-08-12",],
         "a later pick must complete and report the whole range"
     );
 }

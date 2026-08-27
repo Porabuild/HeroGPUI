@@ -1543,7 +1543,7 @@ impl RenderOnce for DateRangePicker {
             // and the year picker in one place instead of a second grid. The
             // picker closes only once the range is complete: the first pick
             // leaves the panel open to choose the end, exactly as React Aria
-            // does. The caller's `on_change` still fires after every pick.
+            // does. RangeCalendar reports only that completed range.
             let pick_close = close.clone();
             let user_change = self.on_change.clone();
             let start_form_state = self.start_form_state.clone();
@@ -1555,7 +1555,7 @@ impl RenderOnce for DateRangePicker {
                 .autofocus_grid(panel_open)
                 .is_read_only(self.is_read_only)
                 .is_invalid(self.is_invalid);
-            calendar = calendar.on_change(move |_s, end, window, cx| {
+            calendar = calendar.on_change(move |_start, _end, window, cx| {
                 let state = range_state.read(cx);
                 let mut start_form_state = start_form_state.borrow_mut();
                 start_form_state.value = crate::form::FormValue::Text(
@@ -1579,9 +1579,7 @@ impl RenderOnce for DateRangePicker {
                 if let Some(cb) = &user_change {
                     cb(window, cx);
                 }
-                if end.is_some() {
-                    pick_close(window, cx);
-                }
+                pick_close(window, cx);
             });
             let esc = close.clone();
             root = crate::util::dismiss_on_escape_with_token(

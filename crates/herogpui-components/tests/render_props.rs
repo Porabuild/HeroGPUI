@@ -1932,11 +1932,9 @@ fn range_calendar_outside_cells_keep_date_derived_state(cx: &mut TestAppContext)
         RangeCalendar::new(state.clone())
             .is_date_unavailable(|date, _| date == Date::new(2026, 7, 31))
             .on_change(move |start, end, _, _| {
-                changes.borrow_mut().push(format!(
-                    "{}..{}",
-                    start.map_or_else(|| "none".into(), |date| date.format_iso()),
-                    end.map_or_else(|| "none".into(), |date| date.format_iso())
-                ));
+                changes
+                    .borrow_mut()
+                    .push(format!("{}..{}", start.format_iso(), end.format_iso()));
             })
             .cell(move |cell| {
                 record_range_cell(&record, &cell);
@@ -2081,11 +2079,7 @@ fn range_calendar_pointer_end_hands_focus_to_keyboard(cx: &mut TestAppContext) {
     press(cx, "enter");
     assert_eq!(
         changed.borrow().as_slice(),
-        [
-            (Some(Date::new(2026, 8, 5)), None),
-            (Some(Date::new(2026, 8, 5)), Some(Date::new(2026, 8, 8))),
-            (Some(Date::new(2026, 8, 8)), None),
-        ]
+        [(Date::new(2026, 8, 5), Date::new(2026, 8, 8))]
     );
 }
 

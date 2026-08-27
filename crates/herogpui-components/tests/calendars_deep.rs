@@ -204,11 +204,9 @@ fn range_calendar_read_only_keeps_grid_navigation_without_selection(cx: &mut Tes
                 focuses.borrow_mut().push(date.format_iso());
             })
             .on_change(move |start, end, _, _| {
-                changes.borrow_mut().push(format!(
-                    "{}..{}",
-                    start.map(|date| date.format_iso()).unwrap_or_default(),
-                    end.map(|date| date.format_iso()).unwrap_or_default()
-                ));
+                changes
+                    .borrow_mut()
+                    .push(format!("{}..{}", start.format_iso(), end.format_iso()));
             })
             .into_any_element()
     });
@@ -226,6 +224,39 @@ fn range_calendar_read_only_keeps_grid_navigation_without_selection(cx: &mut Tes
         value,
         (Some(Date::new(2026, 8, 15)), Some(Date::new(2026, 8, 16)))
     );
+}
+
+/// Pinned React Stately keeps the first endpoint in `anchorDate`; `onChange`
+/// is reserved for the completed range even though the preview begins at once.
+#[gpui::test]
+fn range_calendar_first_endpoint_does_not_publish_a_half_open_value(cx: &mut TestAppContext) {
+    let changes = events();
+    let changed = changes.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .on_change(move |start, end, _, _| {
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
+            })
+            .into_any_element()
+    });
+
+    let (day10_x, day10_y) = range_day(2026, 8, 10);
+    click(cx, day10_x, day10_y);
+
+    assert!(
+        changed.borrow().is_empty(),
+        "the pending anchor is internal selection state, not a changed value"
+    );
+    let value = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.start, state.end)
+    });
+    assert_eq!(value, (Some(Date::new(2026, 8, 10)), None));
 }
 
 /// A first keyboard endpoint advances the ring one day so a second Enter
@@ -263,11 +294,9 @@ fn range_calendar_first_keyboard_pick_advances_focus(cx: &mut TestAppContext) {
                 focuses.borrow_mut().push(date.format_iso());
             })
             .on_change(move |start, end, _, _| {
-                changes.borrow_mut().push(format!(
-                    "{}->{}",
-                    start.map(|date| date.format_iso()).unwrap_or_default(),
-                    end.map(|date| date.format_iso()).unwrap_or_default()
-                ));
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
             })
             .into_any_element()
     });
@@ -305,10 +334,7 @@ fn range_calendar_first_keyboard_pick_advances_focus(cx: &mut TestAppContext) {
         focused.borrow().as_slice(),
         ["2026-08-11", "2026-08-14", "2026-08-15"]
     );
-    assert_eq!(
-        changed.borrow().as_slice(),
-        ["2026-08-10->", "2026-08-10->2026-08-15"]
-    );
+    assert_eq!(changed.borrow().as_slice(), ["2026-08-10->2026-08-15"]);
     let value = cx.update(|_, cx| {
         let state = state.read(cx);
         (state.start, state.end)
@@ -346,11 +372,9 @@ fn range_calendar_keyboard_focus_falls_back_before_an_unavailable_day(cx: &mut T
                 focuses.borrow_mut().push(date.format_iso());
             })
             .on_change(move |start, end, _, _| {
-                changes.borrow_mut().push(format!(
-                    "{}->{}",
-                    start.map(|date| date.format_iso()).unwrap_or_default(),
-                    end.map(|date| date.format_iso()).unwrap_or_default()
-                ));
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
             })
             .into_any_element()
     });
@@ -365,10 +389,7 @@ fn range_calendar_keyboard_focus_falls_back_before_an_unavailable_day(cx: &mut T
     press(cx, "enter");
 
     assert_eq!(focused.borrow().as_slice(), ["2026-08-09"]);
-    assert_eq!(
-        changed.borrow().as_slice(),
-        ["2026-08-10->", "2026-08-09->2026-08-10"]
-    );
+    assert_eq!(changed.borrow().as_slice(), ["2026-08-09->2026-08-10"]);
 }
 
 /// v3 passes the first endpoint back into `isDateUnavailable` while a range is
@@ -500,11 +521,9 @@ fn range_calendar_anchor_unavailable_keyboard_endpoint_is_inert(cx: &mut TestApp
                 anchor == Some(Date::new(2026, 8, 10)) && date == Date::new(2026, 8, 13)
             })
             .on_change(move |start, end, _, _| {
-                changes.borrow_mut().push(format!(
-                    "{}->{}",
-                    start.map(|date| date.format_iso()).unwrap_or_default(),
-                    end.map(|date| date.format_iso()).unwrap_or_default()
-                ));
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
             })
             .into_any_element()
     });
@@ -516,7 +535,7 @@ fn range_calendar_anchor_unavailable_keyboard_endpoint_is_inert(cx: &mut TestApp
     press(cx, "right");
     press(cx, "enter");
 
-    assert_eq!(changed.borrow().as_slice(), ["2026-08-10->"]);
+    assert!(changed.borrow().is_empty());
     let value = cx.update(|_, cx| {
         let state = state.read(cx);
         (state.start, state.end)
@@ -548,11 +567,9 @@ fn range_calendar_escape_cancels_a_half_open_keyboard_range(cx: &mut TestAppCont
                 focuses.borrow_mut().push(date.format_iso());
             })
             .on_change(move |start, end, _, _| {
-                changes.borrow_mut().push(format!(
-                    "{}->{}",
-                    start.map(|date| date.format_iso()).unwrap_or_default(),
-                    end.map(|date| date.format_iso()).unwrap_or_default()
-                ));
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
             })
             .into_any_element()
     });
@@ -567,7 +584,7 @@ fn range_calendar_escape_cancels_a_half_open_keyboard_range(cx: &mut TestAppCont
     press(cx, "escape");
 
     assert_eq!(focused.borrow().as_slice(), ["2026-08-11"]);
-    assert_eq!(changed.borrow().as_slice(), ["2026-08-10->"]);
+    assert!(changed.borrow().is_empty());
     let value = cx.update(|_, cx| {
         let state = state.read(cx);
         (state.start, state.end)
@@ -599,11 +616,9 @@ fn range_calendar_escape_keeps_pointer_focus_for_the_next_keyboard_pick(cx: &mut
                 focuses.borrow_mut().push(date.format_iso());
             })
             .on_change(move |start, end, _, _| {
-                changes.borrow_mut().push(format!(
-                    "{}->{}",
-                    start.map(|date| date.format_iso()).unwrap_or_default(),
-                    end.map(|date| date.format_iso()).unwrap_or_default()
-                ));
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
             })
             .into_any_element()
     });
@@ -614,10 +629,7 @@ fn range_calendar_escape_keeps_pointer_focus_for_the_next_keyboard_pick(cx: &mut
     press(cx, "enter");
 
     assert_eq!(focused.borrow().as_slice(), ["2026-08-05", "2026-08-06"]);
-    assert_eq!(
-        changed.borrow().as_slice(),
-        ["2026-08-05->", "2026-08-05->"]
-    );
+    assert!(changed.borrow().is_empty());
 }
 
 /// Cancelling a replacement anchor restores the last committed range rather
@@ -683,11 +695,9 @@ fn range_calendar_keyboard_focus_stays_when_both_neighbours_are_invalid(cx: &mut
                 focuses.borrow_mut().push(date.format_iso());
             })
             .on_change(move |start, end, _, _| {
-                changes.borrow_mut().push(format!(
-                    "{}->{}",
-                    start.map(|date| date.format_iso()).unwrap_or_default(),
-                    end.map(|date| date.format_iso()).unwrap_or_default()
-                ));
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
             })
             .into_any_element()
     });
@@ -702,10 +712,7 @@ fn range_calendar_keyboard_focus_stays_when_both_neighbours_are_invalid(cx: &mut
     press(cx, "enter");
 
     assert!(focused.borrow().is_empty());
-    assert_eq!(
-        changed.borrow().as_slice(),
-        ["2026-08-10->", "2026-08-10->2026-08-10"]
-    );
+    assert_eq!(changed.borrow().as_slice(), ["2026-08-10->2026-08-10"]);
 }
 
 /// Non-contiguous mode leaves an unavailable neighbour focusable; it blocks
@@ -736,11 +743,9 @@ fn range_calendar_non_contiguous_keyboard_focus_can_advance_to_an_unavailable_da
                 focuses.borrow_mut().push(date.format_iso());
             })
             .on_change(move |start, end, _, _| {
-                changes.borrow_mut().push(format!(
-                    "{}->{}",
-                    start.map(|date| date.format_iso()).unwrap_or_default(),
-                    end.map(|date| date.format_iso()).unwrap_or_default()
-                ));
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
             })
             .into_any_element()
     });
@@ -755,7 +760,7 @@ fn range_calendar_non_contiguous_keyboard_focus_can_advance_to_an_unavailable_da
     press(cx, "enter");
 
     assert_eq!(focused.borrow().as_slice(), ["2026-08-11"]);
-    assert_eq!(changed.borrow().as_slice(), ["2026-08-10->"]);
+    assert!(changed.borrow().is_empty());
 }
 
 /// Auto-advance across a month edge realigns the visible window so the focused
@@ -1424,9 +1429,9 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
         RangeCalendar::new(state_for_view.clone())
             .is_date_unavailable(|date, _| date == Date::new(2026, 8, 7))
             .on_change(move |start, end, _, _| {
-                let start = start.map(|date| date.format_iso()).unwrap_or_default();
-                let end = end.map(|date| date.format_iso()).unwrap_or_default();
-                changes.borrow_mut().push(format!("{start}->{end}"));
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
             })
             .cell(move |state| {
                 if !state.is_outside_month && (6..=8).contains(&state.date.day) {
@@ -1466,7 +1471,7 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
     click(cx, end_x, end_y);
     assert_eq!(
         changed.borrow().as_slice(),
-        ["2026-08-05->", "2026-08-05->2026-08-06"],
+        ["2026-08-05->2026-08-06"],
         "a forward range must clamp before the first unavailable day"
     );
 
@@ -1477,12 +1482,7 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
 
     assert_eq!(
         changed.borrow().as_slice(),
-        [
-            "2026-08-05->",
-            "2026-08-05->2026-08-06",
-            "2026-08-10->",
-            "2026-08-08->2026-08-10",
-        ],
+        ["2026-08-05->2026-08-06", "2026-08-08->2026-08-10",],
         "a backward range must clamp after the first unavailable day"
     );
 }
@@ -1512,9 +1512,9 @@ fn range_calendar_allows_a_gap_but_not_an_unavailable_endpoint(cx: &mut TestAppC
             .is_date_unavailable(|date, _| date == Date::new(2026, 8, 7))
             .allows_non_contiguous_ranges(true)
             .on_change(move |start, end, _, _| {
-                let start = start.map(|date| date.format_iso()).unwrap_or_default();
-                let end = end.map(|date| date.format_iso()).unwrap_or_default();
-                changes.borrow_mut().push(format!("{start}->{end}"));
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
             })
             .cell(move |state| {
                 if state.date == Date::new(2026, 8, 7) {
@@ -1532,7 +1532,7 @@ fn range_calendar_allows_a_gap_but_not_an_unavailable_endpoint(cx: &mut TestAppC
     click(cx, end_x, end_y);
     assert_eq!(
         changed.borrow().as_slice(),
-        ["2026-08-05->", "2026-08-05->2026-08-10"],
+        ["2026-08-05->2026-08-10"],
         "the enabled mode must allow available endpoints across a gap"
     );
     cx.update(|window, _| window.refresh());
@@ -1546,7 +1546,7 @@ fn range_calendar_allows_a_gap_but_not_an_unavailable_endpoint(cx: &mut TestAppC
     click(cx, unavailable_x, unavailable_y);
     assert_eq!(
         changed.borrow().len(),
-        2,
+        1,
         "an unavailable day must remain unavailable as an endpoint"
     );
 }
@@ -1572,9 +1572,9 @@ fn range_calendar_uses_the_tighter_bound_when_keys_jump(cx: &mut TestAppContext)
             .min_value(Date::new(2026, 8, 9))
             .is_date_unavailable(|date, _| date == Date::new(2026, 8, 7))
             .on_change(move |start, end, _, _| {
-                let start = start.map(|date| date.format_iso()).unwrap_or_default();
-                let end = end.map(|date| date.format_iso()).unwrap_or_default();
-                backward.borrow_mut().push(format!("{start}->{end}"));
+                backward
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
             })
             .into_any_element()
     });
@@ -1587,7 +1587,7 @@ fn range_calendar_uses_the_tighter_bound_when_keys_jump(cx: &mut TestAppContext)
     press(cx, "enter");
     assert_eq!(
         reported.borrow().as_slice(),
-        ["2026-08-10->", "2026-08-09->2026-08-10"],
+        ["2026-08-09->2026-08-10"],
         "the minimum must clamp before the farther unavailable boundary"
     );
 }
@@ -1612,9 +1612,9 @@ fn range_calendar_maximum_beats_a_farther_unavailable_date(cx: &mut TestAppConte
             .max_value(Date::new(2026, 8, 7))
             .is_date_unavailable(|date, _| date == Date::new(2026, 8, 9))
             .on_change(move |start, end, _, _| {
-                let start = start.map(|date| date.format_iso()).unwrap_or_default();
-                let end = end.map(|date| date.format_iso()).unwrap_or_default();
-                changes.borrow_mut().push(format!("{start}->{end}"));
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
             })
             .into_any_element()
     });
@@ -1627,7 +1627,7 @@ fn range_calendar_maximum_beats_a_farther_unavailable_date(cx: &mut TestAppConte
     press(cx, "enter");
     assert_eq!(
         changed.borrow().as_slice(),
-        ["2026-08-05->", "2026-08-05->2026-08-07"],
+        ["2026-08-05->2026-08-07"],
         "the maximum must clamp before the farther unavailable boundary"
     );
 }

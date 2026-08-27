@@ -263,10 +263,9 @@ fn date_range_picker_stays_open_until_the_end_is_chosen(cx: &mut TestAppContext)
 
     // Choosing the start leaves the panel open to choose the end.
     click(cx, day_x, row_one_y);
-    assert_eq!(
-        changed.borrow().as_slice(),
-        [format!("{}->", expected.format_iso())],
-        "the first pick must report the open-ended range"
+    assert!(
+        changed.borrow().is_empty(),
+        "the first pick is an internal anchor, not a changed range value"
     );
     assert_eq!(
         opened.borrow().as_slice(),
@@ -286,10 +285,7 @@ fn date_range_picker_stays_open_until_the_end_is_chosen(cx: &mut TestAppContext)
     click(cx, day_x, row_two_y);
     assert_eq!(
         changed.borrow().as_slice(),
-        [
-            format!("{}->", expected.format_iso()),
-            format!("{}->{}", expected.format_iso(), ended.format_iso())
-        ],
+        [format!("{}->{}", expected.format_iso(), ended.format_iso())],
         "the second pick must report the complete range, once"
     );
     assert_eq!(
@@ -310,7 +306,7 @@ fn date_range_picker_stays_open_until_the_end_is_chosen(cx: &mut TestAppContext)
     click(cx, day_x, row_one_y);
     assert_eq!(
         changed.borrow().len(),
-        2,
+        1,
         "the popover must be gone after the range is complete"
     );
 }

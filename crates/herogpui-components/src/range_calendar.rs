@@ -20,7 +20,7 @@ use crate::{
     icons, util,
 };
 
-type OnRangeChange = Arc<dyn Fn(Option<Date>, Option<Date>, &mut Window, &mut App) + 'static>;
+type OnRangeChange = Arc<dyn Fn(Date, Date, &mut Window, &mut App) + 'static>;
 type RangeDateUnavailable = Arc<dyn Fn(Date, Option<Date>) -> bool + 'static>;
 
 /// HeroUI RangeCalendar.
@@ -298,10 +298,12 @@ impl RangeCalendar {
         self
     }
 
-    /// Called with `(start, end)` after every pick.
+    /// `onChange` — called with `(start, end)` once both endpoints complete a
+    /// range. The first pick remains the internal anchor, matching React
+    /// Stately's `useRangeCalendarState`.
     pub fn on_change(
         mut self,
-        handler: impl Fn(Option<Date>, Option<Date>, &mut Window, &mut App) + 'static,
+        handler: impl Fn(Date, Date, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.on_change = Some(Arc::new(handler));
         self
@@ -627,8 +629,8 @@ impl RangeCalendar {
                         *saved = if end.is_none() { previous } else { None };
                     }
                 });
-                if let (Some(cb), Some((start, end))) = (&on_change, next) {
-                    cb(Some(start), end, window, cx);
+                if let (Some(cb), Some((start, Some(end)))) = (&on_change, next) {
+                    cb(start, end, window, cx);
                 }
             });
         }
@@ -1276,8 +1278,8 @@ impl RenderOnce for RangeCalendar {
                         }
                         (next, previous)
                     });
-                    if let (Some(cb), Some((start, end))) = (&on_change, next) {
-                        cb(Some(start), end, window, cx);
+                    if let (Some(cb), Some((start, Some(end)))) = (&on_change, next) {
+                        cb(start, end, window, cx);
                     }
                     if let Some((_, end)) = next {
                         focus_preview.update(cx, |preview, _| *preview = end.is_none());
