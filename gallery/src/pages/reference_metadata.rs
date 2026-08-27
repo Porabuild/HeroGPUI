@@ -5166,6 +5166,130 @@ pub(crate) const TEXT_AREA: ReferenceMetadata = ReferenceMetadata {
     styling: TEXT_AREA_STYLING,
 };
 
+const INPUT_GROUP_REQUIRED_PARTS: &[&str] = &[
+    "InputGroup",
+    "InputGroup.Input",
+    "InputGroup.TextArea",
+    "InputGroup.Prefix",
+    "InputGroup.Suffix",
+];
+
+const INPUT_GROUP_API: &[ApiDoc] = &[
+    ApiDoc { owner: "InputGroup", prop: "children", ty: "ReactNode | (values: GroupRenderProps) => ReactNode", default: "—", description: "Arbitrary children render after the field, and the typed slots compose the pinned parts; the children-as-a-function form has no analogue, the port holds one field slot, and a disabled group dims these children without being able to make them pointer- or tab-inert.", rust_owner: "InputGroup", rust: "input(Input) / text_area(TextArea) / child(AnyElement)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "InputGroup", prop: "className", ty: "string | (values: GroupRenderProps) => string", default: "—", description: "Browser classes are unavailable.", rust_owner: "InputGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "InputGroup", prop: "style", ty: "CSSProperties | (values: GroupRenderProps) => CSSProperties", default: "—", description: "Browser inline styles are unavailable.", rust_owner: "InputGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "InputGroup", prop: "fullWidth", ty: "boolean", default: "false", description: "The width lands on the outer wrapper as well as the group box: gpui resolves a percentage against the parent, and a content-sized parent stretches nothing.", rust_owner: "InputGroup", rust: "full_width(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup", prop: "id", ty: "string", default: "—", description: "The held field's state entity already names the instance; there is no DOM id attribute to set.", rust_owner: "InputGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "InputGroup", prop: "variant", ty: "'primary' | 'secondary'", default: "'primary'", description: "Primary carries the field shadow; secondary drops it and paints the neutral default palette.", rust_owner: "InputGroup", rust: "variant(FieldVariant)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup", prop: "aria-label", ty: "string", default: "—", description: "No accessibility tree to label.", rust_owner: "InputGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "InputGroup", prop: "aria-labelledby", ty: "string", default: "—", description: "No accessibility tree to label.", rust_owner: "InputGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "InputGroup", prop: "aria-describedby", ty: "string", default: "—", description: "No accessibility tree to describe.", rust_owner: "InputGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "InputGroup", prop: "aria-details", ty: "string", default: "—", description: "No accessibility tree to describe.", rust_owner: "InputGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "InputGroup", prop: "role", ty: "'group' | 'region' | 'presentation'", default: "'group'", description: "No accessibility role mapping.", rust_owner: "InputGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "TextField (pinned context)", prop: "isDisabled", ty: "boolean", default: "false", description: "v3 takes this from the TextField around the group; the port folds it onto InputGroup and propagates it to the held field, so a group-disabled control tracks no focus and answers no keys, while one dim covers the whole box.", rust_owner: "InputGroup", rust: "is_disabled(bool) + Input::is_disabled", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField (pinned context)", prop: "isInvalid", ty: "boolean", default: "false", description: "The pinned TextField composition owns the flag; the port folds it on and drives the group's invalid chrome with it.", rust_owner: "InputGroup", rust: "is_invalid(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField (pinned context)", prop: "isRequired", ty: "boolean", default: "false", description: "Marks the folded label as required.", rust_owner: "InputGroup", rust: "is_required(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField (pinned context)", prop: "label", ty: "ReactNode", default: "—", description: "v3 composes Label as a sibling; the port folds it above the group box.", rust_owner: "InputGroup", rust: "label(SharedString)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField (pinned context)", prop: "description", ty: "ReactNode", default: "—", description: "v3 composes Description as a sibling; the port folds it below the group box.", rust_owner: "InputGroup", rust: "description(SharedString)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField (pinned context)", prop: "errorMessage", ty: "ReactNode", default: "—", description: "Shown only while the group is invalid, as the pinned TextField does.", rust_owner: "InputGroup", rust: "error_message(SharedString)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup.Input", prop: "variant", ty: "'primary' | 'secondary'", default: "'primary'", description: "The group paints the shared chrome, so the held field's own variant flag is shadowed by the group's; the field accepts it through its builder.", rust_owner: "InputGroup", rust: "input(Input) + Input::variant", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "InputGroup.Input", prop: "type", ty: "string", default: "'text'", description: "Password masking and numeric filtering ride on the held field.", rust_owner: "InputGroup", rust: "input(Input) + Input::input_type", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup.Input", prop: "value", ty: "string", default: "—", description: "The controlled value is the bound InputState's text.", rust_owner: "InputGroup", rust: "input(Input) + InputState::value", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup.Input", prop: "defaultValue", ty: "string", default: "—", description: "Seeds the held field's state once.", rust_owner: "InputGroup", rust: "input(Input) + Input::default_value", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup.Input", prop: "placeholder", ty: "string", default: "—", description: "Placeholder of the held field.", rust_owner: "InputGroup", rust: "input(Input) + Input::placeholder", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup.Input", prop: "disabled", ty: "boolean", default: "—", description: "The attribute spelling of the disabled flag; the group's own propagation and the field's flag agree.", rust_owner: "InputGroup", rust: "is_disabled(bool) + Input::is_disabled", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup.Input", prop: "readOnly", ty: "boolean", default: "—", description: "Read-only keeps the field focusable while edits are blocked.", rust_owner: "InputGroup", rust: "input(Input) + Input::is_read_only", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup.Input", prop: "className", ty: "string", default: "—", description: "Browser classes are unavailable.", rust_owner: "InputGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "InputGroup.TextArea", prop: "rows", ty: "number", default: "—", description: "Visible line count; three 20px lines plus 16px vertical padding per the field's own rows math.", rust_owner: "InputGroup", rust: "text_area(TextArea) + TextArea::rows", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup.TextArea", prop: "variant", ty: "'primary' | 'secondary'", default: "'primary'", description: "The group paints the shared chrome, so the multi-line field's own variant flag is shadowed by the group's; the field accepts it through its builder.", rust_owner: "InputGroup", rust: "text_area(TextArea) + Input::variant", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "InputGroup.TextArea", prop: "value", ty: "string", default: "—", description: "The controlled value is the bound InputState's text.", rust_owner: "InputGroup", rust: "text_area(TextArea) + InputState::value", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup.TextArea", prop: "defaultValue", ty: "string", default: "—", description: "Seeds the held field's state once.", rust_owner: "InputGroup", rust: "text_area(TextArea) + Input::default_value", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup.TextArea", prop: "placeholder", ty: "string", default: "—", description: "Placeholder of the held field.", rust_owner: "InputGroup", rust: "text_area(TextArea) + Input::placeholder", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup.TextArea", prop: "disabled", ty: "boolean", default: "—", description: "The attribute spelling of the disabled flag, shared with the group's propagation.", rust_owner: "InputGroup", rust: "is_disabled(bool) + Input::is_disabled", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup.TextArea", prop: "readOnly", ty: "boolean", default: "—", description: "Read-only keeps the field focusable while edits are blocked.", rust_owner: "InputGroup", rust: "text_area(TextArea) + Input::is_read_only", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup.TextArea", prop: "className", ty: "string", default: "—", description: "Browser classes are unavailable.", rust_owner: "InputGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "InputGroup.Prefix", prop: "children", ty: "ReactNode", default: "—", description: "Leading addon content: text, icons or anything else, drawn in placeholder colour.", rust_owner: "InputGroup", rust: "prefix(AnyElement)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup.Prefix", prop: "className", ty: "string", default: "—", description: "Browser classes are unavailable.", rust_owner: "InputGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "InputGroup.Suffix", prop: "children", ty: "ReactNode", default: "—", description: "Trailing addon content: text, buttons, badges or keyboards, keeping their own handlers.", rust_owner: "InputGroup", rust: "suffix(AnyElement)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "InputGroup.Suffix", prop: "className", ty: "string", default: "—", description: "Browser classes are unavailable.", rust_owner: "InputGroup", rust: "—", status: ImplementationStatus::Unavailable },
+];
+
+const INPUT_GROUP_PARTS: &[PartDoc] = &[
+    PartDoc {
+        name: "InputGroup",
+        slot: "input-group",
+        description: "The shared field chrome box: variant palette, focus-within ring, hover fill, invalid chrome, one disabled dim over the box, and the pinned handleClick focus transfer to the held field.",
+        rust_owner: "InputGroup",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "InputGroup.Input",
+        slot: "input-group-input",
+        description: "The caller's Input rendered chrome-less: transparent, unrounded, flex_1 between the addons, with the padding dropped on whichever side an addon occupies.",
+        rust_owner: "InputGroup",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "InputGroup.TextArea",
+        slot: "input-group-textarea",
+        description: "The same shared chrome around a multi-line field; its presence switches the group to items-start with auto height and 8px addon top padding.",
+        rust_owner: "InputGroup",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "InputGroup.Prefix",
+        slot: "input-group-prefix",
+        description: "Leading addon slot in placeholder colour with a 12px inset; a click on it is the group root's business, which focuses the held field.",
+        rust_owner: "InputGroup",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "InputGroup.Suffix",
+        slot: "input-group-suffix",
+        description: "Trailing addon slot; a focusable suffix (a copy Button) keeps its own press, and the group's click-to-focus hands the focus back to the field afterwards.",
+        rust_owner: "InputGroup",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const INPUT_GROUP_STATES: &[StateDoc] = &[
+    StateDoc { state: "Hover", selector: ".input-group:hover:not(:focus-within)", description: "Hovering paints bg-field-hover with --field-border-hover, and secondary swaps only the fill for --default-hover; the refinement is baked off while the focus is inside, and a disabled group paints none (status-disabled is pointer-events: none first).", rust: "field.hover() / default.hover() + border_hover() when !focus_within && !is_disabled", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus Within", selector: ".input-group:has([data-slot=\"input-group-input\"]:focus)", description: "The held field's focus drives the group's status-focused-field ring; the pinned --field-focus fill and border swap stay with the variant fill instead.", rust: "apply_field_chrome(focus_within)", status: ImplementationStatus::Partial },
+    StateDoc { state: "Invalid", selector: ".input-group[data-invalid=true]", description: "status-invalid-field draws the danger outline and focused danger ring; the pinned --field-focus fill swap stays with the variant fill.", rust: "apply_field_chrome(is_invalid)", status: ImplementationStatus::Partial },
+    StateDoc { state: "Disabled", selector: ".input-group[data-disabled=true]", description: "The flag propagates to the held field, which stops tracking focus and answering keys, and one dim covers the whole group box — field, addon slots and any composed children; the folded label dims itself beside it. Only the held field is truly inert: GPUI cannot make arbitrary children pointer- or tab-inert, so a composed button in a disabled group still answers.", rust: "is_disabled + Input::is_disabled + group-box opacity + Label::is_disabled", status: ImplementationStatus::Partial },
+];
+
+const INPUT_GROUP_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".input-group", value: "inline-flex min-h-9 items-center rounded-field border bg-field text-sm text-field-foreground shadow-field", description: "The 36px floor, field radius, fill, 14px type, foreground and shadow match; GPUI has no inline-flex display mode, so the box leans on its parent for intrinsic width.", rust: "div flex + min_h(FIELD_HEIGHT) + FIELD_TEXT + apply_field_chrome", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".input-group:hover:not(:focus-within)", value: "bg-field-hover; border-color --field-border-hover; secondary bg --default-hover", description: "The pinned hover-only group state, suppressed while the focus is inside; a disabled group paints none.", rust: "group.hover(field.hover() / default.hover() + border_hover()) when !focus_within && !is_disabled", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".input-group:has([data-slot=\"input-group-textarea\"])", value: "items-start; height: auto", description: "A textarea group top-aligns its children and grows around the multi-line field instead of centring it.", rust: "items_start + min_h(FIELD_HEIGHT) only", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".input-group focus-within", value: "status-focused-field; border-color --field-border-focus; background --field-focus", description: "The two-pixel focus ring matches; the port keeps the variant fill rather than switching to the field-focus fill.", rust: "apply_field_chrome(focus_within)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".input-group[data-invalid=true]", value: "status-invalid-field; background --field-focus; border --color-field-border-invalid", description: "Danger outline and focused danger ring match; the field-focus fill swap is not drawn.", rust: "apply_field_chrome(is_invalid)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".input-group[data-disabled=true]", value: "status-disabled", description: "One dim covers the group box, so field, addon slots and composed children dim exactly once — the propagated field skips its own dim; the folded label dims itself. Arbitrary children only dim: v3's pointer-events: none has no GPUI analogue.", rust: "is_disabled propagation + group-box opacity + Label::is_disabled", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".input-group__input", value: "flex-1 rounded-none border-0 bg-transparent px-3 py-2 shadow-none placeholder:text-field-placeholder sm:text-sm", description: "The held Input supplies the transparent fill, 12px inset, placeholder colour and unified 14px field type, dropping the padding on an addon side.", rust: "Input::in_group + flex_1 + pl/pr(12px)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".input-group__input[data-slot=\"input-group-textarea\"]", value: "min-height: 38px; resize: vertical", description: "The rows math matches (one 20px line each over 16px of vertical padding), but the pinned 38px one-row floor does not: rows(1) stands 36px. Browser resizing has no analogue.", rust: "multiline min_h per rows_height line + 16px, no 38px floor", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".input-group__prefix / __suffix", value: "flex h-full items-center justify-center px-3 text-field-placeholder; side borders", description: "The 12px inset, placeholder colour and flush edges match; the addons' own side borders are not drawn.", rust: "InputAddon px(12px) + flex_shrink_0 + placeholder color", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".input-group:has(textarea) __prefix / __suffix", value: "items-start; padding-top: 0.5rem", description: "Addon slots top-align with the pinned 8px top padding, level with the textarea's first line.", rust: "addon_slot pt(8px) under items_start", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".input-group--secondary", value: "shadow-none; --input-group-bg: var(--default); hover --default-hover; focus --default", description: "Resting fill and dropped shadow match, and the hover swap reaches the group.", rust: "apply_field_chrome(FieldVariant::Secondary) + default colors", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".input-group--full-width", value: "w-full", description: "The width lands on the outer wrapper and the group box, so the stretch is visible in an items-start parent.", rust: "full_width(bool) + root/group w_full", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".input-group autofill unification", value: "background --field-focus on :autofill, neutralised on the input", description: "No browser autofill to unify.", rust: "—", status: ImplementationStatus::Unavailable },
+];
+
+pub(crate) const INPUT_GROUP: ReferenceMetadata = ReferenceMetadata {
+    page: "InputGroup",
+    import_line: "use herogpui::components::input_group::InputGroup;",
+    source_module: "input_group",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(forms)/input-group.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/input-group/input-group.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/Group.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/input-group.css",
+    required_parts: INPUT_GROUP_REQUIRED_PARTS,
+    api: INPUT_GROUP_API,
+    parts: INPUT_GROUP_PARTS,
+    states: INPUT_GROUP_STATES,
+    styling: INPUT_GROUP_STYLING,
+};
+
 const SEARCH_FIELD_REQUIRED_PARTS: &[&str] = &[
     "SearchField",
     "SearchField.Group",
@@ -12522,6 +12646,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     TEXT_AREA,
     SEARCH_FIELD,
     INPUT_OTP,
+    INPUT_GROUP,
     TABS,
     CALENDAR,
     DATE_FIELD,

@@ -6627,10 +6627,11 @@ impl Gallery {
                     col(vec![h::InputGroup::new()
                         .label("Note")
                         .prefix(
-                            gpui::div()
-                                .pl(px(12.))
-                                .pt(px(8.))
-                                .child(icon(h::icons::COPY, cx)),
+                            // The group's `:has(textarea)` rule owns the 8px
+                            // addon top padding; only the addon's horizontal
+                            // inset is spelled here, as on every bare-icon
+                            // addon slot.
+                            gpui::div().pl(px(12.)).child(icon(h::icons::COPY, cx)),
                         )
                         .text_area(h::TextArea::new(self.demo_text("ig-area", "", cx)).rows(3))
                         .into_any_element()]),

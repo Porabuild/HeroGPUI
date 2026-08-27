@@ -679,6 +679,10 @@ pub struct Input {
     /// `InputGroup.Input` has no chrome of its own -- the group paints it -- and
     /// drops the padding on whichever side touches an addon (`ps-0`/`pe-0`).
     in_group: Option<(bool, bool)>,
+    /// Set by [`crate::input_group::InputGroup`]: the group box paints the one
+    /// `status-disabled` dim over the whole row, so the field must not nest a
+    /// second opacity inside it.
+    group_dim: bool,
     full_width: bool,
     is_disabled: bool,
     is_read_only: bool,
@@ -707,6 +711,16 @@ impl Input {
     /// The bound state, so wrappers can write through to it.
     pub fn state(&self) -> &Entity<InputState> {
         &self.state
+    }
+
+    /// The builder's `is_disabled` flag, read without a rendered frame.
+    ///
+    /// `InputGroup` needs it before [`Input::render`] has run: the state's
+    /// success mirror is last frame's trace, and the first frame has none, so
+    /// a field disabled while its group is enabled would take an addon click's
+    /// focus once before the mirror caught up.
+    pub(crate) fn builder_is_disabled(&self) -> bool {
+        self.is_disabled
     }
 
     /// v3's field `children`-as-a-function, handed `{isFocused, isFocusWithin,
@@ -762,6 +776,7 @@ impl Input {
             end_content: None,
             min_h: None,
             in_group: None,
+            group_dim: false,
             full_width: false,
             is_disabled: false,
             is_read_only: false,
@@ -809,6 +824,13 @@ impl Input {
     /// and flush against whichever addons surround it.
     pub(crate) fn in_group(mut self, has_prefix: bool, has_suffix: bool) -> Self {
         self.in_group = Some((has_prefix, has_suffix));
+        self
+    }
+
+    /// The surrounding group box already carries the disabled dim; skip this
+    /// field's own so the opacity does not nest twice.
+    pub(crate) fn group_dim(mut self, v: bool) -> Self {
+        self.group_dim = v;
         self
     }
 
@@ -1261,7 +1283,10 @@ impl RenderOnce for Input {
                     })
             })
             // `status-disabled` is `--disabled-opacity`, which the theme owns.
-            .when(self.is_disabled, |e| e.opacity(disabled_opacity));
+            // Inside a group that dims its own box the field skips the second
+            // coat; on its own (or a field disabled beside an enabled group)
+            // it still dims itself.
+            .when(self.is_disabled && !self.group_dim, |e| e.opacity(disabled_opacity));
 
         // Inside an `InputGroup` the group is the field: v3's
         // `.input-group__input` is `rounded-none border-0 bg-transparent

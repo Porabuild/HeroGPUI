@@ -275,7 +275,6 @@ PROSE_ELSEWHERE = {
     # button, which is where the evidence lives.
     ('Drawer', 'active'): 'close_button.rs',
     # These compose an `Input`, which is what hovers and takes the focus.
-    ('InputGroup', 'hover'): 'input.rs',
     ('ComboBox', 'focus'): 'input.rs',
     # A `Disclosure` is a one-item `Accordion`.
     ('Disclosure', 'focus'): 'accordion.rs',

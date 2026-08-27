@@ -28,11 +28,11 @@
 //!   carry `px(12)` each (`input_group.rs`). In a `w(px(400.))` wrapper the
 //!   addons are flush against the wrapper's edges — a click at x = 6 lands in
 //!   the prefix's left padding and one at x = 394 in the suffix's right
-//!   padding for any glyph width. A click on an addon is a click on a plain
-//!   div: gpui transfers focus to the nearest *focusable* ancestor (the app
-//!   root), so the field stops seeing keys — a browser blur equivalent, not a
-//!   caret move (the InputState's cursor is untouched, which is what makes
-//!   re-focusing resume typing where it left off).
+//!   padding for any glyph width. v3.2.4's `InputGroupRoot.handleClick`
+//!   focuses the contained input when a click lands on the group outside it,
+//!   so an addon click leaves the field focused — and it never touches the
+//!   caret, which is `InputState`'s alone and is written only by the field's
+//!   own mouse-down (`window.focus` moves the handle, nothing else).
 //! - A `Fieldset` is `gap(24)` between children (`field.rs`); its legend is a
 //!   24px line (`FieldsetLegend::render`), so a Group under it starts at y 48
 //!   and its bare 36px field centres at (60, 66).
@@ -46,14 +46,19 @@
 
 mod harness;
 
-use gpui::{prelude::*, px, TestAppContext};
+use gpui::{prelude::*, px, Focusable, TestAppContext, VisualTestContext};
 use herogpui_components::{
-    ColorField, Date, DateField, Fieldset, FieldsetGroup, FieldsetLegend, Input, InputAddon,
-    InputGroup, InputOTP, InputState, OtpPattern, OtpState, PickerColor, SearchField, TextArea,
-    TextField,
+    Button, ColorField, Date, DateField, Fieldset, FieldsetGroup, FieldsetLegend, Input,
+    InputAddon, InputGroup, InputOTP, InputState, OtpPattern, OtpState, PickerColor, SearchField,
+    TextArea, TextField,
 };
 
 use harness::{click, events, open_host, press};
+
+/// One forced redraw, so `debug_bounds` sees the latest laid-out frame.
+fn flush_frame(cx: &mut VisualTestContext) {
+    cx.update(|window, _| window.refresh());
+}
 
 // ---------------------------------------------------------------------------
 // TextField
@@ -537,38 +542,490 @@ fn input_group_prefix_and_suffix_do_not_steal_the_caret(cx: &mut TestAppContext)
         "typing into the group's field must work"
     );
 
-    // An addon is a plain div outside the input, and gpui transfers focus on
-    // a mouse-down to the deepest *focusable* element under the cursor. The
-    // addon is not one, so the click lands on its focusable ancestor — the
-    // app root — and the field stops seeing the keyboard. That is the same
-    // behaviour a browser has for a click on a non-input part of an input
-    // group (React Aria's `<span>` prefix blurs the field too), so it is
-    // ported faithfully, not a defect. The keystrokes right after the addon
-    // clicks therefore record nothing...
+    // v3.2.4's `InputGroupRoot.handleClick` focuses the contained input when
+    // a click lands on the group outside it, so the addon clicks below must
+    // leave the field focused and typing must keep reaching it. Focusing
+    // never moves the caret — it is `InputState`'s, written only by the
+    // field's own mouse-down — and Left put it at 1, so the text must grow
+    // mid-string: after the prefix click "cd" turns "ab" into "acdb" ("a|b"
+    // -> "a|cdb" -> "acd|b"), not "abcd" (caret dropped to the end) nor
+    // "cdab" (caret dropped to 0); the cursor now rests at 3, so the suffix
+    // click must not move it and "x" lands between d and b: "acdxb".
+    press(cx, "left");
     click(cx, 6., 18.);
     cx.simulate_input("cd");
     click(cx, 394., 18.);
-    cx.simulate_input("xy");
+    cx.simulate_input("x");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["a", "ab", "acb", "acdb", "acdxb"],
+        "an addon click must focus the group's field and leave the caret \
+         exactly where it was: typing continues mid-string"
+    );
+    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        value, "acdxb",
+        "the InputState must hold the text typed through the addon clicks"
+    );
+}
+
+#[gpui::test]
+fn input_group_disabled_propagates_to_the_field(cx: &mut TestAppContext) {
+    // v3 puts `isDisabled` on the TextField around the group, and the browser
+    // then holds a *disabled* `<input>`: it takes no caret, keeps no focus and
+    // answers no key. The group's own flag must reach the field it contains —
+    // dimming alone would leave a control that looks off and still types.
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        gpui::div()
+            .w(px(400.))
+            .child(
+                InputGroup::new()
+                    .is_disabled(true)
+                    .prefix(InputAddon::new("$"))
+                    .input(
+                        Input::new(state_for_view.clone()).on_change(move |text, _, _| {
+                            changes.borrow_mut().push(text.to_owned());
+                        }),
+                    )
+                    .suffix(InputAddon::new(".com")),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    // The field spans between the addons (x ~32..346, y 0..36): a direct
+    // click must not focus it, and neither keys typed after the click nor
+    // keys typed blind may reach the disabled state.
+    click(cx, 200., 18.);
+    cx.simulate_input("x");
+    press(cx, "a");
+    // v3.2.4's `InputGroupRoot.handleClick` runs `input.focus()` on a click
+    // outside the field — a browser no-ops that on a disabled input, so the
+    // addon click must leave nothing to type into either.
+    click(cx, 6., 18.);
+    cx.simulate_input("y");
+    assert!(
+        recorded.borrow().is_empty(),
+        "a group-disabled field must record no typing at all, got {:?}",
+        recorded.borrow()
+    );
+    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        value, "",
+        "a group-disabled field must hold no text: is_disabled propagates to \
+         the inner Input"
+    );
+}
+
+#[gpui::test]
+fn input_group_textarea_click_exception_and_direct_focus(cx: &mut TestAppContext) {
+    // Pinned v3.2.4 `InputGroupRoot.handleClick` looks the field up with
+    // `querySelector("input")` — a `<textarea>` is not an `input`, so a group
+    // holding only a TextArea gets NO click-to-focus: the addon click below
+    // must leave the textarea unfocused, while a click inside the textarea
+    // itself still focuses it.
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        gpui::div()
+            .w(px(400.))
+            .child(
+                InputGroup::new().prefix(InputAddon::new("Note")).text_area(
+                    TextArea::new(state_for_view.clone())
+                        .rows(3)
+                        .on_change(move |text, _, _| changes.borrow_mut().push(text.to_owned())),
+                ),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    // The addon slot is top-aligned with the pinned 8px top padding, so the
+    // addon's box spans y 8..28 inside the prefix's x 0..~40: a click there
+    // is a click on the group *outside* the textarea, which v3.2.4 ignores
+    // for a textarea-only group.
+    click(cx, 6., 13.);
+    cx.simulate_input("x");
+    assert!(
+        recorded.borrow().is_empty(),
+        "a click on a textarea-only group's addon must not focus the textarea \
+         (querySelector(\"input\") finds nothing), got {:?}",
+        recorded.borrow()
+    );
+
+    // Positive control: the textarea itself is focusable — a click inside it
+    // (76px tall for rows 3, wide in the 400px group) must focus it, so the
+    // empty recording above is the pinned exception and not a broken field.
+    click(cx, 200., 38.);
+    cx.simulate_input("ab");
     assert_eq!(
         recorded.borrow().as_slice(),
         ["a", "ab"],
-        "keystrokes after an addon click must not reach the field: the click \
-         released its focus, as a browser blur would"
-    );
-
-    // ...but the clicks never TOUCHED the caret (`InputState`'s cursor stayed
-    // at 2): re-focusing the field and typing continues exactly where it left
-    // off, which is what the addons must not steal.
-    click(cx, 200., 18.);
-    cx.simulate_input("cd");
-    assert_eq!(
-        recorded.borrow().as_slice(),
-        ["a", "ab", "abc", "abcd"],
-        "re-focusing must resume typing at the untouched caret, appending the \
-         new text after 'ab' rather than reordering it"
+        "a click inside the textarea must focus it: the exception only covers \
+         clicks outside the field"
     );
     let value = cx.update(|_, cx| state.read(cx).value().to_owned());
-    assert_eq!(value, "abcd", "the InputState must hold the resumed typing");
+    assert_eq!(value, "ab", "the InputState must hold the typed text");
+}
+
+#[gpui::test]
+fn input_group_button_suffix_presses_then_hands_focus_to_the_field(cx: &mut TestAppContext) {
+    // v3.2.4 `handleClick` focuses the contained input on any click outside
+    // it — a focusable suffix button included. The button keeps its own press
+    // (gpui decides clicks by hover, not focus, so the focus hand-over on
+    // mouse-down does not cancel the mouse-up click) and the field ends up
+    // holding the focus, so the next keystrokes type into it.
+    let changes = events();
+    let recorded = changes.clone();
+    let presses = events();
+    let pressed = presses.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let presses = presses.clone();
+        gpui::div()
+            .w(px(400.))
+            .child(
+                InputGroup::new()
+                    .prefix(InputAddon::new("$"))
+                    .input(
+                        Input::new(state_for_view.clone()).on_change(move |text, _, _| {
+                            changes.borrow_mut().push(text.to_owned());
+                        }),
+                    )
+                    .suffix(
+                        Button::new("ig-go")
+                            .label("Go")
+                            .on_press(move |_, _, _| presses.borrow_mut().push("press".into())),
+                    ),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    // The suffix Button ("Go", md padding) hangs off the row's right edge in
+    // the 400px wrapper: the click lands in its right padding at (394, 18) —
+    // on the group, outside the field between the addons.
+    click(cx, 394., 18.);
+    assert_eq!(
+        pressed.borrow().as_slice(),
+        ["press"],
+        "the focusable suffix must keep its own action"
+    );
+    let field_handle = cx.update(|_, cx| state.read(cx).focus_handle(cx));
+    let focused_on_field =
+        cx.update(|window, cx| window.focused(cx).is_some_and(|held| held == field_handle));
+    assert!(
+        focused_on_field,
+        "the click-to-focus must take the focus back from the pressed \
+         suffix button and give it to the field"
+    );
+    cx.simulate_input("x");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["x"],
+        "typing after the suffix click must reach the field"
+    );
+    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        value, "x",
+        "the InputState must hold the text typed through the suffix button"
+    );
+}
+
+#[gpui::test]
+fn input_group_field_disabled_refuses_addon_focus_from_the_first_frame(cx: &mut TestAppContext) {
+    // A field disabled while the group stays enabled must refuse the addon
+    // click-to-focus from the FIRST frame. The group used to read the
+    // disabled state through the mirror `Input::render` writes into the
+    // shared state — a trace of the last rendered frame, and untouched
+    // before the first one — so the very first addon click ran
+    // `input.focus()` on a disabled field, which a browser refuses.
+    //
+    // The focusable suffix is the witness. A press on it must leave the
+    // BUTTON holding the focus (its own transfer ran deeper, and its handle
+    // lives in the focus tree, so the app root does not reclaim it): Enter
+    // then activates it a second time. A wrongly focused disabled field,
+    // by contrast, is not in the focus tree, so the app root takes the
+    // focus back on the next paint and Enter activates nothing.
+    let changes = events();
+    let recorded = changes.clone();
+    let presses = events();
+    let pressed = presses.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let presses = presses.clone();
+        gpui::div()
+            .w(px(400.))
+            .child(
+                InputGroup::new()
+                    .prefix(InputAddon::new("$"))
+                    .input(
+                        Input::new(state_for_view.clone())
+                            .is_disabled(true)
+                            .on_change(move |text, _, _| {
+                                changes.borrow_mut().push(text.to_owned());
+                            }),
+                    )
+                    .suffix(
+                        Button::new("ig-disabled-go")
+                            .label("Go")
+                            .on_press(move |_, _, _| presses.borrow_mut().push("press".into())),
+                    ),
+            )
+            .into_any_element()
+    });
+    let field_handle = cx.update(|_, cx| state.read(cx).focus_handle(cx));
+
+    // The click below runs against the frame `open_host` already painted —
+    // the FIRST frame, whose listener decision the mirror read made before
+    // any `Input::render` had ever run. It is deliberately the first
+    // interaction: a click repaints, and every later frame reads a mirror
+    // the previous frame already corrected.
+    //
+    // The suffix button keeps its press, and the focus must stay with the
+    // button — proven by Enter activating it again, which only works while
+    // the button holds the focus. A wrongly focused disabled field is not
+    // in the focus tree, so the app root takes the focus back on the next
+    // paint and Enter activates nothing.
+    click(cx, 394., 18.);
+    assert_eq!(
+        pressed.borrow().as_slice(),
+        ["press"],
+        "the suffix button must keep its own press beside a disabled field"
+    );
+    let focused_on_field = |cx: &mut VisualTestContext| {
+        cx.update(|window, cx| window.focused(cx).is_some_and(|held| held == field_handle))
+    };
+    assert!(
+        !focused_on_field(cx),
+        "a field disabled inside an enabled group must refuse the addon \
+         click-to-focus on the first frame"
+    );
+    flush_frame(cx);
+    press(cx, "enter");
+    assert_eq!(
+        pressed.borrow().as_slice(),
+        ["press", "press"],
+        "the button must still hold the focus after the click: a disabled \
+         field must not have taken it from the first frame on"
+    );
+
+    // And the plain addons refuse the click-to-focus on the later frames too.
+    click(cx, 6., 18.);
+    assert!(
+        !focused_on_field(cx),
+        "the addon click must never focus a disabled field"
+    );
+    cx.simulate_input("y");
+
+    cx.simulate_input("z");
+    assert!(
+        recorded.borrow().is_empty(),
+        "no keystroke may reach the disabled field, got {:?}",
+        recorded.borrow()
+    );
+    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        value, "",
+        "the disabled field must hold no text: the group's click-to-focus \
+         reads the field's own flag, not a rendered mirror"
+    );
+}
+
+#[gpui::test]
+fn input_group_disabled_group_propagates_to_the_textarea(cx: &mut TestAppContext) {
+    // The group's flag reaches the converted multi-line field the same way —
+    // `text_area` becomes the one held `Input` slot — so a click inside the
+    // box focuses nothing and no key reaches the state.
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        gpui::div()
+            .w(px(400.))
+            .child(
+                InputGroup::new().is_disabled(true).text_area(
+                    TextArea::new(state_for_view.clone())
+                        .rows(3)
+                        .on_change(move |text, _, _| {
+                            changes.borrow_mut().push(text.to_owned());
+                        }),
+                ),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    // The textarea spans the full row (no addons), 76px tall for rows 3.
+    click(cx, 200., 38.);
+    cx.simulate_input("x");
+    let field_handle = cx.update(|_, cx| state.read(cx).focus_handle(cx));
+    let focused_on_field =
+        cx.update(|window, cx| window.focused(cx).is_some_and(|held| held == field_handle));
+    assert!(
+        !focused_on_field,
+        "a group-disabled textarea must not take the focus"
+    );
+    assert!(
+        recorded.borrow().is_empty(),
+        "a group-disabled textarea must record no typing, got {:?}",
+        recorded.borrow()
+    );
+    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        value, "",
+        "the propagation must reach the converted multi-line field"
+    );
+}
+
+#[gpui::test]
+// The geometry assertions below compare whole-pixel layout results — a 400px
+// request laid out by taffy is exactly 400.0, with no fractional step to
+// tolerate — so the exact comparisons are on purpose.
+#[allow(clippy::float_cmp)]
+fn input_group_full_width_stretches_the_outer_wrapper(cx: &mut TestAppContext) {
+    // `.input-group--full-width` is `w-full`, and in this port that width has
+    // to reach the OUTER wrapper too: a `w_full` child resolves against a
+    // content-sized parent and stretches nothing. Measured in an
+    // items-start column, where an unstretched group hugs its content.
+    let changes = events();
+    let state = cx.new(|cx| InputState::new(cx));
+    let entity = state.entity_id().as_u64();
+    let plain = cx.new(|cx| InputState::new(cx));
+    let plain_entity = plain.entity_id().as_u64();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        gpui::div()
+            .w(px(400.))
+            .flex()
+            .flex_col()
+            .items_start()
+            .gap(px(16.))
+            .child(
+                InputGroup::new()
+                    .full_width(true)
+                    .prefix(InputAddon::new("$"))
+                    .input(Input::new(state.clone()).on_change(move |text, _, _| {
+                        changes.borrow_mut().push(text.to_owned());
+                    }))
+                    .suffix(InputAddon::new("USD")),
+            )
+            .child(
+                InputGroup::new()
+                    .prefix(InputAddon::new("$"))
+                    .input(Input::new(plain.clone()))
+                    .suffix(InputAddon::new("USD")),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    // `debug_bounds` takes a `&'static str` and the probe keys carry the
+    // input's entity id, so the formatted keys are leaked for the test's
+    // lifetime.
+    let key = |entity: u64, suffix: &str| -> &'static str {
+        Box::leak(format!("input-group-{entity}-{suffix}").into_boxed_str())
+    };
+    let full = cx
+        .debug_bounds(key(entity, "group"))
+        .expect("the full-width group box must be measurable");
+    let plain_bounds = cx
+        .debug_bounds(key(plain_entity, "group"))
+        .expect("the plain group box must be measurable");
+    assert_eq!(
+        f32::from(full.size.width),
+        400.0,
+        "full_width must stretch the group to its container's width, got {}",
+        f32::from(full.size.width)
+    );
+    assert!(
+        f32::from(plain_bounds.size.width) < 400.0,
+        "without full_width the group must hug its content, got {}",
+        f32::from(plain_bounds.size.width)
+    );
+}
+
+#[gpui::test]
+// The geometry assertions below compare whole-pixel sums — 20px lines and the
+// pinned 8px slot padding laid out by taffy — so the exact comparisons are on
+// purpose.
+#[allow(clippy::float_cmp)]
+fn input_group_textarea_auto_height_and_top_aligned_addons(cx: &mut TestAppContext) {
+    // `:has([data-slot="input-group-textarea"])` switches the group to
+    // `items-start` with `height: auto`, and gives each addon
+    // `padding-top: 0.5rem` — the 8px that used to be faked by hand in the
+    // gallery demo. Probed with fixed-height slots: the prefix wrapper must
+    // start at the group's top and stand 8px taller than its 20px probe.
+    let state = cx.new(|cx| InputState::new(cx));
+    let entity = state.entity_id().as_u64();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .w(px(400.))
+            .child(
+                InputGroup::new()
+                    .prefix(
+                        // A fixed 20px probe: any glyph metrics stay out of the
+                        // arithmetic.
+                        gpui::div().w(px(16.)).h(px(20.)),
+                    )
+                    .suffix(gpui::div().w(px(16.)).h(px(20.)))
+                    .text_area(TextArea::new(state.clone()).rows(3)),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let key = |suffix: &str| -> &'static str {
+        Box::leak(format!("input-group-{entity}-{suffix}").into_boxed_str())
+    };
+    let group = cx
+        .debug_bounds(key("group"))
+        .expect("the textarea group box must be measurable");
+    assert_eq!(
+        f32::from(group.size.height),
+        76.0,
+        "rows(3) is 20*3 + 16 = 76px and `height: auto` must let the group \
+         grow to it, got {}",
+        f32::from(group.size.height)
+    );
+    let prefix = cx
+        .debug_bounds(key("prefix"))
+        .expect("the textarea group's addon slot must be measurable");
+    assert_eq!(
+        f32::from(prefix.origin.y),
+        f32::from(group.origin.y),
+        "the addon slot must be top-aligned with the textarea (items-start), \
+         not centred in the taller group"
+    );
+    assert_eq!(
+        f32::from(prefix.size.height),
+        28.0,
+        "the addon slot carries the pinned 8px top padding over its 20px \
+         probe, got {}",
+        f32::from(prefix.size.height)
+    );
+    let suffix = cx
+        .debug_bounds(key("suffix"))
+        .expect("the textarea group's suffix slot must be measurable");
+    assert_eq!(
+        f32::from(suffix.origin.y),
+        f32::from(group.origin.y),
+        "both addon slots must top-align"
+    );
 }
 
 // ---------------------------------------------------------------------------

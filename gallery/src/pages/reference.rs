@@ -905,6 +905,149 @@ mod tests {
     }
 
     #[test]
+    fn input_group_metadata_tracks_field_propagation_and_pinned_hover() {
+        let metadata = reference_metadata::for_route(
+            "InputGroup",
+            "use herogpui::components::input_group::InputGroup;",
+        )
+        .expect("InputGroup metadata is registered");
+
+        // The exact pinned composition: Root, Input, TextArea, Prefix, Suffix.
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        assert_eq!(metadata.parts.len(), 5);
+        for name in [
+            "InputGroup",
+            "InputGroup.Input",
+            "InputGroup.TextArea",
+            "InputGroup.Prefix",
+            "InputGroup.Suffix",
+        ] {
+            assert!(
+                metadata
+                    .parts
+                    .iter()
+                    .any(|part| part.name == name && part.rust_owner == "InputGroup"),
+                "the pinned part {name} must be documented"
+            );
+        }
+
+        // The group-level flags the port folds from the pinned TextField
+        // context, and the width that lands on the outer wrapper.
+        for prop in [
+            "fullWidth",
+            "variant",
+            "isDisabled",
+            "label",
+            "errorMessage",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.prop == prop
+                    && entry.rust_owner == "InputGroup"
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        // Disabled reaches the held field itself — the fixed defect — so the
+        // mapping must name the propagation, not a dimming-only story.
+        assert!(metadata.api.iter().any(|entry| {
+            entry.prop == "isDisabled"
+                && entry.rust.contains("Input::is_disabled")
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+
+        // Exactly the four states the pinned page claims, with hover drawn by
+        // the group's own module evidence.
+        assert_eq!(metadata.states.len(), 4);
+        for state in ["Hover", "Focus Within", "Invalid", "Disabled"] {
+            assert!(metadata.states.iter().any(|entry| entry.state == state));
+        }
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Hover"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.selector.contains(":not(:focus-within)")
+                && entry.rust.contains("border_hover()")
+        }));
+        // The pinned hover accessor: `--default-hover` is `RoleColor::hover()`,
+        // and `soft_hover()` is a different, lighter token — the recorded
+        // mapping must name the right one.
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Hover"
+                && entry.rust.contains("default.hover()")
+                && !entry.rust.contains("soft_hover")
+        }));
+        // A disabled group paints no hover: the recorded mapping must gate the
+        // refinement on the disabled flag as well as the focus.
+        assert!(metadata
+            .states
+            .iter()
+            .any(|entry| { entry.state == "Hover" && entry.rust.contains("&& !is_disabled") }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Disabled" && entry.rust.contains("Input::is_disabled")
+        }));
+        // The disabled story must stay honest in both directions: one dim over
+        // the box, and the children limitation stated rather than implied.
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Disabled"
+                && entry
+                    .description
+                    .contains("one dim covers the whole group box")
+                && entry.description.contains("pointer- or tab-inert")
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token.contains("data-disabled")
+                && entry.description.contains("pointer-events: none")
+        }));
+
+        // Styling rows must carry the fixed behavior evidence: the hover fill,
+        // the textarea group geometry, and the full-width stretch.
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token.contains(":hover:not(:focus-within)")
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.value.contains("bg-field-hover")
+                && entry.rust.contains("default.hover()")
+                && !entry.rust.contains("soft_hover")
+        }));
+        // The textarea rows math is proven, but the pinned 38px one-row floor
+        // is not drawn — the record must say so rather than claim a match.
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token.contains("input-group-textarea")
+                && entry.value.contains("38px")
+                && entry
+                    .description
+                    .contains("the pinned 38px one-row floor does not")
+        }));
+        // The documented `InputGroup.TextArea.variant`, shadowed by the
+        // group's shared chrome.
+        assert!(metadata.api.iter().any(|entry| {
+            entry.prop == "variant"
+                && entry.owner == "InputGroup.TextArea"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token.contains(":has(")
+                && entry.value.contains("items-start")
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("items_start")
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".input-group--full-width"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("w_full")
+        }));
+
+        // v3.2.4 pins on every source.
+        assert_eq!(metadata.version, "3.2.4");
+        assert!(metadata.api_source.contains("input-group.tsx"));
+        assert!(metadata.style_source.contains("input-group.css"));
+        for url in [
+            metadata.docs_source,
+            metadata.api_source,
+            metadata.style_source,
+        ] {
+            assert!(url.contains("/blob/v3.2.4/"));
+        }
+    }
+
+    #[test]
     fn referenced_types_include_companions_used_by_examples() {
         let examples = ["h::Table::new().column(h::TableColumn::new())"];
         let owners = referenced_types(
