@@ -140,6 +140,52 @@ fn list_box_multiple_selects_every_enabled_option_on_mod_a(cx: &mut TestAppConte
     );
 }
 
+/// Pinned `useSelectableCollection` extends a multiple selection from the last
+/// toggled key when Shift is held during keyboard navigation.
+#[gpui::test]
+fn list_box_shift_down_extends_multiple_selection_from_the_toggle_anchor(cx: &mut TestAppContext) {
+    let selected = Rc::new(RefCell::new(HashSet::<SharedString>::new()));
+    let recorded = events();
+    let selected_for_view = selected;
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let selected = selected_for_view.clone();
+        let held = selected.borrow().clone();
+        let recorded = for_view.clone();
+        ListBox::new(
+            "contract-list-shift-extend",
+            vec![
+                ListBoxItem::new("alpha", "Alpha"),
+                ListBoxItem::new("beta", "Beta"),
+                ListBoxItem::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .selected_keys(held)
+        .on_selection_change(move |keys, window, _| {
+            *selected.borrow_mut() = keys.clone();
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    flush_frame(cx);
+    press(cx, "space");
+    flush_frame(cx);
+    press(cx, "shift-down");
+    flush_frame(cx);
+    press(cx, "shift-up");
+    flush_frame(cx);
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "alpha,beta", "alpha"],
+        "Shift+Arrow must extend and reverse from the last toggled row"
+    );
+}
+
 #[gpui::test]
 fn list_box_mod_a_is_idempotent_for_a_selection_superset(cx: &mut TestAppContext) {
     let recorded = events();

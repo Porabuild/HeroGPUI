@@ -123,6 +123,49 @@ type OnAction = Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
 /// `ListBox.ItemIndicator`'s render function, handed `isSelected`.
 type Indicator = Arc<dyn Fn(bool) -> gpui::AnyElement + 'static>;
 
+#[derive(Clone, Debug, Default)]
+struct ListBoxSelectionRange {
+    anchor: Option<SharedString>,
+    current: Option<SharedString>,
+    is_all: bool,
+}
+
+fn extend_selection_range(
+    current: &HashSet<SharedString>,
+    collection: &[SharedString],
+    selectable: &HashSet<SharedString>,
+    range: &ListBoxSelectionRange,
+    target: &SharedString,
+) -> HashSet<SharedString> {
+    if range.is_all {
+        return HashSet::from([target.clone()]);
+    }
+    let anchor = range.anchor.as_ref().unwrap_or(target);
+    let previous = range.current.as_ref().unwrap_or(target);
+    let anchor_at = collection.iter().position(|key| key == anchor);
+    let previous_at = collection.iter().position(|key| key == previous);
+    let target_at = collection.iter().position(|key| key == target);
+    let between = |from: Option<usize>, to: Option<usize>| {
+        from.zip(to)
+            .map(|(from, to)| if from <= to { from..=to } else { to..=from })
+    };
+    let mut next = current.clone();
+    if let Some(previous_range) = between(anchor_at, previous_at) {
+        for index in previous_range {
+            next.remove(&collection[index]);
+        }
+    }
+    if let Some(target_range) = between(anchor_at, target_at) {
+        for index in target_range {
+            let key = &collection[index];
+            if selectable.contains(key) {
+                next.insert(key.clone());
+            }
+        }
+    }
+    next
+}
+
 /// HeroUI ListBox.
 #[derive(IntoElement)]
 pub struct ListBox {
@@ -334,6 +377,11 @@ impl RenderOnce for ListBox {
             ElementId::Name(format!("{base}-cursor").into()),
             cx,
             |_, _| None::<usize>,
+        );
+        let selection_range = window.use_keyed_state(
+            ElementId::Name(format!("{base}-selection-range").into()),
+            cx,
+            |_, _| ListBoxSelectionRange::default(),
         );
         let mut cursor_at = *cursor.read(cx);
         let (selected_keys, selection_own) = util::controlled(
@@ -553,8 +601,13 @@ impl RenderOnce for ListBox {
             let on_selection_change = self.on_selection_change.clone();
             let on_action = self.on_action.clone();
             let selection_own_for_keys = selection_own.clone();
+            let selection_range_for_keys = selection_range;
             let interaction_for_keys = interaction.clone();
             let entry_at = cursor_at;
+            let selectable_keys: HashSet<SharedString> = stops_for_keys
+                .iter()
+                .filter_map(|index| keys.get(*index).cloned())
+                .collect();
             list = list.on_key_down(move |event, window, cx| {
                 let from = (*held.read(cx))
                     .filter(|index| stops_for_keys.contains(index))
@@ -587,6 +640,11 @@ impl RenderOnce for ListBox {
                         if let Some(cb) = &on_selection_change {
                             cb(&next, window, cx);
                         }
+                        selection_range_for_keys.update(cx, |range, _| {
+                            range.anchor = None;
+                            range.current = None;
+                            range.is_all = true;
+                        });
                     }
                     cx.stop_propagation();
                     return;
@@ -608,6 +666,9 @@ impl RenderOnce for ListBox {
                     if let Some(cb) = &on_selection_change {
                         cb(&next, window, cx);
                     }
+                    selection_range_for_keys.update(cx, |range, _| {
+                        *range = ListBoxSelectionRange::default();
+                    });
                     cx.stop_propagation();
                     return;
                 }
@@ -734,6 +795,46 @@ impl RenderOnce for ListBox {
                 );
                 match navigation {
                     crate::list_nav::Move::To(next) => {
+                        let modifiers = event.keystroke.modifiers;
+                        let exact_shift_navigation = if cfg!(target_os = "macos") {
+                            !modifiers.control && !modifiers.platform && !modifiers.function
+                        } else {
+                            !modifiers.alt && !modifiers.platform && !modifiers.function
+                        };
+                        let extends_selection = modifiers.shift
+                            && mode == SelectionMode::Multiple
+                            && exact_shift_navigation
+                            && Some(next) != from;
+                        if extends_selection {
+                            if let Some(target) = keys.get(next) {
+                                let range = selection_range_for_keys.read(cx).clone();
+                                let next_selection = extend_selection_range(
+                                    &selected_now,
+                                    &keys,
+                                    &selectable_keys,
+                                    &range,
+                                    target,
+                                );
+                                selection_range_for_keys.update(cx, |range, _| {
+                                    if range.anchor.is_none() {
+                                        range.anchor = Some(target.clone());
+                                    }
+                                    range.current = Some(target.clone());
+                                    range.is_all = false;
+                                });
+                                if next_selection != selected_now {
+                                    if let Some(held) = &selection_own_for_keys {
+                                        held.update(cx, |value, cx| {
+                                            *value = next_selection.clone();
+                                            cx.notify();
+                                        });
+                                    }
+                                    if let Some(cb) = &on_selection_change {
+                                        cb(&next_selection, window, cx);
+                                    }
+                                }
+                            }
+                        }
                         held.update(cx, |v, cx| {
                             *v = Some(next);
                             cx.notify();
@@ -778,13 +879,14 @@ impl RenderOnce for ListBox {
                             return;
                         }
                         if crate::selection::reports_changes(mode) {
+                            let was_selected = selected_now.contains(&item_key);
                             let next = match mode {
                                 SelectionMode::None => selected_now.clone(),
                                 SelectionMode::Single => {
                                     if selected_now.contains(&item_key) {
                                         HashSet::new()
                                     } else {
-                                        HashSet::from([item_key])
+                                        HashSet::from([item_key.clone()])
                                     }
                                 }
                                 SelectionMode::Multiple => {
@@ -803,6 +905,19 @@ impl RenderOnce for ListBox {
                             }
                             if let Some(cb) = &on_selection_change {
                                 cb(&next, window, cx);
+                            }
+                            if mode == SelectionMode::Multiple && !was_selected {
+                                selection_range_for_keys.update(cx, |range, _| {
+                                    range.anchor = Some(item_key.clone());
+                                    range.current = Some(item_key.clone());
+                                    range.is_all = false;
+                                });
+                            } else if mode == SelectionMode::Multiple {
+                                selection_range_for_keys.update(cx, |range, _| {
+                                    if range.is_all {
+                                        *range = ListBoxSelectionRange::default();
+                                    }
+                                });
                             }
                         }
                     }
