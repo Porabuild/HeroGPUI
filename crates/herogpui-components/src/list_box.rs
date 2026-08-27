@@ -1116,7 +1116,8 @@ impl ListBox {
             ListBoxItem::Separator => sized(
                 div()
                     .my(px(4.))
-                    .mx(px(4.))
+                    .mx(gpui::relative(0.03))
+                    .w(gpui::relative(0.94))
                     .h(cx.layout().border_width)
                     .bg(colors.separator),
             )
@@ -1153,12 +1154,11 @@ impl ListBox {
                     && (crate::selection::reports_changes(self.selection_mode)
                         || self.on_action.is_some());
 
-                let (fg, hover_bg) = match variant {
-                    ListBoxItemVariant::Default => (colors.foreground, colors.default.color),
-                    ListBoxItemVariant::Danger => {
-                        (colors.danger.soft_foreground(), colors.danger.soft())
-                    }
+                let fg = match variant {
+                    ListBoxItemVariant::Default => colors.foreground,
+                    ListBoxItemVariant::Danger => colors.danger.color,
                 };
+                let hover_bg = colors.default.color;
 
                 let mut row = div()
                     .id(ElementId::Name(
@@ -1184,13 +1184,6 @@ impl ListBox {
                     row = row.opacity(cx.layout().disabled_opacity);
                 } else {
                     row = row.cursor_pointer().hover(move |s| s.bg(hover_bg));
-                }
-
-                if selected {
-                    row = row.bg(match variant {
-                        ListBoxItemVariant::Default => colors.accent.soft(),
-                        ListBoxItemVariant::Danger => colors.danger.soft(),
-                    });
                 }
 
                 // `.list-box-item` takes `status-focused` on the row the keyboard
@@ -1268,7 +1261,10 @@ impl ListBox {
                             .size(px(16.))
                             .path(icons::CHECK)
                             .flex_shrink_0()
-                            .text_color(colors.accent.color),
+                            .text_color(match variant {
+                                ListBoxItemVariant::Default => colors.default.foreground,
+                                ListBoxItemVariant::Danger => colors.danger.color,
+                            }),
                     );
                 } else if let Some(sc) = shortcut {
                     row = row.child(

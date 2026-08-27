@@ -1194,6 +1194,39 @@ impl Widget {
     }
 
     #[test]
+    fn list_box_metadata_tracks_inherited_selection_and_compound_parts() {
+        let metadata = reference_metadata::for_route(
+            "ListBox",
+            "use herogpui::components::list_box::{ListBox, ListBoxItem};",
+        )
+        .expect("ListBox metadata is registered");
+
+        assert_eq!(metadata.parts.len(), 4);
+        for prop in [
+            "selectionMode",
+            "selectedKeys",
+            "defaultSelectedKeys",
+            "disallowEmptySelection",
+            "shouldFocusWrap",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "ListBox"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "ListBox.ItemIndicator"
+                && entry.prop == "children"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".list-box-item"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+    }
+
+    #[test]
     fn dropdown_metadata_does_not_classify_behavior_as_styling() {
         let metadata = reference_metadata::for_import(
             "use herogpui::components::dropdown::{Dropdown, MenuItem};",

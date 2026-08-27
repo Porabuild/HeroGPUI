@@ -11548,8 +11548,94 @@ pub(crate) const DISCLOSURE: ReferenceMetadata = ReferenceMetadata {
     styling: DISCLOSURE_STYLING,
 };
 
+const LIST_BOX_REQUIRED_PARTS: &[&str] = &[
+    "ListBox",
+    "ListBox.Item",
+    "ListBox.ItemIndicator",
+    "ListBox.Section",
+];
+
+const LIST_BOX_API: &[ApiDoc] = &[
+    ApiDoc { owner: "ListBox", prop: "selectionMode", ty: "\"none\" | \"single\" | \"multiple\"", default: "\"single\"", description: "Chooses inert, single, or multiple selection semantics.", rust_owner: "ListBox", rust: "selection_mode(SelectionMode)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox", prop: "selectedKeys", ty: "Selection", default: "—", description: "Controlled selected keys; the owner must accept reported changes.", rust_owner: "ListBox", rust: "selected_keys(keys)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox", prop: "defaultSelectedKeys", ty: "Selection", default: "—", description: "Seeds the list's uncontrolled selected-key set once.", rust_owner: "ListBox", rust: "default_selected_keys(keys)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox", prop: "onSelectionChange", ty: "(keys: Selection) => void", default: "—", description: "Reports the complete selected-key set after pointer and keyboard changes.", rust_owner: "ListBox", rust: "on_selection_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox", prop: "disabledKeys", ty: "Iterable<Key>", default: "—", description: "Removes matching options from pointer and keyboard selection stops.", rust_owner: "ListBox", rust: "disabled_keys(keys)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox", prop: "onAction", ty: "(key: Key) => void", default: "—", description: "Reports item activation independently from selection where React Aria gives action priority.", rust_owner: "ListBox", rust: "on_action(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox", prop: "variant", ty: "\"default\" | \"danger\"", default: "\"default\"", description: "Default visual variant inherited by options unless an item overrides it.", rust_owner: "ListBox", rust: "variant(ListBoxItemVariant)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox", prop: "disallowEmptySelection", ty: "boolean", default: "false", description: "Inherited React Aria policy blocks the final-key toggle and Escape clearing.", rust_owner: "ListBox", rust: "disallow_empty_selection(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox", prop: "shouldFocusWrap", ty: "boolean", default: "false", description: "Inherited React Aria policy joins the arrow-key ends.", rust_owner: "ListBox", rust: "should_focus_wrap(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox", prop: "selectionBehavior", ty: "\"toggle\" | \"replace\"", default: "\"toggle\"", description: "The port implements pinned toggle behavior only; replace-on-focus selection is unavailable.", rust_owner: "ListBox", rust: "fixed toggle behavior", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ListBox", prop: "autoFocus", ty: "boolean | FocusStrategy", default: "false", description: "Entry focus follows the selected key or first enabled option, but automatic mount focus is not exposed.", rust_owner: "ListBox", rust: "entry focus only", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ListBox", prop: "escapeKeyBehavior", ty: "\"clearSelection\" | \"none\"", default: "\"clearSelection\"", description: "Pinned default clearing is implemented; a caller cannot independently disable Escape except through disallowEmptySelection.", rust_owner: "ListBox", rust: "fixed clearSelection", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ListBox", prop: "renderEmptyState", ty: "(props: ListBoxRenderProps) => ReactNode", default: "—", description: "An empty collection renders no synthetic option and has no empty-state slot.", rust_owner: "ListBox", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ListBox", prop: "layout / orientation", ty: "\"stack\" | \"grid\" / Orientation", default: "\"stack\" / \"vertical\"", description: "This port exposes the pinned vertical stack layout only.", rust_owner: "ListBox", rust: "fixed vertical stack", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ListBox", prop: "children", ty: "ReactNode", default: "—", description: "Items, sections, and separators are supplied as the constructor collection.", rust_owner: "ListBox", rust: "new(id, items)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox", prop: "aria-label / aria-labelledby", ty: "string", default: "—", description: "GPUI has no accessibility tree attributes.", rust_owner: "ListBox", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ListBox", prop: "className / render", ty: "string / DOMRenderFunction", default: "—", description: "Browser CSS classes and DOM root substitution are unavailable.", rust_owner: "ListBox", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ListBox.Item", prop: "id", ty: "Key", default: "—", description: "Stable option identity used for selection and callbacks.", rust_owner: "ListBoxItem", rust: "new(key, label)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox.Item", prop: "textValue", ty: "string", default: "—", description: "The constructor label is the option's typeahead text.", rust_owner: "ListBoxItem", rust: "new(key, label)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox.Item", prop: "isDisabled", ty: "boolean", default: "false", description: "Disables one option independently from disabledKeys.", rust_owner: "ListBoxItem", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox.Item", prop: "variant", ty: "\"default\" | \"danger\"", default: "\"default\"", description: "Overrides the option visual variant.", rust_owner: "ListBoxItem", rust: "variant(ListBoxItemVariant)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox.Item", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Replacement row content receives selected, focused, focus-visible, pressed, and disabled state.", rust_owner: "ListBox", rust: "item_content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox.Item", prop: "render", ty: "DOM render function", default: "—", description: "DOM element substitution and link attributes are unavailable.", rust_owner: "ListBoxItem", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ListBox.ItemIndicator", prop: "children", ty: "ReactNode | RenderFunction", default: "checkmark", description: "Replaces the selected indicator and receives isSelected.", rust_owner: "ListBox", rust: "indicator(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListBox.Section", prop: "children", ty: "ReactNode", default: "—", description: "Section headers and separators are explicit collection records.", rust_owner: "ListBoxItem", rust: "section(label) / separator()", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListLayout", prop: "rowHeight", ty: "number | undefined", default: "48", description: "Fixed row geometry enables uniform-list virtualization.", rust_owner: "ListBox", rust: "row_height(px)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListLayout", prop: "estimatedRowHeight", ty: "number | undefined", default: "—", description: "Estimated variable row geometry enables measured list virtualization.", rust_owner: "ListBox", rust: "estimated_row_height(px)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListLayout", prop: "headingHeight", ty: "number | undefined", default: "48", description: "Sets virtual section-row height.", rust_owner: "ListBox", rust: "heading_height(px)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListLayout", prop: "estimatedHeadingHeight", ty: "number | undefined", default: "—", description: "Section headings are single-line records rather than independently estimated layouts.", rust_owner: "ListBox", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ListLayout", prop: "loaderHeight / dropIndicatorThickness", ty: "number | undefined", default: "48 / 2", description: "This collection has neither a loader row nor drag-and-drop indicators.", rust_owner: "ListBox", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ListLayout", prop: "gap", ty: "number | undefined", default: "0", description: "Overrides the pinned direct-child spacing.", rust_owner: "ListBox", rust: "gap(px)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ListLayout", prop: "padding", ty: "number | undefined", default: "0", description: "Overrides the pinned list inset.", rust_owner: "ListBox", rust: "padding(px)", status: ImplementationStatus::Implemented },
+];
+
+const LIST_BOX_PARTS: &[PartDoc] = &[
+    PartDoc { name: "ListBox", slot: "list-box", description: "Selection, focus, keyboard, scrolling, and virtualization owner.", rust_owner: "ListBox", status: ImplementationStatus::Implemented },
+    PartDoc { name: "ListBox.Item", slot: "list-box-item", description: "Selectable option with label, description, icon, shortcut, variant, and render state.", rust_owner: "ListBoxItem", status: ImplementationStatus::Implemented },
+    PartDoc { name: "ListBox.ItemIndicator", slot: "list-box-item-indicator", description: "Built-in check or caller-rendered selected marker.", rust_owner: "ListBox", status: ImplementationStatus::Implemented },
+    PartDoc { name: "ListBox.Section", slot: "list-box-section", description: "Non-selectable heading record grouping following options; nested section ownership is flattened.", rust_owner: "ListBoxItem", status: ImplementationStatus::Partial },
+];
+
+const LIST_BOX_STATES: &[StateDoc] = &[
+    StateDoc { state: "Selected", selector: ".list-box-item[data-selected=true]", description: "Selection is shown by the trailing indicator without adding a row fill.", rust: "selected_keys + indicator", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focused", selector: ".list-box-item[data-focused=true]", description: "Roving keyboard cursor tracks one enabled option.", rust: "cursor keyed state", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus visible", selector: ".list-box-item[data-focus-visible=true]", description: "Keyboard focus draws the pinned status ring and reaches item render state.", rust: "with_focus_ring + item_content", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Pressed", selector: ".list-box-item[data-pressed=true]", description: "Interactive options shrink to 98% and expose pressed render state.", rust: "anim::pressed + interaction", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Hovered", selector: ".list-box-item[data-hovered=true]", description: "Enabled options use the default hover fill; v3 does not include hover in its documented item render-prop table.", rust: "row hover chrome", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Disabled", selector: ".list-box-item[data-disabled=true]", description: "Disabled options dim and leave pointer, arrow, typeahead, and selection stops.", rust: "is_disabled / disabled_keys", status: ImplementationStatus::Implemented },
+];
+
+const LIST_BOX_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".list-box", value: "relative w-full overflow-clip p-1", description: "Full-width clipped list with four-pixel inset.", rust: "relative + w_full + overflow_hidden + padding 4px", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".list-box > * + *", value: "mt-1", description: "Four pixels between direct collection records without flex-shrinking virtual content.", rust: "gap 4px in row geometry", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".list-box-item", value: "min-h-9 gap-3 rounded-2xl px-2 py-1.5", description: "Option minimum height, 12px gap, 16px radius, and 8px/6px padding match.", rust: "FIELD_HEIGHT + gap(12) + soft_radius + px(8) + py(6)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".list-box-item pressed", value: "scale(0.98); transform 250ms ease-out-quart", description: "Pressed geometry matches; the port uses its shared press timeline rather than the exact quart curve.", rust: "anim::pressed(PRESSED_SCALE_SUBTLE)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".list-box-item hover", value: "bg-default", description: "Enabled pointer hover uses the default surface fill.", rust: "colors.default.color hover", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".list-box-item__indicator", value: "absolute end-2 size-4 text-default-foreground", description: "Size and default/danger colors match; flex layout places it at the trailing edge without the pinned absolute logical-end positioning.", rust: "inline trailing 16px indicator", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".list-box-item--danger", value: "indicator and label text-danger", description: "Danger options and their indicator use the danger semantic color.", rust: "ListBoxItemVariant::Danger", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".list-box-section", value: "flex flex-col items-start gap-0", description: "The port flattens section heading records into the list rather than nesting a section container.", rust: "ListBoxItem::Section row", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".list-box separator", value: "ms-[3%] w-[94%]", description: "Separators are centered at 94% width.", rust: "separator margin and width", status: ImplementationStatus::Implemented },
+];
+
+pub(crate) const LIST_BOX: ReferenceMetadata = ReferenceMetadata {
+    page: "ListBox",
+    import_line: "use herogpui::components::list_box::{ListBox, ListBoxItem};",
+    source_module: "list_box",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(collections)/list-box.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/list-box/list-box.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/list-box-item/list-box-item.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/list-box-section/list-box-section.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/ListBox.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/list-box.css + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/list-box-item.css + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/list-box-section.css",
+    required_parts: LIST_BOX_REQUIRED_PARTS,
+    api: LIST_BOX_API,
+    parts: LIST_BOX_PARTS,
+    states: LIST_BOX_STATES,
+    styling: LIST_BOX_STYLING,
+};
+
 pub(crate) const ALL: &[ReferenceMetadata] = &[
     DROPDOWN,
+    LIST_BOX,
     SLIDER,
     BUTTON,
     CHECKBOX,
