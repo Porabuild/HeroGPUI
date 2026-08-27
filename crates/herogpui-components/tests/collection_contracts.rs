@@ -866,6 +866,43 @@ fn tag_group_escape_clears_a_select_all_result(cx: &mut TestAppContext) {
     );
 }
 
+#[gpui::test]
+fn tag_group_disallow_empty_selection_blocks_final_toggle_and_escape(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let outer_events = for_view.clone();
+        let selection_events = for_view.clone();
+        gpui::div()
+            .on_key_down(move |event, _, _| {
+                if event.keystroke.key == "escape" {
+                    outer_events.borrow_mut().push("outer-escape".into());
+                }
+            })
+            .child(
+                TagGroup::new(
+                    "contract-tags-disallow-empty",
+                    vec![Tag::new("alpha", "Alpha")],
+                )
+                .selection_mode(SelectionMode::Single)
+                .default_selected_keys([SharedString::from("alpha")])
+                .disallow_empty_selection(true)
+                .on_selection_change(move |keys, _, _| {
+                    selection_events.borrow_mut().push(sorted_join(keys));
+                }),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 30., 14.);
+    press(cx, "escape");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["outer-escape"],
+        "the final selected tag must stay selected and unhandled Escape must bubble"
+    );
+}
+
 /// Pinned React Aria removes the entire selection when Delete or Backspace is
 /// pressed on a selected tag, but reports only the focused tag otherwise.
 #[gpui::test]

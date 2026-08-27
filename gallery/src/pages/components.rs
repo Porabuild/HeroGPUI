@@ -1704,6 +1704,18 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Disallow Empty Selection",
+                    col(vec![h::TagGroup::new(
+                        "tg-disallow-empty",
+                        vec![h::Tag::new("design", "Design"), h::Tag::new("code", "Code")],
+                    )
+                    .label("At least one skill")
+                    .selection_mode(SelectionMode::Single)
+                    .default_selected_keys([SharedString::from("design")])
+                    .disallow_empty_selection(true)
+                    .into_any_element()]),
+                ),
+                (
                     "With Error Message",
                     col(vec![h::TagGroup::new("tg-error", tags())
                         .label("Skills")

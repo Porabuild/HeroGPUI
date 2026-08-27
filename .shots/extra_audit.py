@@ -186,6 +186,7 @@ EXTRA_OK_SCOPED = {
     # HeroUI forwards React Aria's inherited MultipleSelection contract even
     # though its own ListBox table does not repeat this prop.
     'ListBox.disallow_empty_selection': 'react-aria-inherited',
+    'TagGroup.disallow_empty_selection': 'react-aria-inherited',
     # `[data-exiting]` belongs to Dropdown.Menu; the standalone Menu builder
     # carries that composed part state in gpui.
     'Dropdown.exiting': 'composition',

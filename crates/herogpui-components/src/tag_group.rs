@@ -22,7 +22,7 @@ pub enum TagVariant {
     /// Filled with `default`.
     #[default]
     Default,
-    /// Flat on the surface with a border.
+    /// Flat on the surface.
     Surface,
 }
 
@@ -85,6 +85,7 @@ pub struct TagGroup {
     selected_keys: HashSet<SharedString>,
     default_selected_keys: HashSet<SharedString>,
     is_controlled: bool,
+    disallow_empty_selection: bool,
     disabled_keys: HashSet<SharedString>,
     is_disabled: bool,
     size: Size,
@@ -110,6 +111,7 @@ impl TagGroup {
             selected_keys: HashSet::new(),
             default_selected_keys: HashSet::new(),
             is_controlled: false,
+            disallow_empty_selection: false,
             disabled_keys: HashSet::new(),
             is_disabled: false,
             size: Size::Md,
@@ -144,6 +146,12 @@ impl TagGroup {
     /// `defaultSelectedKeys` — seeds the group's own selection state.
     pub fn default_selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.default_selected_keys = keys.into_iter().collect();
+        self
+    }
+
+    /// Prevents selection from becoming empty through a tag toggle or Escape.
+    pub fn disallow_empty_selection(mut self, v: bool) -> Self {
+        self.disallow_empty_selection = v;
         self
     }
 
@@ -296,7 +304,7 @@ impl RenderOnce for TagGroup {
 
         // `.tag-group` is `flex flex-col gap-1`: the label, the list and the
         // description.
-        let mut root = div().flex().flex_col().gap(px(4.));
+        let mut root = div().relative().flex().flex_col().gap(px(4.));
 
         if let Some(label) = &self.label {
             root = root.child(
@@ -323,13 +331,21 @@ impl RenderOnce for TagGroup {
             return root;
         }
 
-        let mut list = div().flex().flex_row().flex_wrap().gap(px(6.));
+        let mut list = div().relative().flex().flex_row().flex_wrap().gap(px(6.));
 
         for (index, tag) in self.tags.iter().enumerate() {
             let disabled =
                 self.is_disabled || tag.is_disabled || self.disabled_keys.contains(&tag.key);
             let selected = self.selected_keys.contains(&tag.key);
             let selectable = self.selection_mode != SelectionMode::None;
+            let tag_foreground = if selected {
+                colors.accent.soft_foreground()
+            } else {
+                match self.variant {
+                    TagVariant::Default => colors.default.foreground,
+                    TagVariant::Surface => colors.surface.foreground,
+                }
+            };
 
             let mut chip = div()
                 .id(ElementId::Name(format!("{:?}-tag-{index}", self.id).into()))
@@ -344,21 +360,17 @@ impl RenderOnce for TagGroup {
                 .py(pad_y)
                 .rounded(tag_radius)
                 .text_size(text_size)
+                .font_weight(gpui::FontWeight::MEDIUM)
                 .whitespace_nowrap();
 
             chip = if selected {
-                chip.bg(colors.accent.soft())
-                    .text_color(colors.accent.soft_foreground())
+                chip.bg(colors.accent.soft()).text_color(tag_foreground)
             } else {
                 match self.variant {
-                    TagVariant::Default => chip
-                        .bg(colors.default.color)
-                        .text_color(colors.default.foreground),
+                    TagVariant::Default => chip.bg(colors.default.color).text_color(tag_foreground),
                     TagVariant::Surface => chip
                         .bg(colors.surface.background)
-                        .border(layout.border_width)
-                        .border_color(colors.border)
-                        .text_color(colors.foreground),
+                        .text_color(tag_foreground),
                 }
             };
 
@@ -368,7 +380,10 @@ impl RenderOnce for TagGroup {
                 let hover = if selected {
                     colors.accent.soft_hover()
                 } else {
-                    colors.default.hover()
+                    match self.variant {
+                        TagVariant::Default => colors.default.hover(),
+                        TagVariant::Surface => colors.surface.hover(),
+                    }
                 };
                 chip = chip.cursor_pointer().hover(move |s| s.bg(hover));
             }
@@ -376,10 +391,10 @@ impl RenderOnce for TagGroup {
             if let Some(path) = &tag.icon {
                 chip = chip.child(
                     gpui::svg()
-                        .size(self.size.icon_size())
+                        .size(px(12.))
                         .path(path.clone())
                         .flex_shrink_0()
-                        .text_color(colors.muted),
+                        .text_color(tag_foreground),
                 );
             }
 
@@ -426,9 +441,9 @@ impl RenderOnce for TagGroup {
                     // gpui svgs need an explicit color; they do not inherit.
                     .child(
                         gpui::svg()
-                            .size(px(10.))
+                            .size(px(12.))
                             .path(icons::CLOSE)
-                            .text_color(colors.muted),
+                            .text_color(tag_foreground),
                     );
                 if !disabled {
                     let hover_bg = colors.default.hover();
@@ -455,6 +470,7 @@ impl RenderOnce for TagGroup {
                 let remove = self.on_remove.clone();
                 let key_for_remove = tag.key.clone();
                 let mode = self.selection_mode;
+                let disallow_empty = self.disallow_empty_selection;
                 let selected_now = self.selected_keys.clone();
                 let selectable_keys = enabled_keys.clone();
                 let on_selection_change = self.on_selection_change.clone();
@@ -496,6 +512,7 @@ impl RenderOnce for TagGroup {
                     if key_name == "escape"
                         && !event.keystroke.modifiers.modified()
                         && crate::selection::reports_changes(mode)
+                        && !disallow_empty
                         && !selected_now.is_empty()
                     {
                         let next = HashSet::new();
@@ -554,6 +571,7 @@ impl RenderOnce for TagGroup {
             if selectable && !disabled {
                 let key = tag.key.clone();
                 let mode = self.selection_mode;
+                let disallow_empty = self.disallow_empty_selection;
                 let current = self.selected_keys.clone();
                 let on_change = self.on_selection_change.clone();
                 let selection_own = selection_own.clone();
@@ -561,7 +579,7 @@ impl RenderOnce for TagGroup {
                     let next = match mode {
                         SelectionMode::None => current.clone(),
                         SelectionMode::Single => {
-                            if current.contains(&key) {
+                            if current.contains(&key) && !disallow_empty {
                                 HashSet::new()
                             } else {
                                 HashSet::from([key.clone()])
@@ -569,12 +587,19 @@ impl RenderOnce for TagGroup {
                         }
                         SelectionMode::Multiple => {
                             let mut set = current.clone();
-                            if !set.remove(&key) {
+                            if set.remove(&key) {
+                                if disallow_empty && set.is_empty() {
+                                    set.insert(key.clone());
+                                }
+                            } else {
                                 set.insert(key.clone());
                             }
                             set
                         }
                     };
+                    if next == current {
+                        return;
+                    }
                     if let Some(held) = &selection_own {
                         held.update(cx, |value, cx| {
                             *value = next.clone();
@@ -603,6 +628,7 @@ impl RenderOnce for TagGroup {
         if let Some(description) = &self.description {
             root = root.child(
                 div()
+                    .p(px(4.))
                     .text_size(px(12.))
                     .text_color(colors.muted)
                     .child(description.to_string()),

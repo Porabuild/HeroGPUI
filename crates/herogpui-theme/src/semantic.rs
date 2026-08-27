@@ -93,6 +93,13 @@ pub struct SurfaceColor {
     pub foreground: Hsla,
 }
 
+impl SurfaceColor {
+    /// `--surface-hover: color-mix(in oklab, var(--surface) 92%, var(--surface-foreground) 8%)`
+    pub fn hover(&self) -> Hsla {
+        mix_oklab(self.background, self.foreground, 0.08)
+    }
+}
+
 /// Form-field tokens. v3 keeps these separate from buttons so inputs can be
 /// styled independently.
 #[derive(Clone, Copy, Debug)]

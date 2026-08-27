@@ -494,7 +494,8 @@ EVIDENCE = {
     ('TagGroup', 'escape-clear'): (
         'tag_group.rs',
         r'(?s)key_name == "escape".*?!event\.keystroke\.modifiers\.modified\(\)'
-        r'.*?reports_changes\(mode\).*?!selected_now\.is_empty\(\).*?HashSet::new\(\)'
+        r'.*?reports_changes\(mode\).*?!disallow_empty'
+        r'.*?!selected_now\.is_empty\(\).*?HashSet::new\(\)'
         r'.*?selection_own_for_keys.*?on_selection_change.*?stop_propagation\(\)',
     ),
     ('Table', 'resize-bounds'): (
