@@ -1366,6 +1366,61 @@ impl Widget {
     }
 
     #[test]
+    fn number_field_metadata_tracks_compound_buttons_render_state_and_style_limits() {
+        let metadata = reference_metadata::for_route(
+            "NumberField",
+            "use herogpui::components::number_field::{NumberField, NumberState};",
+        )
+        .expect("NumberField metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for required in metadata.required_parts {
+            assert!(
+                metadata.parts.iter().any(|part| part.name == *required),
+                "registered NumberField part disappeared: {required}"
+            );
+        }
+        for (owner, prop) in [
+            ("NumberField", "defaultValue"),
+            ("NumberField", "minValue"),
+            ("NumberField", "maxValue"),
+            ("NumberField", "step"),
+            ("NumberField", "validationBehavior"),
+            ("NumberField.IncrementButton", "children"),
+            ("NumberField.DecrementButton", "children"),
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == owner
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        for prop in [
+            "isDisabled / isInvalid / isReadOnly / isRequired",
+            "isFocused / isFocusWithin / isFocusVisible",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "NumberFieldRenderProps"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == "pinned With Chevrons composition"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        for class_or_token in [
+            ".number-field__group transitions",
+            ".number-field buttons:active",
+        ] {
+            assert!(metadata.styling.iter().any(|entry| {
+                entry.class_or_token == class_or_token
+                    && entry.status == reference_metadata::ImplementationStatus::Partial
+            }));
+        }
+    }
+
+    #[test]
     fn range_calendar_metadata_keeps_range_state_and_style_gaps_explicit() {
         let metadata = reference_metadata::for_route(
             "RangeCalendar",

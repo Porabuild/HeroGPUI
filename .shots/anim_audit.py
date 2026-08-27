@@ -524,6 +524,45 @@ def check_button_motion():
     return bad
 
 
+def check_number_field_motion():
+    """NumberField's spin buttons use the pinned pressed scale and fill."""
+    css_path = os.path.join(CACHE, 'number-field.css')
+    src_path = os.path.join(SRC, 'number_field.rs')
+    anim_path = os.path.join(SRC, 'anim.rs')
+    if not os.path.exists(css_path):
+        print('number field motion: no stylesheet')
+        return 1
+    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    src = io.open(src_path, encoding='utf-8').read()
+    anim = io.open(anim_path, encoding='utf-8').read()
+
+    block = re.search(
+        r'\.number-field__increment-button,\s*\n\.number-field__decrement-button\s*\{(.*?)\n\}',
+        css,
+        re.S,
+    )
+    want = re.search(r'transform:\s*scale\(([\d.]+)\)', block.group(1) if block else '')
+    constant = re.search(r'pub const PRESSED_SCALE:\s*f32\s*=\s*([\d.]+)', anim)
+    stepper = re.search(r'fn stepper_btn\((.*?)\n\}', src, re.S)
+    body = stepper.group(1) if stepper else ''
+    wired = (
+        'pressed_with_background' in body
+        and 'scale: crate::anim::PRESSED_SCALE' in body
+        and 'pressed_bg' in body
+    )
+    want_value = float(want.group(1)) if want else None
+    got_value = float(constant.group(1)) if constant and wired else None
+    same = want_value is not None and want_value == got_value
+    print('number field motion (v3 CSS vs NumberField):')
+    print('%s %-14s %-16s %-22s %s' % (
+        ' ' if same else '!', 'number-field', 'stepper press', str(want_value), str(got_value)
+    ))
+    bad = int(not same)
+    print('NUMBER FIELD MISMATCHES : %d' % bad)
+    print()
+    return bad
+
+
 def check_toggle_button_motion():
     """ToggleButton's size scales and the group's transform suppression."""
     css_path = os.path.join(CACHE, 'toggle-button.css')
@@ -952,6 +991,7 @@ def main():
         + check_autocomplete_motion()
         + check_tabs_motion()
         + check_button_motion()
+        + check_number_field_motion()
         + check_toggle_button_motion()
         + check_pagination_motion()
         + check_drawer_motion()

@@ -6789,28 +6789,14 @@ impl Gallery {
                 ),
                 (
                     "Custom Icons",
-                    col(vec![
-                        para(
-                            "v3 replaces the glyphs inside `NumberField.IncrementButton` and \
-                             `DecrementButton`. Ours draws v3's own minus and plus; the pair below \
-                             shows them with and without the steppers.",
-                            cx,
-                        ),
-                        h::NumberField::new(self.demo_number("nf-icons", 1024., 0., 4096., 1., cx))
-                            .label("Width")
-                            .into_any_element(),
-                        h::NumberField::new(self.demo_number(
-                            "nf-noicons",
-                            512.,
-                            0.,
-                            4096.,
-                            1.,
-                            cx,
-                        ))
-                        .label("Width (no steppers)")
-                        .hide_steppers(true)
-                        .into_any_element(),
-                    ]),
+                    col(vec![h::NumberField::new(
+                        self.demo_number("nf-icons", 1024., 0., 4096., 1., cx,)
+                    )
+                    .label("Width (Custom Icons)")
+                    .description("Custom icon children")
+                    .decrement_icon(icon(h::icons::CHEVRON_LEFT, cx))
+                    .increment_icon(icon(h::icons::CHEVRON_RIGHT, cx))
+                    .into_any_element()]),
                 ),
                 (
                     "With Chevrons",
@@ -6819,6 +6805,19 @@ impl Gallery {
                     )
                     .label("Amount")
                     .format_options(h::NumberFormat::currency("EUR"))
+                    .vertical_steppers(true)
+                    .increment_icon(
+                        gpui::svg()
+                            .size(px(11.))
+                            .path(h::icons::CHEVRON_UP)
+                            .text_color(cx.colors().foreground),
+                    )
+                    .decrement_icon(
+                        gpui::svg()
+                            .size(px(11.))
+                            .path(h::icons::CHEVRON_DOWN)
+                            .text_color(cx.colors().foreground),
+                    )
                     .into_any_element()]),
                 ),
             ],

@@ -23,10 +23,20 @@ SRC = 'crates/herogpui-components/src/'
 
 # React prop -> our builder name, where they legitimately differ.
 ALIAS = {
-    # A field's children-as-a-function: `content` is that closure, handed
-    # `{isFocused, isFocusWithin, isFocusVisible}`.
-    'NumberField.isFocused': 'content', 'NumberField.isFocusVisible': 'content',
-    'NumberField.isFocusWithin': 'content',
+    # A NumberField's children-as-a-function receives the full pinned render
+    # state. Keep these fold-scoped so root props such as `isDisabled` and
+    # `value` must still be answered by their own state/builders.
+    'NumberField.Render Props.isDisabled': 'content',
+    'NumberField.Render Props.isInvalid': 'content',
+    'NumberField.Render Props.isReadOnly': 'content',
+    'NumberField.Render Props.isRequired': 'content',
+    'NumberField.Render Props.isFocused': 'content',
+    'NumberField.Render Props.isFocusWithin': 'content',
+    'NumberField.Render Props.isFocusVisible': 'content',
+    'NumberField.Render Props.value': 'content',
+    'NumberField.Render Props.minValue': 'content',
+    'NumberField.Render Props.maxValue': 'content',
+    'NumberField.Render Props.step': 'content',
     'ColorField.isFocused': 'content', 'ColorField.isFocusVisible': 'content',
     'ColorField.isFocusWithin': 'content',
     'DateField.isFocused': 'content', 'DateField.isFocusVisible': 'content',

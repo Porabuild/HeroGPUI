@@ -242,16 +242,35 @@ fn format_number(v: f64) -> String {
 
 type OnChange = Arc<dyn Fn(f64, &mut Window, &mut App) + 'static>;
 
+/// Values HeroUI supplies to a NumberField root render function.
+#[derive(Clone, Copy, Debug)]
+pub struct NumberFieldRenderState {
+    pub is_disabled: bool,
+    pub is_invalid: bool,
+    pub is_read_only: bool,
+    pub is_required: bool,
+    pub is_focused: bool,
+    pub is_focus_within: bool,
+    pub is_focus_visible: bool,
+    pub value: f64,
+    pub min_value: Option<f64>,
+    pub max_value: Option<f64>,
+    pub step: f64,
+}
+
 /// HeroUI NumberField.
 #[derive(IntoElement)]
 pub struct NumberField {
     state: Entity<NumberState>,
     /// See [`NumberField::content`].
-    content: Option<Arc<dyn Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static>>,
+    content: Option<Arc<dyn Fn(NumberFieldRenderState) -> gpui::AnyElement + 'static>>,
     /// `Description` — v3 composes it as a sibling of `NumberField.Group`.
     description: Option<SharedString>,
     label: Option<SharedString>,
     hide_steppers: bool,
+    increment_icon: Option<gpui::AnyElement>,
+    decrement_icon: Option<gpui::AnyElement>,
+    vertical_steppers: bool,
     is_disabled: bool,
     variant: FieldVariant,
     full_width: bool,
@@ -388,11 +407,10 @@ impl NumberField {
         self
     }
 
-    /// v3's field `children`-as-a-function, handed `{isFocused, isFocusWithin,
-    /// isFocusVisible}`; see [`crate::input::Input::content`].
+    /// v3's field `children`-as-a-function.
     pub fn content(
         mut self,
-        render: impl Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static,
+        render: impl Fn(NumberFieldRenderState) -> gpui::AnyElement + 'static,
     ) -> Self {
         self.content = Some(Arc::new(render));
         self
@@ -405,6 +423,9 @@ impl NumberField {
             description: None,
             label: None,
             hide_steppers: false,
+            increment_icon: None,
+            decrement_icon: None,
+            vertical_steppers: false,
             is_disabled: false,
             variant: FieldVariant::Primary,
             full_width: false,
@@ -443,6 +464,25 @@ impl NumberField {
         self
     }
 
+    /// `NumberField.IncrementButton` children.
+    pub fn increment_icon(mut self, icon: impl IntoElement) -> Self {
+        self.increment_icon = Some(icon.into_any_element());
+        self
+    }
+
+    /// `NumberField.DecrementButton` children.
+    pub fn decrement_icon(mut self, icon: impl IntoElement) -> Self {
+        self.decrement_icon = Some(icon.into_any_element());
+        self
+    }
+
+    /// The documented chevron composition: two 24px half-height steppers at
+    /// the trailing edge instead of the default 40px side buttons.
+    pub fn vertical_steppers(mut self, v: bool) -> Self {
+        self.vertical_steppers = v;
+        self
+    }
+
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
         self
@@ -456,35 +496,6 @@ impl NumberField {
 
 impl RenderOnce for NumberField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        // v3's field children-as-a-function: the caller builds the parts from the
-        // focus state, so the field's own stack is skipped entirely.
-        if let Some(render) = self.content.clone() {
-            let handle = self.state.read(cx).input.read(cx).focus_handle.clone();
-            let focused = handle.is_focused(window);
-            return render(crate::util::FieldFocus {
-                is_focused: focused,
-                is_focus_within: handle.contains_focused(window, cx),
-                is_focus_visible: focused && crate::util::focus_visible(cx),
-            });
-        }
-        let colors = cx.colors().clone();
-        let layout = cx.layout().clone();
-
-        // `.number-field__group` is `h-9`, the one height every v3 field has.
-        let h = crate::util::FIELD_HEIGHT;
-        // v3 order: the controlled flag, then server errors, then `validate`.
-        let value_now = self.state.read(cx).value();
-        let validity = crate::validation::resolve(
-            self.is_invalid,
-            &self.validation_errors,
-            self.validate.as_ref().and_then(|f| f(&value_now)),
-            None,
-        );
-
-        // `.number-field__increment-button` is `h-full w-10`: a 40px square-ish
-        // slot at the end of the group, not the 26px one this used to draw.
-        let btn_px = px(40.);
-
         // Component-level `minValue`/`maxValue`/`step` win over whatever the
         // state was seeded with. Bound presence is stored separately from its
         // number, because f64::MIN/MAX are also legitimate explicit bounds.
@@ -524,6 +535,76 @@ impl RenderOnce for NumberField {
                 .update(cx, |s, cx| s.set_format(Some(format), cx));
         }
 
+        let input_state = self.state.read(cx).input.clone();
+        if input_state.read(cx).name() != self.name {
+            let name = self.name.clone();
+            input_state.update(cx, |state, _| state.set_name(name));
+        }
+        if let Some(behavior) = self.validation_behavior {
+            if input_state.read(cx).validation_behavior() != behavior {
+                input_state.update(cx, |state, _| state.set_validation_behavior(behavior));
+            }
+        }
+        let is_successful = !self.is_disabled;
+        if input_state.read(cx).is_successful() != is_successful {
+            input_state.update(cx, |state, _| state.set_successful(is_successful));
+        }
+
+        // v3 order: the controlled flag, then server errors, then `validate`.
+        let value_now = self.state.read(cx).value();
+        let validity = crate::validation::resolve(
+            self.is_invalid,
+            &self.validation_errors,
+            self.validate.as_ref().and_then(|f| f(&value_now)),
+            None,
+        );
+        if input_state.read(cx).validity() != &validity {
+            let validity = validity.clone();
+            input_state.update(cx, |state, _| state.set_validity(validity));
+        }
+
+        let focus_handle = input_state.read(cx).focus_handle.clone();
+        if self.auto_focus {
+            crate::util::focus_once(
+                window,
+                cx,
+                gpui::ElementId::Name(
+                    format!("number-autofocus-{}", self.state.entity_id().as_u64()).into(),
+                ),
+                &focus_handle,
+            );
+        }
+
+        // v3's field children-as-a-function: the caller builds the parts from
+        // the resolved field state, so only the built-in stack is skipped.
+        if let Some(render) = self.content.clone() {
+            let state = self.state.read(cx);
+            let focused = focus_handle.is_focused(window);
+            let (min_value, max_value) = state.bounds();
+            return render(NumberFieldRenderState {
+                is_disabled: self.is_disabled,
+                is_invalid: validity.is_invalid,
+                is_read_only: self.is_read_only,
+                is_required: self.is_required,
+                is_focused: focused,
+                is_focus_within: focus_handle.contains_focused(window, cx),
+                is_focus_visible: focused && crate::util::focus_visible(cx),
+                value: state.value(),
+                min_value,
+                max_value,
+                step: state.step_size(),
+            });
+        }
+
+        let colors = cx.colors().clone();
+        let layout = cx.layout().clone();
+
+        // `.number-field__group` is `h-9`, the one height every v3 field has.
+        let h = crate::util::FIELD_HEIGHT;
+        // `.number-field__increment-button` is `h-full w-10`: a 40px square-ish
+        // slot at the end of the group, not the 26px one this used to draw.
+        let btn_px = px(40.);
+
         // text field bound to the inner InputState
         let text_state = self.state.clone();
         let on_text_change = self.on_change.clone();
@@ -557,7 +638,10 @@ impl RenderOnce for NumberField {
         // hairline. The steppers used to sit *outside* the field as two loose
         // buttons, which is not a shape v3 has.
         let steppers = !self.hide_steppers;
-        field = field.in_group(steppers, steppers);
+        // NumberField.Input keeps `px-3` even beside either button. Passing
+        // false on both sides removes the standalone chrome without borrowing
+        // InputGroup's addon-padding behavior.
+        field = field.in_group(false, false);
 
         let mut group = gpui::div()
             .flex()
@@ -569,12 +653,7 @@ impl RenderOnce for NumberField {
             group,
             self.variant,
             validity.is_invalid,
-            self.state
-                .read(cx)
-                .input
-                .read(cx)
-                .focus_handle
-                .is_focused(window),
+            focus_handle.is_focused(window),
             cx,
         );
         if self.full_width {
@@ -582,46 +661,105 @@ impl RenderOnce for NumberField {
         } else {
             group = group.w(px(220.));
         }
+        if !self.is_disabled && !validity.is_invalid && !focus_handle.is_focused(window) {
+            let hover_bg = match self.variant {
+                FieldVariant::Primary => colors.field.hover(),
+                FieldVariant::Secondary => colors.default.soft_hover(),
+            };
+            let hover_border = colors.field.border_hover();
+            group = group.hover(move |style| style.bg(hover_bg).border_color(hover_border));
+        }
 
         // `border-field-placeholder/15` is the seam between a stepper and the
         // input; the buttons themselves are transparent.
         let seam = colors.field.placeholder.alpha(0.15);
-        if steppers {
-            group = group.child(
-                stepper_btn(
-                    &self.state,
-                    &self.on_change,
-                    &colors,
-                    h,
-                    btn_px,
-                    icons::MINUS,
-                    -1.0,
-                    self.is_disabled || self.is_read_only,
-                    window,
-                    cx,
-                )
-                .border_r_1()
-                .border_color(seam),
+        let decrement_icon = self.decrement_icon.unwrap_or_else(|| {
+            gpui::svg()
+                .size(crate::util::FIELD_ICON)
+                .path(icons::MINUS)
+                .text_color(colors.field.foreground)
+                .into_any_element()
+        });
+        let increment_icon = self.increment_icon.unwrap_or_else(|| {
+            gpui::svg()
+                .size(crate::util::FIELD_ICON)
+                .path(icons::PLUS)
+                .text_color(colors.field.foreground)
+                .into_any_element()
+        });
+        let field = gpui::div().flex_1().min_w_0().child(field);
+        if !steppers {
+            group = group.child(field);
+        } else if self.vertical_steppers {
+            group = group.child(field).child(
+                gpui::div()
+                    .flex()
+                    .flex_col()
+                    .flex_shrink_0()
+                    .w(px(24.))
+                    .h_full()
+                    .border_l_1()
+                    .border_color(seam)
+                    .child(stepper_btn(
+                        &self.state,
+                        &self.on_change,
+                        &colors,
+                        px(18.),
+                        px(24.),
+                        increment_icon,
+                        1.0,
+                        self.is_disabled || self.is_read_only,
+                        window,
+                        cx,
+                    ))
+                    .child(stepper_btn(
+                        &self.state,
+                        &self.on_change,
+                        &colors,
+                        px(18.),
+                        px(24.),
+                        decrement_icon,
+                        -1.0,
+                        self.is_disabled || self.is_read_only,
+                        window,
+                        cx,
+                    )),
             );
-        }
-        group = group.child(gpui::div().flex_1().min_w_0().child(field));
-        if steppers {
-            group = group.child(
-                stepper_btn(
-                    &self.state,
-                    &self.on_change,
-                    &colors,
-                    h,
-                    btn_px,
-                    icons::PLUS,
-                    1.0,
-                    self.is_disabled || self.is_read_only,
-                    window,
-                    cx,
+        } else {
+            group = group
+                .child(
+                    stepper_btn(
+                        &self.state,
+                        &self.on_change,
+                        &colors,
+                        h,
+                        btn_px,
+                        decrement_icon,
+                        -1.0,
+                        self.is_disabled || self.is_read_only,
+                        window,
+                        cx,
+                    )
+                    .border_r_1()
+                    .border_color(seam),
                 )
-                .border_l_1()
-                .border_color(seam),
-            );
+                .child(field)
+                .child(
+                    stepper_btn(
+                        &self.state,
+                        &self.on_change,
+                        &colors,
+                        h,
+                        btn_px,
+                        increment_icon,
+                        1.0,
+                        self.is_disabled || self.is_read_only,
+                        window,
+                        cx,
+                    )
+                    .border_l_1()
+                    .border_color(seam),
+                );
         }
         // React Aria drives a number field from `useSpinButton`: the arrows
         // step by `step`, Home and End run to the bounds, and Page Up/Down fall
@@ -727,7 +865,7 @@ fn stepper_btn(
     colors: &herogpui_theme::ThemeColors,
     h: gpui::Pixels,
     btn_px: gpui::Pixels,
-    icon: &'static str,
+    icon: gpui::AnyElement,
     dir: f64,
     is_disabled: bool,
     window: &mut Window,
@@ -769,74 +907,78 @@ fn stepper_btn(
             .inset_0(),
         );
         let pressed_bg = colors.field.foreground.alpha(0.1);
-        b = b
-            .cursor_pointer()
-            .hover(move |s| s.bg(pressed_bg))
-            .on_mouse_down(
-                gpui::MouseButton::Left,
-                move |_: &MouseDownEvent, window, cx| {
-                    window.focus(&focus_handle);
-                    let generation = press.update(cx, |press, _| {
-                        press.active = true;
-                        press.generation = press.generation.wrapping_add(1);
-                        press.generation
-                    });
-                    report_bump(&st, dir, &on_change, window, cx);
+        b = b.cursor_pointer().on_mouse_down(
+            gpui::MouseButton::Left,
+            move |_: &MouseDownEvent, window, cx| {
+                window.focus(&focus_handle);
+                let generation = press.update(cx, |press, _| {
+                    press.active = true;
+                    press.generation = press.generation.wrapping_add(1);
+                    press.generation
+                });
+                report_bump(&st, dir, &on_change, window, cx);
 
-                    let repeat_press = press.downgrade();
-                    let repeat_state = st.clone();
-                    let repeat_change = on_change.clone();
-                    window
-                        .spawn(cx, async move |cx| {
-                            cx.background_executor()
-                                .timer(Duration::from_millis(400))
-                                .await;
-                            loop {
-                                let keep_repeating = cx
-                                    .update(|window, cx| {
-                                        let Some(press) = repeat_press.upgrade() else {
-                                            return false;
-                                        };
-                                        let active = {
-                                            let press = press.read(cx);
-                                            press.active && press.generation == generation
-                                        };
-                                        if !active {
-                                            return false;
+                let repeat_press = press.downgrade();
+                let repeat_state = st.clone();
+                let repeat_change = on_change.clone();
+                window
+                    .spawn(cx, async move |cx| {
+                        cx.background_executor()
+                            .timer(Duration::from_millis(400))
+                            .await;
+                        loop {
+                            let keep_repeating = cx
+                                .update(|window, cx| {
+                                    let Some(press) = repeat_press.upgrade() else {
+                                        return false;
+                                    };
+                                    let active = {
+                                        let press = press.read(cx);
+                                        press.active && press.generation == generation
+                                    };
+                                    if !active {
+                                        return false;
+                                    }
+                                    let changed =
+                                        report_bump(&repeat_state, dir, &repeat_change, window, cx);
+                                    if !changed {
+                                        if let Some(press) = repeat_press.upgrade() {
+                                            press.update(cx, |press, _| press.active = false);
                                         }
-                                        let changed = report_bump(
-                                            &repeat_state,
-                                            dir,
-                                            &repeat_change,
-                                            window,
-                                            cx,
-                                        );
-                                        if !changed {
-                                            if let Some(press) = repeat_press.upgrade() {
-                                                press.update(cx, |press, _| press.active = false);
-                                            }
-                                        }
-                                        changed
-                                    })
-                                    .unwrap_or(false);
-                                if !keep_repeating {
-                                    break;
-                                }
-                                cx.background_executor()
-                                    .timer(Duration::from_millis(60))
-                                    .await;
+                                    }
+                                    changed
+                                })
+                                .unwrap_or(false);
+                            if !keep_repeating {
+                                break;
                             }
-                        })
-                        .detach();
-                },
-            );
+                            cx.background_executor()
+                                .timer(Duration::from_millis(60))
+                                .await;
+                        }
+                    })
+                    .detach();
+            },
+        );
+        b = crate::anim::pressed_with_background(
+            b,
+            crate::anim::PressBox {
+                height: h,
+                padding_x: None,
+                width: Some(btn_px),
+                min_width: None,
+                text_size: crate::util::FIELD_TEXT,
+                line_height: crate::util::FIELD_TEXT,
+                gap: px(0.),
+                radius: px(0.),
+                scale: crate::anim::PRESSED_SCALE,
+                shrink_x: true,
+            },
+            pressed_bg,
+            cx,
+        );
     }
-    b.child(
-        gpui::svg()
-            .size(crate::util::FIELD_ICON)
-            .path(icon)
-            .text_color(colors.field.foreground),
-    )
+    b.text_color(colors.field.foreground).child(icon)
 }
 
 #[derive(Default)]

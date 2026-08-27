@@ -49,9 +49,10 @@ use std::rc::Rc;
 use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext, VisualTestContext};
 use herogpui_components::{
     util, Autocomplete, CloseButton, ColorChannel, ColorField, ColorSlider, ComboBox, Date,
-    DateField, DateFieldRenderState, Input, InputState, Meter, NumberField, NumberFormat,
-    NumberState, PickerColor, ProgressBar, ProgressCircle, SearchField, Select, SelectionMode,
-    Slider, Switch, TextField, TimeField, TimeFieldRenderState, TimeState, ValidationBehavior,
+    DateField, DateFieldRenderState, Input, InputState, Meter, NumberField, NumberFieldRenderState,
+    NumberFormat, NumberState, PickerColor, ProgressBar, ProgressCircle, SearchField, Select,
+    SelectionMode, Slider, Switch, TextField, TimeField, TimeFieldRenderState, TimeState,
+    ValidationBehavior,
 };
 
 use harness::{click, events, open_host, press};
@@ -1375,6 +1376,73 @@ fn search_field_content_hands_focus_state(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn number_field_content_preserves_lifecycle_and_hands_full_state(cx: &mut TestAppContext) {
+    let seen = events();
+    let rendered = seen.clone();
+    let state = cx.new(|cx| NumberState::new(cx, 0.0));
+    let state_for_view = state.clone();
+    let _cx = open_host(cx, move || {
+        let seen = seen.clone();
+        NumberField::new(state_for_view.clone())
+            .default_value(8.0)
+            .min_value(1.0)
+            .max_value(9.0)
+            .step(0.5)
+            .format_options(NumberFormat::currency("USD"))
+            .name("quantity")
+            .validation_behavior(ValidationBehavior::Allow)
+            .validation_errors(["Server rejected quantity"])
+            .is_disabled(true)
+            .is_read_only(true)
+            .is_required(true)
+            .content(move |field| {
+                seen.borrow_mut().push(format!(
+                    "{}:{}:{}:{}:{}:{}:{}:{:.1}:{}:{}:{:.1}",
+                    field.is_disabled,
+                    field.is_invalid,
+                    field.is_read_only,
+                    field.is_required,
+                    field.is_focused,
+                    field.is_focus_within,
+                    field.is_focus_visible,
+                    field.value,
+                    field
+                        .min_value
+                        .map_or_else(|| "none".to_owned(), |value| format!("{value:.1}")),
+                    field
+                        .max_value
+                        .map_or_else(|| "none".to_owned(), |value| format!("{value:.1}")),
+                    field.step,
+                ));
+                gpui::div().into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let lifecycle = state.read_with(cx, |state, cx| {
+        let (min, max) = state.range();
+        let input = state.input.read(cx);
+        format!(
+            "{:.1}:{min:.1}:{max:.1}:{:.1}:{}:{}:{:?}",
+            state.value(),
+            state.step_size(),
+            state.display_text(),
+            input
+                .name()
+                .map_or_else(|| "none".to_owned(), |name| name.to_string()),
+            input.validation_behavior(),
+        )
+    });
+    assert_eq!(
+        (rendered.borrow().last().cloned(), lifecycle,),
+        (
+            Some("true:true:true:true:false:false:false:8.0:1.0:9.0:0.5".to_owned()),
+            "8.0:1.0:9.0:0.5:$8.00:quantity:Allow".to_owned(),
+        )
+    );
+}
+
+#[gpui::test]
 fn number_field_content_hands_focus_state(cx: &mut TestAppContext) {
     let state = cx.new(|cx| NumberState::new(cx, 0.0));
     let for_view = state;
@@ -1382,7 +1450,7 @@ fn number_field_content_hands_focus_state(cx: &mut TestAppContext) {
         NumberField::new(for_view.clone())
             .content({
                 let value = for_view.clone();
-                move |focus: util::FieldFocus| {
+                move |focus: NumberFieldRenderState| {
                     record.borrow_mut().push((
                         focus.is_focused,
                         focus.is_focus_within,

@@ -34,6 +34,8 @@
 //! - `NumberField` is a 220px group (`w(px(220.))` in number_field.rs) with a
 //!   40px (`w-10`) stepper cell at each end: the increment button centres at
 //!   (200, 18).
+//!   Its documented vertical-chevron composition instead reserves the trailing
+//!   24px for two 24x18px cells, centred at (208, 9) and (208, 27).
 //! - A `Form` stacks its children `gap(16)` (form.rs, `gap(px(16.))`). A bare
 //!   Input is 36px, so field 1 spans y 0..36, field 2 y 52..88, and the md
 //!   submit `Button` (36px — `Size::Md::control_height`, herogpui-core
@@ -598,6 +600,36 @@ fn number_field_steppers_and_bounds(cx: &mut TestAppContext) {
     );
     let value = cx.update(|_, cx| state.read(cx).value().to_string());
     assert_eq!(value, "100", "the NumberState must hold the clamped value");
+}
+
+#[gpui::test]
+fn number_field_vertical_steppers_drive_both_directions(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| NumberState::new(cx, 10.0));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        NumberField::new(state_for_view.clone())
+            .step(2.0)
+            .vertical_steppers(true)
+            .increment_icon(gpui::div())
+            .decrement_icon(gpui::div())
+            .on_change(move |value, _, _| changes.borrow_mut().push(format!("{value}")))
+            .into_any_element()
+    });
+
+    // The trailing stack spans x=196..220. Its upper and lower 18px halves
+    // are the increment and decrement buttons respectively.
+    click(cx, 208., 9.);
+    click(cx, 208., 27.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["12", "10"],
+        "both custom vertical stepper cells must retain their press behaviour"
+    );
+    let value = cx.update(|_, cx| state.read(cx).value());
+    assert_eq!(value.to_bits(), 10.0_f64.to_bits());
 }
 
 // ---------------------------------------------------------------------------

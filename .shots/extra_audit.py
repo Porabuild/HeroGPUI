@@ -212,6 +212,12 @@ EXTRA_OK_SCOPED = {
     'DateField.suffix': 'composition',
     'TimeField.prefix': 'composition',
     'TimeField.suffix': 'composition',
+    # v3 composes custom children inside its increment/decrement button parts.
+    # The chevron example also uses classes to stack those parts vertically;
+    # the monolithic GPUI component exposes that exact anatomy as a typed seam.
+    'NumberField.increment_icon': 'composition',
+    'NumberField.decrement_icon': 'composition',
+    'NumberField.vertical_steppers': 'composition',
     # `ButtonGroup.Separator` is a child part in v3, composed inside whichever
     # member should show one. A monolithic group takes it as a flag.
     'ButtonGroup.separators': 'composition',

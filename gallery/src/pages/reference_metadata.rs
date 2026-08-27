@@ -5824,6 +5824,108 @@ pub(crate) const DATE_FIELD: ReferenceMetadata = ReferenceMetadata {
     styling: DATE_FIELD_STYLING,
 };
 
+const NUMBER_FIELD_REQUIRED_PARTS: &[&str] = &[
+    "NumberField",
+    "NumberField.Group",
+    "NumberField.Input",
+    "NumberField.IncrementButton",
+    "NumberField.DecrementButton",
+    "Label",
+    "Description",
+    "FieldError",
+];
+
+const NUMBER_FIELD_API: &[ApiDoc] = &[
+    ApiDoc { owner: "NumberField", prop: "children", ty: "ReactNode | (values: NumberFieldRenderProps) => ReactNode", default: "—", description: "Built-in field anatomy or replacement content receiving the complete resolved number-field state.", rust_owner: "NumberField", rust: "content(render)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "NumberField", prop: "className", ty: "string | render function", default: "—", description: "Browser CSS classes are unavailable.", rust_owner: "NumberField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "NumberField", prop: "style", ty: "CSSProperties | render function", default: "—", description: "Browser inline styles are unavailable.", rust_owner: "NumberField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "NumberField", prop: "fullWidth", ty: "boolean", default: "false", description: "Expands both the root and number group to the available width.", rust_owner: "NumberField", rust: "full_width(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField", prop: "id", ty: "string", default: "—", description: "The bound NumberState entity supplies stable GPUI identity rather than a DOM id.", rust_owner: "NumberField", rust: "new(state)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "NumberField", prop: "variant", ty: "\"primary\" | \"secondary\"", default: "\"primary\"", description: "Selects elevated or lower-emphasis field chrome.", rust_owner: "NumberField", rust: "variant(FieldVariant)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField", prop: "render", ty: "DOMRenderFunction<..., NumberFieldRenderProps>", default: "—", description: "DOM root substitution has no GPUI equivalent.", rust_owner: "NumberField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "NumberField", prop: "value", ty: "number", default: "—", description: "The caller-owned NumberState is the live value source, but the local control mutates that shared entity directly rather than proposing changes to an immutable React prop.", rust_owner: "NumberField", rust: "new(state)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "NumberField", prop: "defaultValue", ty: "number", default: "—", description: "Seeds the uncontrolled NumberState once before render content observes it.", rust_owner: "NumberField", rust: "default_value(value)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField", prop: "onChange", ty: "(value: number | undefined) => void", default: "—", description: "Reports each changed numeric value; the local state cannot represent React Aria's undefined empty value.", rust_owner: "NumberField", rust: "on_change(callback)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "NumberField", prop: "formatOptions", ty: "Intl.NumberFormatOptions", default: "—", description: "Supports decimal, currency and percentage formatting without the complete Intl option surface.", rust_owner: "NumberField", rust: "format_options(NumberFormat)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "NumberField", prop: "locale", ty: "string", default: "—", description: "Locale-sensitive separators, digit systems and currency placement require CLDR data not bundled by this port.", rust_owner: "NumberField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "NumberField", prop: "isRequired", ty: "boolean", default: "false", description: "Marks the label and live FormField required and blocks invalid native submission.", rust_owner: "NumberField", rust: "is_required(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField", prop: "isInvalid", ty: "boolean", default: "false", description: "Forces invalid chrome and validation reporting.", rust_owner: "NumberField", rust: "is_invalid(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField", prop: "validate", ty: "(value: number) => ValidationError | true | null | undefined", default: "—", description: "Custom validation returns one optional GPUI message.", rust_owner: "NumberField", rust: "validate(callback)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "NumberField", prop: "validationBehavior", ty: "'native' | 'aria'", default: "'native'", description: "Chooses blocking native or non-blocking allow behavior.", rust_owner: "NumberField", rust: "validation_behavior(ValidationBehavior)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField", prop: "validationErrors", ty: "string[]", default: "—", description: "Server messages take precedence over the custom validator.", rust_owner: "NumberField", rust: "validation_errors(errors)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField", prop: "minValue", ty: "number", default: "—", description: "Inclusive lower bound for typing, keys, wheel input and steppers.", rust_owner: "NumberField", rust: "min_value(value)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField", prop: "maxValue", ty: "number", default: "—", description: "Inclusive upper bound for typing, keys, wheel input and steppers.", rust_owner: "NumberField", rust: "max_value(value)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField", prop: "step", ty: "number", default: "1", description: "Positive finite increment lattice shared by every input path.", rust_owner: "NumberField", rust: "step(value)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField", prop: "isDisabled", ty: "boolean", default: "false", description: "Dims the whole field, removes interaction and omits form data.", rust_owner: "NumberField", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField", prop: "isReadOnly", ty: "boolean", default: "false", description: "Keeps the field focusable while blocking text, key, wheel and stepper edits.", rust_owner: "NumberField", rust: "is_read_only(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField", prop: "name", ty: "string", default: "—", description: "Registers the current number under this form field name.", rust_owner: "NumberField", rust: "name(value)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField", prop: "autoFocus", ty: "boolean", default: "false", description: "Focuses the numeric input once, including when replacement content is rendered.", rust_owner: "NumberField", rust: "auto_focus(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField", prop: "aria-label / aria-labelledby / aria-describedby / aria-details", ty: "string", default: "—", description: "GPUI 0.2.2 exposes no accessibility attribute tree.", rust_owner: "NumberField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "NumberField.Group", prop: "children", ty: "ReactNode | GroupRenderFunction", default: "—", description: "The port builds the group monolithically, including either horizontal buttons or the documented vertical-chevron composition.", rust_owner: "NumberField", rust: "vertical_steppers(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "NumberField.Group", prop: "className", ty: "string | render function", default: "—", description: "Arbitrary group classes are unavailable; the pinned vertical-chevron example has a typed composition seam.", rust_owner: "NumberField", rust: "vertical_steppers(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "NumberField.Input", prop: "className", ty: "string", default: "—", description: "Arbitrary input classes are unavailable.", rust_owner: "NumberField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "NumberField.Input", prop: "variant", ty: "\"primary\" | \"secondary\"", default: "\"primary\"", description: "The monolithic group and input share one field variant.", rust_owner: "NumberField", rust: "variant(FieldVariant)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField.IncrementButton", prop: "children", ty: "ReactNode", default: "<IconPlus />", description: "Replaces the increment glyph while preserving the button's spin behavior.", rust_owner: "NumberField", rust: "increment_icon(icon)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField.IncrementButton", prop: "className", ty: "string", default: "—", description: "Arbitrary button classes are unavailable; vertical_steppers reproduces the pinned chevron layout.", rust_owner: "NumberField", rust: "vertical_steppers(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "NumberField.IncrementButton", prop: "slot", ty: "\"increment\"", default: "\"increment\"", description: "The monolithic increment button always owns increment behavior rather than exposing a caller slot.", rust_owner: "NumberField", rust: "increment_icon(icon)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "NumberField.DecrementButton", prop: "children", ty: "ReactNode", default: "<IconMinus />", description: "Replaces the decrement glyph while preserving the button's spin behavior.", rust_owner: "NumberField", rust: "decrement_icon(icon)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberField.DecrementButton", prop: "className", ty: "string", default: "—", description: "Arbitrary button classes are unavailable; vertical_steppers reproduces the pinned chevron layout.", rust_owner: "NumberField", rust: "vertical_steppers(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "NumberField.DecrementButton", prop: "slot", ty: "\"decrement\"", default: "\"decrement\"", description: "The monolithic decrement button always owns decrement behavior rather than exposing a caller slot.", rust_owner: "NumberField", rust: "decrement_icon(icon)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "NumberFieldRenderProps", prop: "isDisabled / isInvalid / isReadOnly / isRequired", ty: "boolean", default: "—", description: "Resolved field state supplied to replacement content.", rust_owner: "NumberField", rust: "content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberFieldRenderProps", prop: "isFocused / isFocusWithin / isFocusVisible", ty: "boolean", default: "—", description: "Live focus state supplied to replacement content.", rust_owner: "NumberField", rust: "content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "NumberFieldRenderProps", prop: "value / minValue / maxValue / step", ty: "number | undefined", default: "—", description: "Current range and step are supplied; value is always an f64 locally and cannot represent undefined.", rust_owner: "NumberField", rust: "content(render)", status: ImplementationStatus::Partial },
+];
+
+const NUMBER_FIELD_PARTS: &[PartDoc] = &[
+    PartDoc { name: "NumberField", slot: "number-field", description: "Root stack owning numeric state, validation, formatting, focus and form registration.", rust_owner: "NumberField", status: ImplementationStatus::Implemented },
+    PartDoc { name: "NumberField.Group", slot: "number-field-group", description: "Unified 36px field shell; composition is selected through typed builders rather than arbitrary children.", rust_owner: "NumberField", status: ImplementationStatus::Partial },
+    PartDoc { name: "NumberField.Input", slot: "number-field-input", description: "Inner Input bound to NumberState and stripped of independent group-edge chrome.", rust_owner: "NumberField", status: ImplementationStatus::Partial },
+    PartDoc { name: "NumberField.IncrementButton", slot: "number-field-increment-button", description: "Built-in repeatable spin button with caller-replaceable content.", rust_owner: "NumberField", status: ImplementationStatus::Partial },
+    PartDoc { name: "NumberField.DecrementButton", slot: "number-field-decrement-button", description: "Built-in repeatable spin button with caller-replaceable content.", rust_owner: "NumberField", status: ImplementationStatus::Partial },
+    PartDoc { name: "Label", slot: "label", description: "Required- and invalid-aware field label above the group.", rust_owner: "NumberField", status: ImplementationStatus::Implemented },
+    PartDoc { name: "Description", slot: "description", description: "Help text shown below the group while the field is valid.", rust_owner: "NumberField", status: ImplementationStatus::Implemented },
+    PartDoc { name: "FieldError", slot: "field-error", description: "Resolved server, custom or controlled validation message replacing Description.", rust_owner: "NumberField", status: ImplementationStatus::Implemented },
+];
+
+const NUMBER_FIELD_STATES: &[StateDoc] = &[
+    StateDoc { state: "Invalid", selector: ".number-field[data-invalid=true] / .number-field__group[data-invalid=true]", description: "Invalid chrome and FieldError replace the normal description.", rust: "validation::resolve + apply_field_chrome", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Disabled", selector: ".number-field__group[data-disabled=true]", description: "The whole field is dimmed, inert, omitted from form data and outside the tab order.", rust: "is_disabled + disabled_opacity", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Read only", selector: "NumberFieldRenderProps.isReadOnly", description: "Focus remains available while every numeric mutation path is disabled.", rust: "is_read_only interaction gates", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus within", selector: ".number-field__group:focus-within / [data-focus-within=true]", description: "Focus on the input or either spin button uses the unified field focus treatment.", rust: "shared Input focus_handle + apply_field_chrome", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus visible", selector: "[data-focus-visible=true]", description: "Replacement content receives keyboard-visible focus state; the built-in group uses focus-within chrome.", rust: "focus_visible + NumberFieldRenderState", status: ImplementationStatus::Partial },
+    StateDoc { state: "Hovered", selector: ".number-field__group:hover / buttons[data-hovered=true]", description: "The enabled unfocused group uses the pinned hover fill and border; button hover intentionally has no additional rule body. Color interpolation is absent.", rust: "group.hover(field/default hover)", status: ImplementationStatus::Partial },
+    StateDoc { state: "Pressed", selector: ".number-field buttons:active / [data-pressed=true]", description: "Press fills and geometrically scales the spin button while starting the pinned repeat schedule; arbitrary icon children retain their own fixed size.", rust: "pressed_with_background + repeat task", status: ImplementationStatus::Partial },
+    StateDoc { state: "Required", selector: "NumberFieldRenderProps.isRequired", description: "Required state reaches label, validation, form submission and replacement content.", rust: "is_required + NumberFieldRenderState", status: ImplementationStatus::Implemented },
+];
+
+const NUMBER_FIELD_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".number-field", value: "flex flex-col gap-1", description: "Root field stack and four-pixel label/message spacing.", rust: "flex_col + gap(px(4.))", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".number-field__group", value: "grid h-9; 40px 1fr 40px; rounded-field border bg-field text-sm shadow-field", description: "The default flex anatomy matches the three column geometry and shared field shell; GPUI has no CSS grid or autofill pseudo-state.", rust: "FIELD_HEIGHT + 40px buttons + apply_field_chrome", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".number-field__group transitions", value: "background/border 150ms ease-smooth; shadow 150ms ease-out; reduced motion none", description: "State colors and focus shadow swap on a frame rather than interpolating.", rust: "apply_field_chrome", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".number-field__input", value: "min-w-0 rounded-none border-0 bg-transparent px-3 py-2 text-base sm:text-sm tabular-nums", description: "Inset, transparent grouped chrome and desktop text size match; GPUI text does not expose tabular numeral selection.", rust: "Input::in_group + FIELD_TEXT", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".number-field__increment-button / .number-field__decrement-button", value: "h-full w-10 rounded-none bg-transparent; icon size-4", description: "Default cell and icon metrics match with a 15% placeholder seam.", rust: "stepper_btn 40x36 + FIELD_ICON", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".number-field buttons transitions", value: "background/border 150ms ease-smooth; reduced motion none", description: "Button color changes are immediate.", rust: "stepper hover/press colors", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".number-field buttons:active", value: "bg-field-foreground/10; scale(0.97)", description: "Fill, geometric scale and hold behavior match; arbitrary icon children keep their fixed dimensions and the transform ramp is immediate.", rust: "pressed_with_background(PRESSED_SCALE) + repeat task", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".number-field--secondary .number-field__group", value: "shadow-none bg-default; hover default-hover; focus default", description: "Lower-emphasis field tokens are selected through FieldVariant.", rust: "FieldVariant::Secondary + apply_field_chrome", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".number-field--full-width / .number-field__group--full-width", value: "w-full", description: "Root and group both fill the available width.", rust: "full_width(true) + w_full", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: "pinned With Chevrons composition", value: "trailing flex column; two h-1/2 w-6 buttons", description: "The documented custom-class composition is available as a typed layout seam while preserving spin behavior.", rust: "vertical_steppers(true) + 24x18 cells", status: ImplementationStatus::Implemented },
+];
+
+pub(crate) const NUMBER_FIELD: ReferenceMetadata = ReferenceMetadata {
+    page: "NumberField",
+    import_line: "use herogpui::components::number_field::{NumberField, NumberState};",
+    source_module: "number_field",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(forms)/number-field.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/number-field/number-field.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/NumberField.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/number-field.css",
+    required_parts: NUMBER_FIELD_REQUIRED_PARTS,
+    api: NUMBER_FIELD_API,
+    parts: NUMBER_FIELD_PARTS,
+    states: NUMBER_FIELD_STATES,
+    styling: NUMBER_FIELD_STYLING,
+};
+
 const TIME_FIELD_REQUIRED_PARTS: &[&str] = &[
     "TimeField",
     "Label",
@@ -10471,6 +10573,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     TABS,
     CALENDAR,
     DATE_FIELD,
+    NUMBER_FIELD,
     TIME_FIELD,
     RANGE_CALENDAR,
     DRAWER,
