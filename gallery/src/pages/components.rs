@@ -4386,6 +4386,7 @@ impl Gallery {
 
     pub fn page_date_range_picker(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.range_open;
+        let render_props_gallery = cx.entity().downgrade();
         component_doc_page!(
             "Date Range Picker",
             crate::pages::Page::DateRangePicker.description(),
@@ -4483,14 +4484,56 @@ impl Gallery {
                     "Custom Indicator",
                     col(vec![
                         para(
-                            "v3 replaces the trigger's calendar glyph; the chevron here turns \
-                             with the panel instead.",
+                            "v3 lets TriggerIndicator and RangeSeparator replace their default \
+                             content without changing field or trigger behavior.",
                             cx,
                         ),
                         h::DateRangePicker::new(self.demo_range("drp-indicator", cx))
                             .label("Stay")
+                            .trigger_indicator(icon(h::icons::CHECK, cx))
+                            .range_separator(gpui::div().child("to"))
                             .into_any_element(),
                     ]),
+                ),
+                (
+                    "Render Function",
+                    col(vec![h::DateRangePicker::new(
+                        self.demo_range("drp-render-props", cx),
+                    )
+                    .is_open(is_open)
+                    .is_required(true)
+                    .content(move |state| {
+                        let gallery = render_props_gallery.clone();
+                        gpui::div()
+                            .flex()
+                            .flex_col()
+                            .items_start()
+                            .gap(px(8.))
+                            .child(format!(
+                                "{} · {} · {}",
+                                if state.is_required {
+                                    "required"
+                                } else {
+                                    "optional"
+                                },
+                                if state.is_invalid { "invalid" } else { "valid" },
+                                if state.is_open { "open" } else { "closed" },
+                            ))
+                            .child(
+                                h::Button::new("drp-render-props-toggle")
+                                    .label(if state.is_open { "Close" } else { "Open" })
+                                    .on_press(move |_, _, cx| {
+                                        if let Some(gallery) = gallery.upgrade() {
+                                            gallery.update(cx, |gallery, cx| {
+                                                gallery.range_open = !gallery.range_open;
+                                                cx.notify();
+                                            });
+                                        }
+                                    }),
+                            )
+                            .into_any_element()
+                    })
+                    .into_any_element()]),
                 ),
                 (
                     "Usage",

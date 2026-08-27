@@ -93,6 +93,38 @@ fn content_only_date_picker_does_not_register_an_invisible_overlay(cx: &mut Test
 }
 
 #[gpui::test]
+fn content_only_date_range_picker_does_not_register_an_invisible_overlay(cx: &mut TestAppContext) {
+    reduce_motion();
+    let changes = events();
+    let parent_open = Rc::new(Cell::new(true));
+    let range_state = cx.new(|cx| DateRangeState::new(cx));
+
+    let parent_open_for_view = parent_open;
+    let changes_for_view = changes.clone();
+    let cx = open_host(cx, move || {
+        let parent_for_callback = parent_open_for_view.clone();
+        let changes = changes_for_view.clone();
+        Popover::new(Button::new("content-range-parent-trigger").label("Parent"))
+            .id("content-range-parent")
+            .is_open(parent_open_for_view.get())
+            .on_open_change(move |open, window, _| {
+                parent_for_callback.set(open);
+                changes.borrow_mut().push(format!("parent:{open}"));
+                window.refresh();
+            })
+            .child(
+                DateRangePicker::new(range_state.clone())
+                    .is_open(true)
+                    .content(|_| gpui::div().child("Custom range content").into_any_element()),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "escape");
+    assert_eq!(changes.borrow().as_slice(), ["parent:false"]);
+}
+
+#[gpui::test]
 fn nested_date_range_picker_outside_press_closes_only_the_picker_then_parent(
     cx: &mut TestAppContext,
 ) {

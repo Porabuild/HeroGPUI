@@ -240,6 +240,12 @@ EXTRA_OK_SCOPED = {
     # DatePickerRoot forwards React Aria's inherited shouldCloseOnSelect even
     # though HeroUI's own root prop table does not repeat it.
     'DatePicker.should_close_on_select': 'react-aria-inherited',
+    # DateRangePicker composes both parts in v3; the monolithic GPUI picker
+    # exposes the same replacement seams as typed builders.
+    'DateRangePicker.trigger_indicator': 'composition',
+    'DateRangePicker.range_separator': 'composition',
+    # React Aria's inherited close policy is forwarded by HeroUI's root.
+    'DateRangePicker.should_close_on_select': 'react-aria-inherited',
     # `Checkbox.Indicator` takes children (the closure receives CheckboxState),
     # and its "Full Rounded" example rounds `Checkbox.Control` with a class.
     'Checkbox.indicator': 'composition',

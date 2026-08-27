@@ -7776,6 +7776,161 @@ pub(crate) const DATE_PICKER: ReferenceMetadata = ReferenceMetadata {
     styling: DATE_PICKER_STYLING,
 };
 
+const DATE_RANGE_PICKER_REQUIRED_PARTS: &[&str] = &[
+    "DateRangePicker.Root",
+    "DateRangePicker.Trigger",
+    "DateRangePicker.TriggerIndicator",
+    "DateRangePicker.RangeSeparator",
+    "DateRangePicker.Popover",
+];
+
+const DATE_RANGE_PICKER_API: &[ApiDoc] = &[
+    ApiDoc { owner: "DateRangePicker", prop: "value", ty: "RangeValue<DateValue> | null", default: "—", description: "Writes the controlled start and end through to the caller-owned DateRangeState.", rust_owner: "DateRangePicker", rust: "value(start, end, cx)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "defaultValue", ty: "RangeValue<DateValue> | null", default: "—", description: "Seeds the uncontrolled complete range once without fighting later edits.", rust_owner: "DateRangePicker", rust: "default_value((start, end))", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "onChange", ty: "(value: RangeValue<DateValue> | null) => void", default: "—", description: "Reports valid field edits and completed calendar ranges; the range is read from DateRangeState.", rust_owner: "DateRangePicker", rust: "on_change(callback)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DateRangePicker", prop: "isOpen", ty: "boolean", default: "—", description: "Controls the range calendar popover without mutating local open state.", rust_owner: "DateRangePicker", rust: "is_open(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "defaultOpen", ty: "boolean", default: "false", description: "Seeds uncontrolled popover state.", rust_owner: "DateRangePicker", rust: "default_open(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "onOpenChange", ty: "(isOpen: boolean) => void", default: "—", description: "Reports trigger, selection, Escape, outside-press and focus-departure changes.", rust_owner: "DateRangePicker", rust: "on_open_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "isDisabled", ty: "boolean", default: "false", description: "Removes both fields and the trigger from interaction and form submission.", rust_owner: "DateRangePicker", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "isReadOnly", ty: "boolean", default: "false", description: "Keeps both dates focusable while suppressing edits, opening and selection.", rust_owner: "DateRangePicker", rust: "is_read_only(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "isRequired", ty: "boolean", default: "false", description: "Blocks native submission until both named range ends are present and focuses the start field first.", rust_owner: "DateRangePicker", rust: "is_required(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "isInvalid", ty: "boolean", default: "—", description: "Forces invalid field and range-calendar state.", rust_owner: "DateRangePicker", rust: "is_invalid(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "validate", ty: "(value: RangeValue<DateValue> | null) => ValidationError | true | null", default: "—", description: "A callback supplies one optional validation message for the complete range; structured ValidationError objects are not exposed.", rust_owner: "DateRangePicker", rust: "validate(callback)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DateRangePicker", prop: "validationBehavior", ty: "\"native\" | \"aria\"", default: "\"native\"", description: "Selects blocking native validation or non-blocking ARIA-style validation for both fields.", rust_owner: "DateRangePicker", rust: "validation_behavior(ValidationBehavior)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "validationErrors", ty: "string[]", default: "—", description: "Server messages take precedence and mark both fields invalid; independently composed FieldError content is unavailable.", rust_owner: "DateRangePicker", rust: "validation_errors(errors)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DateRangePicker", prop: "minValue", ty: "DateValue", default: "—", description: "Earliest valid field and calendar date.", rust_owner: "DateRangePicker", rust: "min_value(date)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "maxValue", ty: "DateValue", default: "—", description: "Latest valid field and calendar date.", rust_owner: "DateRangePicker", rust: "max_value(date)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "isDateUnavailable", ty: "(date: DateValue) => boolean", default: "—", description: "Rejects individual dates inside the selected range.", rust_owner: "DateRangePicker", rust: "is_date_unavailable(predicate)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "firstDayOfWeek", ty: "string", default: "locale", description: "Overrides the range calendar grid's first weekday with the local Weekday enum.", rust_owner: "DateRangePicker", rust: "first_day_of_week(Weekday)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DateRangePicker", prop: "shouldCloseOnSelect", ty: "boolean | () => boolean", default: "true", description: "The boolean form controls whether a completed calendar range dismisses the popover; callback-valued policy is not represented.", rust_owner: "DateRangePicker", rust: "should_close_on_select(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DateRangePicker", prop: "autoFocus", ty: "boolean", default: "false", description: "Focuses the editable start field on first render.", rust_owner: "DateRangePicker", rust: "auto_focus(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "startName", ty: "string", default: "—", description: "Submits the displayed start date under this name.", rust_owner: "DateRangePicker", rust: "start_name(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "endName", ty: "string", default: "—", description: "Submits the displayed end date under this name.", rust_owner: "DateRangePicker", rust: "end_name(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "children", ty: "ReactNode | (values: DateRangePickerRenderProps) => ReactNode", default: "—", description: "Replacement content receives disabled, invalid, read-only, required, focus and open state.", rust_owner: "DateRangePicker", rust: "content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker", prop: "className / style", ty: "string | render function / CSSProperties", default: "—", description: "Browser CSS classes and inline styles are unavailable.", rust_owner: "DateRangePicker", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "DateRangePicker", prop: "render", ty: "DOMRenderFunction<..., DateRangePickerRenderProps>", default: "—", description: "DOM root substitution has no GPUI equivalent.", rust_owner: "DateRangePicker", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "DateRangePicker.TriggerIndicator", prop: "children", ty: "ReactNode", default: "calendar icon", description: "Replaces the glyph inside the existing trigger geometry and behavior.", rust_owner: "DateRangePicker", rust: "trigger_indicator(element)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker.RangeSeparator", prop: "children", ty: "ReactNode", default: "\" - \"", description: "Replaces the text between the two editable date fields.", rust_owner: "DateRangePicker", rust: "range_separator(element)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DateRangePicker.Popover", prop: "placement", ty: "Placement", default: "bottom", description: "The monolithic picker uses bottom-start placement and does not expose an independent popover builder.", rust_owner: "DateRangePicker", rust: "fixed BottomStart", status: ImplementationStatus::Partial },
+];
+
+const DATE_RANGE_PICKER_PARTS: &[PartDoc] = &[
+    PartDoc {
+        name: "DateRangePicker.Root",
+        slot: "date-range-picker",
+        description: "Root state owner and focus-within scope.",
+        rust_owner: "DateRangePicker",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "DateRangePicker.Trigger",
+        slot: "date-range-picker-trigger",
+        description: "Separate keyboard and pointer action inside the shared range field.",
+        rust_owner: "DateRangePicker",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "DateRangePicker.TriggerIndicator",
+        slot: "date-range-picker-trigger-indicator",
+        description: "Default or caller-supplied 16px trigger glyph.",
+        rust_owner: "DateRangePicker",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "DateRangePicker.RangeSeparator",
+        slot: "date-range-picker-range-separator",
+        description: "Default or caller-supplied separator between the start and end fields.",
+        rust_owner: "DateRangePicker",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "DateRangePicker.Popover",
+        slot: "date-range-picker-popover",
+        description: "Bottom-start overlay containing the RangeCalendar.",
+        rust_owner: "DateRangePicker",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+const DATE_RANGE_PICKER_STATES: &[StateDoc] = &[
+    StateDoc {
+        state: "Open",
+        selector: ".date-range-picker[data-open=true]",
+        description:
+            "Mounts the range calendar overlay and hands open state to replacement content.",
+        rust: "controlled/open overlay state",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Focus within",
+        selector: ".date-range-picker[data-focus-within=true]",
+        description: "Tracks focus across both editable fields, the trigger and the calendar.",
+        rust: "close_on_blur/content focus scope",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Focus visible",
+        selector: ".date-range-picker[data-focus-visible=true]",
+        description:
+            "Draws keyboard focus and hands keyboard-visible root focus to replacement content.",
+        rust: "focus_visible + DateRangePickerRenderState",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Disabled",
+        selector: ".date-range-picker[data-disabled=true]",
+        description: "Applies disabled opacity and removes editing, opening and submission.",
+        rust: "is_disabled(bool)",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Read only",
+        selector: ".date-range-picker[data-readonly=true]",
+        description: "Keeps both fields focusable while making field, trigger and calendar inert.",
+        rust: "is_read_only(bool)",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Required",
+        selector: ".date-range-picker[data-required=true]",
+        description: "Marks the label and blocks native submission until both range ends exist.",
+        rust: "is_required(bool)",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Invalid",
+        selector: ".date-range-picker[data-invalid=true]",
+        description: "Combines controlled, server, custom, syntax and date-constraint validation.",
+        rust: "resolved DateRangePicker validity",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const DATE_RANGE_PICKER_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".date-range-picker", value: "inline-flex flex-col gap-1", description: "Root field stack uses the pinned four-pixel gap.", rust: "wrapper flex_col + gap(4px)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".date-range-picker__trigger", value: "inline-flex w-full items-center rounded-field p-1 text-sm", description: "The port folds trigger padding into one unified field while preserving full-width geometry and 14px type.", rust: "embedded DateFields + 24px trigger", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".date-range-picker__range-separator", value: "px-1 text-field-placeholder", description: "Four-pixel horizontal inset and placeholder color around the default hyphen or replacement content.", rust: "range separator px(4.) + placeholder color", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".date-range-picker__trigger-indicator", value: "size-4 text-field-placeholder", description: "The 16px indicator box matches; caller content retains the built-in hit target.", rust: "16px centered trigger_indicator", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".date-range-picker__popover", value: "w-fit overflow-y-auto bg-overlay p-3 shadow-overlay radius 20px", description: "Range calendar overlay fill, 12px inset, shadow and pinned 20px radius match.", rust: "picker_panel", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".date-range-picker__popover entering", value: "150ms ease-smooth fade zoom-in-95 with placement slide", description: "The overlay appears immediately; picker entry motion is not implemented.", rust: "immediate overlay mount", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: ".date-range-picker__popover exiting", value: "100ms ease-smooth fade zoom-out-95", description: "The picker unmounts immediately after completion so the same press cannot hit a retained calendar cell.", rust: "OverlayPhase without exit retention", status: ImplementationStatus::Unavailable },
+];
+
+pub(crate) const DATE_RANGE_PICKER: ReferenceMetadata = ReferenceMetadata {
+    page: "DateRangePicker",
+    import_line: "use herogpui::components::date_picker::{DateRangePicker, DateRangeState};",
+    source_module: "date_picker",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(date-and-time)/date-range-picker.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/date-range-picker/date-range-picker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/DatePicker.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/date-range-picker.css",
+    required_parts: DATE_RANGE_PICKER_REQUIRED_PARTS,
+    api: DATE_RANGE_PICKER_API,
+    parts: DATE_RANGE_PICKER_PARTS,
+    states: DATE_RANGE_PICKER_STATES,
+    styling: DATE_RANGE_PICKER_STYLING,
+};
+
 const DRAWER_REQUIRED_PARTS: &[&str] = &[
     "Drawer",
     "Drawer.Trigger",
@@ -11413,6 +11568,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     CALENDAR,
     DATE_FIELD,
     DATE_PICKER,
+    DATE_RANGE_PICKER,
     NUMBER_FIELD,
     TIME_FIELD,
     RANGE_CALENDAR,

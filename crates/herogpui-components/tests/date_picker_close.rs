@@ -373,6 +373,53 @@ fn date_range_picker_stays_open_until_the_end_is_chosen(cx: &mut TestAppContext)
 }
 
 #[gpui::test]
+fn date_range_picker_can_remain_open_after_completion(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let today = Date::today();
+    let lead = DateConstraints::new().lead_cells(today.year, today.month);
+    let day_x = 31. + 38. * lead as f32;
+
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        DateRangePicker::new(state_for_view.clone())
+            .should_close_on_select(false)
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 300., 18.);
+    click(cx, day_x, 129.);
+    click(cx, day_x, 169.);
+    assert_eq!(opened.borrow().as_slice(), ["open:true"]);
+}
+
+#[gpui::test]
+fn date_range_picker_custom_parts_preserve_trigger_behavior(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        DateRangePicker::new(state_for_view.clone())
+            .trigger_indicator(gpui::div().child("calendar"))
+            .range_separator(gpui::div().child("to"))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 300., 18.);
+    assert_eq!(opened.borrow().as_slice(), ["open:true"]);
+}
+
+#[gpui::test]
 fn bare_calendar_still_records_a_chosen_date(cx: &mut TestAppContext) {
     // A Calendar on its own has no popover and must be untouched by the
     // pickers' closing: clicking a day records it, open flag or not.

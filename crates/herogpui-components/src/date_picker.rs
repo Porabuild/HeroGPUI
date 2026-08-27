@@ -990,9 +990,30 @@ impl DateRangeState {
     }
 }
 
+/// State passed to DateRangePicker's v3 children render function.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DateRangePickerRenderState {
+    /// The whole picker is unavailable.
+    pub is_disabled: bool,
+    /// Either range end currently fails validation.
+    pub is_invalid: bool,
+    /// The range can be focused but not edited.
+    pub is_read_only: bool,
+    /// Both range ends must contain dates before native submission.
+    pub is_required: bool,
+    /// A composed child currently owns focus.
+    pub is_focus_within: bool,
+    /// Focus within the picker was reached through keyboard navigation.
+    pub is_focus_visible: bool,
+    /// The range calendar popover is currently open.
+    pub is_open: bool,
+}
+
 /// HeroUI DateRangePicker.
 #[derive(IntoElement)]
 pub struct DateRangePicker {
+    content:
+        Option<std::sync::Arc<dyn Fn(DateRangePickerRenderState) -> gpui::AnyElement + 'static>>,
     /// `startName` / `endName` — read back by
     /// [`DateRangePicker::form_fields`].
     start_name: Option<SharedString>,
@@ -1004,10 +1025,18 @@ pub struct DateRangePicker {
     /// `defaultOpen`.
     is_open: Option<bool>,
     default_open: bool,
+    should_close_on_select: bool,
     label: Option<SharedString>,
+    trigger_indicator: Option<gpui::AnyElement>,
+    range_separator: Option<gpui::AnyElement>,
     is_disabled: bool,
     is_read_only: bool,
+    is_required: bool,
+    validation_behavior: crate::form::ValidationBehavior,
+    validate: Option<crate::validation::Validator<Option<(Date, Date)>>>,
+    validation_errors: Vec<SharedString>,
     is_invalid: bool,
+    auto_focus: bool,
     constraints: DateConstraints,
     on_open_change: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
     on_change: Option<std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>>,
@@ -1098,16 +1127,25 @@ impl DateRangePicker {
             });
         start_form_state.borrow_mut().restore = Some(restore.clone());
         Self {
+            content: None,
             start_name: None,
             end_name: None,
             default_value: None,
             state,
             is_open: None,
             default_open: false,
+            should_close_on_select: true,
             label: None,
+            trigger_indicator: None,
+            range_separator: None,
             is_disabled: false,
             is_read_only: false,
+            is_required: false,
+            validation_behavior: crate::form::ValidationBehavior::Native,
+            validate: None,
+            validation_errors: Vec::new(),
             is_invalid: false,
+            auto_focus: false,
             constraints: DateConstraints::new(),
             on_open_change: None,
             on_change: None,
@@ -1149,32 +1187,52 @@ impl DateRangePicker {
                 *self.form_default.borrow_mut() = Some((start, end));
             }
         }
+        let range = state.start.zip(state.end);
+        let custom_error = self.validate.as_ref().and_then(|validate| validate(&range));
         let mut out = Vec::new();
         if let Some(name) = self.start_name.clone() {
             let text = state.start.map(|d| d.format_iso()).unwrap_or_default();
             let mut form_state = self.start_form_state.borrow_mut();
             form_state.value = crate::form::FormValue::Text(text.into());
             form_state.is_successful = !self.is_disabled;
-            form_state.is_invalid = self.is_invalid
-                || state
-                    .start
-                    .is_some_and(|date| !self.constraints.allows(date));
-            out.push(crate::form::FormField::live(
-                name,
-                self.start_form_state.clone(),
-            ));
+            let constraint_error = state
+                .start
+                .is_some_and(|date| !self.constraints.allows(date))
+                .then(|| SharedString::from("That date is unavailable."));
+            form_state.is_invalid = crate::validation::resolve(
+                self.is_invalid,
+                &self.validation_errors,
+                custom_error.clone(),
+                constraint_error,
+            )
+            .is_invalid;
+            out.push(
+                crate::form::FormField::live(name, self.start_form_state.clone())
+                    .is_required(self.is_required)
+                    .validation_behavior(self.validation_behavior),
+            );
         }
         if let Some(name) = self.end_name.clone() {
             let text = state.end.map(|d| d.format_iso()).unwrap_or_default();
             let mut form_state = self.end_form_state.borrow_mut();
             form_state.value = crate::form::FormValue::Text(text.into());
             form_state.is_successful = !self.is_disabled;
-            form_state.is_invalid =
-                self.is_invalid || state.end.is_some_and(|date| !self.constraints.allows(date));
-            out.push(crate::form::FormField::live(
-                name,
-                self.end_form_state.clone(),
-            ));
+            let constraint_error = state
+                .end
+                .is_some_and(|date| !self.constraints.allows(date))
+                .then(|| SharedString::from("That date is unavailable."));
+            form_state.is_invalid = crate::validation::resolve(
+                self.is_invalid,
+                &self.validation_errors,
+                custom_error,
+                constraint_error,
+            )
+            .is_invalid;
+            out.push(
+                crate::form::FormField::live(name, self.end_form_state.clone())
+                    .is_required(self.is_required)
+                    .validation_behavior(self.validation_behavior),
+            );
         }
         out
     }
@@ -1205,8 +1263,43 @@ impl DateRangePicker {
         self
     }
 
+    pub fn is_required(mut self, v: bool) -> Self {
+        self.is_required = v;
+        self
+    }
+
+    /// `validationBehavior` — native errors block submission; ARIA-style errors do not.
+    pub fn validation_behavior(mut self, behavior: crate::form::ValidationBehavior) -> Self {
+        self.validation_behavior = behavior;
+        self
+    }
+
+    /// `validate` — returns one custom message for the complete selected range.
+    pub fn validate(
+        mut self,
+        f: impl Fn(&Option<(Date, Date)>) -> Option<SharedString> + 'static,
+    ) -> Self {
+        self.validate = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// `validationErrors` — server messages take precedence over custom validation.
+    pub fn validation_errors(
+        mut self,
+        errors: impl IntoIterator<Item = impl Into<SharedString>>,
+    ) -> Self {
+        self.validation_errors = errors.into_iter().map(Into::into).collect();
+        self
+    }
+
     pub fn is_invalid(mut self, v: bool) -> Self {
         self.is_invalid = v;
+        self
+    }
+
+    /// `autoFocus` — focuses the editable start field on its first render.
+    pub fn auto_focus(mut self, v: bool) -> Self {
+        self.auto_focus = v;
         self
     }
 
@@ -1242,6 +1335,12 @@ impl DateRangePicker {
         self
     }
 
+    /// `firstDayOfWeek` — overrides the range calendar's first weekday.
+    pub fn first_day_of_week(mut self, day: Weekday) -> Self {
+        self.constraints.first_day_of_week = day;
+        self
+    }
+
     /// All the date constraints at once.
     pub fn constraints(mut self, constraints: DateConstraints) -> Self {
         self.constraints = constraints;
@@ -1264,6 +1363,29 @@ impl DateRangePicker {
     /// flag and its trigger toggles it.
     pub fn default_open(mut self, v: bool) -> Self {
         self.default_open = v;
+        self
+    }
+
+    pub fn should_close_on_select(mut self, v: bool) -> Self {
+        self.should_close_on_select = v;
+        self
+    }
+
+    pub fn trigger_indicator(mut self, indicator: impl IntoElement) -> Self {
+        self.trigger_indicator = Some(indicator.into_any_element());
+        self
+    }
+
+    pub fn range_separator(mut self, separator: impl IntoElement) -> Self {
+        self.range_separator = Some(separator.into_any_element());
+        self
+    }
+
+    pub fn content(
+        mut self,
+        render: impl Fn(DateRangePickerRenderState) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.content = Some(std::sync::Arc::new(render));
         self
     }
 
@@ -1314,38 +1436,6 @@ impl RenderOnce for DateRangePicker {
             self.default_open,
         );
         let open = is_open && !self.is_disabled;
-        let (overlay_phase, dismissal_token) = crate::util::overlay_scope(
-            window,
-            cx,
-            gpui::ElementId::Name(
-                format!("drp-{}-overlay", self.state.entity_id().as_u64()).into(),
-            ),
-            open,
-            // Pickers have no exit animation; remove the calendar immediately
-            // so a chosen cell cannot receive the same press again.
-            false,
-        );
-        let panel_visible = overlay_phase != crate::util::OverlayPhase::Closed;
-        let panel_open = overlay_phase == crate::util::OverlayPhase::Open;
-        let blur_open_own = open_own.clone();
-        let blur_open_change = self.on_open_change.clone();
-        let blur_scope = crate::util::close_on_blur(
-            window,
-            cx,
-            &format!("drp-{}", self.state.entity_id().as_u64()),
-            open,
-            move |window, cx| {
-                if let Some(held) = &blur_open_own {
-                    held.update(cx, |value, cx| {
-                        *value = false;
-                        cx.notify();
-                    });
-                }
-                if let Some(callback) = &blur_open_change {
-                    callback(false, window, cx);
-                }
-            },
-        );
         let (start, end) = {
             let st = self.state.read(cx);
             (st.start, st.end)
@@ -1424,24 +1514,50 @@ impl RenderOnce for DateRangePicker {
         if live_end_value == end_text {
             end_sync.update(cx, |value, _| *value = end_text.clone());
         }
-        let field_invalid = |text: &str, forced: bool| {
-            forced
-                || (!text.trim().is_empty()
-                    && parse_value(text)
-                        .0
-                        .is_none_or(|date| !self.constraints.allows(date)))
+        let parse_live_value = |text: &str| {
+            if text.trim().is_empty() {
+                (None, None)
+            } else {
+                let (parsed, _) = parse_value(text);
+                let error = match parsed {
+                    None => Some(SharedString::from("Enter a valid date.")),
+                    Some(date) if !self.constraints.allows(date) => {
+                        Some(SharedString::from("That date is unavailable."))
+                    }
+                    Some(_) => None,
+                };
+                (parsed, error)
+            }
         };
+        let (parsed_start, start_constraint_error) = parse_live_value(&live_start_value);
+        let (parsed_end, end_constraint_error) = parse_live_value(&live_end_value);
+        let range = parsed_start.zip(parsed_end);
+        let custom_error = self.validate.as_ref().and_then(|validate| validate(&range));
+        let start_invalid = crate::validation::resolve(
+            self.is_invalid,
+            &self.validation_errors,
+            custom_error.clone(),
+            start_constraint_error,
+        )
+        .is_invalid;
+        let end_invalid = crate::validation::resolve(
+            self.is_invalid,
+            &self.validation_errors,
+            custom_error,
+            end_constraint_error,
+        )
+        .is_invalid;
         {
             let mut state = self.start_form_state.borrow_mut();
-            state.value = crate::form::FormValue::Text(live_start_value.clone().into());
+            state.value = crate::form::FormValue::Text(live_start_value.into());
             state.is_successful = !self.is_disabled;
-            state.is_invalid = field_invalid(&live_start_value, self.is_invalid);
+            state.is_invalid = start_invalid;
         }
         {
             let mut state = self.end_form_state.borrow_mut();
-            state.value = crate::form::FormValue::Text(live_end_value.clone().into());
+            state.value = crate::form::FormValue::Text(live_end_value.into());
             state.is_successful = !self.is_disabled;
-            state.is_invalid = field_invalid(&live_end_value, self.is_invalid);
+            state.is_invalid = end_invalid;
         }
         let start_focus = start_field_state.read(cx).focus_handle(cx);
         let end_focus = end_field_state.read(cx).focus_handle(cx);
@@ -1453,6 +1569,65 @@ impl RenderOnce for DateRangePicker {
             let mut state = self.end_form_state.borrow_mut();
             state.focus = Some(end_focus.clone());
         }
+        if let Some(render) = self.content.clone() {
+            let content_scope = window
+                .use_keyed_state(
+                    gpui::ElementId::Name(
+                        format!("drp-{}-content-focus", self.state.entity_id().as_u64()).into(),
+                    ),
+                    cx,
+                    |_, cx| cx.focus_handle().tab_stop(false),
+                )
+                .read(cx)
+                .clone();
+            let is_focus_within = content_scope.contains_focused(window, cx);
+            return gpui::div()
+                .relative()
+                .max_w(px(320.))
+                .track_focus(&content_scope)
+                .child(render(DateRangePickerRenderState {
+                    is_disabled: self.is_disabled,
+                    is_invalid: start_invalid || end_invalid,
+                    is_read_only: self.is_read_only,
+                    is_required: self.is_required,
+                    is_focus_within,
+                    is_focus_visible: is_focus_within && crate::util::focus_visible(cx),
+                    is_open: open,
+                }))
+                .into_any_element();
+        }
+        let (overlay_phase, dismissal_token) = crate::util::overlay_scope(
+            window,
+            cx,
+            gpui::ElementId::Name(
+                format!("drp-{}-overlay", self.state.entity_id().as_u64()).into(),
+            ),
+            open,
+            // Pickers have no exit animation; remove the calendar immediately
+            // so a chosen cell cannot receive the same press again.
+            false,
+        );
+        let panel_visible = overlay_phase != crate::util::OverlayPhase::Closed;
+        let panel_open = overlay_phase == crate::util::OverlayPhase::Open;
+        let blur_open_own = open_own.clone();
+        let blur_open_change = self.on_open_change.clone();
+        let blur_scope = crate::util::close_on_blur(
+            window,
+            cx,
+            &format!("drp-{}", self.state.entity_id().as_u64()),
+            open,
+            move |window, cx| {
+                if let Some(held) = &blur_open_own {
+                    held.update(cx, |value, cx| {
+                        *value = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(callback) = &blur_open_change {
+                    callback(false, window, cx);
+                }
+            },
+        );
         let initiator = window.use_keyed_state(
             gpui::ElementId::Name(
                 format!("drp-{}-initiator", self.state.entity_id().as_u64()).into(),
@@ -1511,18 +1686,46 @@ impl RenderOnce for DateRangePicker {
         let start_constraints = self.constraints.clone();
         let start_forced_invalid = self.is_invalid;
         let start_form_state = self.start_form_state.clone();
+        let start_other_form_state = self.end_form_state.clone();
+        let start_validate = self.validate.clone();
+        let start_validation_errors = self.validation_errors.clone();
         let start_field = DateField::new(start_field_state)
             .embedded(true)
             .is_disabled(self.is_disabled)
-            .is_invalid(self.is_invalid)
+            .is_required(self.is_required)
+            .validation_behavior(self.validation_behavior)
+            .is_invalid(start_invalid)
+            .auto_focus(self.auto_focus)
             .constraints(self.constraints.clone())
             .is_read_only(self.is_read_only)
             .report_invalid_changes()
             .on_picker_open(move |window, cx| start_open(window, cx))
             .on_change(move |date, window, cx| {
                 let valid_date = date.filter(|date| start_constraints.allows(*date));
-                start_form_state.borrow_mut().is_invalid =
-                    start_forced_invalid || (date.is_some() && valid_date.is_none());
+                let end = start_state.read(cx).end;
+                let range = valid_date.zip(end);
+                let custom_error = start_validate
+                    .as_ref()
+                    .and_then(|validate| validate(&range));
+                let constraint_error = (date.is_some() && valid_date.is_none())
+                    .then(|| SharedString::from("That date is unavailable."));
+                start_form_state.borrow_mut().is_invalid = crate::validation::resolve(
+                    start_forced_invalid,
+                    &start_validation_errors,
+                    custom_error.clone(),
+                    constraint_error,
+                )
+                .is_invalid;
+                let end_constraint_error = end
+                    .is_some_and(|date| !start_constraints.allows(date))
+                    .then(|| SharedString::from("That date is unavailable."));
+                start_other_form_state.borrow_mut().is_invalid = crate::validation::resolve(
+                    start_forced_invalid,
+                    &start_validation_errors,
+                    custom_error,
+                    end_constraint_error,
+                )
+                .is_invalid;
                 start_state.update(cx, |state, cx| {
                     if date.is_none() || valid_date.is_some() {
                         state.start = valid_date;
@@ -1549,18 +1752,43 @@ impl RenderOnce for DateRangePicker {
         let end_constraints = self.constraints.clone();
         let end_forced_invalid = self.is_invalid;
         let end_form_state = self.end_form_state.clone();
+        let end_other_form_state = self.start_form_state.clone();
+        let end_validate = self.validate.clone();
+        let end_validation_errors = self.validation_errors.clone();
         let end_field = DateField::new(end_field_state)
             .embedded(true)
             .is_disabled(self.is_disabled)
-            .is_invalid(self.is_invalid)
+            .is_required(self.is_required)
+            .validation_behavior(self.validation_behavior)
+            .is_invalid(end_invalid)
             .constraints(self.constraints.clone())
             .is_read_only(self.is_read_only)
             .report_invalid_changes()
             .on_picker_open(move |window, cx| end_open(window, cx))
             .on_change(move |date, window, cx| {
                 let valid_date = date.filter(|date| end_constraints.allows(*date));
-                end_form_state.borrow_mut().is_invalid =
-                    end_forced_invalid || (date.is_some() && valid_date.is_none());
+                let start = end_state.read(cx).start;
+                let range = start.zip(valid_date);
+                let custom_error = end_validate.as_ref().and_then(|validate| validate(&range));
+                let constraint_error = (date.is_some() && valid_date.is_none())
+                    .then(|| SharedString::from("That date is unavailable."));
+                end_form_state.borrow_mut().is_invalid = crate::validation::resolve(
+                    end_forced_invalid,
+                    &end_validation_errors,
+                    custom_error.clone(),
+                    constraint_error,
+                )
+                .is_invalid;
+                let start_constraint_error = start
+                    .is_some_and(|date| !end_constraints.allows(date))
+                    .then(|| SharedString::from("That date is unavailable."));
+                end_other_form_state.borrow_mut().is_invalid = crate::validation::resolve(
+                    end_forced_invalid,
+                    &end_validation_errors,
+                    custom_error,
+                    start_constraint_error,
+                )
+                .is_invalid;
                 end_state.update(cx, |state, cx| {
                     if date.is_none() || valid_date.is_some() {
                         state.end = valid_date;
@@ -1597,7 +1825,7 @@ impl RenderOnce for DateRangePicker {
         field = crate::util::apply_field_chrome(
             field,
             herogpui_core::FieldVariant::Primary,
-            self.is_invalid,
+            start_invalid || end_invalid,
             start_focus.is_focused(window)
                 || end_focus.is_focused(window)
                 || trigger_focus.is_focused(window),
@@ -1611,6 +1839,13 @@ impl RenderOnce for DateRangePicker {
             }
         }
 
+        let trigger_indicator = self.trigger_indicator.unwrap_or_else(|| {
+            gpui::svg()
+                .size(px(16.))
+                .path(icons::CALENDAR)
+                .text_color(colors.field.placeholder)
+                .into_any_element()
+        });
         let mut trigger = gpui::div()
             .id(gpui::ElementId::Name(
                 format!("drp-{}-trigger", self.state.entity_id().as_u64()).into(),
@@ -1620,11 +1855,13 @@ impl RenderOnce for DateRangePicker {
             .justify_center()
             .size(px(24.))
             .child(
-                gpui::svg()
+                gpui::div()
                     // `.date-range-picker__trigger-indicator` is `size-4`.
+                    .flex()
+                    .items_center()
+                    .justify_center()
                     .size(px(16.))
-                    .path(icons::ARROW_RIGHT)
-                    .text_color(colors.default.color),
+                    .child(trigger_indicator),
             );
         if !self.is_disabled && !self.is_read_only {
             let focus_on_press = trigger_focus.clone();
@@ -1667,7 +1904,10 @@ impl RenderOnce for DateRangePicker {
                 gpui::div()
                     .px(px(4.))
                     .text_color(colors.field.placeholder)
-                    .child("\u{2013}"),
+                    .child(
+                        self.range_separator
+                            .unwrap_or_else(|| gpui::div().child(" - ").into_any_element()),
+                    ),
             )
             .child(end_field)
             .child(trigger);
@@ -1680,7 +1920,11 @@ impl RenderOnce for DateRangePicker {
             .flex_col()
             .gap(px(4.));
         if let Some(label) = &self.label {
-            root = root.child(crate::field::Label::new(label.clone()));
+            root = root.child(
+                crate::field::Label::new(label.clone())
+                    .is_required(self.is_required)
+                    .is_invalid(start_invalid || end_invalid),
+            );
         }
         root = root.child(field);
 
@@ -1723,14 +1967,21 @@ impl RenderOnce for DateRangePicker {
             let start_form_state = self.start_form_state.clone();
             let end_form_state = self.end_form_state.clone();
             let calendar_forced_invalid = self.is_invalid;
+            let calendar_validate = self.validate.clone();
+            let calendar_validation_errors = self.validation_errors.clone();
+            let should_close_on_select = self.should_close_on_select;
             let range_state = self.state.clone();
             let mut calendar = crate::range_calendar::RangeCalendar::new(self.state.clone())
                 .constraints(self.constraints.clone())
                 .autofocus_grid(panel_open)
                 .is_read_only(self.is_read_only)
-                .is_invalid(self.is_invalid);
+                .is_invalid(start_invalid || end_invalid);
             calendar = calendar.on_change(move |_start, _end, window, cx| {
                 let state = range_state.read(cx);
+                let range = state.start.zip(state.end);
+                let custom_error = calendar_validate
+                    .as_ref()
+                    .and_then(|validate| validate(&range));
                 let mut start_form_state = start_form_state.borrow_mut();
                 start_form_state.value = crate::form::FormValue::Text(
                     state
@@ -1739,7 +1990,13 @@ impl RenderOnce for DateRangePicker {
                         .unwrap_or_default()
                         .into(),
                 );
-                start_form_state.is_invalid = calendar_forced_invalid;
+                start_form_state.is_invalid = crate::validation::resolve(
+                    calendar_forced_invalid,
+                    &calendar_validation_errors,
+                    custom_error.clone(),
+                    None,
+                )
+                .is_invalid;
                 drop(start_form_state);
                 let mut end_form_state = end_form_state.borrow_mut();
                 end_form_state.value = crate::form::FormValue::Text(
@@ -1749,11 +2006,19 @@ impl RenderOnce for DateRangePicker {
                         .unwrap_or_default()
                         .into(),
                 );
-                end_form_state.is_invalid = calendar_forced_invalid;
+                end_form_state.is_invalid = crate::validation::resolve(
+                    calendar_forced_invalid,
+                    &calendar_validation_errors,
+                    custom_error,
+                    None,
+                )
+                .is_invalid;
                 if let Some(cb) = &user_change {
                     cb(window, cx);
                 }
-                pick_close(window, cx);
+                if should_close_on_select {
+                    pick_close(window, cx);
+                }
             });
             let esc = close.clone();
             root = crate::util::dismiss_on_escape_with_token(
@@ -1787,7 +2052,7 @@ impl RenderOnce for DateRangePicker {
             root = root.opacity(cx.layout().disabled_opacity);
         }
 
-        root.track_focus(&blur_scope)
+        root.track_focus(&blur_scope).into_any_element()
     }
 }
 

@@ -806,6 +806,49 @@ fn required_empty_date_picker_blocks_form_and_focuses_its_field(cx: &mut TestApp
 }
 
 #[gpui::test]
+fn required_empty_date_range_picker_blocks_form_and_focuses_start(cx: &mut TestAppContext) {
+    let invalids = events();
+    let invalids_for_form = invalids.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let picker = DateRangePicker::new(state.clone())
+        .start_name("start")
+        .end_name("end")
+        .is_required(true);
+    let fields = cx.update(|cx| picker.form_fields(cx));
+    let form = fields
+        .into_iter()
+        .fold(Form::new(), Form::field)
+        .on_invalid(move |_, _, _| invalids_for_form.borrow_mut().push("invalid".to_owned()));
+    let submit = form.submit_handler();
+    let picker = Rc::new(RefCell::new(Some(picker)));
+    let picker_for_view = picker;
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        picker_for_view
+            .borrow_mut()
+            .take()
+            .unwrap_or_else(|| {
+                DateRangePicker::new(state_for_view.clone())
+                    .start_name("start")
+                    .end_name("end")
+                    .is_required(true)
+            })
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(invalids.borrow().as_slice(), ["invalid"]);
+    for key in ["0", "1", "0", "1", "2", "0", "2", "5"] {
+        press(cx, key);
+    }
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).start),
+        Some(Date::new(2025, 1, 1)),
+        "a required range submit focuses the start DateField first"
+    );
+}
+
+#[gpui::test]
 fn date_picker_custom_validation_blocks_native_form_submission(cx: &mut TestAppContext) {
     let invalids = events();
     let invalids_for_form = invalids.clone();
@@ -898,6 +941,116 @@ fn date_picker_auto_focuses_its_editable_field(cx: &mut TestAppContext) {
     }
     assert_eq!(
         cx.update(|_, cx| state.read(cx).selected),
+        Some(Date::new(2025, 1, 1))
+    );
+}
+
+#[gpui::test]
+fn date_range_picker_custom_validation_blocks_native_form_submission(cx: &mut TestAppContext) {
+    let invalids = events();
+    let invalids_for_form = invalids.clone();
+    let selected = (Date::new(2025, 6, 15), Date::new(2025, 6, 20));
+    let state = cx.new(|cx| DateRangeState::with_range(cx, Some(selected.0), Some(selected.1)));
+    let picker = DateRangePicker::new(state.clone())
+        .start_name("start")
+        .end_name("end")
+        .validate(move |value| (*value == Some(selected)).then(|| "That range is booked".into()));
+    let fields = cx.update(|cx| picker.form_fields(cx));
+    let form = fields
+        .into_iter()
+        .fold(Form::new(), Form::field)
+        .on_invalid(move |_, _, _| invalids_for_form.borrow_mut().push("invalid".to_owned()));
+    let submit = form.submit_handler();
+    let picker = Rc::new(RefCell::new(Some(picker)));
+    let picker_for_view = picker;
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        picker_for_view
+            .borrow_mut()
+            .take()
+            .unwrap_or_else(|| {
+                DateRangePicker::new(state_for_view.clone())
+                    .start_name("start")
+                    .end_name("end")
+                    .validate(move |value| {
+                        (*value == Some(selected)).then(|| "That range is booked".into())
+                    })
+            })
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(invalids.borrow().as_slice(), ["invalid"]);
+}
+
+#[gpui::test]
+fn date_range_picker_aria_custom_validation_does_not_block_submission(cx: &mut TestAppContext) {
+    let submitted = events();
+    let submitted_for_form = submitted.clone();
+    let selected = (Date::new(2025, 6, 15), Date::new(2025, 6, 20));
+    let state = cx.new(|cx| DateRangeState::with_range(cx, Some(selected.0), Some(selected.1)));
+    let picker = DateRangePicker::new(state.clone())
+        .start_name("start")
+        .end_name("end")
+        .validation_behavior(ValidationBehavior::Allow)
+        .validate(move |value| (*value == Some(selected)).then(|| "That range is booked".into()));
+    let fields = cx.update(|cx| picker.form_fields(cx));
+    let form = fields
+        .into_iter()
+        .fold(Form::new(), Form::field)
+        .on_submit(move |data, _, _| {
+            submitted_for_form.borrow_mut().push(format!(
+                "{}:{}",
+                data.text("start").unwrap_or_default(),
+                data.text("end").unwrap_or_default()
+            ));
+        });
+    let submit = form.submit_handler();
+    let picker = Rc::new(RefCell::new(Some(picker)));
+    let picker_for_view = picker;
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        picker_for_view
+            .borrow_mut()
+            .take()
+            .unwrap_or_else(|| {
+                DateRangePicker::new(state_for_view.clone())
+                    .start_name("start")
+                    .end_name("end")
+                    .validation_behavior(ValidationBehavior::Allow)
+                    .validate(move |value| {
+                        (*value == Some(selected)).then(|| "That range is booked".into())
+                    })
+            })
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        [format!(
+            "{}:{}",
+            selected.0.format_iso(),
+            selected.1.format_iso()
+        )]
+    );
+}
+
+#[gpui::test]
+fn date_range_picker_auto_focuses_its_start_field(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        DateRangePicker::new(state_for_view.clone())
+            .auto_focus(true)
+            .into_any_element()
+    });
+
+    for key in ["0", "1", "0", "1", "2", "0", "2", "5"] {
+        press(cx, key);
+    }
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).start),
         Some(Date::new(2025, 1, 1))
     );
 }

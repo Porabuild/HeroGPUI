@@ -1314,6 +1314,7 @@ CHECKS = [
     ('date-range-picker', '.date-range-picker__trigger-indicator', 'size',
      'DateRangePicker trigger glyph', SRC + 'date_picker.rs',
      r'`\.date-range-picker__trigger-indicator` is `size-4`\.\s*'
+     r'(?:(?!\.child\(trigger_indicator\))[\s\S])*?'
      r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('date-input-group', '.date-input-group__segment', 'px', 'Date segment px',
      SRC + 'time_field.rs',
