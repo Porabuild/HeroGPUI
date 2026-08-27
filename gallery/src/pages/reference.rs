@@ -1318,6 +1318,54 @@ impl Widget {
     }
 
     #[test]
+    fn time_field_metadata_keeps_render_state_and_style_limits_explicit() {
+        let metadata = reference_metadata::for_route(
+            "TimeField",
+            "use herogpui::components::time_field::{TimeField, TimeState};",
+        )
+        .expect("TimeField metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for required in metadata.required_parts {
+            assert!(
+                metadata.parts.iter().any(|part| part.name == *required),
+                "registered TimeField part disappeared: {required}"
+            );
+        }
+        for prop in [
+            "fullWidth",
+            "isRequired",
+            "isInvalid",
+            "validationBehavior",
+            "granularity",
+            "isDisabled",
+            "isReadOnly",
+            "name",
+            "autoFocus",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "TimeField"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        for prop in [
+            "isDisabled / isInvalid / isReadOnly / isRequired",
+            "isFocused / isFocusWithin / isFocusVisible",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "TimeFieldRenderProps"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".date-input-group transitions"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+    }
+
+    #[test]
     fn range_calendar_metadata_keeps_range_state_and_style_gaps_explicit() {
         let metadata = reference_metadata::for_route(
             "RangeCalendar",
