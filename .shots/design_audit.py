@@ -125,6 +125,62 @@ def SIZE_XL(name):
     return float(m.group(1)) if m else None
 
 
+def swatch_picker_default(field):
+    """`ColorSwatchPicker::new`'s default `size` / `shape`, read from the
+    constructor literal.
+
+    The item's box, border and radius are `match`es computed from that default
+    pair, so the `__item` readers below resolve the mapping instead of
+    restating 32/2/16 here; a default that moves takes the readers with it.
+    """
+    src = io.open(SRC + 'color_picker.rs', encoding='utf-8').read()
+    m = re.search(r'impl ColorSwatchPicker \{[\s\S]{0,600}?'
+                  + re.escape(field) + r': \w+::(\w+),', src)
+    return m.group(1) if m else None
+
+
+def swatch_picker_size(_group):
+    """The item box: `item_edge` is `swatch_px()` at the constructor default."""
+    return SIZE_XL(swatch_picker_default('size') or '')
+
+
+def swatch_picker_border(_group):
+    """The item border: v3 pins `border-2` on `.color-swatch-picker__item`,
+    and the port maps the width per size. Read the arm the default size picks,
+    merging arms (`Sm | Md`) included."""
+    src = io.open(SRC + 'color_picker.rs', encoding='utf-8').read()
+    block = re.search(r'let border_width = match self\.size \{([\s\S]*?)\n        \};', src)
+    size = swatch_picker_default('size')
+    if not block or not size:
+        return None
+    for arm in re.finditer(r'([\s\S]*?)=> px\(([\d.]+)\)', block.group(1)):
+        keys = re.findall(r'SizeXl::(\w+)', arm.group(1))
+        if size in keys:
+            return float(arm.group(2))
+    return None
+
+
+def swatch_picker_radius(_group):
+    """The item radius: v3 pins `rounded-2xl` (16) on `.color-swatch-picker__item`,
+    and the port maps the radius per shape and then per size. Walk both matches
+    from the constructor's default pair."""
+    src = io.open(SRC + 'color_picker.rs', encoding='utf-8').read()
+    block = re.search(r'let item_radius = match self\.shape \{([\s\S]*?)\n        \};', src)
+    shape = swatch_picker_default('shape')
+    size = swatch_picker_default('size')
+    if not block or not shape or not size:
+        return None
+    arm = re.search(r'SwatchShape::' + re.escape(shape)
+                    + r' => match self\.size \{(.*?)\n            \}',
+                    block.group(1), re.S)
+    if not arm:
+        return None
+    for piece in re.finditer(r'([\s\S]*?)=> px\(([\d.]+)\)', arm.group(1)):
+        if size in re.findall(r'SizeXl::(\w+)', piece.group(1)):
+            return float(piece.group(2))
+    return None
+
+
 # (css file, rule selector, metric, our label, our file, regex, transform)
 #
 # The regex must capture our value in group 1, or the transform turns the match
@@ -487,7 +543,7 @@ CHECKS = [
      r'`\.accordion__indicator` is `size-4`\.[\s\S]{0,40}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('color-swatch-picker', '.color-swatch-picker', 'gap', 'ColorSwatchPicker gap',
      SRC + 'color_picker.rs',
-     r'let mut row = div\(\)\.flex\(\)\.flex_row\(\)\.items_center\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'let mut row = div\(\)[\s\S]{0,200}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('input-otp', '.input-otp__separator', 'w', 'InputOTP separator width',
      SRC + 'input_otp.rs',
      r'group separator every 3 cells[\s\S]{0,200}?\.w\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -1274,18 +1330,15 @@ CHECKS = [
     ('color-swatch', '.color-swatch--square', 'radius', 'ColorSwatch square -> radius_md',
      SRC + 'color_picker.rs',
      r'SwatchShape::Square => cx\.layout\(\)\.radius_(\w+)\(\)', lambda step: RADIUS[step]),
-    ('color-swatch-picker', '.color-swatch-picker__item', 'size', 'Swatch picker item box',
-     SRC + 'color_picker.rs',
-     r'`\.color-swatch-picker__item` is `size-8 rounded-2xl border-2`\.\s*'
-     r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('color-swatch-picker', '.color-swatch-picker__item', 'size',
+     'Swatch picker item box', SRC + 'color_picker.rs',
+     r'let item_edge = self\.size\.swatch_px\(\);', swatch_picker_size),
     ('color-swatch-picker', '.color-swatch-picker__item', 'radius',
      'Swatch picker item -> soft_radius', SRC + 'color_picker.rs',
-     r'`\.color-swatch-picker__item` is `size-8 rounded-2xl border-2`\.[\s\S]{0,120}?'
-     r'\.rounded\(util::(\w+_radius)\(cx\)\)', helper_px),
-    ('color-swatch-picker', '.color-swatch-picker__item', 'border', 'Swatch picker item border',
-     SRC + 'color_picker.rs',
-     r'`\.color-swatch-picker__item` is `size-8 rounded-2xl border-2`\.[\s\S]{0,200}?'
-     r'\.border_(\d)\(\)', None),
+     r'let item_radius = match self\.shape \{', swatch_picker_radius),
+    ('color-swatch-picker', '.color-swatch-picker__item', 'border',
+     'Swatch picker item border', SRC + 'color_picker.rs',
+     r'let border_width = match self\.size \{', swatch_picker_border),
     ('color-picker', '.color-picker__trigger', 'gap', 'ColorPicker trigger gap',
      SRC + 'color_picker.rs',
      r'`\.color-picker__trigger` is `inline-flex items-center gap-3[\s\S]{0,240}?'
