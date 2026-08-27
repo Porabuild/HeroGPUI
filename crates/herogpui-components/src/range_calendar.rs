@@ -41,7 +41,7 @@ pub struct RangeCalendar {
     focused_value: Option<Date>,
     duration: VisibleDuration,
     page_behavior: PageBehavior,
-    selection_alignment: SelectionAlignment,
+    selection_alignment: Option<SelectionAlignment>,
     /// `isYearPickerOpen` — `None` leaves the component holding the state,
     /// seeded from `defaultYearPickerOpen`.
     year_picker_open: Option<bool>,
@@ -128,7 +128,7 @@ impl RangeCalendar {
             focused_value: None,
             duration: VisibleDuration::default(),
             page_behavior: PageBehavior::default(),
-            selection_alignment: SelectionAlignment::default(),
+            selection_alignment: None,
             year_picker_open: None,
             default_year_picker_open: false,
             visible_years: None,
@@ -168,7 +168,7 @@ impl RangeCalendar {
     /// `selectionAlignment` — where the range start sits inside the visible
     /// range, until the user navigates for themselves.
     pub fn selection_alignment(mut self, alignment: SelectionAlignment) -> Self {
-        self.selection_alignment = alignment;
+        self.selection_alignment = Some(alignment);
         self
     }
 
@@ -943,15 +943,35 @@ impl RenderOnce for RangeCalendar {
             .map_or((Some(start), None), |(start, end)| (Some(start), end)),
             _ => (selection_start, selection_end),
         };
+        // Pinned React Stately starts a long range at the first visible unit
+        // when its end would fall beyond the default centered window. An
+        // explicit `selectionAlignment` always wins.
+        let selection_alignment =
+            self.selection_alignment
+                .unwrap_or_else(|| match (selection_start, selection_end) {
+                    (Some(start), Some(end)) => {
+                        let centered_anchor = calendar_view::aligned_anchor(
+                            self.duration,
+                            SelectionAlignment::Center,
+                            first_day,
+                            start,
+                        );
+                        let (_, centered_end) =
+                            calendar_view::visible_range(self.duration, first_day, centered_anchor);
+                        if days_from_civil(&end) > days_from_civil(&centered_end) {
+                            SelectionAlignment::Start
+                        } else {
+                            SelectionAlignment::Center
+                        }
+                    }
+                    _ => SelectionAlignment::Center,
+                });
         // `selectionAlignment` frames the range around the selection start,
         // until the user drives navigation themselves.
         let anchor = match (navigated, selection_start) {
-            (false, Some(sel)) => calendar_view::aligned_anchor(
-                self.duration,
-                self.selection_alignment,
-                first_day,
-                sel,
-            ),
+            (false, Some(sel)) => {
+                calendar_view::aligned_anchor(self.duration, selection_alignment, first_day, sel)
+            }
             _ => stored_anchor,
         };
         let anchor = focused_value.map_or(anchor, |focused| {

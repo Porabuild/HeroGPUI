@@ -850,6 +850,64 @@ fn range_calendar_controlled_focus_realigns_and_waits_for_its_owner(cx: &mut Tes
     );
 }
 
+/// Pinned React Stately starts a long selected range at the first visible
+/// month by default, but an explicit `center` keeps the selection start in the
+/// centered unit even when the range end falls outside the window.
+#[gpui::test]
+fn range_calendar_long_range_auto_aligns_start_without_overriding_center(cx: &mut TestAppContext) {
+    let automatic = Rc::new(RefCell::new(Vec::new()));
+    let automatic_for_view = automatic.clone();
+    let centered = Rc::new(RefCell::new(Vec::new()));
+    let centered_for_view = centered.clone();
+    let automatic_state = cx.new(|cx| DateRangeState::new(cx));
+    let centered_state = cx.new(|cx| DateRangeState::new(cx));
+    let cx = open_host(cx, move || {
+        let automatic = automatic_for_view.clone();
+        let centered = centered_for_view.clone();
+        gpui::div()
+            .child(
+                RangeCalendar::new(automatic_state.clone())
+                    .default_value((Date::new(2026, 8, 10), Date::new(2026, 10, 15)))
+                    .visible_duration(VisibleDuration::Months(3))
+                    .cell(move |cell| {
+                        if !cell.is_outside_month {
+                            let month = (cell.date.year, cell.date.month);
+                            if !automatic.borrow().contains(&month) {
+                                automatic.borrow_mut().push(month);
+                            }
+                        }
+                        gpui::div().into_any_element()
+                    }),
+            )
+            .child(
+                RangeCalendar::new(centered_state.clone())
+                    .default_value((Date::new(2026, 8, 10), Date::new(2026, 10, 15)))
+                    .visible_duration(VisibleDuration::Months(3))
+                    .selection_alignment(herogpui_components::SelectionAlignment::Center)
+                    .cell(move |cell| {
+                        if !cell.is_outside_month {
+                            let month = (cell.date.year, cell.date.month);
+                            if !centered.borrow().contains(&month) {
+                                centered.borrow_mut().push(month);
+                            }
+                        }
+                        gpui::div().into_any_element()
+                    }),
+            )
+            .into_any_element()
+    });
+    cx.update(|window, _| window.refresh());
+
+    assert_eq!(
+        automatic.borrow().as_slice(),
+        [(2026, 8), (2026, 9), (2026, 10)]
+    );
+    assert_eq!(
+        centered.borrow().as_slice(),
+        [(2026, 7), (2026, 8), (2026, 9)]
+    );
+}
+
 #[gpui::test]
 fn calendar_controlled_focus_realigns_and_waits_for_its_owner(cx: &mut TestAppContext) {
     let focuses = events();
