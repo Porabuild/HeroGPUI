@@ -223,6 +223,11 @@ CLOSE_ON_BLUR = (
     'Select', 'Autocomplete', 'DatePicker', 'DateRangePicker', 'ColorPicker',
 )
 
+# ComboBox uses a stronger pinned state contract: leaving the whole field
+# commits or reverts its query according to selection mode/custom-value policy,
+# then closes without reclaiming focus.
+COMBOBOX_BLUR_COMMIT = ('ComboBox',)
+
 # A disabled native control is not successful: it contributes no FormData,
 # does not satisfy `required`, and cannot block submission with stale validity.
 # The text family shares InputState; NumberField reaches it through
@@ -335,6 +340,13 @@ EVIDENCE = {
         r'(?s)close_on_blur\(.*?&format!\("drp-\{\}"',
     ),
     ('ColorPicker', 'close-on-blur'): ('color_picker.rs', r'util::close_on_blur'),
+    ('ComboBox', 'blur-commit'): (
+        'combo_box.rs',
+        r'(?s)\A(?=.*util::on_focus_leave\()(?=.*if allows_custom)'
+        r'(?=.*!multiple.*?value\.clear\(\))'
+        r'(?=.*let committed = if multiple.*?String::new\(\))'
+        r'(?=.*blur_commit\(window, cx\).*?blur_close\(window, cx\))',
+    ),
     ('NumberField', 'spin-keys'): ('number_field.rs', r'"up" \| "pageup"'),
     ('Table', 'table-page-down'): ('table.rs', r'"pagedown" => stops\.last\(\)\.copied\(\)'),
     ('Tooltip', 'focus-open'): ('tooltip.rs', r'contains_focused'),
@@ -488,9 +500,8 @@ EVIDENCE = {
         r'(?s)if allows_custom_value\s*&& key == "enter"'
         r'.{0,800}?is_none_or\(.{0,500}?cursor_position\(&rows, focused\).{0,200}?\{'
         r'(?:(?!on_selection_change_all).){0,3500}?if !multiple'
-        r'.{0,800}?key_selection_own.{0,800}?open_own_keys.{0,400}?\*v = false'
-        r'.{0,800}?if !multiple.{0,400}?on_selection_change'
-        r'.{0,800}?if was_open.{0,400}?on_open_change',
+        r'.{0,800}?key_selection_own.{0,1000}?if !multiple'
+        r'.{0,400}?on_selection_change.{0,400}?key_close\(window, cx\)',
     ),
     ('ComboBox', 'multiple-row-keys'): (
         'combo_box.rs',
@@ -588,13 +599,18 @@ def main():
         key = (page, 'close-on-blur')
         if key not in EVIDENCE and key not in WONT_DO:
             unmapped.append('%-14s %-14s' % key)
+    for page in COMBOBOX_BLUR_COMMIT:
+        key = (page, 'blur-commit')
+        if key not in EVIDENCE and key not in WONT_DO:
+            unmapped.append('%-14s %-14s' % key)
 
     # The derived claims first, so their numbers land in the same totals.
     # Deduplicated: a component appears in several of these tuples (a text area
     # has both the keys and the caret), and counting it once per tuple inflated
     # every total.
     derived = dict.fromkeys(
-        ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + CLOSE_ON_BLUR + SPIN_KEYS + AREA_KEYS
+        ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + CLOSE_ON_BLUR + COMBOBOX_BLUR_COMMIT
+        + SPIN_KEYS + AREA_KEYS
         + FOCUS_OPEN + TOOLTIP_SEQUENCE + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS
         + TABLE_TYPEAHEAD + TABLE_PAGING + SELECT_ALL_KEYS
         + ESCAPE_CLEAR_KEYS
@@ -611,7 +627,7 @@ def main():
                       'select-all', 'escape-clear', 'resize-bounds',
                       'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
                       'calendar-section-bounds', 'panel-focus', 'load-more',
-                      'disabled-form-omission', 'close-on-blur',
+                      'disabled-form-omission', 'close-on-blur', 'blur-commit',
                       'custom-value-multiple', 'multiple-row-keys',
                       'multiple-row-pointer'):
             key = (page, claim)

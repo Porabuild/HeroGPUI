@@ -967,6 +967,364 @@ fn autocomplete_wrap_joins_both_ends(cx: &mut TestAppContext) {
 // ComboBox
 // ---------------------------------------------------------------------------
 
+#[gpui::test]
+fn combo_box_blur_restores_selected_text_closes_and_keeps_destination_focus(
+    cx: &mut TestAppContext,
+) {
+    let callbacks = events();
+    let recorded = callbacks.clone();
+    let combo = search_state(cx);
+    let next = search_state(cx);
+    let combo_for_view = combo.clone();
+    let next_for_view = next.clone();
+
+    let cx = open_host(cx, move || {
+        let inputs = callbacks.clone();
+        let opens = callbacks.clone();
+        gpui::div()
+            .child(
+                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                    .default_value(["Alpha"])
+                    .default_input_value("mismatch")
+                    .default_open(true)
+                    .menu_trigger(MenuTrigger::Manual)
+                    .on_input_change(move |value, _, _| {
+                        inputs.borrow_mut().push(format!("input:{value}"));
+                    })
+                    .on_open_change(move |open, _, _| {
+                        opens.borrow_mut().push(format!("open:{open}"));
+                    }),
+            )
+            .child(Input::new(next_for_view.clone()))
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    flush_frame(cx);
+    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx)));
+    flush_frame(cx);
+
+    assert_eq!(
+        combo.read_with(cx, |state, _| state.value().to_owned()),
+        "Alpha"
+    );
+    assert_eq!(recorded.borrow().as_slice(), ["input:Alpha", "open:false"]);
+    assert!(cx.update(|window, cx| next.read(cx).focus_handle(cx).is_focused(window)));
+}
+
+#[gpui::test]
+fn combo_box_custom_single_blur_keeps_text_and_clears_selection(cx: &mut TestAppContext) {
+    let selections = events();
+    let selected = selections.clone();
+    let inputs = events();
+    let input_changes = inputs.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let combo = search_state(cx);
+    let next = search_state(cx);
+    let combo_for_view = combo.clone();
+    let next_for_view = next.clone();
+
+    let cx = open_host(cx, move || {
+        let selections = selections.clone();
+        let inputs = inputs.clone();
+        let opens = opens.clone();
+        gpui::div()
+            .child(
+                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                    .default_value(["Alpha"])
+                    .default_input_value("Custom")
+                    .default_open(true)
+                    .allows_custom_value(true)
+                    .menu_trigger(MenuTrigger::Manual)
+                    .on_selection_change_all(move |keys, _, _| {
+                        selections.borrow_mut().push(keys.join(","));
+                    })
+                    .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
+                    .on_open_change(move |open, _, _| {
+                        opens.borrow_mut().push(format!("open:{open}"));
+                    }),
+            )
+            .child(Input::new(next_for_view.clone()))
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    flush_frame(cx);
+    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx)));
+    flush_frame(cx);
+
+    assert_eq!(
+        combo.read_with(cx, |state, _| state.value().to_owned()),
+        "Custom"
+    );
+    assert_eq!(selected.borrow().as_slice(), [""]);
+    assert!(input_changes.borrow().is_empty());
+    assert_eq!(opened.borrow().as_slice(), ["open:false"]);
+}
+
+#[gpui::test]
+fn combo_box_custom_multiple_blur_preserves_query_and_selection(cx: &mut TestAppContext) {
+    let selections = events();
+    let selected = selections.clone();
+    let inputs = events();
+    let input_changes = inputs.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let combo = search_state(cx);
+    let next = search_state(cx);
+    let combo_for_view = combo.clone();
+    let next_for_view = next.clone();
+
+    let cx = open_host(cx, move || {
+        let selections = selections.clone();
+        let inputs = inputs.clone();
+        let opens = opens.clone();
+        gpui::div()
+            .child(
+                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                    .selection_mode(SelectionMode::Multiple)
+                    .default_value(["Alpha"])
+                    .default_input_value("Custom")
+                    .default_open(true)
+                    .allows_custom_value(true)
+                    .menu_trigger(MenuTrigger::Manual)
+                    .on_selection_change_all(move |keys, _, _| {
+                        selections.borrow_mut().push(keys.join(","));
+                    })
+                    .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
+                    .on_open_change(move |open, _, _| {
+                        opens.borrow_mut().push(format!("open:{open}"));
+                    }),
+            )
+            .child(Input::new(next_for_view.clone()))
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    flush_frame(cx);
+    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx)));
+    flush_frame(cx);
+
+    assert_eq!(
+        combo.read_with(cx, |state, _| state.value().to_owned()),
+        "Custom"
+    );
+    assert!(selected.borrow().is_empty());
+    assert!(input_changes.borrow().is_empty());
+    assert_eq!(opened.borrow().as_slice(), ["open:false"]);
+}
+
+#[gpui::test]
+fn combo_box_noncustom_multiple_blur_clears_only_the_query(cx: &mut TestAppContext) {
+    let selections = events();
+    let selected = selections.clone();
+    let inputs = events();
+    let input_changes = inputs.clone();
+    let combo = search_state(cx);
+    let next = search_state(cx);
+    let combo_for_view = combo.clone();
+    let next_for_view = next.clone();
+
+    let cx = open_host(cx, move || {
+        let selections = selections.clone();
+        let inputs = inputs.clone();
+        gpui::div()
+            .child(
+                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                    .selection_mode(SelectionMode::Multiple)
+                    .default_value(["Alpha"])
+                    .default_input_value("query")
+                    .menu_trigger(MenuTrigger::Manual)
+                    .on_selection_change_all(move |keys, _, _| {
+                        selections.borrow_mut().push(keys.join(","));
+                    })
+                    .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned())),
+            )
+            .child(Input::new(next_for_view.clone()))
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    flush_frame(cx);
+    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx)));
+    flush_frame(cx);
+
+    assert_eq!(combo.read_with(cx, |state, _| state.value().to_owned()), "");
+    assert!(selected.borrow().is_empty());
+    assert_eq!(input_changes.borrow().as_slice(), [""]);
+}
+
+#[gpui::test]
+fn combo_box_click_away_commits_and_closes_exactly_once(cx: &mut TestAppContext) {
+    let inputs = events();
+    let input_changes = inputs.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let combo = search_state(cx);
+    let next = search_state(cx);
+    let combo_for_view = combo.clone();
+    let next_for_view = next;
+
+    let cx = open_host(cx, move || {
+        let inputs = inputs.clone();
+        let opens = opens.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(300.))
+            .child(
+                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                    .default_value(["Alpha"])
+                    .default_input_value("mismatch")
+                    .default_open(true)
+                    .menu_trigger(MenuTrigger::Manual)
+                    .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
+                    .on_open_change(move |open, _, _| {
+                        opens.borrow_mut().push(format!("open:{open}"));
+                    }),
+            )
+            .child(Input::new(next_for_view.clone()))
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    flush_frame(cx);
+    click(cx, 60., 354.);
+    flush_frame(cx);
+
+    assert_eq!(
+        combo.read_with(cx, |state, _| state.value().to_owned()),
+        "Alpha"
+    );
+    assert_eq!(input_changes.borrow().as_slice(), ["Alpha"]);
+    assert_eq!(opened.borrow().as_slice(), ["open:false"]);
+}
+
+#[gpui::test]
+fn controlled_combo_box_click_away_reports_one_close(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let combo = search_state(cx);
+    let next = search_state(cx);
+    let combo_for_view = combo.clone();
+    let next_for_view = next;
+
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(300.))
+            .child(
+                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                    .selected_keys(["Alpha".into()])
+                    .default_input_value("mismatch")
+                    .is_open(true)
+                    .menu_trigger(MenuTrigger::Manual)
+                    .on_open_change(move |open, _, _| {
+                        opens.borrow_mut().push(format!("open:{open}"));
+                    }),
+            )
+            .child(Input::new(next_for_view.clone()))
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    flush_frame(cx);
+    click(cx, 60., 354.);
+    flush_frame(cx);
+    flush_frame(cx);
+
+    assert_eq!(opened.borrow().as_slice(), ["open:false"]);
+}
+
+#[gpui::test]
+fn combo_box_tab_commits_the_highlight_then_moves_focus_on(cx: &mut TestAppContext) {
+    let selections = events();
+    let selected = selections.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let combo = search_state(cx);
+    let next = search_state(cx);
+    let combo_for_view = combo.clone();
+    let next_for_view = next.clone();
+
+    let cx = open_host(cx, move || {
+        let selections = selections.clone();
+        let opens = opens.clone();
+        gpui::div()
+            .child(
+                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                    .default_open(true)
+                    .menu_trigger(MenuTrigger::Manual)
+                    .on_change(move |value, _, _| selections.borrow_mut().push(value.to_string()))
+                    .on_open_change(move |open, _, _| {
+                        opens.borrow_mut().push(format!("open:{open}"));
+                    }),
+            )
+            .child(Input::new(next_for_view.clone()))
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    flush_frame(cx);
+    press(cx, "down");
+    press(cx, "tab");
+    flush_frame(cx);
+
+    assert_eq!(selected.borrow().as_slice(), ["Alpha"]);
+    assert_eq!(
+        combo.read_with(cx, |state, _| state.value().to_owned()),
+        "Alpha"
+    );
+    assert_eq!(opened.borrow().as_slice(), ["open:false"]);
+    assert!(cx.update(|window, cx| next.read(cx).focus_handle(cx).is_focused(window)));
+}
+
+#[gpui::test]
+fn combo_box_multiple_tab_adds_the_highlight_then_moves_focus_on(cx: &mut TestAppContext) {
+    let selections = events();
+    let selected = selections.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let combo = search_state(cx);
+    let next = search_state(cx);
+    let combo_for_view = combo.clone();
+    let next_for_view = next.clone();
+
+    let cx = open_host(cx, move || {
+        let selections = selections.clone();
+        let opens = opens.clone();
+        gpui::div()
+            .child(
+                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                    .selection_mode(SelectionMode::Multiple)
+                    .default_open(true)
+                    .menu_trigger(MenuTrigger::Manual)
+                    .on_selection_change_all(move |keys, _, _| {
+                        selections.borrow_mut().push(keys.join(","));
+                    })
+                    .on_open_change(move |open, _, _| {
+                        opens.borrow_mut().push(format!("open:{open}"));
+                    }),
+            )
+            .child(Input::new(next_for_view.clone()))
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    flush_frame(cx);
+    press(cx, "down");
+    press(cx, "tab");
+    flush_frame(cx);
+
+    assert_eq!(selected.borrow().as_slice(), ["Alpha"]);
+    assert_eq!(combo.read_with(cx, |state, _| state.value().to_owned()), "");
+    assert_eq!(opened.borrow().as_slice(), ["open:false"]);
+    assert!(cx.update(|window, cx| next.read(cx).focus_handle(cx).is_focused(window)));
+}
+
 /// `allowsEmptyCollection` keeps the panel mounted when filtering removes
 /// every row. The unmatched text remains in the field, the empty-state region
 /// is inert, and an outside press still dismisses the panel.

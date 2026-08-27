@@ -489,6 +489,25 @@ struct CloseOnBlurState {
     seen_inside: bool,
 }
 
+#[derive(Clone)]
+pub struct FocusLeave {
+    handle: gpui::FocusHandle,
+    subscription: gpui::Entity<Option<gpui::Subscription>>,
+    state: gpui::Entity<CloseOnBlurState>,
+}
+
+impl FocusLeave {
+    pub fn focus_handle(&self) -> gpui::FocusHandle {
+        self.handle.clone()
+    }
+
+    /// Marks a departure as already handled by the event that caused it.
+    pub fn consume(&self, cx: &mut App) {
+        self.state.update(cx, |state, _| state.seen_inside = false);
+        self.subscription.update(cx, |slot, _| *slot = None);
+    }
+}
+
 pub fn close_on_blur(
     window: &mut gpui::Window,
     cx: &mut App,
@@ -496,6 +515,17 @@ pub fn close_on_blur(
     open: bool,
     close: impl Fn(&mut gpui::Window, &mut App) + 'static,
 ) -> gpui::FocusHandle {
+    on_focus_leave(window, cx, base, open, close).focus_handle()
+}
+
+/// Observes focus leaving a stable subtree while `active`.
+pub fn on_focus_leave(
+    window: &mut gpui::Window,
+    cx: &mut App,
+    base: &str,
+    active: bool,
+    leave: impl Fn(&mut gpui::Window, &mut App) + 'static,
+) -> FocusLeave {
     let held_scope = window.use_keyed_state(
         gpui::ElementId::Name(format!("{base}-close-on-blur-scope").into()),
         cx,
@@ -517,17 +547,17 @@ pub fn close_on_blur(
     let armed = subscription.read(cx).is_some();
     // Both observation legs hand the same closer out; gpui runs single-threaded,
     // so an `Rc` shares it without asking the closure to be `Clone`.
-    let close = std::rc::Rc::new(close);
+    let leave = std::rc::Rc::new(leave);
 
     // The frame-end half (real, focused windows): the guard reads the shared
     // edge so a render that got there first leaves this nothing to do, and
     // firing also drops the subscription -- a transition owns its close once.
-    if open && !armed {
+    if active && !armed {
         // The listener is owned by `subscription`; weak captures avoid a cycle
         // that would otherwise retain an unmounted open component forever.
         let disarmer = subscription.downgrade();
         let edge = state.downgrade();
-        let close = std::rc::Rc::clone(&close);
+        let leave = std::rc::Rc::clone(&leave);
         let listener = window.on_focus_out(&scope, cx, move |_, window, cx| {
             let Some(edge) = edge.upgrade() else {
                 return;
@@ -540,7 +570,7 @@ pub fn close_on_blur(
                 return;
             }
             edge.update(cx, |state, _| state.seen_inside = false);
-            close(window, cx);
+            leave(window, cx);
         });
         subscription.update(cx, |slot, _| *slot = Some(listener));
     }
@@ -551,7 +581,7 @@ pub fn close_on_blur(
     // the app root's non-interactive recovery handle as a user departure.
     // Never-before-seen counts as absent, not departed: the first frames of a
     // freshly opened surface hold no focus yet.
-    if open {
+    if active {
         if scope.contains_focused(window, cx) {
             state.update(cx, |state, _| state.seen_inside = true);
         } else if state.read(cx).seen_inside
@@ -559,7 +589,7 @@ pub fn close_on_blur(
         {
             state.update(cx, |state, _| state.seen_inside = false);
             subscription.update(cx, |slot, _| *slot = None);
-            close(window, cx);
+            leave(window, cx);
         }
     } else {
         if state.read(cx).seen_inside {
@@ -570,7 +600,11 @@ pub fn close_on_blur(
         }
     }
 
-    scope
+    FocusLeave {
+        handle: scope,
+        subscription,
+        state,
+    }
 }
 
 /// Wraps a callback for sharing between closures.

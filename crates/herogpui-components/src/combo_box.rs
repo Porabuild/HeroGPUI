@@ -533,6 +533,25 @@ impl RenderOnce for ComboBox {
         let layout = cx.layout().clone();
         let container_radius = util::container_radius(cx);
         let entity_id = self.state.entity_id().as_u64();
+        let close_open = util::shared({
+            let own = open_own.clone();
+            let callback = self.on_open_change.clone();
+            move |window: &mut Window, cx: &mut App| {
+                let is_open = own.as_ref().map_or(open_state, |held| *held.read(cx));
+                if !is_open {
+                    return;
+                }
+                if let Some(held) = &own {
+                    held.update(cx, |value, cx| {
+                        *value = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(callback) = &callback {
+                    callback(false, window, cx);
+                }
+            }
+        });
         let raw_query = self.state.read(cx).value().to_owned();
         let query = raw_query.to_lowercase();
         let is_invalid = self.is_invalid || self.error_message.is_some();
@@ -676,6 +695,7 @@ impl RenderOnce for ComboBox {
                 let pressed = trigger_pressed.clone();
                 let focus_open = focus_open.clone();
                 let show_all_items = show_all_items.clone();
+                let close = close_open.clone();
                 trigger = trigger
                     .capture_any_mouse_down(move |_, _, cx| {
                         pressed.set(true);
@@ -693,19 +713,19 @@ impl RenderOnce for ComboBox {
                         cx.stop_propagation();
                     })
                     .on_click(move |_, window, cx| {
-                        if !is_open {
-                            show_all_items.update(cx, |v, _| *v = true);
+                        if is_open {
+                            close(window, cx);
+                            return;
                         }
-                        // Uncontrolled: flip our own copy, or the chevron would be
-                        // inert without a caller handler.
+                        show_all_items.update(cx, |v, _| *v = true);
                         if let Some(held) = &own {
                             held.update(cx, |v, cx| {
-                                *v = !is_open;
+                                *v = true;
                                 cx.notify();
                             });
                         }
                         if let Some(cb) = &on_open_change {
-                            cb(!is_open, window, cx);
+                            cb(true, window, cx);
                         }
                     });
             }
@@ -749,6 +769,7 @@ impl RenderOnce for ComboBox {
         let selection_mode_on_change = self.selection_mode;
         let selection_change_on_input = self.on_selection_change_all.clone();
         let input_value_on_change = raw_query.clone();
+        let close_on_empty = close_open.clone();
         input = input.on_change(move |text, window, cx| {
             if let Some(cb) = &input_change {
                 cb(text, window, cx);
@@ -798,15 +819,7 @@ impl RenderOnce for ComboBox {
                     cb(true, window, cx);
                 }
             } else if is_open && !can_show {
-                if let Some(held) = &open_own_on_change {
-                    held.update(cx, |v, cx| {
-                        *v = false;
-                        cx.notify();
-                    });
-                }
-                if let Some(cb) = &open_change_cb {
-                    cb(false, window, cx);
-                }
+                close_on_empty(window, cx);
             }
 
             show_all_items_on_change.update(cx, |v, cx| {
@@ -862,6 +875,69 @@ impl RenderOnce for ComboBox {
         );
         let list_scroll_now = list_scroll.read(cx).clone();
         let panel_scroll_now = panel_scroll.read(cx).clone();
+
+        // ComboBox commits its text/selection when focus leaves even while the
+        // list is closed. This is `useComboBoxState.setFocused(false)`, not the
+        // generic popover close used by Select-family controls.
+        let commit_value = util::shared({
+            let state = self.state.clone();
+            let selection_own = selection_own.clone();
+            let selected = self.selected_keys.clone();
+            let selection_change = self.on_selection_change_all.clone();
+            let input_change = self.on_input_change.clone();
+            let allows_custom = self.allows_custom_value;
+            move |window: &mut Window, cx: &mut App| {
+                let current = state.read(cx).value().to_owned();
+                let selected_text = selected
+                    .iter()
+                    .next()
+                    .map(ToString::to_string)
+                    .unwrap_or_default();
+
+                if allows_custom {
+                    if !multiple && current != selected_text && !selected.is_empty() {
+                        if let Some(held) = &selection_own {
+                            held.update(cx, |value, cx| {
+                                value.clear();
+                                cx.notify();
+                            });
+                        }
+                        if let Some(callback) = &selection_change {
+                            callback(&[], window, cx);
+                        }
+                    }
+                    return;
+                }
+
+                let committed = if multiple {
+                    String::new()
+                } else {
+                    selected_text
+                };
+                if current != committed {
+                    state.update(cx, |state, cx| {
+                        state.set_value(committed.clone());
+                        cx.notify();
+                    });
+                    if let Some(callback) = &input_change {
+                        callback(&committed, window, cx);
+                    }
+                }
+            }
+        });
+        let blur_close = close_open.clone();
+        let blur_commit = commit_value.clone();
+        let blur_scope = util::on_focus_leave(
+            window,
+            cx,
+            &format!("combobox-{entity_id}"),
+            !self.is_disabled,
+            move |window, cx| {
+                blur_commit(window, cx);
+                blur_close(window, cx);
+            },
+        );
+        let blur_focus = blur_scope.focus_handle();
 
         // `.combo-box__input-group` is the field itself (`relative
         // inline-flex items-center`), and it is the panel's positioning
@@ -954,6 +1030,8 @@ impl RenderOnce for ComboBox {
             let open_own_keys = open_own.clone();
             let on_open_change = self.on_open_change.clone();
             let key_selection_own = selection_own.clone();
+            let key_close = close_open.clone();
+            let key_blur = blur_scope.clone();
             root = root.on_key_down(move |event, window, cx| {
                 let key = event.keystroke.key.as_str();
                 let is_open = open_own_keys
@@ -1031,22 +1109,12 @@ impl RenderOnce for ComboBox {
                         }
                     }
                     held.update(cx, |v, _| *v = None);
-                    if let Some(held) = &open_own_keys {
-                        held.update(cx, |v, cx| {
-                            *v = false;
-                            cx.notify();
-                        });
-                    }
                     if !multiple {
                         if let Some(cb) = &on_selection_change {
                             cb(&text, window, cx);
                         }
                     }
-                    if was_open {
-                        if let Some(cb) = &on_open_change {
-                            cb(false, window, cx);
-                        }
-                    }
+                    key_close(window, cx);
                     return;
                 }
                 if key == "enter" && (stale_cursor || held.read(cx).is_none()) {
@@ -1064,29 +1132,24 @@ impl RenderOnce for ComboBox {
                         value.set_value(reset_value.clone());
                         cx.notify();
                     });
-                    if let Some(held) = &open_own_keys {
-                        held.update(cx, |value, cx| {
-                            *value = false;
-                            cx.notify();
-                        });
-                    }
                     if input_changed {
                         if let Some(cb) = &on_input_change {
                             cb(&reset_value, window, cx);
                         }
                     }
-                    if is_open {
-                        if let Some(cb) = &on_open_change {
-                            cb(false, window, cx);
-                        }
-                    }
+                    key_close(window, cx);
                     return;
                 }
                 let from = held
                     .read(cx)
                     .as_ref()
                     .and_then(|focused| cursor_position(&rows, focused));
-                match crate::list_nav::resolve(&stops, from, key, wrap) {
+                let nav_key = if key == "tab" && is_open && held.read(cx).is_some() {
+                    "enter"
+                } else {
+                    key
+                };
+                match crate::list_nav::resolve(&stops, from, nav_key, wrap) {
                     crate::list_nav::Move::To(next) => {
                         let next_cursor = Some(cursor_for(&rows, next, None));
                         held.update(cx, |v, cx| {
@@ -1167,18 +1230,13 @@ impl RenderOnce for ComboBox {
                             });
                         }
                         held.update(cx, |v, _| *v = None);
-                        if let Some(held) = &open_own_keys {
-                            held.update(cx, |v, cx| {
-                                *v = false;
-                                cx.notify();
-                            });
+                        if key == "tab" {
+                            key_blur.consume(cx);
                         }
                         if let Some(cb) = &on_selection_change {
                             cb(&item, window, cx);
                         }
-                        if let Some(cb) = &on_open_change {
-                            cb(false, window, cx);
-                        }
+                        key_close(window, cx);
                     }
                     crate::list_nav::Move::Ignore => {}
                 }
@@ -1189,38 +1247,24 @@ impl RenderOnce for ComboBox {
             && !self.is_disabled
             && (!matches.is_empty() || self.allows_empty_collection);
 
-        let escape_own = open_own.clone();
-        let escape_cb = self.on_open_change.clone();
+        let escape_close = close_open.clone();
         let mut root = root;
         root =
             util::dismiss_on_escape_with_token(root, dismissal_token.clone(), move |window, cx| {
-                if let Some(held) = &escape_own {
-                    held.update(cx, |v, cx| {
-                        *v = false;
-                        cx.notify();
-                    });
-                }
-                if let Some(cb) = &escape_cb {
-                    cb(false, window, cx);
-                }
+                escape_close(window, cx);
                 util::DismissResult::Handled
             });
         if overlay_active && !show_list {
-            let dismiss_own = open_own.clone();
-            let dismiss_cb = self.on_open_change.clone();
+            let dismiss_close = close_open.clone();
+            let dismiss_commit = commit_value.clone();
+            let dismiss_blur = blur_scope.clone();
             root = util::dismiss_on_press_outside_with_token(
                 root,
                 dismissal_token.clone(),
                 move |window, cx| {
-                    if let Some(held) = &dismiss_own {
-                        held.update(cx, |v, cx| {
-                            *v = false;
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &dismiss_cb {
-                        cb(false, window, cx);
-                    }
+                    dismiss_blur.consume(cx);
+                    dismiss_commit(window, cx);
+                    dismiss_close(window, cx);
                     util::DismissResult::Handled
                 },
             );
@@ -1257,8 +1301,9 @@ impl RenderOnce for ComboBox {
             // on the chevron trigger is not an outside press: the chevron's
             // own click owns the close, and the click only fires because the
             // down was not stolen as a dismissal.
-            let dismiss_own = open_own.clone();
-            let dismiss_cb = self.on_open_change.clone();
+            let dismiss_close = close_open.clone();
+            let dismiss_commit = commit_value.clone();
+            let dismiss_blur = blur_scope;
             let mut panel = util::dismiss_on_press_outside_with_token(
                 panel,
                 dismissal_token,
@@ -1266,15 +1311,9 @@ impl RenderOnce for ComboBox {
                     if trigger_pressed.get() {
                         return util::DismissResult::Declined;
                     }
-                    if let Some(held) = &dismiss_own {
-                        held.update(cx, |v, cx| {
-                            *v = false;
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &dismiss_cb {
-                        cb(false, window, cx);
-                    }
+                    dismiss_blur.consume(cx);
+                    dismiss_commit(window, cx);
+                    dismiss_close(window, cx);
                     util::DismissResult::Handled
                 },
             );
@@ -1311,12 +1350,12 @@ impl RenderOnce for ComboBox {
             let on_change_all = self.on_selection_change_all.clone();
             let row_input_change = self.on_input_change.clone();
             let on_change_one = self.on_selection_change.clone();
-            let on_open = self.on_open_change.clone();
             let row_state = self.state.clone();
             let row_cursor = cursor;
             let selection_own = selection_own;
             let row_open_own = open_own.clone();
             let row_open_state = open_state;
+            let row_close_open = close_open.clone();
             let row_items = self.items.clone();
             let row_filter = self.filter.clone();
             let row_show_all_items = show_all_items;
@@ -1452,9 +1491,9 @@ impl RenderOnce for ComboBox {
                 let value = item.clone();
                 let state = row_state.clone();
                 let on_selection_change = on_change_one.clone();
-                let on_open_change = on_open.clone();
                 let own = selection_own.clone();
                 let open_own = row_open_own.clone();
+                let close_open = row_close_open.clone();
                 let items = row_items.clone();
                 let filter = row_filter.clone();
                 let show_all_items = row_show_all_items.clone();
@@ -1510,15 +1549,7 @@ impl RenderOnce for ComboBox {
                     if let Some(cb) = &on_selection_change {
                         cb(&value, window, cx);
                     }
-                    if let Some(held) = &open_own {
-                        held.update(cx, |v, cx| {
-                            *v = false;
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &on_open_change {
-                        cb(false, window, cx);
-                    }
+                    close_open(window, cx);
                 });
 
                 done(head, row.into_any_element())
@@ -1567,5 +1598,6 @@ impl RenderOnce for ComboBox {
         // over the value row below it.
         root.child(input_group)
             .when_some(value_content, |root, value| root.child(value))
+            .track_focus(&blur_focus)
     }
 }
