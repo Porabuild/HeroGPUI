@@ -1260,6 +1260,37 @@ impl Widget {
     }
 
     #[test]
+    fn color_picker_metadata_tracks_compound_parts_and_internal_open_state() {
+        let metadata = reference_metadata::for_route(
+            "ColorPicker",
+            "use herogpui::components::color_picker::ColorPicker;",
+        )
+        .expect("ColorPicker metadata is registered");
+
+        assert_eq!(metadata.parts.len(), 3);
+        for prop in ["value", "defaultValue", "onChange"] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "ColorPicker"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "ColorPicker.Popover"
+                && entry.prop == "placement"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Open"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".color-picker__popover"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+    }
+
+    #[test]
     fn dropdown_metadata_does_not_classify_behavior_as_styling() {
         let metadata = reference_metadata::for_import(
             "use herogpui::components::dropdown::{Dropdown, MenuItem};",

@@ -30,15 +30,14 @@
 //!   occupies the top ~24px and the option the bottom 36px.
 //! - ColorPicker: the trigger is the swatch + hex label row, 24px tall
 //!   (`SizeXl::Sm` swatch), so the panel hangs at top 30 and the `ColorArea`
-//!   (240x160) spans x 20..260, y 42..202 inside the zoomed panel.
+//!   (240x160) spans x 8..248, y 38..198 after its 8px top/inline inset.
 //! - Disclosure / DisclosureGroup: each trigger is a 36px Button.
 //! - Toolbar: driven entirely through the keyboard (Tab, arrows, Enter), so
 //!   no geometry is needed — the window's tab order is what moves.
 //!
-//! No exit-phase ghosts are involved: the Select popover and the ColorPicker
-//! panel gate their rendering on the open flag with no `overlay_phase`, and
-//! the calendars are bare, so a closed-proof probe cannot land on an exiting
-//! panel.
+//! ColorPicker retains its panel for the pinned 100ms exit. A closed-proof
+//! probe against its uncontrolled path advances the deterministic clock first;
+//! Select and the bare calendars have no retained exit surface here.
 
 mod harness;
 
@@ -659,6 +658,7 @@ fn range_calendar_click_start_then_end_reports_completed_ranges(cx: &mut TestApp
 /// is denied).
 #[gpui::test]
 fn color_picker_trigger_opens_and_area_reports(cx: &mut TestAppContext) {
+    harness::still();
     let colors = events();
     let reported = colors.clone();
     let opens = events();
@@ -668,7 +668,7 @@ fn color_picker_trigger_opens_and_area_reports(cx: &mut TestAppContext) {
     // The component's recorded border-box turns this panel-relative point into
     // the pinned local-coordinate colour. The direct offset tests derive the
     // fractions independently; this integration keeps the resulting hex.
-    let expected_hex = "#6B96C2";
+    let expected_hex = "#6490BD";
 
     let cx = open_host(cx, move || {
         let colors = colors.clone();
@@ -697,9 +697,9 @@ fn color_picker_trigger_opens_and_area_reports(cx: &mut TestAppContext) {
         "the trigger must open the popover"
     );
 
-    // The area: panel top (24 trigger + 6) + p-3 (12) puts the 160px-tall
-    // area at y 42..202; the ZoomBox's px-3 and the panel's px-2 put it at
-    // x 20..260. The press reports its local fractions within those bounds.
+    // The area: panel top (24 trigger + 6) + pt-2 (8) puts the 160px-tall
+    // area at y 38..198; px-2 puts it at x 8..248. The press reports its
+    // local fractions within those bounds.
     click(cx, 120., 80.);
     assert_eq!(
         reported.borrow().as_slice(),
@@ -724,6 +724,37 @@ fn color_picker_trigger_opens_and_area_reports(cx: &mut TestAppContext) {
         reported.borrow().as_slice(),
         [expected_hex],
         "the popover must be gone after escape"
+    );
+}
+
+#[gpui::test]
+fn color_picker_default_trigger_owns_open_state_without_callback(cx: &mut TestAppContext) {
+    harness::still();
+    let colors = events();
+    let reported = colors.clone();
+    let cx = open_host(cx, move || {
+        let reported = reported.clone();
+        ColorPicker::new("cp-default-open", PickerColor::hsb(210.0, 0.5, 0.6))
+            .on_change(move |color, _, _| reported.borrow_mut().push(color.to_hex()))
+            .into_any_element()
+    });
+
+    click(cx, 60., 12.);
+    click(cx, 120., 80.);
+    assert_eq!(
+        colors.borrow().as_slice(),
+        ["#6490BD"],
+        "the default trigger must open its own popover and expose the color controls"
+    );
+
+    press(cx, "tab tab escape");
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(150));
+    click(cx, 120., 80.);
+    assert_eq!(
+        colors.borrow().as_slice(),
+        ["#6490BD"],
+        "Escape must close the uncontrolled popover without an owner callback"
     );
 }
 

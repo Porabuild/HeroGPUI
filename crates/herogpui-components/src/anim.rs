@@ -376,6 +376,8 @@ pub struct ZoomBox {
     pub height: Option<gpui::Pixels>,
     pub padding_x: Option<gpui::Pixels>,
     pub padding_y: Option<gpui::Pixels>,
+    pub padding_top: Option<gpui::Pixels>,
+    pub padding_bottom: Option<gpui::Pixels>,
     pub gap: Option<gpui::Pixels>,
     pub text_size: Option<gpui::Pixels>,
     pub line_height: Option<gpui::Pixels>,
@@ -458,6 +460,12 @@ where
             if let Some(p) = b.padding_y {
                 el = el.py(lerp(p, f));
             }
+            if let Some(p) = b.padding_top {
+                el = el.pt(lerp(p, f));
+            }
+            if let Some(p) = b.padding_bottom {
+                el = el.pb(lerp(p, f));
+            }
             if let Some(g) = b.gap {
                 el = el.gap(lerp(g, f));
             }
@@ -512,6 +520,12 @@ where
             }
             if let Some(p) = b.padding_y {
                 el = el.py(lerp(p, f));
+            }
+            if let Some(p) = b.padding_top {
+                el = el.pt(lerp(p, f));
+            }
+            if let Some(p) = b.padding_bottom {
+                el = el.pb(lerp(p, f));
             }
             if let Some(g) = b.gap {
                 el = el.gap(lerp(g, f));

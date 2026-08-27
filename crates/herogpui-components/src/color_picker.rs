@@ -3077,8 +3077,6 @@ impl RenderOnce for ColorSwatchPicker {
 // ---------------------------------------------------------------------------
 
 /// ColorPicker — a swatch trigger plus a full picking surface.
-///
-/// Open state is controlled, matching the other overlay components.
 #[derive(IntoElement)]
 pub struct ColorPicker {
     /// `defaultValue` — set it to hand this component its own state.
@@ -3086,7 +3084,7 @@ pub struct ColorPicker {
     id: ElementId,
     value: PickerColor,
     label: Option<SharedString>,
-    is_open: bool,
+    is_open: Option<bool>,
     placement: Placement,
     /// Adds an alpha slider under the hue slider.
     show_alpha: bool,
@@ -3102,7 +3100,7 @@ impl ColorPicker {
             id: id.into(),
             value,
             label: None,
-            is_open: false,
+            is_open: None,
             placement: Placement::BottomStart,
             show_alpha: false,
             is_disabled: false,
@@ -3132,7 +3130,7 @@ impl ColorPicker {
     }
 
     pub fn is_open(mut self, v: bool) -> Self {
-        self.is_open = v;
+        self.is_open = Some(v);
         self
     }
 
@@ -3165,6 +3163,13 @@ impl ColorPicker {
 
 impl RenderOnce for ColorPicker {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let (is_open, open_own) = util::controlled(
+            window,
+            cx,
+            ElementId::Name(format!("{:?}-picker-open", self.id).into()),
+            self.is_open,
+            false,
+        );
         // `defaultValue` opts into the component holding its own colour;
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
         let (resolved, own) = util::controlled(
@@ -3186,7 +3191,7 @@ impl RenderOnce for ColorPicker {
             cx,
         );
         let base = format!("{:?}", self.id);
-        let overlay_open = self.is_open && !self.is_disabled;
+        let overlay_open = is_open && !self.is_disabled;
         let (phase, dismissal_token) = util::overlay_scope(
             window,
             cx,
@@ -3199,7 +3204,14 @@ impl RenderOnce for ColorPicker {
         // trigger. Exit animation frames do not keep this watch armed.
         let group_scope = util::close_on_blur(window, cx, &base, overlay_open, {
             let cb = self.on_open_change.clone();
+            let own = open_own.clone();
             move |window: &mut Window, cx: &mut App| {
+                if let Some(held) = &own {
+                    held.update(cx, |value, cx| {
+                        *value = false;
+                        cx.notify();
+                    });
+                }
                 if let Some(cb) = &cb {
                     cb(false, window, cx);
                 }
@@ -3207,6 +3219,7 @@ impl RenderOnce for ColorPicker {
         });
         let colors = cx.colors();
         let layout = cx.layout();
+        let popover_radius = layout.capped(layout.radius_lg() * 2.5);
         let trigger_pressed = Rc::new(std::cell::Cell::new(false));
 
         // Trigger: swatch plus the hex value.
@@ -3236,11 +3249,21 @@ impl RenderOnce for ColorPicker {
                 let clear = pressed.clone();
                 cx.defer(move |_| clear.set(false));
             });
-            if let Some(cb) = self.on_open_change.clone() {
-                let next = !self.is_open;
+            if self.on_open_change.is_some() || open_own.is_some() {
+                let cb = self.on_open_change.clone();
+                let own = open_own.clone();
+                let next = !is_open;
                 let pressed = trigger_pressed.clone();
                 trigger = trigger.on_click(move |_, window, cx| {
-                    cb(next, window, cx);
+                    if let Some(held) = &own {
+                        held.update(cx, |value, cx| {
+                            *value = next;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &cb {
+                        cb(next, window, cx);
+                    }
                     pressed.set(false);
                 });
             }
@@ -3264,12 +3287,18 @@ impl RenderOnce for ColorPicker {
         // arrows away from the area and the sliders inside it.
         let close = util::shared({
             let cb = self.on_open_change.clone();
+            let own = open_own;
             move |window: &mut Window, cx: &mut App| -> util::DismissResult {
-                let Some(cb) = &cb else {
-                    return util::DismissResult::Handled;
-                };
                 window.focus(&trigger_focus);
-                cb(false, window, cx);
+                if let Some(held) = &own {
+                    held.update(cx, |value, cx| {
+                        *value = false;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &cb {
+                    cb(false, window, cx);
+                }
                 util::DismissResult::Handled
             }
         });
@@ -3284,10 +3313,11 @@ impl RenderOnce for ColorPicker {
             .flex()
             .flex_col()
             .gap(px(12.))
-            .py(px(12.))
             .px(px(8.))
+            .pt(px(8.))
+            .pb(px(12.))
             .min_w(px(248.))
-            .rounded(util::container_radius(cx))
+            .rounded(popover_radius)
             .bg(colors.overlay.background)
             // v3 gives a floating panel no border: it is `bg-overlay
             // shadow-overlay` and a radius, and dark mode's inset hairline is
@@ -3384,13 +3414,20 @@ impl RenderOnce for ColorPicker {
                 close(window, cx)
             });
 
+        let zoom = crate::anim::ZoomBox {
+            width: Some(px(256.)),
+            padding_x: Some(px(8.)),
+            padding_top: Some(px(8.)),
+            padding_bottom: Some(px(12.)),
+            radius: Some(popover_radius),
+            ..Default::default()
+        };
+
         let panel = if exiting {
             crate::anim::exiting(
                 panel,
                 ElementId::Name(format!("{base}-panel-anim-out").into()),
-                crate::anim::ZoomBox::panel(px(12.), util::container_radius(cx))
-                    .padding_x(px(12.))
-                    .sized(px(264.)),
+                zoom,
                 crate::anim::Motion::LIST_OUT,
                 cx,
             )
@@ -3398,9 +3435,7 @@ impl RenderOnce for ColorPicker {
             crate::anim::entering_zoom(
                 panel,
                 ElementId::Name(format!("{base}-panel-anim").into()),
-                crate::anim::ZoomBox::panel(px(12.), util::container_radius(cx))
-                    .padding_x(px(12.))
-                    .sized(px(264.)),
+                zoom,
                 crate::anim::Motion::LIST_IN,
                 cx,
             )

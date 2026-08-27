@@ -2100,7 +2100,6 @@ impl Gallery {
 
     pub fn page_color_picker(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let value = self.picker_color;
-        let is_open = self.color_picker_open;
         component_doc_page!(
             "Color Picker",
             crate::pages::Page::ColorPicker.description(),
@@ -2112,12 +2111,7 @@ impl Gallery {
                         // v3's Usage is uncontrolled; "Controlled" is separate.
                         .default_value(value)
                         .label("Accent")
-                        .is_open(is_open)
                         .show_alpha(true)
-                        .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-                            this.color_picker_open = *open;
-                            cx.notify();
-                        })))
                         .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
                             this.picker_color = *c;
                             cx.notify();
@@ -2128,14 +2122,18 @@ impl Gallery {
                     "Controlled",
                     col(vec![
                         para(
-                            "The trigger's swatch and the readout below it are the same value: \
-                             the caller owns it and the picker reports each change.",
+                            "The caller owns the color value while the trigger owns its ordinary \
+                             open state, matching v3's internal DialogTrigger.",
                             cx,
                         ),
-                        row(vec![
-                            h::ColorSwatch::new(value).into_any_element(),
-                            para(&format!("Value: {}", value.to_hex()), cx),
-                        ]),
+                        h::ColorPicker::new("cp-controlled", value)
+                            .label("Brand")
+                            .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
+                                this.picker_color = *c;
+                                cx.notify();
+                            },)))
+                            .into_any_element(),
+                        para(&format!("Value: {}", value.to_hex()), cx),
                     ]),
                 ),
                 (

@@ -313,6 +313,10 @@ CHECKS = [
     ('color-picker', '.color-picker__popover', 'gap', 'ColorPicker popover gap',
      SRC + 'color_picker.rs',
      r'`gap-3 min-w-62 px-2`[\s\S]{0,200}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('color-picker', '.color-picker__popover', 'radius', 'ColorPicker popover radius',
+     SRC + 'color_picker.rs',
+     r'let popover_radius = layout\.capped\(layout\.radius_lg\(\) \* (\d+(?:\.\d*)?)\)',
+     lambda multiplier: min(32.0, RADIUS_BASE * float(multiplier))),
     ('input-otp', '.input-otp__slot-value', 'text', 'InputOTP digit text',
      SRC + 'input_otp.rs',
      r'`\.input-otp__slot-value` is `text-lg[\s\S]{0,200}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -1369,6 +1373,9 @@ CHECKS = [
     ('table', '.table-root--primary', 'px', 'Table tray px', SRC + 'table.rs',
      r'`\.table-root--primary` is a `bg-surface-secondary px-1 pb-1` tray'
      r'[\s\S]{0,600}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('table', '.table-root--primary', 'radius', 'Table tray radius', SRC + 'table.rs',
+     r'let radius = cx\.layout\(\)\.radius_lg\(\) \* (\d+(?:\.\d*)?);',
+     lambda multiplier: min(32.0, RADIUS_BASE * float(multiplier))),
 
     # --- the four parts this port used to skip -------------------------------
     ('date-range-picker', '.date-range-picker__range-separator', 'px',
@@ -2046,6 +2053,26 @@ def check_tabs_style_contract():
     return bad
 
 
+def check_color_picker_style_contract():
+    """ColorPicker's asymmetric padding must survive its zoom refinement."""
+    css = io.open(os.path.join(CACHE, 'color-picker.css'),
+                  encoding='utf-8', errors='replace').read()
+    src = io.open(SRC + 'color_picker.rs', encoding='utf-8').read()
+    checks = [
+        ('base asymmetric padding', 'px-2 pt-2 pb-3' in css and
+         '.px(px(8.))' in src and '.pt(px(8.))' in src and '.pb(px(12.))' in src),
+        ('animated asymmetric padding', 'padding_x: Some(px(8.))' in src and
+         'padding_top: Some(px(8.))' in src and 'padding_bottom: Some(px(12.))' in src),
+    ]
+    print()
+    print('color picker non-numeric styling:')
+    for name, ok in checks:
+        print('%s %-28s %s' % (' ' if ok else '!', name, 'ok' if ok else 'missing'))
+    bad = sum(not ok for _, ok in checks)
+    print('COLOR PICKER STYLE BAD : %d' % bad)
+    return bad
+
+
 def coverage():
     """Every metric v3 declares, and whether `CHECKS` compares it.
 
@@ -2190,9 +2217,10 @@ def main():
     toggle_bad = check_toggle_button_style_contract()
     pagination_bad = check_pagination_style_contract()
     tabs_bad = check_tabs_style_contract()
+    color_picker_bad = check_color_picker_style_contract()
     return int(bool(
         mismatched or unreadable or wrong_fills or stale_fills or toggle_bad or pagination_bad
-        or tabs_bad
+        or tabs_bad or color_picker_bad
     ))
 
 
