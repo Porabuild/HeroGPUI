@@ -632,16 +632,22 @@ fn multiline_body(b: MultilineBody<'_>, cx: &App) -> gpui::AnyElement {
     col.into_any_element()
 }
 
+struct InputFieldRenderState {
+    focus: crate::util::FieldFocus,
+    is_disabled: bool,
+    is_invalid: bool,
+    is_read_only: bool,
+    is_required: bool,
+    value: SharedString,
+}
+
 /// HeroUI Input.
 #[derive(IntoElement)]
 pub struct Input {
     /// See [`Input::content`]: v3's field children-as-a-function.
     content: Option<std::sync::Arc<dyn Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static>>,
-    search_content: Option<
-        std::sync::Arc<
-            dyn Fn(crate::util::FieldFocus, bool, SharedString) -> gpui::AnyElement + 'static,
-        >,
-    >,
+    field_content:
+        Option<std::sync::Arc<dyn Fn(InputFieldRenderState) -> gpui::AnyElement + 'static>>,
     /// `validationBehavior` — written into the state on render.
     validation_behavior: Option<crate::form::ValidationBehavior>,
     state: Entity<InputState>,
@@ -718,11 +724,11 @@ impl Input {
         self
     }
 
-    fn search_content(
+    fn field_content(
         mut self,
-        render: impl Fn(crate::util::FieldFocus, bool, SharedString) -> gpui::AnyElement + 'static,
+        render: impl Fn(InputFieldRenderState) -> gpui::AnyElement + 'static,
     ) -> Self {
-        self.search_content = Some(std::sync::Arc::new(render));
+        self.field_content = Some(std::sync::Arc::new(render));
         self
     }
 
@@ -735,7 +741,7 @@ impl Input {
     pub fn new(state: Entity<InputState>) -> Self {
         Self {
             content: None,
-            search_content: None,
+            field_content: None,
             validation_behavior: None,
             state,
             label: None,
@@ -1118,8 +1124,15 @@ impl RenderOnce for Input {
 
         // v3's field children-as-a-function: the caller builds the parts from the
         // focus state, so the field's own stack is skipped entirely.
-        if let Some(render) = self.search_content.clone() {
-            return render(field_focus, validity.is_invalid, value_now.into());
+        if let Some(render) = self.field_content.clone() {
+            return render(InputFieldRenderState {
+                focus: field_focus,
+                is_disabled: self.is_disabled,
+                is_invalid: validity.is_invalid,
+                is_read_only: self.is_read_only,
+                is_required: self.is_required,
+                value: value_now.into(),
+            });
         }
         if let Some(render) = self.content.clone() {
             return render(field_focus);
@@ -1721,6 +1734,25 @@ impl RenderOnce for Input {
 // TextField / SearchField
 // ---------------------------------------------------------------------------
 
+/// The complete state passed to [`TextField::content`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TextFieldRenderState {
+    /// The field cannot receive focus or input.
+    pub is_disabled: bool,
+    /// Controlled, server, or custom validation currently fails.
+    pub is_invalid: bool,
+    /// The value can be selected but not changed.
+    pub is_read_only: bool,
+    /// The field must contain a value before native form submission.
+    pub is_required: bool,
+    /// The input itself owns keyboard focus.
+    pub is_focused: bool,
+    /// The input or another composed child owns keyboard focus.
+    pub is_focus_within: bool,
+    /// Focus was reached through keyboard navigation.
+    pub is_focus_visible: bool,
+}
+
 /// TextField — port of `@heroui/text-field` (v3).
 ///
 /// The composition-friendly field: a label, an [`Input`], and a description or
@@ -1750,18 +1782,23 @@ impl TextField {
         self
     }
 
-    /// v3's field `children`-as-a-function, handed `{isFocused, isFocusWithin,
-    /// isFocusVisible}`.
-    ///
-    /// v3's caller writes the parts themselves inside that function -- a
-    /// `Label`, the group, a `Description` -- and this port exposes the same
-    /// three as components, so a closure here replaces the field's own stack
-    /// with whatever the caller builds from the state.
+    /// v3's field `children`-as-a-function, handed the complete resolved field
+    /// state.
     pub fn content(
         mut self,
-        render: impl Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static,
+        render: impl Fn(TextFieldRenderState) -> gpui::AnyElement + 'static,
     ) -> Self {
-        self.inner = self.inner.content(render);
+        self.inner = self.inner.field_content(move |state| {
+            render(TextFieldRenderState {
+                is_disabled: state.is_disabled,
+                is_invalid: state.is_invalid,
+                is_read_only: state.is_read_only,
+                is_required: state.is_required,
+                is_focused: state.focus.is_focused,
+                is_focus_within: state.focus.is_focus_within,
+                is_focus_visible: state.focus.is_focus_visible,
+            })
+        });
         self
     }
 
@@ -2097,20 +2134,19 @@ impl RenderOnce for SearchField {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
         let validate = self.validate.clone();
-        let content_flags = (self.is_disabled, self.is_read_only, self.is_required);
         let mut input = Input::new(self.state)
             .when_some(self.content, |i, render| {
-                i.search_content(move |focus, is_invalid, value| {
-                    let is_empty = value.is_empty();
+                i.field_content(move |state| {
+                    let is_empty = state.value.is_empty();
                     render(SearchFieldRenderState {
-                        is_disabled: content_flags.0,
-                        is_invalid,
-                        is_read_only: content_flags.1,
-                        is_required: content_flags.2,
-                        is_focused: focus.is_focused,
-                        is_focus_within: focus.is_focus_within,
-                        is_focus_visible: focus.is_focus_visible,
-                        value,
+                        is_disabled: state.is_disabled,
+                        is_invalid: state.is_invalid,
+                        is_read_only: state.is_read_only,
+                        is_required: state.is_required,
+                        is_focused: state.focus.is_focused,
+                        is_focus_within: state.focus.is_focus_within,
+                        is_focus_visible: state.focus.is_focus_visible,
+                        value: state.value,
                         is_empty,
                     })
                 })

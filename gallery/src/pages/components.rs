@@ -7306,6 +7306,7 @@ impl Gallery {
             .read(cx)
             .value()
             .to_owned();
+        let tf_render_props = self.demo_text("tf-render-props", "Ada", cx);
         component_doc_page!(
             "Text Field",
             crate::pages::Page::TextField.description(),
@@ -7393,6 +7394,34 @@ impl Gallery {
                             .into_any_element(),
                         para(&format!("Value: {tf_controlled}"), cx),
                     ]),
+                ),
+                (
+                    "Render Props",
+                    col(vec![{
+                        let field = tf_render_props.clone();
+                        h::TextField::new(tf_render_props)
+                            .content(move |state| {
+                                h::TextField::new(field.clone())
+                                    .label(format!(
+                                        "{} · {} · {}",
+                                        if state.is_required {
+                                            "required"
+                                        } else {
+                                            "optional"
+                                        },
+                                        if state.is_invalid { "invalid" } else { "valid" },
+                                        if state.is_focus_within {
+                                            "focused"
+                                        } else {
+                                            "unfocused"
+                                        },
+                                    ))
+                                    .is_required(true)
+                                    .into_any_element()
+                            })
+                            .is_required(true)
+                            .into_any_element()
+                    }]),
                 ),
                 (
                     "Error Message",

@@ -51,8 +51,8 @@ use herogpui_components::{
     util, Autocomplete, CloseButton, ColorChannel, ColorField, ColorSlider, ComboBox, Date,
     DateField, DateFieldRenderState, Input, InputState, Meter, NumberField, NumberFieldRenderState,
     NumberFormat, NumberState, PickerColor, ProgressBar, ProgressCircle, SearchField,
-    SearchFieldRenderState, Select, SelectionMode, Slider, Switch, TextField, TimeField,
-    TimeFieldRenderState, TimeState, ValidationBehavior,
+    SearchFieldRenderState, Select, SelectionMode, Slider, Switch, TextField, TextFieldRenderState,
+    TimeField, TimeFieldRenderState, TimeState, ValidationBehavior,
 };
 
 use harness::{click, events, open_host, press};
@@ -1337,7 +1337,7 @@ fn text_field_content_hands_focus_state(cx: &mut TestAppContext) {
         TextField::new(for_view.clone())
             .content({
                 let value = for_view.clone();
-                move |focus: util::FieldFocus| {
+                move |focus: TextFieldRenderState| {
                     record.borrow_mut().push((
                         focus.is_focused,
                         focus.is_focus_within,
@@ -1350,6 +1350,41 @@ fn text_field_content_hands_focus_state(cx: &mut TestAppContext) {
             })
             .into_any_element()
     });
+}
+
+#[gpui::test]
+fn text_field_content_hands_complete_field_state(cx: &mut TestAppContext) {
+    let seen = events();
+    let rendered = seen.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state;
+    let _cx = open_host(cx, move || {
+        let seen = seen.clone();
+        TextField::new(state_for_view.clone())
+            .is_disabled(true)
+            .is_invalid(true)
+            .is_read_only(true)
+            .is_required(true)
+            .content(move |field| {
+                seen.borrow_mut().push(format!(
+                    "{}:{}:{}:{}:{}:{}:{}",
+                    field.is_disabled,
+                    field.is_invalid,
+                    field.is_read_only,
+                    field.is_required,
+                    field.is_focused,
+                    field.is_focus_within,
+                    field.is_focus_visible
+                ));
+                gpui::div().into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        rendered.borrow().last().map(String::as_str),
+        Some("true:true:true:true:false:false:false")
+    );
 }
 
 #[gpui::test]

@@ -1049,6 +1049,40 @@ impl Widget {
     }
 
     #[test]
+    fn text_field_metadata_tracks_complete_render_state_and_composition() {
+        let metadata = reference_metadata::for_route(
+            "TextField",
+            "use herogpui::components::input::TextField;",
+        )
+        .expect("TextField metadata is registered");
+
+        assert_eq!(metadata.parts.len(), 6);
+        for prop in [
+            "children",
+            "defaultValue",
+            "onChange",
+            "isDisabled",
+            "isReadOnly",
+            "isRequired",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "TextField"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "TextField"
+                && entry.prop == "value"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".textfield .description"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+    }
+
+    #[test]
     fn search_field_metadata_tracks_complete_render_state_and_compound_parts() {
         let metadata = reference_metadata::for_route(
             "SearchField",

@@ -4879,6 +4879,134 @@ pub(crate) const INPUT: ReferenceMetadata = ReferenceMetadata {
     styling: INPUT_STYLING,
 };
 
+const TEXT_FIELD_REQUIRED_PARTS: &[&str] = &[
+    "TextField",
+    "Label",
+    "Input",
+    "TextArea",
+    "Description",
+    "FieldError",
+];
+
+const TEXT_FIELD_API: &[ApiDoc] = &[
+    ApiDoc { owner: "TextField", prop: "children", ty: "ReactNode | (values: TextFieldRenderProps) => ReactNode", default: "—", description: "Replacement content receives disabled, invalid, read-only, required and complete focus state.", rust_owner: "TextField", rust: "content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField", prop: "className", ty: "string | render function", default: "—", description: "Browser CSS classes are unavailable.", rust_owner: "TextField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "TextField", prop: "style", ty: "CSSProperties | render function", default: "—", description: "Browser inline styles are unavailable.", rust_owner: "TextField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "TextField", prop: "fullWidth", ty: "boolean", default: "false", description: "Stretches the root and inner control to the available width.", rust_owner: "TextField", rust: "full_width()", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField", prop: "id", ty: "string", default: "—", description: "The caller-owned InputState entity supplies stable GPUI identity instead of a DOM id.", rust_owner: "TextField", rust: "new(state)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "TextField", prop: "render", ty: "DOMRenderFunction<..., TextFieldRenderProps>", default: "—", description: "DOM root substitution has no GPUI equivalent.", rust_owner: "TextField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "TextField", prop: "isRequired", ty: "boolean", default: "false", description: "Marks the field required for native form validation.", rust_owner: "TextField", rust: "is_required(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField", prop: "isInvalid", ty: "boolean", default: "—", description: "Forces invalid field chrome and error state.", rust_owner: "TextField", rust: "is_invalid(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField", prop: "validate", ty: "(value: string) => ValidationError | true | null", default: "—", description: "A callback returns one optional validation message.", rust_owner: "TextField", rust: "validate(callback)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "TextField", prop: "validationBehavior", ty: "\"native\" | \"aria\"", default: "\"native\"", description: "Selects blocking native validation or non-blocking ARIA-style validation.", rust_owner: "TextField", rust: "validation_behavior(ValidationBehavior)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField", prop: "validationErrors", ty: "string[]", default: "—", description: "Server messages take precedence over custom validation.", rust_owner: "TextField", rust: "validation_errors(errors)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField", prop: "value", ty: "string", default: "—", description: "The caller-owned InputState is the live value source and is mutated directly rather than proposing changes to an immutable React prop.", rust_owner: "TextField", rust: "new(state)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "TextField", prop: "defaultValue", ty: "string", default: "—", description: "Seeds the uncontrolled InputState once.", rust_owner: "TextField", rust: "default_value(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField", prop: "onChange", ty: "(value: string) => void", default: "—", description: "Reports each accepted edit without duplicate reports for rejected edits.", rust_owner: "TextField", rust: "on_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField", prop: "isDisabled", ty: "boolean", default: "false", description: "Removes focus and editing and applies disabled opacity.", rust_owner: "TextField", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField", prop: "isReadOnly", ty: "boolean", default: "false", description: "Keeps focus and selection while suppressing edits.", rust_owner: "TextField", rust: "is_read_only(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField", prop: "name", ty: "string", default: "—", description: "Submission name stored with the current field value.", rust_owner: "TextField", rust: "name(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField", prop: "autoFocus", ty: "boolean", default: "false", description: "Focuses the inner input on its first render.", rust_owner: "TextField", rust: "auto_focus(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextField", prop: "aria-label / aria-labelledby / aria-describedby / aria-details", ty: "string", default: "—", description: "GPUI 0.2.2 exposes no accessibility attribute tree.", rust_owner: "TextField", rust: "—", status: ImplementationStatus::Unavailable },
+];
+
+const TEXT_FIELD_PARTS: &[PartDoc] = &[
+    PartDoc {
+        name: "TextField",
+        slot: "text-field",
+        description: "Root field state and vertical composition.",
+        rust_owner: "TextField",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "Label",
+        slot: "label",
+        description: "Optional label rendered before the editable control.",
+        rust_owner: "TextField",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "Input",
+        slot: "input",
+        description: "Single-line InputState-backed editable control.",
+        rust_owner: "Input",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "TextArea",
+        slot: "textarea",
+        description: "Multi-line field composition is supplied by the sibling TextArea component.",
+        rust_owner: "TextField",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "Description",
+        slot: "description",
+        description: "Helper message shown while the field is valid.",
+        rust_owner: "TextField",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "FieldError",
+        slot: "field-error",
+        description: "Validation or server message replacing the description while invalid.",
+        rust_owner: "TextField",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+const TEXT_FIELD_STATES: &[StateDoc] = &[
+    StateDoc {
+        state: "Invalid",
+        selector: ".textfield[data-invalid=true]",
+        description: "Hides the description and shows the field error.",
+        rust: "resolved Input validity",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Disabled",
+        selector: ".textfield[data-disabled=true]",
+        description: "Applies disabled opacity and removes focus and editing.",
+        rust: "is_disabled(bool)",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Focus within",
+        selector: ".textfield[data-focus-within=true]",
+        description: "Replacement content receives focus-within while the inner input owns focus.",
+        rust: "TextFieldRenderState::is_focus_within",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Focus visible",
+        selector: ".textfield[data-focus-visible=true]",
+        description: "Replacement content receives keyboard-visible focus state.",
+        rust: "TextFieldRenderState::is_focus_visible",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const TEXT_FIELD_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".textfield", value: "flex flex-col gap-1", description: "Root field stack uses the pinned four-pixel gap.", rust: "Input wrapper flex_col + gap(4px)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".textfield[data-invalid=true] .description", value: "hidden", description: "The validation message replaces helper text instead of stacking with it.", rust: "validity-first description branch", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".textfield .description", value: "px-1 text-xs text-muted", description: "Helper and error text use pinned typography and colour; the port does not add horizontal inset.", rust: "12px helper text without px-1", status: ImplementationStatus::Partial },
+];
+
+pub(crate) const TEXT_FIELD: ReferenceMetadata = ReferenceMetadata {
+    page: "TextField",
+    import_line: "use herogpui::components::input::TextField;",
+    source_module: "input",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(forms)/text-field.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/textfield/textfield.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/TextField.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/textfield.css",
+    required_parts: TEXT_FIELD_REQUIRED_PARTS,
+    api: TEXT_FIELD_API,
+    parts: TEXT_FIELD_PARTS,
+    states: TEXT_FIELD_STATES,
+    styling: TEXT_FIELD_STYLING,
+};
+
 const TEXT_AREA_REQUIRED_PARTS: &[&str] = &["TextArea"];
 
 const TEXT_AREA_API: &[ApiDoc] = &[
@@ -11133,6 +11261,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     SWITCH,
     PAGINATION,
     INPUT,
+    TEXT_FIELD,
     TEXT_AREA,
     SEARCH_FIELD,
     INPUT_OTP,
