@@ -1138,6 +1138,7 @@ fn toast_action_button_reports_and_dismisses(cx: &mut TestAppContext) {
 /// it; after `resumeAll` the same clock dismisses it.
 #[gpui::test]
 fn toast_pause_and_resume_stop_the_clock(cx: &mut TestAppContext) {
+    still();
     let timed = cx.update(|cx| {
         // Pause first, then push: the toast's timer ticks are what `paused`
         // gates, and the first tick is only 100ms away.
@@ -1146,10 +1147,11 @@ fn toast_pause_and_resume_stop_the_clock(cx: &mut TestAppContext) {
             .timeout(Duration::from_millis(300))
             .push(None, cx)
     });
+    let cx = open_host(cx, || ToastViewport::new().into_any_element());
 
     // 1500ms is five times the timeout; every 100ms tick has seen `paused`.
     cx.executor().advance_clock(Duration::from_millis(1500));
-    cx.update(|cx| {
+    cx.update(|_window, cx| {
         assert!(
             toast_store(cx)
                 .read(cx)
@@ -1161,9 +1163,9 @@ fn toast_pause_and_resume_stop_the_clock(cx: &mut TestAppContext) {
     });
 
     // Resume: three 100ms ticks subtract the 300ms, and it goes.
-    cx.update(|cx| pause_toasts(false, cx));
+    cx.update(|_window, cx| pause_toasts(false, cx));
     cx.executor().advance_clock(Duration::from_millis(500));
-    cx.update(|cx| {
+    cx.update(|_window, cx| {
         assert!(
             toast_store(cx)
                 .read(cx)
