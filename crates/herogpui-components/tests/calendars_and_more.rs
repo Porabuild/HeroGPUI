@@ -42,13 +42,14 @@
 mod harness;
 
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::{BTreeSet, HashSet},
     rc::Rc,
 };
 
 use gpui::{
-    point, prelude::*, px, Focusable, Modifiers, MouseButton, SharedString, TestAppContext,
+    point, prelude::*, px, Focusable, KeyDownEvent, Keystroke, Modifiers, MouseButton,
+    SharedString, TestAppContext, VisualTestContext,
 };
 use harness::{click, events, open_host, press};
 use herogpui_components::{
@@ -97,6 +98,11 @@ fn range_day(year: i32, month: u32, day: u32) -> (f32, f32) {
     let lead = DateConstraints::new().lead_cells(year, month);
     let idx = day as usize + lead - 1;
     (range_col_x(idx % 7), range_row_y(idx / 7))
+}
+
+/// One forced redraw, so a keyed flag change is visible to the next probe.
+fn flush_frame(cx: &mut VisualTestContext) {
+    cx.update(|window, _| window.refresh());
 }
 
 // ---------------------------------------------------------------------------
@@ -1399,18 +1405,22 @@ fn disclosure_toggles_and_group_reports(cx: &mut TestAppContext) {
 /// A Toolbar's children keep their own press handlers, and the arrows answer
 /// the way v3's one-line description advertises ("A container for interactive
 /// controls with arrow key navigation") — which, per the inheritance line on
-/// the v3 page, is React Aria's `useToolbar`: the arrows move *inside* the
-/// toolbar, wrapping at the ends, and Tab is what leaves it.
+/// the v3 page, is React Aria's pinned `useToolbar` (react-aria 3.51.0): the
+/// arrows move *inside* the toolbar through a FocusManager built on the
+/// toolbar's own element, whose `focusNext`/`focusPrevious` walk the subtree
+/// with `wrap` unset — so an arrow at either end moves nothing *and is still
+/// consumed* (`stopPropagation` + `preventDefault` run whether or not the
+/// walker found a node). Tab is what leaves it, and one press leaves the
+/// *entire* toolbar: the pinned handler runs `focusFirst`/`focusLast` and
+/// lets the native Tab carry on from that end.
 ///
-/// This port used to route the arrows through gpui's window-wide
-/// `focus_next`/`focus_prev`, which a toolbar-alone page could not tell apart
-/// from the scoped behaviour; a button *after* the toolbar is the
-/// distinguisher. Everything is asserted through the keyboard: Tab enters on
-/// the first control, three Rights from the third wrap back to the first (the
-/// window-wide code would have landed Enter on the sibling), Left from the
-/// first wraps to the last, and Tab leaves to the sibling.
+/// Everything is asserted through the keyboard: Tab enters on the first
+/// control, the third Right holds on the last control instead of wrapping
+/// (the old window-wide wrap landed Enter on the first control again), the
+/// third Left holds on the first, and Tab from that *first* child still
+/// reaches the sibling after the toolbar in one press.
 #[gpui::test]
-fn toolbar_arrows_wrap_inside_and_tab_leaves(cx: &mut TestAppContext) {
+fn toolbar_arrows_stop_at_ends_and_tab_leaves(cx: &mut TestAppContext) {
     let pressed = events();
     let recorded = pressed.clone();
 
@@ -1458,42 +1468,47 @@ fn toolbar_arrows_wrap_inside_and_tab_leaves(cx: &mut TestAppContext) {
     });
 
     // Tab enters the toolbar on the first control; two Rights walk to the
-    // third, and the third Right wraps back to the first instead of walking
-    // on to the sibling. Enter reports which control holds the focus.
+    // third, and the third Right stays there — pinned `useToolbar` consumes
+    // the key at the end without moving. Enter reports which control holds
+    // the focus.
     press(cx, "tab");
     press(cx, "right right right");
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["bold"],
-        "Right from the last control must wrap to the first, staying inside \
-         the toolbar"
+        ["underline"],
+        "Right from the last control must stop there and be consumed, not \
+         wrap to the first"
     );
 
-    // Left from the first control wraps to the last, again inside.
-    press(cx, "left");
+    // Left from the first control stops there, again consumed.
+    press(cx, "left left left");
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["bold", "underline"],
-        "Left from the first control must wrap to the last control, not escape"
+        ["underline", "bold"],
+        "Left from the first control must stop there and be consumed, not \
+         wrap to the last control"
     );
 
-    // Tab is the way out: from the last control it moves to the sibling after
-    // the toolbar, whose press then answers.
+    // Tab is the way out, and one press leaves the entire toolbar: this
+    // exits from the *first* control, the far end from the sibling, and the
+    // sibling's press must answer immediately.
     press(cx, "tab");
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["bold", "underline", "outside"],
-        "Tab must leave the toolbar for the next control in the window"
+        ["underline", "bold", "outside"],
+        "Tab must leave the whole toolbar for the next control in the \
+         window in one press, from any child"
     );
 }
 
 /// A disabled toolbar child is not a tab stop, so the arrows skip it in both
 /// directions: Right from the first control lands on the third, and Left from
-/// the third lands back on the first. The ends still wrap, over the enabled
-/// controls.
+/// the third lands back on the first. The enabled ends are consumed stops —
+/// Left from the first and Right from the last move nothing — and the
+/// disabled child is never the destination.
 #[gpui::test]
 fn toolbar_arrows_skip_a_disabled_child(cx: &mut TestAppContext) {
     let pressed = events();
@@ -1539,16 +1554,322 @@ fn toolbar_arrows_skip_a_disabled_child(cx: &mut TestAppContext) {
         "Left must skip a disabled child"
     );
 
-    // The wrap ends stop on enabled controls: Left from the first wraps to the
-    // last, Right from the last wraps to the first, and the disabled child is
+    // The ends stop on the enabled controls: Left from the first is consumed
+    // there, Right from the last is consumed there, and the disabled child is
     // never the destination.
     press(cx, "left");
     press(cx, "enter");
     press(cx, "right");
+    press(cx, "right");
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["underline", "bold", "underline", "bold"],
-        "the arrows must wrap over the enabled controls at both ends"
+        ["underline", "bold", "bold", "underline"],
+        "the arrows must stop and be consumed at the enabled ends, over the \
+         enabled controls"
+    );
+}
+
+/// Pinned `useToolbar` records the last focused child when the focus leaves
+/// the toolbar (the `lastFocused` ref, set by the Tab branch and by the
+/// blur-capture) and restores it the next time the focus enters the toolbar
+/// from outside (the focus-capture). So re-entry lands on the child the user
+/// left, not on whichever end the entry walks onto first.
+///
+/// A button before and after the toolbar make both exits observable through
+/// Enter: forward Tab from the middle child leaves in one press, Shift+Tab
+/// leaves backward in one press, and Tab back in restores the middle child.
+#[gpui::test]
+fn toolbar_restores_last_child_on_re_entry(cx: &mut TestAppContext) {
+    let pressed = events();
+    let recorded = pressed.clone();
+
+    let cx = open_host(cx, move || {
+        let before_pressed = pressed.clone();
+        let bold_pressed = pressed.clone();
+        let italic_pressed = pressed.clone();
+        let underline_pressed = pressed.clone();
+        let after_pressed = pressed.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(100.))
+            .child(
+                Button::new("tb-before")
+                    .label("Before")
+                    .on_press(move |_, _, _| {
+                        before_pressed.borrow_mut().push("before".into());
+                    }),
+            )
+            .child(
+                Toolbar::new()
+                    .gap(px(8.))
+                    .child(
+                        Button::new("tb-re-bold")
+                            .label("Bold")
+                            .on_press(move |_, _, _| bold_pressed.borrow_mut().push("bold".into())),
+                    )
+                    .child(
+                        Button::new("tb-re-italic")
+                            .label("Italic")
+                            .on_press(move |_, _, _| {
+                                italic_pressed.borrow_mut().push("italic".into());
+                            }),
+                    )
+                    .child(Button::new("tb-re-underline").label("Underline").on_press(
+                        move |_, _, _| {
+                            underline_pressed.borrow_mut().push("underline".into());
+                        },
+                    )),
+            )
+            .child(
+                Button::new("tb-after")
+                    .label("After")
+                    .on_press(move |_, _, _| {
+                        after_pressed.borrow_mut().push("after".into());
+                    }),
+            )
+            .into_any_element()
+    });
+
+    // Tab onto the leading button, then into the toolbar, then Right to the
+    // middle child.
+    press(cx, "tab tab right");
+
+    // Forward Tab from the middle child leaves the whole toolbar in one
+    // press, for the sibling after it.
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["after"],
+        "forward Tab from a middle child must exit the toolbar in one press"
+    );
+
+    // Backward Shift+Tab — the focus sits on After, outside — walks to the
+    // previous stop, which is inside the toolbar. That entry is exactly the
+    // restore case: pinned `useToolbar`'s focus-capture sends the focus on to
+    // the recorded child instead of leaving it on the end the walk hit.
+    press(cx, "shift-tab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["after", "italic"],
+        "Shift+Tab into the toolbar must restore the last focused child"
+    );
+    // The restore left the focus on Italic; Shift+Tab leaves backwards in one
+    // press, for the leading button.
+    press(cx, "shift-tab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["after", "italic", "before"],
+        "Shift+Tab must leave the whole toolbar backwards in one press"
+    );
+
+    // And one more entry restores Italic again — the record follows the last
+    // departure, which was from Italic.
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["after", "italic", "before", "italic"],
+        "Tab re-entry must restore the last focused child, not the first stop"
+    );
+}
+
+/// Pinned `useToolbar`'s focus-capture says of a recorded child that is gone:
+/// "If the element was removed, do nothing, either the first item in the
+/// first group, or the last item in the last group will be focused, depending
+/// on direction." So a rebuild that dropped the recorded child must not hand
+/// the focus to its stale handle on re-entry — a handle with no rendered
+/// element backs no focus — and the entry keeps its own landing.
+#[gpui::test]
+fn toolbar_removed_child_is_not_restored_on_re_entry(cx: &mut TestAppContext) {
+    let pressed = events();
+    let recorded = pressed.clone();
+    let with_italic = Rc::new(Cell::new(true));
+    let keep = with_italic.clone();
+
+    let cx = open_host(cx, move || {
+        let before_pressed = pressed.clone();
+        let bold_pressed = pressed.clone();
+        let italic_pressed = pressed.clone();
+        let underline_pressed = pressed.clone();
+        let after_pressed = pressed.clone();
+        let mut bar = Toolbar::new().id("tb-removal").gap(px(8.)).child(
+            Button::new("tb-rm-bold")
+                .label("Bold")
+                .on_press(move |_, _, _| bold_pressed.borrow_mut().push("bold".into())),
+        );
+        if keep.get() {
+            bar = bar.child(Button::new("tb-rm-italic").label("Italic").on_press(
+                move |_, _, _| {
+                    italic_pressed.borrow_mut().push("italic".into());
+                },
+            ));
+        }
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(100.))
+            .child(
+                Button::new("tb-rm-before")
+                    .label("Before")
+                    .on_press(move |_, _, _| before_pressed.borrow_mut().push("before".into())),
+            )
+            .child(
+                bar.child(Button::new("tb-rm-underline").label("Underline").on_press(
+                    move |_, _, _| {
+                        underline_pressed.borrow_mut().push("underline".into());
+                    },
+                )),
+            )
+            .child(
+                Button::new("tb-rm-after")
+                    .label("After")
+                    .on_press(move |_, _, _| {
+                        after_pressed.borrow_mut().push("after".into());
+                    }),
+            )
+            .into_any_element()
+    });
+
+    // Tab onto the leading button, into the toolbar, and Right on to Italic.
+    press(cx, "tab tab right");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["italic"],
+        "the middle child must hold the focus before the rebuild"
+    );
+
+    // Leave: forward Tab exits to After in one press and the exit frame
+    // records Italic as the child the focus left from.
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["italic", "after"],
+        "forward Tab must exit the toolbar in one press"
+    );
+
+    // Rebuild without Italic, painting the removal before re-entering so the
+    // rendered frame the restore consults no longer contains it.
+    with_italic.set(false);
+    flush_frame(cx);
+    flush_frame(cx);
+
+    // Re-entry from After: Shift+Tab walks back on to Underline, and the
+    // restore must skip the removed child's dead handle — the landing stays.
+    press(cx, "shift-tab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["italic", "after", "underline"],
+        "re-entry after a child was removed must keep the walk's landing, \
+         not restore the removed child's handle"
+    );
+
+    // The rebuilt toolbar still navigates: Right from Underline is a consumed
+    // end stop, and Enter still reports the same child afterwards.
+    press(cx, "right");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["italic", "after", "underline", "underline"],
+        "the rebuilt toolbar's ends must still be consumed stops"
+    );
+}
+
+/// Held-key auto-repeat (`KeyDownEvent::is_held`) walks and stops exactly like
+/// distinct presses. This is also the behavioural half of the no-wrap probe's
+/// side-effect review: gpui dispatches focus listeners only at frame end,
+/// comparing the previous and current focus paths — which the probe's
+/// temporary blur/refocus never changes when an end refuses the move — and
+/// the refocus's `clear_pending_keystrokes` has nothing to clear in a window
+/// with no multi-stroke bindings. Six repeats in a row past each end must
+/// leave the focus exactly where a single press left it.
+#[gpui::test]
+fn toolbar_held_arrow_repeats_stop_at_ends(cx: &mut TestAppContext) {
+    let pressed = events();
+    let recorded = pressed.clone();
+    let outside_pressed = events();
+    let outside = outside_pressed.clone();
+
+    let cx =
+        open_host(cx, move || {
+            let bold_pressed = pressed.clone();
+            let italic_pressed = pressed.clone();
+            let underline_pressed = pressed.clone();
+            let outside = outside_pressed.clone();
+            gpui::div()
+                .flex()
+                .flex_col()
+                .gap(px(100.))
+                .child(
+                    Toolbar::new()
+                        .id("tb-repeat")
+                        .gap(px(8.))
+                        .child(
+                            Button::new("tb-hr-bold")
+                                .label("Bold")
+                                .on_press(move |_, _, _| {
+                                    bold_pressed.borrow_mut().push("bold".into());
+                                }),
+                        )
+                        .child(Button::new("tb-hr-italic").label("Italic").on_press(
+                            move |_, _, _| italic_pressed.borrow_mut().push("italic".into()),
+                        ))
+                        .child(Button::new("tb-hr-underline").label("Underline").on_press(
+                            move |_, _, _| {
+                                underline_pressed.borrow_mut().push("underline".into());
+                            },
+                        )),
+                )
+                .child(
+                    Button::new("tb-hr-outside")
+                        .label("Outside")
+                        .on_press(move |_, _, _| outside.borrow_mut().push("outside".into())),
+                )
+                .into_any_element()
+        });
+
+    let held = |cx: &mut VisualTestContext, key: &str| {
+        for _ in 0..6 {
+            cx.simulate_event(KeyDownEvent {
+                keystroke: Keystroke::parse(key).unwrap(),
+                is_held: true,
+            });
+        }
+    };
+
+    press(cx, "tab");
+    // Six held Rights from the first control: three would reach the end, so
+    // six prove the repeats are refused there instead of wrapping.
+    held(cx, "right");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["underline"],
+        "held Right repeats must stop on the last control, not wrap"
+    );
+
+    held(cx, "left");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["underline", "bold"],
+        "held Left repeats must stop on the first control, not wrap"
+    );
+
+    // The focus survived every refused repeat: the toolbar is still what
+    // holds it, and one Tab still leaves for the sibling.
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        outside.borrow().as_slice(),
+        ["outside"],
+        "Tab must still leave the toolbar in one press after held repeats"
     );
 }

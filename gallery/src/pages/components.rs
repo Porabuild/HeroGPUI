@@ -7985,6 +7985,9 @@ impl Gallery {
     pub fn page_toolbar(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let bar = |key: &str, attached: bool, orientation: Orientation| {
             h::Toolbar::new()
+                // Names the instance: the toolbar's keyed focus state is per
+                // id, and three toolbars share this page.
+                .id(el_id(format!("toolbar-{key}")))
                 .is_attached(attached)
                 .orientation(orientation)
                 .child(
@@ -8019,6 +8022,7 @@ impl Gallery {
                 (
                     "Usage",
                     col(vec![h::Toolbar::new()
+                        .id("tb-usage")
                         .child(
                             h::Button::new("tb-usage-1")
                                 .label("Cut")
@@ -8042,6 +8046,7 @@ impl Gallery {
                 (
                     "With ButtonGroup",
                     col(vec![h::Toolbar::new()
+                        .id("tb-button-group")
                         .child(
                             h::ButtonGroup::new()
                                 .variant(Variant::Secondary)

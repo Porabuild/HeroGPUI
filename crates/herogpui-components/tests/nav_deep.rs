@@ -1189,15 +1189,19 @@ fn pagination_keyboard_reaches_arrows_and_cells(cx: &mut TestAppContext) {
 // Toolbar
 // ---------------------------------------------------------------------------
 //
-// "Inherits from React Aria Toolbar". React Aria's `useToolbar` moves the
-// focus with the orientation's axis only — vertical: ArrowDown/ArrowUp, with
-// Left/Right doing nothing — and Tab is what leaves. The horizontal scoping
-// (wrap inside, Tab leaves, disabled children skipped) is pinned in
-// `tests/calendars_and_more.rs`; here is the vertical axis, the perpendicular
-// keys the port answers anyway, and a toolbar whose only child is disabled.
+// "Inherits from React Aria Toolbar". Pinned `useToolbar` (react-aria 3.51.0)
+// moves the focus with the orientation's axis only — vertical:
+// ArrowDown/ArrowUp, with Left/Right doing nothing — through a FocusManager
+// whose walk has `wrap` unset, so an arrow at either end is consumed without
+// moving. Tab leaves the *entire* toolbar in one press (Shift+Tab backwards).
+// The horizontal scoping (end stops, one-press Tab exit, disabled children
+// skipped, re-entry restore) is pinned in `tests/calendars_and_more.rs`; here
+// is the vertical axis, the perpendicular keys the port answers anyway, a
+// toolbar whose only child is disabled, the vertical sheet alignment, and the
+// nested-toolbar group contract.
 
 #[gpui::test]
-fn toolbar_vertical_arrows_wrap_and_tab_leaves(cx: &mut TestAppContext) {
+fn toolbar_vertical_arrows_stop_at_ends_and_tab_leaves(cx: &mut TestAppContext) {
     let pressed = events();
     let recorded = pressed.clone();
     let outside_pressed = events();
@@ -1243,40 +1247,44 @@ fn toolbar_vertical_arrows_wrap_and_tab_leaves(cx: &mut TestAppContext) {
     });
 
     // Tab enters on the first control; Down walks bold -> italic -> underline,
-    // the third Down wraps back to bold (the window-wide walk would have
-    // landed Enter on the sibling), and Up from the first wraps to the last.
-    // Enter reports which control holds the focus.
+    // the third Down stays on underline (the FocusManager walk has no wrap, so
+    // the end is a consumed stop — the old window-wide wrap landed Enter on
+    // bold again), and Up from the first stays on bold. Enter reports which
+    // control holds the focus.
     press(cx, "tab");
     press(cx, "down down down");
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["bold"],
-        "Down from the last control must wrap to the first, staying inside \
-         the vertical toolbar"
+        ["underline"],
+        "Down from the last control must stop there and be consumed, not \
+         wrap to the first, staying inside the vertical toolbar"
     );
-    press(cx, "up");
+    press(cx, "up up up");
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["bold", "underline"],
-        "Up from the first control must wrap to the last"
+        ["underline", "bold"],
+        "Up from the first control must stop there and be consumed"
     );
-    // Tab is the way out, exactly as in the horizontal case.
+    // Tab is the way out, in one press, exactly as in the horizontal case —
+    // this exits from the *first* child and the sibling after the toolbar
+    // must answer.
     press(cx, "tab");
     press(cx, "enter");
     assert_eq!(
         outside.borrow().as_slice(),
         ["outside"],
-        "Tab must leave the vertical toolbar for the next control in the window"
+        "Tab must leave the whole vertical toolbar for the next control in \
+         the window in one press"
     );
 }
 
 /// React Aria's `useToolbar` handles only the orientation's axis: in vertical
 /// mode ArrowRight/ArrowLeft "return early" (the source is explicit that
-/// nothing else is handled). The port's handler maps *both* axes in *both*
-/// orientations, so Right moves the focus in a vertical toolbar — a key the
-/// inherited contract deliberately ignores.
+/// nothing else is handled). The port's handler maps the same axis set, so
+/// Right in a vertical toolbar moves nothing *and* stays unconsumed — it
+/// bubbles on to whatever else may want it.
 #[gpui::test]
 fn toolbar_vertical_ignores_perpendicular_arrows(cx: &mut TestAppContext) {
     let pressed = events();
@@ -1300,7 +1308,7 @@ fn toolbar_vertical_ignores_perpendicular_arrows(cx: &mut TestAppContext) {
     });
 
     // Right is not a vertical-toolbar key: the focus must stay on Bold and
-    // Enter must fire Bold. The port steps the focus to Italic instead.
+    // Enter must fire Bold.
     press(cx, "tab");
     press(cx, "right");
     press(cx, "enter");
@@ -1351,5 +1359,197 @@ fn toolbar_only_child_disabled_answers_nothing(cx: &mut TestAppContext) {
         recorded.borrow().is_empty(),
         "a toolbar whose only child is disabled must answer no key and no \
          click, and must not strand the focus"
+    );
+}
+
+/// Pinned `useToolbar` detects a nested toolbar —
+/// `ref.current.parentElement.closest('[role="toolbar"]')` — and a nested one
+/// renders `role="group"` with `onKeyDownCapture`, `onFocusCapture` and
+/// `onBlurCapture` all undefined: **no keyboard or focus management of its
+/// own**, so the enclosing toolbar's manager walks straight across its
+/// children. The port asks the same question of the last rendered frame's
+/// dispatch tree (`FocusHandle::contains` over a weak per-window registry of
+/// toolbar scopes), which gpui offers as the runtime ancestor query the DOM
+/// spelling assumes.
+///
+/// The regression drives all three consequences: the outer horizontal arrows
+/// cross the vertical inner toolbar's boundary in both directions; Down
+/// *inside* the inner toolbar binds to nothing (an inner manager would move
+/// i1 -> i2 and consume the key); one Tab leaves the whole outer toolbar from
+/// inside the inner one; and the sibling toolbar after it — a root of its
+/// own, with its own keyed state — still navigates independently.
+#[gpui::test]
+fn toolbar_nested_defers_to_the_outer_manager(cx: &mut TestAppContext) {
+    let pressed = events();
+    let recorded = pressed.clone();
+    let cx =
+        open_host(cx, move || {
+            let o1_pressed = pressed.clone();
+            let i1_pressed = pressed.clone();
+            let i2_pressed = pressed.clone();
+            let o2_pressed = pressed.clone();
+            let after_pressed = pressed.clone();
+            let s1_pressed = pressed.clone();
+            let s2_pressed = pressed.clone();
+            gpui::div()
+                .flex()
+                .flex_col()
+                .gap(px(100.))
+                .child(
+                    Toolbar::new()
+                        .id("tb-outer")
+                        .gap(px(8.))
+                        .child(
+                            Button::new("tb-nt-o1")
+                                .label("Cut")
+                                .on_press(move |_, _, _| o1_pressed.borrow_mut().push("o1".into())),
+                        )
+                        .child(
+                            Toolbar::new()
+                                .id("tb-inner")
+                                .orientation(Orientation::Vertical)
+                                .child(Button::new("tb-nt-i1").label("Bold").on_press(
+                                    move |_, _, _| i1_pressed.borrow_mut().push("i1".into()),
+                                ))
+                                .child(Button::new("tb-nt-i2").label("Italic").on_press(
+                                    move |_, _, _| i2_pressed.borrow_mut().push("i2".into()),
+                                )),
+                        )
+                        .child(
+                            Button::new("tb-nt-o2")
+                                .label("Paste")
+                                .on_press(move |_, _, _| o2_pressed.borrow_mut().push("o2".into())),
+                        ),
+                )
+                .child(
+                    Button::new("tb-nt-after")
+                        .label("After")
+                        .on_press(move |_, _, _| after_pressed.borrow_mut().push("after".into())),
+                )
+                .child(
+                    Toolbar::new()
+                        .id("tb-sibling")
+                        .gap(px(8.))
+                        .child(
+                            Button::new("tb-nt-s1")
+                                .label("One")
+                                .on_press(move |_, _, _| s1_pressed.borrow_mut().push("s1".into())),
+                        )
+                        .child(
+                            Button::new("tb-nt-s2")
+                                .label("Two")
+                                .on_press(move |_, _, _| s2_pressed.borrow_mut().push("s2".into())),
+                        ),
+                )
+                .into_any_element()
+        });
+
+    // Tab enters the outer toolbar on its first child.
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["o1"],
+        "Tab must land on the outer toolbar's first child"
+    );
+
+    // One Right crosses *into* the vertical inner toolbar: the outer manager
+    // walks across the group boundary exactly as pinned's FocusManager does.
+    press(cx, "right");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["o1", "i1"],
+        "the outer toolbar's arrows must walk across the nested toolbar's \
+         boundary"
+    );
+
+    // Down is the inner toolbar's axis: an inner manager would move to i2
+    // and consume the key. The inner is a group, so nothing happens at all —
+    // the key is not even consumed, and i1 keeps the focus.
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["o1", "i1", "i1"],
+        "a nested toolbar must bind no keyboard management of its own"
+    );
+
+    // Right carries on across the inner toolbar's children and out the far
+    // side, to the outer toolbar's own last child.
+    press(cx, "right");
+    press(cx, "enter");
+    press(cx, "right");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["o1", "i1", "i1", "i2", "o2"],
+        "the outer manager must cross the group in both directions"
+    );
+
+    // Tab from inside the inner toolbar leaves the *entire* outer toolbar in
+    // one press — the inner group's boundary is no extra stop.
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["o1", "i1", "i1", "i2", "o2", "after"],
+        "one Tab must leave the whole outer toolbar from inside the nested \
+         one"
+    );
+
+    // The sibling toolbar is a root of its own: it answers its own axis, and
+    // its keyed focus state is independent of the nested composition above.
+    press(cx, "tab");
+    press(cx, "right");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["o1", "i1", "i1", "i2", "o2", "after", "s2"],
+        "a sibling toolbar must keep its own independent navigation"
+    );
+}
+
+/// `.toolbar--vertical` is `grid-flow-row items-start justify-start`: a column
+/// whose controls hug the start edge — not the base `.toolbar` rule's
+/// centered cross axis, which stays with the horizontal toolbar. The
+/// toolbar's children are opaque elements, so each button sits in a probe div
+/// whose laid-out bounds answer the alignment: a centered column would indent
+/// the narrow control by half the difference.
+#[gpui::test]
+fn toolbar_vertical_children_hug_the_start_edge(cx: &mut TestAppContext) {
+    let cx = open_host(cx, move || {
+        Toolbar::new()
+            .id("tb-v-align")
+            .orientation(Orientation::Vertical)
+            .child(
+                gpui::div()
+                    .debug_selector(|| "vtb-wide".into())
+                    .child(Button::new("tb-va-wide").label("A very long label")),
+            )
+            .child(
+                gpui::div()
+                    .debug_selector(|| "vtb-narrow".into())
+                    .child(Button::new("tb-va-narrow").label("B")),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+    flush_frame(cx);
+
+    let wide = cx
+        .debug_bounds("vtb-wide")
+        .expect("the wide probe must be laid out");
+    let narrow = cx
+        .debug_bounds("vtb-narrow")
+        .expect("the narrow probe must be laid out");
+
+    assert_eq!(
+        wide.origin.x, narrow.origin.x,
+        "vertical toolbar children must share the start edge (items-start)"
+    );
+    assert!(
+        narrow.origin.y > wide.origin.y,
+        "vertical toolbar children must stack down the column (grid-flow-row)"
     );
 }

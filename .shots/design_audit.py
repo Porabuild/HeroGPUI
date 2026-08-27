@@ -249,10 +249,12 @@ CHECKS = [
      r'let radius = crate::util::(\w+_radius)\(cx\)', helper_px),
     ('toolbar', '.toolbar--attached', 'p', 'Toolbar attached padding',
      SRC + 'toolbar.rs',
-     r'`\.toolbar--attached` is `p-1 rounded-3xl`\.[\s\S]{0,60}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.toolbar--attached` is `p-1 rounded-3xl bg-surface shadow-overlay`\.'
+     r'[\s\S]{0,240}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('toolbar', '.toolbar--attached', 'radius', 'Toolbar attached -> util::_radius',
      SRC + 'toolbar.rs',
-     r'`p-1 rounded-3xl`[\s\S]{0,140}?\.rounded\(crate::util::(\w+_radius)', helper_px),
+     r'`p-1 rounded-3xl bg-surface shadow-overlay`[\s\S]{0,240}?'
+     r'\.rounded\(crate::util::(\w+_radius)', helper_px),
     ('tooltip', '.tooltip', 'p', 'Tooltip padding',
      SRC + 'tooltip.rs',
      r'`\.tooltip` is `p-2` all round[\s\S]{0,120}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -904,7 +906,7 @@ CHECKS = [
     ('card', '.card', 'gap', 'Card gap', SRC + 'card.rs',
      '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
     ('toolbar', '.toolbar', 'gap', 'Toolbar default gap', SRC + 'toolbar.rs',
-     'is_attached \\{ px\\(\\d+(?:\\.\\d*)?\\) \\} else \\{ px\\((\\d+(?:\\.\\d*)?)\\) \\}', None),
+     r'let gap = self\.gap\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('toast', '.toast', 'gap', 'Toast gap', SRC + 'toast.rs',
      '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
     ('tabs', '.tabs', 'gap', 'Tabs root gap', SRC + 'tabs.rs',
@@ -1922,6 +1924,10 @@ FILLS = [
     # `--overlay`. Ours had it the other way round.
     ('toast', '.toast', 'bg-surface', SRC + 'toast.rs',
      'colors.surface.background'),
+    # The attached toolbar is the other `--surface` fill: a rounded strip
+    # hugging its controls, not a floating panel.
+    ('toolbar', '.toolbar--attached', 'bg-surface', SRC + 'toolbar.rs',
+     'colors.surface.background'),
     ('alert-dialog', '.alert-dialog__dialog', 'bg-overlay',
      SRC + 'alert_dialog.rs', 'colors.overlay.background'),
     ('autocomplete', '.autocomplete__popover', 'bg-overlay',
@@ -2107,6 +2113,36 @@ def check_tabs_style_contract():
     return bad
 
 
+def check_toolbar_style_contract():
+    """Non-numeric Toolbar attached chrome that metric checks cannot cover."""
+    path = SRC + 'toolbar.rs'
+    src = io.open(path, encoding='utf-8', errors='replace').read()
+    parts = src.split('if self.is_attached {', 1)
+    attached = parts[1].split('el = el.track_focus', 1)[0] if len(parts) == 2 else ''
+    checks = [
+        # `.toolbar--attached` applies `shadow-overlay`; the overlay shadow is
+        # what separates a floating surface in light mode.
+        ('attached overlay shadow',
+         bool(attached) and '.shadow(overlay_shadow)' in attached),
+        # v3 gives a floating panel no border, and this toolbar drew one.
+        ('no attached border',
+         '.border_1()' not in src and '.border_color' not in attached),
+        # `.toolbar--vertical` is `grid-flow-row items-start justify-start`: a
+        # column whose controls hug the start edge, while the base `.toolbar`
+        # rule's centered cross axis stays with the horizontal toolbar.
+        ('vertical start alignment',
+         'Orientation::Vertical => el.flex_col().items_start().justify_start()' in src
+         and 'Orientation::Horizontal => el.flex_row().items_center()' in src),
+    ]
+    print()
+    print('toolbar non-numeric styling:')
+    for name, ok in checks:
+        print('%s %-24s %s' % (' ' if ok else '!', name, 'ok' if ok else 'missing'))
+    bad = sum(not ok for _, ok in checks)
+    print('TOOLBAR STYLE BAD : %d' % bad)
+    return bad
+
+
 def check_color_picker_style_contract():
     """ColorPicker's asymmetric padding must survive its zoom refinement."""
     css = io.open(os.path.join(CACHE, 'color-picker.css'),
@@ -2272,9 +2308,10 @@ def main():
     pagination_bad = check_pagination_style_contract()
     tabs_bad = check_tabs_style_contract()
     color_picker_bad = check_color_picker_style_contract()
+    toolbar_bad = check_toolbar_style_contract()
     return int(bool(
         mismatched or unreadable or wrong_fills or stale_fills or toggle_bad or pagination_bad
-        or tabs_bad or color_picker_bad
+        or tabs_bad or color_picker_bad or toolbar_bad
     ))
 
 

@@ -71,6 +71,20 @@ def activation_claims():
 ARROW_NAV = ('RadioGroup', 'Tabs', 'Toolbar', 'TagGroup', 'ColorSwatchPicker')
 REMOVE_KEY = ('TagGroup',)
 
+# Pinned React Aria `useToolbar` (react-aria 3.51.0) scopes a FocusManager to
+# the toolbar's element with `wrap` unset, so an along-axis arrow at either end
+# is consumed (`stopPropagation` + `preventDefault` run either way) without
+# moving. Tab runs `focusFirst` (Shift: `focusLast`) and lets the native Tab
+# carry out of the entire toolbar in one press, and the `lastFocused` ref
+# records the child the focus left from and restores it when the focus
+# re-enters from outside. HeroUI's page says only "Inherits from React Aria
+# Toolbar", so all three are derived claims -- and so is the nested-toolbar
+# group contract: pinned detects a toolbar inside another with
+# `parentElement.closest('[role="toolbar"]')` and the nested one binds no
+# keyboard or focus management of its own, so the outer manager walks across
+# its children.
+TOOLBAR_FOCUS = ('Toolbar',)
+
 # Every popover-like surface closes on Escape and on a press outside it. v3's
 # tables only mention dismissal where it is configurable (`isDismissable` on a
 # dialog backdrop), because React Aria's `useOverlay` gives the rest of them both
@@ -314,6 +328,45 @@ EVIDENCE = {
     ('RadioGroup', 'arrow-nav'): ('radio_group.rs', r'list_nav::resolve'),
     ('Tabs', 'arrow-nav'): ('tabs.rs', r'list_nav::resolve'),
     ('Toolbar', 'arrow-nav'): ('toolbar.rs', r'focus_next'),
+    # The window's first and last tab stops, probed from no focus: gpui's
+    # `focus_next`/`focus_prev` wrap around at the window's ends, and the
+    # pinned FocusManager's walk has `wrap` unset — an end is a dead stop, so
+    # the ends must be known before stepping.
+    ('Toolbar', 'toolbar-end-stops'): (
+        'toolbar.rs',
+        r'(?s)window\.focus_next\(\);\s*\n\s*let first_stop = window\.focused\(cx\);'
+        r'.*?window\.focus_prev\(\);\s*\n\s*let last_stop = window\.focused\(cx\);'
+        r'.*?at_end',
+    ),
+    # Tab leaves the entire toolbar in one press, backwards with Shift: the
+    # bounded walk steps until the focus leaves the subtree and refuses the
+    # window-end wrap (a native Tab from the document's last focusable goes
+    # nowhere either).
+    ('Toolbar', 'toolbar-tab-exit'): (
+        'toolbar.rs',
+        r'(?s)let back = event\.keystroke\.modifiers\.shift;.*?for _ in 0\.\.256 \{',
+    ),
+    # The keyed `lastFocused` record: the exit frame stores the child the
+    # focus left from; the entry frame hands the focus to it and clears the
+    # record.
+    ('Toolbar', 'toolbar-focus-restore'): (
+        'toolbar.rs',
+        r'(?s)(?=.*if let Some\(last\) = next\.last_focused\.take\(\))'
+        r'(?=.*window\.focus\(&last\);)'
+        r'(?=.*next\.last_focused = next\.child\.take\(\))',
+    ),
+    # A nested toolbar binds no management of its own: pinned's
+    # `parentElement.closest('[role="toolbar"]')` is answered here by the
+    # registry sync against the last rendered dispatch tree
+    # (`FocusHandle::contains`), gated over the focus bookkeeping and
+    # re-checked at event time so the handler returns without consuming.
+    ('Toolbar', 'toolbar-nested'): (
+        'toolbar.rs',
+        r'(?s)(?=.*fn sync_toolbar_scope)'
+        r'(?=.*other\.contains\(scope, window\))'
+        r'(?=.*if !nested \{)'
+        r'(?=.*if sync_toolbar_scope\(&scope, window, cx\) \{)',
+    ),
     ('TagGroup', 'arrow-nav'): ('tag_group.rs', r'list_nav::resolve'),
     ('ColorSwatchPicker', 'arrow-nav'): ('color_picker.rs', r'list_nav::resolve'),
     ('TagGroup', 'remove-key'): (
@@ -654,7 +707,7 @@ def main():
     # has both the keys and the caret), and counting it once per tuple inflated
     # every total.
     derived = dict.fromkeys(
-        ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + CLOSE_ON_BLUR + COMBOBOX_BLUR_COMMIT
+        ARROW_NAV + REMOVE_KEY + TOOLBAR_FOCUS + OVERLAY_DISMISS + CLOSE_ON_BLUR + COMBOBOX_BLUR_COMMIT
         + SPIN_KEYS + AREA_KEYS
         + FOCUS_OPEN + TOOLTIP_SEQUENCE + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS
         + TABLE_TYPEAHEAD + TABLE_PAGING + LISTBOX_PAGING + SELECT_ALL_KEYS
@@ -668,7 +721,10 @@ def main():
         + DISCLOSURE_STATE
     )
     for page in derived:
-        for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'area-keys',
+        for claim in ('arrow-nav', 'remove-key', 'toolbar-end-stops',
+                      'toolbar-tab-exit', 'toolbar-focus-restore', 'toolbar-nested',
+                      'dismiss',
+                      'spin-keys', 'area-keys',
                       'focus-open', 'global-sequence', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
                       'table-typeahead', 'table-page-down', 'table-page-up-header',
                       'listbox-paging',

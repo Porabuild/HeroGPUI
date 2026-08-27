@@ -1838,6 +1838,96 @@ impl Widget {
     }
 
     #[test]
+    fn toolbar_metadata_tracks_focus_on_children_and_attached_chrome() {
+        let metadata =
+            reference_metadata::for_route("Toolbar", "use herogpui::components::toolbar::Toolbar;")
+                .expect("Toolbar metadata is registered");
+
+        // The root is the only declared part.
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        assert_eq!(metadata.parts.len(), 1);
+
+        // The exact v3 table: two props this port implements, the browser
+        // naming and classes it cannot, and the render-prop orientation the
+        // port computes instead of handing over.
+        for prop in ["isAttached", "orientation"] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "Toolbar"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        for prop in ["aria-label", "aria-labelledby", "className"] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "Toolbar"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Unavailable
+            }));
+        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "Toolbar"
+                && entry.prop == "children"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "ToolbarRenderProps"
+                && entry.prop == "orientation"
+                && entry.status == reference_metadata::ImplementationStatus::Unavailable
+        }));
+
+        // The keyboard contract lives on the children: they hold the focus
+        // and draw the ring, disabled children are skipped, the pinned
+        // `useToolbar` lastFocused record survives in keyed state (and a
+        // removed child's handle is never restored), and a nested toolbar
+        // acts as a group that binds no management of its own.
+        for state in ["Focused child", "Disabled child", "Last focused child"] {
+            assert!(metadata.states.iter().any(|entry| {
+                entry.state == state
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Last focused child" && entry.rust.contains("ToolbarFocusEdge")
+        }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Nested toolbar as group"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.rust.contains("ToolbarScopes")
+                && entry.rust.contains("FocusHandle::contains")
+        }));
+
+        // The pinned attached chrome: the surface fill and 8px rhythm on the
+        // base rule, rounding plus overlay shadow with no border on the
+        // attached modifier, and the vertical sheet's start-edge alignment —
+        // with only the nested button-group re-justification honestly
+        // partial, because gpui cannot restyle an opaque child.
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".toolbar"
+                && entry.value.contains("gap-2")
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".toolbar--attached"
+                && entry.value.contains("bg-surface")
+                && entry.value.contains("shadow-overlay")
+                && entry.value.contains("no border")
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".toolbar--vertical"
+                && entry.value.contains("items-start")
+                && entry.value.contains("justify-start")
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".toolbar--vertical .button-group"
+                && entry.value == "justify-start"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.api_source.contains("useToolbar.ts"));
+    }
+
+    #[test]
     fn calendar_metadata_keeps_defaults_parts_and_style_gaps_explicit() {
         let metadata = reference_metadata::for_route(
             "Calendar",
