@@ -2365,7 +2365,6 @@ impl RenderOnce for DateField {
 
         let colors = cx.colors().clone();
         let navigable = !self.is_disabled;
-        let editable = navigable && !self.is_read_only;
 
         let text = self.state.read(cx).value().to_owned();
         let (parsed, _) = parse_value(&text);
@@ -2868,88 +2867,7 @@ impl RenderOnce for DateField {
             return group.into_any_element();
         }
 
-        // Steppers move whichever segment is focused. v3 has no stepper on a
-        // date field -- it expects the arrow keys, which now work -- so these
-        // are a pointer affordance, kept inside the shell where v3 puts its
-        // `__suffix` rather than floating outside it.
-        let mut steppers = gpui::div().flex().flex_col().ml(px(4.)).flex_shrink_0();
-        for (icon, delta, key) in [
-            (icons::CHEVRON_UP, 1i32, "up"),
-            (icons::CHEVRON_DOWN, -1i32, "down"),
-        ] {
-            let mut stepper = gpui::div()
-                .id(gpui::ElementId::Name(
-                    format!("date-{entity_id}-{key}").into(),
-                ))
-                .flex()
-                .items_center()
-                .justify_center()
-                .size(px(14.))
-                .text_color(colors.muted)
-                .child(
-                    gpui::svg()
-                        .size(px(10.))
-                        .path(icon)
-                        .text_color(colors.muted),
-                );
-            if editable {
-                let state = self.state.clone();
-                let on_change = self.on_change.clone();
-                let constraints = self.constraints.clone();
-                let display = display.clone();
-                let slots = segments.clone();
-                let report_invalid_changes = self.report_invalid_changes;
-                stepper = stepper.cursor_pointer().on_click(move |_, window, cx| {
-                    let (current, current_time) = {
-                        let display = display.read(cx);
-                        (display.date, display.time)
-                    };
-                    let base = current.unwrap_or(seed);
-                    // An empty field takes the seed itself on the first
-                    // press, so one click does not jump a whole step.
-                    let (date, time) = match focused {
-                        FieldSegment::Date(part) => (
-                            match current {
-                                Some(_) => part.bump(base, delta),
-                                None => base,
-                            },
-                            current_time,
-                        ),
-                        FieldSegment::Time(part) => (
-                            base,
-                            Some(match current_time {
-                                Some(t) => t.bump(part, delta),
-                                None => crate::time_field::Time::default(),
-                            }),
-                        ),
-                    };
-                    let complete = display.update(cx, |display, cx| {
-                        let complete = display.edit(focused, date, time, &slots, granularity);
-                        cx.notify();
-                        complete
-                    });
-                    if let Some((date, _, committed)) = complete {
-                        state.update(cx, |s, cx| {
-                            s.set_value(committed);
-                            cx.notify();
-                        });
-                        if let Some(cb) = &on_change {
-                            cb(
-                                if report_invalid_changes {
-                                    Some(date)
-                                } else {
-                                    Some(date).filter(|d| constraints.allows(*d))
-                                },
-                                window,
-                                cx,
-                            );
-                        }
-                    }
-                });
-            }
-            steppers = steppers.child(stepper);
-        }
-        let row = group.child(steppers);
+        let row = group;
 
         // -- label / description / error wrapper ------------------------------
         let mut el = gpui::div().flex().flex_col().gap(px(4.));

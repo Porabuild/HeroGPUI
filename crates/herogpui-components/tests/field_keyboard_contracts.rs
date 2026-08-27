@@ -11,9 +11,7 @@
 //!
 //! Geometry is derived from the implementation. NumberField is 220px wide
 //! with 40px stepper cells, so the decrement/increment centres are (20, 18)
-//! and (200, 18). DateField's 14px stepper column follows the padded
-//! `MM/DD/YYYY` segments: with 14px Consolas text its two 14px cells are safely
-//! hit at (132, 11) and (132, 25).
+//! and (200, 18).
 
 mod harness;
 
@@ -325,7 +323,7 @@ fn number_field_explicit_extreme_bounds_still_answer_home_and_end(cx: &mut TestA
 }
 
 #[gpui::test]
-fn date_field_disabled_steppers_are_inert(cx: &mut TestAppContext) {
+fn date_field_has_no_pointer_stepper_affordance(cx: &mut TestAppContext) {
     let changes = events();
     let changed = changes.clone();
     let state = cx.new(|cx| InputState::with_value(cx, "2025-01-15"));
@@ -333,7 +331,6 @@ fn date_field_disabled_steppers_are_inert(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let changes = changes.clone();
         DateField::new(state_for_view.clone())
-            .is_disabled(true)
             .on_change(move |date, _, _| {
                 changes
                     .borrow_mut()
@@ -345,40 +342,13 @@ fn date_field_disabled_steppers_are_inert(cx: &mut TestAppContext) {
     click(cx, 132., 11.);
     click(cx, 132., 25.);
 
-    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
-    assert_eq!(value, "2025-01-15");
-    assert!(
-        changed.borrow().is_empty(),
-        "a disabled DateField's pointer steppers must not change or report its value"
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).value().to_owned()),
+        "2025-01-15"
     );
-}
-
-#[gpui::test]
-fn date_field_read_only_steppers_are_inert(cx: &mut TestAppContext) {
-    let changes = events();
-    let changed = changes.clone();
-    let state = cx.new(|cx| InputState::with_value(cx, "2025-01-15"));
-    let state_for_view = state.clone();
-    let cx = open_host(cx, move || {
-        let changes = changes.clone();
-        DateField::new(state_for_view.clone())
-            .is_read_only(true)
-            .on_change(move |date, _, _| {
-                changes
-                    .borrow_mut()
-                    .push(date.map_or_else(|| "none".to_owned(), |date| date.format_iso()));
-            })
-            .into_any_element()
-    });
-
-    click(cx, 132., 11.);
-    click(cx, 132., 25.);
-
-    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
-    assert_eq!(value, "2025-01-15");
     assert!(
         changed.borrow().is_empty(),
-        "a read-only DateField's pointer steppers must not change or report its value"
+        "v3 DateField has no pointer steppers after its segmented input"
     );
 }
 
