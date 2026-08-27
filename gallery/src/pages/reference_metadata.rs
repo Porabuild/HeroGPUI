@@ -9176,6 +9176,111 @@ pub(crate) const SEPARATOR: ReferenceMetadata = ReferenceMetadata {
     styling: SEPARATOR_STYLING,
 };
 
+const SELECT_REQUIRED_PARTS: &[&str] = &[
+    "Select",
+    "Select.Trigger",
+    "Select.Value",
+    "Select.Indicator",
+    "Select.Popover",
+];
+
+const SELECT_API: &[ApiDoc] = &[
+    ApiDoc { owner: "Select", prop: "placeholder", ty: "string", default: "'Select an item'", description: "Temporary text shown while no option is selected.", rust_owner: "Select", rust: "placeholder(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Select", prop: "selectionMode", ty: "\"single\" | \"multiple\"", default: "\"single\"", description: "Chooses single or multiple selection.", rust_owner: "Select", rust: "selection_mode(SelectionMode)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Select", prop: "isOpen", ty: "boolean", default: "—", description: "Controlled popover open state.", rust_owner: "Select", rust: "is_open(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Select", prop: "defaultOpen", ty: "boolean", default: "—", description: "Initial uncontrolled popover state.", rust_owner: "Select", rust: "default_open(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Select", prop: "onOpenChange", ty: "(isOpen: boolean) => void", default: "—", description: "Reports popover state changes.", rust_owner: "Select", rust: "on_open_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Select", prop: "disabledKeys", ty: "Iterable<Key>", default: "—", description: "Keys which cannot be selected or focused.", rust_owner: "Select", rust: "disabled_keys(keys)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Select", prop: "isDisabled", ty: "boolean", default: "—", description: "Disables the field and its interactions.", rust_owner: "Select", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Select", prop: "value", ty: "Key | Key[] | null", default: "—", description: "Controlled selection; GPUI separates scalar and multiple values into typed builders.", rust_owner: "Select", rust: "value(Option<usize>) / selected_indices(indices)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Select", prop: "defaultValue", ty: "Key | Key[] | null", default: "—", description: "Initial uncontrolled selection; only the single-selection seed is exposed.", rust_owner: "Select", rust: "default_value(Option<usize>)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Select", prop: "onChange", ty: "(value: Key | Key[] | null) => void", default: "—", description: "Selection callback; scalar and multiple signatures use separate builders.", rust_owner: "Select", rust: "on_change(callback) / on_selection_change_all(callback)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Select", prop: "isRequired", ty: "boolean", default: "—", description: "Draws the required marker and configures an exported FormField, but that field is not live after construction.", rust_owner: "Select", rust: "is_required(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Select", prop: "isInvalid", ty: "boolean", default: "—", description: "Forces the field into its invalid state.", rust_owner: "Select", rust: "is_invalid(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Select", prop: "name", ty: "string", default: "—", description: "Exports a single-value FormField snapshot; current runtime and multiple selections are not registered live.", rust_owner: "Select", rust: "name(name)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Select", prop: "autoComplete", ty: "string", default: "—", description: "Browser autofill hint; GPUI has no browser input autocomplete channel.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Select", prop: "fullWidth", ty: "boolean", default: "false", description: "Expands the trigger inside a root that remains capped at 320px.", rust_owner: "Select", rust: "full_width(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Select", prop: "variant", ty: "\"primary\" | \"secondary\"", default: "\"primary\"", description: "Selects the shadowed or lower-emphasis field chrome.", rust_owner: "Select", rust: "variant(FieldVariant)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Select", prop: "className", ty: "string", default: "—", description: "Additional CSS classes.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Select", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Compound parts; GPUI takes a typed option collection and draws the field structure.", rust_owner: "Select", rust: "new(id, options)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Select", prop: "render", ty: "DOMRenderFunction<SelectRenderProps>", default: "—", description: "DOM element substitution has no GPUI equivalent.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Select.Trigger", prop: "className", ty: "string", default: "—", description: "Additional trigger classes.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Select.Trigger", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "The trigger is built in rather than separately replaceable.", rust_owner: "Select", rust: "new(id, options)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Select.Value", prop: "className", ty: "string", default: "—", description: "Additional value classes.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Select.Value", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Custom value content receives the live selected-value projection.", rust_owner: "Select", rust: "value_content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Select.Value", prop: "render", ty: "DOMRenderFunction<SelectValueRenderProps>", default: "—", description: "DOM element substitution has no GPUI equivalent.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Select.Indicator", prop: "className", ty: "string", default: "—", description: "Additional trigger-indicator classes.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Select.Indicator", prop: "children", ty: "ReactNode", default: "—", description: "The similarly named GPUI builder replaces option checkmarks, not the trigger chevron.", rust_owner: "Select", rust: "indicator(render)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Select.Popover", prop: "placement", ty: "Placement", default: "\"bottom\"", description: "Eight cardinal/start/end placements are available; RAC's full 22-value placement union is not.", rust_owner: "Select", rust: "placement(Placement)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Select.Popover", prop: "className", ty: "string", default: "—", description: "Additional popover classes.", rust_owner: "Select", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Select.Popover", prop: "children", ty: "ReactNode", default: "—", description: "The popover draws the typed options rather than arbitrary content children.", rust_owner: "Select", rust: "new(id, options)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Render Props", prop: "defaultChildren", ty: "ReactNode", default: "—", description: "Default selected text supplied to the value closure.", rust_owner: "Select", rust: "value_content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Render Props", prop: "isPlaceholder", ty: "boolean", default: "—", description: "Placeholder state supplied to the value closure.", rust_owner: "Select", rust: "value_content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Render Props", prop: "state", ty: "SelectState", default: "—", description: "The closure receives a selected-value projection, not the full mutable SelectState object.", rust_owner: "Select", rust: "value_content(render)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Render Props", prop: "selectedItems", ty: "Node[]", default: "—", description: "Selected items and indices supplied to the value closure.", rust_owner: "Select", rust: "value_content(render)", status: ImplementationStatus::Implemented },
+];
+
+const SELECT_PARTS: &[PartDoc] = &[
+    PartDoc { name: "Select", slot: "select", description: "Selection, form and overlay state owner.", rust_owner: "Select", status: ImplementationStatus::Implemented },
+    PartDoc { name: "Select.Trigger", slot: "select-trigger", description: "Focus and press target; its internal content is not separately composable.", rust_owner: "Select", status: ImplementationStatus::Partial },
+    PartDoc { name: "Select.Value", slot: "select-value", description: "Placeholder or selected-value content with a live render projection.", rust_owner: "Select", status: ImplementationStatus::Implemented },
+    PartDoc { name: "Select.Indicator", slot: "select-indicator", description: "Built-in trigger chevron; the public indicator closure belongs to list options instead.", rust_owner: "Select", status: ImplementationStatus::Partial },
+    PartDoc { name: "Select.Popover", slot: "select-popover", description: "Anchored list surface with a reduced placement vocabulary.", rust_owner: "Select", status: ImplementationStatus::Partial },
+];
+
+const SELECT_STATES: &[StateDoc] = &[
+    StateDoc { state: "Hovered trigger", selector: ".select__trigger[data-hovered]", description: "Field background changes on pointer hover.", rust: "trigger hover style", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus visible", selector: ".select__trigger[data-focus-visible]", description: "Keyboard focus ring is present; v3's focus background transition is immediate.", rust: "ring_if_focused", status: ImplementationStatus::Partial },
+    StateDoc { state: "Disabled", selector: ".select__trigger[data-disabled]", description: "Field is dimmed, inert and untabbable; the exported FormField does not carry disabled state.", rust: "is_disabled", status: ImplementationStatus::Partial },
+    StateDoc { state: "Invalid", selector: ".select[data-invalid]", description: "Invalid field chrome and error rendering exist, but v3 also hides the description row.", rust: "is_invalid + validation", status: ImplementationStatus::Partial },
+    StateDoc { state: "Placeholder", selector: ".select__value[data-placeholder]", description: "Empty value uses muted placeholder colour.", rust: "SelectionValue::is_placeholder", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Open indicator", selector: ".select__indicator[data-open]", description: "The glyph swaps direction immediately instead of rotating over 150ms.", rust: "is_open chevron selection", status: ImplementationStatus::Partial },
+    StateDoc { state: "Entering", selector: ".select__popover[data-entering]", description: "150ms Smooth fade and 95% zoom match; placement-specific four-pixel translation is absent.", rust: "overlay_phase Entering + entering_zoom", status: ImplementationStatus::Partial },
+    StateDoc { state: "Exiting", selector: ".select__popover[data-exiting]", description: "100ms Smooth fade and zoom to 95%.", rust: "overlay_phase Exiting + exiting", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Selected option", selector: ".list-box-item[data-selected]", description: "Selection is visible, but GPUI adds accent text and weight beyond v3's indicator-only state.", rust: "selected option style + indicator", status: ImplementationStatus::Partial },
+    StateDoc { state: "Focused option", selector: ".list-box-item[data-focused]", description: "Keyboard focus is visible, but uses a two-pixel border rather than v3's status ring.", rust: "focused option border", status: ImplementationStatus::Partial },
+    StateDoc { state: "Disabled option", selector: ".list-box-item[data-disabled]", description: "Disabled rows are dimmed and skipped by navigation and selection.", rust: "disabled_keys", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Multiple selection", selector: ".select[data-selection-mode=multiple]", description: "The popover stays open while multiple options are toggled.", rust: "SelectionMode::Multiple", status: ImplementationStatus::Implemented },
+];
+
+const SELECT_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".select", value: "flex flex-col items-start gap-1", description: "The inner field wrapper stacks at four pixels only when label or description content exists; the root also adds a 320px cap.", rust: "conditional flex_col + gap(px(4.)) inside max_w(px(320.))", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".select[data-invalid] [data-slot=description]", value: "hidden", description: "Pinned v3 suppresses description text while invalid; GPUI keeps it visible.", rust: "description remains rendered", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".select > [data-slot=label]", value: "w-fit", description: "The shared label has natural content but does not explicitly opt out of flex-column stretching.", rust: "Label natural width", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".select__trigger", value: "min-h-9 px-3 py-2 rounded-field border bg-field shadow-field text-sm", description: "Primary trigger dimensions, chrome and typography.", rust: "h(px(36.)) + px(px(12.)) + field chrome", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".select__trigger transitions", value: "color, background-color, border-color, box-shadow 150ms", description: "Pinned property transitions are immediate in GPUI.", rust: "static trigger style", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".select__trigger:hover", value: "bg-field-hover", description: "Hover field background.", rust: "hover background", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".select__trigger:focus-visible", value: "status-focused bg-field-hover", description: "Ring matches; the focus background does not interpolate.", rust: "ring_if_focused + focus background", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".select__trigger[data-invalid]", value: "status-invalid", description: "Invalid field treatment.", rust: "invalid field border/ring", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".select__trigger[data-disabled]", value: "status-disabled", description: "Disabled opacity and interaction treatment.", rust: "disabled_opacity + listener suppression", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".select--secondary .select__trigger", value: "shadow-none bg-default hover:bg-default-hover", description: "Lower-emphasis secondary trigger.", rust: "FieldVariant::Secondary", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".select__value", value: "flex-1 text-start text-sm wrap-break-word", description: "Alignment and size match, but GPUI truncates instead of wrapping long values.", rust: "flex_1 + text_size(px(14.)) + truncate", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".select__value[data-placeholder]", value: "text-muted", description: "Placeholder colour.", rust: "muted foreground", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".select__value [data-slot=list-box-item-indicator]", value: "hidden", description: "Selected-value rendering does not include option checkmarks.", rust: "SelectionValue text/items only", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".select__indicator", value: "absolute end-2 size-4; rotate 150ms when open", description: "GPUI uses a flow-positioned chevron and swaps glyphs without rotation animation.", rust: "chevron_down/chevron_up", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".select__popover", value: "min trigger width; overflow-auto; bg-overlay; radius min(32px, 3xl); shadow-overlay", description: "Anchored overlay surface, radius, scrolling and shadow.", rust: "anchored panel + floating_radius + overlay_shadow", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".select__popover[data-entering]", value: "150ms ease-smooth fade-in zoom-in-95 + placement slide 4px", description: "Fade and zoom match; transform origin and placement slide are absent.", rust: "Motion::LIST_IN + entering_zoom", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".select__popover[data-exiting]", value: "100ms ease-smooth fade-out zoom-out-95", description: "Exit motion matches.", rust: "Motion::LIST_OUT + exiting", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".select__popover .list-box / .list-box-item", value: "p-1.5 / px-2.5", description: "Vertical inset is equivalent, but option rows use eight rather than ten horizontal pixels.", rust: "panel py(px(6.)) + option px(px(8.))", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".select:not([data-selection-mode=multiple]) indicators", value: "transition-none", description: "GPUI has no indicator transition in either selection mode.", rust: "static indicator", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".select--full-width / .select__trigger--full-width", value: "w-full", description: "The trigger expands, but the root retains its unconditional 320px maximum width.", rust: "field.w_full() inside root.max_w(px(320.))", status: ImplementationStatus::Partial },
+];
+
+pub(crate) const SELECT: ReferenceMetadata = ReferenceMetadata {
+    page: "Select",
+    import_line: "use herogpui::components::select::Select;",
+    source_module: "select",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(pickers)/select.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/select/select.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/Select.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/select.css + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/list-box.css + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/list-box-item.css",
+    required_parts: SELECT_REQUIRED_PARTS,
+    api: SELECT_API,
+    parts: SELECT_PARTS,
+    states: SELECT_STATES,
+    styling: SELECT_STYLING,
+};
+
 const TOOLTIP_REQUIRED_PARTS: &[&str] = &[
     "Tooltip",
     "Tooltip.Trigger",
@@ -9269,6 +9374,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     PROGRESS_BAR,
     PROGRESS_CIRCLE,
     SEPARATOR,
+    SELECT,
     TOOLTIP,
 ];
 

@@ -1411,6 +1411,72 @@ impl Widget {
     }
 
     #[test]
+    fn select_metadata_tracks_compound_ownership_and_visual_limits() {
+        let metadata =
+            reference_metadata::for_route("Select", "use herogpui::components::select::Select;")
+                .expect("Select metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for required in metadata.required_parts {
+            assert!(
+                metadata.parts.iter().any(|part| part.name == *required),
+                "registered Select part disappeared: {required}"
+            );
+        }
+        for prop in [
+            "placeholder",
+            "selectionMode",
+            "isOpen",
+            "defaultOpen",
+            "onOpenChange",
+            "disabledKeys",
+            "isInvalid",
+            "variant",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "Select"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        for (owner, prop) in [
+            ("Select", "value"),
+            ("Select", "defaultValue"),
+            ("Select", "onChange"),
+            ("Select", "isRequired"),
+            ("Select", "name"),
+            ("Select", "fullWidth"),
+            ("Select.Indicator", "children"),
+            ("Select.Popover", "placement"),
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == owner
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Partial
+            }));
+        }
+        for class_or_token in [
+            ".select__value",
+            ".select__indicator",
+            ".select__popover[data-entering]",
+            ".select__popover .list-box / .list-box-item",
+        ] {
+            assert!(metadata.styling.iter().any(|entry| {
+                entry.class_or_token == class_or_token
+                    && entry.status == reference_metadata::ImplementationStatus::Partial
+            }));
+        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".select--full-width / .select__trigger--full-width"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".select__popover[data-exiting]"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+    }
+
+    #[test]
     fn metadata_validation_rejects_bogus_method_owner_and_page() {
         let metadata = reference_metadata::for_route(
             "Dropdown",
