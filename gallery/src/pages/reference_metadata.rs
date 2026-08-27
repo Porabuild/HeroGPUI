@@ -9211,6 +9211,7 @@ const TOOLTIP_PARTS: &[PartDoc] = &[
 ];
 
 const TOOLTIP_STATES: &[StateDoc] = &[
+    StateDoc { state: "Global sequence", selector: "React Stately tooltip manager", description: "Only one tooltip stays open; the first hover waits for delay, later hovers during max(500ms, closeDelay) cooldown open immediately, and the sequence becomes cold again after cooldown.", rust: "TooltipManager + prepare_tooltip_open + start_tooltip_cooldown", status: ImplementationStatus::Implemented },
     StateDoc { state: "Entering", selector: "[data-entering=\"true\"]", description: "150ms Smooth fade and zoom from 90%; v3's placement-specific 4px translation is not reproduced.", rust: "overlay_phase Entering + entering_zoom(POPOVER_IN)", status: ImplementationStatus::Partial },
     StateDoc { state: "Exiting", selector: "[data-exiting=\"true\"]", description: "100ms Smooth fade and zoom to 95%.", rust: "overlay_phase Exiting + exiting(LIST_OUT)", status: ImplementationStatus::Implemented },
     StateDoc { state: "Placement", selector: "[data-placement]", description: "Cardinal positioning and arrow rotation; start/end variants and DOM attributes are absent.", rust: "TooltipPlacement match", status: ImplementationStatus::Partial },

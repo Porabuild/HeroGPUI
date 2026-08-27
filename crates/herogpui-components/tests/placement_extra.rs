@@ -238,6 +238,276 @@ fn tooltip_child_focus_opens_once_and_pointer_focus_stays_silent(cx: &mut TestAp
     );
 }
 
+#[gpui::test]
+fn tooltip_sequence_is_exclusive_and_reuses_global_warmup(cx: &mut TestAppContext) {
+    still();
+    let first_seen = events();
+    let second_seen = events();
+    let third_seen = events();
+    let first_probe = first_seen.clone();
+    let second_probe = second_seen.clone();
+    let third_probe = third_seen.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .child(tooltip_open_probe(
+                "pl-tt-first",
+                first_probe.clone(),
+                false,
+            ))
+            .child(
+                Tooltip::new("First")
+                    .id("pl-tt-first")
+                    .delay(100)
+                    .close_delay(650)
+                    .child(gpui::div().w(px(120.)).h(px(36.))),
+            )
+            .child(tooltip_open_probe(
+                "pl-tt-second",
+                second_probe.clone(),
+                false,
+            ))
+            .child(
+                Tooltip::new("Second")
+                    .id("pl-tt-second")
+                    .delay(100)
+                    .close_delay(650)
+                    .child(gpui::div().w(px(120.)).h(px(36.))),
+            )
+            .child(tooltip_open_probe(
+                "pl-tt-third",
+                third_probe.clone(),
+                false,
+            ))
+            .child(
+                Tooltip::new("Third")
+                    .id("pl-tt-third")
+                    .delay(100)
+                    .close_delay(650)
+                    .child(gpui::div().w(px(120.)).h(px(36.))),
+            )
+            .into_any_element()
+    });
+
+    cx.simulate_mouse_move(point(px(60.), px(18.)), None, Modifiers::none());
+    cx.executor().advance_clock(Duration::from_millis(100));
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(last(&first_seen), "open:true");
+    assert_eq!(last(&second_seen), "open:false");
+
+    // The first open warms the app-wide manager. Moving directly to a second
+    // tooltip closes the first and opens the second without another 100ms.
+    cx.simulate_mouse_move(point(px(180.), px(18.)), None, Modifiers::none());
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(last(&first_seen), "open:false");
+    assert_eq!(last(&second_seen), "open:true");
+
+    // GPUI reports B-in before A-out for this sibling order. Parking on B
+    // beyond A's stale 650ms deadline must not cool the live sequence: C is
+    // still immediate when the pointer finally moves again.
+    cx.executor().advance_clock(Duration::from_millis(700));
+    flush_frame(cx);
+    cx.simulate_mouse_move(point(px(300.), px(18.)), None, Modifiers::none());
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(last(&second_seen), "open:false");
+    assert_eq!(last(&third_seen), "open:true");
+
+    // A custom close delay longer than 500ms also extends the global cooldown.
+    cx.simulate_mouse_move(point(px(600.), px(600.)), None, Modifiers::none());
+    cx.executor().advance_clock(Duration::from_millis(500));
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(last(&third_seen), "open:true");
+
+    cx.simulate_mouse_move(point(px(60.), px(18.)), None, Modifiers::none());
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(last(&first_seen), "open:true");
+    assert_eq!(last(&third_seen), "open:false");
+
+    // After the full 650ms, a new sequence is cold again.
+    cx.simulate_mouse_move(point(px(600.), px(600.)), None, Modifiers::none());
+    cx.executor().advance_clock(Duration::from_millis(650));
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(last(&first_seen), "open:false");
+
+    cx.simulate_mouse_move(point(px(60.), px(18.)), None, Modifiers::none());
+    cx.executor().advance_clock(Duration::from_millis(60));
+    flush_frame(cx);
+    assert_eq!(last(&first_seen), "open:false");
+
+    // Switching while still cold cancels the first pending timer and starts a
+    // full delay for the second; the first timer's remaining 40ms cannot win.
+    cx.simulate_mouse_move(point(px(180.), px(18.)), None, Modifiers::none());
+    cx.executor().advance_clock(Duration::from_millis(40));
+    flush_frame(cx);
+    assert_eq!(last(&first_seen), "open:false");
+    assert_eq!(last(&second_seen), "open:false");
+    cx.executor().advance_clock(Duration::from_millis(60));
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(last(&first_seen), "open:false");
+    assert_eq!(last(&second_seen), "open:true");
+}
+
+#[gpui::test]
+fn focus_only_tooltip_pointer_is_inert_and_does_not_warm_sequence(cx: &mut TestAppContext) {
+    still();
+    let focus_seen = events();
+    let hover_seen = events();
+    let focus_probe = focus_seen.clone();
+    let hover_probe = hover_seen.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .child(tooltip_open_probe(
+                "pl-tt-focus-only",
+                focus_probe.clone(),
+                false,
+            ))
+            .child(
+                Tooltip::new("Focus only")
+                    .id("pl-tt-focus-only")
+                    .trigger(herogpui_components::TooltipTrigger::Focus)
+                    .delay(50)
+                    .child(gpui::div().w(px(120.)).h(px(36.))),
+            )
+            .child(tooltip_open_probe(
+                "pl-tt-after-focus-only",
+                hover_probe.clone(),
+                false,
+            ))
+            .child(
+                Tooltip::new("Hover")
+                    .id("pl-tt-after-focus-only")
+                    .delay(50)
+                    .child(gpui::div().w(px(120.)).h(px(36.))),
+            )
+            .into_any_element()
+    });
+
+    cx.simulate_mouse_move(point(px(60.), px(18.)), None, Modifiers::none());
+    cx.executor().advance_clock(Duration::from_millis(50));
+    flush_frame(cx);
+    assert_eq!(last(&focus_seen), "open:false");
+
+    cx.simulate_mouse_move(point(px(180.), px(18.)), None, Modifiers::none());
+    flush_frame(cx);
+    assert_eq!(
+        last(&hover_seen),
+        "open:false",
+        "pointer time over a focus-only trigger must not warm the next tooltip"
+    );
+    cx.executor().advance_clock(Duration::from_millis(50));
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(last(&hover_seen), "open:true");
+}
+
+#[gpui::test]
+fn pointer_leave_does_not_cool_a_focus_only_tooltip(cx: &mut TestAppContext) {
+    still();
+    let focus_seen = events();
+    let hover_seen = events();
+    let focus_probe = focus_seen.clone();
+    let hover_probe = hover_seen.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .child(tooltip_open_probe(
+                "pl-tt-focus-warm",
+                focus_probe.clone(),
+                true,
+            ))
+            .child(
+                Tooltip::new("Focus warm")
+                    .id("pl-tt-focus-warm")
+                    .trigger(herogpui_components::TooltipTrigger::Focus)
+                    .child(
+                        gpui::div()
+                            .w(px(120.))
+                            .h(px(36.))
+                            .child(Button::new("pl-tt-focus-warm-button").label("Focus")),
+                    ),
+            )
+            .child(tooltip_open_probe(
+                "pl-tt-hover-after-focus",
+                hover_probe.clone(),
+                false,
+            ))
+            .child(
+                Tooltip::new("Hover after focus")
+                    .id("pl-tt-hover-after-focus")
+                    .delay(100)
+                    .child(gpui::div().w(px(120.)).h(px(36.))),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(last(&focus_seen), "open:true");
+
+    cx.simulate_mouse_move(point(px(60.), px(18.)), None, Modifiers::none());
+    cx.simulate_mouse_move(point(px(600.), px(600.)), None, Modifiers::none());
+    cx.executor().advance_clock(Duration::from_millis(500));
+    flush_frame(cx);
+    assert_eq!(last(&focus_seen), "open:true");
+
+    cx.simulate_mouse_move(point(px(180.), px(18.)), None, Modifiers::none());
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(last(&focus_seen), "open:false");
+    assert_eq!(
+        last(&hover_seen),
+        "open:true",
+        "the focus-open sequence stays warm across irrelevant pointer leave"
+    );
+}
+
+#[gpui::test]
+fn default_tooltip_pointer_leave_closes_its_keyboard_focus_session(cx: &mut TestAppContext) {
+    still();
+    let seen = events();
+    let probe = seen.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .child(tooltip_open_probe("pl-tt-focus-leave", probe.clone(), true))
+            .child(
+                Tooltip::new("Focus then leave")
+                    .id("pl-tt-focus-leave")
+                    .close_delay(100)
+                    .child(
+                        gpui::div()
+                            .w(px(120.))
+                            .h(px(36.))
+                            .child(Button::new("pl-tt-focus-leave-button").label("Focus")),
+                    ),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(last(&seen), "open:true");
+
+    cx.simulate_mouse_move(point(px(60.), px(18.)), None, Modifiers::none());
+    cx.simulate_mouse_move(point(px(600.), px(600.)), None, Modifiers::none());
+    cx.executor().advance_clock(Duration::from_millis(99));
+    flush_frame(cx);
+    assert_eq!(last(&seen), "open:true");
+    cx.executor().advance_clock(Duration::from_millis(1));
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(last(&seen), "open:false");
+}
+
 /// A vertical slider's keyboard: up is *more*.
 ///
 /// The axis inverts the pointer geometry but not the keys -- Up/Right raise the

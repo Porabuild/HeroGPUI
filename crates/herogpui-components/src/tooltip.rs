@@ -104,6 +104,99 @@ impl TooltipHover {
     pub fn is_focus_open(&self) -> bool {
         self.focus_open && !self.focus_dismissed
     }
+
+    fn close(&mut self, dismiss_focus: bool) -> bool {
+        self.generation += 1;
+        let was_open = self.open || self.is_focus_open();
+        self.open = false;
+        if dismiss_focus {
+            self.focus_dismissed = true;
+        }
+        was_open
+    }
+}
+
+const TOOLTIP_GLOBAL_COOLDOWN_MS: u64 = 500;
+
+#[derive(Default)]
+struct TooltipManager {
+    entries: Vec<gpui::WeakEntity<TooltipHover>>,
+    warmed_up: bool,
+    cooldown_generation: u64,
+}
+
+impl gpui::Global for TooltipManager {}
+
+fn ensure_tooltip_manager(cx: &mut App) {
+    if cx.try_global::<TooltipManager>().is_none() {
+        cx.set_global(TooltipManager::default());
+    }
+}
+
+fn prepare_tooltip_open(current: &gpui::WeakEntity<TooltipHover>, cx: &mut App) -> bool {
+    ensure_tooltip_manager(cx);
+    let (warmed_up, others) = cx.update_global::<TooltipManager, _>(|manager, _| {
+        manager.entries.retain(|entry| entry.upgrade().is_some());
+        let others = manager
+            .entries
+            .iter()
+            .filter(|entry| *entry != current)
+            .filter_map(gpui::WeakEntity::upgrade)
+            .collect::<Vec<_>>();
+        manager.entries.retain(|entry| entry == current);
+        if manager.entries.is_empty() {
+            manager.entries.push(current.clone());
+        }
+        (manager.warmed_up, others)
+    });
+    // Entity updates run after the global borrow is released. `current` may
+    // itself be mid-update when a hover timer calls this helper.
+    for other in others {
+        other.update(cx, |state, cx| {
+            if state.close(true) {
+                cx.notify();
+            }
+        });
+    }
+    warmed_up
+}
+
+fn mark_tooltip_open(cx: &mut App) {
+    cx.update_global::<TooltipManager, _>(|manager, _| {
+        manager.warmed_up = true;
+        manager.cooldown_generation += 1;
+    });
+}
+
+fn start_tooltip_cooldown(
+    current: &gpui::WeakEntity<TooltipHover>,
+    close_delay: u64,
+    cx: &mut App,
+) {
+    ensure_tooltip_manager(cx);
+    let generation = cx.update_global::<TooltipManager, _>(|manager, _| {
+        if !manager.warmed_up || !manager.entries.iter().any(|entry| entry == current) {
+            return None;
+        }
+        manager.cooldown_generation += 1;
+        Some(manager.cooldown_generation)
+    });
+    let Some(generation) = generation else {
+        return;
+    };
+    let cooldown = TOOLTIP_GLOBAL_COOLDOWN_MS.max(close_delay);
+    cx.spawn(async move |cx: &mut gpui::AsyncApp| {
+        cx.background_executor()
+            .timer(Duration::from_millis(cooldown))
+            .await;
+        let _ = cx.update_global::<TooltipManager, _>(|manager, _| {
+            if manager.cooldown_generation == generation {
+                manager.warmed_up = false;
+                manager.entries.clear();
+            }
+        });
+    })
+    .detach();
 }
 
 /// `trigger` — what reveals the tip.
@@ -249,6 +342,14 @@ impl RenderOnce for Tooltip {
         // The state entity has to be created before the theme tokens are read;
         // `use_keyed_state` takes `cx` mutably and would conflict with them.
         let state = window.use_keyed_state(key.clone(), cx, |_, _| TooltipHover::new());
+        let current_tooltip = state.downgrade();
+        let (delay, close_delay) = {
+            let layout = cx.layout();
+            (
+                self.delay.unwrap_or(layout.tooltip_delay_ms),
+                self.close_delay.unwrap_or(layout.tooltip_close_delay_ms),
+            )
+        };
         // React Aria explicitly removes the Trigger wrapper's tab index: the
         // caller's trigger is the stop, and this handle only reports whether a
         // descendant currently owns focus.
@@ -266,13 +367,29 @@ impl RenderOnce for Tooltip {
         // app-wide `focus_visible`.
         if focus_held != state.read(cx).was_focused {
             let keyboard_focus = focus_held && util::focus_visible(cx);
-            state.update(cx, |s, _| {
+            let leaving_keyboard_focus = state.read(cx).is_focus_open() && !focus_held;
+            state.update(cx, |s, cx| {
+                let closed = leaving_keyboard_focus && s.close(false);
                 s.was_focused = focus_held;
                 s.focus_open = keyboard_focus;
                 // Either edge ends the previous dismissal session. Clearing
                 // on arrival matters when hover was dismissed before focus.
                 s.focus_dismissed = false;
+                if keyboard_focus {
+                    // An immediate focus open replaces a pending hover warmup,
+                    // just as React Stately clears its global warmup timeout.
+                    s.generation += 1;
+                }
+                if closed {
+                    cx.notify();
+                }
             });
+            if keyboard_focus {
+                let _ = prepare_tooltip_open(&current_tooltip, cx);
+                mark_tooltip_open(cx);
+            } else if leaving_keyboard_focus {
+                start_tooltip_cooldown(&current_tooltip, close_delay, cx);
+            }
         }
         let state_snapshot = state.read(cx);
         let focus_open = state_snapshot.is_focus_open();
@@ -286,9 +403,6 @@ impl RenderOnce for Tooltip {
 
         let colors = cx.colors();
         let layout = cx.layout();
-
-        let delay = self.delay.unwrap_or(layout.tooltip_delay_ms);
-        let close_delay = self.close_delay.unwrap_or(layout.tooltip_close_delay_ms);
         // v3 pushes the tip further out when the arrow needs room.
         let offset = self
             .offset
@@ -386,17 +500,14 @@ impl RenderOnce for Tooltip {
         }
 
         let hover_state = state.clone();
+        let dismiss_current = current_tooltip.clone();
         let dismiss_tooltip = util::shared(move |cx: &mut App| {
             state.update(cx, |s, cx| {
-                if s.open {
-                    s.open = false;
-                    cx.notify();
-                }
-                if !s.focus_dismissed {
-                    s.focus_dismissed = true;
+                if s.close(true) {
                     cx.notify();
                 }
             });
+            start_tooltip_cooldown(&dismiss_current, close_delay, cx);
             util::DismissResult::Handled
         });
         // Press dismissal belongs to the trigger. The tip is a sibling here;
@@ -419,6 +530,7 @@ impl RenderOnce for Tooltip {
                     dismiss_tooltip(cx);
                 }
             });
+        let hover_enabled = self.trigger == TooltipTrigger::Hover;
         let mut wrapper = gpui::div()
             // `on_hover` needs a stateful element, so the wrapper carries the id.
             .id(key.clone())
@@ -427,8 +539,23 @@ impl RenderOnce for Tooltip {
             .flex()
             .child(trigger)
             .on_hover(move |over, _window, cx: &mut App| {
+                if !hover_enabled {
+                    return;
+                }
                 let over = *over;
-                let wait = if over { delay } else { close_delay };
+                let current = hover_state.downgrade();
+                let warmed_up = over && prepare_tooltip_open(&current, cx);
+                if !over {
+                    // GPUI dispatches sibling hover listeners in reverse paint
+                    // order. An outgoing tooltip may run after the incoming
+                    // one opened, so only the manager's current entry may cool.
+                    start_tooltip_cooldown(&current, close_delay, cx);
+                }
+                let wait = if over {
+                    if warmed_up { 0 } else { delay }
+                } else {
+                    close_delay
+                };
                 let generation = hover_state.update(cx, |s, _| {
                     s.generation += 1;
                     s.generation
@@ -436,8 +563,13 @@ impl RenderOnce for Tooltip {
 
                 if wait == 0 {
                     hover_state.update(cx, |s, cx| {
-                        s.open = over;
-                        cx.notify();
+                        if over {
+                            mark_tooltip_open(cx);
+                            s.open = true;
+                            cx.notify();
+                        } else if s.close(true) {
+                            cx.notify();
+                        }
                     });
                     return;
                 }
@@ -450,9 +582,16 @@ impl RenderOnce for Tooltip {
                     if let Some(state) = weak.upgrade() {
                         let _ = state.update(cx, |s, cx| {
                             // A newer hover transition supersedes this timer.
-                            if s.generation == generation && s.open != over {
-                                s.open = over;
-                                cx.notify();
+                            if s.generation == generation {
+                                if over {
+                                    mark_tooltip_open(cx);
+                                    if !s.open {
+                                        s.open = true;
+                                        cx.notify();
+                                    }
+                                } else if s.close(true) {
+                                    cx.notify();
+                                }
                             }
                         });
                     }

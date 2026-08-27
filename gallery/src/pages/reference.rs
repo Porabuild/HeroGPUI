@@ -1240,6 +1240,10 @@ impl Widget {
                     && entry.status == reference_metadata::ImplementationStatus::Partial
             }));
         }
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Global sequence"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
         for (owner, prop) in [
             ("RangeCalendar.YearPickerTriggerHeading", "offset"),
             ("RangeCalendar.YearPickerGrid", "visibleYears"),

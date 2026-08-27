@@ -96,6 +96,11 @@ AREA_KEYS = ('ColorArea',)
 # or focus".
 FOCUS_OPEN = ('Tooltip',)
 
+# Pinned React Stately owns one app-global Tooltip sequence: the first hover is
+# delayed, a second tooltip opens immediately during cooldown, and it closes
+# the previous tooltip rather than leaving two descriptions visible.
+TOOLTIP_SEQUENCE = ('Tooltip',)
+
 # A text field's keyboard is the platform's, and none of it is in a prop table.
 # What was missing: word-wise motion, copy and cut (paste was there), vertical
 # motion and line-wise Home/End in a multi-line field, and -- worst -- capitals,
@@ -302,6 +307,10 @@ EVIDENCE = {
     ('NumberField', 'spin-keys'): ('number_field.rs', r'"up" \| "pageup"'),
     ('Table', 'table-page-down'): ('table.rs', r'"pagedown" => stops\.last\(\)\.copied\(\)'),
     ('Tooltip', 'focus-open'): ('tooltip.rs', r'contains_focused'),
+    ('Tooltip', 'global-sequence'): (
+        'tooltip.rs',
+        r'(?s)(?=.*struct TooltipManager)(?=.*prepare_tooltip_open)(?=.*start_tooltip_cooldown)',
+    ),
     ('Input', 'text-keys'): ('input.rs', r'fn word_target'),
     ('TextArea', 'text-keys'): ('input.rs', r'fn vertical_target'),
     ('TextField', 'text-keys'): ('input.rs', r'key_char'),
@@ -522,7 +531,7 @@ def main():
     # every total.
     derived = dict.fromkeys(
         ARROW_NAV + REMOVE_KEY + OVERLAY_DISMISS + SPIN_KEYS + AREA_KEYS
-        + FOCUS_OPEN + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS
+        + FOCUS_OPEN + TOOLTIP_SEQUENCE + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS
         + TABLE_TYPEAHEAD + TABLE_PAGING + SELECT_ALL_KEYS
         + ESCAPE_CLEAR_KEYS
         + COMBOBOX_MULTIPLE_KEYS
@@ -533,7 +542,7 @@ def main():
     )
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'dismiss', 'spin-keys', 'area-keys',
-                      'focus-open', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
+                      'focus-open', 'global-sequence', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
                       'table-typeahead', 'table-page-down', 'table-page-up-header',
                       'select-all', 'escape-clear', 'resize-bounds',
                       'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
