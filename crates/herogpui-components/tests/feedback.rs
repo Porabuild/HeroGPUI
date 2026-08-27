@@ -51,9 +51,9 @@ use std::time::Duration;
 use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
 use harness::{click, events, open_host, press, Events};
 use herogpui_components::{
-    dismiss_toast, pause_toasts, toast_store, Alert, Avatar, AvatarGroup, AvatarVariant, Badge,
-    BadgePlacement, BadgeVariant, Color, Meter, NumberFormat, ProgressBar, ProgressCircle, Size,
-    Skeleton, Spinner, SpinnerSize, Toast, ToastPlacement, ToastViewport,
+    pause_toasts, toast_store, Alert, Avatar, AvatarGroup, AvatarVariant, Badge, BadgePlacement,
+    BadgeVariant, Color, Meter, NumberFormat, ProgressBar, ProgressCircle, Size, Skeleton, Spinner,
+    SpinnerSize, Toast, ToastPlacement, ToastViewport,
 };
 use herogpui_theme::SkeletonAnimation;
 
@@ -395,11 +395,10 @@ fn toast_viewport_reveals_the_newest_next_as_toasts_leave(cx: &mut TestAppContex
     });
 }
 
-/// Pinned React Aria starts a toast's timer from `useToast`, which only mounts
-/// entries inside `visibleToasts`. Covered overflow waits without spending its
-/// timeout, then receives a full clock when the frontmost toast leaves.
+/// HeroUI's `maxVisibleToasts` is visual only. Its queue gives React Aria every
+/// toast and marks overflow hidden, so covered entries still spend their clock.
 #[gpui::test]
-fn toast_overflow_does_not_auto_dismiss_until_visible(cx: &mut TestAppContext) {
+fn toast_overflow_auto_dismisses_while_visually_hidden(cx: &mut TestAppContext) {
     still();
     let (hidden, front) = cx.update(|cx| {
         let hidden = Toast::new("Hidden")
@@ -425,41 +424,11 @@ fn toast_overflow_does_not_auto_dismiss_until_visible(cx: &mut TestAppContext) {
             .collect::<Vec<_>>();
         assert_eq!(
             ids,
-            [front, hidden],
-            "a covered overflow toast must not expire before it is shown"
+            [front],
+            "maxVisibleToasts must not pause a visually hidden toast's clock"
         );
         assert_eq!(store.visible_toasts(1)[0].id, front);
-    });
-
-    cx.update(|_window, cx| dismiss_toast(front, cx));
-    flush_frame(cx);
-    cx.executor().advance_clock(Duration::from_millis(200));
-    cx.update(|_window, cx| {
-        assert_eq!(
-            toast_store(cx).read(cx).toasts()[0].id,
-            hidden,
-            "the newly visible toast must receive its full timeout"
-        );
-    });
-
-    let cover = cx.update(|_window, cx| Toast::new("Cover").timeout(Duration::ZERO).push(None, cx));
-    flush_frame(cx);
-    cx.update(|_window, cx| dismiss_toast(cover, cx));
-    flush_frame(cx);
-    cx.executor().advance_clock(Duration::from_millis(200));
-    cx.update(|_window, cx| {
-        assert_eq!(
-            toast_store(cx).read(cx).toasts()[0].id,
-            hidden,
-            "a covered and immediately revealed toast must restart its full timeout"
-        );
-    });
-    cx.executor().advance_clock(Duration::from_millis(200));
-    cx.update(|_window, cx| {
-        assert!(
-            toast_store(cx).read(cx).toasts().is_empty(),
-            "the timeout must start when the toast becomes visible"
-        );
+        assert!(store.toasts().iter().all(|toast| toast.id != hidden));
     });
 }
 

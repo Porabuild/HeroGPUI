@@ -90,15 +90,13 @@ pub struct ToastData {
 pub struct ToastStore {
     toasts: Vec<ToastData>,
     next_id: u64,
-    /// `pauseAll` / `resumeAll`. Every visible toast's timer reads this on each
-    /// tick, which is why the timer ticks rather than sleeping once.
+    /// `pauseAll` / `resumeAll`. Every toast's timer reads this on each tick,
+    /// which is why the timer ticks rather than sleeping once.
     paused: bool,
-    /// Timeout configured for each queued toast. A clock is armed only while
-    /// the toast is inside a viewport's visible slice.
+    /// Timeout configured for each queued toast.
     timeouts: HashMap<u64, Duration>,
-    /// Visible-lifetime generation for each currently armed toast. A toast
-    /// covered and revealed between ticks receives a new generation, so its
-    /// previous task cannot spend the new clock.
+    /// Generation for each currently armed toast, so a stale task cannot close
+    /// a later toast if ids are ever reused.
     timer_generations: HashMap<u64, u64>,
     next_timer_generation: u64,
     /// Ids whose `onClose` has already been run. `dismiss_toast` and a
@@ -201,40 +199,6 @@ impl ToastStore {
         self.toasts.retain(|t| t.id != id);
         self.timeouts.remove(&id);
         self.timer_generations.remove(&id);
-    }
-
-    fn arm_visible_timers(
-        &mut self,
-        max_visible: usize,
-    ) -> Vec<(u64, Duration, Option<ToastHandler>, u64)> {
-        let visible_ids = self
-            .visible_toasts(max_visible)
-            .iter()
-            .map(|toast| toast.id)
-            .collect::<HashSet<_>>();
-        self.timer_generations
-            .retain(|id, _| visible_ids.contains(id));
-        let candidates = self
-            .visible_toasts(max_visible)
-            .iter()
-            .filter_map(|toast| {
-                self.timeouts
-                    .get(&toast.id)
-                    .copied()
-                    .map(|timeout| (toast.id, timeout, toast.on_close.clone()))
-            })
-            .collect::<Vec<_>>();
-        let mut armed = Vec::new();
-        for (id, timeout, on_close) in candidates {
-            if self.timer_generations.contains_key(&id) {
-                continue;
-            }
-            let generation = self.next_timer_generation;
-            self.next_timer_generation = self.next_timer_generation.saturating_add(1);
-            self.timer_generations.insert(id, generation);
-            armed.push((id, timeout, on_close, generation));
-        }
-        armed
     }
 
     /// Inserts a fully-formed toast; zero ids are auto-assigned.
@@ -374,7 +338,7 @@ impl Toast {
         self
     }
 
-    /// Pushes the toast. Its clock starts when a viewport first exposes it.
+    /// Pushes the toast and starts its clock unless the timeout is zero.
     ///
     /// `duration` overrides [`Self::timeout`], which is how the caller that
     /// spells the timeout at the push site keeps working.
@@ -383,7 +347,7 @@ impl Toast {
         // the builder: either way there is no clock to arm.
         let timeout = duration.or(self.timeout).unwrap_or(Duration::ZERO);
         let store = toast_store(cx);
-        store.update(cx, |s, cx| {
+        let (id, generation) = store.update(cx, |s, cx| {
             let id = s.next_id;
             s.next_id += 1;
             let pushed = s.push(ToastData {
@@ -398,19 +362,35 @@ impl Toast {
                 action: self.action.clone(),
                 on_close: self.on_close.clone(),
             });
-            if !timeout.is_zero() {
+            let generation = if timeout.is_zero() {
+                None
+            } else {
                 s.timeouts.insert(id, timeout);
-            }
+                let generation = s.next_timer_generation;
+                s.next_timer_generation = s.next_timer_generation.saturating_add(1);
+                s.timer_generations.insert(id, generation);
+                Some(generation)
+            };
             cx.notify();
-            pushed
-        })
+            (pushed, generation)
+        });
+        if let Some(generation) = generation {
+            start_toast_timer(
+                store.downgrade(),
+                id,
+                timeout,
+                self.on_close,
+                generation,
+                cx,
+            );
+        }
+        id
     }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ToastTimerTick {
     Continue,
-    Hidden,
     Closed(bool),
 }
 
@@ -419,7 +399,6 @@ fn start_toast_timer(
     id: u64,
     timeout: Duration,
     on_close: Option<ToastHandler>,
-    max_visible: usize,
     generation: u64,
     cx: &mut App,
 ) {
@@ -438,15 +417,7 @@ fn start_toast_timer(
                     return ToastTimerTick::Closed(s.claim_close(id));
                 }
                 if s.timer_generations.get(&id) != Some(&generation) {
-                    return ToastTimerTick::Hidden;
-                }
-                if !s
-                    .visible_toasts(max_visible)
-                    .iter()
-                    .any(|toast| toast.id == id)
-                {
-                    s.timer_generations.remove(&id);
-                    return ToastTimerTick::Hidden;
+                    return ToastTimerTick::Closed(false);
                 }
                 if s.paused {
                     return ToastTimerTick::Continue;
@@ -464,7 +435,6 @@ fn start_toast_timer(
             };
             match tick {
                 ToastTimerTick::Continue => {}
-                ToastTimerTick::Hidden => return,
                 ToastTimerTick::Closed(mine) => {
                     if mine {
                         if let Some(cb) = on_close {
@@ -597,25 +567,13 @@ impl Default for ToastViewport {
 
 impl RenderOnce for ToastViewport {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut toasts = Vec::new();
-        if let Some(hub) = cx.try_global::<ToastHub>() {
-            let store = hub.store.clone();
-            let timers = store.update(cx, |store, _| {
-                toasts = store.visible_toasts(self.max_visible_toasts).to_vec();
-                store.arm_visible_timers(self.max_visible_toasts)
-            });
-            let weak = store.downgrade();
-            for (id, timeout, on_close, generation) in timers {
-                start_toast_timer(
-                    weak.clone(),
-                    id,
-                    timeout,
-                    on_close,
-                    self.max_visible_toasts,
-                    generation,
-                    cx,
-                );
-            }
+        let mut toasts: Vec<ToastData> = match cx.try_global::<ToastHub>() {
+            Some(hub) => hub
+                .store
+                .read(cx)
+                .visible_toasts(self.max_visible_toasts)
+                .to_vec(),
+            None => Vec::new(),
         };
 
         let mut region = gpui::div().absolute().flex().flex_col().gap(self.gap);
