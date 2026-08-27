@@ -7632,6 +7632,150 @@ pub(crate) const RANGE_CALENDAR: ReferenceMetadata = ReferenceMetadata {
     styling: RANGE_CALENDAR_STYLING,
 };
 
+const DATE_PICKER_REQUIRED_PARTS: &[&str] = &[
+    "DatePicker.Root",
+    "DatePicker.Trigger",
+    "DatePicker.TriggerIndicator",
+    "DatePicker.Popover",
+];
+
+const DATE_PICKER_API: &[ApiDoc] = &[
+    ApiDoc { owner: "DatePicker", prop: "value", ty: "DateValue | null", default: "—", description: "Writes the controlled date into the caller-owned CalendarState.", rust_owner: "DatePicker", rust: "value(date, cx)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "defaultValue", ty: "DateValue | null", default: "—", description: "Seeds the uncontrolled date once without fighting later edits.", rust_owner: "DatePicker", rust: "default_value(date)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "onChange", ty: "(value: DateValue | null) => void", default: "—", description: "Reports valid field edits and calendar selections.", rust_owner: "DatePicker", rust: "on_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "isOpen", ty: "boolean", default: "—", description: "Controls the calendar popover without mutating local open state.", rust_owner: "DatePicker", rust: "is_open(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "defaultOpen", ty: "boolean", default: "false", description: "Seeds uncontrolled popover state.", rust_owner: "DatePicker", rust: "default_open(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "onOpenChange", ty: "(isOpen: boolean) => void", default: "—", description: "Reports trigger, selection, Escape, outside-press and focus-departure changes.", rust_owner: "DatePicker", rust: "on_open_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "isDisabled", ty: "boolean", default: "false", description: "Removes the field and trigger from interaction and form submission.", rust_owner: "DatePicker", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "isReadOnly", ty: "boolean", default: "false", description: "Keeps the date focusable while suppressing edits, opening and selection.", rust_owner: "DatePicker", rust: "is_read_only(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "isRequired", ty: "boolean", default: "false", description: "Blocks native form submission while empty and focuses the editable field.", rust_owner: "DatePicker", rust: "is_required(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "isInvalid", ty: "boolean", default: "—", description: "Forces invalid field and calendar state.", rust_owner: "DatePicker", rust: "is_invalid(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "validate", ty: "(value: DateValue | null) => ValidationError | true | null", default: "—", description: "A callback supplies one optional validation message; the port does not expose React Aria's structured ValidationError object.", rust_owner: "DatePicker", rust: "validate(callback)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DatePicker", prop: "validationBehavior", ty: "\"native\" | \"aria\"", default: "\"native\"", description: "Selects blocking native validation or non-blocking ARIA-style validation.", rust_owner: "DatePicker", rust: "validation_behavior(ValidationBehavior)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "validationErrors", ty: "string[]", default: "—", description: "Server messages take precedence and mark the field invalid; independently composed FieldError message content is unavailable.", rust_owner: "DatePicker", rust: "validation_errors(errors)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DatePicker", prop: "minValue", ty: "DateValue", default: "—", description: "Earliest valid field and calendar date.", rust_owner: "DatePicker", rust: "min_value(date)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "maxValue", ty: "DateValue", default: "—", description: "Latest valid field and calendar date.", rust_owner: "DatePicker", rust: "max_value(date)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "isDateUnavailable", ty: "(date: DateValue) => boolean", default: "—", description: "Rejects individual dates inside the range.", rust_owner: "DatePicker", rust: "is_date_unavailable(predicate)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "firstDayOfWeek", ty: "string", default: "locale", description: "Overrides the calendar grid's first weekday with the local Weekday enum.", rust_owner: "DatePicker", rust: "first_day_of_week(Weekday)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DatePicker", prop: "shouldCloseOnSelect", ty: "boolean | () => boolean", default: "true", description: "The boolean form controls whether a calendar selection dismisses the popover; callback-valued policy is not represented.", rust_owner: "DatePicker", rust: "should_close_on_select(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DatePicker", prop: "autoFocus", ty: "boolean", default: "false", description: "Focuses the editable date field on first render.", rust_owner: "DatePicker", rust: "auto_focus(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "name", ty: "string", default: "—", description: "Submits the displayed date text under this name.", rust_owner: "DatePicker", rust: "name(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "children", ty: "ReactNode | (values: DatePickerRenderProps) => ReactNode", default: "—", description: "Replacement content receives disabled, invalid, read-only, required, focus and open state.", rust_owner: "DatePicker", rust: "content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker", prop: "className / style", ty: "string | render function / CSSProperties", default: "—", description: "Browser CSS classes and inline styles are unavailable.", rust_owner: "DatePicker", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "DatePicker", prop: "render", ty: "DOMRenderFunction<..., DatePickerRenderProps>", default: "—", description: "DOM root substitution has no GPUI equivalent.", rust_owner: "DatePicker", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "DatePicker.TriggerIndicator", prop: "children", ty: "ReactNode", default: "calendar icon", description: "Replaces the glyph inside the existing trigger geometry and behavior.", rust_owner: "DatePicker", rust: "trigger_indicator(element)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "DatePicker.Popover", prop: "placement", ty: "Placement", default: "bottom", description: "The monolithic picker uses bottom-start placement and does not expose an independent popover builder.", rust_owner: "DatePicker", rust: "fixed BottomStart", status: ImplementationStatus::Partial },
+];
+
+const DATE_PICKER_PARTS: &[PartDoc] = &[
+    PartDoc {
+        name: "DatePicker.Root",
+        slot: "date-picker",
+        description: "Root state owner and focus-within scope.",
+        rust_owner: "DatePicker",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "DatePicker.Trigger",
+        slot: "date-picker-trigger",
+        description: "Separate keyboard and pointer action inside the date field suffix.",
+        rust_owner: "DatePicker",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "DatePicker.TriggerIndicator",
+        slot: "date-picker-trigger-indicator",
+        description: "Default or caller-supplied 16px trigger glyph.",
+        rust_owner: "DatePicker",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "DatePicker.Popover",
+        slot: "date-picker-popover",
+        description: "Bottom-start overlay containing the Calendar.",
+        rust_owner: "DatePicker",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+const DATE_PICKER_STATES: &[StateDoc] = &[
+    StateDoc {
+        state: "Open",
+        selector: ".date-picker[data-open=true]",
+        description: "Mounts the calendar overlay and hands open state to replacement content.",
+        rust: "controlled/open overlay state",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Focus within",
+        selector: ".date-picker[data-focus-within=true]",
+        description: "Tracks focus across the editable field, trigger and calendar.",
+        rust: "close_on_blur focus scope",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Focus visible",
+        selector: ".date-picker__trigger[data-focus-visible=true]",
+        description:
+            "Draws the trigger ring and hands keyboard-visible root focus to replacement content.",
+        rust: "trigger focus ring + DatePickerRenderState",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Disabled",
+        selector: ".date-picker__trigger[data-disabled=true]",
+        description: "Applies disabled opacity and removes editing, opening and submission.",
+        rust: "is_disabled(bool)",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Read only",
+        selector: ".date-picker[data-readonly=true]",
+        description: "Keeps the field focusable while making field, trigger and calendar inert.",
+        rust: "is_read_only(bool)",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Required",
+        selector: ".date-picker[data-required=true]",
+        description: "Marks the label and blocks empty native submission.",
+        rust: "is_required(bool)",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Invalid",
+        selector: ".date-picker[data-invalid=true]",
+        description: "Combines controlled, server, custom, syntax and date-constraint validation.",
+        rust: "resolved DatePicker validity",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const DATE_PICKER_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".date-picker", value: "inline-flex flex-col gap-1", description: "Root field stack uses the pinned four-pixel gap.", rust: "wrapper flex_col + gap(4px)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".date-picker__trigger", value: "inline-flex w-full items-center rounded-field p-1 text-sm", description: "The port folds trigger padding into the unified DateField but preserves full-width field radius and 14px type.", rust: "embedded DateField + 24px trigger", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".date-picker__trigger transition", value: "box-shadow 150ms ease-out; reduced-motion none", description: "The focus ring switches directly rather than interpolating its shadow.", rust: "ring_if_focused", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".date-picker__trigger-indicator", value: "size-4 text-field-placeholder", description: "The 16px indicator box matches; caller content retains the built-in hit target.", rust: "16px centered trigger_indicator", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".date-picker__popover", value: "w-fit overflow-y-auto bg-overlay p-3 shadow-overlay radius 20px", description: "Calendar overlay fill, 12px inset, shadow and pinned 20px radius match.", rust: "picker_panel", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".date-picker__popover entering", value: "150ms ease-smooth fade zoom-in-95 with placement slide", description: "The overlay appears immediately; picker entry motion is not implemented.", rust: "immediate overlay mount", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: ".date-picker__popover exiting", value: "100ms ease-smooth fade zoom-out-95", description: "The picker deliberately unmounts immediately after selection so the same press cannot hit a retained calendar cell.", rust: "OverlayPhase without exit retention", status: ImplementationStatus::Unavailable },
+];
+
+pub(crate) const DATE_PICKER: ReferenceMetadata = ReferenceMetadata {
+    page: "DatePicker",
+    import_line: "use herogpui::components::date_picker::DatePicker;",
+    source_module: "date_picker",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(date-and-time)/date-picker.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/date-picker/date-picker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/DatePicker.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/date-picker.css",
+    required_parts: DATE_PICKER_REQUIRED_PARTS,
+    api: DATE_PICKER_API,
+    parts: DATE_PICKER_PARTS,
+    states: DATE_PICKER_STATES,
+    styling: DATE_PICKER_STYLING,
+};
+
 const DRAWER_REQUIRED_PARTS: &[&str] = &[
     "Drawer",
     "Drawer.Trigger",
@@ -11268,6 +11412,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     TABS,
     CALENDAR,
     DATE_FIELD,
+    DATE_PICKER,
     NUMBER_FIELD,
     TIME_FIELD,
     RANGE_CALENDAR,

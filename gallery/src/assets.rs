@@ -33,6 +33,7 @@ macro_rules! assets {
 
 assets! {
     "herogpui/icons/check.svg" => "herogpui/icons/check.svg",
+    "herogpui/icons/calendar.svg" => "herogpui/icons/calendar.svg",
     "herogpui/icons/chevron_down.svg" => "herogpui/icons/chevron_down.svg",
     "herogpui/icons/chevron_up.svg" => "herogpui/icons/chevron_up.svg",
     "herogpui/icons/chevron_left.svg" => "herogpui/icons/chevron_left.svg",

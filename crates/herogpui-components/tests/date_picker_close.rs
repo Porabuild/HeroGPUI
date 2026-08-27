@@ -177,6 +177,67 @@ fn date_picker_closes_when_a_day_is_picked(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn date_picker_can_remain_open_after_a_day_is_picked(cx: &mut TestAppContext) {
+    let picks = events();
+    let recorded = picks.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+
+    let today = Date::today();
+    let lead = DateConstraints::new().lead_cells(today.year, today.month);
+    let expected = Date::new(today.year, today.month, (7 - lead) as u32);
+    let (day_x, day_y) = day_coords();
+
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        let opens = opens.clone();
+        DatePicker::new(state_for_view.clone())
+            .should_close_on_select(false)
+            .on_change(move |date, _, _| {
+                picks
+                    .borrow_mut()
+                    .push(date.map(|date| date.format_iso()).unwrap_or_default());
+            })
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 124., 18.);
+    click(cx, day_x, day_y);
+
+    assert_eq!(recorded.borrow().as_slice(), [expected.format_iso()]);
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "shouldCloseOnSelect=false keeps the calendar open after selection"
+    );
+}
+
+#[gpui::test]
+fn date_picker_custom_indicator_preserves_trigger_behavior(cx: &mut TestAppContext) {
+    let opens = events();
+    let opened = opens.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        DatePicker::new(state_for_view.clone())
+            .trigger_indicator(gpui::div().child("custom"))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 124., 18.);
+    assert_eq!(opened.borrow().as_slice(), ["open:true"]);
+}
+
+#[gpui::test]
 fn date_picker_change_records_the_pick_once(cx: &mut TestAppContext) {
     // No `on_open_change` is wired: closing must not depend on a caller
     // handler, and the change callback must fire exactly once for the pick.

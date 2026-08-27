@@ -234,6 +234,12 @@ EXTRA_OK_SCOPED = {
     # "Custom Icons" example.
     'SearchField.search_icon': 'composition',
     'SearchField.clear_icon': 'composition',
+    # HeroUI composes TriggerIndicator as a child part, while the monolithic
+    # GPUI picker exposes the same seam as a typed builder.
+    'DatePicker.trigger_indicator': 'composition',
+    # DatePickerRoot forwards React Aria's inherited shouldCloseOnSelect even
+    # though HeroUI's own root prop table does not repeat it.
+    'DatePicker.should_close_on_select': 'react-aria-inherited',
     # `Checkbox.Indicator` takes children (the closure receives CheckboxState),
     # and its "Full Rounded" example rounds `Checkbox.Control` with a class.
     'Checkbox.indicator': 'composition',

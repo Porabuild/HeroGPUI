@@ -4232,6 +4232,7 @@ impl Gallery {
 
     pub fn page_date_picker(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let is_open = self.date_picker_open;
+        let render_props_gallery = cx.entity().downgrade();
         component_doc_page!(
             "Date Picker",
             crate::pages::Page::DatePicker.description(),
@@ -4307,14 +4308,56 @@ impl Gallery {
                     "Custom Indicator",
                     col(vec![
                         para(
-                            "v3 replaces the trigger's calendar glyph. The chevron here turns \
-                             with the panel, which is the same affordance.",
+                            "v3 lets TriggerIndicator replace the default calendar glyph; this \
+                             example uses a check without changing the trigger behavior.",
                             cx,
                         ),
                         h::DatePicker::new(self.demo_calendar("dp-indicator", cx))
                             .label("Date")
+                            .trigger_indicator(icon(h::icons::CHECK, cx))
                             .into_any_element(),
                     ]),
+                ),
+                (
+                    "Render Function",
+                    col(vec![h::DatePicker::new(
+                        self.demo_calendar("dp-render-props", cx)
+                    )
+                    .is_open(is_open)
+                    .is_required(true)
+                    .content(move |state| {
+                        let gallery = render_props_gallery.clone();
+                        gpui::div()
+                            .flex()
+                            .flex_col()
+                            .items_start()
+                            .gap(px(8.))
+                            .child(format!(
+                                "{} · {} · {}",
+                                if state.is_required {
+                                    "required"
+                                } else {
+                                    "optional"
+                                },
+                                if state.is_invalid { "invalid" } else { "valid" },
+                                if state.is_open { "open" } else { "closed" },
+                            ))
+                            .child(
+                                h::Button::new("dp-render-props-toggle")
+                                    .label(if state.is_open { "Close" } else { "Open" })
+                                    .on_press(move |_, _, cx| {
+                                        if let Some(gallery) = gallery.upgrade() {
+                                            gallery.update(cx, |gallery, cx| {
+                                                gallery.date_picker_open =
+                                                    !gallery.date_picker_open;
+                                                cx.notify();
+                                            });
+                                        }
+                                    }),
+                            )
+                            .into_any_element()
+                    })
+                    .into_any_element()]),
                 ),
                 (
                     "Usage",

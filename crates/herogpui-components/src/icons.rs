@@ -8,6 +8,7 @@ pub const ICON_PREFIX: &str = "herogpui/icons";
 
 pub const SPINNER: &str = "herogpui/icons/spinner.svg";
 pub const CHECK: &str = "herogpui/icons/check.svg";
+pub const CALENDAR: &str = "herogpui/icons/calendar.svg";
 pub const CHEVRON_DOWN: &str = "herogpui/icons/chevron_down.svg";
 pub const CHEVRON_UP: &str = "herogpui/icons/chevron_up.svg";
 pub const TOOLTIP_ARROW: &str = "herogpui/icons/tooltip_arrow.svg";

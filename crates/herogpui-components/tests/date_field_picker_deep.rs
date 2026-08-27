@@ -15,7 +15,7 @@ use std::{
 use gpui::{prelude::*, TestAppContext, VisualTestContext};
 use herogpui_components::{
     CalendarState, Date, DateField, DatePicker, DateRangePicker, DateRangeState, DateSegment, Form,
-    InputState,
+    InputState, ValidationBehavior,
 };
 
 use harness::{click, events, open_host, press};
@@ -762,6 +762,143 @@ fn date_picker_form_invalid_submit_focuses_its_field(cx: &mut TestAppContext) {
         cx.update(|_, cx| state.read(cx).selected),
         Some(Date::new(2025, 1, 15)),
         "an invalid picker submit focuses the actual DateField"
+    );
+}
+
+#[gpui::test]
+fn required_empty_date_picker_blocks_form_and_focuses_its_field(cx: &mut TestAppContext) {
+    let invalids = events();
+    let invalids_for_form = invalids.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let picker = DatePicker::new(state.clone())
+        .name("date")
+        .is_required(true);
+    let form_field = cx.update(|cx| picker.form_field(cx).expect("named picker field"));
+    let form = Form::new()
+        .field(form_field)
+        .on_invalid(move |_, _, _| invalids_for_form.borrow_mut().push("invalid".to_owned()));
+    let submit = form.submit_handler();
+    let picker = Rc::new(RefCell::new(Some(picker)));
+    let picker_for_view = picker;
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        picker_for_view
+            .borrow_mut()
+            .take()
+            .unwrap_or_else(|| {
+                DatePicker::new(state_for_view.clone())
+                    .name("date")
+                    .is_required(true)
+            })
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(invalids.borrow().as_slice(), ["invalid"]);
+    for key in ["0", "1", "0", "1", "2", "0", "2", "5"] {
+        press(cx, key);
+    }
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).selected),
+        Some(Date::new(2025, 1, 1)),
+        "a required picker submit focuses the actual DateField"
+    );
+}
+
+#[gpui::test]
+fn date_picker_custom_validation_blocks_native_form_submission(cx: &mut TestAppContext) {
+    let invalids = events();
+    let invalids_for_form = invalids.clone();
+    let selected = Date::new(2025, 6, 15);
+    let state = cx.new(|cx| CalendarState::with_selected(cx, selected));
+    let picker = DatePicker::new(state.clone())
+        .name("date")
+        .validate(move |value| {
+            (*value == Some(selected)).then(|| "That date is already booked".into())
+        });
+    let form_field = cx.update(|cx| picker.form_field(cx).expect("named picker field"));
+    let form = Form::new()
+        .field(form_field)
+        .on_invalid(move |_, _, _| invalids_for_form.borrow_mut().push("invalid".to_owned()));
+    let submit = form.submit_handler();
+    let picker = Rc::new(RefCell::new(Some(picker)));
+    let picker_for_view = picker;
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        picker_for_view
+            .borrow_mut()
+            .take()
+            .unwrap_or_else(|| {
+                DatePicker::new(state_for_view.clone())
+                    .name("date")
+                    .validate(move |value| {
+                        (*value == Some(selected)).then(|| "That date is already booked".into())
+                    })
+            })
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(invalids.borrow().as_slice(), ["invalid"]);
+}
+
+#[gpui::test]
+fn date_picker_aria_custom_validation_does_not_block_submission(cx: &mut TestAppContext) {
+    let submitted = events();
+    let submitted_for_form = submitted.clone();
+    let selected = Date::new(2025, 6, 15);
+    let state = cx.new(|cx| CalendarState::with_selected(cx, selected));
+    let picker = DatePicker::new(state.clone())
+        .name("date")
+        .validation_behavior(ValidationBehavior::Allow)
+        .validate(move |value| {
+            (*value == Some(selected)).then(|| "That date is already booked".into())
+        });
+    let form_field = cx.update(|cx| picker.form_field(cx).expect("named picker field"));
+    let form = Form::new().field(form_field).on_submit(move |data, _, _| {
+        submitted_for_form
+            .borrow_mut()
+            .push(data.text("date").unwrap_or_default().to_string());
+    });
+    let submit = form.submit_handler();
+    let picker = Rc::new(RefCell::new(Some(picker)));
+    let picker_for_view = picker;
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        picker_for_view
+            .borrow_mut()
+            .take()
+            .unwrap_or_else(|| {
+                DatePicker::new(state_for_view.clone())
+                    .name("date")
+                    .validation_behavior(ValidationBehavior::Allow)
+                    .validate(move |value| {
+                        (*value == Some(selected)).then(|| "That date is already booked".into())
+                    })
+            })
+            .into_any_element()
+    });
+
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(submitted.borrow().as_slice(), [selected.format_iso()]);
+}
+
+#[gpui::test]
+fn date_picker_auto_focuses_its_editable_field(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        DatePicker::new(state_for_view.clone())
+            .auto_focus(true)
+            .into_any_element()
+    });
+
+    for key in ["0", "1", "0", "1", "2", "0", "2", "5"] {
+        press(cx, key);
+    }
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).selected),
+        Some(Date::new(2025, 1, 1))
     );
 }
 

@@ -1121,6 +1121,39 @@ impl Widget {
     }
 
     #[test]
+    fn date_picker_metadata_tracks_inherited_behavior_and_compound_parts() {
+        let metadata = reference_metadata::for_route(
+            "DatePicker",
+            "use herogpui::components::date_picker::DatePicker;",
+        )
+        .expect("DatePicker metadata is registered");
+
+        assert_eq!(metadata.parts.len(), 4);
+        for prop in [
+            "children",
+            "defaultValue",
+            "defaultOpen",
+            "isRequired",
+            "autoFocus",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "DatePicker"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "DatePicker.TriggerIndicator"
+                && entry.prop == "children"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".date-picker__popover"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+    }
+
+    #[test]
     fn dropdown_metadata_does_not_classify_behavior_as_styling() {
         let metadata = reference_metadata::for_import(
             "use herogpui::components::dropdown::{Dropdown, MenuItem};",

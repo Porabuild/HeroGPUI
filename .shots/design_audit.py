@@ -1147,6 +1147,14 @@ CHECKS = [
     ('date-range-picker', '.date-range-picker__trigger', 'radius',
      'date-range-picker radius -> field_radius', SRC + 'util.rs',
      r'pub fn (field_radius)', helper_px),
+    ('date-picker', '.date-picker__popover', 'radius', 'DatePicker popover radius',
+     SRC + 'date_picker.rs',
+     r'pinned 8px base makes their `min\(32px, radius \* 2\.5\)` exactly 20px\.[\s\S]{0,50}?'
+     r'\.rounded\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('date-range-picker', '.date-range-picker__popover', 'radius',
+     'DateRangePicker popover radius', SRC + 'date_picker.rs',
+     r'pinned 8px base makes their `min\(32px, radius \* 2\.5\)` exactly 20px\.[\s\S]{0,50}?'
+     r'\.rounded\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('input-group', '.input-group__input', 'text', 'input-group text -> FIELD_TEXT',
      SRC + 'input_group.rs', r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
     ('number-field', '.number-field__input', 'text', 'number-field text -> FIELD_TEXT',
@@ -1301,7 +1309,7 @@ CHECKS = [
      r'\.text_size\(crate::util::(FIELD_TEXT)\)', lambda _: 14.0),
     ('date-picker', '.date-picker__trigger-indicator', 'size', 'DatePicker trigger glyph',
      SRC + 'date_picker.rs',
-     r'`\.date-picker__trigger-indicator` is `size-4`\.\s*\.size\(px\((\d+(?:\.\d*)?)\.\)\)',
+     r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.path\(icons::CALENDAR\)',
      None),
     ('date-range-picker', '.date-range-picker__trigger-indicator', 'size',
      'DateRangePicker trigger glyph', SRC + 'date_picker.rs',
@@ -1644,12 +1652,24 @@ def measure(body):
         if m:
             offer(metric, float(m.group(1)) * 16.0, '')
 
-    m = re.search(
-        r'border-radius:\s*calc\(var\(--radius\)\s*\*\s*([\d.]+)\)',
+    capped_radius = re.search(
+        r'border-radius:\s*min\(\s*([\d.]+)px\s*,\s*'
+        r'calc\(var\(--radius\)\s*\*\s*([\d.]+)\)\s*\)',
         body,
     )
-    if m:
-        offer('radius', 8.0 * float(m.group(1)), '')
+    if capped_radius:
+        offer(
+            'radius',
+            min(float(capped_radius.group(1)), 8.0 * float(capped_radius.group(2))),
+            '',
+        )
+    else:
+        radius = re.search(
+            r'border-radius:\s*calc\(var\(--radius\)\s*\*\s*([\d.]+)\)',
+            body,
+        )
+        if radius:
+            offer('radius', 8.0 * float(radius.group(1)), '')
 
     # A border width is sometimes a utility (`border-2`) and sometimes plain CSS
     # -- the colour-area thumb is `border: 3px solid white`, which no `@apply`

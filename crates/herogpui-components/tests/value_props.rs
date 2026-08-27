@@ -48,11 +48,12 @@ use std::rc::Rc;
 
 use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext, VisualTestContext};
 use herogpui_components::{
-    util, Autocomplete, CloseButton, ColorChannel, ColorField, ColorSlider, ComboBox, Date,
-    DateField, DateFieldRenderState, Input, InputState, Meter, NumberField, NumberFieldRenderState,
-    NumberFormat, NumberState, PickerColor, ProgressBar, ProgressCircle, SearchField,
-    SearchFieldRenderState, Select, SelectionMode, Slider, Switch, TextField, TextFieldRenderState,
-    TimeField, TimeFieldRenderState, TimeState, ValidationBehavior,
+    util, Autocomplete, CalendarState, CloseButton, ColorChannel, ColorField, ColorSlider,
+    ComboBox, Date, DateField, DateFieldRenderState, DatePicker, Input, InputState, Meter,
+    NumberField, NumberFieldRenderState, NumberFormat, NumberState, PickerColor, ProgressBar,
+    ProgressCircle, SearchField, SearchFieldRenderState, Select, SelectionMode, Slider, Switch,
+    TextField, TextFieldRenderState, TimeField, TimeFieldRenderState, TimeState,
+    ValidationBehavior,
 };
 
 use harness::{click, events, open_host, press};
@@ -1648,6 +1649,70 @@ fn date_field_content_hands_focus_state(cx: &mut TestAppContext) {
             })
             .into_any_element()
     });
+}
+
+#[gpui::test]
+fn date_picker_content_hands_complete_root_state(cx: &mut TestAppContext) {
+    let seen = events();
+    let rendered = seen.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state;
+    let _cx = open_host(cx, move || {
+        let seen = seen.clone();
+        DatePicker::new(state_for_view.clone())
+            .is_open(true)
+            .is_invalid(true)
+            .is_read_only(true)
+            .is_required(true)
+            .content(move |field| {
+                seen.borrow_mut().push(format!(
+                    "{}:{}:{}:{}:{}:{}:{}",
+                    field.is_disabled,
+                    field.is_invalid,
+                    field.is_read_only,
+                    field.is_required,
+                    field.is_focus_within,
+                    field.is_focus_visible,
+                    field.is_open
+                ));
+                gpui::div().into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        rendered.borrow().last().map(String::as_str),
+        Some("false:true:true:true:false:false:true")
+    );
+}
+
+#[gpui::test]
+fn date_picker_content_tracks_focus_within_and_focus_visible(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let rendered = seen.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let input = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state;
+    let input_for_view = input;
+    let cx = open_host(cx, move || {
+        let seen = seen.clone();
+        let input = input_for_view.clone();
+        DatePicker::new(state_for_view.clone())
+            .content(move |field| {
+                seen.borrow_mut()
+                    .push((field.is_focus_within, field.is_focus_visible));
+                Input::new(input.clone()).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    click(cx, 50., 18.);
+    flush_frame(cx);
+    assert_eq!(rendered.borrow().last(), Some(&(true, false)));
+
+    press(cx, "left");
+    flush_frame(cx);
+    assert_eq!(rendered.borrow().last(), Some(&(true, true)));
 }
 
 #[gpui::test]
