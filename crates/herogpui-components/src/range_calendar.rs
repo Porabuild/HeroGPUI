@@ -119,7 +119,7 @@ impl RangeCalendar {
             default_value: None,
             id: ElementId::Name(format!("range-cal-{}", state.entity_id().as_u64()).into()),
             state,
-            constraints: DateConstraints::new(),
+            constraints: DateConstraints::new().with_hero_calendar_bounds(),
             range_date_unavailable: None,
             is_disabled: false,
             is_read_only: false,
@@ -275,7 +275,7 @@ impl RangeCalendar {
 
     /// All the date constraints at once.
     pub fn constraints(mut self, constraints: DateConstraints) -> Self {
-        self.constraints = constraints;
+        self.constraints = constraints.with_hero_calendar_bounds();
         self.range_date_unavailable = None;
         self
     }

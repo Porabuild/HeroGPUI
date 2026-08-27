@@ -118,6 +118,76 @@ fn range_calendar_nav_buttons_stop_at_min_and_max(cx: &mut TestAppContext) {
     assert_eq!(next, (2026, 8), "next must stop at maxValue");
 }
 
+/// HeroUI's Calendar wrapper always supplies Gregorian 1900-01-01 and
+/// 2099-12-31 when callers omit minValue/maxValue.
+#[gpui::test]
+fn calendar_implicit_bounds_stop_navigation(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 1900;
+        state.view_month = 1;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Calendar::new(state_for_view.clone()).into_any_element()
+    });
+
+    click(cx, 14., 12.);
+    assert_eq!(
+        cx.update(|_, cx| (state.read(cx).view_year, state.read(cx).view_month)),
+        (1900, 1)
+    );
+
+    cx.update(|window, cx| {
+        state.update(cx, |state, _| {
+            state.view_year = 2099;
+            state.view_month = 12;
+        });
+        window.refresh();
+    });
+    click(cx, 238., 12.);
+    assert_eq!(
+        cx.update(|_, cx| (state.read(cx).view_year, state.read(cx).view_month)),
+        (2099, 12)
+    );
+}
+
+#[gpui::test]
+fn range_calendar_implicit_bounds_stop_navigation(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 1900;
+        state.view_month = 1;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        RangeCalendar::new(state_for_view.clone()).into_any_element()
+    });
+
+    click(cx, 14., 12.);
+    assert_eq!(
+        cx.update(|_, cx| (state.read(cx).view_year, state.read(cx).view_month)),
+        (1900, 1)
+    );
+
+    cx.update(|window, cx| {
+        state.update(cx, |state, _| {
+            state.view_year = 2099;
+            state.view_month = 12;
+        });
+        window.refresh();
+    });
+    click(cx, 252., 12.);
+    assert_eq!(
+        cx.update(|_, cx| (state.read(cx).view_year, state.read(cx).view_month)),
+        (2099, 12)
+    );
+}
+
 /// A partly valid visible month keeps navigation alive in the valid direction.
 /// `isDateUnavailable` is deliberately independent: React Stately consults
 /// only minValue/maxValue for the adjacent-day paging predicate, and readOnly

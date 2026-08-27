@@ -375,7 +375,7 @@ impl Calendar {
             default_values: None,
             id: gpui::ElementId::Name(format!("cal-{}", state.entity_id().as_u64()).into()),
             state,
-            constraints: DateConstraints::new(),
+            constraints: DateConstraints::new().with_hero_calendar_bounds(),
             is_disabled: false,
             is_read_only: false,
             autofocus_grid: false,
@@ -499,7 +499,7 @@ impl Calendar {
 
     /// All five date constraints at once, for callers that already hold a set.
     pub fn constraints(mut self, constraints: DateConstraints) -> Self {
-        self.constraints = constraints;
+        self.constraints = constraints.with_hero_calendar_bounds();
         self
     }
 

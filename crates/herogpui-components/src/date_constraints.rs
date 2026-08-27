@@ -89,6 +89,14 @@ impl DateConstraints {
         Self::default()
     }
 
+    /// Fill the bounds HeroUI's Calendar and RangeCalendar roots provide when
+    /// callers omit them. Explicit sides remain authoritative.
+    pub(crate) fn with_hero_calendar_bounds(mut self) -> Self {
+        self.min_value.get_or_insert(Date::new(1900, 1, 1));
+        self.max_value.get_or_insert(Date::new(2099, 12, 31));
+        self
+    }
+
     /// Whether `date` may be selected.
     pub fn allows(&self, date: Date) -> bool {
         if self.out_of_range(date) {
@@ -202,6 +210,38 @@ mod tests {
         assert_eq!(c.constrain(d(2026, 3, 1)), d(2026, 3, 10));
         assert_eq!(c.constrain(d(2026, 3, 15)), d(2026, 3, 15));
         assert_eq!(c.constrain(d(2026, 3, 31)), d(2026, 3, 20));
+    }
+
+    #[test]
+    fn hero_calendar_bounds_fill_only_missing_sides() {
+        let defaults = DateConstraints::new().with_hero_calendar_bounds();
+        assert_eq!(defaults.min_value, Some(d(1900, 1, 1)));
+        assert_eq!(defaults.max_value, Some(d(2099, 12, 31)));
+
+        let explicit = DateConstraints {
+            min_value: Some(d(2020, 2, 3)),
+            max_value: Some(d(2030, 4, 5)),
+            ..DateConstraints::new()
+        }
+        .with_hero_calendar_bounds();
+        assert_eq!(explicit.min_value, Some(d(2020, 2, 3)));
+        assert_eq!(explicit.max_value, Some(d(2030, 4, 5)));
+
+        let minimum_only = DateConstraints {
+            min_value: Some(d(2020, 2, 3)),
+            ..DateConstraints::new()
+        }
+        .with_hero_calendar_bounds();
+        assert_eq!(minimum_only.min_value, Some(d(2020, 2, 3)));
+        assert_eq!(minimum_only.max_value, Some(d(2099, 12, 31)));
+
+        let maximum_only = DateConstraints {
+            max_value: Some(d(2030, 4, 5)),
+            ..DateConstraints::new()
+        }
+        .with_hero_calendar_bounds();
+        assert_eq!(maximum_only.min_value, Some(d(1900, 1, 1)));
+        assert_eq!(maximum_only.max_value, Some(d(2030, 4, 5)));
     }
 
     #[test]
