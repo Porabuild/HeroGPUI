@@ -1844,6 +1844,40 @@ impl Widget {
     }
 
     #[test]
+    fn accordion_metadata_tracks_item_ownership_custom_indicator_and_style_limits() {
+        let metadata = reference_metadata::for_route(
+            "Accordion",
+            "use herogpui::components::accordion::{Accordion, AccordionItem};",
+        )
+        .expect("Accordion metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for prop in ["isDisabled", "defaultExpanded", "onExpandedChange"] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "Accordion.Item"
+                    && entry.prop == prop
+                    && entry.rust_owner == "AccordionItem"
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "Accordion.Indicator"
+                && entry.prop == "children"
+                && entry.rust == "indicator(render)"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Hovered"
+                && entry.description.contains("closed")
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".accordion__panel"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+    }
+
+    #[test]
     fn metadata_validation_rejects_bogus_method_owner_and_page() {
         let metadata = reference_metadata::for_route(
             "Dropdown",

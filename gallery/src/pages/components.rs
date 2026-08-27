@@ -7956,17 +7956,37 @@ impl Gallery {
                 ),
                 (
                     "Custom Indicator",
-                    col(vec![
-                        para(
-                            "v3 replaces `Accordion.Indicator`. The chevron here rotates with \
-                             the item's state, which is the same affordance.",
-                            cx,
-                        ),
-                        h::Accordion::new(items())
-                            .id("acc-indicator")
-                            .default_expanded("2")
-                            .into_any_element(),
-                    ]),
+                    col(vec![h::Accordion::new(vec![
+                        h::AccordionItem::new("shipping", "Shipping details")
+                            .content(gpui::div().child("Free shipping on orders over $50."))
+                            .indicator(|state, _, cx| {
+                                gpui::svg()
+                                    .size(px(16.))
+                                    .path(if state.is_expanded {
+                                        h::icons::MINUS
+                                    } else {
+                                        h::icons::PLUS
+                                    })
+                                    .text_color(cx.colors().muted)
+                                    .into_any_element()
+                            }),
+                        h::AccordionItem::new("returns", "Returns policy")
+                            .content(gpui::div().child("Returns are accepted within thirty days."))
+                            .indicator(|state, _, cx| {
+                                gpui::svg()
+                                    .size(px(16.))
+                                    .path(if state.is_expanded {
+                                        h::icons::MINUS
+                                    } else {
+                                        h::icons::PLUS
+                                    })
+                                    .text_color(cx.colors().muted)
+                                    .into_any_element()
+                            }),
+                    ])
+                    .id("acc-indicator")
+                    .default_expanded("shipping")
+                    .into_any_element()]),
                 ),
                 (
                     "FAQ Layout",

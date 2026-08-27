@@ -215,23 +215,12 @@ ALIAS = {
     # the `DateRangePicker` compatibility convention.
     'Slider.Thumb.isDisabled': 'disabled_keys',
     'Slider.Thumb.name': 'thumb_names',
-    # Accordion.Trigger's extra press handler, and Accordion.Item's controlled
-    # expansion, are expressed on the group.
+    # Accordion.Trigger's extra press handler and Accordion.Item's controlled
+    # expansion are expressed on the group. The item's own isDisabled,
+    # defaultExpanded and onExpandedChange builders live on AccordionItem and
+    # must resolve through PART_STRUCTS without aliases.
     'Accordion.onPress': 'on_toggle',
     'Accordion.isExpanded': 'expanded_keys',
-    # Accordion.Item's per-item state is expressed on the group, each under a
-    # name that names the group-level facility: `disabled_keys` (the render
-    # disables an item whose key is in the set), `default_expanded` (the
-    # source documents it as "`defaultExpanded` on a single item"), and
-    # `on_toggle`, which reports the key of the item that moved -- the
-    # per-item half of `onExpandedChange`, whose group half reports the whole
-    # set (`Accordion.onExpandedChange`). `isDisabled` on the Trigger is the
-    # item's disabled state: v3's trigger is the item's header, and the port
-    # draws both from the item.
-    'Accordion.Item.isDisabled': 'disabled_keys',
-    'Accordion.Trigger.isDisabled': 'disabled_keys',
-    'Accordion.Item.defaultExpanded': 'default_expanded',
-    'Accordion.Item.onExpandedChange': 'on_toggle',
     # Autocomplete.ClearButton's click handler.
     'Autocomplete.onClick': 'on_clear',
     'ColorSwatchPicker.variant': 'shape',

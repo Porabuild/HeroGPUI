@@ -274,6 +274,69 @@ fn accordion_default_expanded_seed_opens_and_toggles(cx: &mut TestAppContext) {
     );
 }
 
+#[gpui::test]
+fn accordion_item_owns_default_disabled_change_and_indicator_state(cx: &mut TestAppContext) {
+    let changed = events();
+    let reported = changed.clone();
+    let indicator_states = events();
+    let observed = indicator_states.clone();
+    let cx = open_host(cx, move || {
+        let changed = changed.clone();
+        let first_states = indicator_states.clone();
+        let second_states = indicator_states.clone();
+        Accordion::new(vec![
+            AccordionItem::new("alpha", "Alpha")
+                .default_expanded(true)
+                .content(gpui::div().h(px(40.)))
+                .indicator(move |state, _, _| {
+                    first_states
+                        .borrow_mut()
+                        .push(format!("alpha:{}:{}", state.is_expanded, state.is_disabled));
+                    gpui::div()
+                        .child(if state.is_expanded { "−" } else { "+" })
+                        .into_any_element()
+                })
+                .on_expanded_change(move |expanded, _, _| {
+                    changed.borrow_mut().push(expanded.to_string());
+                }),
+            AccordionItem::new("beta", "Beta")
+                .is_disabled(true)
+                .indicator(move |state, _, _| {
+                    second_states
+                        .borrow_mut()
+                        .push(format!("beta:{}:{}", state.is_expanded, state.is_disabled));
+                    gpui::div().child("+").into_any_element()
+                }),
+        ])
+        .id("nvd-accordion-item-contract")
+        .into_any_element()
+    });
+
+    assert!(observed
+        .borrow()
+        .iter()
+        .any(|state| state == "alpha:true:false"));
+    assert!(observed
+        .borrow()
+        .iter()
+        .any(|state| state == "beta:false:true"));
+
+    click(cx, 60., 26.);
+    flush_frame(cx);
+    assert_eq!(reported.borrow().as_slice(), ["false"]);
+    assert!(observed
+        .borrow()
+        .iter()
+        .any(|state| state == "alpha:false:false"));
+
+    click(cx, 60., 79.);
+    assert_eq!(
+        reported.borrow().as_slice(),
+        ["false"],
+        "the item-level disabled prop must block its trigger and callback"
+    );
+}
+
 /// A focusable control inside an open item's body is part of the Tab walk;
 /// inside a closed item it does not exist — the port unmounts the body. v3's
 /// migration page says content is "always mounted in v3", but the react-aria

@@ -10407,6 +10407,135 @@ pub(crate) const TABLE: ReferenceMetadata = ReferenceMetadata {
     styling: TABLE_STYLING,
 };
 
+const ACCORDION_REQUIRED_PARTS: &[&str] = &[
+    "Accordion",
+    "Accordion.Item",
+    "Accordion.Heading",
+    "Accordion.Trigger",
+    "Accordion.Indicator",
+    "Accordion.Panel",
+    "Accordion.Body",
+];
+
+const ACCORDION_API: &[ApiDoc] = &[
+    ApiDoc { owner: "Accordion", prop: "allowsMultipleExpanded", ty: "boolean", default: "false", description: "Allows more than one item to remain expanded.", rust_owner: "Accordion", rust: "allows_multiple_expanded(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion", prop: "defaultExpandedKeys", ty: "Iterable<Key>", default: "—", description: "Seeds the uncontrolled expanded-key set.", rust_owner: "Accordion", rust: "default_expanded_keys(keys)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion", prop: "expandedKeys", ty: "Iterable<Key>", default: "—", description: "The caller-owned expanded-key set.", rust_owner: "Accordion", rust: "expanded_keys(keys)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion", prop: "onExpandedChange", ty: "(keys: Set<Key>) => void", default: "—", description: "Reports the complete proposed expanded-key set.", rust_owner: "Accordion", rust: "on_expanded_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion", prop: "isDisabled", ty: "boolean", default: "false", description: "Disables every item trigger.", rust_owner: "Accordion", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion", prop: "variant", ty: "\"default\" | \"surface\"", default: "\"default\"", description: "Selects the flush or rounded surface treatment.", rust_owner: "Accordion", rust: "variant(AccordionVariant)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion", prop: "hideSeparator", ty: "boolean", default: "false", description: "Hides the rules between items.", rust_owner: "Accordion", rust: "hide_separator(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion", prop: "children", ty: "ReactNode", default: "—", description: "Typed AccordionItem values replace arbitrary compound children.", rust_owner: "Accordion", rust: "new(items)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Accordion", prop: "className", ty: "string", default: "—", description: "Arbitrary CSS classes have no GPUI equivalent.", rust_owner: "Accordion", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Accordion", prop: "render", ty: "DOMRenderFunction<AccordionRenderProps>", default: "—", description: "DOM element substitution has no GPUI equivalent.", rust_owner: "Accordion", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Accordion.Item", prop: "id", ty: "Key", default: "—", description: "Stable item identity used by every expanded and disabled set.", rust_owner: "AccordionItem", rust: "new(key, title)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion.Item", prop: "isDisabled", ty: "boolean", default: "false", description: "Disables this item's trigger independently.", rust_owner: "AccordionItem", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion.Item", prop: "defaultExpanded", ty: "boolean", default: "false", description: "Seeds this item into the uncontrolled group set.", rust_owner: "AccordionItem", rust: "default_expanded(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion.Item", prop: "isExpanded", ty: "boolean", default: "—", description: "Within a group, pinned React Aria derives this from expandedKeys; the port does the same.", rust_owner: "Accordion", rust: "expanded_keys(keys)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion.Item", prop: "onExpandedChange", ty: "(isExpanded: boolean) => void", default: "—", description: "Reports this item's proposed expanded state.", rust_owner: "AccordionItem", rust: "on_expanded_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion.Item", prop: "children", ty: "ReactNode", default: "—", description: "Title, optional subtitle, indicator and body are typed composition seams.", rust_owner: "AccordionItem", rust: "new(key, title) + subtitle(text) + indicator(render) + content(body)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Accordion.Item", prop: "className", ty: "string", default: "—", description: "Arbitrary item classes have no GPUI equivalent.", rust_owner: "AccordionItem", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Accordion.Item", prop: "render", ty: "DOMRenderFunction<AccordionItemRenderProps>", default: "—", description: "DOM element substitution has no GPUI equivalent.", rust_owner: "AccordionItem", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Accordion.Trigger", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "The title and subtitle are typed text; the indicator is independently replaceable.", rust_owner: "AccordionItem", rust: "new(key, title) + subtitle(text)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Accordion.Trigger", prop: "onPress", ty: "() => void", default: "—", description: "Reports the key whose trigger was pressed.", rust_owner: "Accordion", rust: "on_toggle(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion.Trigger", prop: "isDisabled", ty: "boolean", default: "—", description: "Reads the owning item's disabled state.", rust_owner: "AccordionItem", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion.Trigger", prop: "className", ty: "string", default: "—", description: "Arbitrary trigger classes have no GPUI equivalent.", rust_owner: "AccordionItem", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Accordion.Trigger", prop: "render", ty: "DOMRenderFunction<TriggerRenderProps>", default: "—", description: "DOM element substitution has no GPUI equivalent.", rust_owner: "AccordionItem", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Accordion.Panel", prop: "children", ty: "ReactNode", default: "—", description: "Caller-provided panel body content.", rust_owner: "AccordionItem", rust: "content(body)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion.Panel", prop: "className", ty: "string", default: "—", description: "Arbitrary panel classes have no GPUI equivalent.", rust_owner: "AccordionItem", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Accordion.Panel", prop: "render", ty: "DOMRenderFunction<AccordionPanelRenderProps>", default: "—", description: "DOM element substitution has no GPUI equivalent.", rust_owner: "AccordionItem", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Accordion.Indicator", prop: "children", ty: "ReactNode", default: "chevron", description: "Custom indicator content receives the live item state.", rust_owner: "AccordionItem", rust: "indicator(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion.Indicator", prop: "className", ty: "string", default: "—", description: "Arbitrary indicator classes have no GPUI equivalent.", rust_owner: "AccordionItem", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Accordion.Body", prop: "children", ty: "ReactNode", default: "—", description: "The item body content.", rust_owner: "AccordionItem", rust: "content(body)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Accordion.Body", prop: "className", ty: "string", default: "—", description: "Arbitrary body classes have no GPUI equivalent.", rust_owner: "AccordionItem", rust: "—", status: ImplementationStatus::Unavailable },
+];
+
+const ACCORDION_PARTS: &[PartDoc] = &[
+    PartDoc { name: "Accordion", slot: "accordion", description: "Full-width owner of item expansion and presentation.", rust_owner: "Accordion", status: ImplementationStatus::Implemented },
+    PartDoc { name: "Accordion.Item", slot: "accordion-item", description: "Keyed item holding trigger and body configuration.", rust_owner: "AccordionItem", status: ImplementationStatus::Implemented },
+    PartDoc { name: "Accordion.Heading", slot: "accordion-heading", description: "Heading semantics are folded into the trigger row because GPUI has no heading accessibility node.", rust_owner: "AccordionItem", status: ImplementationStatus::Partial },
+    PartDoc { name: "Accordion.Trigger", slot: "accordion-trigger", description: "Focusable, pointer-pressable item header.", rust_owner: "AccordionItem", status: ImplementationStatus::Implemented },
+    PartDoc { name: "Accordion.Indicator", slot: "accordion-indicator", description: "Built-in chevron or caller content receiving AccordionItemState.", rust_owner: "AccordionItem", status: ImplementationStatus::Implemented },
+    PartDoc { name: "Accordion.Panel", slot: "accordion-panel", description: "Expanded body host; collapsed content leaves the tree.", rust_owner: "AccordionItem", status: ImplementationStatus::Partial },
+    PartDoc { name: "Accordion.Body", slot: "accordion-body", description: "Padded, muted body around caller content.", rust_owner: "AccordionItem", status: ImplementationStatus::Implemented },
+];
+
+const ACCORDION_STATES: &[StateDoc] = &[
+    StateDoc {
+        state: "Expanded",
+        selector: "[aria-expanded=true] / [data-expanded=true]",
+        description: "Shows the panel and supplies true to custom indicator content.",
+        rust: "expanded_keys + AccordionItemState::is_expanded",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Hovered",
+        selector: ":hover:not([aria-expanded=true]) / [data-hovered=true]",
+        description: "Only a closed enabled trigger receives the hover fill.",
+        rust: "!is_open header.hover(default.soft)",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Focus visible",
+        selector: ":focus-visible / [data-focus-visible=true]",
+        description: "Keyboard focus draws the inset status ring on the trigger.",
+        rust: "tab_stop_handle + with_focus_ring",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Disabled",
+        selector: ":disabled / [aria-disabled=true]",
+        description:
+            "Group, keyed-set and item flags remove press and focus while dimming the trigger.",
+        rust: "is_disabled + disabled_keys + AccordionItem::is_disabled",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Single expansion",
+        selector: "allowsMultipleExpanded=false",
+        description: "Opening an item replaces the previous expanded set by default.",
+        rust: "allows_multiple_expanded(false)",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Multiple expansion",
+        selector: "allowsMultipleExpanded=true",
+        description: "Opening an item preserves expanded siblings.",
+        rust: "allows_multiple_expanded(true)",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const ACCORDION_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".accordion", value: "w-full; contain: layout style", description: "The full-width layout matches; GPUI has no CSS containment switch.", rust: "w_full()", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".accordion__body", value: "text-sm", description: "Body content uses 14px type.", rust: "text_size(px(14.))", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".accordion__body-inner", value: "px-4 pt-0 pb-4 text-muted", description: "Horizontal and bottom inset and muted color match; the port retains a 2px top inset.", rust: "px(16.) pt(2.) pb(16.) text_color(muted)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".accordion__heading", value: "flex", description: "The trigger row supplies the layout without a separate heading wrapper.", rust: "header flex", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".accordion__indicator", value: "ms-auto size-4 shrink-0 text-muted; rotate 250ms; reduced-motion none", description: "Size, trailing placement and custom content match; built-in glyphs swap without rotation interpolation.", rust: "size(16.) flex_shrink_0 + indicator(render)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".accordion__item::after", value: "absolute bottom h-px w-full rounded-xs bg-separator", description: "The same one-pixel rule is a flow child rather than an absolute pseudo-element.", rust: "h(1.) w_full hairline_radius separator", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".accordion__trigger", value: "flex flex-1 items-center justify-between px-4 py-4 text-sm font-medium", description: "Trigger geometry and typography match.", rust: "flex items_center justify_between px(16.) py(16.) text 14 medium", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".accordion__trigger transition", value: "opacity and box-shadow 150ms ease-out; reduced-motion none", description: "The port reaches focus and disabled endpoints without interpolating them.", rust: "immediate style state", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".accordion__trigger hover", value: "closed default: foreground 3% mix; surface: bg-default", description: "Hover is correctly limited to closed triggers; the default variant uses default-soft rather than the exact foreground mix.", rust: "!is_open hover(default.soft)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".accordion__panel", value: "height 200ms ease-out-quad; opacity 200ms ease-out; overflow clip", description: "Expanded content is laid out at its endpoint and collapsed content leaves immediately.", rust: "conditional body child", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".accordion--surface", value: "bg-surface; min(32px, radius-3xl)", description: "Surface fill, clipped radius and absence of an extra shadow match.", rust: "surface.background + container_radius + overflow_hidden", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".accordion--surface item separators", value: "start 3%; width 94%; surface-foreground/6", description: "Inset geometry matches; the semantic separator token supplies the line color.", rust: "mx(relative(.03)) w(relative(.94)) separator", status: ImplementationStatus::Implemented },
+];
+
+pub(crate) const ACCORDION: ReferenceMetadata = ReferenceMetadata {
+    page: "Accordion",
+    import_line: "use herogpui::components::accordion::{Accordion, AccordionItem};",
+    source_module: "accordion",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(navigation)/accordion.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/accordion/accordion.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/Disclosure.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/accordion.css",
+    required_parts: ACCORDION_REQUIRED_PARTS,
+    api: ACCORDION_API,
+    parts: ACCORDION_PARTS,
+    states: ACCORDION_STATES,
+    styling: ACCORDION_STYLING,
+};
+
 const DISCLOSURE_REQUIRED_PARTS: &[&str] = &[
     "DisclosureGroup",
     "Disclosure",
@@ -10586,6 +10715,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     SELECT,
     TOOLTIP,
     TABLE,
+    ACCORDION,
     DISCLOSURE,
 ];
 

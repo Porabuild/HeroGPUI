@@ -10,12 +10,27 @@ use herogpui_theme::ActiveTheme;
 
 use crate::icons;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AccordionItemState {
+    pub is_expanded: bool,
+    pub is_disabled: bool,
+}
+
+pub type AccordionIndicatorContent =
+    std::sync::Arc<dyn Fn(AccordionItemState, &mut Window, &mut App) -> AnyElement + 'static>;
+pub type AccordionItemExpandedChange =
+    std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>;
+
 /// One accordion entry.
 pub struct AccordionItem {
     pub key: SharedString,
     pub title: SharedString,
     pub subtitle: Option<SharedString>,
     pub content: AnyElement,
+    pub is_disabled: bool,
+    pub default_expanded: bool,
+    pub indicator: Option<AccordionIndicatorContent>,
+    pub on_expanded_change: Option<AccordionItemExpandedChange>,
 }
 
 impl AccordionItem {
@@ -25,6 +40,10 @@ impl AccordionItem {
             title: title.into(),
             subtitle: None,
             content: gpui::div().into_any_element(),
+            is_disabled: false,
+            default_expanded: false,
+            indicator: None,
+            on_expanded_change: None,
         }
     }
 
@@ -35,6 +54,32 @@ impl AccordionItem {
 
     pub fn content(mut self, el: impl IntoElement) -> Self {
         self.content = el.into_any_element();
+        self
+    }
+
+    pub fn is_disabled(mut self, v: bool) -> Self {
+        self.is_disabled = v;
+        self
+    }
+
+    pub fn default_expanded(mut self, v: bool) -> Self {
+        self.default_expanded = v;
+        self
+    }
+
+    pub fn indicator(
+        mut self,
+        render: impl Fn(AccordionItemState, &mut Window, &mut App) -> AnyElement + 'static,
+    ) -> Self {
+        self.indicator = Some(std::sync::Arc::new(render));
+        self
+    }
+
+    pub fn on_expanded_change(
+        mut self,
+        handler: impl Fn(bool, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_expanded_change = Some(std::sync::Arc::new(handler));
         self
     }
 }
@@ -213,16 +258,23 @@ impl RenderOnce for Accordion {
         // `expandedKeys` wins; without it the accordion holds the set, seeded
         // from `defaultExpandedKeys`. `controlled` takes `cx` mutably, so it
         // precedes the theme tokens.
+        let mut default_expanded_keys = self.default_expanded_keys.clone();
+        default_expanded_keys.extend(
+            self.items
+                .iter()
+                .filter(|item| item.default_expanded)
+                .map(|item| item.key.clone()),
+        );
         let (expanded_keys, expanded_own) = crate::util::controlled(
             window,
             cx,
             id.clone(),
             self.expanded_keys.clone(),
-            self.default_expanded_keys.clone(),
+            default_expanded_keys,
         );
 
-        let colors = cx.colors();
-        let layout = cx.layout();
+        let colors = cx.colors().clone();
+        let layout = cx.layout().clone();
 
         // `.accordion` is `w-full` and nothing else: the default variant is
         // flush with the page. Only `.accordion--surface` paints a background
@@ -233,10 +285,7 @@ impl RenderOnce for Accordion {
             AccordionVariant::Surface => gpui::div()
                 .bg(colors.surface.background)
                 .rounded(crate::util::container_radius(cx))
-                .overflow_hidden()
-                .when(!layout.surface_shadow.is_empty(), |e| {
-                    e.shadow(layout.surface_shadow.clone())
-                }),
+                .overflow_hidden(),
         };
 
         container = container.w_full().flex().flex_col();
@@ -245,7 +294,12 @@ impl RenderOnce for Accordion {
         let ring_visible = crate::util::focus_visible(cx);
         for (i, item) in self.items.into_iter().enumerate() {
             let is_open = expanded_keys.contains(&item.key);
-            let item_disabled = self.is_disabled || self.disabled_keys.contains(&item.key);
+            let item_disabled =
+                self.is_disabled || item.is_disabled || self.disabled_keys.contains(&item.key);
+            let item_state = AccordionItemState {
+                is_expanded: is_open,
+                is_disabled: item_disabled,
+            };
 
             // `.accordion__trigger:focus-visible` is `status-focused`.
             let header_focus = trigger_focus.get(i);
@@ -265,10 +319,12 @@ impl RenderOnce for Accordion {
 
             if item_disabled {
                 header = header.opacity(layout.disabled_opacity);
-            } else {
+            } else if !is_open {
                 // v3 hovers the row surface rather than dimming its text.
                 let hover_bg = colors.default.soft();
                 header = header.cursor_pointer().hover(move |s| s.bg(hover_bg));
+            } else {
+                header = header.cursor_pointer();
             }
 
             let mut title_col = gpui::div().flex().flex_col();
@@ -290,28 +346,41 @@ impl RenderOnce for Accordion {
             }
             header = header.child(title_col);
 
-            let chevron = if is_open {
-                icons::CHEVRON_UP
+            let indicator = if let Some(render) = &item.indicator {
+                gpui::div()
+                    .size(px(16.))
+                    .flex_shrink_0()
+                    .text_color(colors.muted)
+                    .child(render(item_state, window, cx))
+                    .into_any_element()
             } else {
-                icons::CHEVRON_DOWN
-            };
-            header = header.child(
                 gpui::svg()
                     // `.accordion__indicator` is `size-4`.
                     .size(px(16.))
-                    .path(chevron)
+                    .path(if is_open {
+                        icons::CHEVRON_UP
+                    } else {
+                        icons::CHEVRON_DOWN
+                    })
                     .text_color(colors.muted)
-                    .flex_shrink_0(),
-            );
+                    .flex_shrink_0()
+                    .into_any_element()
+            };
+            header = header.child(indicator);
 
             if !item_disabled {
                 let key = item.key.clone();
                 let on_toggle = self.on_toggle.clone();
                 let on_expanded = self.on_expanded_change.clone();
+                let on_item_expanded = item.on_expanded_change.clone();
                 let current = expanded_keys.clone();
                 let multiple = self.allows_multiple_expanded;
                 let own = expanded_own.clone();
-                if on_toggle.is_some() || on_expanded.is_some() || own.is_some() {
+                if on_toggle.is_some()
+                    || on_expanded.is_some()
+                    || on_item_expanded.is_some()
+                    || own.is_some()
+                {
                     header = header.on_click(move |_, window, cx| {
                         let next = next_expanded(&current, &key, multiple);
                         // Uncontrolled: update our own set, or the header would
@@ -328,6 +397,9 @@ impl RenderOnce for Accordion {
                         }
                         if let Some(cb) = &on_expanded {
                             cb(&next, window, cx);
+                        }
+                        if let Some(cb) = &on_item_expanded {
+                            cb(!is_open, window, cx);
                         }
                     });
                 }
