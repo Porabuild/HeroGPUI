@@ -688,6 +688,7 @@ pub struct Input {
     /// `defaultValue` — seeds the state on the first render only.
     default_value: Option<SharedString>,
     is_clearable: bool,
+    clear_content: Option<gpui::AnyElement>,
     /// SearchField-only: Escape clears a non-empty query.
     clear_on_escape: bool,
     /// SearchField-only: the clear affordance and Escape report this action.
@@ -765,6 +766,7 @@ impl Input {
             default_value: None,
             multiline: false,
             is_clearable: false,
+            clear_content: None,
             clear_on_escape: false,
             on_clear: None,
             on_change: None,
@@ -972,6 +974,11 @@ impl Input {
     /// Shows a clear button when there is a value.
     pub fn is_clearable(mut self, v: bool) -> Self {
         self.is_clearable = v;
+        self
+    }
+
+    fn clear_content(mut self, content: impl IntoElement) -> Self {
+        self.clear_content = Some(content.into_any_element());
         self
     }
 
@@ -1377,6 +1384,14 @@ impl RenderOnce for Input {
         field = field.child(row);
         // isClearable — show X when has value and not disabled/readonly
         if self.is_clearable && !is_empty && !self.is_disabled && !self.is_read_only {
+            let clear_content = match self.clear_content {
+                Some(content) => content,
+                None => gpui::svg()
+                    .size(px(12.))
+                    .path(crate::icons::CLOSE)
+                    .text_color(colors.muted)
+                    .into_any_element(),
+            };
             let clear_state = self.state.clone();
             let clear_on_change = self.on_change.clone();
             let on_clear = self.on_clear.clone();
@@ -1413,12 +1428,7 @@ impl RenderOnce for Input {
                             cb(window, cx);
                         }
                     })
-                    .child(
-                        gpui::svg()
-                            .size(px(12.))
-                            .path(crate::icons::CLOSE)
-                            .text_color(colors.muted),
-                    ),
+                    .child(clear_content),
             );
         }
         field = field.children(self.end_content);
@@ -1915,6 +1925,8 @@ pub struct SearchField {
     on_clear: Option<std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>>,
     /// `SearchField.SearchIcon` — the leading glyph. `None` draws the magnifier.
     search_icon: Option<gpui::AnyElement>,
+    /// `SearchField.ClearButton` children. `None` draws the close glyph.
+    clear_icon: Option<gpui::AnyElement>,
     /// Trailing content inside the field, before the clear button. v3 composes
     /// it (a `Kbd` with the shortcut, in its "With Keyboard Shortcut" example).
     end_content: Option<gpui::AnyElement>,
@@ -1954,6 +1966,7 @@ impl SearchField {
             on_submit: None,
             on_clear: None,
             search_icon: None,
+            clear_icon: None,
             end_content: None,
         }
     }
@@ -2013,6 +2026,12 @@ impl SearchField {
     /// `SearchField.SearchIcon` — replaces the leading magnifier.
     pub fn search_icon(mut self, el: impl IntoElement) -> Self {
         self.search_icon = Some(el.into_any_element());
+        self
+    }
+
+    /// Replaces the glyph inside `SearchField.ClearButton`.
+    pub fn clear_icon(mut self, el: impl IntoElement) -> Self {
+        self.clear_icon = Some(el.into_any_element());
         self
     }
 
@@ -2118,6 +2137,9 @@ impl RenderOnce for SearchField {
                     .text_color(colors.muted)
                     .into_any_element(),
             });
+        if let Some(icon) = self.clear_icon {
+            input = input.clear_content(icon);
+        }
         if let Some(end) = self.end_content {
             input = input.end_content(end);
         }

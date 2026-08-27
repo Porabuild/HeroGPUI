@@ -314,6 +314,33 @@ fn search_field_clear_and_submit(cx: &mut TestAppContext) {
     assert_eq!(after, "abc", "the InputState must hold the typed value");
 }
 
+#[gpui::test]
+fn search_field_custom_clear_icon_preserves_clear_behavior(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let clears = events();
+    let cleared = clears.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let clears = clears.clone();
+        SearchField::new(state_for_view.clone())
+            .clear_icon(gpui::div().size(px(12.)).child("!"))
+            .on_change(move |text, _, _| changes.borrow_mut().push(text.to_owned()))
+            .on_clear(move |_, _| clears.borrow_mut().push("clear".to_owned()))
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("rust");
+    click(cx, 298., 18.);
+    assert_eq!(recorded.borrow().last().map(String::as_str), Some(""));
+    assert_eq!(cleared.borrow().as_slice(), ["clear"]);
+    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(value, "");
+}
+
 // ---------------------------------------------------------------------------
 // InputOTP
 // ---------------------------------------------------------------------------

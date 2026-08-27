@@ -1078,7 +1078,7 @@ impl Widget {
         assert!(metadata.api.iter().any(|entry| {
             entry.owner == "SearchField.ClearButton"
                 && entry.prop == "children"
-                && entry.status == reference_metadata::ImplementationStatus::Unavailable
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".search-field__group transitions"

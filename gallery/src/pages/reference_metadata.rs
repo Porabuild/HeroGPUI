@@ -5012,7 +5012,7 @@ const SEARCH_FIELD_API: &[ApiDoc] = &[
     ApiDoc { owner: "SearchField.Input", prop: "type", ty: "string", default: "\"search\"", description: "SearchField has one fixed input mode, so there is no selectable type builder.", rust_owner: "SearchField", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "SearchField.SearchIcon", prop: "children", ty: "ReactNode", default: "search icon", description: "Replaces the leading magnifier.", rust_owner: "SearchField", rust: "search_icon(element)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "SearchField.SearchIcon", prop: "className", ty: "string", default: "—", description: "Arbitrary icon classes are unavailable.", rust_owner: "SearchField", rust: "—", status: ImplementationStatus::Unavailable },
-    ApiDoc { owner: "SearchField.ClearButton", prop: "children", ty: "ReactNode", default: "close icon", description: "The local clear affordance uses the pinned built-in close glyph and does not expose replacement content.", rust_owner: "SearchField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "SearchField.ClearButton", prop: "children", ty: "ReactNode", default: "close icon", description: "Replaces the glyph while preserving the built-in clear action and geometry.", rust_owner: "SearchField", rust: "clear_icon(element)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "SearchField.ClearButton", prop: "className", ty: "string", default: "—", description: "Arbitrary clear-button classes are unavailable.", rust_owner: "SearchField", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "SearchField.ClearButton", prop: "slot", ty: "\"clear\"", default: "\"clear\"", description: "The built-in clear affordance always owns clear behavior rather than exposing a caller slot.", rust_owner: "SearchField", rust: "on_clear(callback)", status: ImplementationStatus::Partial },
 ];
@@ -5049,9 +5049,9 @@ const SEARCH_FIELD_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "SearchField.ClearButton",
         slot: "search-field-clear-button",
-        description: "Built-in clear action shown only for an editable non-empty query.",
+        description: "Clear action with built-in or caller-supplied glyph, shown only for an editable non-empty query.",
         rust_owner: "Input",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
 ];
 

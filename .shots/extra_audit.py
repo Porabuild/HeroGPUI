@@ -233,6 +233,7 @@ EXTRA_OK_SCOPED = {
     # `SearchField.SearchIcon` is a composed part; replacing it is v3's
     # "Custom Icons" example.
     'SearchField.search_icon': 'composition',
+    'SearchField.clear_icon': 'composition',
     # `Checkbox.Indicator` takes children (the closure receives CheckboxState),
     # and its "Full Rounded" example rounds `Checkbox.Control` with a class.
     'Checkbox.indicator': 'composition',

@@ -7027,7 +7027,7 @@ impl Gallery {
         let controlled = self.demo_text("sf-controlled", "", cx);
         let validated = self.demo_text("sf-validated", "", cx);
         let form_field = self.demo_text("sf-form", "", cx);
-        let icons = self.demo_text("sf-icons", "", cx);
+        let icons = self.demo_text("sf-icons", "HeroUI", cx);
         let shortcut = self.demo_text("sf-shortcut", "", cx);
         let render_props = self.demo_text("sf-render-props", "hero", cx);
         let controlled_text = controlled.read(cx).value().to_owned();
@@ -7207,6 +7207,7 @@ impl Gallery {
                     col(vec![h::SearchField::new(icons)
                         .label("Search")
                         .search_icon(icon(h::icons::GLOBE, cx))
+                        .clear_icon(icon(h::icons::CHECK, cx))
                         .into_any_element()]),
                 ),
                 (
