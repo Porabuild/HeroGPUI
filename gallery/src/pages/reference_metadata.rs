@@ -4776,6 +4776,109 @@ pub(crate) const PAGINATION: ReferenceMetadata = ReferenceMetadata {
     styling: PAGINATION_STYLING,
 };
 
+const INPUT_REQUIRED_PARTS: &[&str] = &["Input"];
+
+const INPUT_API: &[ApiDoc] = &[
+    ApiDoc { owner: "Input", prop: "className", ty: "string", default: "—", description: "Tailwind class merging has no GPUI analogue.", rust_owner: "Input", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Input", prop: "type", ty: "string", default: "\"text\"", description: "Text, password, email, number, telephone, URL and search modes are represented; browser-only input types and native email/URL validation are not.", rust_owner: "Input", rust: "input_type(InputType)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Input", prop: "value", ty: "string", default: "—", description: "Writes the caller-provided controlled value into the owned InputState.", rust_owner: "Input", rust: "value(text, cx)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Input", prop: "defaultValue", ty: "string", default: "—", description: "Seeds the uncontrolled InputState once.", rust_owner: "Input", rust: "default_value(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Input", prop: "onChange", ty: "(event: ChangeEvent<HTMLInputElement>) => void", default: "—", description: "Reports the current text after accepted edits; rejected maxLength/type edits do not emit duplicate changes.", rust_owner: "Input", rust: "on_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Input", prop: "placeholder", ty: "string", default: "—", description: "Placeholder shown while empty and unfocused.", rust_owner: "Input", rust: "placeholder(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Input", prop: "disabled", ty: "boolean", default: "false", description: "Removes focus and editing and applies disabled opacity.", rust_owner: "Input", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Input", prop: "readOnly", ty: "boolean", default: "false", description: "Keeps focus and selection while suppressing edits.", rust_owner: "Input", rust: "is_read_only(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Input", prop: "required", ty: "boolean", default: "false", description: "Participates in the HeroGPUI form validity registry.", rust_owner: "Input", rust: "is_required(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Input", prop: "name", ty: "string", default: "—", description: "Submission name stored with the current field value.", rust_owner: "Input", rust: "name(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Input", prop: "autoComplete", ty: "string", default: "—", description: "Browser autofill hints have no desktop GPUI equivalent.", rust_owner: "Input", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Input", prop: "maxLength", ty: "number", default: "—", description: "Rejects edits that would exceed the character limit without reporting an unchanged value.", rust_owner: "Input", rust: "max_length(usize)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Input", prop: "minLength", ty: "number", default: "—", description: "Marks a non-empty value invalid below the character minimum.", rust_owner: "Input", rust: "min_length(usize)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Input", prop: "pattern", ty: "string", default: "—", description: "A caller predicate replaces the browser regex-string attribute.", rust_owner: "Input", rust: "pattern(predicate)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Input", prop: "min", ty: "number | string", default: "—", description: "Numeric f64 lower bounds are supported; date/string native input bounds are not.", rust_owner: "Input", rust: "min(f64)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Input", prop: "max", ty: "number | string", default: "—", description: "Numeric f64 upper bounds are supported; date/string native input bounds are not.", rust_owner: "Input", rust: "max(f64)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Input", prop: "step", ty: "number | string", default: "—", description: "Numeric f64 step validity is supported; the native string forms are not.", rust_owner: "Input", rust: "step(f64)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Input", prop: "fullWidth", ty: "boolean", default: "false", description: "Stretches to the available container width.", rust_owner: "Input", rust: "full_width()", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Input", prop: "variant", ty: "\"primary\" | \"secondary\"", default: "\"primary\"", description: "Primary field chrome or the lower-emphasis surface variant.", rust_owner: "Input", rust: "variant(FieldVariant)", status: ImplementationStatus::Implemented },
+];
+
+const INPUT_PARTS: &[PartDoc] = &[PartDoc {
+    name: "Input",
+    slot: "input",
+    description:
+        "Single-line editable field with InputState-backed value, caret, selection and validation.",
+    rust_owner: "Input",
+    status: ImplementationStatus::Implemented,
+}];
+
+const INPUT_STATES: &[StateDoc] = &[
+    StateDoc {
+        state: "Hover",
+        selector: ".input:hover / [data-hovered=true]",
+        description: "Changes field background and border while unfocused.",
+        rust: "apply_field_chrome hover",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Focused",
+        selector: ".input:focus / [data-focused=true]",
+        description: "Draws focused field background, border and ring.",
+        rust: "track_focus + apply_field_chrome",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Focus visible",
+        selector: ".input:focus-visible / [data-focus-visible=true]",
+        description: "Pinned CSS adds no rule beyond the focused field treatment.",
+        rust: "focused field treatment",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Invalid",
+        selector: ".input[data-invalid=true]",
+        description: "Uses invalid field ring and focused background.",
+        rust: "is_invalid / validity + apply_field_chrome",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Disabled",
+        selector: ".input:disabled / [data-disabled=true]",
+        description: "Applies theme disabled opacity and removes editing/focus.",
+        rust: "is_disabled(bool)",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Read only",
+        selector: ".input[aria-readonly=true]",
+        description: "Retains focus and selection while ignoring mutations.",
+        rust: "is_read_only(bool)",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const INPUT_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".input base", value: "rounded-field border bg-field px-3 py-2 text-base sm:text-sm shadow-field outline-none", description: "Desktop field height, 12px inline inset, 14px desktop type, field radius, colours and shadow match.", rust: "FIELD_HEIGHT + px(px(12.)) + FIELD_TEXT + field_radius + apply_field_chrome", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".input border", value: "--border-width-field / --field-border", description: "Theme field border width and colour chain.", rust: "apply_field_chrome", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".input transitions", value: "background/border 150ms Smooth; shadow 150ms Out; reduced-motion none", description: "State colours switch directly; GPUI has no property-transition implementation for these three values.", rust: "direct apply_field_chrome state colours", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".input hover/focus/invalid", value: "field hover, focused and invalid status tokens", description: "Interactive field chrome follows the pinned token states.", rust: "apply_field_chrome", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".input disabled", value: "status-disabled", description: "Theme-owned disabled opacity.", rust: "opacity(disabled_opacity)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".input--secondary", value: "shadow-none; bg default/default-hover/default-focus", description: "Lower-emphasis surface treatment.", rust: "FieldVariant::Secondary in apply_field_chrome", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".input--full-width", value: "w-full", description: "Full-width modifier.", rust: "full_width()", status: ImplementationStatus::Implemented },
+];
+
+pub(crate) const INPUT: ReferenceMetadata = ReferenceMetadata {
+    page: "Input",
+    import_line: "use herogpui::components::input::{Input, InputState};",
+    source_module: "input",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(forms)/input.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/input/input.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/Input.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/input.css",
+    required_parts: INPUT_REQUIRED_PARTS,
+    api: INPUT_API,
+    parts: INPUT_PARTS,
+    states: INPUT_STATES,
+    styling: INPUT_STYLING,
+};
+
 const INPUT_OTP_REQUIRED_PARTS: &[&str] = &[
     "InputOTP",
     "InputOTP.Group",
@@ -10769,6 +10872,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     TOGGLE_BUTTON,
     SWITCH,
     PAGINATION,
+    INPUT,
     INPUT_OTP,
     TABS,
     CALENDAR,

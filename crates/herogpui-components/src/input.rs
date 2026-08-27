@@ -243,30 +243,32 @@ fn delete_selection(state: &mut InputState) -> bool {
     }
 }
 
-fn backspace(state: &mut InputState) {
+fn backspace(state: &mut InputState) -> bool {
     if delete_selection(state) {
-        return;
+        return true;
     }
     if state.cursor == 0 {
-        return;
+        return false;
     }
     let byte_idx = char_to_byte(&state.value, state.cursor);
     let prev = char_to_byte(&state.value, state.cursor - 1);
     state.value.replace_range(prev..byte_idx, "");
     state.cursor -= 1;
+    true
 }
 
-fn delete(state: &mut InputState) {
+fn delete(state: &mut InputState) -> bool {
     if delete_selection(state) {
-        return;
+        return true;
     }
     let len = state.value.chars().count();
     if state.cursor >= len {
-        return;
+        return false;
     }
     let byte_idx = char_to_byte(&state.value, state.cursor);
     let next = char_to_byte(&state.value, state.cursor + 1);
     state.value.replace_range(byte_idx..next, "");
+    true
 }
 
 fn move_left(state: &mut InputState, extend: bool) {
@@ -1436,15 +1438,19 @@ impl RenderOnce for Input {
                 let cmd = mods.control || mods.platform;
                 if !is_read_only && cmd && key == "v" {
                     if let Some(text) = cx.read_from_clipboard().and_then(|c| c.text()) {
-                        state_entity.update(cx, |s, cx| {
+                        changed = state_entity.update(cx, |s, cx| {
+                            let mut inserted = false;
                             for ch in text.chars() {
                                 if state_accepts(s, ch, input_type, max_length) {
                                     insert_char(s, ch);
+                                    inserted = true;
                                 }
                             }
-                            cx.notify();
+                            if inserted {
+                                cx.notify();
+                            }
+                            inserted
                         });
-                        changed = true;
                     }
                 } else if cmd && (key == "c" || key == "x") {
                     // Paste was here without a copy: a field you can paste into
@@ -1479,21 +1485,25 @@ impl RenderOnce for Input {
                         if is_read_only {
                             return;
                         }
-                        state_entity.update(cx, |s, cx| {
-                            backspace(s);
-                            cx.notify();
+                        changed = state_entity.update(cx, |s, cx| {
+                            let deleted = backspace(s);
+                            if deleted {
+                                cx.notify();
+                            }
+                            deleted
                         });
-                        changed = true;
                     }
                     "delete" => {
                         if is_read_only {
                             return;
                         }
-                        state_entity.update(cx, |s, cx| {
-                            delete(s);
-                            cx.notify();
+                        changed = state_entity.update(cx, |s, cx| {
+                            let deleted = delete(s);
+                            if deleted {
+                                cx.notify();
+                            }
+                            deleted
                         });
-                        changed = true;
                     }
                     "left" => state_entity.update(cx, |s, cx| {
                         move_left(s, shift);
@@ -1537,26 +1547,28 @@ impl RenderOnce for Input {
                         if is_read_only {
                             return;
                         }
-                        state_entity.update(cx, |s, cx| {
-                            if state_accepts(s, NEWLINE, input_type, max_length) {
+                        changed = state_entity.update(cx, |s, cx| {
+                            let inserted = state_accepts(s, NEWLINE, input_type, max_length);
+                            if inserted {
                                 insert_char(s, NEWLINE);
+                                cx.notify();
                             }
-                            cx.notify();
+                            inserted
                         });
-                        changed = true;
                     }
                     "enter" => submit = true,
                     "space" => {
                         if is_read_only {
                             return;
                         }
-                        state_entity.update(cx, |s, cx| {
-                            if state_accepts(s, ' ', input_type, max_length) {
+                        changed = state_entity.update(cx, |s, cx| {
+                            let inserted = state_accepts(s, ' ', input_type, max_length);
+                            if inserted {
                                 insert_char(s, ' ');
+                                cx.notify();
                             }
-                            cx.notify();
+                            inserted
                         });
-                        changed = true;
                     }
                     "escape" => {
                         let had_value = !state_entity.read(cx).is_empty();
@@ -1587,13 +1599,14 @@ impl RenderOnce for Input {
                         let (Some(c), None) = (chars.next(), chars.next()) else {
                             return;
                         };
-                        state_entity.update(cx, |s, cx| {
-                            if state_accepts(s, c, input_type, max_length) {
+                        changed = state_entity.update(cx, |s, cx| {
+                            let inserted = state_accepts(s, c, input_type, max_length);
+                            if inserted {
                                 insert_char(s, c);
+                                cx.notify();
                             }
-                            cx.notify();
+                            inserted
                         });
-                        changed = true;
                     }
                     _ => {}
                 }

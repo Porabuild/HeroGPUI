@@ -974,6 +974,43 @@ impl Widget {
     }
 
     #[test]
+    fn input_metadata_tracks_native_limits_and_desktop_substitutions() {
+        let metadata = reference_metadata::for_route(
+            "Input",
+            "use herogpui::components::input::{Input, InputState};",
+        )
+        .expect("Input metadata is registered");
+
+        assert_eq!(metadata.parts.len(), 1);
+        for prop in [
+            "value",
+            "defaultValue",
+            "onChange",
+            "maxLength",
+            "minLength",
+            "fullWidth",
+            "variant",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.prop == "type"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.api.iter().any(|entry| {
+            entry.prop == "autoComplete"
+                && entry.status == reference_metadata::ImplementationStatus::Unavailable
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".input transitions"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+    }
+
+    #[test]
     fn dropdown_metadata_does_not_classify_behavior_as_styling() {
         let metadata = reference_metadata::for_import(
             "use herogpui::components::dropdown::{Dropdown, MenuItem};",

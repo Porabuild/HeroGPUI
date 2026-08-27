@@ -18,11 +18,10 @@ SOURCE_ROOT = os.path.join(ROOT, "crates", "herogpui-components", "src")
 
 
 def array_body(source, name):
-    match = re.search(
-        rf"const\s+{re.escape(name)}\b.*?=\s*&\[(.*?)\n\];",
-        source,
-        re.S,
-    )
+    prefix = rf"const\s+{re.escape(name)}\b.*?=\s*&\["
+    match = re.search(prefix + r"([^\r\n]*)\];", source)
+    if not match:
+        match = re.search(prefix + r"(.*?)\n\];", source, re.S)
     if not match:
         raise ValueError(f"missing metadata array {name}")
     return match.group(1)

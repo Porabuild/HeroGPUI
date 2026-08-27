@@ -145,6 +145,40 @@ fn text_field_backspace_and_select_all(cx: &mut TestAppContext) {
     assert_eq!(replaced, "x", "the InputState must hold the replaced value");
 }
 
+#[gpui::test]
+fn input_max_length_blocks_rejected_edits_without_change(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        Input::new(state_for_view.clone())
+            .max_length(3)
+            .on_change(move |text, _, _| changes.borrow_mut().push(text.to_owned()))
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("abcd");
+    press(cx, "space");
+    cx.write_to_clipboard(gpui::ClipboardItem::new_string("z".to_owned()));
+    press(cx, "ctrl-v");
+    press(cx, "delete");
+    press(cx, "home");
+    press(cx, "backspace");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["a", "ab", "abc"],
+        "rejected insertions and boundary deletions must not emit duplicate changes"
+    );
+    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        value, "abc",
+        "the owned InputState must stop at the configured maximum length"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // TextArea
 // ---------------------------------------------------------------------------
