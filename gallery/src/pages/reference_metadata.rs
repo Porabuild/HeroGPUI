@@ -9176,6 +9176,78 @@ pub(crate) const SEPARATOR: ReferenceMetadata = ReferenceMetadata {
     styling: SEPARATOR_STYLING,
 };
 
+const TOOLTIP_REQUIRED_PARTS: &[&str] = &[
+    "Tooltip",
+    "Tooltip.Trigger",
+    "Tooltip.Content",
+    "Tooltip.Arrow",
+];
+
+const TOOLTIP_API: &[ApiDoc] = &[
+    ApiDoc { owner: "Tooltip", prop: "children", ty: "ReactNode", default: "—", description: "Trigger and content composition; the port takes tip text positionally and trigger children through ParentElement.", rust_owner: "Tooltip", rust: "new(content) + ParentElement::extend", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Tooltip", prop: "delay", ty: "number", default: "1500", description: "The pinned HeroUI docs table says 700; v3.2.4 runtime resolves 1500 from --tooltip-delay, matching pinned React Stately's default.", rust_owner: "Tooltip", rust: "delay(u64)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Tooltip", prop: "closeDelay", ty: "number", default: "500", description: "The pinned HeroUI docs table says zero; v3.2.4 runtime resolves 500 from --tooltip-close-delay, matching pinned React Stately's default.", rust_owner: "Tooltip", rust: "close_delay(u64)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Tooltip", prop: "trigger", ty: "\"hover\" | \"focus\"", default: "\"hover\"", description: "Hover also answers keyboard focus; Focus ignores pointer hover.", rust_owner: "Tooltip", rust: "trigger(TooltipTrigger)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Tooltip", prop: "isDisabled", ty: "boolean", default: "false", description: "Suppresses the tooltip while leaving its trigger content rendered.", rust_owner: "Tooltip", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Tooltip", prop: "shouldSkipAnimation", ty: "boolean", default: "false", description: "Shows and hides without the tooltip animation wrapper.", rust_owner: "Tooltip", rust: "should_skip_animation(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Tooltip.Content", prop: "children", ty: "ReactNode", default: "—", description: "Tooltip body content; the port accepts text rather than arbitrary elements.", rust_owner: "Tooltip", rust: "new(content)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Tooltip.Content", prop: "showArrow", ty: "boolean", default: "false", description: "Draws the built-in curved arrow.", rust_owner: "Tooltip", rust: "show_arrow(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Tooltip.Content", prop: "offset", ty: "number", default: "3 (7 with arrow)", description: "Distance from the trigger, including v3's arrow-aware default.", rust_owner: "Tooltip", rust: "offset(Pixels)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Tooltip.Content", prop: "placement", ty: "Placement", default: "\"top\"", description: "The four cardinal placements render; RAC's start/end and edge variants are not represented.", rust_owner: "Tooltip", rust: "placement(TooltipPlacement)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Tooltip.Content", prop: "className", ty: "string", default: "—", description: "CSS class override.", rust_owner: "Tooltip", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Tooltip.Content", prop: "render", ty: "DOMRenderFunction", default: "—", description: "DOM render override.", rust_owner: "Tooltip", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Tooltip.Trigger", prop: "children", ty: "ReactNode", default: "—", description: "Trigger content is composed as the Tooltip's child, but the port does not expose a separately replaceable trigger part.", rust_owner: "Tooltip", rust: "ParentElement::extend", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Tooltip.Trigger", prop: "className", ty: "string", default: "—", description: "CSS class override for the trigger wrapper.", rust_owner: "Tooltip", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Tooltip.Arrow", prop: "children", ty: "ReactNode", default: "—", description: "Custom arrow content; the port exposes only the built-in arrow switch.", rust_owner: "Tooltip", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Tooltip.Arrow", prop: "className", ty: "string", default: "—", description: "CSS class override for the arrow wrapper.", rust_owner: "Tooltip", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Tooltip.Arrow", prop: "render", ty: "DOMRenderFunction<OverlayArrowRenderProps>", default: "—", description: "Arrow DOM render override.", rust_owner: "Tooltip", rust: "—", status: ImplementationStatus::Unavailable },
+];
+
+const TOOLTIP_PARTS: &[PartDoc] = &[
+    PartDoc { name: "Tooltip", slot: "tooltip-root", description: "State owner for delay, trigger mode and open lifecycle.", rust_owner: "Tooltip", status: ImplementationStatus::Implemented },
+    PartDoc { name: "Tooltip.Trigger", slot: "tooltip-trigger", description: "Hover/focus wrapper around caller-provided trigger content; GPUI has no inline-block display mode.", rust_owner: "Tooltip", status: ImplementationStatus::Partial },
+    PartDoc { name: "Tooltip.Content", slot: "tooltip", description: "Floating overlay surface containing the tooltip text.", rust_owner: "Tooltip", status: ImplementationStatus::Implemented },
+    PartDoc { name: "Tooltip.Arrow", slot: "tooltip-arrow / overlay-arrow", description: "Optional 12px curved arrow; custom arrow content and the separate 40% border stroke are unavailable.", rust_owner: "Tooltip", status: ImplementationStatus::Partial },
+];
+
+const TOOLTIP_STATES: &[StateDoc] = &[
+    StateDoc { state: "Entering", selector: "[data-entering=\"true\"]", description: "150ms Smooth fade and zoom from 90%; v3's placement-specific 4px translation is not reproduced.", rust: "overlay_phase Entering + entering_zoom(POPOVER_IN)", status: ImplementationStatus::Partial },
+    StateDoc { state: "Exiting", selector: "[data-exiting=\"true\"]", description: "100ms Smooth fade and zoom to 95%.", rust: "overlay_phase Exiting + exiting(LIST_OUT)", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Placement", selector: "[data-placement]", description: "Cardinal positioning and arrow rotation; start/end variants and DOM attributes are absent.", rust: "TooltipPlacement match", status: ImplementationStatus::Partial },
+];
+
+const TOOLTIP_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".tooltip padding/radius", value: "p-2; min(32px, --radius-xl)", description: "Eight-pixel inset and the 12px small radius.", rust: "p(px(8.)) + small_radius", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".tooltip surface", value: "bg-overlay text-xs shadow-overlay", description: "Overlay colours, 12/16px type and overlay shadow, plus the dark-mode overlay hairline.", rust: "overlay colors + 12/16px + overlay_shadow/overlay_hairline", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".tooltip max-w-xs", value: "max-width: 320px", description: "Uses max-content width up to Tailwind's xs cap.", rust: "shaped max-content width clamped to px(320.)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".tooltip break-all", value: "overflow-wrap anywhere", description: "The port restores normal wrapping but GPUI has no break-all mode for a single unbroken token.", rust: "default WhiteSpace::Normal", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".tooltip[data-entering]", value: "150ms ease-smooth fade-in-0 zoom-in-90 + placement slide 4px", description: "Fade and zoom match; transform origin and placement slide are absent.", rust: "Motion::POPOVER_IN + entering_zoom", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".tooltip[data-exiting]", value: "100ms ease-smooth zoom-out-95 fade-out", description: "Exit motion matches.", rust: "Motion::LIST_OUT + exiting", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".tooltip [data-slot=\"overlay-arrow\"]", value: "12px curved arrow; fill overlay; stroke border/40", description: "Size, geometry, fill and rotation match; GPUI's single-colour SVG tint cannot add the separate 40% border stroke.", rust: "TOOLTIP_ARROW size(px(12.)) + overlay background + arrow_rotation", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".tooltip__trigger", value: "inline-block; color/background/shadow transitions", description: "The focus wrapper exists, but GPUI has no inline-block display and the three property transitions are not animated.", rust: "wrapper relative flex + hover/focus listeners", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".tooltip__trigger focus-visible", value: "status-focused", description: "The wrapper tracks descendant focus to open the tip, but the caller-provided child owns the visible focus ring.", rust: "contains_focused + child focus treatment", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: "--tooltip-delay", value: "1500ms", description: "Theme default before a hovered tooltip opens.", rust: "layout.tooltip_delay_ms", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: "--tooltip-close-delay", value: "500ms", description: "Theme default before a tooltip closes after hover leaves.", rust: "layout.tooltip_close_delay_ms", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: "content offset", value: "3px; 7px with arrow", description: "Pinned Tooltip.Content default offset logic.", rust: "offset.unwrap_or(show_arrow ? 7 : 3)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: "placement", value: "top / bottom / left / right", description: "Tip anchoring and arrow rotation for the four cardinals.", rust: "TooltipPlacement match", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: "reduced motion / shouldSkipAnimation", value: "motion-reduce animate-none / caller skip", description: "Reduced motion and the explicit skip both leave the tip fully visible without geometric animation.", rust: "reduce_motion + should_skip_animation", status: ImplementationStatus::Implemented },
+];
+
+pub(crate) const TOOLTIP: ReferenceMetadata = ReferenceMetadata {
+    page: "Tooltip",
+    import_line: "use herogpui::components::tooltip::Tooltip;",
+    source_module: "tooltip",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(overlays)/tooltip.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/tooltip/tooltip.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/tooltip.css",
+    required_parts: TOOLTIP_REQUIRED_PARTS,
+    api: TOOLTIP_API,
+    parts: TOOLTIP_PARTS,
+    states: TOOLTIP_STATES,
+    styling: TOOLTIP_STYLING,
+};
+
 pub(crate) const ALL: &[ReferenceMetadata] = &[
     DROPDOWN,
     SLIDER,
@@ -9196,6 +9268,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     PROGRESS_BAR,
     PROGRESS_CIRCLE,
     SEPARATOR,
+    TOOLTIP,
 ];
 
 pub(crate) fn for_import(import_line: &str) -> Option<&'static ReferenceMetadata> {

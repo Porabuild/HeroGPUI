@@ -15,11 +15,9 @@ mod harness;
 
 use std::time::Duration;
 
-use gpui::{
-    canvas, point, prelude::*, px, Modifiers, MouseButton, TestAppContext, VisualTestContext,
-};
-use harness::{events, open_host, press, Events};
-use herogpui_components::{Orientation, Slider, Tooltip, TooltipHover};
+use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext, VisualTestContext};
+use harness::{events, open_host, press, tooltip_open_probe, Events};
+use herogpui_components::{Button, Orientation, Slider, Tooltip, TooltipPlacement};
 use herogpui_theme::ActiveTheme;
 
 /// Pins the layout by enabling reduced motion **before** the first frame.
@@ -63,25 +61,6 @@ fn press_at(cx: &mut VisualTestContext, x: f32, y: f32) {
 /// `false`, so it has to enter the same id path first. `use_keyed_state` is
 /// only legal during layout/prepaint/paint, which is why the probe rides in a
 /// zero-size `canvas`.
-fn tooltip_open_probe(id: &'static str, seen: Events) -> gpui::AnyElement {
-    canvas(
-        move |_, window, cx| {
-            let open = window.with_id(std::any::type_name::<Tooltip>(), |window| {
-                window
-                    .use_keyed_state(gpui::ElementId::Name(id.into()), cx, |_, _| {
-                        TooltipHover::closed()
-                    })
-                    .read(cx)
-                    .is_open()
-            });
-            seen.borrow_mut().push(format!("open:{open}"));
-        },
-        |_, _, _, _| {},
-    )
-    .size_0()
-    .into_any_element()
-}
-
 fn last(seen: &Events) -> String {
     seen.borrow().last().cloned().unwrap_or_default()
 }
@@ -101,7 +80,7 @@ fn tooltip_hover_shows_after_v3_delay_and_leave_hides_after_close_delay(cx: &mut
     let for_view = seen.clone();
     let cx = open_host(cx, move || {
         gpui::div()
-            .child(tooltip_open_probe("pl-tt", for_view.clone()))
+            .child(tooltip_open_probe("pl-tt", for_view.clone(), false))
             .child(
                 Tooltip::new("Saved")
                     .id("pl-tt")
@@ -159,6 +138,103 @@ fn tooltip_hover_shows_after_v3_delay_and_leave_hides_after_close_delay(cx: &mut
         last(&seen),
         "open:false",
         "the tip must go once the close delay has elapsed"
+    );
+}
+
+#[gpui::test]
+fn tooltip_trigger_press_closes_until_a_fresh_hover(cx: &mut TestAppContext) {
+    still();
+    let seen = events();
+    let for_view = seen.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .child(tooltip_open_probe("pl-tt-press", for_view.clone(), false))
+            .child(
+                Tooltip::new("Press tip")
+                    .id("pl-tt-press")
+                    .placement(TooltipPlacement::Bottom)
+                    .delay(0)
+                    .close_delay(0)
+                    .child(gpui::div().w(px(120.)).h(px(36.))),
+            )
+            .into_any_element()
+    });
+
+    cx.simulate_mouse_move(point(px(60.), px(18.)), None, Modifiers::none());
+    flush_frame(cx);
+    assert_eq!(last(&seen), "open:true");
+
+    press_at(cx, 60., 18.);
+    assert_eq!(last(&seen), "open:false", "press hides the tip immediately");
+
+    cx.simulate_mouse_move(point(px(600.), px(600.)), None, Modifiers::none());
+    flush_frame(cx);
+    cx.simulate_mouse_move(point(px(60.), px(18.)), None, Modifiers::none());
+    flush_frame(cx);
+    assert_eq!(last(&seen), "open:true", "a fresh hover may open it again");
+
+    // The surface is a sibling of the trigger listener, matching RAC's
+    // portal: pressing the open tip itself must not count as trigger press.
+    press_at(cx, 20., 50.);
+    assert_eq!(last(&seen), "open:true", "pressing the tip keeps it open");
+}
+
+#[gpui::test]
+fn tooltip_child_focus_opens_once_and_pointer_focus_stays_silent(cx: &mut TestAppContext) {
+    still();
+    let seen = events();
+    let for_view = seen.clone();
+    let pressed = events();
+    let for_press = pressed.clone();
+    let cx =
+        open_host(cx, move || {
+            let for_press = for_press.clone();
+            gpui::div()
+                .child(tooltip_open_probe("pl-tt-focus", for_view.clone(), true))
+                .child(
+                    Tooltip::new("Focus tip")
+                        .id("pl-tt-focus")
+                        .trigger(herogpui_components::TooltipTrigger::Focus)
+                        .child(Button::new("pl-tt-focus-button").label("Focus").on_press(
+                            move |_, _, _| for_press.borrow_mut().push("pressed".into()),
+                        )),
+                )
+                .child(Button::new("pl-tt-after").label("After"))
+                .into_any_element()
+        });
+
+    press(cx, "tab");
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(
+        last(&seen),
+        "open:true",
+        "Tab reaches the caller's trigger and opens its tooltip"
+    );
+
+    press(cx, "j");
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(
+        last(&seen),
+        "open:false",
+        "any trigger keydown dismisses an open tooltip"
+    );
+
+    // Start a new pointer-focus session. A later key changes the app-wide
+    // input modality, but React Aria samples focus-visible when focus arrives,
+    // so it must not synthesize a tooltip halfway through this session.
+    press(cx, "tab");
+    press_at(cx, 60., 18.);
+    press(cx, "j");
+    flush_frame(cx);
+    flush_frame(cx);
+    assert_eq!(last(&seen), "open:false");
+    press(cx, "enter");
+    assert_eq!(
+        pressed.borrow().as_slice(),
+        ["pressed", "pressed"],
+        "the pointer press activates once and retained focus lets Enter activate again"
     );
 }
 

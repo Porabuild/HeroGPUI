@@ -164,8 +164,9 @@ WONT_DO = {
     ('alert-dialog', 'status-focused'): 'panel-holds-focus',
     ('drawer', 'status-focused'): 'panel-holds-focus',
     ('popover', 'status-focused'): 'panel-holds-focus',
-    # A tooltip is never focusable: it follows a trigger that is.
-    ('tooltip', 'status-focused'): 'not-focusable',
+    # The wrapper follows its caller-provided trigger but React Aria removes
+    # the wrapper's own tab index; the child control owns the visible ring.
+    ('tooltip', 'status-focused'): 'trigger-child-owns-focus',
     # `.label` dims with the field it belongs to, which is the field's own
     # `status-disabled` -- there is no separate label opacity.
     ('label', 'status-disabled'): 'field-dims-its-label',

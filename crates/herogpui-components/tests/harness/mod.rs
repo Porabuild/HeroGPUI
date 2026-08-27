@@ -27,10 +27,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use gpui::{
-    point, prelude::*, px, AnyElement, Context, KeyUpEvent, Keystroke, Modifiers, Render,
+    canvas, point, prelude::*, px, AnyElement, Context, KeyUpEvent, Keystroke, Modifiers, Render,
     TestAppContext, VisualTestContext, Window,
 };
-use herogpui_components::util;
+use herogpui_components::{util, Tooltip, TooltipHover};
 use herogpui_theme::ThemeProvider;
 
 /// What the component callbacks recorded, cloned into each closure.
@@ -39,6 +39,30 @@ pub type Events = Rc<RefCell<Vec<String>>>;
 /// An empty recorder, ready to be cloned into the builder closures.
 pub fn events() -> Events {
     Rc::new(RefCell::new(Vec::new()))
+}
+
+/// Reads one tooltip's keyed open state from the component's render id path.
+pub fn tooltip_open_probe(id: &'static str, seen: Events, focus_open: bool) -> AnyElement {
+    canvas(
+        move |_, window, cx| {
+            let open = window.with_id(std::any::type_name::<Tooltip>(), |window| {
+                let state = window
+                    .use_keyed_state(gpui::ElementId::Name(id.into()), cx, |_, _| {
+                        TooltipHover::closed()
+                    })
+                    .read(cx);
+                if focus_open {
+                    state.is_focus_open()
+                } else {
+                    state.is_open()
+                }
+            });
+            seen.borrow_mut().push(format!("open:{open}"));
+        },
+        |_, _, _, _| {},
+    )
+    .size_0()
+    .into_any_element()
 }
 
 /// Renders one component under test at the top-left corner of the window, with

@@ -64,13 +64,15 @@ impl TooltipPlacement {
 /// `focus_dismissed` is what Escape trips for a *focus-opened* tip. The focus
 /// gate (`contains_focused && focus_visible`) is not something Escape may
 /// clear — `focus_visible` is app-wide state every focus ring reads — so the
-/// dismissal is remembered per tooltip instead, and dropped again the moment
-/// the focus leaves the trigger. A dismissal therefore lasts exactly one
-/// focus session: the next focus shows the tip again.
+/// dismissal is remembered per tooltip instead, and dropped on either edge of
+/// the focus session. A dismissal therefore lasts only for the current focus:
+/// the next keyboard focus shows the tip again.
 pub struct TooltipHover {
     open: bool,
     generation: u64,
     focus_dismissed: bool,
+    focus_open: bool,
+    was_focused: bool,
 }
 
 impl TooltipHover {
@@ -79,6 +81,8 @@ impl TooltipHover {
             open: false,
             generation: 0,
             focus_dismissed: false,
+            focus_open: false,
+            was_focused: false,
         }
     }
 
@@ -94,6 +98,11 @@ impl TooltipHover {
     /// Whether the tip is currently shown.
     pub fn is_open(&self) -> bool {
         self.open
+    }
+
+    /// Whether keyboard-visible focus opened the tip in this focus session.
+    pub fn is_focus_open(&self) -> bool {
+        self.focus_open && !self.focus_dismissed
     }
 }
 
@@ -240,11 +249,9 @@ impl RenderOnce for Tooltip {
         // The state entity has to be created before the theme tokens are read;
         // `use_keyed_state` takes `cx` mutably and would conflict with them.
         let state = window.use_keyed_state(key.clone(), cx, |_, _| TooltipHover::new());
-        // React Aria shows a tooltip on keyboard focus as well as on hover --
-        // without it a keyboard user never sees one. The handle is a focus
-        // *parent*, not a tab stop (tab stops come from `.tab_stop(true)`), so
-        // it reports whether the trigger inside it holds the focus without
-        // adding a stop of its own.
+        // React Aria explicitly removes the Trigger wrapper's tab index: the
+        // caller's trigger is the stop, and this handle only reports whether a
+        // descendant currently owns focus.
         let wrap_focus = window.use_keyed_state(
             ElementId::Name(format!("{key:?}-wrap-focus").into()),
             cx,
@@ -257,14 +264,23 @@ impl RenderOnce for Tooltip {
         // shows the tip again. Clearing here rather than on the next open is
         // what makes a dismissal not permanent without ever touching the
         // app-wide `focus_visible`.
-        if !focus_held && state.read(cx).focus_dismissed {
-            state.update(cx, |s, _| s.focus_dismissed = false);
+        if focus_held != state.read(cx).was_focused {
+            let keyboard_focus = focus_held && util::focus_visible(cx);
+            state.update(cx, |s, _| {
+                s.was_focused = focus_held;
+                s.focus_open = keyboard_focus;
+                // Either edge ends the previous dismissal session. Clearing
+                // on arrival matters when hover was dismissed before focus.
+                s.focus_dismissed = false;
+            });
         }
-        let focus_open = focus_held && util::focus_visible(cx) && !state.read(cx).focus_dismissed;
+        let state_snapshot = state.read(cx);
+        let focus_open = state_snapshot.is_focus_open();
+        let hover_open = state_snapshot.is_open();
         // `trigger="focus"` takes the pointer out of it; `hover` is both, which
         // is React Aria's behaviour for the default.
         let open = match self.trigger {
-            TooltipTrigger::Hover => state.read(cx).open || focus_open,
+            TooltipTrigger::Hover => hover_open || focus_open,
             TooltipTrigger::Focus => focus_open,
         };
 
@@ -277,19 +293,49 @@ impl RenderOnce for Tooltip {
         let offset = self
             .offset
             .unwrap_or(if self.show_arrow { px(7.) } else { px(3.) });
+        // CSS gives an absolutely positioned tooltip max-content width capped
+        // at 320px. GPUI otherwise resolves normal wrapping to min-content,
+        // making even "With an arrow" one word wide, so shape the single line
+        // and pin the same max-content result explicitly.
+        let content = self.content.to_string();
+        let run = gpui::TextRun {
+            len: content.len(),
+            font: window.text_style().font(),
+            color: gpui::black(),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        };
+        let line = window
+            .text_system()
+            .shape_line(content.clone().into(), px(12.), &[run], None);
+        let hairline_width = if layout.overlay_hairline.is_some() {
+            layout.border_width * 2.
+        } else {
+            px(0.)
+        };
+        let intrinsic_width = line.width + px(16.) + hairline_width;
+        let tooltip_width = if intrinsic_width < px(320.) {
+            intrinsic_width
+        } else {
+            px(320.)
+        };
 
         let mut tip = gpui::div()
             .absolute()
             // `.tooltip` is `p-2` all round, not a wider-than-tall pill.
             .p(px(8.))
+            .w(tooltip_width)
             .rounded(util::small_radius(cx))
             .bg(colors.overlay.background)
             .text_color(colors.overlay.foreground)
             .text_size(px(12.))
             .line_height(px(16.))
-            .whitespace_nowrap()
+            .when_some(layout.overlay_hairline, |el, hairline| {
+                el.border(layout.border_width).border_color(hairline)
+            })
             .shadow(layout.overlay_shadow.clone())
-            .child(self.content.to_string());
+            .child(content);
 
         tip = match self.placement {
             TooltipPlacement::Top => tip.bottom_full().mb(offset),
@@ -301,11 +347,11 @@ impl RenderOnce for Tooltip {
         if self.show_arrow {
             let mut arrow = gpui::div().absolute().child(
                 gpui::svg()
-                    .size(px(8.))
+                    .size(px(12.))
                     .path(icons::TOOLTIP_ARROW)
                     // svg() never inherits text colour; the arrow has to be
                     // tinted to match the tip body explicitly.
-                    .text_color(colors.foreground)
+                    .text_color(colors.overlay.background)
                     .with_transformation(gpui::Transformation::rotate(gpui::radians(
                         self.placement.arrow_rotation(),
                     ))),
@@ -353,13 +399,33 @@ impl RenderOnce for Tooltip {
             });
             util::DismissResult::Handled
         });
+        // Press dismissal belongs to the trigger. The tip is a sibling here;
+        // v3 portals it outside the trigger, so pressing the surface itself
+        // must not trip `shouldCloseOnPress`.
+        let trigger = gpui::div()
+            .flex()
+            .children(self.children)
+            .capture_any_mouse_down({
+                let dismiss_tooltip = dismiss_tooltip.clone();
+                move |_, _, cx| {
+                    dismiss_tooltip(cx);
+                }
+            })
+            .on_key_down({
+                let dismiss_tooltip = dismiss_tooltip.clone();
+                move |_, _, cx| {
+                    // RAC wires `onKeyDown: onPressStart` on the trigger: any
+                    // key dismisses an already-open tooltip immediately.
+                    dismiss_tooltip(cx);
+                }
+            });
         let mut wrapper = gpui::div()
             // `on_hover` needs a stateful element, so the wrapper carries the id.
             .id(key.clone())
             .track_focus(&wrap_handle)
             .relative()
             .flex()
-            .children(self.children)
+            .child(trigger)
             .on_hover(move |over, _window, cx: &mut App| {
                 let over = *over;
                 let wait = if over { delay } else { close_delay };
@@ -393,7 +459,6 @@ impl RenderOnce for Tooltip {
                 })
                 .detach();
             });
-
         // React Aria hides a tooltip on Escape, which reaches here from the
         // focused trigger inside the wrapper. The hover flag alone is not
         // enough: a `trigger="focus"` tip reads the focus gate and never

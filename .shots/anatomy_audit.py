@@ -97,7 +97,6 @@ WONT_COMPOSE = {
     ('select', 'popover-overlay-arrow'): 'no-arrow-prop',
     ('dropdown', 'popover-overlay-arrow'): 'no-arrow-prop',
     ('popover', 'popover-overlay-arrow'): 'no-arrow-prop',
-    ('tooltip', 'overlay-arrow'): 'no-arrow-prop',
     # v3 lets a `<Label>` *wrap* its control (`label.css` styles a checkbox and
     # a radio inside one). This port's `field::Label` takes text, and a
     # `Checkbox` or `Radio` draws its own label beside the box -- which is the
@@ -138,12 +137,12 @@ PART_EVIDENCE = {
     ('Toast', 'ActionButton'): r'action',
     ('Toast', 'CloseButton'): r'toast__close-button',
     ('Toast', 'Content'): r'description',
+    ('Tooltip', 'Arrow'): r'show_arrow|arrow_rotation',
 }
 
 # A documented part this port does not render, with the reason.
 WONT_RENDER = {
     ('Popover', 'Arrow'): 'no-arrow-prop',
-    ('Tooltip', 'Arrow'): 'no-arrow-prop',
     # `Kbd.Abbr` is a `<abbr>` for screen readers, with no geometry -- the same
     # row `part_audit.py` records as `no-a11y-element`.
     ('Kbd', 'Abbr'): 'no-a11y-element',

@@ -1358,6 +1358,55 @@ impl Widget {
     }
 
     #[test]
+    fn tooltip_metadata_tracks_parts_states_and_visual_limits() {
+        let metadata =
+            reference_metadata::for_route("Tooltip", "use herogpui::components::tooltip::Tooltip;")
+                .expect("Tooltip metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for required in metadata.required_parts {
+            assert!(
+                metadata.parts.iter().any(|part| part.name == *required),
+                "registered Tooltip part disappeared: {required}"
+            );
+        }
+        for prop in [
+            "delay",
+            "closeDelay",
+            "trigger",
+            "isDisabled",
+            "shouldSkipAnimation",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "Tooltip"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        for class_or_token in [
+            ".tooltip max-w-xs",
+            "--tooltip-delay",
+            "--tooltip-close-delay",
+        ] {
+            assert!(metadata.styling.iter().any(|entry| {
+                entry.class_or_token == class_or_token
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        for class_or_token in [
+            ".tooltip break-all",
+            ".tooltip [data-slot=\"overlay-arrow\"]",
+            ".tooltip__trigger",
+            ".tooltip__trigger focus-visible",
+        ] {
+            assert!(metadata.styling.iter().any(|entry| {
+                entry.class_or_token == class_or_token
+                    && entry.status == reference_metadata::ImplementationStatus::Partial
+            }));
+        }
+    }
+
+    #[test]
     fn metadata_validation_rejects_bogus_method_owner_and_page() {
         let metadata = reference_metadata::for_route(
             "Dropdown",

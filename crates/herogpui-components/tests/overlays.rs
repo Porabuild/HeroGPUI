@@ -46,7 +46,7 @@ mod harness;
 use std::{cell::RefCell, rc::Rc, time::Duration};
 
 use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext, VisualTestContext};
-use harness::{click, events, open_host, press};
+use harness::{click, events, open_host, press, tooltip_open_probe};
 use herogpui_components::{
     dismiss_toast, toast_store, util, AlertDialog, Button, Drawer, DrawerPlacement, Modal, Popover,
     Toast, Tooltip, TooltipTrigger,
@@ -734,40 +734,22 @@ fn popover_escape_and_outside_press_close(cx: &mut TestAppContext) {
     );
 }
 
-/// The tooltip's hidden-tip proof.
-///
-/// A tooltip tip is a plain positioned div with no hitbox (nothing to click,
-/// focus or scroll registers one) and the component exposes no open-state
-/// callback, so a probe click can neither prove its presence nor its absence.
-/// The honest behavioural lever is the *focus gate*: with
-/// `trigger(TooltipTrigger::Focus)` the tip is open exactly when
-/// `wrap.contains_focused && focus_visible` — the focus is on the trigger and
-/// the last input was a key — **and no Escape dismissal is latched on top**.
-///
-/// Escape must hide the tip by tripping that per-tooltip latch, which is why
-/// the assertions check the two halves of the gate that stay reachable: the
-/// app-wide `focus_visible` must survive (clearing it would starve every
-/// other focus ring in the window of its ring) and the focus must stay on the
-/// trigger (Enter still activates it). With both halves intact, the only way
-/// the tooltip's open condition can have changed under the Escape key is the
-/// latch — escape hides the tip, and does not hide it forever: the latch is
-/// dropped again once the focus leaves the trigger, so the next focus shows
-/// the tip.
+/// Keyboard focus opens the tip, and Escape dismisses without disturbing the
+/// app-wide focus-visible modality or the caller's trigger focus.
 #[gpui::test]
-fn tooltip_shows_on_focus_and_hides_on_escape(cx: &mut TestAppContext) {
+fn tooltip_keyboard_focus_hides_on_escape_without_losing_focus(cx: &mut TestAppContext) {
     still();
     let pressed = events();
     let recorded = pressed.clone();
+    let open_seen = events();
+    let probe_seen = open_seen.clone();
 
     let cx = open_host(cx, move || {
         let pressed = pressed.clone();
-        // The harness has no app root, so this content root stands in for
-        // `util::app_focus_root`'s recording half: every key marks the input
-        // as keyboard, every mouse press as pointer. `focus_visible` is one
-        // half of the tooltip's `focus_open` gate.
         gpui::div()
             .capture_key_down(|_, _, cx| util::set_focus_visible(true, cx))
             .capture_any_mouse_down(|_, _, cx| util::set_focus_visible(false, cx))
+            .child(tooltip_open_probe("ovl-tt", probe_seen.clone(), true))
             .child(
                 Tooltip::new("Keyboard tip")
                     .id("ovl-tt")
@@ -781,52 +763,37 @@ fn tooltip_shows_on_focus_and_hides_on_escape(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    // The first press focuses the trigger but marks the input as pointer, so
-    // `focus_open` is still false. The next key flips the input kind to
-    // keyboard, which is the second half of the gate: a `trigger="focus"`
-    // tooltip shows only when a keyboard user has reached its trigger.
-    click(cx, 40., 18.);
-    press(cx, "j");
+    // React Aria removes the wrapper's tab index, so the first Tab reaches the
+    // caller's Button directly and opens the focus-triggered tip.
+    press(cx, "tab");
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        open_seen.borrow().last().map(String::as_str),
+        Some("open:true")
+    );
     assert!(
         cx.update(|_, cx| util::focus_visible(cx)),
-        "the keyboard-input half of focus_open must be set"
+        "keyboard focus must make the focus ring modality visible"
     );
 
-    // The trigger holds the focus: Enter activates it. The click at (40, 18)
-    // already recorded one press — gpui auto-focuses a `track_focus`ed
-    // element on mouse-down, and the button's own click fires for the mouse
-    // click as well — so the Enter contributes the *second* entry, which is
-    // the keyboard press that proves the focus never left the trigger.
-    press(cx, "enter");
-    assert_eq!(
-        recorded.borrow().as_slice(),
-        ["pressed", "pressed"],
-        "the trigger must hold the focus: Enter activates it"
-    );
-
-    // Escape must now hide the tip. The dismissal handler trips the tooltip's
-    // own `focus_dismissed` latch — it must not clear the app-wide
-    // `focus_visible`, because every focus ring in the window reads it. So
-    // the assertions below pin the two halves of the gate that remain
-    // reachable: the input kind is unchanged *and* the focus is still on the
-    // trigger. With both intact, the open condition can only have changed
-    // through the latch, which is exactly the "the tip is hidden" claim this
-    // suite can make — the tip itself has no hitbox to probe. The latch is
-    // per focus session: it is dropped when the focus leaves the trigger, so
-    // the next focus is a fresh one and shows the tip again.
     press(cx, "escape");
-    let focus_after = cx.update(|_, cx| util::focus_visible(cx));
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        open_seen.borrow().last().map(String::as_str),
+        Some("open:false"),
+        "Escape must close the focus-opened tip"
+    );
     assert!(
-        focus_after,
-        "escape must hide the tip through its own latch, not by clearing the \
-         app-wide focus-visible every focus ring in the window reads"
+        cx.update(|_, cx| util::focus_visible(cx)),
+        "Escape must use the tooltip latch, not clear app-wide focus-visible"
     );
 
+    // Focus never leaves that Button, so Enter still activates it exactly once.
     press(cx, "enter");
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["pressed", "pressed", "pressed"],
-        "the focus must never have left the trigger after escape"
+        ["pressed"],
+        "Escape must not eject focus from the trigger subtree"
     );
 }
 
