@@ -12,15 +12,18 @@ members = [
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.98"
-license = "MIT"
+license = "Apache-2.0"
+readme = "README.md"
 repository = "https://github.com/heroui-inc/HeroGPUI"
+keywords = ["gpui", "gui", "components", "heroui", "desktop"]
+categories = ["gui"]
 
 [workspace.dependencies]
 gpui = "0.2.2"
-herogpui-core = { path = "crates/herogpui-core" }
-herogpui-theme = { path = "crates/herogpui-theme" }
-herogpui-components = { path = "crates/herogpui-components" }
-herogpui = { path = "crates/herogpui" }
+herogpui-core = { version = "0.1.0", path = "crates/herogpui-core" }
+herogpui-theme = { version = "0.1.0", path = "crates/herogpui-theme" }
+herogpui-components = { version = "0.1.0", path = "crates/herogpui-components" }
+herogpui = { version = "0.1.0", path = "crates/herogpui" }
 
 # Lint policy lives here so every crate gets the same one via
 # `lints.workspace = true`; a crate that forgets that line is the only way to

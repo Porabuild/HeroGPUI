@@ -1,0 +1,176 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: version
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]
+          cargo_version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)"
+          npm_version="$(node -p "require('./npm/package.json').version")"
+          test "$GITHUB_REF_NAME" = "v$version"
+          test "$version" = "$cargo_version"
+          test "$version" = "$npm_version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build-gallery:
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            source: target/release/gallery.exe
+            asset: x86_64-pc-windows-msvc.exe
+          - runner: macos-15
+            source: target/release/gallery
+            asset: aarch64-apple-darwin
+          - runner: ubuntu-24.04
+            source: target/release/gallery
+            asset: x86_64-unknown-linux-gnu
+          - runner: ubuntu-24.04-arm
+            source: target/release/gallery
+            asset: aarch64-unknown-linux-gnu
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang pkg-config libvulkan-dev libwayland-dev libxkbcommon-dev libx11-dev libxcb1-dev libx11-xcb-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libfontconfig-dev libfreetype-dev
+      - run: cargo build --locked --release -p herogpui-gallery
+      - name: Stage release binary
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp "${{ matrix.source }}" "dist/herogpui-${{ needs.plan.outputs.version }}-${{ matrix.asset }}"
+          if [ "${{ runner.os }}" != "Windows" ]; then chmod 755 dist/herogpui-*; fi
+      - uses: actions/upload-artifact@v6
+        with:
+          name: gallery-${{ matrix.asset }}
+          path: dist/*
+          if-no-files-found: error
+
+  prepare-release:
+    needs: [plan, build-gallery]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: gallery-*
+          path: dist
+          merge-multiple: true
+      - run: node npm/scripts/generate-release-manifest.js dist "${{ needs.plan.outputs.version }}" npm/release-manifest.json
+      - uses: actions/attest@v4
+        with:
+          subject-path: dist/*
+      - uses: actions/upload-artifact@v6
+        with:
+          name: release-bundle
+          path: |
+            dist/*
+            npm/release-manifest.json
+          if-no-files-found: error
+
+  github-release:
+    needs: [plan, prepare-release]
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v6
+        with:
+          name: release-bundle
+          path: release
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release/dist/* LICENSE NOTICE --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
+
+  crates-io:
+    needs: [plan, github-release]
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      BOOTSTRAP_CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang pkg-config libvulkan-dev libwayland-dev libxkbcommon-dev libx11-dev libxcb1-dev libx11-xcb-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libfontconfig-dev libfreetype-dev
+      - id: crates-auth
+        if: env.BOOTSTRAP_CRATES_IO_TOKEN == ''
+        uses: rust-lang/crates-io-auth-action@v1
+      - name: Publish with trusted publishing
+        if: env.BOOTSTRAP_CRATES_IO_TOKEN == ''
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
+        run: cargo publish --workspace --locked
+      - name: Bootstrap the first crates.io release
+        if: env.BOOTSTRAP_CRATES_IO_TOKEN != ''
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ env.BOOTSTRAP_CRATES_IO_TOKEN }}
+        run: cargo publish --workspace --locked
+
+  npm:
+    needs: [plan, github-release, crates-io]
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      BOOTSTRAP_NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    defaults:
+      run:
+        working-directory: npm
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v6
+        with:
+          name: release-bundle
+          path: release
+      - run: cp ../release/npm/release-manifest.json release-manifest.json
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm test
+      - name: Publish with trusted publishing
+        if: env.BOOTSTRAP_NPM_TOKEN == ''
+        run: npm publish --access public
+      - name: Bootstrap the first npm release
+        if: env.BOOTSTRAP_NPM_TOKEN != ''
+        env:
+          NODE_AUTH_TOKEN: ${{ env.BOOTSTRAP_NPM_TOKEN }}
+        run: npm publish --access public --provenance

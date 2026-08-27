@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, v3-parity]
+
+permissions:
+  contents: read
+
+jobs:
+  rust:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v6
+      - run: cargo fmt --all -- --check
+      - run: cargo test -p herogpui-components --locked
+      - shell: pwsh
+        run: .shots/lint.ps1
+      - name: Fetch pinned parity inputs
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://heroui.com/react/llms-full.txt -OutFile (Join-Path $env:TEMP heroui-full.txt)
+          python .shots/design_audit.py --fetch
+          python .shots/demo_audit.py --fetch
+      - shell: pwsh
+        run: |
+          Get-ChildItem .shots/*audit.py | ForEach-Object {
+            python $_.FullName
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+      - run: cargo package -p herogpui-core --allow-dirty --no-verify --list
+      - run: cargo package -p herogpui-theme --allow-dirty --no-verify --list
+      - run: cargo package -p herogpui-components --allow-dirty --no-verify --list
+      - run: cargo package -p herogpui --allow-dirty --no-verify --list
+
+  npm-launcher:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: npm
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm test
+      - run: npm pack --dry-run

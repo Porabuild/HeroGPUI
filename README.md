@@ -13,8 +13,8 @@ use gpui::prelude::*;
 use herogpui::prelude::*;
 
 impl Render for MyApp {
-    fn render(&mut self, _w: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        div()
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        app_focus_root(div()
             .size_full()
             .bg(cx.colors().background)          // semantic token
             .font_family("Segoe UI")
@@ -23,7 +23,7 @@ impl Render for MyApp {
                     .label("Save changes")
                     .variant(Variant::Primary)
                     .on_press(cx.listener(|this, _, _, cx| this.save(cx))),
-            )
+            ), window, cx)
     }
 }
 ```
@@ -42,9 +42,9 @@ the builders this crate exposes:
 
 | | |
 |---|---|
-| documented props considered | 592 |
-| implemented | 560 |
-| deliberately not ported | 32 |
+| documented props considered | 758 |
+| implemented | 709 |
+| deliberately not ported | 49 |
 | real gaps | 0 |
 
 Every omission carries a reason (`no-a11y-attrs`, `no-http`, `render-prop-arg`,
@@ -68,13 +68,13 @@ prop-by-prop diff cannot see:
 - `python .shots/design_audit.py` is the only one that reads the **React repo**
   rather than the docs: it pulls `packages/styles/components/*.css` from the `v3`
   branch, resolves the Tailwind utilities through v3's own token scales, and
-  diffs 27 metrics — heights, paddings, gaps, type sizes and corner radii —
+  diffs 431 metrics — heights, paddings, gaps, type sizes and corner radii —
   against the Rust that defines them. It found that v3 has no single "control"
   radius (button and avatar are `rounded-3xl`, chips and menu rows `2xl`, fields
   `--field-radius`, panels `min(32px, --radius-3xl)`) where this port had
   collapsed everything into two values, that v3's desktop control heights are
   32/36/40 rather than 32/40/48 because its sheet is mobile-first, and that a v3
-  button has no minimum width at all. **27 compared, 0 mismatched.**
+  button has no minimum width at all. **431 compared, 0 mismatched.**
 - `python .shots/anim_audit.py` covers what a prop diff cannot see at all:
   motion. A component can expose every prop and still not move, so this lists
   every animation v3's stylesheet defines — the `animate-in`/`animate-out`
@@ -84,7 +84,7 @@ prop-by-prop diff cannot see:
   constant nothing read. It also diffs the **per-overlay** duration, easing and
   zoom against each component's CSS — v3 does not animate every surface the same
   way, and a modal panel *shrinks* onto the page from 105% rather than growing
-  from 90%. **27 implemented, 12 per-overlay motions verified, 19 recorded with a
+  from 90%. **32 implemented, 12 per-overlay motions verified, 19 recorded with a
   reason, 0 unimplemented.**
 - `python .shots/write_only.py` checks that no builder stores a value nothing
   ever reads — a prop that is accepted and ignored is worse than one that is
@@ -130,7 +130,7 @@ height), and `isStriped`, `isBordered`, `isPressable`, `isHoverable`,
 | **Feedback** | Alert, Meter, ProgressBar, ProgressCircle, Skeleton, Spinner |
 | **Forms** | Checkbox, CheckboxGroup, Description, ErrorMessage, FieldError, Fieldset, Form, Input, InputGroup, InputOTP, Label, NumberField, RadioGroup, SearchField, TextArea, TextField |
 | **Layout** | Card, Separator, Surface, Toolbar |
-| **Media** | Avatar + AvatarGroup |
+| **Media** | Avatar |
 | **Navigation** | Accordion, Breadcrumbs, Disclosure + DisclosureGroup, Link, Pagination, Tabs |
 | **Overlays** | AlertDialog, Drawer, Modal, Popover, Toast, Tooltip |
 | **Pickers** | Autocomplete, ComboBox, Select |
@@ -164,22 +164,32 @@ Wayland/X11 dev packages on Linux; nothing extra on Windows).
 ```bash
 cargo build                     # builds library + gallery
 cargo run -p herogpui-gallery   # open the component gallery
+npx herogpui                    # launch a published native gallery binary
 ```
 
 ### Using HeroGPUI in your app
 
+The crates.io and npm releases are prepared but not published yet. Until the
+first `v0.1.0` release, clone this repository and use
+`herogpui = { path = "../HeroGPUI/crates/herogpui" }`; `npx herogpui` becomes
+available with that release.
+
 ```toml
 [dependencies]
 gpui = "0.2"
-herogpui = { path = "../HeroGPUI/crates/herogpui" }
+herogpui = "0.1"
 ```
 
-1. Register the theme provider at startup:
-   `herogpui::theme::ThemeProvider::init(cx);`
-2. Serve the icon SVGs (`gallery/assets/herogpui/icons/*`) from your
-   `AssetSource` (`Application::new().with_assets(...)`).
-3. Set `.bg(cx.colors().background)` + your font family on the root view.
-4. Toggle dark mode anywhere with `herogpui::theme::toggle_light_dark(cx);`
+1. Register HeroGPUI's embedded icons with
+   `Application::new().with_assets(HeroGpuiAssets)`.
+   Apps with their own assets can use
+   `HeroGpuiAssets::with_fallback(MyAppAssets)` instead.
+2. Register the theme provider inside `Application::run` with
+   `ThemeProvider::init(cx)` before opening a window.
+3. Wrap the root element with `app_focus_root(root, window, cx)` so Tab and
+   focus-visible behavior work across components.
+4. Set `.bg(cx.colors().background)` and your font family on the root view.
+5. Toggle dark mode anywhere with `toggle_light_dark(cx)`.
 
 ## Theming
 
@@ -204,7 +214,9 @@ HeroGPUI theme and a HeroUI theme resolve to identical pixels.
 - **Custom themes** — override a base token and every derived value follows:
 
   ```rust
+  use gpui::px;
   use herogpui::core::oklch;
+  use herogpui::prelude::Theme;
 
   let brand = Theme::builder("brand", Theme::dark())
       .accent(oklch(0.55, 0.23, 295.0))   // hover/soft/focus all derive
@@ -241,8 +253,9 @@ Button::new("save").label("Save").variant(Variant::Primary)
     .is_pending(self.saving)
     .on_press(cx.listener(|this, _, _, cx| this.save(cx)))
 
-TextField::new(name.clone()).label("Email").is_required(true)
-Switch::new("wifi").checked(self.wifi_on).on_change(move |v, _w, cx| { /* ... */ })
+let email = cx.new(|cx| InputState::new(cx));
+TextField::new(email).label("Email").is_required(true)
+Switch::new("wifi").is_selected(self.wifi_on).on_change(move |v, _w, cx| { /* ... */ })
 ```
 
 ## Documentation
@@ -252,8 +265,10 @@ Switch::new("wifi").checked(self.wifi_on).on_change(move |v, _w, cx| { /* ... */
   `.shots/capture2.ps1`
 - **LLM docs:** `llms.txt` at repo root
 - **Getting Started in-gallery:** Introduction, Installation, Theming, Dark
-  Mode, Customization
+  Mode, Customization, Styling, Design Principles
 
 ## License
 
-MIT — matching upstream HeroUI.
+Apache-2.0 — matching the license text in the upstream HeroUI repository. This Rust/GPUI port derives component
+behavior, design tokens, styles, and documentation structure from
+HeroUI v3, Copyright 2025 NextUI Inc. See `LICENSE` and `NOTICE`.

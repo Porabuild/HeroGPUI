@@ -17,6 +17,7 @@
 //! `crates/herogpui-theme` for the token system.
 
 pub use herogpui_components as components;
+pub use herogpui_components::*;
 pub use herogpui_core as core;
 pub use herogpui_theme as theme;
 
@@ -29,6 +30,7 @@ pub mod prelude {
         Placement, Prominence, SelectionMode, Size, SizeXl, UnitDisplay, Variant,
     };
     pub use herogpui_theme::{
-        set_theme, toggle_light_dark, use_theme, ActiveTheme, Appearance, Theme, ThemeProvider,
+        set_reduce_motion, set_theme, toggle_light_dark, toggle_reduce_motion, use_theme,
+        ActiveTheme, Appearance, Theme, ThemeProvider,
     };
 }

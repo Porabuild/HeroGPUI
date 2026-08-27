@@ -1,0 +1,46 @@
+{
+  "name": "herogpui",
+  "version": "0.1.0",
+  "description": "Launch the HeroGPUI component gallery",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "herogpui": "bin/herogpui.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "release-manifest.json",
+    "LICENSE",
+    "NOTICE",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test",
+    "pack:check": "npm pack --dry-run",
+    "verify:release": "node scripts/verify-release.js",
+    "prepublishOnly": "npm test && npm run verify:release"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/heroui-inc/HeroGPUI.git",
+    "directory": "npm"
+  },
+  "homepage": "https://github.com/heroui-inc/HeroGPUI#readme",
+  "bugs": {
+    "url": "https://github.com/heroui-inc/HeroGPUI/issues"
+  },
+  "keywords": [
+    "gpui",
+    "heroui",
+    "rust",
+    "components",
+    "gallery"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

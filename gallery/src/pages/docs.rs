@@ -34,7 +34,7 @@ impl Gallery {
                 (
                     "Highlights",
                     gpui::div().flex().flex_col().gap(px(10.)).children(vec![
-                        feature_row("69 v3 components", "Every component documented at heroui.com/docs/react/components — all themed.", cx),
+                        feature_row("71 v3 components", "Every component documented at heroui.com/docs/react/components — all themed.", cx),
                         feature_row("v3 OKLCH tokens", "Semantic roles (default/accent/success/warning/danger) with derived hover and soft variants, light & dark.", cx),
                         feature_row("Gallery & docs", "This app doubles as living documentation with runnable examples.", cx),
                     ]).into_any_element(),
@@ -47,29 +47,36 @@ impl Gallery {
     pub fn page_installation(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
         let main_rs = r#"use gpui::{prelude::*, px, size, App, Application,
     Bounds, Render, Window, WindowBounds, WindowOptions};
-use herogpui::theme::{ThemeProvider, ActiveTheme};
-use herogpui_core::Color;
+use herogpui::prelude::*;
+
+const FONT_FAMILY: &str = if cfg!(target_os = "macos") {
+    "Helvetica Neue"
+} else if cfg!(target_os = "linux") {
+    "Ubuntu"
+} else {
+    "Segoe UI"
+};
 
 struct HelloWorld;
 
 impl Render for HelloWorld {
-    fn render(&mut self, _w: &mut Window, cx: &mut gpui::Context<'_, Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut gpui::Context<'_, Self>) -> impl IntoElement {
         let colors = cx.colors();
-        gpui::div().size_full().bg(colors.background)
+        app_focus_root(gpui::div().size_full().bg(colors.background)
             .text_color(colors.foreground)
-            .font_family("Segoe UI")
+            .font_family(FONT_FAMILY)
             .flex().items_center().justify_center()
             .child(
-                herogpui::Button::new("hi")
+                Button::new("hi")
                     .label("Hello HeroGPUI")
                     .variant(Variant::Primary)
-            )
+            ), window, cx)
     }
 }
 
 fn main() {
-    Application::new().run(|cx: &mut App| {
-        herogpui::theme::ThemeProvider::init(cx); // registers light + dark
+    Application::new().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
+        ThemeProvider::init(cx); // registers light + dark
         let bounds = Bounds::centered(None, size(px(800.), px(600.)), cx);
         cx.open_window(WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
@@ -80,15 +87,16 @@ fn main() {
 
         doc_page(
             "Installation",
-            "Add HeroGPUI to your Cargo workspace, register the theme provider and render your first component.",
-            "cargo add herogpui",
+            "After the first registry release, add HeroGPUI, register its embedded assets and theme provider, then render your first component.",
+            "cargo add herogpui # available with v0.1.0",
             vec![
                 ("Setup GPUI", code_block(main_rs, cx)),
                 (
-                    "Assets",
+                    "Application root",
                     para(
-                        "Components that ship icons (Spinner, Checkbox, Accordion, ...) reference SVGs under `herogpui/icons/*`. \
-                         Register an AssetSource that serves them — copy the folder from `gallery/assets/herogpui` into your app.",
+                        "`HeroGpuiAssets` embeds the icons used by built-in component chrome. `app_focus_root` \
+                         enables Tab traversal and focus-visible state for the component tree. Apps with their own \
+                         assets can register `HeroGpuiAssets::with_fallback(MyAppAssets)`.",
                         cx,
                     ),
                 ),
@@ -232,9 +240,11 @@ fn main() {
     }
 }
 
-const CUSTOM_THEME_SNIPPET: &str = r#"use herogpui::core::oklch;
+const CUSTOM_THEME_SNIPPET: &str = r#"use gpui::px;
+use herogpui::core::oklch;
+use herogpui::theme::{snow, Theme};
 
-let violet = herogpui::theme::Theme::builder("violet", Theme::light())
+let violet = Theme::builder("violet", Theme::light())
     .accent(oklch(0.55, 0.23, 295.0))   // hover / soft / focus all derive
     .role("success", oklch(0.73, 0.19, 150.0), snow())
     .radius(px(6.))                     // field_radius follows at 1.5x

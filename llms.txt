@@ -28,15 +28,30 @@ macOS and Linux.
 ```toml
 [dependencies]
 gpui = "0.2"
-herogpui = { path = "../HeroGPUI/crates/herogpui" }
+herogpui = "0.1"
 ```
+
+The registry release is prepared but not published yet. Before `v0.1.0`, clone
+the repository and use `herogpui = { path = "../HeroGPUI/crates/herogpui" }`.
 
 ```rust
 use gpui::*;
-use herogpui::theme::{ThemeProvider, ActiveTheme};
+use herogpui::prelude::*;
+
+struct MyRoot;
+
+impl Render for MyRoot {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        app_focus_root(
+            div().size_full().bg(cx.colors().background).text_color(cx.colors().foreground),
+            window,
+            cx,
+        )
+    }
+}
 
 fn main() {
-    Application::new().with_assets(Assets).run(|cx: &mut App| {
+    Application::new().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
         ThemeProvider::init(cx); // light + dark
         // or ThemeProvider::init_with(Theme::dark(), cx);
         let bounds = Bounds::centered(None, size(px(1280.), px(820.)), cx);
@@ -46,9 +61,11 @@ fn main() {
 }
 ```
 
-Icons: serve `gallery/assets/herogpui/icons/*` via your `AssetSource`
-(`Application::new().with_assets(...)`). Components reference
-`herogpui/icons/*.svg`.
+`HeroGpuiAssets` embeds the `herogpui/icons/*.svg` files used by built-in
+component chrome. Use `HeroGpuiAssets::with_fallback(MyAppAssets)` when the app
+also has assets. Wrap the window's root element with
+`app_focus_root(root, window, cx)` to enable Tab traversal, focus-visible state,
+and root capture handlers.
 
 Set root bg/fg via tokens:
 
@@ -96,7 +113,9 @@ div().text_color(cx.colors().muted)
 Custom theme — override a base token and every derived value follows:
 
 ```rust
+use gpui::px;
 use herogpui::core::oklch;
+use herogpui::theme::{snow, Theme};
 
 let brand = Theme::builder("brand", Theme::dark())
     .accent(oklch(0.55, 0.23, 295.0))
@@ -478,4 +497,5 @@ consequences — both worked around geometrically rather than left undone:
 
 ## License
 
-MIT
+Apache-2.0. This port is derived from HeroUI v3, Copyright 2025 NextUI Inc.
+See `LICENSE` and `NOTICE`.

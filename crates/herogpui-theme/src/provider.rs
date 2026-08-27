@@ -21,11 +21,17 @@ impl Global for ThemeProvider {}
 
 impl ThemeProvider {
     /// Registers the provider with the default light theme.
+    ///
+    /// Call this once before opening the first window. Rendering a themed
+    /// component before initialization panics.
     pub fn init(cx: &mut App) {
         Self::init_with(Theme::light(), cx);
     }
 
     /// Registers the provider starting from an explicit theme.
+    ///
+    /// Call this once before opening the first window. Rendering a themed
+    /// component before initialization panics.
     pub fn init_with(theme: Theme, cx: &mut App) {
         let mut themes = HashMap::new();
         themes.insert("light".into(), Theme::light());
@@ -56,7 +62,7 @@ impl ThemeProvider {
         &self.active
     }
 
-    /// Registers a custom theme (does not activate it).
+    /// Registers and activates a custom theme.
     pub fn register(&mut self, theme: Theme) {
         self.active = theme.id.clone();
         self.themes.insert(theme.id.clone(), theme);
