@@ -3,7 +3,7 @@
 //! Segment-by-segment time entry. Clicking a segment focuses it; the stepper
 //! buttons adjust whichever segment has focus.
 
-use std::sync::Arc;
+use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
 use gpui::{
     div, prelude::*, px, App, ElementId, Entity, InteractiveElement, IntoElement, RenderOnce,
@@ -322,6 +322,105 @@ type Segment = Arc<dyn Fn(TimeSegment, SharedString) -> gpui::AnyElement + 'stat
 
 type OnTimeChange = Arc<dyn Fn(Option<Time>, &mut Window, &mut App) + 'static>;
 
+type TimeFieldFormState = Rc<RefCell<crate::form::LiveFormFieldState>>;
+
+thread_local! {
+    static TIME_FIELD_FORM_STATES: RefCell<HashMap<u64, std::rc::Weak<RefCell<crate::form::LiveFormFieldState>>>> =
+        RefCell::new(HashMap::new());
+}
+
+fn registered_time_field_form_state(entity_id: u64) -> Option<TimeFieldFormState> {
+    TIME_FIELD_FORM_STATES.with(|states| {
+        states
+            .borrow()
+            .get(&entity_id)
+            .and_then(|state| state.upgrade())
+    })
+}
+
+fn time_field_form_state(entity_id: u64) -> TimeFieldFormState {
+    TIME_FIELD_FORM_STATES.with(|states| {
+        let mut states = states.borrow_mut();
+        if let Some(state) = states.get(&entity_id).and_then(|state| state.upgrade()) {
+            return state;
+        }
+        let state = Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+            value: crate::form::FormValue::Text(SharedString::default()),
+            is_invalid: false,
+            is_successful: true,
+            focus: None,
+            restore: None,
+        }));
+        states.insert(entity_id, Rc::downgrade(&state));
+        state
+    })
+}
+
+/// The time an HTML `<input type="time">` submits at the field's granularity.
+fn time_form_text(value: Option<Time>, granularity: TimeGranularity) -> SharedString {
+    value
+        .map(|time| match granularity {
+            TimeGranularity::Hour | TimeGranularity::Minute => {
+                format!("{:02}:{:02}", time.hour, time.minute)
+            }
+            TimeGranularity::Second => {
+                format!("{:02}:{:02}:{:02}", time.hour, time.minute, time.second)
+            }
+        })
+        .unwrap_or_default()
+        .into()
+}
+
+fn sync_time_field_form(
+    form_state: &TimeFieldFormState,
+    time_state: &Entity<TimeState>,
+    is_disabled: bool,
+    is_invalid: bool,
+    granularity: TimeGranularity,
+    cx: &App,
+) {
+    let mut state = form_state.borrow_mut();
+    state.value =
+        crate::form::FormValue::Text(time_form_text(time_state.read(cx).value, granularity));
+    state.is_successful = !is_disabled;
+    state.is_invalid = is_invalid;
+    state.focus = Some(time_state.read(cx).focus_handle.clone());
+}
+
+fn install_time_field_restore(
+    form_state: &TimeFieldFormState,
+    time_state: Entity<TimeState>,
+    default: Option<Time>,
+    granularity: TimeGranularity,
+    controlled: bool,
+    on_change: Option<OnTimeChange>,
+) {
+    if default.is_none() && !controlled {
+        return;
+    }
+    let restore_form = form_state.clone();
+    form_state.borrow_mut().restore = Some(util::shared(move |window: &mut Window, cx: &mut App| {
+        time_state.update(&mut *cx, |state, cx| {
+            if controlled {
+                state.sync_controlled(default);
+            } else {
+                state.set_uncontrolled_value(default);
+            }
+            cx.notify();
+        });
+        {
+            let mut state = restore_form.borrow_mut();
+            state.value = crate::form::FormValue::Text(time_form_text(default, granularity));
+            state.is_invalid = false;
+        }
+        if controlled {
+            if let Some(callback) = &on_change {
+                callback(default, window, cx);
+            }
+        }
+    }) as Arc<dyn Fn(&mut Window, &mut App)>);
+}
+
 /// HeroUI TimeField.
 #[derive(IntoElement)]
 pub struct TimeField {
@@ -444,18 +543,33 @@ impl TimeField {
 
     /// The `Form` field this control submits, when it has a `name`.
     ///
-    /// The time is written `HH:MM`, which is what an HTML `<input type="time">`
-    /// submits. Needs `cx` because the value lives in the state entity.
+    /// The time is written `HH:MM`, or `HH:MM:SS` at second granularity, which
+    /// matches an HTML `<input type="time">`. Needs `cx` because the value
+    /// lives in the state entity. The
+    /// returned field stays live: submit reads the entity, a disabled field is
+    /// unsuccessful, and reset restores `defaultValue` (or reports it to a
+    /// controlled owner).
     pub fn form_field(&self, cx: &App) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
-        let text = self
-            .state
-            .read(cx)
-            .value
-            .map(|t| format!("{:02}:{:02}", t.hour, t.minute))
-            .unwrap_or_default();
+        let form_state = time_field_form_state(self.state.entity_id().as_u64());
+        sync_time_field_form(
+            &form_state,
+            &self.state,
+            self.is_disabled,
+            self.is_invalid,
+            self.granularity,
+            cx,
+        );
+        install_time_field_restore(
+            &form_state,
+            self.state.clone(),
+            self.default_value,
+            self.granularity,
+            self.controlled_value.is_some(),
+            self.on_change.clone(),
+        );
         Some(
-            crate::form::FormField::text_value(name, text)
+            crate::form::FormField::live(name, form_state)
                 .is_required(self.is_required)
                 .validation_behavior(self.validation_behavior),
         )
@@ -650,6 +764,24 @@ impl RenderOnce for TimeField {
         }
 
         let entity_id = self.state.entity_id().as_u64();
+        if let Some(form_state) = registered_time_field_form_state(entity_id) {
+            sync_time_field_form(
+                &form_state,
+                &self.state,
+                self.is_disabled,
+                self.is_invalid,
+                self.granularity,
+                cx,
+            );
+            install_time_field_restore(
+                &form_state,
+                self.state.clone(),
+                self.default_value,
+                self.granularity,
+                self.controlled_value.is_some(),
+                self.on_change.clone(),
+            );
+        }
         // A time field has no inner `Input` to hold the focus, so the handle
         // lives on the state itself -- the same answer `InputState` and
         // `NumberState` give. That is what lets a `content` closure and the
@@ -702,6 +834,16 @@ impl RenderOnce for TimeField {
             self.error_message.clone(),
         );
         let is_invalid = validity.is_invalid;
+        if let Some(form_state) = registered_time_field_form_state(entity_id) {
+            sync_time_field_form(
+                &form_state,
+                &self.state,
+                self.is_disabled,
+                is_invalid,
+                self.granularity,
+                cx,
+            );
+        }
 
         // The segments this field shows, in reading order -- `granularity`
         // decides where the list stops.
