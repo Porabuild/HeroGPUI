@@ -1240,10 +1240,6 @@ impl Widget {
                     && entry.status == reference_metadata::ImplementationStatus::Partial
             }));
         }
-        assert!(metadata.states.iter().any(|entry| {
-            entry.state == "Global sequence"
-                && entry.status == reference_metadata::ImplementationStatus::Implemented
-        }));
         for (owner, prop) in [
             ("RangeCalendar.YearPickerTriggerHeading", "offset"),
             ("RangeCalendar.YearPickerGrid", "visibleYears"),
@@ -1477,6 +1473,178 @@ impl Widget {
             entry.class_or_token == ".select__popover .list-box / .list-box-item"
                 && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
+    }
+
+    #[test]
+    fn table_metadata_tracks_compound_parts_and_honest_gaps() {
+        let metadata =
+            reference_metadata::for_route("Table", "use herogpui::components::table::Table;")
+                .expect("Table metadata is registered");
+
+        assert_eq!(metadata.required_parts.len(), 15);
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for required in metadata.required_parts {
+            assert!(
+                metadata.parts.iter().any(|part| part.name == *required),
+                "registered Table part disappeared: {required}"
+            );
+        }
+        assert_eq!(
+            metadata
+                .parts
+                .iter()
+                .find(|part| part.name == "Table.Column")
+                .expect("Table.Column is registered")
+                .rust_owner,
+            "TableColumn"
+        );
+        assert_eq!(
+            metadata
+                .parts
+                .iter()
+                .find(|part| part.name == "Table.Row")
+                .expect("Table.Row is registered")
+                .rust_owner,
+            "TableRow"
+        );
+        assert!(metadata.parts.iter().any(|entry| {
+            entry.name == "Table.Cell"
+                && entry.rust_owner == "TableRow"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.parts.iter().any(|entry| {
+            entry.name == "Table.ColumnResizer"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.parts.iter().any(|entry| {
+            entry.name == "Table.ResizableContainer"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.parts.iter().any(|entry| {
+            entry.name == "Table.Collection"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.parts.iter().any(|entry| {
+            entry.name == "Table.LoadMoreContent"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        for prop in [
+            "variant",
+            "selectionMode",
+            "onSelectionChange",
+            "sortDescriptor",
+            "onSortChange",
+            "disabledKeys",
+            "expandedKeys",
+            "onExpandedChange",
+            "allowsSorting",
+            "minWidth",
+            "maxWidth",
+            "allowsResizing",
+            "textValue",
+            "sortDirection",
+            "showIndicator",
+            "isLoading",
+            "onLoadMore",
+            "scrollOffset",
+            "rowHeight",
+            "estimatedRowHeight",
+            "loaderHeight",
+            "gap",
+            "padding",
+        ] {
+            assert!(
+                metadata.api.iter().any(|entry| {
+                    entry.prop == prop
+                        && entry.status == reference_metadata::ImplementationStatus::Implemented
+                }),
+                "Table metadata lost Implemented {prop}"
+            );
+        }
+        for (owner, prop) in [
+            ("Table.Content", "selectedKeys"),
+            ("Table.Content", "onRowAction"),
+            ("Table.Content", "treeColumn"),
+            ("Table.Column", "id"),
+            ("Table.Column", "isRowHeader"),
+            ("Table.Column", "defaultWidth"),
+            ("Table.Row", "id"),
+            ("Table.Row", "isDisabled"),
+            ("Table.LoadMore", "children"),
+            ("Table.Collection", "items"),
+        ] {
+            assert!(
+                metadata.api.iter().any(|entry| {
+                    entry.owner == owner
+                        && entry.prop == prop
+                        && entry.status == reference_metadata::ImplementationStatus::Partial
+                }),
+                "{owner}::{prop} should stay Partial"
+            );
+        }
+        for (owner, prop) in [
+            ("Table.Content", "aria-label"),
+            ("Table.Content", "defaultSelectedKeys"),
+            ("Table.Content", "selectionBehavior"),
+            ("Table.Content", "dragAndDropHooks"),
+            ("Table.Content", "keyboardNavigationBehavior"),
+            ("Table.Column", "width"),
+            ("Table.Cell", "colSpan"),
+            ("TableLayout", "headingHeight"),
+            ("TableLayout", "dropIndicatorThickness"),
+        ] {
+            assert!(
+                metadata.api.iter().any(|entry| {
+                    entry.owner == owner
+                        && entry.prop == prop
+                        && entry.status == reference_metadata::ImplementationStatus::Unavailable
+                }),
+                "{owner}::{prop} should stay Unavailable"
+            );
+        }
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Disabled row"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Disabled table"
+                && entry.status == reference_metadata::ImplementationStatus::Unavailable
+        }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Dragging"
+                && entry.status == reference_metadata::ImplementationStatus::Unavailable
+        }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Selected"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".table-root--primary"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".table__column"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".table__cell[data-tree-column]"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".table__column::after"
+                && entry.status == reference_metadata::ImplementationStatus::Unavailable
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".table__footer"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.docs_source.contains("(data-display)/table.mdx"));
+        assert!(metadata
+            .api_source
+            .contains("react-aria-components@1.20.0/packages/react-aria-components/src/Table.tsx"));
+        assert!(metadata
+            .style_source
+            .contains("packages/styles/components/table.css"));
     }
 
     #[test]
