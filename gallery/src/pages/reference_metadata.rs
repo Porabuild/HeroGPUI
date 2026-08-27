@@ -4879,6 +4879,100 @@ pub(crate) const INPUT: ReferenceMetadata = ReferenceMetadata {
     styling: INPUT_STYLING,
 };
 
+const TEXT_AREA_REQUIRED_PARTS: &[&str] = &["TextArea"];
+
+const TEXT_AREA_API: &[ApiDoc] = &[
+    ApiDoc { owner: "TextArea", prop: "className", ty: "string", default: "—", description: "Tailwind class merging has no GPUI analogue.", rust_owner: "TextArea", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "TextArea", prop: "rows", ty: "number", default: "3", description: "Sets the visible height from the requested line count and field padding.", rust_owner: "TextArea", rust: "rows(u32)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextArea", prop: "cols", ty: "number", default: "—", description: "GPUI has no ch unit, so columns use an 8px character-advance approximation.", rust_owner: "TextArea", rust: "cols(u32)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "TextArea", prop: "value", ty: "string", default: "—", description: "Writes the caller-provided controlled value into the owned InputState.", rust_owner: "TextArea", rust: "value(text, cx)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextArea", prop: "defaultValue", ty: "string", default: "—", description: "Seeds the uncontrolled InputState once.", rust_owner: "TextArea", rust: "default_value(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextArea", prop: "onChange", ty: "(event: ChangeEvent<HTMLTextAreaElement>) => void", default: "—", description: "Reports accepted text and newline edits without reporting rejected maxLength edits.", rust_owner: "TextArea", rust: "on_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextArea", prop: "placeholder", ty: "string", default: "—", description: "Placeholder shown while empty and unfocused.", rust_owner: "TextArea", rust: "placeholder(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextArea", prop: "disabled", ty: "boolean", default: "false", description: "Removes focus and editing and applies disabled opacity.", rust_owner: "TextArea", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextArea", prop: "readOnly", ty: "boolean", default: "false", description: "Keeps focus and selection while suppressing edits.", rust_owner: "TextArea", rust: "is_read_only(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextArea", prop: "required", ty: "boolean", default: "false", description: "Participates in the HeroGPUI form validity registry.", rust_owner: "TextArea", rust: "is_required(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextArea", prop: "name", ty: "string", default: "—", description: "Submission name stored with the current multi-line value.", rust_owner: "TextArea", rust: "name(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextArea", prop: "autoComplete", ty: "string", default: "—", description: "Browser autofill hints have no desktop GPUI equivalent.", rust_owner: "TextArea", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "TextArea", prop: "maxLength", ty: "number", default: "—", description: "Rejects character and newline edits beyond the limit without reporting an unchanged value.", rust_owner: "TextArea", rust: "max_length(usize)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextArea", prop: "minLength", ty: "number", default: "—", description: "Marks a non-empty value invalid below the character minimum.", rust_owner: "TextArea", rust: "min_length(usize)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextArea", prop: "wrap", ty: "\"soft\" | \"hard\"", default: "—", description: "GPUI provides one visual wrapping mode and does not inject hard line breaks for submission.", rust_owner: "TextArea", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "TextArea", prop: "fullWidth", ty: "boolean", default: "false", description: "Stretches to the available container width.", rust_owner: "TextArea", rust: "full_width()", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "TextArea", prop: "variant", ty: "\"primary\" | \"secondary\"", default: "\"primary\"", description: "Primary field chrome or the lower-emphasis surface variant.", rust_owner: "TextArea", rust: "variant(FieldVariant)", status: ImplementationStatus::Implemented },
+];
+
+const TEXT_AREA_PARTS: &[PartDoc] = &[PartDoc {
+    name: "TextArea",
+    slot: "textarea",
+    description:
+        "Multi-line editable field backed by InputState with caret, selection and validation.",
+    rust_owner: "TextArea",
+    status: ImplementationStatus::Implemented,
+}];
+
+const TEXT_AREA_STATES: &[StateDoc] = &[
+    StateDoc {
+        state: "Hover",
+        selector: ".textarea:hover / [data-hovered=true]",
+        description: "Changes field background and border while unfocused.",
+        rust: "inner Input hover + apply_field_chrome",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Focused",
+        selector: ".textarea:focus / [data-focused=true]",
+        description: "Draws focused field background, border and ring.",
+        rust: "inner Input focus + apply_field_chrome",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Focus visible",
+        selector: ".textarea:focus-visible / [data-focus-visible=true]",
+        description: "Pinned CSS adds no rule beyond the focused field treatment.",
+        rust: "focused field treatment",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Invalid",
+        selector: ".textarea[data-invalid=true]",
+        description: "Uses invalid field ring and focused background.",
+        rust: "inner Input validity + apply_field_chrome",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Disabled",
+        selector: ".textarea:disabled / [data-disabled=true]",
+        description: "Applies theme disabled opacity and removes editing and focus.",
+        rust: "is_disabled(bool)",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const TEXT_AREA_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".textarea base", value: "rounded-field border bg-field px-3 py-2 text-base sm:text-sm shadow-field outline-none", description: "12px inline inset, 14px desktop type, field radius, colours and shadow match.", rust: "inner Input px(px(12.)) + FIELD_TEXT + field_radius + apply_field_chrome", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".textarea min-height", value: "38px; rows default 3", description: "The documented three-row default uses three 20px lines plus 16px vertical padding.", rust: "rows_height(3) = 76px", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".textarea border", value: "--border-width-field / --field-border", description: "Theme field border width and colour chain.", rust: "apply_field_chrome", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".textarea transitions", value: "background/border 150ms Smooth; shadow 150ms Out; reduced-motion none", description: "State colours switch directly; GPUI has no property-transition implementation for these values.", rust: "direct apply_field_chrome state colours", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".textarea hover/focus/invalid", value: "field hover, focused and invalid status tokens", description: "Interactive field chrome follows the pinned token states.", rust: "apply_field_chrome", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".textarea--secondary", value: "shadow-none; bg default/default-hover/default-focus", description: "Lower-emphasis surface treatment.", rust: "FieldVariant::Secondary in apply_field_chrome", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".textarea--full-width", value: "w-full", description: "Full-width modifier.", rust: "full_width()", status: ImplementationStatus::Implemented },
+];
+
+pub(crate) const TEXT_AREA: ReferenceMetadata = ReferenceMetadata {
+    page: "TextArea",
+    import_line: "use herogpui::components::textarea::TextArea;",
+    source_module: "textarea",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(forms)/text-area.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/textarea/textarea.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/TextArea.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/textarea.css",
+    required_parts: TEXT_AREA_REQUIRED_PARTS,
+    api: TEXT_AREA_API,
+    parts: TEXT_AREA_PARTS,
+    states: TEXT_AREA_STATES,
+    styling: TEXT_AREA_STYLING,
+};
+
 const INPUT_OTP_REQUIRED_PARTS: &[&str] = &[
     "InputOTP",
     "InputOTP.Group",
@@ -10873,6 +10967,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     SWITCH,
     PAGINATION,
     INPUT,
+    TEXT_AREA,
     INPUT_OTP,
     TABS,
     CALENDAR,

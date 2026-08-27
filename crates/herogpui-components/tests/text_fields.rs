@@ -222,6 +222,32 @@ fn text_area_typing_and_newline(cx: &mut TestAppContext) {
     );
 }
 
+#[gpui::test]
+fn text_area_max_length_rejects_a_newline_without_change(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        TextArea::new(state_for_view.clone())
+            .max_length(2)
+            .on_change(move |text, _, _| changes.borrow_mut().push(text.to_owned()))
+            .into_any_element()
+    });
+
+    click(cx, 10., 40.);
+    cx.simulate_input("ab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["a", "ab"],
+        "a rejected newline must not report an unchanged TextArea value"
+    );
+    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(value, "ab");
+}
+
 // ---------------------------------------------------------------------------
 // SearchField
 // ---------------------------------------------------------------------------

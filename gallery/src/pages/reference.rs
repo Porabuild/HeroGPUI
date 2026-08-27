@@ -1011,6 +1011,44 @@ impl Widget {
     }
 
     #[test]
+    fn text_area_metadata_tracks_multiline_limits_and_wrap_substitution() {
+        let metadata = reference_metadata::for_route(
+            "TextArea",
+            "use herogpui::components::textarea::TextArea;",
+        )
+        .expect("Text Area metadata is registered");
+
+        assert_eq!(metadata.parts.len(), 1);
+        for prop in [
+            "rows",
+            "value",
+            "defaultValue",
+            "onChange",
+            "maxLength",
+            "minLength",
+            "fullWidth",
+            "variant",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.prop == "cols"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.api.iter().any(|entry| {
+            entry.prop == "wrap"
+                && entry.status == reference_metadata::ImplementationStatus::Unavailable
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".textarea transitions"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+    }
+
+    #[test]
     fn dropdown_metadata_does_not_classify_behavior_as_styling() {
         let metadata = reference_metadata::for_import(
             "use herogpui::components::dropdown::{Dropdown, MenuItem};",
