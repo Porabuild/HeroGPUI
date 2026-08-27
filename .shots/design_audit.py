@@ -458,6 +458,18 @@ CHECKS = [
     ('search-field', '.search-field__search-icon', 'size', 'SearchField icon -> FIELD_ICON',
      SRC + 'input.rs',
      r'\.size\(crate::util::(FIELD_ICON)\)', lambda _: 16.0),
+    ('search-field', '.search-field__search-icon', 'ms', 'SearchField icon inset -> Input px',
+     SRC + 'input.rs',
+     r'(?s)(?=.*None => f\.px\(px\((\d+(?:\.\d*)?)\.\)\))'
+     r'(?=.*\.start_content\(match self\.search_icon)', None),
+    ('color-input-group', '.color-input-group__prefix', 'ms',
+     'ColorField prefix inset -> group px', SRC + 'color_picker.rs',
+     r'let mut field = div\(\)(?:(?!;)[\s\S])*?\.px\(px\((\d+(?:\.\d*)?)\.\)\)'
+     r'(?:(?!field = util::apply_field_chrome)[\s\S])*?\.child\(ColorSwatch::new', None),
+    ('date-input-group', '.date-input-group__prefix', 'ms',
+     'DateField prefix inset -> group px', SRC + 'date_picker.rs',
+     r'\.when\(!self\.bare, \|el\| \{(?:(?!\.when\(self\.bare)[\s\S])*?'
+     r'el\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     # --- Avatar, Alert, Accordion, the swatches ---------------------------
     ('avatar', '.avatar--sm', 'radius', 'Avatar Sm -> util::_radius', SRC + 'avatar.rs',
      r'if self\.small [\s\S]{0,40}?crate::util::(\w+_radius)', helper_px),
@@ -892,6 +904,9 @@ CHECKS = [
      'Size::Md => \(px\(40\.\), px\(20\.\), px\((\d+(?:\.\d*)?)\.?\)', None),
     ('switch', '.switch__thumb', 'h', 'Switch md thumb height', SRC + 'switch.rs',
      'Size::Md => \(px\(40\.\), px\(20\.\), px\(22\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('switch', '.switch__thumb', 'ms', 'Switch thumb inset', SRC + 'switch.rs',
+     r'let thumb_inset = px\((\d+(?:\.\d*)?)\.\);'
+     r'(?:(?!let mut thumb_el)[\s\S])*?\.px\(thumb_inset\)', None),
     ('input-otp', '.input-otp__slot', 'w', 'InputOTP slot width', SRC + 'input_otp.rs',
      'let \(cell_w, cell_h, text, slot_gap\) = \(px\((\d+(?:\.\d*)?)\.?\)', None),
     ('input-otp', '.input-otp__slot', 'h', 'InputOTP slot height', SRC + 'input_otp.rs',
