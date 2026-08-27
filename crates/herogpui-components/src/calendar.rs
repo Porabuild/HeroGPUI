@@ -1059,6 +1059,9 @@ impl RenderOnce for Calendar {
         let cursor_at = *cursor.read(cx);
 
         let first_day = self.constraints.first_day_of_week;
+        let focused_value = self
+            .focused_value
+            .map(|date| self.constraints.constrain(date));
 
         let (stored_anchor, selected, selected_dates, navigated) = {
             let st = self.state.read(cx);
@@ -1080,7 +1083,19 @@ impl RenderOnce for Calendar {
             ),
             _ => stored_anchor,
         };
-        let initial_year = self.focused_value.unwrap_or(anchor).year;
+        let anchor = focused_value.map_or(anchor, |focused| {
+            let (visible_start, visible_end) =
+                calendar_view::visible_range(self.duration, first_day, anchor);
+            calendar_view::anchor_following_focus(
+                self.duration,
+                first_day,
+                anchor,
+                visible_start,
+                visible_end,
+                focused,
+            )
+        });
+        let initial_year = focused_value.unwrap_or(anchor).year;
         let years = calendar_view::year_window(
             initial_year,
             self.visible_years,
@@ -1094,8 +1109,9 @@ impl RenderOnce for Calendar {
             window.focus(&year_focus);
         }
         year_was_open.update(cx, |was_open, _| *was_open = year_picker_open);
-        let active_year = year_cursor
-            .read(cx)
+        let active_year = focused_value
+            .map(|date| date.year)
+            .or(*year_cursor.read(cx))
             .unwrap_or(initial_year)
             .max(first_year)
             .min(last_year);
@@ -1104,8 +1120,7 @@ impl RenderOnce for Calendar {
         // Taking the focus puts the ring on the date v3 would have focused --
         // the selection, or today -- rather than waiting for a keystroke to
         // place it.
-        let ring_at = self
-            .focused_value
+        let ring_at = focused_value
             .or(cursor_at)
             .or(selected)
             .or_else(|| Some(Date::today()))
@@ -1326,7 +1341,8 @@ impl RenderOnce for Calendar {
             let prev_control = prev_focus.clone();
             let next_control = next_focus.clone();
             let heading_controls = heading_focuses.clone();
-            let start = self.focused_value.or(selected).unwrap_or_else(Date::today);
+            let controlled_focus = focused_value;
+            let start = focused_value.or(selected).unwrap_or_else(Date::today);
             let constraints = self.constraints.clone();
             let state = self.state.clone();
             let mode = self.selection_mode;
@@ -1345,8 +1361,7 @@ impl RenderOnce for Calendar {
                 if header_focused || !focus.contains_focused(window, cx) {
                     return;
                 }
-                let from = *held.read(cx);
-                let at = from.unwrap_or(start);
+                let at = controlled_focus.or(*held.read(cx)).unwrap_or(start);
                 let key = event.keystroke.key.as_str();
                 let shift = event.keystroke.modifiers.shift;
                 if matches!(key, "enter" | "space") {
@@ -1381,61 +1396,63 @@ impl RenderOnce for Calendar {
                     "end" => calendar_view::section_end(duration, visible_end, at),
                     _ => return,
                 };
-                held.update(cx, |v, cx| {
-                    *v = Some(next);
-                    cx.notify();
-                });
-                // React Aria keeps the focused date visible: the grid follows
-                // the cursor once it leaves the current visible range. Day
-                // views page the whole window directly.
-                state.update(cx, |s, cx| {
-                    if matches!(key, "pageup" | "pagedown") {
-                        let dir = if key == "pageup" { -1 } else { 1 };
-                        let next_anchor = match duration {
-                            VisibleDuration::Days(_) => calendar_view::focus_section(
+                if controlled_focus.is_none() {
+                    held.update(cx, |v, cx| {
+                        *v = Some(next);
+                        cx.notify();
+                    });
+                    // React Aria keeps the focused date visible: the grid follows
+                    // the cursor once it leaves the current visible range. Day
+                    // views page the whole window directly.
+                    state.update(cx, |s, cx| {
+                        if matches!(key, "pageup" | "pagedown") {
+                            let dir = if key == "pageup" { -1 } else { 1 };
+                            let next_anchor = match duration {
+                                VisibleDuration::Days(_) => calendar_view::focus_section(
+                                    duration,
+                                    page_behavior,
+                                    anchor,
+                                    dir,
+                                    shift,
+                                ),
+                                _ if days_from_civil(&next) < days_from_civil(&visible_start) => {
+                                    calendar_view::aligned_anchor(
+                                        duration,
+                                        SelectionAlignment::End,
+                                        first_day,
+                                        next,
+                                    )
+                                }
+                                _ if days_from_civil(&next) > days_from_civil(&visible_end) => {
+                                    calendar_view::aligned_anchor(
+                                        duration,
+                                        SelectionAlignment::Start,
+                                        first_day,
+                                        next,
+                                    )
+                                }
+                                _ => anchor,
+                            };
+                            if next_anchor != anchor {
+                                s.set_anchor(next_anchor);
+                                cx.notify();
+                            }
+                        } else {
+                            let next_anchor = calendar_view::anchor_following_focus(
                                 duration,
-                                page_behavior,
+                                first_day,
                                 anchor,
-                                dir,
-                                shift,
-                            ),
-                            _ if days_from_civil(&next) < days_from_civil(&visible_start) => {
-                                calendar_view::aligned_anchor(
-                                    duration,
-                                    SelectionAlignment::End,
-                                    first_day,
-                                    next,
-                                )
+                                visible_start,
+                                visible_end,
+                                next,
+                            );
+                            if next_anchor != anchor {
+                                s.set_anchor(next_anchor);
+                                cx.notify();
                             }
-                            _ if days_from_civil(&next) > days_from_civil(&visible_end) => {
-                                calendar_view::aligned_anchor(
-                                    duration,
-                                    SelectionAlignment::Start,
-                                    first_day,
-                                    next,
-                                )
-                            }
-                            _ => anchor,
-                        };
-                        if next_anchor != anchor {
-                            s.set_anchor(next_anchor);
-                            cx.notify();
                         }
-                    } else {
-                        let next_anchor = calendar_view::anchor_following_focus(
-                            duration,
-                            first_day,
-                            anchor,
-                            visible_start,
-                            visible_end,
-                            next,
-                        );
-                        if next_anchor != anchor {
-                            s.set_anchor(next_anchor);
-                            cx.notify();
-                        }
-                    }
-                });
+                    });
+                }
                 if let Some(cb) = &on_focus {
                     cb(next, window, cx);
                 }
@@ -1449,6 +1466,7 @@ impl RenderOnce for Calendar {
             let own = year_picker_own.clone();
             let on_open = self.on_year_picker_open_change.clone();
             let on_focus = self.on_focus_change.clone();
+            let controlled_year = focused_value.map(|date| date.year);
             let back_to_trigger = active_heading_focus.clone();
             root = root.on_key_down(move |event, window, cx| {
                 if !focus.is_focused(window) {
@@ -1470,7 +1488,7 @@ impl RenderOnce for Calendar {
                     return;
                 }
 
-                let current = held.read(cx).unwrap_or(active_year);
+                let current = controlled_year.or(*held.read(cx)).unwrap_or(active_year);
                 let index = years_for_keys
                     .iter()
                     .position(|year| *year == current)
@@ -1486,10 +1504,12 @@ impl RenderOnce for Calendar {
                 };
                 if let Some(next_index) = next_index {
                     let next = years_for_keys[next_index];
-                    held.update(cx, |year, cx| {
-                        *year = Some(next);
-                        cx.notify();
-                    });
+                    if controlled_year.is_none() {
+                        held.update(cx, |year, cx| {
+                            *year = Some(next);
+                            cx.notify();
+                        });
+                    }
                     if let Some(cb) = &on_focus {
                         cb(
                             Date::new(

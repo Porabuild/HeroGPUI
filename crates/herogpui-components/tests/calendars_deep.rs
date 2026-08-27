@@ -796,6 +796,92 @@ fn range_calendar_keyboard_advance_realigns_the_visible_month(cx: &mut TestAppCo
     assert_eq!(visible, (2026, 9, 1));
 }
 
+/// `focusedValue` is controlled state in pinned React Stately. It realigns the
+/// visible range, while attempted keyboard moves only report a proposal until
+/// the owner supplies a new value.
+#[gpui::test]
+fn range_calendar_controlled_focus_realigns_and_waits_for_its_owner(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let focused_day_outside = Rc::new(RefCell::new(None));
+    let outside_for_view = focused_day_outside.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        let focused_day_outside = outside_for_view.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .focused_value(Date::new(2026, 9, 1))
+            .cell(move |cell| {
+                if cell.date == Date::new(2026, 9, 1) {
+                    *focused_day_outside.borrow_mut() = Some(cell.is_outside_month);
+                }
+                gpui::div().child(cell.formatted_date).into_any_element()
+            })
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        *focused_day_outside.borrow(),
+        Some(false),
+        "the controlled focusedValue must be inside the rendered month"
+    );
+
+    press(cx, "tab");
+    press(cx, "right right");
+    assert_eq!(
+        focused.borrow().as_slice(),
+        ["2026-09-02", "2026-09-02"],
+        "owner-rejected moves must keep proposing from the controlled date"
+    );
+}
+
+#[gpui::test]
+fn calendar_controlled_focus_realigns_and_waits_for_its_owner(cx: &mut TestAppContext) {
+    let focuses = events();
+    let focused = focuses.clone();
+    let focused_day_outside = Rc::new(RefCell::new(None));
+    let outside_for_view = focused_day_outside.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        let focused_day_outside = outside_for_view.clone();
+        Calendar::new(state_for_view.clone())
+            .focused_value(Date::new(2026, 9, 1))
+            .cell(move |cell| {
+                if cell.date == Date::new(2026, 9, 1) {
+                    *focused_day_outside.borrow_mut() = Some(cell.is_outside_month);
+                }
+                gpui::div().child(cell.formatted_date).into_any_element()
+            })
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(*focused_day_outside.borrow(), Some(false));
+    press(cx, "tab");
+    press(cx, "right right");
+    assert_eq!(focused.borrow().as_slice(), ["2026-09-02", "2026-09-02"]);
+}
+
 /// The calendar grid is the first tab stop. The enabled previous chevron is
 /// next and activates on Enter, proving the nav controls are keyboard-reachable
 /// rather than pointer-only.

@@ -3771,6 +3771,7 @@ impl Gallery {
     pub fn page_calendar(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let picked = self.cal_picked;
         let today = h::Date::today();
+        let focused = self.calendar_focus;
         component_doc_page!(
             "Calendar",
             crate::pages::Page::Calendar.description(),
@@ -3882,7 +3883,13 @@ impl Gallery {
                 (
                     "Focused Value",
                     col(vec![h::Calendar::new(self.demo_calendar("cal-focused", cx))
-                        .focused_value(h::Date::new(today.year, today.month, 15))
+                        .focused_value(focused)
+                        .on_focus_change(date_cb(cx.listener(
+                            |this, date: &h::Date, _, cx| {
+                                this.calendar_focus = *date;
+                                cx.notify();
+                            },
+                        )))
                         .into_any_element()]),
                 ),
                 (
@@ -4464,6 +4471,7 @@ impl Gallery {
 
     pub fn page_range_calendar(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
         let today = h::Date::today();
+        let focused = self.range_calendar_focus;
         component_doc_page!(
             "Range Calendar",
             crate::pages::Page::RangeCalendar.description(),
@@ -4650,7 +4658,11 @@ impl Gallery {
                     col(vec![h::RangeCalendar::new(
                         self.demo_range("rc-focused", cx),
                     )
-                    .focused_value(h::Date::new(today.year, today.month, 15))
+                    .focused_value(focused)
+                    .on_focus_change(date_cb(cx.listener(|this, date: &h::Date, _, cx| {
+                        this.range_calendar_focus = *date;
+                        cx.notify();
+                    },)))
                     .into_any_element()]),
                 ),
                 (

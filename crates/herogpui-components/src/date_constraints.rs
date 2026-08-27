@@ -118,6 +118,22 @@ impl DateConstraints {
         false
     }
 
+    /// Clamp a date to the inclusive min/max range. React Stately applies
+    /// this to controlled focus values before it derives the visible range.
+    pub fn constrain(&self, date: Date) -> Date {
+        if let Some(min) = self.min_value {
+            if days_from_civil(&date) < days_from_civil(&min) {
+                return min;
+            }
+        }
+        if let Some(max) = self.max_value {
+            if days_from_civil(&date) > days_from_civil(&max) {
+                return max;
+            }
+        }
+        date
+    }
+
     /// Whether `date` is blocked only by the unavailable predicate.
     pub fn is_unavailable(&self, date: Date) -> bool {
         match &self.is_date_unavailable {
@@ -183,6 +199,9 @@ mod tests {
         assert!(c.allows(d(2026, 3, 10)));
         assert!(c.allows(d(2026, 3, 20)));
         assert!(!c.allows(d(2026, 3, 21)));
+        assert_eq!(c.constrain(d(2026, 3, 1)), d(2026, 3, 10));
+        assert_eq!(c.constrain(d(2026, 3, 15)), d(2026, 3, 15));
+        assert_eq!(c.constrain(d(2026, 3, 31)), d(2026, 3, 20));
     }
 
     #[test]
