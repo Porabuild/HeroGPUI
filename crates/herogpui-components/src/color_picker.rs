@@ -3048,6 +3048,18 @@ pub enum SwatchLayout {
     Stack,
 }
 
+/// State handed to `ColorSwatchPicker.Item`'s render function.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ColorSwatchPickerItemState {
+    pub color: PickerColor,
+    pub is_hovered: bool,
+    pub is_pressed: bool,
+    pub is_selected: bool,
+    pub is_focused: bool,
+    pub is_focus_visible: bool,
+    pub is_disabled: bool,
+}
+
 /// ColorSwatchPicker — chooses from a predefined palette.
 #[derive(IntoElement)]
 pub struct ColorSwatchPicker {
@@ -3063,6 +3075,9 @@ pub struct ColorSwatchPicker {
     /// `ColorSwatchPicker.Item.isDisabled` — swatches that cannot be chosen,
     /// by index.
     disabled_keys: std::collections::HashSet<usize>,
+    item_content:
+        Option<Arc<dyn Fn(usize, ColorSwatchPickerItemState) -> gpui::AnyElement + 'static>>,
+    indicator: Option<Arc<dyn Fn(usize, ColorSwatchPickerItemState) -> gpui::AnyElement + 'static>>,
     on_change: Option<OnColorChange>,
 }
 
@@ -3080,6 +3095,8 @@ impl ColorSwatchPicker {
             layout: SwatchLayout::Grid,
             is_disabled: false,
             disabled_keys: std::collections::HashSet::new(),
+            item_content: None,
+            indicator: None,
             on_change: None,
         }
     }
@@ -3128,6 +3145,29 @@ impl ColorSwatchPicker {
     /// since the swatches are a plain list with no keys of their own.
     pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = usize>) -> Self {
         self.disabled_keys = keys.into_iter().collect();
+        self
+    }
+
+    /// `children` on `ColorSwatchPicker.Item` — replaces the built-in swatch
+    /// and indicator while the stable item keeps selection and navigation.
+    /// The closure receives the item's palette index and the complete pinned
+    /// React Aria item render state.
+    pub fn item_content(
+        mut self,
+        render: impl Fn(usize, ColorSwatchPickerItemState) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.item_content = Some(Arc::new(render));
+        self
+    }
+
+    /// `ColorSwatchPicker.Indicator` — replaces the selected checkmark. The
+    /// render function receives the same item state as its pinned compound
+    /// part, including while the indicator is visually hidden.
+    pub fn indicator(
+        mut self,
+        render: impl Fn(usize, ColorSwatchPickerItemState) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.indicator = Some(Arc::new(render));
         self
     }
 
@@ -3183,23 +3223,72 @@ impl RenderOnce for ColorSwatchPicker {
             .copied()
             .find(|i| *i >= at)
             .or_else(|| enabled.first().copied());
+        let interactions: Vec<util::Interaction> = if self.item_content.is_some()
+            || self.indicator.is_some()
+        {
+            (0..self.swatches.len())
+                .map(|index| {
+                    util::interaction(
+                        ElementId::Name(format!("{:?}-swatch-{index}-interaction", self.id).into()),
+                        window,
+                        cx,
+                    )
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let pointer_focus = window.use_keyed_state(
+            ElementId::Name(format!("{:?}-pointer-focus", self.id).into()),
+            cx,
+            |_, _| None::<usize>,
+        );
+        let item_edge = self.size.swatch_px();
+        let border_width = match self.size {
+            SizeXl::Xs => px(1.),
+            SizeXl::Sm | SizeXl::Md => px(2.),
+            SizeXl::Lg | SizeXl::Xl => px(3.),
+        };
+        let item_radius = match self.shape {
+            SwatchShape::Circle => match self.size {
+                SizeXl::Xs => px(8.),
+                SizeXl::Sm => px(12.),
+                SizeXl::Md => px(16.),
+                SizeXl::Lg | SizeXl::Xl => px(24.),
+            },
+            SwatchShape::Square => match self.size {
+                SizeXl::Xs => px(6.),
+                SizeXl::Sm => px(8.),
+                SizeXl::Md | SizeXl::Lg | SizeXl::Xl => px(12.),
+            },
+        };
         // RAC's grid delegate moves Up and Down between the same column of the
-        // adjacent row. A grid row holds the most cells that fit under the
-        // picker's `max_w` (280px): 32px cells with an 8px gap give
-        // `32n + 8(n - 1) <= 280`, so 7 is the stride. A stack never wraps,
-        // so only the grid answers Up and Down, and a single-row grid has no
-        // second row -- which is what the geometric delegate reports too.
+        // adjacent row. A grid row holds the most cells of the active size
+        // that fit under the picker's 280px maximum with its 8px gap.
         let grid_columns = if self.layout == SwatchLayout::Grid {
-            7
+            (((280. + 8.) / (f32::from(item_edge) + 8.)) as usize).max(1)
         } else {
             0
         };
         let swatch_ring = util::focus_visible(cx);
 
-        let mut row = div().flex().flex_row().items_center().gap(px(8.));
-        if self.layout == SwatchLayout::Grid {
-            row = row.flex_wrap().max_w(px(280.));
-        }
+        let clear_pointer_focus = pointer_focus.clone();
+        let mut row = div()
+            .id(ElementId::Name(format!("{:?}-swatches", self.id).into()))
+            .flex()
+            .items_center()
+            .gap(px(8.))
+            .on_mouse_down_out(move |_, _, cx| {
+                clear_pointer_focus.update(cx, |focused, cx| {
+                    if focused.take().is_some() {
+                        cx.notify();
+                    }
+                });
+            });
+        row = match self.layout {
+            SwatchLayout::Grid => row.flex_row().flex_wrap().max_w(px(280.)),
+            SwatchLayout::Stack => row.flex_col(),
+        };
 
         for (index, swatch) in self.swatches.iter().enumerate() {
             let selected = self.value.is_some_and(|v| v.to_hex() == swatch.to_hex());
@@ -3208,34 +3297,61 @@ impl RenderOnce for ColorSwatchPicker {
             // order (`track_focus` below is gated on it, and a stop resting
             // on nothing is what takes a control out of the order).
             let item_disabled = self.is_disabled || self.disabled_keys.contains(&index);
+            let (recorded_hover, recorded_press) = interactions
+                .get(index)
+                .map(|slot| *slot.read(cx))
+                .unwrap_or_default();
+            let item_focused = !item_disabled
+                && cursor_index == Some(index)
+                && (swatch_focus.is_focused(window)
+                    || *pointer_focus.read(cx) == Some(index)
+                    || recorded_press);
+            let state = ColorSwatchPickerItemState {
+                color: *swatch,
+                is_hovered: !item_disabled && recorded_hover,
+                is_pressed: !item_disabled && recorded_press,
+                is_selected: selected,
+                is_focused: item_focused,
+                is_focus_visible: item_focused && swatch_ring,
+                is_disabled: item_disabled,
+            };
 
             let mut cell = div()
                 .id(ElementId::Name(
                     format!("{:?}-swatch-{index}", self.id).into(),
                 ))
-                .when(cursor_index == Some(index), |c| c.track_focus(&swatch_focus))
+                .when(cursor_index == Some(index), |c| {
+                    c.track_focus(&swatch_focus)
+                })
+                .relative()
                 .flex()
                 .items_center()
                 .justify_center()
-                // `.color-swatch-picker__item` is `size-8 rounded-2xl border-2`.
-                .size(px(32.))
-                .rounded(util::soft_radius(cx))
-                .border_2()
-                .child({
+                .size(item_edge)
+                .rounded(item_radius)
+                .border(border_width);
+
+            if let Some(render) = &self.item_content {
+                cell = cell.child(render(index, state));
+            } else {
+                cell = cell.child({
                     // `.color-swatch-picker__swatch` is `size-full` inside the
                     // border, `scale(1.1)` on hover and `scale(0.77)` when the
                     // item is selected. gpui has no div transform, so each of
                     // those is the size it comes to.
-                    let edge = if selected { px(22.) } else { px(28.) };
-                    let radius = match self.shape {
-                        SwatchShape::Circle => px(f32::from(edge) / 2.),
-                        SwatchShape::Square => cx.layout().radius_md(),
+                    let base_edge = f32::from(item_edge) - 2. * f32::from(border_width);
+                    let edge = px(if selected {
+                        base_edge * 0.77
+                    } else {
+                        base_edge
+                    });
+                    let radius = match (self.shape, self.size, selected) {
+                        (SwatchShape::Circle, _, _) => item_radius,
+                        (SwatchShape::Square, SizeXl::Xs, _) => px(6.),
+                        (SwatchShape::Square, SizeXl::Sm, true) => px(6.),
+                        (SwatchShape::Square, _, _) => px(8.),
                     };
                     let grown = px(f32::from(edge) * 1.1);
-                    let grown_radius = match self.shape {
-                        SwatchShape::Circle => px(f32::from(grown) / 2.),
-                        SwatchShape::Square => cx.layout().radius_md(),
-                    };
                     div()
                         .size(edge)
                         .rounded(radius)
@@ -3244,34 +3360,46 @@ impl RenderOnce for ColorSwatchPicker {
                         // The checkerboard that shows through a translucent
                         // colour, as on a plain `ColorSwatch`.
                         .bg(cx.colors().surface_secondary)
-                        .when(!item_disabled, |el| {
-                            el.hover(move |st| st.size(grown).rounded(grown_radius))
+                        .when(!item_disabled && !selected, |el| {
+                            el.hover(move |st| st.size(grown))
                         })
                         .child(div().size_full().rounded(radius).bg(swatch.to_hsla()))
                 });
 
-            // `.color-swatch-picker__indicator` spans the *item* (`absolute
-            // inset-0`) and centres a checkmark at `size-1/3` of it -- white by
-            // default, black over a light colour (`data-light-color`).
-            if selected {
-                cell = cell.child(
-                    div()
-                        .absolute()
-                        .inset_0()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .child(
-                            gpui::svg()
-                                .size(px(32. / 3.))
-                                .path(crate::icons::CHECK)
-                                .text_color(if swatch.brightness > 0.7 {
-                                    gpui::black()
-                                } else {
-                                    gpui::white()
-                                }),
-                        ),
-                );
+                // `.color-swatch-picker__indicator` spans the *item* (`absolute
+                // inset-0`) and centres a checkmark at `size-1/3` of it -- white by
+                // default, black over a light colour (`data-light-color`).
+                if let Some(render) = &self.indicator {
+                    cell = cell.child(
+                        div()
+                            .absolute()
+                            .inset_0()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .when(!selected, |indicator| indicator.opacity(0.))
+                            .child(render(index, state)),
+                    );
+                } else if selected {
+                    cell = cell.child(
+                        div()
+                            .absolute()
+                            .inset_0()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .child(
+                                gpui::svg()
+                                    .size(px(f32::from(item_edge) / 3.))
+                                    .path(crate::icons::CHECK)
+                                    .text_color(if swatch.brightness > 0.7 {
+                                        gpui::black()
+                                    } else {
+                                        gpui::white()
+                                    }),
+                            ),
+                    );
+                }
             }
 
             // Selected: `border-color: var(--color-swatch-current)` -- the
@@ -3307,6 +3435,41 @@ impl RenderOnce for ColorSwatchPicker {
                 });
             }
 
+            if !item_disabled {
+                let moved = cursor.clone();
+                let focus = swatch_focus.clone();
+                let pointer = pointer_focus.clone();
+                if let Some(interaction) = interactions.get(index) {
+                    cell = util::track_interaction_on_mouse_down(
+                        cell,
+                        interaction,
+                        move |window, cx| {
+                            moved.update(cx, |cursor, cx| {
+                                *cursor = index;
+                                cx.notify();
+                            });
+                            pointer.update(cx, |focused, cx| {
+                                *focused = Some(index);
+                                cx.notify();
+                            });
+                            window.focus(&focus);
+                        },
+                    );
+                } else {
+                    cell = cell.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                        moved.update(cx, |cursor, cx| {
+                            *cursor = index;
+                            cx.notify();
+                        });
+                        pointer.update(cx, |focused, cx| {
+                            *focused = Some(index);
+                            cx.notify();
+                        });
+                        window.focus(&focus);
+                    });
+                }
+            }
+
             // The collection keyboard, the ListBox's: the arrows rove the
             // focus over the enabled swatches and Home and End jump, while a
             // disabled swatch is never a stop. Enter and Space stay with gpui
@@ -3318,9 +3481,18 @@ impl RenderOnce for ColorSwatchPicker {
             if !item_disabled {
                 let stops = enabled.clone();
                 let moved = cursor.clone();
+                let pointer = pointer_focus.clone();
                 let columns = grid_columns;
                 cell = cell.on_key_down(move |event, _window, cx| {
                     let key = event.keystroke.key.as_str();
+                    if key == "tab" {
+                        pointer.update(cx, |focused, cx| {
+                            if focused.take().is_some() {
+                                cx.notify();
+                            }
+                        });
+                        return;
+                    }
                     let next = match key {
                         // Grid rows: same column, adjacent row. The strided
                         // target must be a real enabled swatch; otherwise the
@@ -3338,8 +3510,14 @@ impl RenderOnce for ColorSwatchPicker {
                             }
                             j as usize
                         }
-                        // A stack is a single row: no second row to move to.
-                        "up" | "down" => return,
+                        key @ ("up" | "down") if columns == 0 => {
+                            let crate::list_nav::Move::To(next) =
+                                crate::list_nav::resolve(&stops, Some(index), key, false)
+                            else {
+                                return;
+                            };
+                            next
+                        }
                         key @ ("left" | "right" | "home" | "end") => {
                             let key = match key {
                                 "right" => "down",
@@ -3365,13 +3543,8 @@ impl RenderOnce for ColorSwatchPicker {
                 });
             }
 
-            let cell = util::with_focus_ring(
-                cell,
-                swatch_ring && cursor_index == Some(index) && swatch_focus.is_focused(window),
-                true,
-                Vec::new(),
-                cx,
-            );
+            let cell =
+                util::with_focus_ring(cell, swatch_ring && item_focused, true, Vec::new(), cx);
             row = row.child(cell);
         }
 

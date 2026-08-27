@@ -2664,8 +2664,8 @@ impl Gallery {
                     "Custom Indicator",
                     col(vec![
                         para(
-                            "v3 replaces `ColorSwatchPicker.Indicator`. The square shape shows \
-                             the selected item with the same tick in a different frame.",
+                            "v3 replaces `ColorSwatchPicker.Indicator`. The square picker uses \
+                             a heart in place of the default selected checkmark.",
                             cx,
                         ),
                         h::ColorSwatchPicker::new("csp-indicator", palette())
@@ -2676,6 +2676,48 @@ impl Gallery {
                             })))
                             .shape(h::SwatchShape::Square)
                             .size(SizeXl::Lg)
+                            .indicator(|_, _| {
+                                gpui::svg()
+                                    .size(px(12.))
+                                    .path(h::icons::HEART_FILL)
+                                    .text_color(gpui::white())
+                                    .into_any_element()
+                            })
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Item Render State",
+                    col(vec![
+                        para(
+                            "`item_content` receives each item's color plus selected, hovered, \
+                             pressed, focused, focus-visible, and disabled state. These custom \
+                             tiles use that state while the picker keeps navigation and selection.",
+                            cx,
+                        ),
+                        h::ColorSwatchPicker::new("csp-item-content", palette())
+                            .value(selected)
+                            .size(SizeXl::Xl)
+                            .on_change(color_cb(cx.listener(|this, c: &h::PickerColor, _, cx| {
+                                this.swatch_selected = *c;
+                                cx.notify();
+                            })))
+                            .item_content(|_, state| {
+                                gpui::div()
+                                    .size_full()
+                                    .rounded(px(8.))
+                                    .bg(state.color.to_hsla())
+                                    .when(state.is_pressed, |tile| tile.opacity(0.65))
+                                    .when(state.is_selected, |tile| {
+                                        tile.child(
+                                            gpui::svg()
+                                                .size(px(12.))
+                                                .path(h::icons::HEART_FILL)
+                                                .text_color(gpui::white()),
+                                        )
+                                    })
+                                    .into_any_element()
+                            })
                             .into_any_element(),
                     ]),
                 ),

@@ -12182,12 +12182,106 @@ pub(crate) const COLOR_FIELD: ReferenceMetadata = ReferenceMetadata {
     styling: COLOR_FIELD_STYLING,
 };
 
+const COLOR_SWATCH_PICKER_REQUIRED_PARTS: &[&str] = &[
+    "ColorSwatchPicker",
+    "ColorSwatchPicker.Item",
+    "ColorSwatchPicker.Swatch",
+    "ColorSwatchPicker.Indicator",
+];
+
+const COLOR_SWATCH_PICKER_API: &[ApiDoc] = &[
+    ApiDoc { owner: "ColorSwatchPicker", prop: "value", ty: "string | Color", default: "—", description: "Controlled selection changes only when the owner supplies the reported color.", rust_owner: "ColorSwatchPicker", rust: "value(PickerColor)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSwatchPicker", prop: "defaultValue", ty: "string | Color", default: "—", description: "Seeds picker-owned selection once.", rust_owner: "ColorSwatchPicker", rust: "default_value(PickerColor)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSwatchPicker", prop: "onChange", ty: "(value: Color) => void", default: "—", description: "Reports pointer and keyboard selection changes.", rust_owner: "ColorSwatchPicker", rust: "on_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSwatchPicker", prop: "size", ty: "xs | sm | md | lg | xl", default: "md", description: "Drives item edge, border, radius, indicator, hit geometry, wrapping, and grid navigation stride.", rust_owner: "ColorSwatchPicker", rust: "size(SizeXl)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSwatchPicker", prop: "variant", ty: "circle | square", default: "circle", description: "Selects the pinned per-size item and swatch radii.", rust_owner: "ColorSwatchPicker", rust: "shape(SwatchShape)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSwatchPicker", prop: "layout", ty: "grid | stack", default: "grid", description: "Grid wraps and uses geometric row navigation; stack is vertical and uses Up/Down.", rust_owner: "ColorSwatchPicker", rust: "layout(SwatchLayout)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSwatchPicker", prop: "className", ty: "string", default: "—", description: "Browser classes are unavailable.", rust_owner: "ColorSwatchPicker", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorSwatchPicker", prop: "children", ty: "ReactNode", default: "—", description: "The Rust constructor receives a concrete palette and composes one item per color.", rust_owner: "ColorSwatchPicker", rust: "new(id, Vec<PickerColor>)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ColorSwatchPicker", prop: "render", ty: "DOMRenderFunction", default: "—", description: "The GPUI root element cannot be replaced.", rust_owner: "ColorSwatchPicker", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorSwatchPicker.Item", prop: "color", ty: "string | Color", default: "required", description: "Each palette color is supplied by index and reaches item render state.", rust_owner: "ColorSwatchPicker", rust: "new(id, Vec<PickerColor>) / item_content", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSwatchPicker.Item", prop: "isDisabled", ty: "boolean", default: "false", description: "Per-index disabled items dim, leave navigation, and mask interaction state.", rust_owner: "ColorSwatchPicker", rust: "disabled_keys(indices)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSwatchPicker.Item", prop: "className", ty: "string", default: "—", description: "Browser classes are unavailable.", rust_owner: "ColorSwatchPicker", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorSwatchPicker.Item", prop: "children", ty: "ReactNode | RenderFunction", default: "Swatch + Indicator", description: "Replacement content receives color, hover, press, selection, focus, focus-visible, and disabled state.", rust_owner: "ColorSwatchPicker", rust: "item_content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSwatchPicker.Item", prop: "render", ty: "DOMRenderFunction", default: "—", description: "The behavior-owning item cannot be replaced; caller content is composed inside it.", rust_owner: "ColorSwatchPicker", rust: "item_content(render)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ColorSwatchPicker.Swatch", prop: "className", ty: "string", default: "—", description: "Browser classes are unavailable; replacing Item children replaces the swatch visual.", rust_owner: "ColorSwatchPicker", rust: "item_content(render)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ColorSwatchPicker.Indicator", prop: "children", ty: "ReactNode | RenderFunction", default: "checkmark", description: "Replacement indicator content receives the complete item state.", rust_owner: "ColorSwatchPicker", rust: "indicator(render)", status: ImplementationStatus::Implemented },
+];
+
+const COLOR_SWATCH_PICKER_PARTS: &[PartDoc] = &[
+    PartDoc {
+        name: "ColorSwatchPicker",
+        slot: "color-swatch-picker",
+        description: "Selection owner and wrapping grid or vertical stack.",
+        rust_owner: "ColorSwatchPicker",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "ColorSwatchPicker.Item",
+        slot: "color-swatch-picker-item",
+        description: "Stable focus, pointer, selection, and render-state owner.",
+        rust_owner: "ColorSwatchPicker",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "ColorSwatchPicker.Swatch",
+        slot: "color-swatch-picker-swatch",
+        description: "Checkerboard-backed color visual with selected and hover geometry.",
+        rust_owner: "ColorSwatchPicker",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "ColorSwatchPicker.Indicator",
+        slot: "color-swatch-picker-indicator",
+        description:
+            "Centered selected marker with luminance-aware default color or caller content.",
+        rust_owner: "ColorSwatchPicker",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const COLOR_SWATCH_PICKER_STATES: &[StateDoc] = &[
+    StateDoc { state: "Hovered", selector: ".color-swatch-picker__item[data-hovered=true]", description: "Enabled unselected swatches grow to 1.1 and item content receives hover.", rust: "interaction + item_content", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Pressed", selector: "ColorSwatchPickerItemRenderProps.isPressed", description: "Enabled item content receives live pointer and keyboard press state.", rust: "interaction + item_content", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Selected", selector: ".color-swatch-picker__item[data-selected=true]", description: "The color border is revealed by a 0.77 inner swatch and item/indicator state updates.", rust: "resolved value + item_content / indicator", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focused", selector: "ColorSwatchPickerItemRenderProps.isFocused", description: "Exactly one enabled item owns the roving focus handle.", rust: "cursor + tab_stop_handle", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus visible", selector: ".color-swatch-picker__item[data-focus-visible=true]", description: "Keyboard-origin focus draws the shared ring and reaches item state.", rust: "with_focus_ring + item_content", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Disabled", selector: ".color-swatch-picker__item[data-disabled=true]", description: "Whole-picker and per-item disabling dim, suppress events, remove navigation stops, and mask state.", rust: "is_disabled / disabled_keys", status: ImplementationStatus::Implemented },
+];
+
+const COLOR_SWATCH_PICKER_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".color-swatch-picker", value: "flex flex-wrap items-center gap-2", description: "Grid alignment, eight-pixel gap, wrapping, and 280px desktop cap match.", rust: "flex + items_center + gap(8) + flex_wrap + max_w(280)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-swatch-picker--stack", value: "flex-col", description: "Stack layout is vertical and its keyboard direction follows the visual axis.", rust: "flex_col + Up/Down navigation", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-swatch-picker__item sizes", value: "16/24/32/36/40px; borders 1/2/2/3/3px", description: "Every size drives paint, hit testing, indicator size, wrapping, and grid stride.", rust: "SizeXl::swatch_px + border_width", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-swatch-picker circle / square radii", value: "per-size circle radii; square item 6/8/12/12/12px and swatch 6/8/8/8/8px", description: "Pinned item and inner-swatch radii match, including the selected small-square exception.", rust: "item_radius + inner radius", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-swatch-picker__item transitions", value: "border/shadow 100ms ease-out; reduced-motion none", description: "Border color and focus shadow still change on a frame.", rust: "immediate border/ring", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: ".color-swatch-picker__swatch transforms", value: "hover scale 1.1; selected scale .77; 100ms ease-out", description: "Final geometry and selected-over-hover precedence match; interpolation is not implemented.", rust: "computed inner edge + hover size", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".color-swatch-picker__indicator", value: "absolute inset-0; child size one-third; light-aware black/white", description: "Position, size, and luminance contrast match; custom content uses the same centered owner.", rust: "indicator / CHECK", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-swatch-picker__indicator transition", value: "scale 0 to 1 over 150ms ease-out; reduced-motion none", description: "Indicator visibility changes immediately rather than interpolating scale.", rust: "selected visibility", status: ImplementationStatus::Unavailable },
+];
+
+pub(crate) const COLOR_SWATCH_PICKER: ReferenceMetadata = ReferenceMetadata {
+    page: "ColorSwatchPicker",
+    import_line: "use herogpui::components::color_picker::ColorSwatchPicker;",
+    source_module: "color_picker",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(colors)/color-swatch-picker.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/color-swatch-picker/color-swatch-picker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/ColorSwatchPicker.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/ListBox.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/color-swatch-picker.css",
+    required_parts: COLOR_SWATCH_PICKER_REQUIRED_PARTS,
+    api: COLOR_SWATCH_PICKER_API,
+    parts: COLOR_SWATCH_PICKER_PARTS,
+    states: COLOR_SWATCH_PICKER_STATES,
+    styling: COLOR_SWATCH_PICKER_STYLING,
+};
+
 pub(crate) const ALL: &[ReferenceMetadata] = &[
     DROPDOWN,
     LIST_BOX,
     TAG_GROUP,
     COLOR_AREA,
     COLOR_SLIDER,
+    COLOR_SWATCH_PICKER,
     COLOR_PICKER,
     COLOR_FIELD,
     SLIDER,

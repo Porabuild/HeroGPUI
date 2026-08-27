@@ -1351,6 +1351,48 @@ impl Widget {
     }
 
     #[test]
+    fn color_swatch_picker_metadata_tracks_item_state_and_size_geometry() {
+        let metadata = reference_metadata::for_route(
+            "ColorSwatchPicker",
+            "use herogpui::components::color_picker::ColorSwatchPicker;",
+        )
+        .expect("ColorSwatchPicker metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "ColorSwatchPicker.Item"
+                && entry.prop == "children"
+                && entry.rust == "item_content(render)"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "ColorSwatchPicker.Indicator"
+                && entry.rust == "indicator(render)"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        for state in [
+            "Hovered",
+            "Pressed",
+            "Selected",
+            "Focused",
+            "Focus visible",
+            "Disabled",
+        ] {
+            assert!(metadata.states.iter().any(|entry| {
+                entry.state == state
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".color-swatch-picker__item sizes"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata
+            .api_source
+            .contains("react-aria-components/src/ColorSwatchPicker.tsx"));
+    }
+
+    #[test]
     fn color_field_metadata_tracks_complete_render_state_and_compound_parts() {
         let metadata = reference_metadata::for_route(
             "ColorField",

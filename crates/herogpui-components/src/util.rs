@@ -1082,6 +1082,19 @@ pub fn track_interaction<T>(el: T, slot: &Interaction) -> T
 where
     T: gpui::StatefulInteractiveElement + ParentElement,
 {
+    track_interaction_on_mouse_down(el, slot, |_, _| {})
+}
+
+/// Wires [`track_interaction`] and performs component-specific focus work in
+/// the same mouse-down handler that records the press.
+pub(crate) fn track_interaction_on_mouse_down<T>(
+    el: T,
+    slot: &Interaction,
+    on_mouse_down: impl Fn(&mut gpui::Window, &mut App) + 'static,
+) -> T
+where
+    T: gpui::StatefulInteractiveElement + ParentElement,
+{
     let hover = slot.clone();
     let down = slot.clone();
     let up = slot.clone();
@@ -1117,13 +1130,14 @@ where
             }
         });
     })
-    .on_mouse_down(gpui::MouseButton::Left, move |_, _, cx| {
+    .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
         down.update(cx, |state, cx| {
             if !state.1 {
                 state.1 = true;
                 cx.notify();
             }
         });
+        on_mouse_down(window, cx);
     })
     .on_mouse_up(gpui::MouseButton::Left, move |_, window, cx| {
         if !has_active_keyboard_press(&up, window, cx) {

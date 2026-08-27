@@ -18,7 +18,10 @@ mod harness;
 
 use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext, VisualTestContext};
 use harness::{click, events, open_host, press};
-use herogpui_components::{ColorSwatchPicker, Form, FormData, PickerColor, Slider};
+use herogpui_components::{
+    ColorSwatchPicker, ColorSwatchPickerItemState, Form, FormData, PickerColor, SizeXl, Slider,
+    SwatchLayout,
+};
 
 /// Pushes the pending frame through: events hit-test the last rendered frame.
 fn flush_frame(cx: &mut VisualTestContext) {
@@ -198,14 +201,14 @@ fn slider_thumb_content_tracks_each_keyboard_value(cx: &mut TestAppContext) {
 /// A disabled swatch answers no click while its neighbours do, and it leaves
 /// the tab order.
 ///
-/// Cells are 32px with an 8px gap, so the three centres sit at x = 16, 48, 80
+/// Cells are 32px with an 8px gap, so the three centres sit at x = 16, 56, 96
 /// on the y = 16 centre line. The middle (green) item is disabled: clicking
 /// it records nothing, while either neighbour does. The keyboard half is the
 /// single-stop rule: a collection is *one* tab stop, so Tab enters the group
 /// on the first enabled cell and does not walk it -- Tab cycles a page's
-/// controls, and a second Tab leaves the group again (here it lands back on
-/// the same stop, there being nothing beyond it in the bare host), so Enter
-/// re-picks red. The arrows are what move inside, which the arrowing tests
+/// controls, and a pointer click also moves that roving stop. A second Tab
+/// returns to the same stop in this bare host, so Enter re-picks blue after the
+/// final pointer click. The arrows are what move inside, which the arrowing tests
 /// below drive; the clicks above stay the proof that a disabled swatch
 /// answers no press.
 #[gpui::test]
@@ -226,9 +229,9 @@ fn swatch_picker_disabled_item_ignores_click_and_leaves_tab_order(cx: &mut TestA
 
     click(cx, 16., 16.);
     flush_frame(cx);
-    click(cx, 48., 16.);
+    click(cx, 56., 16.);
     flush_frame(cx);
-    click(cx, 80., 16.);
+    click(cx, 96., 16.);
     flush_frame(cx);
     assert_eq!(
         seen.borrow().as_slice(),
@@ -243,10 +246,185 @@ fn swatch_picker_disabled_item_ignores_click_and_leaves_tab_order(cx: &mut TestA
     press(cx, "enter");
     assert_eq!(
         seen.borrow().as_slice(),
-        ["#F43F5E", "#3B82F6", "#F43F5E"],
-        "one tab stop: the second Tab cannot walk the group, so Enter \
-         re-picks red rather than blue"
+        ["#F43F5E", "#3B82F6", "#3B82F6"],
+        "one tab stop: pointer focus moves that stop to blue, and Tab cannot \
+         walk to the disabled item"
     );
+}
+
+/// The picker sizes are the pinned v3 item sizes, not a label-only setting.
+/// At `xs`, 16px cells separated by the root's 8px gap put the second centre
+/// at x = 32 on y = 8. A fixed 32px implementation leaves that coordinate in
+/// the gap after the first cell, so this press is also a behavioral geometry
+/// assertion rather than a static source check.
+#[gpui::test]
+fn swatch_picker_xs_size_drives_item_hit_geometry(cx: &mut TestAppContext) {
+    let seen = events();
+    let for_view = seen.clone();
+    let red = PickerColor::from_hex("#F43F5E").unwrap();
+    let green = PickerColor::from_hex("#10B981").unwrap();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ColorSwatchPicker::new("pt-csp-xs", vec![red, green])
+            .size(SizeXl::Xs)
+            .on_change(move |c, _, _| recorded.borrow_mut().push(c.to_hex()))
+            .into_any_element()
+    });
+
+    click(cx, 32., 8.);
+    flush_frame(cx);
+    assert_eq!(
+        seen.borrow().as_slice(),
+        ["#10B981"],
+        "the xs item must be 16px, placing the second swatch at x = 32"
+    );
+}
+
+/// A stack is a vertical ListBox layout in the pinned React Aria primitive.
+/// Down therefore moves to the next swatch and Enter selects it; horizontal
+/// navigation belongs to a one-row grid, not a vertical stack.
+#[gpui::test]
+fn swatch_picker_stack_uses_vertical_arrow_navigation(cx: &mut TestAppContext) {
+    let seen = events();
+    let for_view = seen.clone();
+    let red = PickerColor::from_hex("#F43F5E").unwrap();
+    let green = PickerColor::from_hex("#10B981").unwrap();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ColorSwatchPicker::new("pt-csp-stack", vec![red, green])
+            .layout(SwatchLayout::Stack)
+            .on_change(move |c, _, _| recorded.borrow_mut().push(c.to_hex()))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    flush_frame(cx);
+    press(cx, "down");
+    flush_frame(cx);
+    press(cx, "enter");
+    flush_frame(cx);
+    assert_eq!(
+        seen.borrow().as_slice(),
+        ["#10B981"],
+        "Down must move through the vertical stack before Enter selects"
+    );
+}
+
+/// `ColorSwatchPicker.Item` render children receive the full pinned React Aria
+/// state. This drives the state that cannot be inferred from selection alone:
+/// live hover and press, keyboard focus-visible, and disabled masking.
+#[gpui::test]
+fn swatch_picker_item_content_receives_live_item_state(cx: &mut TestAppContext) {
+    let states: std::rc::Rc<std::cell::RefCell<Vec<(usize, ColorSwatchPickerItemState)>>> =
+        Default::default();
+    let for_view = states.clone();
+    let red = PickerColor::from_hex("#F43F5E").unwrap();
+    let green = PickerColor::from_hex("#10B981").unwrap();
+    let blue = PickerColor::from_hex("#3B82F6").unwrap();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ColorSwatchPicker::new("pt-csp-content", vec![red, green, blue])
+            .default_value(red)
+            .disabled_keys([2])
+            .item_content(move |index, state| {
+                recorded.borrow_mut().push((index, state));
+                gpui::div()
+                    .size_full()
+                    .bg(state.color.to_hsla())
+                    .into_any_element()
+            })
+            .into_any_element()
+    });
+    let latest = |index| {
+        states
+            .borrow()
+            .iter()
+            .rev()
+            .find(|(item, _)| *item == index)
+            .map(|(_, state)| *state)
+            .expect("item state rendered")
+    };
+
+    assert!(latest(0).is_selected);
+    assert!(latest(2).is_disabled);
+
+    let green_centre = point(px(56.), px(16.));
+    cx.simulate_mouse_move(green_centre, None::<MouseButton>, Modifiers::none());
+    flush_frame(cx);
+    assert!(latest(1).is_hovered);
+    cx.simulate_mouse_down(green_centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    let pressed = latest(1);
+    assert!(
+        pressed.is_hovered && pressed.is_pressed && pressed.is_focused && !pressed.is_selected,
+        "pointer press must move the roving focus to the pressed item: {pressed:?}"
+    );
+    cx.simulate_mouse_up(green_centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    let selected = latest(1);
+    assert!(selected.is_selected && selected.is_focused && !selected.is_pressed);
+
+    press(cx, "tab");
+    flush_frame(cx);
+    press(cx, "tab");
+    flush_frame(cx);
+    let focused = latest(1);
+    assert!(focused.is_focused && focused.is_focus_visible);
+
+    cx.simulate_mouse_move(
+        point(px(96.), px(16.)),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+    let disabled = latest(2);
+    assert!(
+        disabled.is_disabled
+            && !disabled.is_hovered
+            && !disabled.is_pressed
+            && !disabled.is_focused
+            && !disabled.is_focus_visible,
+        "disabled item state must mask all interaction fields"
+    );
+}
+
+/// Indicator render children receive live item state even when the built-in
+/// swatch remains in place and no Item content closure exists.
+#[gpui::test]
+fn swatch_picker_indicator_alone_receives_hover_and_press(cx: &mut TestAppContext) {
+    let states: std::rc::Rc<std::cell::RefCell<Vec<(usize, ColorSwatchPickerItemState)>>> =
+        Default::default();
+    let for_view = states.clone();
+    let red = PickerColor::from_hex("#F43F5E").unwrap();
+    let green = PickerColor::from_hex("#10B981").unwrap();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ColorSwatchPicker::new("pt-csp-indicator", vec![red, green])
+            .default_value(red)
+            .indicator(move |index, state| {
+                recorded.borrow_mut().push((index, state));
+                gpui::div().size(px(8.)).into_any_element()
+            })
+            .into_any_element()
+    });
+    let latest = || {
+        states
+            .borrow()
+            .iter()
+            .rev()
+            .find(|(index, _)| *index == 1)
+            .map(|(_, state)| *state)
+            .expect("second indicator state rendered")
+    };
+
+    let centre = point(px(56.), px(16.));
+    cx.simulate_mouse_move(centre, None::<MouseButton>, Modifiers::none());
+    flush_frame(cx);
+    assert!(latest().is_hovered);
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    let pressed = latest();
+    assert!(pressed.is_hovered && pressed.is_pressed && pressed.is_focused);
 }
 
 /// v3's picker inherits React Aria's collection keyboard (3.51.0, the pinned
