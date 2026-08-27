@@ -1,7 +1,7 @@
 # Releasing HeroGPUI
 
 HeroGPUI uses one version for four crates.io libraries, the native gallery
-binaries, the npm gallery launcher, and the Git tag.
+binaries, the optional npm gallery launcher, and the Git tag.
 
 ## One-time setup
 
@@ -32,6 +32,7 @@ binaries, the npm gallery launcher, and the Git tag.
    cargo package -p herogpui-theme --allow-dirty --no-verify --list
    cargo package -p herogpui-components --allow-dirty --no-verify --list
    cargo package -p herogpui --allow-dirty --no-verify --list
+   cargo publish --workspace --exclude herogpui-gallery --dry-run --allow-dirty --locked --no-verify
    Push-Location npm
    npm ci
    npm test

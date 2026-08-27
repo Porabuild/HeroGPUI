@@ -133,12 +133,12 @@ jobs:
         if: env.BOOTSTRAP_CRATES_IO_TOKEN == ''
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
-        run: cargo publish --workspace --locked
+        run: cargo publish --workspace --exclude herogpui-gallery --locked
       - name: Bootstrap the first crates.io release
         if: env.BOOTSTRAP_CRATES_IO_TOKEN != ''
         env:
           CARGO_REGISTRY_TOKEN: ${{ env.BOOTSTRAP_CRATES_IO_TOKEN }}
-        run: cargo publish --workspace --locked
+        run: cargo publish --workspace --exclude herogpui-gallery --locked
 
   npm:
     needs: [plan, github-release, crates-io]

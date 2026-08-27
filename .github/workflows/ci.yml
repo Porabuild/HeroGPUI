@@ -33,6 +33,7 @@ jobs:
       - run: cargo package -p herogpui-theme --allow-dirty --no-verify --list
       - run: cargo package -p herogpui-components --allow-dirty --no-verify --list
       - run: cargo package -p herogpui --allow-dirty --no-verify --list
+      - run: cargo publish --workspace --exclude herogpui-gallery --dry-run --allow-dirty --locked --no-verify
 
   npm-launcher:
     runs-on: ubuntu-24.04

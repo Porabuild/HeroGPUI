@@ -169,10 +169,10 @@ npx herogpui                    # launch a published native gallery binary
 
 ### Using HeroGPUI in your app
 
-The crates.io and npm releases are prepared but not published yet. Until the
-first `v0.1.0` release, clone this repository and use
-`herogpui = { path = "../HeroGPUI/crates/herogpui" }`; `npx herogpui` becomes
-available with that release.
+The Rust library will be distributed through crates.io. The npm package is only an
+optional launcher for the native gallery; it does not contain the component
+library. Until the first `v0.1.0` release, clone this repository and use
+`herogpui = { path = "../HeroGPUI/crates/herogpui" }`.
 
 ```toml
 [dependencies]
