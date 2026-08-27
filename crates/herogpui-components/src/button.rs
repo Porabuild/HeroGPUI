@@ -186,12 +186,11 @@ pub fn button_hover_colors(variant: Variant, cx: &App) -> Option<(gpui::Hsla, gp
     match variant {
         Variant::Primary => Some((colors.accent.color, colors.accent.hover())),
         Variant::Secondary => Some((colors.default.color, colors.default.hover())),
+        Variant::Tertiary => Some((colors.default.color, colors.default.hover())),
+        Variant::Outline => Some((gpui::transparent_black(), colors.default.color.alpha(0.6))),
+        Variant::Ghost => Some((gpui::transparent_black(), colors.default.color)),
         Variant::Danger => Some((colors.danger.color, colors.danger.hover())),
         Variant::DangerSoft => Some((colors.danger.soft(), colors.danger.soft_hover())),
-        // These three start transparent and fill in on hover.
-        Variant::Tertiary | Variant::Outline | Variant::Ghost => {
-            Some((gpui::transparent_black(), colors.default.color))
-        }
     }
 }
 
@@ -223,7 +222,7 @@ fn apply_variant(
         // `bg-secondary` token to `bg-default`.
         Variant::Secondary => {
             let base = colors.default;
-            let el = el.text_color(base.foreground);
+            let el = el.text_color(colors.accent.soft_foreground());
             let el = if hover_bg { el.bg(base.color) } else { el };
             if interactive {
                 el.when(hover_bg, |e| e.hover(move |s| s.bg(base.hover())))
@@ -235,9 +234,13 @@ fn apply_variant(
         Variant::Tertiary => {
             let base = colors.default;
             let fg = colors.foreground;
-            let el = el.text_color(fg);
+            let el = if hover_bg {
+                el.bg(base.color).text_color(fg)
+            } else {
+                el.text_color(fg)
+            };
             if interactive {
-                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.color)))
+                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.hover())))
                     .active(|s| s.opacity(0.85))
             } else {
                 el
@@ -248,9 +251,9 @@ fn apply_variant(
             let el = el
                 .border(layout.border_width)
                 .border_color(colors.border)
-                .text_color(colors.foreground);
+                .text_color(base.foreground);
             if interactive {
-                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.color)))
+                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.color.alpha(0.6))))
                     .active(|s| s.opacity(0.85))
             } else {
                 el
@@ -258,12 +261,10 @@ fn apply_variant(
         }
         Variant::Ghost => {
             let base = colors.default;
-            let el = el.text_color(colors.muted);
+            let el = el.text_color(base.foreground);
             if interactive {
-                el.when(hover_bg, |e| {
-                    e.hover(move |s| s.bg(base.color).text_color(colors.foreground))
-                })
-                .active(|s| s.opacity(0.85))
+                el.when(hover_bg, |e| e.hover(move |s| s.bg(base.color)))
+                    .active(|s| s.opacity(0.85))
             } else {
                 el
             }
@@ -299,9 +300,9 @@ pub fn button_foreground(variant: Variant, cx: &App) -> gpui::Hsla {
     let colors = cx.colors();
     match variant {
         Variant::Primary => colors.accent.foreground,
-        Variant::Secondary => colors.default.foreground,
-        Variant::Tertiary | Variant::Outline => colors.foreground,
-        Variant::Ghost => colors.muted,
+        Variant::Secondary => colors.accent.soft_foreground(),
+        Variant::Tertiary => colors.foreground,
+        Variant::Outline | Variant::Ghost => colors.default.foreground,
         Variant::Danger => colors.danger.foreground,
         Variant::DangerSoft => colors.danger.soft_foreground(),
     }
@@ -493,6 +494,11 @@ impl RenderOnce for Button {
         // v3's `[data-pressed]` scale. Applied last so the press geometry sits
         // on top of whatever the variant did to padding.
         if interactive && self.group_edge.is_none() {
+            let press_scale = match self.size {
+                Size::Sm => crate::anim::PRESSED_SCALE_SUBTLE,
+                Size::Md => crate::anim::PRESSED_SCALE,
+                Size::Lg => crate::anim::PRESSED_SCALE_FIRM,
+            };
             el = crate::anim::pressed(
                 el,
                 crate::anim::PressBox {
@@ -507,7 +513,7 @@ impl RenderOnce for Button {
                     gap: self.size.gap(),
                     radius: util::control_radius(cx),
                     shrink_x: !self.full_width,
-                    scale: crate::anim::PRESSED_SCALE,
+                    scale: press_scale,
                 },
                 cx,
             );

@@ -439,6 +439,61 @@ def check_tabs_motion():
     return bad
 
 
+def check_button_motion():
+    """Button's size-specific pressed scale."""
+    css_path = os.path.join(CACHE, 'button.css')
+    src_path = os.path.join(SRC, 'button.rs')
+    anim_path = os.path.join(SRC, 'anim.rs')
+    if not os.path.exists(css_path):
+        print('button motion: no stylesheet')
+        return 1
+    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    src = io.open(src_path, encoding='utf-8').read()
+    anim = io.open(anim_path, encoding='utf-8').read()
+
+    def scale_in(pattern):
+        block = re.search(pattern, css, re.S)
+        scale = re.search(r'transform:\s*scale\(([\d.]+)\)', block.group(1) if block else '')
+        return float(scale.group(1)) if scale else None
+
+    wants = {
+        'Sm': scale_in(r'\.button--sm\s*\{(.*?)(?=\n\.button--md)'),
+        'Md': scale_in(r'\.button\s*\{(.*?)(?=\n/\* Size variants)'),
+        'Lg': scale_in(r'\.button--lg\s*\{(.*?)(?=\n/\* Color variants)'),
+    }
+    names = {
+        'Sm': 'PRESSED_SCALE_SUBTLE',
+        'Md': 'PRESSED_SCALE',
+        'Lg': 'PRESSED_SCALE_FIRM',
+    }
+    constants = {}
+    for name in names.values():
+        match = re.search(r'pub const %s:\s*f32\s*=\s*([\d.]+)' % name, anim)
+        constants[name] = float(match.group(1)) if match else None
+
+    scale_map = re.search(
+        r'let press_scale = match self\.size \{(.*?)\n\s*\};', src, re.S
+    )
+    map_body = scale_map.group(1) if scale_map else ''
+    wired = 'scale: press_scale' in src
+    rows = []
+    for size in ('Sm', 'Md', 'Lg'):
+        symbol = names[size]
+        mapped = bool(re.search(r'Size::%s\s*=>\s*crate::anim::%s' % (size, symbol), map_body))
+        same = wants[size] is not None and constants[symbol] == wants[size] and mapped and wired
+        rows.append((same, size, wants[size], constants[symbol] if mapped else None))
+
+    print('button motion (v3 CSS vs Button):')
+    for same, size, want, got in rows:
+        print('%s %-14s %-16s %-22s %s' % (
+            ' ' if same else '!', 'button', size, str(want), str(got)
+        ))
+    bad = sum(not same for same, _, _, _ in rows)
+    print('BUTTON MISMATCHES : %d' % bad)
+    print()
+    return bad
+
+
 def check_toggle_button_motion():
     """ToggleButton's size scales and the group's transform suppression."""
     css_path = os.path.join(CACHE, 'toggle-button.css')
@@ -865,6 +920,7 @@ def main():
         + check_switch_motion()
         + check_select_motion()
         + check_tabs_motion()
+        + check_button_motion()
         + check_toggle_button_motion()
         + check_pagination_motion()
         + check_drawer_motion()

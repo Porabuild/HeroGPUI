@@ -865,6 +865,57 @@ mod tests {
     }
 
     #[test]
+    fn button_metadata_tracks_render_state_and_pinned_style_limits() {
+        let metadata = reference_metadata::for_route(
+            "Button",
+            "use herogpui::prelude::{Button, Size, Variant};",
+        )
+        .expect("Button metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for prop in [
+            "variant",
+            "size",
+            "fullWidth",
+            "isDisabled",
+            "isPending",
+            "isIconOnly",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "Button"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        for prop in [
+            "isPending",
+            "isPressed",
+            "isHovered",
+            "isFocused",
+            "isFocusVisible",
+            "isDisabled",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "ButtonRenderProps"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".button--sm / .button--md / .button--lg"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".button transform / box-shadow transitions"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.api.iter().any(|entry| {
+            entry.prop == "render"
+                && entry.status == reference_metadata::ImplementationStatus::Unavailable
+        }));
+    }
+
+    #[test]
     fn referenced_types_include_companions_used_by_examples() {
         let examples = ["h::Table::new().column(h::TableColumn::new())"];
         let owners = referenced_types(
@@ -1174,23 +1225,28 @@ impl Widget {
                 "registered Calendar part disappeared: {required}"
             );
         }
-        for prop in ["focusedValue", "minValue", "maxValue", "firstDayOfWeek"] {
+        for prop in ["focusedValue", "minValue", "maxValue"] {
             assert!(metadata.api.iter().any(|entry| {
                 entry.owner == "Calendar"
                     && entry.prop == prop
-                    && entry.status == reference_metadata::ImplementationStatus::Partial
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
             }));
         }
-        for (owner, prop) in [
-            ("Calendar.YearPickerTriggerHeading", "offset"),
-            ("Calendar.YearPickerGrid", "visibleYears"),
-        ] {
-            assert!(metadata.api.iter().any(|entry| {
-                entry.owner == owner
-                    && entry.prop == prop
-                    && entry.status == reference_metadata::ImplementationStatus::Partial
-            }));
-        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "Calendar"
+                && entry.prop == "firstDayOfWeek"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "Calendar.YearPickerTriggerHeading"
+                && entry.prop == "offset"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "Calendar.YearPickerGrid"
+                && entry.prop == "visibleYears"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
         assert!(metadata.states.iter().any(|entry| {
             entry.state == "Outside month"
                 && entry.status == reference_metadata::ImplementationStatus::Implemented
@@ -1230,26 +1286,31 @@ impl Widget {
             "focusedValue",
             "minValue",
             "maxValue",
-            "isDateUnavailable",
-            "firstDayOfWeek",
             "selectionAlignment",
         ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "RangeCalendar"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        for prop in ["isDateUnavailable", "firstDayOfWeek"] {
             assert!(metadata.api.iter().any(|entry| {
                 entry.owner == "RangeCalendar"
                     && entry.prop == prop
                     && entry.status == reference_metadata::ImplementationStatus::Partial
             }));
         }
-        for (owner, prop) in [
-            ("RangeCalendar.YearPickerTriggerHeading", "offset"),
-            ("RangeCalendar.YearPickerGrid", "visibleYears"),
-        ] {
-            assert!(metadata.api.iter().any(|entry| {
-                entry.owner == owner
-                    && entry.prop == prop
-                    && entry.status == reference_metadata::ImplementationStatus::Partial
-            }));
-        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "RangeCalendar.YearPickerTriggerHeading"
+                && entry.prop == "offset"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "RangeCalendar.YearPickerGrid"
+                && entry.prop == "visibleYears"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
         assert!(metadata.parts.iter().any(|entry| {
             entry.name == "RangeCalendar.YearPickerGrid"
                 && entry.slot == "calendar-year-picker-grid"
@@ -1437,10 +1498,14 @@ impl Widget {
                     && entry.status == reference_metadata::ImplementationStatus::Implemented
             }));
         }
+        for prop in ["value", "defaultValue", "onChange"] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "Select"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
         for (owner, prop) in [
-            ("Select", "value"),
-            ("Select", "defaultValue"),
-            ("Select", "onChange"),
             ("Select", "fullWidth"),
             ("Select.Indicator", "children"),
             ("Select.Popover", "placement"),
