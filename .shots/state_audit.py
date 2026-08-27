@@ -100,7 +100,8 @@ EVIDENCE_OVERRIDE = {
     # cannot tell which of its controls rings. Each names its own handle.
     ('color-area', 'status-focused'):
         r'let thumb_visual = util::with_focus_ring\([\s\S]{0,500}?\bis_focus_visible\b',
-    ('color-slider', 'status-focused'): r'ring_if_focused\(track,',
+    ('color-slider', 'status-focused'):
+        r'let mut thumb = util::with_focus_ring\([\s\S]{0,1200}?\n\s*is_focus_visible,',
     ('color-picker', 'status-focused'): r'ring_if_focused\(\s*trigger,',
     ('color-swatch-picker', 'status-focused'): r'swatch_focus',
     # The OTP draws its own flush ring on the active slot, so there is no

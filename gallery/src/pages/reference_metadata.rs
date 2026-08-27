@@ -11797,6 +11797,110 @@ pub(crate) const COLOR_AREA: ReferenceMetadata = ReferenceMetadata {
     styling: COLOR_AREA_STYLING,
 };
 
+const COLOR_SLIDER_REQUIRED_PARTS: &[&str] = &[
+    "ColorSlider",
+    "Label",
+    "ColorSlider.Output",
+    "ColorSlider.Track",
+    "ColorSlider.Thumb",
+];
+
+const COLOR_SLIDER_API: &[ApiDoc] = &[
+    ApiDoc { owner: "ColorSlider", prop: "channel", ty: "ColorChannel", default: "—", description: "Required channel supplied positionally and edited with its pinned range and step.", rust_owner: "ColorSlider", rust: "new(id, value, channel)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSlider", prop: "colorSpace", ty: "ColorSpace", default: "value color space", description: "Selects HSB, HSL, or RGB interpretation; invalid channel/space pairs are accepted rather than auto-corrected with a warning.", rust_owner: "ColorSlider", rust: "color_space(ColorSpace)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ColorSlider", prop: "value", ty: "string | Color", default: "—", description: "Controlled color waits for owner acceptance after pointer and keyboard reports.", rust_owner: "ColorSlider", rust: "new(id, PickerColor, channel)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSlider", prop: "defaultValue", ty: "string | Color", default: "—", description: "Seeds picker-owned color state once.", rust_owner: "ColorSlider", rust: "default_value(PickerColor)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSlider", prop: "onChange", ty: "(value: Color) => void", default: "—", description: "Reports each changed pointer coordinate or keyboard step.", rust_owner: "ColorSlider", rust: "on_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSlider", prop: "onChangeEnd", ty: "(value: Color) => void", default: "—", description: "Reports once on release and once for each completed keyboard change.", rust_owner: "ColorSlider", rust: "on_change_end(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSlider", prop: "orientation", ty: "horizontal | vertical", default: "horizontal", description: "Switches the value axis and vertical layout direction.", rust_owner: "ColorSlider", rust: "orientation(Orientation)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSlider", prop: "isDisabled", ty: "boolean", default: "false", description: "Removes focus, pointer, keyboard, and successful form submission while masking thumb interaction state.", rust_owner: "ColorSlider", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSlider", prop: "name", ty: "string", default: "—", description: "Registers the live channel number for FormData.", rust_owner: "ColorSlider", rust: "name / form_field", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSlider", prop: "aria-label", ty: "string", default: "—", description: "GPUI exposes no accessibility-tree attribute surface.", rust_owner: "ColorSlider", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorSlider", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "The monolithic Rust root composes built-in label, output, track, and thumb parts; root replacement is unavailable.", rust_owner: "ColorSlider", rust: "show_label / output / thumb", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ColorSlider", prop: "className / render", ty: "string / DOMRenderFunction", default: "—", description: "Browser class customization and DOM root substitution are unavailable; length provides geometry customization.", rust_owner: "ColorSlider", rust: "length(Pixels)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ColorSliderRenderProps", prop: "color / orientation / isDisabled", ty: "Color / Orientation / boolean", default: "—", description: "The values are computed by the control but a root children render function is not exposed.", rust_owner: "ColorSlider", rust: "internal state", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorSlider.Output", prop: "children", ty: "ReactNode | RenderFunction", default: "formatted value", description: "Replacement output receives current color and formatted channel text.", rust_owner: "ColorSlider", rust: "output(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSlider.Output", prop: "className", ty: "string", default: "—", description: "Browser classes are unavailable.", rust_owner: "ColorSlider", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorSlider.Track", prop: "children", ty: "ReactNode | RenderFunction", default: "ColorSlider.Thumb", description: "The built-in track owns the thumb; independent track render content and hover state are unavailable.", rust_owner: "ColorSlider", rust: "built-in track", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ColorSlider.Track", prop: "className / style", ty: "string / CSSProperties | RenderFunction", default: "—", description: "Browser classes and inline-style render functions are unavailable.", rust_owner: "ColorSlider", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorSlider.Thumb", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Caller content receives color, dragging, hovered, focused, focus-visible, and disabled state.", rust_owner: "ColorSlider", rust: "thumb(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSlider.Thumb", prop: "className / style", ty: "string / CSSProperties | RenderFunction", default: "—", description: "Browser class and inline-style render functions are unavailable.", rust_owner: "ColorSlider", rust: "—", status: ImplementationStatus::Unavailable },
+];
+
+const COLOR_SLIDER_PARTS: &[PartDoc] = &[
+    PartDoc {
+        name: "ColorSlider",
+        slot: "color-slider",
+        description: "Value, orientation, form, label/output layout, and interaction owner.",
+        rust_owner: "ColorSlider",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "Label",
+        slot: "label",
+        description: "Built-in channel name; arbitrary label composition is unavailable.",
+        rust_owner: "ColorSlider",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "ColorSlider.Output",
+        slot: "color-slider-output",
+        description: "Formatted value or caller-rendered color/value content.",
+        rust_owner: "ColorSlider",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "ColorSlider.Track",
+        slot: "color-slider-track",
+        description:
+            "Gradient and pointer geometry owner; independent child render state is unavailable.",
+        rust_owner: "ColorSlider",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "ColorSlider.Thumb",
+        slot: "color-slider-thumb",
+        description:
+            "Current-color indicator, focus ring, and complete shared ColorThumb render state.",
+        rust_owner: "ColorSlider",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const COLOR_SLIDER_STATES: &[StateDoc] = &[
+    StateDoc { state: "Disabled", selector: ".color-slider[data-disabled=true] / thumb", description: "Track dims, thumb uses default fill, interaction is removed, FormData is omitted, and thumb state is masked.", rust: "is_disabled", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Dragging", selector: ".color-slider__thumb[data-dragging=true]", description: "Same-value and changed-value presses expose live dragging state until global release.", rust: "dragging keyed state + ColorSliderThumbState", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Hovered", selector: ".color-slider__thumb[data-hovered=true]", description: "Enabled thumb hover reaches its render function.", rust: "thumb_hovered keyed state", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focused", selector: ".color-slider__thumb[data-focused=true]", description: "Pointer and keyboard focus reach thumb render state.", rust: "focus_handle + ColorSliderThumbState", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus visible", selector: ".color-slider__thumb[data-focus-visible=true]", description: "Keyboard-origin focus rings the thumb rather than the whole track.", rust: "with_focus_ring(thumb) + focus_visible", status: ImplementationStatus::Implemented },
+];
+
+const COLOR_SLIDER_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".color-slider", value: "grid w-full gap-1", description: "The four-pixel label/output-to-track gap matches; the port uses flex rows instead of CSS grid areas.", rust: "flex_col + gap(4)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".color-slider label / output", value: "text-sm font-medium tabular-nums", description: "Placement, 14px size, medium weight, and disabled label/output opacity split match; GPUI has no tabular-number switch.", rust: "14px MEDIUM label/output row", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".color-slider__track horizontal / vertical", value: "20px cross-axis; total length minus 20px with 10px edge caps", description: "Cross-axis thickness, rounded total footprint, endpoint inset, and pointer travel match; the Rust gradient continues through the rounded caps rather than drawing separate solid endpoint fills.", rust: "track_h=20 + COLOR_SLIDER_TRACK_INSET_PX", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".color-slider__track shadows", value: "orientation-specific 1px inset borders", description: "A theme border substitutes for the pinned inset edge shadows.", rust: "theme border", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".color-slider alpha checkerboard", value: "repeating-conic 16px checkerboard under gradient", description: "The alpha gradient is present but its checkerboard is not drawn.", rust: "alpha gradient only", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: ".color-slider__thumb", value: "size-4 rounded-2xl border-3 border-white shadow-overlay", description: "Size, circular radius, border, current-color fill, and disabled default fill match; overlay shadow is absent.", rust: "16px + rounded(16) + border(3)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".color-slider__thumb transitions", value: "transform 250ms ease-out; box-shadow 150ms ease-out; reduced-motion none", description: "Thumb position and focus shadow still change on a frame.", rust: "immediate geometry/ring", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: ".color-slider__thumb[data-dragging=true]", value: "cursor-grabbing", description: "Dragging state is exposed, but GPUI provides one pointer cursor for the track rather than a separate grabbing cursor.", rust: "ColorSliderThumbState", status: ImplementationStatus::Partial },
+];
+
+pub(crate) const COLOR_SLIDER: ReferenceMetadata = ReferenceMetadata {
+    page: "ColorSlider",
+    import_line: "use herogpui::components::color_picker::{ColorChannel, ColorSlider};",
+    source_module: "color_picker",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(colors)/color-slider.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/color-slider/color-slider.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/ColorSlider.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/ColorThumb.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/Slider.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/color-slider.css",
+    required_parts: COLOR_SLIDER_REQUIRED_PARTS,
+    api: COLOR_SLIDER_API,
+    parts: COLOR_SLIDER_PARTS,
+    states: COLOR_SLIDER_STATES,
+    styling: COLOR_SLIDER_STYLING,
+};
+
 const COLOR_PICKER_REQUIRED_PARTS: &[&str] =
     &["ColorPicker", "ColorPicker.Trigger", "ColorPicker.Popover"];
 
@@ -12083,6 +12187,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     LIST_BOX,
     TAG_GROUP,
     COLOR_AREA,
+    COLOR_SLIDER,
     COLOR_PICKER,
     COLOR_FIELD,
     SLIDER,

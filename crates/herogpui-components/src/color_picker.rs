@@ -1496,6 +1496,20 @@ fn color_field_display_text(
 // ColorSlider
 // ---------------------------------------------------------------------------
 
+/// State handed to `ColorSlider.Thumb`'s render function.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ColorSliderThumbState {
+    /// React Aria's ColorThumb render color excludes the alpha channel.
+    pub color: PickerColor,
+    pub is_dragging: bool,
+    pub is_hovered: bool,
+    pub is_focused: bool,
+    pub is_focus_visible: bool,
+    pub is_disabled: bool,
+}
+
+const COLOR_SLIDER_TRACK_INSET_PX: f32 = 10.0;
+
 /// ColorSlider — adjusts a single channel along a gradient track.
 #[derive(IntoElement)]
 pub struct ColorSlider {
@@ -1516,6 +1530,7 @@ pub struct ColorSlider {
     /// `ColorSlider.Output`'s render props: the closure is handed the current
     /// `color` and the formatted channel value.
     output: Option<Arc<dyn Fn(PickerColor, &str) -> gpui::AnyElement + 'static>>,
+    thumb: Option<Arc<dyn Fn(ColorSliderThumbState) -> gpui::AnyElement + 'static>>,
     is_disabled: bool,
     on_change: Option<OnColorChange>,
     on_change_end: Option<OnColorChange>,
@@ -1535,6 +1550,7 @@ impl ColorSlider {
             length: px(240.),
             show_label: true,
             output: None,
+            thumb: None,
             is_disabled: false,
             on_change: None,
             on_change_end: None,
@@ -1615,6 +1631,17 @@ impl ColorSlider {
         render: impl Fn(PickerColor, &str) -> gpui::AnyElement + 'static,
     ) -> Self {
         self.output = Some(Arc::new(render));
+        self
+    }
+
+    /// `ColorSlider.Thumb`'s render function — the closure receives the shared
+    /// ColorThumb interaction state while the built-in thumb retains its
+    /// positioning, focus and drag behavior.
+    pub fn thumb(
+        mut self,
+        render: impl Fn(ColorSliderThumbState) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.thumb = Some(Arc::new(render));
         self
     }
 
@@ -1797,6 +1824,11 @@ impl RenderOnce for ColorSlider {
             cx,
             |_, _| false,
         );
+        let thumb_hovered = window.use_keyed_state(
+            ElementId::Name(format!("{:?}-slider-thumb-hovered", self.id).into()),
+            cx,
+            |_, _| false,
+        );
         let colors = cx.colors();
         let border_width = f32::from(cx.layout().border_width);
         let (min, max) = self.channel.range();
@@ -1806,14 +1838,13 @@ impl RenderOnce for ColorSlider {
         let norm = ((raw - min) / (max - min)).clamp(0.0, 1.0);
         // `.color-slider__track` is `relative rounded-2xl` with the gradient
         // inside it; `.color-slider__output` is the value read-out above.
-        let track_h = px(16.);
+        let track_h = px(20.);
 
         let vertical = !self.orientation.is_horizontal();
         let mut track = div()
             .id(self.id.clone())
             .relative()
-            .rounded(px(8.))
-            .overflow_hidden()
+            .rounded(px(COLOR_SLIDER_TRACK_INSET_PX))
             .border(cx.layout().border_width)
             .border_color(colors.border);
         track = if vertical {
@@ -1851,9 +1882,20 @@ impl RenderOnce for ColorSlider {
         track = if self.channel == ColorChannel::Lightness {
             let (start, middle, end) =
                 lightness_gradient_colors(self.value, self.color_space, min, max);
-            track.child(three_stop_gradient(vertical, start, middle, end))
+            track.child(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .rounded(px(COLOR_SLIDER_TRACK_INSET_PX))
+                    .overflow_hidden()
+                    .child(three_stop_gradient(vertical, start, middle, end)),
+            )
         } else if self.channel == ColorChannel::Hue {
-            let mut spectrum = track;
+            let mut spectrum = div()
+                .absolute()
+                .inset_0()
+                .rounded(px(COLOR_SLIDER_TRACK_INSET_PX))
+                .overflow_hidden();
             // Six 60-degree bands approximate the continuous hue wheel.
             for i in 0..6 {
                 let from = PickerColor::hsb(i as f32 * 60.0, 1.0, 1.0).to_hsla();
@@ -1888,7 +1930,7 @@ impl RenderOnce for ColorSlider {
                     )
                 };
             }
-            spectrum
+            track.child(spectrum)
         } else {
             let (from, to) = self.gradient_ends();
             track.bg(gpui::linear_gradient(
@@ -1900,21 +1942,58 @@ impl RenderOnce for ColorSlider {
 
         // A vertical slider's zero end is at the bottom, so the offset is
         // measured from the far edge.
-        let thumb_offset =
-            px(f32::from(self.length) * if vertical { 1.0 - norm } else { norm } - 8.);
-        track = track.child(
+        let travel = (f32::from(self.length) - COLOR_SLIDER_TRACK_INSET_PX * 2.0).max(0.0);
+        let thumb_offset = px(COLOR_SLIDER_TRACK_INSET_PX
+            + travel * if vertical { 1.0 - norm } else { norm }
+            - 8.0);
+        let is_dragging = !self.is_disabled && *dragging.read(cx);
+        let is_focused = !self.is_disabled && focus_handle.is_focused(window);
+        let is_focus_visible = is_focused && util::focus_visible(cx);
+        let thumb_state = ColorSliderThumbState {
+            color: self.value.with_alpha(1.0),
+            is_dragging,
+            is_hovered: !self.is_disabled && *thumb_hovered.read(cx),
+            is_focused,
+            is_focus_visible,
+            is_disabled: self.is_disabled,
+        };
+        let thumb_content = self.thumb.as_ref().map(|render| render(thumb_state));
+        let mut thumb = util::with_focus_ring(
             div()
+                .id(ElementId::Name(
+                    format!("{:?}-slider-thumb", self.id).into(),
+                ))
                 .absolute()
-                .when(vertical, |t| t.left(px(-2.)).top(thumb_offset))
-                .when(!vertical, |t| t.top(px(-2.)).left(thumb_offset))
+                .when(vertical, |t| t.left(px(2.)).top(thumb_offset))
+                .when(!vertical, |t| t.top(px(2.)).left(thumb_offset))
                 // `.color-slider__thumb` is `size-4`.
                 .size(px(16.))
-                .rounded_full()
-                // `.color-area__thumb` is `border: 3px solid white`.
+                .rounded(px(16.))
                 .border(px(3.))
                 .border_color(gpui::white())
-                .bg(self.value.to_hsla()),
+                .bg(if self.is_disabled {
+                    colors.default.color
+                } else {
+                    self.value.with_alpha(1.0).to_hsla()
+                })
+                .when_some(thumb_content, |thumb, content| thumb.child(content)),
+            is_focus_visible,
+            true,
+            Vec::new(),
+            cx,
         );
+        if !self.is_disabled {
+            let hovered = thumb_hovered;
+            thumb = thumb.on_hover(move |is_hovered, _, cx| {
+                hovered.update(cx, |value, cx| {
+                    if *value != *is_hovered {
+                        *value = *is_hovered;
+                        cx.notify();
+                    }
+                });
+            });
+        }
+        track = track.child(thumb);
 
         if self.is_disabled {
             track = track.opacity(cx.layout().disabled_opacity);
@@ -1923,9 +2002,6 @@ impl RenderOnce for ColorSlider {
             let channel = self.channel;
             let space = self.color_space;
             track = track.cursor_pointer();
-            // `.color-slider:focus-visible` is `status-focused`.
-            track = util::ring_if_focused(track, &focus_handle, true, Vec::new(), window, cx);
-
             // v3: the arrows step the channel, Home and End take it to its ends,
             // and Page Up/Down move by a tenth of the range -- React Aria's page
             // step. A colour slider with no keyboard is not the same control.
@@ -1985,7 +2061,12 @@ impl RenderOnce for ColorSlider {
                         {
                             return;
                         }
-                        down_dragging.update(cx, |value, _| *value = true);
+                        down_dragging.update(cx, |value, cx| {
+                            if !*value {
+                                *value = true;
+                                cx.notify();
+                            }
+                        });
                         window.focus(&focus_for_press);
                         if let Some(next) = slider_color_from_pointer(
                             &down_bounds,
@@ -2093,6 +2174,16 @@ impl RenderOnce for ColorSlider {
             }
             _ => format!("{}%", (raw * 100.0).round()),
         };
+        let output = match &self.output {
+            // `.color-slider__output`: v3's render prop is handed the colour,
+            // which is what a caller needs to draw a swatch or a different
+            // unit.
+            Some(render) => render(self.value, &display),
+            None => div()
+                .text_color(colors.muted)
+                .child(display)
+                .into_any_element(),
+        };
 
         div()
             .flex()
@@ -2106,22 +2197,22 @@ impl RenderOnce for ColorSlider {
                     .items_center()
                     .justify_between()
                     .w(self.length)
-                    .text_size(px(12.))
+                    .text_size(px(14.))
+                    .font_weight(gpui::FontWeight::MEDIUM)
                     .child(
                         div()
                             .text_color(colors.foreground)
                             .child(self.channel.label()),
                     )
-                    .child(match &self.output {
-                        // `.color-slider__output`: v3's render prop is handed
-                        // the colour, which is what a caller needs to draw a
-                        // swatch or a different unit.
-                        Some(render) => render(self.value, &display),
-                        None => div()
-                            .text_color(colors.muted)
-                            .child(display)
-                            .into_any_element(),
-                    }),
+                    // The disabled root dims Output through status-disabled,
+                    // while the stylesheet restores Label to full opacity.
+                    .child(
+                        div()
+                            .when(self.is_disabled, |output| {
+                                output.opacity(cx.layout().disabled_opacity)
+                            })
+                            .child(output),
+                    ),
             )
             .child(track)
     }
@@ -2159,11 +2250,16 @@ fn slider_color_from_pointer(
     let bounds = *bounds.read(cx);
     let (reach, extent) = if vertical {
         (
-            bounds.origin.y + bounds.size.height - f32::from(position.y),
-            bounds.size.height,
+            bounds.origin.y + bounds.size.height
+                - COLOR_SLIDER_TRACK_INSET_PX
+                - f32::from(position.y),
+            bounds.size.height - COLOR_SLIDER_TRACK_INSET_PX * 2.0,
         )
     } else {
-        (f32::from(position.x) - bounds.origin.x, bounds.size.width)
+        (
+            f32::from(position.x) - bounds.origin.x - COLOR_SLIDER_TRACK_INSET_PX,
+            bounds.size.width - COLOR_SLIDER_TRACK_INSET_PX * 2.0,
+        )
     };
     if extent <= 0.0 {
         return None;

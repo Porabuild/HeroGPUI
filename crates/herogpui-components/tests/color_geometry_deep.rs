@@ -17,8 +17,8 @@ use gpui::{
     ScrollDelta, ScrollWheelEvent, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
-    Button, ColorArea, ColorAreaThumbState, ColorChannel, ColorField, ColorSlider, ColorSpace,
-    Form, FormData, InputState, PickerColor,
+    Button, ColorArea, ColorAreaThumbState, ColorChannel, ColorField, ColorSlider,
+    ColorSliderThumbState, ColorSpace, Form, FormData, InputState, PickerColor,
 };
 use herogpui_core::Orientation;
 
@@ -241,9 +241,10 @@ fn color_slider_pointer_uses_track_local_coordinates(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    // The track starts at (100, 50). Local x=60 is one quarter of its 240px
-    // length, so the hue must be 90 degrees rather than window x=160 -> 240.
-    click(cx, 160., 58.);
+    // The track starts at (100, 50). Its 10px edge caps leave 220px of value
+    // travel, so local x=65 is one quarter and must be 90 degrees rather than
+    // treating the window coordinate as a track coordinate.
+    click(cx, 165., 60.);
     assert_eq!(recorded.borrow().as_slice(), ["90"]);
 }
 
@@ -271,7 +272,7 @@ fn color_slider_drag_reports_each_move_and_one_change_end(cx: &mut TestAppContex
         .into_any_element()
     });
 
-    drag_through(cx, (24., 8.), &[(96., 8.), (180., 8.)]);
+    drag_through(cx, (32., 10.), &[(98., 10.), (175., 10.)]);
     assert_eq!(
         recorded.borrow().as_slice(),
         ["change:36", "change:144", "change:270", "end:270"],
@@ -333,6 +334,88 @@ fn color_slider_drag_clamps_and_ends_after_release_outside(cx: &mut TestAppConte
         "the outside move and release must clamp to the slider's far edge: {:?}",
         recorded.borrow()
     );
+}
+
+/// Pinned React Aria 1.20.0 exposes the shared `ColorThumbRenderProps` from a
+/// ColorSlider thumb. Pressing the current coordinate is deliberately used:
+/// dragging state must rerender even when no color-change callback fires.
+#[gpui::test]
+fn color_slider_thumb_receives_live_interaction_state(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new(ColorSliderThumbState::default()));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        ColorSlider::new(
+            "slider-thumb-state",
+            PickerColor::hsb(180., 1., 1.),
+            ColorChannel::Hue,
+        )
+        .default_value(PickerColor::hsb(180., 1., 1.))
+        .show_label(false)
+        .thumb(move |state| {
+            *record.borrow_mut() = state;
+            gpui::div().size_full().into_any_element()
+        })
+        .into_any_element()
+    });
+
+    assert_eq!(seen.borrow().color, PickerColor::hsb(180., 1., 1.));
+    assert!(!seen.borrow().is_dragging, "the initial thumb is idle");
+
+    let centre = point(px(120.), px(10.));
+    cx.simulate_mouse_move(centre, None::<MouseButton>, Modifiers::none());
+    flush_frame(cx);
+    assert!(seen.borrow().is_hovered, "the thumb must report hover");
+
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert!(
+        seen.borrow().is_dragging,
+        "pointer down must expose dragging"
+    );
+    assert!(seen.borrow().is_focused, "pointer down focuses the thumb");
+    assert!(!seen.borrow().is_focus_visible);
+
+    cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert!(!seen.borrow().is_dragging, "release must end dragging");
+
+    press(cx, "right");
+    flush_frame(cx);
+    assert!(seen.borrow().is_focus_visible);
+}
+
+#[gpui::test]
+fn disabled_color_slider_thumb_masks_interaction_state(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new(ColorSliderThumbState::default()));
+    let record = seen.clone();
+    let cx = open_host(cx, move || {
+        let record = record.clone();
+        ColorSlider::new(
+            "disabled-slider-thumb",
+            PickerColor::hsb(180., 1., 1.),
+            ColorChannel::Hue,
+        )
+        .show_label(false)
+        .is_disabled(true)
+        .thumb(move |state| {
+            *record.borrow_mut() = state;
+            gpui::div().size_full().into_any_element()
+        })
+        .into_any_element()
+    });
+
+    let centre = point(px(120.), px(10.));
+    cx.simulate_mouse_move(centre, None::<MouseButton>, Modifiers::none());
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+
+    let state = *seen.borrow();
+    assert!(state.is_disabled);
+    assert!(!state.is_hovered);
+    assert!(!state.is_dragging);
+    assert!(!state.is_focused);
+    assert!(!state.is_focus_visible);
 }
 
 #[gpui::test]
@@ -750,7 +833,7 @@ fn vertical_color_slider_increases_toward_the_top(cx: &mut TestAppContext) {
         .into_any_element()
     });
 
-    click(cx, 8., 60.);
+    click(cx, 10., 65.);
     assert_eq!(recorded.borrow().as_slice(), ["270"]);
 }
 
@@ -824,8 +907,9 @@ fn color_slider_pointer_snaps_to_the_channel_step(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    // Local x=1 maps to 1.5 degrees, which the pinned state rounds to 2.
-    click(cx, 101., 8.);
+    // Local x=11 is one pixel into the 220px value travel after the 10px cap,
+    // which maps to 1.64 degrees and snaps to 2.
+    click(cx, 111., 10.);
     assert_eq!(recorded.borrow().as_slice(), ["2.0"]);
 }
 
@@ -1087,9 +1171,9 @@ fn uncontrolled_color_slider_form_reads_channel_after_pointer_change(cx: &mut Te
             .into_any_element()
     });
 
-    // 240px track, local x=60 is 90°. Form stacks a 16px track then a 36px
-    // button with a 16px gap, so submit sits at y=32..68.
-    click(cx, 60., 8.);
+    // The 240px footprint has 10px caps and 220px of value travel, so local
+    // x=65 is 90°. The 20px track and 16px gap put submit at y=36..72.
+    click(cx, 65., 10.);
     flush_frame(cx);
     click(cx, 60., 50.);
     assert_eq!(submitted.borrow().as_slice(), ["90"]);
@@ -1123,7 +1207,7 @@ fn controlled_color_slider_form_waits_for_owner_acceptance(cx: &mut TestAppConte
             .into_any_element()
     });
 
-    click(cx, 60., 8.);
+    click(cx, 65., 10.);
     flush_frame(cx);
     click(cx, 60., 50.);
     assert_eq!(
@@ -1159,7 +1243,7 @@ fn controlled_color_slider_form_keeps_owner_value_until_accepted(cx: &mut TestAp
             .into_any_element()
     });
 
-    click(cx, 60., 8.);
+    click(cx, 65., 10.);
     flush_frame(cx);
     click(cx, 60., 50.);
     assert_eq!(
@@ -1226,7 +1310,7 @@ fn uncontrolled_color_slider_reset_restores_default_before_next_submit(cx: &mut 
             .into_any_element()
     });
 
-    click(cx, 60., 8.);
+    click(cx, 65., 10.);
     flush_frame(cx);
     click(cx, 60., 50.);
     flush_frame(cx);
@@ -1261,7 +1345,7 @@ fn controlled_color_slider_reset_reports_the_initial_value_once(cx: &mut TestApp
             .into_any_element()
     });
 
-    click(cx, 60., 8.);
+    click(cx, 65., 10.);
     flush_frame(cx);
     click(cx, 60., 50.);
     assert_eq!(changes.borrow().as_slice(), ["90", "0"]);

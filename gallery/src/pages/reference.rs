@@ -1321,6 +1321,36 @@ impl Widget {
     }
 
     #[test]
+    fn color_slider_metadata_tracks_compound_parts_and_thumb_state() {
+        let metadata = reference_metadata::for_route(
+            "ColorSlider",
+            "use herogpui::components::color_picker::{ColorChannel, ColorSlider};",
+        )
+        .expect("ColorSlider metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "ColorSlider.Thumb"
+                && entry.prop == "children"
+                && entry.rust == "thumb(render)"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        for state in ["Dragging", "Hovered", "Focused", "Focus visible"] {
+            assert!(metadata.states.iter().any(|entry| {
+                entry.state == state
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".color-slider__track horizontal / vertical"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata
+            .api_source
+            .contains("react-aria-components/src/ColorThumb.tsx"));
+    }
+
+    #[test]
     fn color_field_metadata_tracks_complete_render_state_and_compound_parts() {
         let metadata = reference_metadata::for_route(
             "ColorField",
