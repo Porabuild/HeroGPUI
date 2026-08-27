@@ -47,8 +47,8 @@ mod harness;
 use gpui::{prelude::*, px, Focusable, SharedString, TestAppContext};
 use herogpui_components::{
     Button, Description, Fieldset, FieldsetActions, FieldsetGroup, FieldsetLegend, Form, FormData,
-    FormField, Input, InputOTP, InputState, NumberField, NumberState, OtpPattern, OtpState, Switch,
-    ValidationBehavior,
+    FormField, Input, InputOTP, InputState, NumberField, NumberState, OtpPattern, OtpState, Select,
+    SelectionMode, Switch, ValidationBehavior,
 };
 
 use harness::{click, events, open_host, press};
@@ -1563,5 +1563,537 @@ fn fieldset_actions_reset_drives_the_forms_reset(cx: &mut TestAppContext) {
     assert_eq!(
         value, "Main St",
         "the InputState must hold the restored value"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Select
+// ---------------------------------------------------------------------------
+
+fn select_cities() -> Vec<SharedString> {
+    vec!["Alpha".into(), "Beta".into(), "Gamma".into()]
+}
+
+fn submit_select(data: &FormData, name: &str) -> String {
+    data.get(name)
+        .map_or_else(|| "omitted".to_owned(), |value| value.as_text().to_string())
+}
+
+#[gpui::test]
+fn select_form_field_reads_changed_uncontrolled_value(cx: &mut TestAppContext) {
+    let submitted = events();
+    let for_view = submitted.clone();
+    let cx = open_host(cx, move || {
+        let submitted = for_view.clone();
+        let select = Select::new("live-select-form", select_cities())
+            .name("city")
+            .default_value(Some(0));
+        let form = Form::new()
+            .field(select.form_field().expect("named select field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_select(data, "city"));
+            });
+        let submit = form.submit_handler();
+        form.child(select)
+            .child(
+                Button::new("live-select-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    // Trigger centre (60, 18). Gamma is row 2 of the open list:
+    // y = 66 + 2*36 = 138. After the pick the panel closes, so the Form's
+    // 16px gap puts the md submit button at y 52..88.
+    click(cx, 60., 18.);
+    click(cx, 60., 138.);
+    click(cx, 60., 70.);
+
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["Gamma"],
+        "FormField must read the keyed uncontrolled selection after it changes"
+    );
+}
+
+#[gpui::test]
+fn disabled_select_is_not_a_successful_form_control(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        let select = Select::new("disabled-select-snapshot", select_cities())
+            .name("city")
+            .default_value(Some(0))
+            .is_required(true)
+            .is_disabled(true);
+        let form = Form::new().field(select.form_field().expect("named select field"));
+        assert!(
+            form.data(cx).get("city").is_none(),
+            "disabled omission must be true before the first render as well as after it"
+        );
+    });
+
+    let submitted = events();
+    let invalids = events();
+    let submitted_for_view = submitted.clone();
+    let invalids_for_view = invalids.clone();
+    let cx = open_host(cx, move || {
+        let submitted = submitted_for_view.clone();
+        let invalids = invalids_for_view.clone();
+        let select = Select::new("disabled-select-form", select_cities())
+            .name("city")
+            .default_value(Some(0))
+            .is_required(true)
+            .is_disabled(true);
+        let form = Form::new()
+            .field(select.form_field().expect("named select field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_select(data, "city"));
+            })
+            .on_invalid(move |_, _, _| invalids.borrow_mut().push("invalid".to_owned()));
+        let submit = form.submit_handler();
+        form.child(select)
+            .child(
+                Button::new("disabled-select-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 60., 70.);
+    assert_eq!(submitted.borrow().as_slice(), ["omitted"]);
+    assert!(
+        invalids.borrow().is_empty(),
+        "a disabled required Select must not block submission"
+    );
+}
+
+#[gpui::test]
+fn disabled_select_becomes_successful_after_rerender(cx: &mut TestAppContext) {
+    let disabled = std::rc::Rc::new(std::cell::Cell::new(true));
+    let disabled_for_view = disabled.clone();
+    let submitted = events();
+    let submitted_for_view = submitted.clone();
+    let cx = open_host(cx, move || {
+        let submitted = submitted_for_view.clone();
+        let select = Select::new("enabled-select-form", select_cities())
+            .name("city")
+            .default_value(Some(0))
+            .is_disabled(disabled_for_view.get());
+        let form = Form::new()
+            .field(select.form_field().expect("named select field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_select(data, "city"));
+            });
+        let submit = form.submit_handler();
+        form.child(select)
+            .child(
+                Button::new("enabled-select-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 60., 70.);
+    assert_eq!(submitted.borrow().as_slice(), ["omitted"]);
+
+    disabled.set(false);
+    cx.update(|window, _| window.refresh());
+    click(cx, 60., 70.);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["omitted", "Alpha"],
+        "the live Select must become successful after its enabled rerender"
+    );
+}
+
+#[gpui::test]
+fn select_reset_restores_the_uncontrolled_default(cx: &mut TestAppContext) {
+    let submitted = events();
+    let submitted_for_view = submitted.clone();
+    let cx = open_host(cx, move || {
+        let submitted = submitted_for_view.clone();
+        let select = Select::new("reset-select-form", select_cities())
+            .name("city")
+            .default_value(Some(0));
+        let form = Form::new()
+            .field(select.form_field().expect("named select field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_select(data, "city"));
+            });
+        let submit = form.submit_handler();
+        let reset = form.reset_handler();
+        form.child(select)
+            .child(
+                Button::new("reset-select-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .child(
+                Button::new("reset-select-reset")
+                    .label("Reset")
+                    .on_press(move |_, window, cx| reset(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    press(cx, "end");
+    press(cx, "enter");
+    click(cx, 60., 70.);
+    click(cx, 60., 122.);
+    click(cx, 60., 70.);
+
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["Gamma", "Alpha"],
+        "native reset must restore defaultValue in rendered state and subsequent FormData"
+    );
+}
+
+#[gpui::test]
+fn controlled_select_form_reads_parent_value_only_after_acceptance(cx: &mut TestAppContext) {
+    let selected = std::rc::Rc::new(std::cell::RefCell::new(Some(0usize)));
+    let accept = std::rc::Rc::new(std::cell::Cell::new(false));
+    let submitted = events();
+    let changes = events();
+    let selected_for_view = selected;
+    let accept_for_view = accept.clone();
+    let submitted_for_view = submitted.clone();
+    let changes_for_view = changes.clone();
+    let cx = open_host(cx, move || {
+        let submitted = submitted_for_view.clone();
+        let changes = changes_for_view.clone();
+        let selected = selected_for_view.clone();
+        let accept = accept_for_view.clone();
+        let current = *selected.borrow();
+        let select = Select::new("controlled-select-form", select_cities())
+            .name("city")
+            .value(current)
+            .on_change(move |next, _, _| {
+                changes.borrow_mut().push(format!("{next:?}"));
+                if accept.get() {
+                    *selected.borrow_mut() = next;
+                }
+            });
+        let form = Form::new()
+            .field(select.form_field().expect("named select field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_select(data, "city"));
+            });
+        let submit = form.submit_handler();
+        form.child(select)
+            .child(
+                Button::new("controlled-select-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    click(cx, 60., 102.);
+    click(cx, 60., 70.);
+    assert_eq!(changes.borrow().as_slice(), ["Some(1)"]);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["Alpha"],
+        "a controlled Select must keep submitting the owner's value until it is accepted"
+    );
+
+    accept.set(true);
+    click(cx, 60., 18.);
+    click(cx, 60., 102.);
+    click(cx, 60., 70.);
+    assert_eq!(changes.borrow().as_slice(), ["Some(1)", "Some(1)"]);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["Alpha", "Beta"],
+        "once the owner writes the reported value back, FormField must submit it"
+    );
+}
+
+#[gpui::test]
+fn controlled_select_reset_reports_the_default_to_its_owner(cx: &mut TestAppContext) {
+    let selected = std::rc::Rc::new(std::cell::RefCell::new(Some(1usize)));
+    let changes = events();
+    let recorded = changes.clone();
+    let cx = open_host(cx, move || {
+        let select = Select::new("controlled-reset-select", select_cities())
+            .name("city")
+            .value(*selected.borrow())
+            .default_value(Some(0))
+            .on_change({
+                let selected = selected.clone();
+                let changes = changes.clone();
+                move |next, _, _| {
+                    *selected.borrow_mut() = next;
+                    changes.borrow_mut().push(format!("change:{next:?}"));
+                }
+            });
+        let form = Form::new()
+            .field(select.form_field().expect("named select field"))
+            .on_submit({
+                let changes = changes.clone();
+                move |data: &FormData, _, _| {
+                    changes
+                        .borrow_mut()
+                        .push(format!("submit:{}", submit_select(data, "city")));
+                }
+            });
+        let reset = form.reset_handler();
+        let submit = form.submit_handler();
+        form.child(select)
+            .child(
+                Button::new("controlled-reset-select-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .child(
+                Button::new("controlled-reset-select-reset")
+                    .label("Reset")
+                    .on_press(move |_, window, cx| reset(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 60., 122.);
+    click(cx, 60., 70.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["change:Some(0)", "submit:Alpha"],
+        "controlled reset must report defaultValue so the owner can update"
+    );
+}
+
+#[gpui::test]
+fn invalid_select_blocks_form_and_receives_focus(cx: &mut TestAppContext) {
+    let events = events();
+    let recorded = events.clone();
+    let cx = open_host(cx, move || {
+        let invalids = events.clone();
+        let submits = events.clone();
+        let opens = events.clone();
+        let select = Select::new("invalid-select-form", select_cities())
+            .name("city")
+            .default_value(Some(0))
+            .is_invalid(true)
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            });
+        let form = Form::new()
+            .field(select.form_field().expect("named select field"))
+            .on_invalid(move |_, _, _| invalids.borrow_mut().push("invalid".to_owned()))
+            .on_submit(move |_, _, _| submits.borrow_mut().push("submit".to_owned()));
+        let submit = form.submit_handler();
+        form.child(select)
+            .child(
+                Button::new("invalid-select-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "space");
+    press(cx, "space");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["invalid", "open:true"],
+        "native invalid submission must focus the Select trigger rather than submit"
+    );
+}
+
+#[gpui::test]
+fn required_empty_select_blocks_form_and_receives_focus(cx: &mut TestAppContext) {
+    let events = events();
+    let recorded = events.clone();
+    let cx = open_host(cx, move || {
+        let invalids = events.clone();
+        let submits = events.clone();
+        let opens = events.clone();
+        let select = Select::new("required-select-form", select_cities())
+            .name("city")
+            .is_required(true)
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            });
+        let form = Form::new()
+            .field(select.form_field().expect("named select field"))
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_missing(data, &["city"]));
+            })
+            .on_submit(move |_, _, _| submits.borrow_mut().push("submit".to_owned()));
+        let submit = form.submit_handler();
+        form.child(select)
+            .child(
+                Button::new("required-select-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "space");
+    press(cx, "space");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["city", "open:true"],
+        "a required empty Select must block native submit and take the focus"
+    );
+}
+
+#[gpui::test]
+fn multiple_select_form_data_tracks_live_selected_values(cx: &mut TestAppContext) {
+    let selected = std::rc::Rc::new(std::cell::RefCell::new(vec![0usize]));
+    let submitted = events();
+    let selected_for_view = selected;
+    let submitted_for_view = submitted.clone();
+    let cx = open_host(cx, move || {
+        let submitted = submitted_for_view.clone();
+        let selected = selected_for_view.clone();
+        let current = selected.borrow().clone();
+        let select = Select::new("multiple-select-form", select_cities())
+            .name("cities")
+            .selection_mode(SelectionMode::Multiple)
+            .selected_indices(current)
+            .on_selection_change_all(move |next, _, _| {
+                *selected.borrow_mut() = next.to_vec();
+            });
+        let form = Form::new()
+            .field(select.form_field().expect("named select field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(
+                    data.get_all("cities")
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            });
+        let submit = form.submit_handler();
+        form.child(select)
+            .child(
+                Button::new("multiple-select-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    // Multiple picks do not close the list; close it via the trigger before
+    // the submit button at y=70 can be reached.
+    click(cx, 60., 18.);
+    click(cx, 60., 102.);
+    click(cx, 60., 18.);
+    click(cx, 60., 70.);
+
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["Alpha,Beta"],
+        "a multiple Select must submit the live Keys after the owner accepts them"
+    );
+}
+
+#[gpui::test]
+fn disabled_multiple_select_is_omitted_from_submission(cx: &mut TestAppContext) {
+    let submitted = events();
+    let submitted_for_view = submitted.clone();
+    let cx = open_host(cx, move || {
+        let submitted = submitted_for_view.clone();
+        let select = Select::new("disabled-multiple-select", select_cities())
+            .name("cities")
+            .selection_mode(SelectionMode::Multiple)
+            .selected_indices([0, 1])
+            .is_disabled(true);
+        let form = Form::new()
+            .field(select.form_field().expect("named select field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(submit_select(data, "cities"));
+            });
+        let submit = form.submit_handler();
+        form.child(select)
+            .child(
+                Button::new("disabled-multiple-select-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 60., 70.);
+    assert_eq!(submitted.borrow().as_slice(), ["omitted"]);
+}
+
+#[gpui::test]
+fn controlled_multiple_select_reset_reports_the_default_to_its_owner(cx: &mut TestAppContext) {
+    let selected = std::rc::Rc::new(std::cell::RefCell::new(vec![0usize]));
+    let changes = events();
+    let recorded = changes.clone();
+    let cx = open_host(cx, move || {
+        let current = selected.borrow().clone();
+        let select = Select::new("controlled-reset-multiple-select", select_cities())
+            .name("cities")
+            .selection_mode(SelectionMode::Multiple)
+            .selected_indices(current)
+            .on_selection_change_all({
+                let selected = selected.clone();
+                let changes = changes.clone();
+                move |next, _, _| {
+                    *selected.borrow_mut() = next.to_vec();
+                    changes.borrow_mut().push(
+                        next.iter()
+                            .map(ToString::to_string)
+                            .collect::<Vec<_>>()
+                            .join(","),
+                    );
+                }
+            });
+        let form = Form::new()
+            .field(select.form_field().expect("named select field"))
+            .on_submit({
+                let changes = changes.clone();
+                move |data: &FormData, _, _| {
+                    changes.borrow_mut().push(format!(
+                        "submit:{}",
+                        data.get_all("cities")
+                            .iter()
+                            .map(ToString::to_string)
+                            .collect::<Vec<_>>()
+                            .join(",")
+                    ));
+                }
+            });
+        let reset = form.reset_handler();
+        let submit = form.submit_handler();
+        form.child(select)
+            .child(
+                Button::new("controlled-reset-multiple-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            )
+            .child(
+                Button::new("controlled-reset-multiple-reset")
+                    .label("Reset")
+                    .on_press(move |_, window, cx| reset(window, cx)),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    click(cx, 60., 102.);
+    click(cx, 60., 18.);
+    click(cx, 60., 122.);
+    click(cx, 60., 70.);
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["0,1", "0", "submit:Alpha"],
+        "controlled multiple reset must report the first-render selection so the owner can update"
     );
 }

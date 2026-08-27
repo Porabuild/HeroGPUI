@@ -1427,6 +1427,8 @@ impl Widget {
             "onOpenChange",
             "disabledKeys",
             "isInvalid",
+            "isRequired",
+            "name",
             "variant",
         ] {
             assert!(metadata.api.iter().any(|entry| {
@@ -1439,8 +1441,6 @@ impl Widget {
             ("Select", "value"),
             ("Select", "defaultValue"),
             ("Select", "onChange"),
-            ("Select", "isRequired"),
-            ("Select", "name"),
             ("Select", "fullWidth"),
             ("Select.Indicator", "children"),
             ("Select.Popover", "placement"),
@@ -1464,6 +1464,10 @@ impl Widget {
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".select--full-width / .select__trigger--full-width"
                 && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Disabled"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
         }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".select__popover[data-exiting]"

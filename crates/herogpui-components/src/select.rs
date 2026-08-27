@@ -1,5 +1,7 @@
 //! Select — port of `@heroui/select` with single and multiple selection.
 
+use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
+
 use gpui::{
     prelude::*, px, App, IntoElement, ParentElement, RenderOnce, SharedString,
     StatefulInteractiveElement, Styled, Window,
@@ -39,7 +41,7 @@ pub struct Select {
     is_controlled: bool,
     default_value: Option<usize>,
     /// Backs `selectionMode="multiple"`; `selected` backs `single`.
-    selected_indices: std::collections::BTreeSet<usize>,
+    selected_indices: BTreeSet<usize>,
     selection_mode: SelectionMode,
     /// `isOpen` — `None` leaves the component holding the flag, seeded from
     /// `defaultOpen`.
@@ -71,6 +73,9 @@ pub struct Select {
     on_selection_change: Option<OnSelectionChange>,
     on_selection_change_all:
         Option<std::sync::Arc<dyn Fn(&[usize], &mut Window, &mut App) + 'static>>,
+    /// Mirrors the current selection, validity, successful state, focus and
+    /// reset behavior for a live [`crate::form::FormField`].
+    form_state: Rc<RefCell<crate::form::LiveFormFieldState>>,
 }
 
 impl Select {
@@ -153,7 +158,7 @@ impl Select {
             selected: None,
             is_controlled: false,
             default_value: None,
-            selected_indices: std::collections::BTreeSet::new(),
+            selected_indices: BTreeSet::new(),
             selection_mode: SelectionMode::Single,
             is_open: None,
             default_open: false,
@@ -175,6 +180,7 @@ impl Select {
             on_open_change: None,
             on_selection_change: None,
             on_selection_change_all: None,
+            form_state: live_form_state(),
         }
     }
 
@@ -196,15 +202,25 @@ impl Select {
     /// ```
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
+        let selected = if self.is_controlled {
+            self.selected
+        } else {
+            self.default_value
+        };
+        sync_select_form(
+            &self.form_state,
+            select_form_value(
+                self.selection_mode,
+                &self.options,
+                selected,
+                &self.selected_indices,
+            ),
+            self.is_invalid,
+            !self.is_disabled,
+        );
         Some(
-            crate::form::FormField::text_value(
-                name,
-                self.selected
-                    .or(self.default_value)
-                    .and_then(|i| self.options.get(i).cloned())
-                    .unwrap_or_default(),
-            )
-            .is_required(self.is_required),
+            crate::form::FormField::live(name, self.form_state.clone())
+                .is_required(self.is_required),
         )
     }
 
@@ -350,6 +366,69 @@ impl RenderOnce for Select {
             self.is_controlled.then_some(self.selected),
             self.default_value,
         );
+        let multiple = self.selection_mode == SelectionMode::Multiple;
+        let form_default_indices = if multiple {
+            let slot = window.use_keyed_state(
+                el_name(format!("select-{}-form-default", id_debug(&self.id))),
+                cx,
+                |_, _| self.selected_indices.clone(),
+            );
+            slot.read(cx).clone()
+        } else {
+            BTreeSet::new()
+        };
+        sync_select_form(
+            &self.form_state,
+            select_form_value(
+                self.selection_mode,
+                &self.options,
+                selected,
+                &self.selected_indices,
+            ),
+            self.is_invalid,
+            !self.is_disabled,
+        );
+        let reset_own = value_own.clone();
+        let reset_state = self.form_state.clone();
+        let reset_change = self
+            .is_controlled
+            .then(|| self.on_selection_change.clone())
+            .flatten();
+        let reset_change_all = self.on_selection_change_all.clone();
+        let reset_index = self.default_value;
+        let reset_options = self.options.clone();
+        let reset_mode = self.selection_mode;
+        self.form_state.borrow_mut().restore = (reset_own.is_some()
+            || reset_change.is_some()
+            || (multiple && reset_change_all.is_some()))
+        .then(|| {
+            util::shared(move |window: &mut Window, cx: &mut App| {
+                if reset_mode == SelectionMode::Multiple {
+                    reset_state.borrow_mut().value =
+                        select_form_value(reset_mode, &reset_options, None, &form_default_indices);
+                    if let Some(on_change) = &reset_change_all {
+                        let keys: Vec<usize> = form_default_indices.iter().copied().collect();
+                        on_change(&keys, window, cx);
+                    }
+                } else {
+                    reset_state.borrow_mut().value = select_form_value(
+                        reset_mode,
+                        &reset_options,
+                        reset_index,
+                        &BTreeSet::new(),
+                    );
+                    if let Some(held) = &reset_own {
+                        held.update(cx, |selected, cx| {
+                            *selected = reset_index;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(on_change) = &reset_change {
+                        on_change(reset_index, window, cx);
+                    }
+                }
+            }) as std::sync::Arc<dyn Fn(&mut Window, &mut App)>
+        });
 
         // The trigger is what holds focus, so the open list can be walked with
         // the arrows the way v3's is.
@@ -359,6 +438,7 @@ impl RenderOnce for Select {
             |_, cx| cx.focus_handle().tab_stop(true),
         );
         let focus_handle = focus_handle.read(cx).clone();
+        self.form_state.borrow_mut().focus = Some(focus_handle.clone());
         let cursor = window.use_keyed_state(
             el_name(format!("select-{}-cursor", id_debug(&self.id))),
             cx,
@@ -422,7 +502,7 @@ impl RenderOnce for Select {
         // up open. The trigger's capture-phase handler runs before the panel's
         // `on_mouse_down_out` in the same dispatch, so the dismissal can see it
         // and leave the close to the trigger's click.
-        let trigger_pressed = std::rc::Rc::new(std::cell::Cell::new(false));
+        let trigger_pressed = Rc::new(std::cell::Cell::new(false));
         let mut field = gpui::div()
             .id(trigger_id)
             .flex()
@@ -477,6 +557,8 @@ impl RenderOnce for Select {
             let typed = typeahead;
             let open_own_keys = open_own.clone();
             let value_own_keys = value_own.clone();
+            let form_state_keys = self.form_state.clone();
+            let form_options_keys = self.options.clone();
             let on_open_change = self.on_open_change.clone();
             let on_select = self.on_selection_change.clone();
             let was_open = is_open;
@@ -527,6 +609,9 @@ impl RenderOnce for Select {
                             return;
                         };
                         if let Some(held) = &value_own_keys {
+                            form_state_keys.borrow_mut().value = crate::form::FormValue::Text(
+                                form_options_keys.get(found).cloned().unwrap_or_default(),
+                            );
                             held.update(cx, |v, cx| {
                                 *v = Some(found);
                                 cx.notify();
@@ -560,6 +645,9 @@ impl RenderOnce for Select {
                             // list back open.
                             let Some(index) = from else { return };
                             if let Some(held) = &value_own_keys {
+                                form_state_keys.borrow_mut().value = crate::form::FormValue::Text(
+                                    form_options_keys.get(index).cloned().unwrap_or_default(),
+                                );
                                 held.update(cx, |v, cx| {
                                     *v = Some(index);
                                     cx.notify();
@@ -592,7 +680,6 @@ impl RenderOnce for Select {
                 });
         }
 
-        let multiple = self.selection_mode == SelectionMode::Multiple;
         let value_text = if multiple {
             self.value_text_multiple()
         } else {
@@ -820,12 +907,13 @@ impl RenderOnce for Select {
             let sections = self.sections.clone();
             let selected_indices = self.selected_indices.clone();
             let opt_disabled_keys = self.disabled_keys.clone();
-            let indicator: Option<std::rc::Rc<dyn Fn(bool) -> gpui::AnyElement>> =
-                self.indicator.take().map(std::rc::Rc::from);
+            let indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>> =
+                self.indicator.take().map(Rc::from);
             let on_change_all = self.on_selection_change_all.clone();
             let on_change_one = self.on_selection_change.clone();
             let value_own = value_own;
             let open_own = open_own;
+            let form_state_rows = self.form_state.clone();
             let on_close = self.on_open_change.clone();
             let base_row = base.clone();
             let row = move |i: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
@@ -918,10 +1006,14 @@ impl RenderOnce for Select {
                         let on_close = on_close.clone();
                         let value_own = value_own.clone();
                         let open_own = open_own.clone();
+                        let form_state_pick = form_state_rows.clone();
+                        let picked = opt.clone();
                         item = item.on_click(move |_, window, cx| {
                             // Uncontrolled: take the selection and close, or
                             // choosing an option would do nothing.
                             if let Some(held) = &value_own {
+                                form_state_pick.borrow_mut().value =
+                                    crate::form::FormValue::Text(picked.clone());
                                 held.update(cx, |v, cx| {
                                     *v = Some(i);
                                     cx.notify();
@@ -1013,6 +1105,50 @@ impl RenderOnce for Select {
 
         root.track_focus(&blur_scope)
     }
+}
+
+fn live_form_state() -> Rc<RefCell<crate::form::LiveFormFieldState>> {
+    Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+        value: crate::form::FormValue::Text(SharedString::default()),
+        is_invalid: false,
+        is_successful: true,
+        focus: None,
+        restore: None,
+    }))
+}
+
+fn select_form_value(
+    mode: SelectionMode,
+    options: &[SharedString],
+    selected: Option<usize>,
+    indices: &BTreeSet<usize>,
+) -> crate::form::FormValue {
+    if mode == SelectionMode::Multiple {
+        crate::form::FormValue::Keys(
+            indices
+                .iter()
+                .filter_map(|i| options.get(*i).cloned())
+                .collect(),
+        )
+    } else {
+        crate::form::FormValue::Text(
+            selected
+                .and_then(|i| options.get(i).cloned())
+                .unwrap_or_default(),
+        )
+    }
+}
+
+fn sync_select_form(
+    state: &Rc<RefCell<crate::form::LiveFormFieldState>>,
+    value: crate::form::FormValue,
+    is_invalid: bool,
+    is_successful: bool,
+) {
+    let mut state = state.borrow_mut();
+    state.value = value;
+    state.is_invalid = is_invalid;
+    state.is_successful = is_successful;
 }
 
 fn el_name(s: String) -> gpui::ElementId {
