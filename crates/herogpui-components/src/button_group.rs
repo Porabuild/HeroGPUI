@@ -1,8 +1,12 @@
 //! ButtonGroup — port of `@heroui/button-group` (v3).
 //!
-//! Joined buttons sharing one outer radius. `variant` and `size` are propagated
-//! to the members; `outline` is not part of the group vocabulary, so building a
-//! group from [`ButtonGroup::button`] keeps the variants valid by construction.
+//! Joined buttons sharing one outer radius. The pinned root hands `variant`,
+//! `size`, `isDisabled` and `fullWidth` to its direct `Button` children through
+//! context as *defaults* (`button.tsx` merges `prop ?? context.prop`), so a
+//! member's own explicit value — including `isDisabled={false}`,
+//! `fullWidth={false}` and any Button variant, `outline` included — always
+//! wins. Members reached through [`ButtonGroup::button`] are those typed direct
+//! children.
 
 use gpui::{
     div, prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Styled, Window,
@@ -10,6 +14,18 @@ use gpui::{
 use herogpui_core::{Orientation, Size, Variant};
 
 use crate::{button::Button, util};
+
+/// The variant whose foreground the separator drawn inside a member's slot
+/// takes. v3 composes `ButtonGroup.Separator` as a child of the member that
+/// follows the seam and paints it `bg-current`, so the hairline inherits that
+/// member's currentColor — its own variant once
+/// [`Button::group_defaults`](crate::button::Button::group_defaults) has
+/// resolved it — rather than one group-wide colour. A type-erased child
+/// receives no context in v3 either, so its slot falls back to the group's
+/// variant.
+pub(crate) fn separator_variant(member: Option<Variant>, group: Variant) -> Variant {
+    member.unwrap_or(group)
+}
 
 /// HeroUI ButtonGroup.
 #[derive(IntoElement)]
@@ -24,8 +40,9 @@ pub struct ButtonGroup {
     is_disabled: bool,
     orientation: Orientation,
     full_width: bool,
-    /// Buttons added through [`ButtonGroup::button`], which inherit the group's
-    /// variant and size.
+    /// Buttons added through [`ButtonGroup::button`], which inherit the
+    /// group's `variant`, `size`, `isDisabled` and `fullWidth` unless they set
+    /// their own.
     buttons: Vec<Button>,
     children: Vec<AnyElement>,
 }
@@ -56,15 +73,9 @@ impl ButtonGroup {
         }
     }
 
-    /// The variant every member inherits. `ButtonGroup` does not accept
-    /// [`Variant::Outline`]; passing it falls back to [`Variant::Tertiary`],
-    /// which is the closest group-legal style.
+    /// The variant every member inherits unless that button sets its own.
     pub fn variant(mut self, variant: Variant) -> Self {
-        self.variant = if variant == Variant::Outline {
-            Variant::Tertiary
-        } else {
-            variant
-        };
+        self.variant = variant;
         self
     }
 
@@ -135,8 +146,8 @@ impl RenderOnce for ButtonGroup {
         let total = inherited.len() + extra.len();
 
         // `.button-group__separator` is `bg-current opacity-15`, 1px by 50% of
-        // the member, sitting one pixel before its leading edge.
-        let separator_color = crate::button::button_foreground(variant, cx).alpha(0.15);
+        // the member, sitting one pixel before its leading edge. `bg-current`
+        // resolves per member — `separator_variant` below decides which.
         let separator_radius = util::hairline_radius(cx);
         let separators = self.separators;
 
@@ -152,22 +163,35 @@ impl RenderOnce for ButtonGroup {
             }
         };
 
-        // The edge has to reach the `Button` before it is erased to an
-        // `AnyElement`, so the members are built index-first.
+        // The edge and each member's resolved width have to reach the `Button`
+        // before it is erased to an `AnyElement`, so the members are built
+        // index-first. The width is v3's `finalFullWidth = fullWidth ??
+        // context.fullWidth`: only a member that resolves to full width takes
+        // a stretch slot, which is what frees an explicit child
+        // `full_width(false)` from the group's equal division. Each slot also
+        // carries the member's resolved variant — the colour its separator
+        // inherits — or `None` for a type-erased child, which receives no
+        // context in v3 either.
+        let mut members: Vec<(bool, Option<Variant>, AnyElement)> = Vec::with_capacity(total);
+        for (i, b) in inherited.into_iter().enumerate() {
+            let b = b.group_defaults(variant, size, disabled, self.full_width);
+            let member_full = b.is_full_width();
+            let slot_variant = b.resolved_variant();
+            let el = b.group_edge(edge(i), vertical).into_any_element();
+            members.push((member_full, Some(slot_variant), el));
+        }
+        members.extend(extra.into_iter().map(|child| (false, None, child)));
+
         let mut wrapped: Vec<gpui::Div> = Vec::with_capacity(total);
-        let styled = inherited.into_iter().enumerate().map(|(i, b)| {
-            b.variant(variant)
-                .size(size)
-                .is_disabled(disabled)
-                .group_edge(edge(i), vertical)
-                .into_any_element()
-        });
-        for (i, child) in styled.chain(extra).enumerate() {
+        for (i, (member_full, slot_variant, child)) in members.into_iter().enumerate() {
             let mut slot = div().relative().child(child);
-            if self.full_width {
+            if member_full {
                 slot = slot.flex_1();
             }
             if separators && i > 0 {
+                let separator_color =
+                    crate::button::button_foreground(separator_variant(slot_variant, variant), cx)
+                        .alpha(0.15);
                 slot = slot.child(
                     div()
                         .absolute()
@@ -205,5 +229,36 @@ mod tests {
             "v3 groups without a Separator child must not synthesize dividers"
         );
         assert!(ButtonGroup::new().separators(true).separators);
+    }
+
+    #[test]
+    fn outline_variant_reaches_grouped_buttons() {
+        assert_eq!(
+            ButtonGroup::new().variant(Variant::Outline).variant,
+            Variant::Outline,
+            "pinned ButtonGroup source accepts Button's outline variant"
+        );
+    }
+
+    /// v3's separator is `bg-current`, so the hairline composed into a
+    /// member's slot takes that member's resolved variant foreground — the
+    /// very property `Button::group_defaults` computes — and a type-erased
+    /// child's slot falls back to the group variant.
+    #[test]
+    fn separator_variant_follows_its_member_slot() {
+        assert_eq!(
+            separator_variant(Some(Variant::Danger), Variant::Secondary),
+            Variant::Danger,
+            "a typed member's resolved variant owns its separator colour"
+        );
+        assert_eq!(
+            separator_variant(Some(Variant::Outline), Variant::Primary),
+            Variant::Outline
+        );
+        assert_eq!(
+            separator_variant(None, Variant::Secondary),
+            Variant::Secondary,
+            "a type-erased child receives no context and falls back to the group variant"
+        );
     }
 }

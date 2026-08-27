@@ -855,6 +855,56 @@ mod tests {
     }
 
     #[test]
+    fn button_group_metadata_tracks_child_precedence_and_outline_collapse() {
+        let metadata = reference_metadata::for_route(
+            "ButtonGroup",
+            "use herogpui::components::button_group::ButtonGroup;",
+        )
+        .expect("ButtonGroup metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for prop in ["variant", "size", "orientation", "fullWidth", "isDisabled"] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "ButtonGroup"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        // fullWidth is context-merged exactly like the other child defaults:
+        // pinned button.tsx resolves `fullWidth ?? context.fullWidth` per
+        // member, so the metadata must name the group_defaults fold, not a
+        // bare group-wide flag.
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "ButtonGroup"
+                && entry.prop == "fullWidth"
+                && entry.rust.contains("group_defaults")
+        }));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Disabled"
+                && entry.rust.contains("group_defaults")
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        assert!(metadata.parts.iter().any(|part| {
+            part.name == "ButtonGroup.Separator"
+                && part.rust_owner == "ButtonGroup"
+                && !part.rust_owner.contains("::")
+                && part.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".button-group outline border handling"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.value.contains("border-e-0")
+                && entry.value.contains("border-y-0")
+                && entry.rust.contains("collapsed_border_sides")
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".button-group__separator"
+                && entry.rust.contains("separator_variant")
+        }));
+        assert!(metadata.api_source.contains("button-group.test.tsx"));
+    }
+
+    #[test]
     fn referenced_types_include_companions_used_by_examples() {
         let examples = ["h::Table::new().column(h::TableColumn::new())"];
         let owners = referenced_types(

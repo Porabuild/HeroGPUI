@@ -2882,6 +2882,71 @@ pub(crate) const BUTTON: ReferenceMetadata = ReferenceMetadata {
     styling: BUTTON_STYLING,
 };
 
+const BUTTON_GROUP_REQUIRED_PARTS: &[&str] = &["ButtonGroup", "ButtonGroup.Separator"];
+
+const BUTTON_GROUP_API: &[ApiDoc] = &[
+    ApiDoc { owner: "ButtonGroup", prop: "variant", ty: "'primary' | 'secondary' | 'tertiary' | 'outline' | 'ghost' | 'danger' | 'danger-soft'", default: "—", description: "Supplies a default variant to direct Button members while preserving explicit child variants; unset members keep Button's own default. The pinned context type is ButtonProps['variant'], so all seven values inherit.", rust_owner: "ButtonGroup", rust: "variant(Variant) + Button::group_defaults", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ButtonGroup", prop: "size", ty: "'sm' | 'md' | 'lg'", default: "—", description: "Supplies a default size to direct Button members while preserving explicit child sizes; unset members keep Button's own default.", rust_owner: "ButtonGroup", rust: "size(Size) + Button::group_defaults", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ButtonGroup", prop: "orientation", ty: "horizontal | vertical", default: "horizontal", description: "Chooses row or column layout and the corresponding joined-edge geometry.", rust_owner: "ButtonGroup", rust: "orientation(Orientation)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ButtonGroup", prop: "fullWidth", ty: "boolean", default: "false", description: "The group root fills its parent, and each typed member resolves pinned button.tsx's finalFullWidth = fullWidth ?? context.fullWidth: unset members inherit, an explicit child false/true overrides, and only resolved-full members take an equal stretch slot.", rust_owner: "ButtonGroup", rust: "full_width(bool) + Button::group_defaults", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ButtonGroup", prop: "isDisabled", ty: "boolean", default: "false", description: "Disables direct typed members unless a child explicitly sets isDisabled=false, matching pinned context precedence.", rust_owner: "ButtonGroup", rust: "is_disabled(bool) + Button::group_defaults", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ButtonGroup", prop: "className", ty: "string", default: "—", description: "Browser classes are unavailable.", rust_owner: "ButtonGroup", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ButtonGroup", prop: "children", ty: "ReactNode", default: "—", description: "button(Button) preserves typed direct-child inheritance and joined edges; arbitrary ParentElement children are rendered but cannot receive that context after type erasure, so they take no fullWidth stretch slot either.", rust_owner: "ButtonGroup", rust: "button(Button) / child(AnyElement)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ButtonGroup.Separator", prop: "className", ty: "string", default: "—", description: "The port synthesizes pinned separators through a composition flag rather than accepting browser classes.", rust_owner: "ButtonGroup", rust: "separators(bool)", status: ImplementationStatus::Partial },
+];
+
+const BUTTON_GROUP_PARTS: &[PartDoc] = &[
+    PartDoc {
+        name: "ButtonGroup",
+        slot: "button-group",
+        description: "Orientation, width, direct-child defaults, and joined-edge owner.",
+        rust_owner: "ButtonGroup",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "ButtonGroup.Separator",
+        slot: "button-group-separator",
+        description: "Optional hairline drawn by ButtonGroup::separators(bool) before each member after the first; v3 composes one child per member, so per-member placement is not expressible.",
+        rust_owner: "ButtonGroup",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+const BUTTON_GROUP_STATES: &[StateDoc] = &[
+    StateDoc { state: "Horizontal", selector: ".button-group--horizontal", description: "Members form a row with start/end outer corners.", rust: "Orientation::Horizontal + GroupEdge", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Vertical", selector: ".button-group--vertical", description: "Members form a column with top/bottom outer corners.", rust: "Orientation::Vertical + GroupEdge", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Full width", selector: ".button-group--full-width", description: "The group fills its parent; each member that resolves fullWidth ?? context.fullWidth shares the width equally, and an explicit child false frees its share.", rust: "full_width + w_full + resolved member flex_1 slots", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Disabled", selector: "ButtonGroup isDisabled context", description: "Unset children inherit disabled; an explicit child false overrides it.", rust: "Button::group_defaults precedence", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Pressed", selector: ".button-group .button[data-pressed=true]", description: "Grouped buttons suppress the standalone press scale.", rust: "Button group_edge skips anim::pressed", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus visible", selector: ".button-group .button[data-focus-visible=true]", description: "The focus ring is present, but GPUI has no z-index elevation equivalent for overlapping adjacent controls.", rust: "Button ring_if_focused without z-10", status: ImplementationStatus::Partial },
+];
+
+const BUTTON_GROUP_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".button-group", value: "inline-flex h-auto items-center justify-center gap-0", description: "Flex alignment and zero gap match; GPUI has no inline-flex display mode and relies on the parent layout for intrinsic width.", rust: "div flex items_center justify_center", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".button-group--horizontal / --vertical", value: "flex-row / flex-col", description: "Both orientations match.", rust: "Orientation + flex_row/flex_col", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".button-group .button edge radii", value: "3xl outer corners; middle corners square; lone member fully rounded", description: "Only the first/last external corners retain the 24px Button radius, and a lone member keeps the full radius.", rust: "GroupEdge + group_radius", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".button-group .button pressed", value: "transform: none", description: "Grouped members skip Button's pressed-scale wrapper.", rust: "group_edge.is_none() gate", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".button-group focused button", value: "z-10", description: "The outward focus ring renders, but GPUI provides no matching local z-index elevation.", rust: "ring_if_focused", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".button-group__separator", value: "1px by 50%; -1px leading inset; currentColor 15%; radius-sm", description: "Horizontal and vertical separator geometry and opacity match; bg-current resolves per member, so each hairline takes the resolved variant foreground of the member drawn in its slot and a type-erased child's slot falls back to the group variant. The inert opacity transition has no runtime-changing endpoint in this composition.", rust: "separators + separator_variant + absolute hairline", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".button-group outline border handling", value: "--horizontal outline members: :first-child border-e-0, :last-child border-s-0, middle border-x-0; --vertical mirrors with border-b-0, border-t-0, border-y-0", description: "Each outline member drops exactly the border sides its group position shares with a neighbour, resolved per GroupEdge and orientation; a lone member is :first-child:last-child so its whole stacking-axis border collapses, and a member outside a group keeps the full border.", rust: "Button outline + collapsed_border_sides(GroupEdge, vertical)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".button-group--full-width", value: "w-full; member Buttons stretch via finalFullWidth = fullWidth ?? context.fullWidth (button--full-width)", description: "The group root and each resolved-full member stretch; an explicit child fullWidth=false overrides the context and hugs content, matching pinned button.tsx precedence.", rust: "full_width + Button::group_defaults + per-member flex_1", status: ImplementationStatus::Implemented },
+];
+
+pub(crate) const BUTTON_GROUP: ReferenceMetadata = ReferenceMetadata {
+    page: "ButtonGroup",
+    import_line: "use herogpui::components::button_group::ButtonGroup;",
+    source_module: "button_group",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(buttons)/button-group.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/button-group/button-group.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/tests/components/button-group/button-group.test.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/button-group.css",
+    required_parts: BUTTON_GROUP_REQUIRED_PARTS,
+    api: BUTTON_GROUP_API,
+    parts: BUTTON_GROUP_PARTS,
+    states: BUTTON_GROUP_STATES,
+    styling: BUTTON_GROUP_STYLING,
+};
+
 const CLOSE_BUTTON_REQUIRED_PARTS: &[&str] = &[
     // The default icon is a source-declared data-slot and can be replaced.
     "CloseButton",
@@ -11814,7 +11879,7 @@ const COLOR_SLIDER_API: &[ApiDoc] = &[
     ApiDoc { owner: "ColorSlider", prop: "onChangeEnd", ty: "(value: Color) => void", default: "—", description: "Reports once on release and once for each completed keyboard change.", rust_owner: "ColorSlider", rust: "on_change_end(callback)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ColorSlider", prop: "orientation", ty: "horizontal | vertical", default: "horizontal", description: "Switches the value axis and vertical layout direction.", rust_owner: "ColorSlider", rust: "orientation(Orientation)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ColorSlider", prop: "isDisabled", ty: "boolean", default: "false", description: "Removes focus, pointer, keyboard, and successful form submission while masking thumb interaction state.", rust_owner: "ColorSlider", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "ColorSlider", prop: "name", ty: "string", default: "—", description: "Registers the live channel number for FormData.", rust_owner: "ColorSlider", rust: "name / form_field", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSlider", prop: "name", ty: "string", default: "—", description: "Registers the live channel number for FormData.", rust_owner: "ColorSlider", rust: "name(text) + form_field()", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ColorSlider", prop: "aria-label", ty: "string", default: "—", description: "GPUI exposes no accessibility-tree attribute surface.", rust_owner: "ColorSlider", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "ColorSlider", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "The monolithic Rust root composes built-in label, output, track, and thumb parts; root replacement is unavailable.", rust_owner: "ColorSlider", rust: "show_label / output / thumb", status: ImplementationStatus::Partial },
     ApiDoc { owner: "ColorSlider", prop: "className / render", ty: "string / DOMRenderFunction", default: "—", description: "Browser class customization and DOM root substitution are unavailable; length provides geometry customization.", rust_owner: "ColorSlider", rust: "length(Pixels)", status: ImplementationStatus::Partial },
@@ -12111,7 +12176,7 @@ const COLOR_FIELD_API: &[ApiDoc] = &[
     ApiDoc { owner: "ColorField", prop: "isDisabled", ty: "boolean", default: "false", description: "Removes editing, focus, wheel changes, and successful form submission.", rust_owner: "ColorField", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ColorField", prop: "isReadOnly", ty: "boolean", default: "false", description: "Keeps the editable input focusable while preventing changes.", rust_owner: "ColorField", rust: "is_read_only(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ColorField", prop: "isWheelDisabled", ty: "boolean", default: "false", description: "Suppresses focused wheel stepping for channel fields.", rust_owner: "ColorField", rust: "is_wheel_disabled(bool)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "ColorField", prop: "name", ty: "string", default: "—", description: "Registers the current hex text or channel number for FormData.", rust_owner: "ColorField", rust: "name / form_field", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "name", ty: "string", default: "—", description: "Registers the current hex text or channel number for FormData.", rust_owner: "ColorField", rust: "name(text) + form_field()", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ColorField", prop: "autoFocus", ty: "boolean", default: "false", description: "Focuses the editable input on its first render.", rust_owner: "ColorField", rust: "auto_focus(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ColorField", prop: "aria-label", ty: "string", default: "—", description: "GPUI exposes no accessibility tree attribute surface.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "ColorField", prop: "aria-labelledby", ty: "string", default: "—", description: "GPUI exposes no accessibility tree attribute surface.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
@@ -12131,13 +12196,13 @@ const COLOR_FIELD_API: &[ApiDoc] = &[
 
 const COLOR_FIELD_PARTS: &[PartDoc] = &[
     PartDoc { name: "ColorField", slot: "color-field", description: "Value, validation, form, and complete render-state owner.", rust_owner: "ColorField", status: ImplementationStatus::Implemented },
-    PartDoc { name: "Label", slot: "label", description: "Optional string label with required, disabled, and invalid state.", rust_owner: "Label", status: ImplementationStatus::Partial },
-    PartDoc { name: "ColorField.Group", slot: "color-input-group", description: "Monolithic field chrome surrounding prefix, input, and suffix.", rust_owner: "ColorField / Input", status: ImplementationStatus::Implemented },
+    PartDoc { name: "Label", slot: "label", description: "Optional string label with required, disabled, and invalid state; composes field::Label.", rust_owner: "ColorField", status: ImplementationStatus::Partial },
+    PartDoc { name: "ColorField.Group", slot: "color-input-group", description: "Field chrome drawn by ColorField surrounding prefix, input, and suffix; the input is a composed Input.", rust_owner: "ColorField", status: ImplementationStatus::Implemented },
     PartDoc { name: "ColorField.Prefix", slot: "color-input-group-prefix", description: "Fixed current-color swatch; arbitrary replacement is unavailable.", rust_owner: "ColorSwatch", status: ImplementationStatus::Partial },
-    PartDoc { name: "ColorField.Input", slot: "color-input-group-input", description: "State-backed text input with parsing, channel keys, wheel editing, and focus.", rust_owner: "Input", status: ImplementationStatus::Implemented },
+    PartDoc { name: "ColorField.Input", slot: "color-input-group-input", description: "State-backed text input with parsing, channel keys, wheel editing, and focus; backed by a composed input::InputState.", rust_owner: "ColorField", status: ImplementationStatus::Implemented },
     PartDoc { name: "ColorField.Suffix", slot: "color-input-group-suffix", description: "Caller-provided trailing content in placeholder color.", rust_owner: "ColorField", status: ImplementationStatus::Implemented },
-    PartDoc { name: "Description", slot: "description", description: "Optional helper text replaced by resolved error content when invalid.", rust_owner: "Description", status: ImplementationStatus::Partial },
-    PartDoc { name: "FieldError", slot: "field-error", description: "Resolved controlled, server, or validator message; arbitrary child composition is unavailable.", rust_owner: "Input", status: ImplementationStatus::Partial },
+    PartDoc { name: "Description", slot: "description", description: "Optional helper text replaced by resolved error content when invalid; composes field::Description.", rust_owner: "ColorField", status: ImplementationStatus::Partial },
+    PartDoc { name: "FieldError", slot: "field-error", description: "Resolved controlled, server, or validator message handed to the composed Input's error_message; arbitrary child composition is unavailable.", rust_owner: "ColorField", status: ImplementationStatus::Partial },
 ];
 
 const COLOR_FIELD_STATES: &[StateDoc] = &[
@@ -12292,10 +12357,10 @@ const TOAST_API: &[ApiDoc] = &[
     ApiDoc { owner: "Toast.Provider", prop: "maxVisibleToasts", ty: "number", default: "3", description: "Limits rendered cards without evicting or pausing queued entries.", rust_owner: "ToastViewport", rust: "max_visible_toasts(usize)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Toast.Provider", prop: "scaleFactor", ty: "number", default: "0.05", description: "Geometrically narrows cards by stack depth because GPUI div transforms are unavailable.", rust_owner: "ToastViewport", rust: "scale_factor(f32)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Toast.Provider", prop: "width", ty: "number | string", default: "460", description: "Sets a fixed desktop card width in pixels.", rust_owner: "ToastViewport", rust: "width(Pixels)", status: ImplementationStatus::Partial },
-    ApiDoc { owner: "Toast.Provider", prop: "queue", ty: "ToastQueue<T>", default: "—", description: "The port uses one application-global ToastStore rather than accepting a viewport-local queue.", rust_owner: "ToastViewport", rust: "toast_store(App)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Toast.Provider", prop: "queue", ty: "ToastQueue<T>", default: "—", description: "The port uses one application-global ToastStore rather than accepting a viewport-local queue.", rust_owner: "ToastViewport", rust: "toast::toast_store + application-global store", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Toast.Provider", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "The viewport renders built-in cards; queue-item render replacement is unavailable.", rust_owner: "ToastViewport", rust: "built-in ToastCardEl", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Toast.Provider", prop: "className", ty: "string", default: "—", description: "Browser classes are unavailable; inset supplies desktop edge geometry.", rust_owner: "ToastViewport", rust: "inset(Pixels)", status: ImplementationStatus::Unavailable },
-    ApiDoc { owner: "Toast", prop: "toast", ty: "QueuedToast<T>", default: "required", description: "ToastData carries the queue id, content, handlers, state, and variant.", rust_owner: "Toast", rust: "ToastData / Toast::push", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Toast", prop: "toast", ty: "QueuedToast<T>", default: "required", description: "ToastData carries the queue id, content, handlers, state, and variant.", rust_owner: "Toast", rust: "push(duration, cx) + ToastData", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Toast", prop: "variant", ty: "default | accent | success | warning | danger", default: "default", description: "Selects the pinned semantic title and indicator colors.", rust_owner: "Toast", rust: "variant(Color)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Toast", prop: "placement", ty: "ToastPlacement", default: "Provider", description: "Placement is inherited from the single viewport rather than configurable per queued item.", rust_owner: "ToastViewport", rust: "placement(ToastPlacement)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Toast", prop: "scaleFactor", ty: "number", default: "Provider", description: "Scale is inherited from the viewport and expressed as width shrink.", rust_owner: "ToastViewport", rust: "scale_factor(f32)", status: ImplementationStatus::Partial },
@@ -12317,11 +12382,11 @@ const TOAST_API: &[ApiDoc] = &[
     ApiDoc { owner: "Toast.CloseButton", prop: "All CloseButton props", ty: "CloseButtonProps", default: "—", description: "The built-in close action can be present or absent but is not otherwise configurable.", rust_owner: "Toast", rust: "closable(bool)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "ToastQueue", prop: "maxVisibleToasts", ty: "number", default: "3", description: "Visual limiting belongs to ToastViewport while every entry stays in ToastStore.", rust_owner: "ToastViewport", rust: "max_visible_toasts(usize)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ToastQueue", prop: "wrapUpdate", ty: "(fn) => void", default: "—", description: "Browser view-transition update wrapping is unavailable.", rust_owner: "ToastStore", rust: "—", status: ImplementationStatus::Unavailable },
-    ApiDoc { owner: "ToastQueue", prop: "add", ty: "(content, options) => key", default: "—", description: "Queues newest-first and returns a stable numeric key.", rust_owner: "ToastStore", rust: "add / insert / Toast::push", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "ToastQueue", prop: "close", ty: "(key) => void", default: "—", description: "Dismisses one key and reports its onClose exactly once.", rust_owner: "ToastStore", rust: "close / dismiss_toast", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "ToastQueue", prop: "pauseAll", ty: "() => void", default: "—", description: "Pauses every active timeout clock while keeping cards interactive.", rust_owner: "ToastStore", rust: "pause_all / pause_toasts(true)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "ToastQueue", prop: "resumeAll", ty: "() => void", default: "—", description: "Resumes timeout countdown from its remaining duration.", rust_owner: "ToastStore", rust: "resume_all / pause_toasts(false)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "ToastQueue", prop: "clear", ty: "() => void", default: "—", description: "Drops every entry without emitting per-toast onClose, matching pinned queue lifecycle semantics.", rust_owner: "ToastStore", rust: "clear / clear_toasts", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ToastQueue", prop: "add", ty: "(content, options) => key", default: "—", description: "Queues newest-first and returns a stable numeric key.", rust_owner: "ToastStore", rust: "add(store, data, cx) + insert", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ToastQueue", prop: "close", ty: "(key) => void", default: "—", description: "Dismisses one key and reports its onClose exactly once.", rust_owner: "ToastStore", rust: "close(store, id, cx) + dismiss_toast", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ToastQueue", prop: "pauseAll", ty: "() => void", default: "—", description: "Pauses every active timeout clock while keeping cards interactive.", rust_owner: "ToastStore", rust: "pause_all() + pause_toasts", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ToastQueue", prop: "resumeAll", ty: "() => void", default: "—", description: "Resumes timeout countdown from its remaining duration.", rust_owner: "ToastStore", rust: "resume_all() + pause_toasts", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ToastQueue", prop: "clear", ty: "() => void", default: "—", description: "Drops every entry without emitting per-toast onClose, matching pinned queue lifecycle semantics.", rust_owner: "ToastStore", rust: "clear(store, cx) + clear_toasts", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "ToastQueue", prop: "subscribe", ty: "(fn) => unsubscribe", default: "—", description: "Returns a GPUI Subscription whose drop unsubscribes.", rust_owner: "ToastStore", rust: "subscribe(Entity, App, callback)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "toast Function", prop: "title", ty: "ReactNode", default: "—", description: "Text title is the required Toast constructor argument.", rust_owner: "Toast", rust: "new(title)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "toast Function", prop: "description", ty: "ReactNode", default: "—", description: "Optional description text.", rust_owner: "Toast", rust: "description(text)", status: ImplementationStatus::Implemented },
@@ -12444,6 +12509,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     COLOR_FIELD,
     SLIDER,
     BUTTON,
+    BUTTON_GROUP,
     CHECKBOX,
     CHECKBOX_GROUP,
     RADIO_GROUP,

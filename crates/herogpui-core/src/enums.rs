@@ -55,8 +55,9 @@ impl Color {
     }
 }
 
-/// Button emphasis variant — `Button`, and (minus [`Variant::Outline`])
-/// `ButtonGroup`.
+/// Button emphasis variant — `Button`, and the vocabulary `ButtonGroup`
+/// inherits to its direct children (the pinned group context takes
+/// `ButtonProps["variant"]`, every value on this enum).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Variant {
     /// Filled with `accent`.
@@ -87,14 +88,8 @@ impl Variant {
         Variant::DangerSoft,
     ];
 
-    /// The five variants `ButtonGroup` propagates — `outline` is not one.
-    pub const GROUP: [Variant; 5] = [
-        Variant::Primary,
-        Variant::Secondary,
-        Variant::Tertiary,
-        Variant::Ghost,
-        Variant::Danger,
-    ];
+    /// Every Button variant can be inherited by `ButtonGroup` members.
+    pub const GROUP: [Variant; 7] = Self::ALL;
 
     pub fn label(self) -> &'static str {
         match self {

@@ -44,13 +44,21 @@ pub struct Button {
     /// isFocusVisible, isDisabled, isPending}` and drawn in place of the label.
     content: Option<std::sync::Arc<dyn Fn(util::InteractiveState) -> AnyElement + 'static>>,
     variant: Variant,
+    variant_is_set: bool,
     size: Size,
+    size_is_set: bool,
     full_width: bool,
+    /// Set by [`Button::full_width`]. ButtonGroup context supplies width as a
+    /// *default* (`button.tsx`: `finalFullWidth = fullWidth ??
+    /// context.fullWidth`), so this flag is what keeps an explicit child
+    /// `full_width(false)` from being overwritten by a full-width group.
+    full_width_is_set: bool,
     is_icon_only: bool,
     /// Set by [`crate::button_group::ButtonGroup`]: which end of the group this
     /// button is, and whether the group stacks.
     group_edge: Option<(GroupEdge, bool)>,
     is_disabled: bool,
+    is_disabled_is_set: bool,
     is_pending: bool,
     /// Rendered before the label — the leading `<Icon />` child in React.
     start_content: Option<AnyElement>,
@@ -67,11 +75,15 @@ impl Button {
             label: None,
             content: None,
             variant: Variant::Primary,
+            variant_is_set: false,
             size: Size::Md,
+            size_is_set: false,
             full_width: false,
+            full_width_is_set: false,
             is_icon_only: false,
             group_edge: None,
             is_disabled: false,
+            is_disabled_is_set: false,
             is_pending: false,
             start_content: None,
             end_content: None,
@@ -102,16 +114,19 @@ impl Button {
 
     pub fn variant(mut self, variant: Variant) -> Self {
         self.variant = variant;
+        self.variant_is_set = true;
         self
     }
 
     pub fn size(mut self, size: Size) -> Self {
         self.size = size;
+        self.size_is_set = true;
         self
     }
 
     pub fn full_width(mut self, v: bool) -> Self {
         self.full_width = v;
+        self.full_width_is_set = true;
         self
     }
 
@@ -127,8 +142,46 @@ impl Button {
         self
     }
 
+    /// Applies ButtonGroup context values only where the child did not set its
+    /// own prop, matching React's direct-child context precedence.
+    pub(crate) fn group_defaults(
+        mut self,
+        variant: Variant,
+        size: Size,
+        is_disabled: bool,
+        full_width: bool,
+    ) -> Self {
+        if !self.variant_is_set {
+            self.variant = variant;
+        }
+        if !self.size_is_set {
+            self.size = size;
+        }
+        if !self.is_disabled_is_set {
+            self.is_disabled = is_disabled;
+        }
+        if !self.full_width_is_set {
+            self.full_width = full_width;
+        }
+        self
+    }
+
+    /// The member's resolved width after [`Self::group_defaults`]: an explicit
+    /// child value when one was set, the group's `fullWidth` otherwise.
+    pub(crate) fn is_full_width(&self) -> bool {
+        self.full_width
+    }
+
+    /// The member's resolved variant after [`Self::group_defaults`]: an
+    /// explicit child value when one was set, the group's otherwise.
+    /// ButtonGroup reads it for the member's `bg-current` separator colour.
+    pub(crate) fn resolved_variant(&self) -> Variant {
+        self.variant
+    }
+
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
+        self.is_disabled_is_set = true;
         self
     }
 
@@ -328,6 +381,67 @@ pub(crate) fn group_radius_any<T: Styled>(
     }
 }
 
+/// The border sides an outline group member drops, in gpui's per-side order.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub(crate) struct CollapsedSides {
+    pub left: bool,
+    pub right: bool,
+    pub top: bool,
+    pub bottom: bool,
+}
+
+/// Which borders an outline member's group position collapses, read off the
+/// pinned `button-group.css`: the horizontal sheet rows are
+/// `:first-child { border-e-0 }`, `:last-child { border-s-0 }` and a middle
+/// member (`:not(:first-child):not(:last-child)`) `border-x-0`; the vertical
+/// sheet mirrors them into the block axis with `border-b-0`, `border-t-0` and
+/// `border-y-0`. A lone member is `:first-child:last-child`, so both edge
+/// rules apply at once and its whole stacking-axis border collapses. Pure so
+/// every GroupEdge x orientation case can be table-tested against the pinned
+/// stylesheet.
+pub(crate) fn collapsed_border_sides(edge: GroupEdge, vertical: bool) -> CollapsedSides {
+    match (edge, vertical) {
+        (GroupEdge::Start, false) => CollapsedSides {
+            right: true,
+            ..Default::default()
+        },
+        (GroupEdge::End, false) => CollapsedSides {
+            left: true,
+            ..Default::default()
+        },
+        (GroupEdge::Middle | GroupEdge::Only, false) => CollapsedSides {
+            left: true,
+            right: true,
+            ..Default::default()
+        },
+        (GroupEdge::Start, true) => CollapsedSides {
+            bottom: true,
+            ..Default::default()
+        },
+        (GroupEdge::End, true) => CollapsedSides {
+            top: true,
+            ..Default::default()
+        },
+        (GroupEdge::Middle | GroupEdge::Only, true) => CollapsedSides {
+            top: true,
+            bottom: true,
+            ..Default::default()
+        },
+    }
+}
+
+/// Zeroes exactly the collapsed sides of an already-bordered element.
+fn apply_collapsed_sides<T: Styled>(el: T, sides: CollapsedSides) -> T {
+    let el = if sides.left { el.border_l_0() } else { el };
+    let el = if sides.right { el.border_r_0() } else { el };
+    let el = if sides.top { el.border_t_0() } else { el };
+    if sides.bottom {
+        el.border_b_0()
+    } else {
+        el
+    }
+}
+
 /// Applies `radius` to only the corners a group edge leaves round.
 fn group_radius(
     el: Stateful<Div>,
@@ -413,6 +527,16 @@ impl RenderOnce for Button {
         }
 
         el = apply_variant(el, self.variant, interactive, fade.is_none(), cx);
+
+        // `button-group.css` collapses the borders an outline member shows
+        // toward its neighbours so a seam is the one composed separator
+        // hairline rather than two borders. `collapsed_border_sides` holds
+        // the per-case mapping; outside a group the full border stays.
+        if self.variant == Variant::Outline {
+            if let Some((edge, vertical)) = self.group_edge {
+                el = apply_collapsed_sides(el, collapsed_border_sides(edge, vertical));
+            }
+        }
 
         // The fade's animated layer is glued under everything that follows: the
         // colour transition lives on an inset fill *inside* the button, so the
@@ -533,5 +657,138 @@ impl RenderOnce for Button {
         // `fade` was consumed where the fill was added; the button is the
         // plain styled div either way.
         el.into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn group_defaults_preserve_explicit_child_props() {
+        let button = Button::new("override")
+            .variant(Variant::Outline)
+            .size(Size::Lg)
+            .is_disabled(false)
+            .full_width(false)
+            .group_defaults(Variant::Secondary, Size::Sm, true, true);
+
+        assert_eq!(button.variant, Variant::Outline);
+        assert_eq!(button.size, Size::Lg);
+        assert!(!button.is_disabled);
+        assert!(!button.is_full_width());
+    }
+
+    #[test]
+    fn group_defaults_fill_unset_child_props() {
+        let button =
+            Button::new("inherited").group_defaults(Variant::Secondary, Size::Sm, true, true);
+
+        assert_eq!(button.variant, Variant::Secondary);
+        assert_eq!(button.size, Size::Sm);
+        assert!(button.is_disabled);
+        assert!(button.is_full_width());
+    }
+
+    /// `button-group.css` outline collapse, one row per GroupEdge x
+    /// orientation, each naming the pinned selector that demands it.
+    #[test]
+    fn outline_collapse_table_matches_pinned_css() {
+        let cases = [
+            (
+                GroupEdge::Start,
+                false,
+                CollapsedSides { right: true, ..Default::default() },
+                ".button-group--horizontal .button--outline:first-child { border-e-0 }",
+            ),
+            (
+                GroupEdge::End,
+                false,
+                CollapsedSides { left: true, ..Default::default() },
+                ".button-group--horizontal .button--outline:last-child { border-s-0 }",
+            ),
+            (
+                GroupEdge::Middle,
+                false,
+                CollapsedSides { left: true, right: true, ..Default::default() },
+                ".button-group--horizontal .button--outline:not(:first-child):not(:last-child) { border-x-0 }",
+            ),
+            (
+                GroupEdge::Start,
+                true,
+                CollapsedSides { bottom: true, ..Default::default() },
+                ".button-group--vertical .button--outline:first-child { border-b-0 }",
+            ),
+            (
+                GroupEdge::End,
+                true,
+                CollapsedSides { top: true, ..Default::default() },
+                ".button-group--vertical .button--outline:last-child { border-t-0 }",
+            ),
+            (
+                GroupEdge::Middle,
+                true,
+                CollapsedSides { top: true, bottom: true, ..Default::default() },
+                ".button-group--vertical .button--outline:not(:first-child):not(:last-child) { border-y-0 }",
+            ),
+        ];
+        for (edge, vertical, expected, selector) in cases {
+            assert_eq!(
+                collapsed_border_sides(edge, vertical),
+                expected,
+                "`{selector}` must collapse exactly these borders"
+            );
+        }
+
+        // A lone member is `:first-child:last-child`, so both edge rules
+        // apply at once and its whole stacking-axis border collapses.
+        assert_eq!(
+            collapsed_border_sides(GroupEdge::Only, false),
+            CollapsedSides {
+                left: true,
+                right: true,
+                ..Default::default()
+            },
+            "a lone horizontal outline member matches :first-child:last-child, \
+             so border-e-0 and border-s-0 both apply"
+        );
+        assert_eq!(
+            collapsed_border_sides(GroupEdge::Only, true),
+            CollapsedSides {
+                top: true,
+                bottom: true,
+                ..Default::default()
+            },
+            "a lone vertical outline member matches :first-child:last-child, \
+             so border-b-0 and border-t-0 both apply"
+        );
+    }
+
+    /// `button.tsx`: `finalFullWidth = fullWidth ?? context.fullWidth` — the
+    /// child value wins in both directions, and an unset child inherits the
+    /// context in both directions.
+    #[test]
+    fn group_defaults_full_width_precedence() {
+        let inherit_false =
+            Button::new("inherit-false").group_defaults(Variant::Primary, Size::Md, false, false);
+        let inherit_true =
+            Button::new("inherit-true").group_defaults(Variant::Primary, Size::Md, false, true);
+        let override_false = Button::new("override-false")
+            .full_width(false)
+            .group_defaults(Variant::Primary, Size::Md, false, true);
+        let override_true = Button::new("override-true")
+            .full_width(true)
+            .group_defaults(Variant::Primary, Size::Md, false, false);
+
+        assert!(!inherit_false.is_full_width());
+        assert!(inherit_true.is_full_width());
+        assert!(
+            !override_false.is_full_width(),
+            "an explicit child fullWidth=false must survive a full-width group context"
+        );
+        assert!(
+            override_true.is_full_width(),
+            "an explicit child fullWidth=true must survive a non-full group context"
+        );
     }
 }

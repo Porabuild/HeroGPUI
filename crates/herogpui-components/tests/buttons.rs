@@ -19,9 +19,12 @@
 //! - ToggleButton `Size::Md` is `h-9` (36px) with `px-4`
 //!   (16px) around a label whose advance width is *measured* with the same
 //!   text system the renderer shapes with, so its centre x is 16 + w/2.
-//! - A full-width ButtonGroup stretches its members with `flex_1`, so member
-//!   *i* of three spans 640px and its centre column is 320 + 640i; the seams'
-//!   absolutely-positioned separators take no layout space.
+//! - A full-width ButtonGroup gives a stretch slot (`flex_1`) to each member
+//!   that *resolves* to full width — the pinned `fullWidth ??
+//!   context.fullWidth` merge — so three inheriting members span 640px each
+//!   and member *i*'s centre column is 320 + 640i; a member with an explicit
+//!   `full_width(false)` hugs content instead, and the seams' absolutely-
+//!   positioned separators take no layout space.
 //! - Link sizes to its content: the click x is the measured label width over
 //!   two, and y = 10 sits inside the ~19px line box whatever the machine's
 //!   font metrics come to (the line is `line_height(14 * 1.3)` plus a 1px
@@ -259,6 +262,155 @@ fn button_group_reports_each_child(cx: &mut TestAppContext) {
         recorded.borrow().as_slice(),
         ["one", "two", "three"],
         "each member of the group must report its own press, exactly once"
+    );
+}
+
+/// Pinned v3 passes group props through context as defaults: a direct child
+/// inherits `isDisabled` when unset, but an explicit `isDisabled={false}` wins.
+#[gpui::test]
+fn button_group_child_can_override_inherited_disabled(cx: &mut TestAppContext) {
+    let presses = events();
+    let recorded = presses.clone();
+    let cx = open_host(cx, move || {
+        let inherited = presses.clone();
+        let override_enabled = presses.clone();
+        ButtonGroup::new()
+            .full_width(true)
+            .is_disabled(true)
+            .button(
+                Button::new("bg-inherited-disabled")
+                    .label("Inherited")
+                    .on_press(move |_, _, _| inherited.borrow_mut().push("inherited".into())),
+            )
+            .button(
+                Button::new("bg-override-enabled")
+                    .label("Override")
+                    .is_disabled(false)
+                    .on_press(move |_, _, _| {
+                        override_enabled.borrow_mut().push("override".into());
+                    }),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 480., 18.);
+    click(cx, 1440., 18.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["override"],
+        "an explicit child value must override the ButtonGroup default"
+    );
+}
+
+/// Pinned button.tsx resolves a direct member's width as
+/// `finalFullWidth = fullWidth ?? context.fullWidth`, so an explicit
+/// `fullWidth={false}` must free its share of a full-width group's row: the
+/// two inheriting members split the leftover and the hugging one keeps its
+/// content width. The port used to hand every member an equal `flex_1` slot
+/// whenever the group was full-width, which erased the child override.
+#[gpui::test]
+fn button_group_full_width_context_preserves_explicit_child_false(cx: &mut TestAppContext) {
+    let presses = events();
+    let recorded = presses.clone();
+    let cx = open_host(cx, move || {
+        let one = presses.clone();
+        let two = presses.clone();
+        let three = presses.clone();
+        ButtonGroup::new()
+            .full_width(true)
+            .button(
+                Button::new("bgf-inherit-one")
+                    .label("One")
+                    .on_press(move |_, _, _| one.borrow_mut().push("one".into())),
+            )
+            .button(
+                Button::new("bgf-explicit-false")
+                    .label("Two")
+                    // Explicit override: the group's fullWidth context must
+                    // not stretch this member.
+                    .full_width(false)
+                    .on_press(move |_, _, _| two.borrow_mut().push("two".into())),
+            )
+            .button(
+                Button::new("bgf-inherit-three")
+                    .label("Three")
+                    .on_press(move |_, _, _| three.borrow_mut().push("three".into())),
+            )
+            .into_any_element()
+    });
+
+    // "Two" hugs its content: 16px padding each side of the measured 14px
+    // MEDIUM label. The group fills the 1920px window and the two inheriting
+    // members split the leftover, so One spans 0..side, Two
+    // side..side+w_two and Three side+w_two..1920, all at y = 18.
+    let w_two = cx
+        .update(|window, _| text_width(window.text_system(), "Two", 14.0, FontWeight::MEDIUM))
+        + 32.;
+    let side = (1920. - w_two) / 2.;
+
+    click(cx, side / 2., 18.);
+    click(cx, side - 50., 18.);
+    click(cx, side + w_two / 2., 18.);
+    click(cx, side + w_two + 50., 18.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["one", "one", "two", "three"],
+        "an explicit fullWidth=false member must hug content while the \
+         inheriting members share the leftover width"
+    );
+}
+
+/// The override works in the other direction too: `fullWidth={true}` on one
+/// member of a group that is not full-width must stretch that member across
+/// the row, with the hugging members keeping their content width at the
+/// edges. The old slot logic only stretched when the *group* was full-width,
+/// so this member stayed content-sized in the centre.
+#[gpui::test]
+fn button_group_full_width_child_true_stretches_without_group_full_width(cx: &mut TestAppContext) {
+    let presses = events();
+    let recorded = presses.clone();
+    let cx = open_host(cx, move || {
+        let one = presses.clone();
+        let two = presses.clone();
+        let three = presses.clone();
+        ButtonGroup::new()
+            .button(
+                Button::new("bgf-hug-one")
+                    .label("One")
+                    .on_press(move |_, _, _| one.borrow_mut().push("one".into())),
+            )
+            .button(
+                Button::new("bgf-explicit-true")
+                    .label("Two")
+                    .full_width(true)
+                    .on_press(move |_, _, _| two.borrow_mut().push("two".into())),
+            )
+            .button(
+                Button::new("bgf-hug-three")
+                    .label("Three")
+                    .on_press(move |_, _, _| three.borrow_mut().push("three".into())),
+            )
+            .into_any_element()
+    });
+
+    // One hugs 0..w_one and Three hugs 1920-w_three..1920; the explicit
+    // member's stretch slot spans everything between them, at y = 18.
+    let w_one = cx
+        .update(|window, _| text_width(window.text_system(), "One", 14.0, FontWeight::MEDIUM))
+        + 32.;
+    let w_three = cx
+        .update(|window, _| text_width(window.text_system(), "Three", 14.0, FontWeight::MEDIUM))
+        + 32.;
+
+    click(cx, w_one + 60., 18.);
+    click(cx, (w_one + 1920. - w_three) / 2., 18.);
+    click(cx, 1920. - w_three - 60., 18.);
+    click(cx, 1920. - w_three / 2., 18.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["two", "two", "two", "three"],
+        "an explicit fullWidth=true member must stretch while its hugging \
+         neighbours keep their content width"
     );
 }
 
