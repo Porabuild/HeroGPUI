@@ -14,7 +14,7 @@ use harness::{click, events, open_host, press};
 use herogpui_components::{Button, ColorPicker, PickerColor, Popover};
 
 fn reduced_motion() {
-    std::env::set_var("HEROGPUI_REDUCE_MOTION", "1");
+    harness::still();
 }
 
 #[gpui::test]

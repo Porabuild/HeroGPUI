@@ -9,7 +9,7 @@ use harness::{events, open_host, press};
 use herogpui_components::{Button, Dropdown, MenuItem, Popover, Tooltip};
 
 fn still() {
-    std::env::set_var("HEROGPUI_REDUCE_MOTION", "1");
+    harness::still();
 }
 
 #[gpui::test]

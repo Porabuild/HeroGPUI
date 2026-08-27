@@ -65,11 +65,11 @@ use herogpui_components::{
 /// Pins the toast card layout by enabling reduced motion **before** the first
 /// frame. A toast wraps itself in `entering_zoom`, whose animation runs on
 /// wall time the test clock does not drive, so without this the card would sit
-/// at its t=0 pose for the whole test. The preference is read by
-/// `ThemeProvider::init`, which `open_host` calls, so it must be set first —
-/// exactly the rule the overlay suite learned the hard way.
+/// at its t=0 pose for the whole test. The harness applies the preference
+/// before opening the host window — exactly the rule the overlay suite learned
+/// the hard way.
 fn still() {
-    std::env::set_var("HEROGPUI_REDUCE_MOTION", "1");
+    harness::still();
 }
 
 /// Pushes the pending frame through. Events are dispatched against the last

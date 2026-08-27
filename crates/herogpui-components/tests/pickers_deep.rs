@@ -107,7 +107,7 @@ fn probe(id: impl Into<ElementId>, label: &'static str, recorded: Events) -> gpu
 /// test, because entry animations run on wall time the test clock does not
 /// drive.
 fn still() {
-    std::env::set_var("HEROGPUI_REDUCE_MOTION", "1");
+    harness::still();
 }
 
 /// Pushes the pending frame through. Mouse events hit-test the last rendered

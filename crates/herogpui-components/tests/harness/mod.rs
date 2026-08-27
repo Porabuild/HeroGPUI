@@ -23,7 +23,7 @@
 // use it. The allow keeps the shared surface from sprouting per-file copies.
 #![allow(dead_code)]
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use gpui::{
@@ -31,7 +31,16 @@ use gpui::{
     TestAppContext, VisualTestContext, Window,
 };
 use herogpui_components::{util, Tooltip, TooltipHover};
-use herogpui_theme::ThemeProvider;
+use herogpui_theme::{set_reduce_motion, ThemeProvider};
+
+thread_local! {
+    static REDUCE_MOTION: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Makes the next host opened on this test thread suppress motion.
+pub fn still() {
+    REDUCE_MOTION.set(true);
+}
 
 /// What the component callbacks recorded, cloned into each closure.
 pub type Events = Rc<RefCell<Vec<String>>>;
@@ -85,7 +94,13 @@ pub fn open_host(
 ) -> &mut VisualTestContext {
     // Every component reads its tokens through the `ThemeProvider` global;
     // drawing without one panics.
-    cx.update(ThemeProvider::init);
+    let reduce_motion = REDUCE_MOTION.replace(false);
+    cx.update(|cx| {
+        ThemeProvider::init(cx);
+        if reduce_motion {
+            set_reduce_motion(true, cx);
+        }
+    });
     let (_view, cx) = cx.add_window_view(|_, _| Host {
         content: Box::new(content),
     });

@@ -2,7 +2,8 @@
 # `cargo fmt --all --check` is a meaningful gate. Only *stable* options are
 # listed: rustfmt silently ignores nightly-only keys on a stable toolchain, so
 # an unstable option here would read as enforced while doing nothing.
-edition = "2021"
+edition = "2024"
+style_edition = "2021"
 
 # rustfmt's default. Stated explicitly because the gpui builder style produces
 # long method chains, and a narrower width would rewrap most of the library.

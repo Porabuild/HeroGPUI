@@ -61,9 +61,9 @@ use herogpui_theme::SkeletonAnimation;
 /// frame: a toast wraps itself in `entering_zoom`, whose animation runs on
 /// wall time the test clock does not drive, so without this the card would
 /// sit at its t=0 pose for the whole test. Same rule the overlay suites
-/// learned; read by `ThemeProvider::init`, which `open_host` calls.
+/// learned; the harness applies the request before opening the host window.
 fn still() {
-    std::env::set_var("HEROGPUI_REDUCE_MOTION", "1");
+    harness::still();
 }
 
 /// Pushes the pending frame through. Events are dispatched against the last

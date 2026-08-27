@@ -845,7 +845,7 @@ pub fn overlay_phase(
     let held = window.use_keyed_state(key, cx, |_, _| PhaseState::default());
     let current = *held.read(cx);
 
-    let phase = if is_open {
+    if is_open {
         if !current.was_open {
             held.update(cx, |s, _| {
                 s.was_open = true;
@@ -881,9 +881,7 @@ pub fn overlay_phase(
         OverlayPhase::Exiting
     } else {
         OverlayPhase::Closed
-    };
-
-    phase
+    }
 }
 
 /// Runs `apply` on the first render only.

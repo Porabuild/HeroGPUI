@@ -18,9 +18,9 @@
 //! Two overlay facts this suite depends on (both learned by `overlays.rs`):
 //!
 //! - **Entry/exit animations run on wall time**, which the test clock does
-//!   not drive. `HEROGPUI_REDUCE_MOTION=1` pins the layout before the first
-//!   frame, and the clock is advanced past `EXITING_MS` (100ms) before any
-//!   closed-proof probe — or the ghost frame answers it.
+//!   not drive. The harness's reduced-motion request pins the layout before
+//!   the first frame, and the clock is advanced past `EXITING_MS` (100ms)
+//!   before any closed-proof probe — or the ghost frame answers it.
 //! - **A closed panel is only observable behaviourally**: gpui keeps an
 //!   exiting panel mounted for `EXITING_MS`, so a probe click that must land
 //!   on nothing waits for the exit first.
@@ -50,7 +50,7 @@ use herogpui_components::{
 /// `still()` rule applies to the Drawer, Popover, Tooltip and Modal tests;
 /// the Slider plays no animation, so it deliberately skips the call.
 fn still() {
-    std::env::set_var("HEROGPUI_REDUCE_MOTION", "1");
+    harness::still();
 }
 
 /// Pushes the pending frame through. Mouse events hit-test the last rendered
@@ -585,8 +585,8 @@ const POP_CASES: [Placement; 8] = [
 /// top-left, because `.items_start()` pins it there) and the dismissal.
 #[gpui::test]
 fn popover_every_placement_opens_from_its_trigger_and_dismisses(cx: &mut TestAppContext) {
-    still();
     for placement in &POP_CASES {
+        still();
         let closes = events();
         let recorded = closes.clone();
         let cx = open_host(cx, move || {
@@ -676,7 +676,6 @@ fn popover_controlled_open_answers_escape(cx: &mut TestAppContext) {
 /// a size that panicked, drew nothing, or lost its key handling fails here.
 #[gpui::test]
 fn modal_every_size_opens_and_dismisses(cx: &mut TestAppContext) {
-    still();
     let sizes = [
         ModalSize::Xs,
         ModalSize::Sm,
@@ -686,6 +685,7 @@ fn modal_every_size_opens_and_dismisses(cx: &mut TestAppContext) {
         ModalSize::Full,
     ];
     for (i, size) in sizes.iter().enumerate() {
+        still();
         let closes = events();
         let recorded = closes.clone();
         let open = Rc::new(RefCell::new(false));
@@ -898,13 +898,13 @@ fn modal_cover_inside_scroll_reaches_the_deepest_control(cx: &mut TestAppContext
 
 #[gpui::test]
 fn modal_outside_scroll_keeps_each_placement_top_reachable(cx: &mut TestAppContext) {
-    still();
     for placement in [
         ModalPlacement::Auto,
         ModalPlacement::Center,
         ModalPlacement::Top,
         ModalPlacement::Bottom,
     ] {
+        still();
         let hits = events();
         let probed = hits.clone();
 
@@ -1016,13 +1016,13 @@ fn modal_full_outside_scroll_keeps_deep_content_reachable(cx: &mut TestAppContex
 
 #[gpui::test]
 fn modal_outside_scroll_preserves_each_fitting_placement(cx: &mut TestAppContext) {
-    still();
     for (placement, row_y) in [
         (ModalPlacement::Auto, 540.),
         (ModalPlacement::Center, 540.),
         (ModalPlacement::Top, 82.),
         (ModalPlacement::Bottom, 998.),
     ] {
+        still();
         let hits = events();
         let probed = hits.clone();
 

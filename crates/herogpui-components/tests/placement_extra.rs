@@ -22,7 +22,7 @@ use herogpui_theme::ActiveTheme;
 
 /// Pins the layout by enabling reduced motion **before** the first frame.
 fn still() {
-    std::env::set_var("HEROGPUI_REDUCE_MOTION", "1");
+    harness::still();
 }
 
 /// Pushes the pending frame through: events hit-test the last rendered frame.

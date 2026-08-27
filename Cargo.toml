@@ -1,5 +1,5 @@
 [workspace]
-resolver = "2"
+resolver = "3"
 members = [
     "crates/herogpui-core",
     "crates/herogpui-theme",
@@ -10,7 +10,7 @@ members = [
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 rust-version = "1.98"
 license = "MIT"
 repository = "https://github.com/heroui-inc/HeroGPUI"
@@ -43,6 +43,11 @@ wrong_self_convention = "allow"
 # `.when_some(top, gpui::Styled::top)`, naming a trait path that appears
 # nowhere else in the codebase. The fluent closure is the house style.
 redundant_closure_for_method_calls = "allow"
+
+# Rust 2024 makes let chains available, so `collapsible_if` asks to rewrite
+# established nested control flow across the component tree. That mechanical
+# churn does not improve the v3 port and obscures behavioural diffs.
+collapsible_if = "allow"
 
 # Left in the tree by accident, never on purpose.
 dbg_macro = "deny"

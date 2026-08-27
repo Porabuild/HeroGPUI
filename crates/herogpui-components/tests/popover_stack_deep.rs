@@ -9,7 +9,7 @@ use harness::{click, events, open_host, press};
 use herogpui_components::{util, Button, Popover, Tooltip, TooltipHover};
 
 fn still() {
-    std::env::set_var("HEROGPUI_REDUCE_MOTION", "1");
+    harness::still();
 }
 
 fn legacy_phase_probe(key: &'static str, open: bool, seen: harness::Events) -> AnyElement {

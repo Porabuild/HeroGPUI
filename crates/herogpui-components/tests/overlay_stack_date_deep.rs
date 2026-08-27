@@ -11,7 +11,7 @@ use herogpui_components::{
 };
 
 fn reduce_motion() {
-    std::env::set_var("HEROGPUI_REDUCE_MOTION", "1");
+    harness::still();
 }
 
 #[gpui::test]

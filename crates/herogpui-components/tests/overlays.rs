@@ -23,9 +23,9 @@
 //!   wrappers change the element tree, so flipping reduced motion *after* the
 //!   first paint makes the next click's mouse-down and mouse-up see different
 //!   trees: the click machinery's per-element state moves to a new id path in
-//!   between, and the click silently dies. `HEROGPUI_REDUCE_MOTION` is read by
-//!   `ThemeProvider::init` (inside `open_host`), so setting it first pins the
-//!   layout from the very first frame.
+//!   between, and the click silently dies. The harness applies the requested
+//!   preference immediately after theme initialization, before opening the
+//!   host window, so the layout is pinned from the very first frame.
 //! - **gpui has no hitbox occlusion, which is why the dialogs dismiss from
 //!   the panel's bounds, not the backdrop's.** A full-window backdrop's
 //!   `on_click` fires for a press on the panel painted above it as well —
@@ -61,7 +61,7 @@ use herogpui_components::{
 /// a mid-test flip changes the animated wrapper structure, which rebuilds the
 /// click machinery's state under a new id path and swallows clicks.
 fn still() {
-    std::env::set_var("HEROGPUI_REDUCE_MOTION", "1");
+    harness::still();
 }
 
 /// Advances the test clock past `EXITING_MS` (100ms) plus slack, and forces

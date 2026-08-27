@@ -12,7 +12,7 @@ use harness::{click, events, open_host, press, Events};
 use herogpui_components::{Button, Drawer, DrawerPlacement};
 
 fn still() {
-    std::env::set_var("HEROGPUI_REDUCE_MOTION", "1");
+    harness::still();
 }
 
 fn flush_frame(cx: &mut VisualTestContext) {
