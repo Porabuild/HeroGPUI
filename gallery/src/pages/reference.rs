@@ -1291,6 +1291,52 @@ impl Widget {
     }
 
     #[test]
+    fn color_field_metadata_tracks_complete_render_state_and_compound_parts() {
+        let metadata = reference_metadata::for_route(
+            "ColorField",
+            "use herogpui::components::color_picker::ColorField;",
+        )
+        .expect("ColorField metadata is registered");
+
+        assert_eq!(metadata.parts.len(), 8);
+        for prop in [
+            "children",
+            "onChange",
+            "validate",
+            "isWheelDisabled",
+            "name",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "ColorField"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        for prop in ["value", "defaultValue", "isRequired"] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == "ColorField"
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Partial
+            }));
+        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "ColorField.Suffix"
+                && entry.prop == "children"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+        for state in ["Invalid", "Disabled", "Read only", "Focus within"] {
+            assert!(metadata.states.iter().any(|entry| {
+                entry.state == state
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".color-input-group__suffix"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+    }
+
+    #[test]
     fn dropdown_metadata_does_not_classify_behavior_as_styling() {
         let metadata = reference_metadata::for_import(
             "use herogpui::components::dropdown::{Dropdown, MenuItem};",

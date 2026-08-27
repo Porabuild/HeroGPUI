@@ -2026,6 +2026,40 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Render Function",
+                    col(vec![{
+                        let state = self.demo_text("cf-render", "#0085F5", cx);
+                        let inner = state.clone();
+                        h::ColorField::new("cf-render-root", value)
+                            .state(state)
+                            .is_required(true)
+                            .content(move |field| {
+                                gpui::div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(4.))
+                                    .child(
+                                        h::ColorField::new("cf-render-input", value)
+                                            .state(inner.clone())
+                                            .label("Rendered color")
+                                            .is_disabled(field.is_disabled)
+                                            .is_invalid(field.is_invalid)
+                                            .is_read_only(field.is_read_only)
+                                            .is_required(field.is_required),
+                                    )
+                                    .child(format!(
+                                        "required={} focused={} focus-within={} focus-visible={}",
+                                        field.is_required,
+                                        field.is_focused,
+                                        field.is_focus_within,
+                                        field.is_focus_visible,
+                                    ))
+                                    .into_any_element()
+                            })
+                            .into_any_element()
+                    }]),
+                ),
+                (
                     "Form Example",
                     col(vec![{
                         let state = self.demo_text("cf-form", "#0085F5", cx);

@@ -11918,11 +11918,113 @@ pub(crate) const COLOR_PICKER: ReferenceMetadata = ReferenceMetadata {
     styling: COLOR_PICKER_STYLING,
 };
 
+const COLOR_FIELD_REQUIRED_PARTS: &[&str] = &[
+    "ColorField",
+    "Label",
+    "ColorField.Group",
+    "ColorField.Prefix",
+    "ColorField.Input",
+    "ColorField.Suffix",
+    "Description",
+    "FieldError",
+];
+
+const COLOR_FIELD_API: &[ApiDoc] = &[
+    ApiDoc { owner: "ColorField", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Replacement content receives disabled, invalid, read-only, required, focused, focus-within, and focus-visible state.", rust_owner: "ColorField", rust: "content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "className", ty: "string | RenderFunction", default: "—", description: "Browser CSS classes are unavailable.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorField", prop: "style", ty: "CSSProperties | RenderFunction", default: "—", description: "Browser inline styles are unavailable.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorField", prop: "fullWidth", ty: "boolean", default: "false", description: "Stretches the input group to its available width.", rust_owner: "ColorField", rust: "full_width(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "id", ty: "string", default: "—", description: "Stable GPUI element identity is required by the constructor.", rust_owner: "ColorField", rust: "new(id, value)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "render", ty: "DOMRenderFunction", default: "—", description: "DOM root substitution is unavailable.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorField", prop: "value", ty: "Color | null", default: "—", description: "Controlled concrete colors wait for owner acceptance; the port cannot represent a controlled null value.", rust_owner: "ColorField", rust: "new(id, PickerColor)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ColorField", prop: "defaultValue", ty: "Color | null", default: "—", description: "Seeds picker-owned concrete color state once; a null seed is unavailable.", rust_owner: "ColorField", rust: "default_value(PickerColor)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ColorField", prop: "onChange", ty: "(Color | null) => void", default: "—", description: "Reports a parsed color or None while text is incomplete or invalid.", rust_owner: "ColorField", rust: "on_change(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "colorSpace", ty: "ColorSpace", default: "—", description: "Selects the channel interpretation when channel is present.", rust_owner: "ColorField", rust: "color_space(ColorSpace)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "channel", ty: "ColorChannel", default: "—", description: "Switches from hexadecimal editing to one numeric channel.", rust_owner: "ColorField", rust: "channel(ColorChannel)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "isRequired", ty: "boolean", default: "false", description: "Marks the label and form field required, but the concrete-only value model cannot express v3's empty null value.", rust_owner: "ColorField", rust: "is_required(bool)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ColorField", prop: "isInvalid", ty: "boolean", default: "—", description: "Forces invalid chrome and render state.", rust_owner: "ColorField", rust: "is_invalid(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "validate", ty: "(Color) => ValidationError | true | null", default: "—", description: "Custom validation contributes to field chrome, form validity, error text, and render state.", rust_owner: "ColorField", rust: "validate(callback)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "validationBehavior", ty: "native | aria", default: "native", description: "Native blocks submission; Allow exposes invalid state without blocking.", rust_owner: "ColorField", rust: "validation_behavior(ValidationBehavior)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "isDisabled", ty: "boolean", default: "false", description: "Removes editing, focus, wheel changes, and successful form submission.", rust_owner: "ColorField", rust: "is_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "isReadOnly", ty: "boolean", default: "false", description: "Keeps the editable input focusable while preventing changes.", rust_owner: "ColorField", rust: "is_read_only(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "isWheelDisabled", ty: "boolean", default: "false", description: "Suppresses focused wheel stepping for channel fields.", rust_owner: "ColorField", rust: "is_wheel_disabled(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "name", ty: "string", default: "—", description: "Registers the current hex text or channel number for FormData.", rust_owner: "ColorField", rust: "name / form_field", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "autoFocus", ty: "boolean", default: "false", description: "Focuses the editable input on its first render.", rust_owner: "ColorField", rust: "auto_focus(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField", prop: "aria-label", ty: "string", default: "—", description: "GPUI exposes no accessibility tree attribute surface.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorField", prop: "aria-labelledby", ty: "string", default: "—", description: "GPUI exposes no accessibility tree attribute surface.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorField", prop: "aria-describedby", ty: "string", default: "—", description: "GPUI exposes no accessibility tree attribute surface.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorField", prop: "aria-details", ty: "string", default: "—", description: "GPUI exposes no accessibility tree attribute surface.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorField.Group", prop: "className", ty: "string", default: "—", description: "Browser CSS classes are unavailable.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorField.Group", prop: "fullWidth", ty: "boolean", default: "false", description: "The monolithic group follows the root width builder.", rust_owner: "ColorField", rust: "full_width(bool)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField.Group", prop: "variant", ty: "primary | secondary", default: "primary", description: "Selects field or default fill and primary shadow.", rust_owner: "ColorField", rust: "variant(FieldVariant)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField.Group", prop: "render", ty: "DOMRenderFunction", default: "—", description: "The group cannot be replaced independently.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorField.Input", prop: "className", ty: "string", default: "—", description: "Browser CSS classes are unavailable.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorField.Input", prop: "placeholder", ty: "string", default: "—", description: "Shows caller text, or the resolved current color when omitted.", rust_owner: "ColorField", rust: "placeholder(text)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorField.Prefix", prop: "className", ty: "string", default: "—", description: "Browser CSS classes are unavailable.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorField.Prefix", prop: "children", ty: "ReactNode", default: "—", description: "The port always renders the current ColorSwatch and cannot replace the prefix independently.", rust_owner: "ColorField", rust: "built-in ColorSwatch", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "ColorField.Suffix", prop: "className", ty: "string", default: "—", description: "Browser CSS classes are unavailable.", rust_owner: "ColorField", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorField.Suffix", prop: "children", ty: "ReactNode", default: "—", description: "Caller content remains present in editable and display compositions.", rust_owner: "ColorField", rust: "suffix(element)", status: ImplementationStatus::Implemented },
+];
+
+const COLOR_FIELD_PARTS: &[PartDoc] = &[
+    PartDoc { name: "ColorField", slot: "color-field", description: "Value, validation, form, and complete render-state owner.", rust_owner: "ColorField", status: ImplementationStatus::Implemented },
+    PartDoc { name: "Label", slot: "label", description: "Optional string label with required, disabled, and invalid state.", rust_owner: "Label", status: ImplementationStatus::Partial },
+    PartDoc { name: "ColorField.Group", slot: "color-input-group", description: "Monolithic field chrome surrounding prefix, input, and suffix.", rust_owner: "ColorField / Input", status: ImplementationStatus::Implemented },
+    PartDoc { name: "ColorField.Prefix", slot: "color-input-group-prefix", description: "Fixed current-color swatch; arbitrary replacement is unavailable.", rust_owner: "ColorSwatch", status: ImplementationStatus::Partial },
+    PartDoc { name: "ColorField.Input", slot: "color-input-group-input", description: "State-backed text input with parsing, channel keys, wheel editing, and focus.", rust_owner: "Input", status: ImplementationStatus::Implemented },
+    PartDoc { name: "ColorField.Suffix", slot: "color-input-group-suffix", description: "Caller-provided trailing content in placeholder color.", rust_owner: "ColorField", status: ImplementationStatus::Implemented },
+    PartDoc { name: "Description", slot: "description", description: "Optional helper text replaced by resolved error content when invalid.", rust_owner: "Description", status: ImplementationStatus::Partial },
+    PartDoc { name: "FieldError", slot: "field-error", description: "Resolved controlled, server, or validator message; arbitrary child composition is unavailable.", rust_owner: "Input", status: ImplementationStatus::Partial },
+];
+
+const COLOR_FIELD_STATES: &[StateDoc] = &[
+    StateDoc { state: "Invalid", selector: ".color-field[data-invalid=true] / .color-input-group[data-invalid=true]", description: "Hides description, shows the resolved message, draws danger chrome, blocks native forms, and reaches render state.", rust: "validation::resolve + Input", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Required", selector: ".color-field[data-required=true]", description: "Marks the label and reaches render state; concrete-only color state cannot represent v3's empty null value.", rust: "is_required", status: ImplementationStatus::Partial },
+    StateDoc { state: "Disabled", selector: ".color-input-group[data-disabled=true]", description: "Dims the group, removes input and wheel behavior, omits FormData, and reaches render state.", rust: "is_disabled", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Read only", selector: "ColorField render props isReadOnly", description: "Keeps the editable input focusable but blocks mutations and reaches render state.", rust: "is_read_only", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focused", selector: "ColorField render props isFocused", description: "Reports focus on the state-backed input.", rust: "ColorFieldRenderState", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus within", selector: ".color-input-group[data-focus-within=true]", description: "Focus anywhere in the composed field drives focused chrome and render state.", rust: "focus_handle.contains_focused", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus visible", selector: "ColorField render props isFocusVisible", description: "Keyboard-origin focus reaches the render function and the shared field ring.", rust: "focus_visible", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Hovered", selector: ".color-input-group[data-hovered=true]", description: "The Rust group does not yet apply the pinned hover fill and border interpolation.", rust: "—", status: ImplementationStatus::Unavailable },
+];
+
+const COLOR_FIELD_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".color-field", value: "flex flex-col gap-1", description: "Four-pixel field-part spacing matches.", rust: "flex_col + gap(4)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-field invalid description", value: "hidden", description: "Resolved error content replaces the description row rather than drawing both.", rust: "Input validity branch", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-field--full-width", value: "w-full", description: "The embedded input group stretches; the wrapper itself remains content-sized.", rust: "full_width(bool)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".color-input-group", value: "inline-flex h-9 items-center overflow-hidden rounded-field border-0 bg-field text-sm shadow-field", description: "Height, alignment, field radius/fill, zero border, 14px type, clipping, and primary shadow match.", rust: "Input + FIELD_HEIGHT/FIELD_TEXT + apply_field_chrome", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-input-group transitions", value: "background/border 150ms ease-smooth; shadow 150ms ease-out", description: "Field state colors and rings still change on a frame.", rust: "immediate apply_field_chrome", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: ".color-input-group hover", value: "bg-field-hover border-field-hover", description: "The pinned hover-only group state is not drawn.", rust: "—", status: ImplementationStatus::Unavailable },
+    StyleDoc { class_or_token: ".color-input-group focus-within", value: "status-focused-field", description: "Focused input draws the shared two-pixel focus ring.", rust: "apply_field_chrome(focused)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-input-group invalid", value: "status-invalid-field bg-field-focus", description: "Danger outline/ring matches; the port keeps the variant fill rather than switching to the field-focus fill.", rust: "apply_field_chrome(invalid)", status: ImplementationStatus::Partial },
+    StyleDoc { class_or_token: ".color-input-group disabled", value: "status-disabled", description: "Disabled opacity and listener suppression match.", rust: "Input::is_disabled", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-input-group__input", value: "h-full flex-1 cursor-text px-3 py-2 text-sm bg-transparent", description: "State-backed Input supplies the cursor, horizontal inset, transparent fill, and unified 36px/14px field metrics.", rust: "Input", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-input-group__prefix", value: "shrink-0 text-field-placeholder ms-3 me-0", description: "The fixed 16px swatch starts at the 12px field inset; text follows after the pinned eight-pixel prefix gap.", rust: "Input start_content(ColorSwatch)", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-input-group__suffix", value: "shrink-0 text-field-placeholder me-3", description: "Editable and display suffix content stays at the trailing 12px inset.", rust: "suffix + Input::end_content", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".color-input-group--secondary", value: "shadow-none bg-default; hover default-hover", description: "Resting fill and shadow match; the absent group hover leaves the hover token undrawn.", rust: "FieldVariant::Secondary", status: ImplementationStatus::Partial },
+];
+
+pub(crate) const COLOR_FIELD: ReferenceMetadata = ReferenceMetadata {
+    page: "ColorField",
+    import_line: "use herogpui::components::color_picker::ColorField;",
+    source_module: "color_picker",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(colors)/color-field.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/color-field/color-field.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/color-input-group/color-input-group.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/ColorField.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/color-field.css + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/color-input-group.css",
+    required_parts: COLOR_FIELD_REQUIRED_PARTS,
+    api: COLOR_FIELD_API,
+    parts: COLOR_FIELD_PARTS,
+    states: COLOR_FIELD_STATES,
+    styling: COLOR_FIELD_STYLING,
+};
+
 pub(crate) const ALL: &[ReferenceMetadata] = &[
     DROPDOWN,
     LIST_BOX,
     TAG_GROUP,
     COLOR_PICKER,
+    COLOR_FIELD,
     SLIDER,
     BUTTON,
     CHECKBOX,

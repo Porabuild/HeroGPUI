@@ -48,12 +48,12 @@ use std::rc::Rc;
 
 use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext, VisualTestContext};
 use herogpui_components::{
-    util, Autocomplete, CalendarState, CloseButton, ColorChannel, ColorField, ColorSlider,
-    ComboBox, Date, DateField, DateFieldRenderState, DatePicker, DateRangePicker, DateRangeState,
-    Input, InputState, Meter, NumberField, NumberFieldRenderState, NumberFormat, NumberState,
-    PickerColor, ProgressBar, ProgressCircle, SearchField, SearchFieldRenderState, Select,
-    SelectionMode, Slider, Switch, TextField, TextFieldRenderState, TimeField,
-    TimeFieldRenderState, TimeState, ValidationBehavior,
+    util, Autocomplete, CalendarState, CloseButton, ColorChannel, ColorField,
+    ColorFieldRenderState, ColorSlider, ComboBox, Date, DateField, DateFieldRenderState,
+    DatePicker, DateRangePicker, DateRangeState, Input, InputState, Meter, NumberField,
+    NumberFieldRenderState, NumberFormat, NumberState, PickerColor, ProgressBar, ProgressCircle,
+    SearchField, SearchFieldRenderState, Select, SelectionMode, Slider, Switch, TextField,
+    TextFieldRenderState, TimeField, TimeFieldRenderState, TimeState, ValidationBehavior,
 };
 
 use harness::{click, events, open_host, press};
@@ -1814,7 +1814,7 @@ fn color_field_content_hands_focus_state(cx: &mut TestAppContext) {
             .state(for_view.clone())
             .content({
                 let value = for_view.clone();
-                move |focus: util::FieldFocus| {
+                move |focus: ColorFieldRenderState| {
                     record.borrow_mut().push((
                         focus.is_focused,
                         focus.is_focus_within,
@@ -1827,4 +1827,68 @@ fn color_field_content_hands_focus_state(cx: &mut TestAppContext) {
             })
             .into_any_element()
     });
+}
+
+#[gpui::test]
+fn color_field_content_hands_complete_field_state(cx: &mut TestAppContext) {
+    let seen = events();
+    let rendered = seen.clone();
+    let _cx = open_host(cx, move || {
+        let seen = seen.clone();
+        ColorField::new(
+            "cf-complete-state",
+            PickerColor::from_hex("#336699").unwrap(),
+        )
+        .is_disabled(true)
+        .validate(|_| Some("Rejected color".into()))
+        .is_read_only(true)
+        .is_required(true)
+        .content(move |field| {
+            seen.borrow_mut().push(format!(
+                "{}:{}:{}:{}:{}:{}:{}",
+                field.is_disabled,
+                field.is_invalid,
+                field.is_read_only,
+                field.is_required,
+                field.is_focused,
+                field.is_focus_within,
+                field.is_focus_visible,
+            ));
+            gpui::div().into_any_element()
+        })
+        .into_any_element()
+    });
+
+    assert_eq!(
+        rendered.borrow().last().map(String::as_str),
+        Some("true:true:true:true:false:false:false")
+    );
+}
+
+#[gpui::test]
+fn editable_color_field_renders_its_suffix(cx: &mut TestAppContext) {
+    let presses = events();
+    let recorded = presses.clone();
+    let state = cx.new(|cx| InputState::with_value(cx, "180"));
+    let cx = open_host(cx, move || {
+        let presses = presses.clone();
+        ColorField::new("cf-suffix", PickerColor::hsb(180.0, 1.0, 1.0))
+            .state(state.clone())
+            .channel(ColorChannel::Hue)
+            .suffix(
+                gpui::div()
+                    .id("cf-suffix-probe")
+                    .size(px(16.))
+                    .on_click(move |_, _, _| presses.borrow_mut().push("suffix".into()))
+                    .child("°"),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 300., 18.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["suffix"],
+        "ColorField.Suffix must remain present in the normal editable composition"
+    );
 }

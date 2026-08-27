@@ -2031,6 +2031,25 @@ fn finish_slider_drag(
 // ColorField
 // ---------------------------------------------------------------------------
 
+/// The complete state passed to [`ColorField::content`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ColorFieldRenderState {
+    /// The field cannot receive focus or input.
+    pub is_disabled: bool,
+    /// Controlled, server, or custom validation currently fails.
+    pub is_invalid: bool,
+    /// The value can be selected but not changed.
+    pub is_read_only: bool,
+    /// The field must contain a value before native form submission.
+    pub is_required: bool,
+    /// The input itself owns keyboard focus.
+    pub is_focused: bool,
+    /// The input or another composed child owns keyboard focus.
+    pub is_focus_within: bool,
+    /// Focus was reached through keyboard navigation.
+    pub is_focus_visible: bool,
+}
+
 /// ColorField — enters a color as text.
 ///
 /// With no `channel` it edits the hex value; with one it edits that channel's
@@ -2038,7 +2057,7 @@ fn finish_slider_drag(
 #[derive(IntoElement)]
 pub struct ColorField {
     /// See [`ColorField::content`].
-    content: Option<Arc<dyn Fn(util::FieldFocus) -> gpui::AnyElement + 'static>>,
+    content: Option<Arc<dyn Fn(ColorFieldRenderState) -> gpui::AnyElement + 'static>>,
     /// `ColorField.Suffix` — the `me-3` slot after the value, in the
     /// placeholder colour. v3's own example fills the *prefix* with a swatch and
     /// leaves this to the caller (a channel unit, a lock icon).
@@ -2090,11 +2109,11 @@ impl ColorField {
         self
     }
 
-    /// v3's field `children`-as-a-function, handed `{isFocused, isFocusWithin,
-    /// isFocusVisible}`; see [`crate::input::Input::content`].
+    /// v3's field `children`-as-a-function, handed the complete resolved field
+    /// state.
     pub fn content(
         mut self,
-        render: impl Fn(util::FieldFocus) -> gpui::AnyElement + 'static,
+        render: impl Fn(ColorFieldRenderState) -> gpui::AnyElement + 'static,
     ) -> Self {
         self.content = Some(Arc::new(render));
         self
@@ -2404,23 +2423,6 @@ impl RenderOnce for ColorField {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `defaultValue` opts into the component holding its own colour;
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
-        if let Some(render) = self.content.clone() {
-            // v3's field children-as-a-function: the caller builds the parts.
-            let focused = self
-                .state
-                .as_ref()
-                .is_some_and(|s| s.read(cx).focus_handle.is_focused(window));
-            let within = self
-                .state
-                .as_ref()
-                .is_some_and(|s| s.read(cx).focus_handle.contains_focused(window, cx));
-            return render(util::FieldFocus {
-                is_focused: focused,
-                is_focus_within: within,
-                is_focus_visible: focused && util::focus_visible(cx),
-            })
-            .into_any_element();
-        }
         let (resolved, own) = util::controlled(
             window,
             cx,
@@ -2439,6 +2441,27 @@ impl RenderOnce for ColorField {
             self.validate.as_ref().and_then(|f| f(&self.value)),
             None,
         );
+        if let Some(render) = self.content.clone() {
+            // v3's field children-as-a-function: the caller builds the parts.
+            let focused = self
+                .state
+                .as_ref()
+                .is_some_and(|s| s.read(cx).focus_handle.is_focused(window));
+            let within = self
+                .state
+                .as_ref()
+                .is_some_and(|s| s.read(cx).focus_handle.contains_focused(window, cx));
+            return render(ColorFieldRenderState {
+                is_disabled: self.is_disabled,
+                is_invalid: validity.is_invalid,
+                is_read_only: self.is_read_only,
+                is_required: self.is_required,
+                is_focused: focused,
+                is_focus_within: within,
+                is_focus_visible: focused && util::focus_visible(cx),
+            })
+            .into_any_element();
+        }
         let form_default = window.use_keyed_state(
             ElementId::Name(format!("{:?}-field-form-default", self.id).into()),
             cx,
@@ -2525,6 +2548,16 @@ impl RenderOnce for ColorField {
             }
             if let Some(description) = self.description.clone() {
                 input = input.description(description);
+            }
+            if let Some(suffix) = self.suffix.take() {
+                input = input.end_content(
+                    div()
+                        .flex()
+                        .items_center()
+                        .flex_shrink_0()
+                        .text_color(colors.field.placeholder)
+                        .child(suffix),
+                );
             }
             if self.full_width {
                 input = input.full_width();
