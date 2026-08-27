@@ -1302,6 +1302,11 @@ impl Widget {
             entry.name == "DateField.InputContainer"
                 && entry.status == reference_metadata::ImplementationStatus::Unavailable
         }));
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "DateFieldRenderProps"
+                && entry.prop == "isDisabled / isInvalid / isReadOnly / isRequired"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == "unsupported trailing steppers"
                 && entry.status == reference_metadata::ImplementationStatus::Implemented

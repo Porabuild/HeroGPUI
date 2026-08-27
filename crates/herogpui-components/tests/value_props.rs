@@ -48,10 +48,10 @@ use std::rc::Rc;
 
 use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext, VisualTestContext};
 use herogpui_components::{
-    util, Autocomplete, CloseButton, ColorChannel, ColorField, ColorSlider, ComboBox, DateField,
-    Input, InputState, Meter, NumberField, NumberFormat, NumberState, PickerColor, ProgressBar,
-    ProgressCircle, SearchField, Select, SelectionMode, Slider, Switch, TextField, TimeField,
-    TimeState,
+    util, Autocomplete, CloseButton, ColorChannel, ColorField, ColorSlider, ComboBox, Date,
+    DateField, DateFieldRenderState, Input, InputState, Meter, NumberField, NumberFormat,
+    NumberState, PickerColor, ProgressBar, ProgressCircle, SearchField, Select, SelectionMode,
+    Slider, Switch, TextField, TimeField, TimeState, ValidationBehavior,
 };
 
 use harness::{click, events, open_host, press};
@@ -1284,6 +1284,51 @@ fn input_content_hands_focus_state(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn date_field_content_preserves_lifecycle_and_hands_full_field_state(cx: &mut TestAppContext) {
+    let seen = events();
+    let rendered = seen.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let seen = seen.clone();
+        DateField::new(state_for_view.clone())
+            .default_value(Date::new(2025, 4, 9))
+            .validation_behavior(ValidationBehavior::Allow)
+            .is_disabled(true)
+            .is_invalid(true)
+            .is_read_only(true)
+            .is_required(true)
+            .content(move |field| {
+                seen.borrow_mut().push(format!(
+                    "{}:{}:{}:{}:{}:{}:{}",
+                    field.is_disabled,
+                    field.is_invalid,
+                    field.is_read_only,
+                    field.is_required,
+                    field.is_focused,
+                    field.is_focus_within,
+                    field.is_focus_visible
+                ));
+                gpui::div().into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let snapshot = cx.update(|_, cx| {
+        let state = state.read(cx);
+        (state.value().to_owned(), state.validation_behavior())
+    });
+    assert_eq!(
+        snapshot,
+        ("2025-04-09".to_owned(), ValidationBehavior::Allow)
+    );
+    assert_eq!(
+        rendered.borrow().last().map(String::as_str),
+        Some("true:true:true:true:false:false:false")
+    );
+}
+
+#[gpui::test]
 fn text_field_content_hands_focus_state(cx: &mut TestAppContext) {
     let state = cx.new(|cx| InputState::new(cx));
     let for_view = state;
@@ -1386,7 +1431,7 @@ fn date_field_content_hands_focus_state(cx: &mut TestAppContext) {
         DateField::new(for_view.clone())
             .content({
                 let value = for_view.clone();
-                move |focus: util::FieldFocus| {
+                move |focus: DateFieldRenderState| {
                     record.borrow_mut().push((
                         focus.is_focused,
                         focus.is_focus_within,

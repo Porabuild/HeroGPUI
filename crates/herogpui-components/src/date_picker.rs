@@ -1892,13 +1892,32 @@ impl DateFieldDisplay {
 type DateSegmentRender =
     std::sync::Arc<dyn Fn(DateSegment, SharedString) -> gpui::AnyElement + 'static>;
 
+/// State supplied to v3's DateField children render function.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DateFieldRenderState {
+    /// Whether the field is disabled.
+    pub is_disabled: bool,
+    /// Whether controlled, server, custom or constraint validation is invalid.
+    pub is_invalid: bool,
+    /// Whether segments can be focused but not edited.
+    pub is_read_only: bool,
+    /// Whether the field is required.
+    pub is_required: bool,
+    /// Whether the field's input owns focus.
+    pub is_focused: bool,
+    /// Whether focus is inside the field.
+    pub is_focus_within: bool,
+    /// Whether keyboard-visible focus chrome should be shown.
+    pub is_focus_visible: bool,
+}
+
 /// v3's DateField: three editable segments (month / day / year), with the ISO
 /// text kept in the bound `InputState` so the form and `onChange` still see a
 /// plain date string.
 #[derive(IntoElement)]
 pub struct DateField {
     /// See [`DateField::content`].
-    content: Option<std::sync::Arc<dyn Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static>>,
+    content: Option<std::sync::Arc<dyn Fn(DateFieldRenderState) -> gpui::AnyElement + 'static>>,
     /// `segment` — v3's render prop for one editable segment,
     /// handed which segment it is and the text the field would show.
     segment: Option<DateSegmentRender>,
@@ -2111,11 +2130,11 @@ impl DateField {
         self
     }
 
-    /// v3's field `children`-as-a-function, handed `{isFocused, isFocusWithin,
-    /// isFocusVisible}`; see [`crate::input::Input::content`].
+    /// v3's field `children`-as-a-function, handed the complete
+    /// [`DateFieldRenderState`].
     pub fn content(
         mut self,
-        render: impl Fn(crate::util::FieldFocus) -> gpui::AnyElement + 'static,
+        render: impl Fn(DateFieldRenderState) -> gpui::AnyElement + 'static,
     ) -> Self {
         self.content = Some(std::sync::Arc::new(render));
         self
@@ -2311,17 +2330,6 @@ impl RenderOnce for DateField {
                 );
             }
         }
-        if let Some(render) = self.content.clone() {
-            // v3's field children-as-a-function: the caller builds the parts.
-            let handle = self.state.read(cx).focus_handle.clone();
-            let focused = handle.is_focused(window);
-            return render(crate::util::FieldFocus {
-                is_focused: focused,
-                is_focus_within: handle.contains_focused(window, cx),
-                is_focus_visible: focused && crate::util::focus_visible(cx),
-            })
-            .into_any_element();
-        }
         // `validationBehavior` travels with the name, on the text state.
         if let Some(behavior) = self.validation_behavior {
             if self.state.read(cx).validation_behavior() != behavior {
@@ -2451,6 +2459,29 @@ impl RenderOnce for DateField {
             state.focus = Some(self.state.read(cx).focus_handle.clone());
         }
 
+        let focus_handle = self.state.read(cx).focus_handle.clone();
+        if self.auto_focus {
+            crate::util::focus_once(
+                window,
+                cx,
+                gpui::ElementId::Name(format!("datefield-{entity_id}-autofocus").into()),
+                &focus_handle,
+            );
+        }
+        if let Some(render) = self.content.clone() {
+            let focused = focus_handle.is_focused(window);
+            return render(DateFieldRenderState {
+                is_disabled: self.is_disabled,
+                is_invalid,
+                is_read_only: self.is_read_only,
+                is_required: self.is_required,
+                is_focused: focused,
+                is_focus_within: focus_handle.contains_focused(window, cx),
+                is_focus_visible: focused && crate::util::focus_visible(cx),
+            })
+            .into_any_element();
+        }
+
         let pad = self.should_force_leading_zeros;
         let segment_text = move |segment: FieldSegment| -> String {
             use crate::time_field::TimeSegment as T;
@@ -2496,16 +2527,6 @@ impl RenderOnce for DateField {
         // first arrow press lands on a sensible date instead of jumping a step
         // from nothing.
         let seed = self.placeholder_value.unwrap_or_else(Date::today);
-        let focus_handle = self.state.read(cx).focus_handle.clone();
-        if self.auto_focus {
-            crate::util::focus_once(
-                window,
-                cx,
-                gpui::ElementId::Name(format!("datefield-{entity_id}-autofocus").into()),
-                &focus_handle,
-            );
-        }
-
         let mut group = gpui::div()
             .flex()
             .flex_row()
