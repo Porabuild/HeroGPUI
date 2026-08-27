@@ -10375,12 +10375,11 @@ impl Gallery {
                         languages(),
                     )
                     .label("Languages")
-                    .selection_mode(SelectionMode::Multiple)
                     .default_open(true)
-                    .indicator(|is_selected| {
+                    .indicator(|is_open| {
                         gpui::div()
-                            .text_size(px(12.))
-                            .child(if is_selected { "\u{2714}" } else { "" })
+                            .text_size(px(16.))
+                            .child(if is_open { "−" } else { "+" })
                             .into_any_element()
                     })
                     .into_any_element()]),

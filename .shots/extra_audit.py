@@ -234,6 +234,9 @@ EXTRA_OK_SCOPED = {
     'Select.section_before': 'composition',
     'ComboBox.section_before': 'composition',
     'Autocomplete.section_before': 'composition',
+    # v3 composes `ListBox.ItemIndicator` inside Autocomplete.Popover. The
+    # monolithic Autocomplete projects that child render function onto rows.
+    'Autocomplete.item_indicator': 'composition',
     # `Calendar.CellIndicator` marks a day (v3's event dots) and
     # `Calendar.NavButton` takes children for the paging glyphs.
     'Calendar.cell_indicator': 'composition',

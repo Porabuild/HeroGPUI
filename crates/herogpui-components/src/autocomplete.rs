@@ -105,9 +105,12 @@ pub struct Autocomplete {
     should_focus_wrap: bool,
     /// `ListBox.Section` — a heading above the item with this label.
     sections: Vec<(SharedString, SharedString)>,
-    /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
-    /// the row is selected.
+    /// `Autocomplete.Indicator` — replaces the trigger chevron. The closure is
+    /// handed whether the popover is open.
     indicator: Option<Box<dyn Fn(bool) -> gpui::AnyElement + 'static>>,
+    /// Composed `ListBox.ItemIndicator` — draws the selection tick. The closure
+    /// is handed whether the row is selected.
+    item_indicator: Option<Box<dyn Fn(bool) -> gpui::AnyElement + 'static>>,
     /// `Autocomplete.Value` — draws the trigger's value.
     value_content: Option<Box<dyn Fn(util::SelectionValue<'_>) -> gpui::AnyElement + 'static>>,
     /// `allowsEmptyCollection` — whether the autocomplete may function when
@@ -276,6 +279,7 @@ impl Autocomplete {
             should_focus_wrap: false,
             sections: Vec::new(),
             indicator: None,
+            item_indicator: None,
             value_content: None,
             allows_empty_collection: false,
             selection_mode: SelectionMode::Single,
@@ -415,9 +419,18 @@ impl Autocomplete {
         self
     }
 
-    /// `ListBox.ItemIndicator` — draw the selected tick yourself.
+    /// `Autocomplete.Indicator` — draw the trigger indicator yourself.
+    ///
+    /// The closure receives the current open state, which is the GPUI analog of
+    /// v3's `data-open` attribute on this part.
     pub fn indicator(mut self, render: impl Fn(bool) -> gpui::AnyElement + 'static) -> Self {
         self.indicator = Some(Box::new(render));
+        self
+    }
+
+    /// Composed `ListBox.ItemIndicator` — draw the selected row tick yourself.
+    pub fn item_indicator(mut self, render: impl Fn(bool) -> gpui::AnyElement + 'static) -> Self {
+        self.item_indicator = Some(Box::new(render));
         self
     }
 
@@ -463,6 +476,18 @@ fn el_name(s: String) -> gpui::ElementId {
 impl RenderOnce for Autocomplete {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let base = format!("autocomplete-{}", self.state.entity_id().as_u64());
+        // `Autocomplete.Filter.inputValue` is controlled state. Keep the bound
+        // search field on the owner's value while still reporting proposed
+        // edits through `onInputChange`.
+        if let Some(input_value) = self.input_value.clone() {
+            let current = self.state.read(cx).value().to_owned();
+            if current != input_value {
+                self.state.update(cx, |state, cx| {
+                    state.set_value(input_value);
+                    cx.notify();
+                });
+            }
+        }
         // `defaultValue` opts into the component holding its own selection;
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
         let (selection, selection_own) = util::controlled(
@@ -486,8 +511,9 @@ impl RenderOnce for Autocomplete {
         );
         let open = is_open && !self.is_disabled;
         let (overlay_phase, dismissal_token) =
-            util::overlay_scope(window, cx, el_name(format!("{base}-overlay")), open, false);
+            util::overlay_scope(window, cx, el_name(format!("{base}-overlay")), open, true);
         let overlay_active = overlay_phase != util::OverlayPhase::Closed;
+        let overlay_exiting = overlay_phase == util::OverlayPhase::Exiting;
 
         // `usePopover` closes when focus leaves the trigger-plus-panel scope.
         // Unlike Escape, blur leaves focus on its destination.
@@ -836,6 +862,18 @@ impl RenderOnce for Autocomplete {
         // its glyph is `size-4`. gpui 0.2.2 cannot rotate a div, so the chevron
         // is swapped rather than turned -- which is what v3's `rotate-180` looks
         // like on a symmetric glyph.
+        let trigger_indicator = match self.indicator.take() {
+            Some(render) => render(open),
+            None => gpui::svg()
+                .size(util::FIELD_ICON)
+                .path(if open {
+                    icons::CHEVRON_UP
+                } else {
+                    icons::CHEVRON_DOWN
+                })
+                .text_color(colors.field.placeholder)
+                .into_any_element(),
+        };
         field = field.child(
             gpui::div()
                 .absolute()
@@ -845,16 +883,8 @@ impl RenderOnce for Autocomplete {
                 .flex()
                 .items_center()
                 .justify_center()
-                .child(
-                    gpui::svg()
-                        .size(util::FIELD_ICON)
-                        .path(if open {
-                            icons::CHEVRON_UP
-                        } else {
-                            icons::CHEVRON_DOWN
-                        })
-                        .text_color(colors.field.placeholder),
-                ),
+                .text_color(colors.field.placeholder)
+                .child(trigger_indicator),
         );
 
         // Clicking the trigger opens and closes the popover. The toggle is
@@ -1188,7 +1218,7 @@ impl RenderOnce for Autocomplete {
             let row_disabled_keys = self.disabled_keys.clone();
             let row_selected_keys = self.selected_keys.clone();
             let indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>> =
-                self.indicator.take().map(Rc::from);
+                self.item_indicator.take().map(Rc::from);
             let on_change_all = self.on_selection_change_all.clone();
             let on_change_one = self.on_selection_change.clone();
             let row_selection_own = selection_own;
@@ -1237,6 +1267,7 @@ impl RenderOnce for Autocomplete {
                     );
                 }
                 let item_disabled = row_disabled_keys.contains(item);
+                let item_interactive = !item_disabled && !overlay_exiting;
                 let row_selected = row_selected_keys.contains(item);
                 let mut row = gpui::div()
                     .id(el_name(format!("{base}-{item}")))
@@ -1257,7 +1288,7 @@ impl RenderOnce for Autocomplete {
 
                 if item_disabled {
                     row = row.opacity(row_disabled_opacity);
-                } else {
+                } else if item_interactive {
                     row = row.cursor_pointer().hover(move |s| s.bg(row_hover_bg));
                 }
                 if row_selected {
@@ -1287,7 +1318,7 @@ impl RenderOnce for Autocomplete {
                     None => {}
                 }
 
-                if !item_disabled {
+                if item_interactive {
                     let value = item.clone();
                     let current = row_selected_keys.clone();
                     let own = row_selection_own.clone();
@@ -1398,13 +1429,24 @@ impl RenderOnce for Autocomplete {
                 );
             }
 
-            let panel = crate::anim::entering_zoom(
-                panel,
-                el_name(format!("{base}-panel")),
-                crate::anim::ZoomBox::panel(px(6.), util::container_radius(cx)),
-                crate::anim::Motion::FLUID_IN,
-                cx,
-            );
+            let zoom = crate::anim::ZoomBox::panel(px(6.), util::container_radius(cx));
+            let panel = if overlay_phase == util::OverlayPhase::Exiting {
+                crate::anim::exiting(
+                    panel,
+                    el_name(format!("{base}-panel-out")),
+                    zoom,
+                    crate::anim::Motion::FLUID_OUT,
+                    cx,
+                )
+            } else {
+                crate::anim::entering_zoom(
+                    panel,
+                    el_name(format!("{base}-panel")),
+                    zoom,
+                    crate::anim::Motion::FLUID_IN,
+                    cx,
+                )
+            };
             root = root.child(util::floating(
                 util::placed_field_panel(self.placement, px(6.)).child(panel),
             ));

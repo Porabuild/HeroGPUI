@@ -474,6 +474,122 @@ fn autocomplete_controlled_query_update_does_not_focus_a_match(cx: &mut TestAppC
     );
 }
 
+/// Pinned React Stately 3.49.0 backs `inputValue` with controlled state: an
+/// edit reports the proposed text, but the visible input keeps the owner's
+/// value until that owner accepts it. The bound `InputState` is the visible
+/// search field in this port, so it must return to the prop after the edit.
+#[gpui::test]
+fn autocomplete_controlled_query_waits_for_owner_acceptance(cx: &mut TestAppContext) {
+    let inputs = events();
+    let recorded = inputs.clone();
+    let state = search_state(cx);
+    let state_for_view = state.clone();
+
+    let cx = open_host(cx, move || {
+        let inputs = inputs.clone();
+        Autocomplete::new(
+            state_for_view.clone(),
+            vec!["Alpha".into(), "Rust".into(), "Rusty".into()],
+        )
+        .default_open(true)
+        .input_value("ru")
+        .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
+        .into_any_element()
+    });
+
+    cx.simulate_input("s");
+    assert_eq!(
+        (
+            recorded.borrow().clone(),
+            state.read_with(cx, |state, _| state.value().to_owned())
+        ),
+        (vec!["rus".to_owned()], "ru".to_owned()),
+        "the edit must be reported without replacing the controlled query"
+    );
+}
+
+/// `Autocomplete.Indicator` is the chevron in the trigger. HeroUI gives that
+/// part the open state through its data attribute; the local closure receives
+/// the equivalent boolean so custom content can follow the same state.
+#[gpui::test]
+fn autocomplete_custom_indicator_receives_trigger_open_state(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new(None));
+    let recorded = seen.clone();
+    let state = search_state(cx);
+
+    let cx = open_host(cx, move || {
+        let seen = seen.clone();
+        Autocomplete::new(state.clone(), vec!["Alpha".into(), "Beta".into()])
+            .indicator(move |is_open| {
+                *seen.borrow_mut() = Some(is_open);
+                gpui::div().into_any_element()
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    assert_eq!(
+        *recorded.borrow(),
+        Some(true),
+        "the custom trigger indicator must observe the open state"
+    );
+}
+
+/// The composed `ListBox.ItemIndicator` remains a separate row-level seam: it
+/// receives selection state rather than the trigger's open state.
+#[gpui::test]
+fn autocomplete_item_indicator_receives_row_selection_state(cx: &mut TestAppContext) {
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let recorded = seen.clone();
+    let state = search_state(cx);
+
+    let _cx = open_host(cx, move || {
+        let seen = seen.clone();
+        Autocomplete::new(state.clone(), vec!["Alpha".into(), "Beta".into()])
+            .default_value(["Alpha"])
+            .default_open(true)
+            .item_indicator(move |is_selected| {
+                seen.borrow_mut().push(is_selected);
+                gpui::div().into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [true, false],
+        "the composed item indicator must receive each row's selection state"
+    );
+}
+
+/// Exit frames are visual only. Once Escape closes the logical popover, the
+/// retained shrinking surface must no longer own outside-dismiss interaction
+/// or report the same close a second time.
+#[gpui::test]
+fn autocomplete_exiting_panel_does_not_repeat_outside_dismissal(cx: &mut TestAppContext) {
+    let opens = events();
+    let recorded = opens.clone();
+    let state = search_state(cx);
+
+    let cx = open_host(cx, move || {
+        let opens = opens.clone();
+        Autocomplete::new(state.clone(), vec!["Alpha".into(), "Beta".into()])
+            .default_open(true)
+            .on_open_change(move |is_open, _, _| {
+                opens.borrow_mut().push(format!("open:{is_open}"));
+            })
+            .into_any_element()
+    });
+
+    press(cx, "escape");
+    click(cx, 600., 300.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["open:false"],
+        "an exiting panel must not retain its dismissal listeners"
+    );
+}
+
 #[gpui::test]
 fn combo_box_custom_enter_preserves_multiple_selection(cx: &mut TestAppContext) {
     let singular = events();

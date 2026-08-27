@@ -1644,6 +1644,46 @@ impl Widget {
     }
 
     #[test]
+    fn autocomplete_metadata_tracks_filter_control_indicator_and_motion() {
+        let metadata = reference_metadata::for_route(
+            "Autocomplete",
+            "use herogpui::components::autocomplete::Autocomplete;",
+        )
+        .expect("Autocomplete metadata is registered");
+
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        for required in metadata.required_parts {
+            assert!(
+                metadata.parts.iter().any(|part| part.name == *required),
+                "registered Autocomplete part disappeared: {required}"
+            );
+        }
+        for (owner, prop) in [
+            ("Autocomplete", "selectionMode"),
+            ("Autocomplete", "onChange"),
+            ("Autocomplete", "isOpen"),
+            ("Autocomplete", "isRequired"),
+            ("Autocomplete.Indicator", "children"),
+            ("Autocomplete.Filter", "inputValue"),
+            ("Autocomplete.Filter", "onInputChange"),
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.owner == owner
+                    && entry.prop == prop
+                    && entry.status == reference_metadata::ImplementationStatus::Implemented
+            }));
+        }
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".autocomplete__trigger transitions"
+                && entry.status == reference_metadata::ImplementationStatus::Partial
+        }));
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token == ".autocomplete__popover[data-exiting=\"true\"]"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
+    }
+
+    #[test]
     fn table_metadata_tracks_compound_parts_and_honest_gaps() {
         let metadata =
             reference_metadata::for_route("Table", "use herogpui::components::table::Table;")
