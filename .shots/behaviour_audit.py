@@ -154,6 +154,20 @@ TABLE_PAGING = ('Table',)
 # not scroll. Fixed, estimated and plain layouts each own their geometry.
 LISTBOX_PAGING = ('ListBox',)
 
+# Select's popover list is the same ListBox behind a trigger, but pinned
+# HeroUI v3.2.4 puts the overflow scrolling on the Popover while the ListBox
+# element is `overflow-clip`, so pinned React Aria 3.51.0 treats Select's list
+# as non-scrollable: with a cursor, page keys take the enabled ends -- the
+# port's `stops` already omits disabled rows -- whatever the list's length,
+# row height, or scroll state. No viewport step or rectangle geometry may
+# survive: the evidence rejects it outright. Those handlers also require
+# `manager.focusedKey != null`, so a mouse-opened, selection-less Select --
+# cursor null -- must answer nothing, and the evidence demands the cursor
+# gate: an unconditional end mapping fails the claim. The closed trigger
+# answers no page key at all: pinned `useSelectableCollection` binds them
+# only while the list is open.
+SELECT_PAGING = ('Select',)
+
 # Multiple-selection collections answer `Mod+A` -- the platform Mod, Ctrl on
 # Windows and Linux, Cmd on macOS -- by selecting every enabled item. v3's own
 # pages do not enumerate this inherited shortcut, so it is derived from the
@@ -472,6 +486,21 @@ EVIDENCE = {
         'list_box.rs',
         r'(?s)\A(?=.*fixed_page_step)(?=.*variable_page_move)(?=.*plain_page_move)'
         r'(?=.*"pagedown")(?=.*"pageup")',
+    ),
+    # The cursor-gated enabled-end mapping is required, and the discarded
+    # viewport geometry must be gone: the negative lookaheads fail the file if
+    # the step / rectangle paging (`fixed_page_step`, the `*_page_move`
+    # machinery, or the panel's `bounds_for_item` / `max_offset` reads) ever
+    # returns, and the required lookaheads demand the `from.is_some()` gate so
+    # an unconditional end mapping -- one that would move a mouse-opened,
+    # cursor-less list, contrary to pinned React Aria's
+    # `manager.focusedKey != null` requirement -- cannot satisfy the claim.
+    ('Select', 'select-paging'): (
+        'select.rs',
+        r'(?s)\A(?!.*fixed_page_step)(?!.*variable_page_move)'
+        r'(?!.*plain_page_move)(?!.*bounds_for_item)(?!.*max_offset)'
+        r'(?=.*"pagedown" if from\.is_some\(\) => stops\.last\(\))'
+        r'(?=.*"pageup" if from\.is_some\(\) => stops\.first\(\))',
     ),
     ('Tooltip', 'focus-open'): ('tooltip.rs', r'contains_focused'),
     ('Tooltip', 'global-sequence'): (
@@ -982,7 +1011,7 @@ def main():
         ARROW_NAV + REMOVE_KEY + TOOLBAR_FOCUS + OVERLAY_DISMISS + CLOSE_ON_BLUR + COMBOBOX_BLUR_COMMIT
         + SPIN_KEYS + AREA_KEYS
         + FOCUS_OPEN + TOOLTIP_SEQUENCE + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS
-        + TABLE_TYPEAHEAD + TABLE_PAGING + LISTBOX_PAGING + SELECT_ALL_KEYS
+        + TABLE_TYPEAHEAD + TABLE_PAGING + LISTBOX_PAGING + SELECT_PAGING + SELECT_ALL_KEYS
         + ESCAPE_CLEAR_KEYS + RANGE_SELECT + POINTER_FOCUS
         + COMBOBOX_MULTIPLE_KEYS
         + RESIZE_BOUNDS + RESIZE_KEYS
@@ -1001,6 +1030,7 @@ def main():
                       'focus-open', 'global-sequence', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
                       'table-typeahead', 'table-page-down', 'table-page-up-header',
                       'listbox-paging',
+                      'select-paging',
                       'select-all', 'escape-clear', 'shift-range', 'pointer-focus', 'resize-bounds',
                       'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
                       'calendar-section-bounds', 'panel-focus', 'load-more',

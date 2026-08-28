@@ -666,7 +666,28 @@ impl RenderOnce for Select {
                         return;
                     }
                     let from = *held.read(cx);
-                    match crate::list_nav::resolve(&stops, from, key, wrap) {
+                    // Pinned React Aria 3.51.0 binds PageUp/PageDown only
+                    // while the collection has a focused key: mouse-opening a
+                    // selection-less Select leaves the cursor null, and the
+                    // page keys must stay inert until keyboard navigation
+                    // establishes one. With a cursor the list is
+                    // non-scrollable -- HeroUI v3.2.4 puts the overflow
+                    // scrolling on the Popover while the ListBox element is
+                    // `overflow-clip` -- so a page takes the enabled end:
+                    // `stops` already omits disabled rows, whatever the
+                    // list's length, row height, or scroll state. A closed
+                    // trigger answers no page key at all, so the closed
+                    // branch above never sees them.
+                    let page_move = match key {
+                        "pagedown" if from.is_some() => stops.last().copied(),
+                        "pageup" if from.is_some() => stops.first().copied(),
+                        _ => None,
+                    }
+                    .filter(|next| Some(*next) != from);
+                    match page_move.map_or_else(
+                        || crate::list_nav::resolve(&stops, from, key, wrap),
+                        crate::list_nav::Move::To,
+                    ) {
                         crate::list_nav::Move::To(next) => {
                             held.update(cx, |v, cx| {
                                 *v = Some(next);

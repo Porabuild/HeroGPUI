@@ -1301,6 +1301,279 @@ fn select_multiple_picks_report_no_close(cx: &mut TestAppContext) {
     );
 }
 
+/// PageUp/PageDown belong to the *open* list: pinned `useSelectableCollection`
+/// binds them through the collection's keyboard handling, which a closed
+/// Select never runs. The proof is not vacuous: the list is opened once and
+/// closed with Escape, which leaves the focus on the trigger, so the page keys
+/// land on the very handler that would answer them on an open list -- and a
+/// following Down still opens. A page key on the closed trigger must not open
+/// the list and must not move a selection.
+#[gpui::test]
+fn select_page_keys_ignore_a_closed_trigger(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+    let opens = events();
+    let opened = opens.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        let opens = opens.clone();
+        Select::new(
+            "sel-page-closed",
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .on_selection_change(move |i, _, _| {
+            picks.borrow_mut().push(format!("{i:?}"));
+        })
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    // Open, then close with Escape: the trigger keeps the focus. On a
+    // never-opened trigger the presses could be lost before the component and
+    // prove nothing.
+    click(cx, 60., 18.);
+    press(cx, "escape");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "the probe must begin from a list the Escape closed onto its trigger"
+    );
+
+    press(cx, "pagedown");
+    press(cx, "pageup");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "a page key on the closed trigger must not open the list"
+    );
+    assert!(
+        picked.borrow().is_empty(),
+        "a page key on the closed trigger must not move the selection"
+    );
+
+    // The presses were delivered: the same focused handler still opens on
+    // Down, and the select then picks as before the page keys arrived.
+    press(cx, "down");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false", "open:true"],
+        "the page keys must have reached a live handler, not a dead one"
+    );
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Some(0)"],
+        "the page keys must have left the closed select answering as before"
+    );
+}
+
+/// Pinned HeroUI v3.2.4 scrolls the *popover*, with the ListBox element itself
+/// `overflow-clip`, so pinned React Aria 3.51.0 never sees a scrollable list
+/// behind a Select: page keys take the enabled ends whatever the panel could
+/// have shown. Those handlers require a focused key, though -- a mouse-opened,
+/// selection-less Select has a null cursor, so its page keys are inert; a real
+/// Down (or Down on the closed trigger, which opens) establishes the cursor,
+/// and paging from there reaches the first and last enabled rows, never the
+/// disabled rows at the ends. Paging only moves the highlight until Enter
+/// commits it.
+#[gpui::test]
+fn select_page_keys_reach_enabled_ends_on_a_short_panel(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new(
+            "sel-page-short",
+            vec![
+                "0".into(),
+                "1".into(),
+                "2".into(),
+                "3".into(),
+                "4".into(),
+                "5".into(),
+            ],
+        )
+        .disabled_keys([0, 5])
+        .on_selection_change(move |i, _, _| {
+            picks.borrow_mut().push(format!("{i:?}"));
+        })
+        .into_any_element()
+    });
+
+    // Six 36px rows (216px) fit the capped panel. Mouse-open with no
+    // selection: the cursor is null, so both page keys must be inert. Down
+    // from a null cursor enters the first enabled row (1); had either page
+    // key created a cursor, Down would hold on that end or step off it --
+    // Some(2) from PageUp's first stop, Some(4) from PageDown's last -- and
+    // the pick would betray the unconditional cursor creation.
+    click(cx, 60., 18.);
+    press(cx, "pagedown");
+    press(cx, "pageup");
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Some(1)"],
+        "page keys on a mouse-opened, cursor-less list must be inert: \
+         Down must still enter the first enabled row"
+    );
+
+    // Enter closed the list; reopen and press Down so keyboard navigation
+    // establishes the cursor (on 2), then PageDown must take the last
+    // enabled row (4), never the disabled 5.
+    click(cx, 60., 18.);
+    press(cx, "down");
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Some(1)", "Some(4)"],
+        "PageDown with a cursor must reach the last enabled row"
+    );
+
+    // Reopen once more; the cursor stands where PageDown left it, and
+    // PageUp must walk back to the first enabled row (1), never the
+    // disabled 0.
+    click(cx, 60., 18.);
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Some(1)", "Some(4)", "Some(1)"],
+        "PageUp with a cursor must reach the first enabled row"
+    );
+}
+
+/// The same ends answer the virtualized list: `rowHeight` projects the rows
+/// into a fixed 280px viewport, and pinned React Aria still treats Select's
+/// list as non-scrollable. Its page handlers still require a focused key, so
+/// the mouse-opened cursor-less list ignores them, and only after keyboard
+/// navigation establishes the cursor does PageDown land on the last enabled
+/// row and PageUp walk back to the first -- no viewport step to preserve.
+#[gpui::test]
+fn select_page_keys_reach_enabled_ends_on_a_virtual_list(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+    let options: Vec<SharedString> = (0..30).map(|i| format!("Option {i:02}").into()).collect();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new("sel-page-virtual", options.clone())
+            .row_height(px(36.))
+            .on_selection_change(move |i, _, _| {
+                picks.borrow_mut().push(format!("{i:?}"));
+            })
+            .into_any_element()
+    });
+
+    // Mouse-open with no selection: both page keys must be inert. Down from a
+    // null cursor enters row 0; had a page key created a cursor at an end,
+    // Down would hold on 29 or step to 1 and the pick would expose it.
+    click(cx, 60., 18.);
+    press(cx, "pagedown");
+    press(cx, "pageup");
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Some(0)"],
+        "page keys on a mouse-opened, cursor-less virtual list must be inert: \
+         Down must still enter the first row"
+    );
+
+    // Enter closed the list; reopen and press Down so keyboard navigation
+    // establishes the cursor (on 1), then PageDown must take the last
+    // enabled row (29).
+    click(cx, 60., 18.);
+    press(cx, "down");
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Some(0)", "Some(29)"],
+        "PageDown with a cursor must reach the last enabled row of the virtual list"
+    );
+
+    // Reopen once more; the cursor stands where PageDown left it, and PageUp
+    // must return to the first row.
+    click(cx, 60., 18.);
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Some(0)", "Some(29)", "Some(0)"],
+        "PageUp with a cursor must return to the first enabled row of the virtual list"
+    );
+}
+
+/// A long plain list (no `rowHeight`, every option laid out for real inside
+/// the capped 280px panel) scrolls, but the popover owns that scrolling and
+/// the page keys never consult it. They still require a focused key first:
+/// the mouse-opened cursor-less list ignores them, and only after keyboard
+/// navigation establishes the cursor does PageDown land on the last enabled
+/// row and PageUp back on the first, skipping the disabled rows at both ends.
+#[gpui::test]
+fn select_page_keys_reach_enabled_ends_on_a_scrolled_list(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+    let options: Vec<SharedString> = (0..20).map(|i| format!("Option {i:02}").into()).collect();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new("sel-page-plain", options.clone())
+            .disabled_keys([0, 19])
+            .on_selection_change(move |i, _, _| {
+                picks.borrow_mut().push(format!("{i:?}"));
+            })
+            .into_any_element()
+    });
+
+    // Mouse-open with no selection: both page keys must be inert. Down from a
+    // null cursor enters the first enabled row (1); had a page key created a
+    // cursor at an end, Down would hold on 18 or step to 2 and the pick would
+    // expose it.
+    click(cx, 60., 18.);
+    press(cx, "pagedown");
+    press(cx, "pageup");
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Some(1)"],
+        "page keys on a mouse-opened, cursor-less scrolled list must be inert: \
+         Down must still enter the first enabled row"
+    );
+
+    // Enter closed the list; reopen and press Down so keyboard navigation
+    // establishes the cursor (on 2), then PageDown must take the last
+    // enabled row (18), never the disabled 19.
+    click(cx, 60., 18.);
+    press(cx, "down");
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Some(1)", "Some(18)"],
+        "PageDown on a scrolled list must reach the last enabled row"
+    );
+
+    // Reopen once more; the cursor stands where PageDown left it, and PageUp
+    // must walk back to the first enabled row (1), never the disabled 0.
+    click(cx, 60., 18.);
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Some(1)", "Some(18)", "Some(1)"],
+        "PageUp on a scrolled list must reach the first enabled row"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Disclosure / DisclosureGroup
 // ---------------------------------------------------------------------------
