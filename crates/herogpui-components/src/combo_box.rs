@@ -982,6 +982,7 @@ impl RenderOnce for ComboBox {
             value_content = Some(render(util::SelectionValue {
                 selected_items: &items,
                 selected_indices: &indices,
+                selected_keys: None,
                 selected_text: &text,
                 is_placeholder: items.is_empty(),
                 default_children,

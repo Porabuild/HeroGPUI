@@ -51,12 +51,21 @@ use herogpui_components::{
     util, Autocomplete, CalendarState, CloseButton, ColorChannel, ColorField,
     ColorFieldRenderState, ColorSlider, ComboBox, Date, DateField, DateFieldRenderState,
     DatePicker, DateRangePicker, DateRangeState, Input, InputState, Meter, NumberField,
-    NumberFieldRenderState, NumberFormat, NumberState, PickerColor, ProgressBar, ProgressCircle,
-    SearchField, SearchFieldRenderState, Select, SelectionMode, Slider, Switch, TextField,
-    TextFieldRenderState, TimeField, TimeFieldRenderState, TimeState, ValidationBehavior,
+    NumberFieldRenderState, NumberFormat, NumberState, PickerColor, PickerItem, ProgressBar,
+    ProgressCircle, SearchField, SearchFieldRenderState, Select, SelectionMode, Slider, Switch,
+    TextField, TextFieldRenderState, TimeField, TimeFieldRenderState, TimeState,
+    ValidationBehavior,
 };
 
 use harness::{click, events, open_host, press};
+
+/// Items whose labels are unique, so the key can be the label itself.
+fn keyed(labels: &[&str]) -> Vec<PickerItem> {
+    labels
+        .iter()
+        .map(|l| PickerItem::new(l.to_string(), l.to_string()))
+        .collect()
+}
 
 /// Forces the frame that carries the state a handler just changed.
 ///
@@ -329,41 +338,45 @@ fn autocomplete_value_content_hands_placeholder_then_pick(cx: &mut TestAppContex
     let state_for_view = state;
     let cx = open_host(cx, move || {
         let record = record.clone();
-        Autocomplete::new(
-            state_for_view.clone(),
-            vec!["Alpha".into(), "Rust".into(), "Go".into()],
-        )
-        .value_content(move |v: util::SelectionValue<'_>| {
-            let items = v
-                .selected_items
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join(",");
-            let indices = v
-                .selected_indices
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join(",");
-            record.borrow_mut().push(format!(
-                "{}|{}|{}|{}",
-                v.is_placeholder, items, indices, v.selected_text
-            ));
-            if v.is_placeholder {
-                v.default_children
-            } else {
-                gpui::div()
-                    .child(v.selected_text.to_owned())
-                    .into_any_element()
-            }
-        })
-        .into_any_element()
+        Autocomplete::new(state_for_view.clone(), keyed(&["Alpha", "Rust", "Go"]))
+            .value_content(move |v: util::SelectionValue<'_>| {
+                let items = v
+                    .selected_items
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let indices = v
+                    .selected_indices
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let keys = v
+                    .selected_keys
+                    .unwrap_or(&[])
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                record.borrow_mut().push(format!(
+                    "{}|{}|{}|{}|{}",
+                    v.is_placeholder, items, indices, keys, v.selected_text
+                ));
+                if v.is_placeholder {
+                    v.default_children
+                } else {
+                    gpui::div()
+                        .child(v.selected_text.to_owned())
+                        .into_any_element()
+                }
+            })
+            .into_any_element()
     });
 
     assert_eq!(
         last_string(&seen),
-        "true|||",
+        "true||||",
         "nothing is chosen, so the first render must report the placeholder"
     );
 
@@ -372,8 +385,9 @@ fn autocomplete_value_content_hands_placeholder_then_pick(cx: &mut TestAppContex
     flush_frame(cx);
     assert_eq!(
         last_string(&seen),
-        "false|Alpha|0|Alpha",
-        "the frame after the pick must see the chosen suggestion"
+        "false|Alpha|0|Alpha|Alpha",
+        "the frame after the pick must see the chosen suggestion, by key as \
+         well as by text and index"
     );
 }
 

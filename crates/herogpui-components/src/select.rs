@@ -1076,6 +1076,7 @@ impl RenderOnce for Select {
                     .child(render(util::SelectionValue {
                         selected_items: &items,
                         selected_indices: &chosen,
+                        selected_keys: None,
                         selected_text: &text,
                         is_placeholder: !has_value,
                         default_children,

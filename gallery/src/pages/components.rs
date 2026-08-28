@@ -180,6 +180,24 @@ fn virtual_user(i: usize) -> (String, String) {
     )
 }
 
+/// The same thousand names as keyed picker items: the key is the stable
+/// `user-N` id, the label the visible name.
+fn virtual_picker_items() -> Vec<h::PickerItem> {
+    (0..1000)
+        .map(|i| h::PickerItem::new(format!("user-{i}"), virtual_user(i).0))
+        .collect()
+}
+
+/// `languages()` as keyed items, for the Autocomplete demos: the slug is the
+/// stable key the selection and `disabledKeys` address, the display name the
+/// label the filtering and rendering use.
+fn language_items() -> Vec<h::PickerItem> {
+    languages()
+        .into_iter()
+        .map(|label| h::PickerItem::new(label.to_lowercase(), label))
+        .collect()
+}
+
 /// A thousand names, for the pickers' virtualization demos.
 fn virtual_names() -> Vec<SharedString> {
     (0..1000)
@@ -10608,7 +10626,7 @@ impl Gallery {
                         ),
                         h::Autocomplete::new(
                             self.demo_text("ac-virtual", "", cx),
-                            virtual_names(),
+                            virtual_picker_items(),
                         )
                         .label("User")
                         .row_height(px(40.))
@@ -10618,10 +10636,10 @@ impl Gallery {
                 (
                     "Variants",
                     col(vec![
-                        h::Autocomplete::new(self.demo_text("ac-primary", "", cx), languages())
+                        h::Autocomplete::new(self.demo_text("ac-primary", "", cx), language_items())
                             .label("Primary")
                             .into_any_element(),
-                        h::Autocomplete::new(self.demo_text("ac-secondary", "", cx), languages())
+                        h::Autocomplete::new(self.demo_text("ac-secondary", "", cx), language_items())
                             .label("Secondary")
                             .variant(FieldVariant::Secondary)
                             .into_any_element(),
@@ -10632,7 +10650,7 @@ impl Gallery {
                     col(vec![h::Surface::new()
                         .padding(px(24.))
                         .child(
-                            h::Autocomplete::new(self.demo_text("ac-surface", "", cx), languages())
+                            h::Autocomplete::new(self.demo_text("ac-surface", "", cx), language_items())
                                 .label("Language")
                                 .variant(FieldVariant::Secondary),
                         )
@@ -10642,7 +10660,7 @@ impl Gallery {
                     "Full Width",
                     col(vec![h::Autocomplete::new(
                         self.demo_text("ac-full", "", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .full_width(true)
@@ -10652,7 +10670,7 @@ impl Gallery {
                     "With Description",
                     col(vec![h::Autocomplete::new(
                         self.demo_text("ac-desc", "", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .description("Type to filter the list")
@@ -10662,7 +10680,7 @@ impl Gallery {
                     "Required",
                     col(vec![h::Autocomplete::new(
                         self.demo_text("ac-required", "", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .is_required(true)
@@ -10672,7 +10690,7 @@ impl Gallery {
                     "Disabled",
                     col(vec![h::Autocomplete::new(
                         self.demo_text("ac-disabled", "Rust", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .is_disabled(true)
@@ -10682,10 +10700,10 @@ impl Gallery {
                     "With Disabled Options",
                     col(vec![h::Autocomplete::new(
                         self.demo_text("ac-disabled-opts", "", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
-                    .disabled_keys([SharedString::from("Go"), SharedString::from("Python")])
+                    .disabled_keys([SharedString::from("go"), SharedString::from("python")])
                     .default_open(true)
                     .into_any_element()]),
                 ),
@@ -10693,7 +10711,7 @@ impl Gallery {
                     "Allows Empty Collection",
                     col(vec![h::Autocomplete::new(
                         self.demo_text("ac-empty", "zzz", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .allows_empty_collection(true)
@@ -10705,15 +10723,15 @@ impl Gallery {
                     col(vec![h::Autocomplete::new(
                         self.demo_text("ac-sections", "", cx),
                         vec![
-                            "Rust".into(),
-                            "Go".into(),
-                            "TypeScript".into(),
-                            "Python".into(),
+                            h::PickerItem::new("rust", "Rust"),
+                            h::PickerItem::new("go", "Go"),
+                            h::PickerItem::new("typescript", "TypeScript"),
+                            h::PickerItem::new("python", "Python"),
                         ],
                     )
                     .label("Language")
-                    .section_before("Rust", "Systems")
-                    .section_before("TypeScript", "Scripting")
+                    .section_before("rust", "Systems")
+                    .section_before("typescript", "Scripting")
                     .default_open(true)
                     .into_any_element()]),
                 ),
@@ -10721,20 +10739,20 @@ impl Gallery {
                     "Multiple Select",
                     col(vec![h::Autocomplete::new(
                         self.demo_text("ac-multi-select", "", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Languages")
                     .selection_mode(SelectionMode::Multiple)
                     // `defaultValue` is `Key | Key[]`: the uncontrolled
-                    // selection, seeded once.
-                    .default_value(["Rust"])
+                    // selection, seeded once, by key.
+                    .default_value(["rust"])
                     .default_open(true)
                     .into_any_element()]),
                 ),
                 (
                     "Controlled",
                     col(vec![
-                        h::Autocomplete::new(self.demo_text("ac-controlled", "", cx), languages())
+                        h::Autocomplete::new(self.demo_text("ac-controlled", "", cx), language_items())
                             .label("Language")
                             .input_value(ac_typed)
                             .on_input_change(cx.listener(|this, text: &str, _, cx| {
@@ -10760,7 +10778,7 @@ impl Gallery {
                     "Controlled Multiple",
                     col(vec![h::Autocomplete::new(
                         self.demo_text("ac-ctl-multi", "", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Languages")
                     .selection_mode(SelectionMode::Multiple)
@@ -10786,7 +10804,7 @@ impl Gallery {
                                 .into_any_element(),
                             para(if ac_open { "Open" } else { "Closed" }, cx),
                         ]),
-                        h::Autocomplete::new(self.demo_text("ac-open", "", cx), languages())
+                        h::Autocomplete::new(self.demo_text("ac-open", "", cx), language_items())
                             .label("Language")
                             .is_open(ac_open)
                             .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
@@ -10806,7 +10824,7 @@ impl Gallery {
                             cx,
                         ),
                         row(vec![
-                            h::Autocomplete::new(self.demo_text("ac-async", "", cx), languages())
+                            h::Autocomplete::new(self.demo_text("ac-async", "", cx), language_items())
                                 .label("Language")
                                 // `useFilter({sensitivity: "base"}).contains`:
                                 // case and accents both ignored, so "cafe"
@@ -10825,7 +10843,7 @@ impl Gallery {
                     "Custom Indicator",
                     col(vec![h::Autocomplete::new(
                         self.demo_text("ac-indicator", "", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Languages")
                     .default_open(true)
@@ -10848,10 +10866,10 @@ impl Gallery {
                              example does.",
                             cx,
                         ),
-                        h::Autocomplete::new(self.demo_text("ac-custom", "", cx), languages())
+                        h::Autocomplete::new(self.demo_text("ac-custom", "", cx), language_items())
                             .label("Languages")
                             .selection_mode(SelectionMode::Multiple)
-                            .default_value(["Rust", "Go"])
+                            .default_value(["rust", "go"])
                             .value_content(|value| {
                                 if value.is_placeholder {
                                     return value.default_children;
@@ -10877,7 +10895,7 @@ impl Gallery {
                     "Usage",
                     col(vec![h::Autocomplete::new(
                         self.ac_entity.clone(),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .placeholder("Select a language")

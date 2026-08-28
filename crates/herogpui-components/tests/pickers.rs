@@ -43,7 +43,7 @@ use gpui::{prelude::*, px, TestAppContext};
 use herogpui_components::{
     calendar::{CalendarState, Date, CALENDAR_WIDTH},
     Autocomplete, Button, ComboBox, DateConstraints, DatePicker, Dropdown, InputState, MenuItem,
-    SelectionMode,
+    PickerItem, SelectionMode,
 };
 
 use harness::{click, events, open_host, press};
@@ -52,6 +52,15 @@ use harness::{click, events, open_host, press};
 /// the host opens so the test can keep its own handle to it.
 fn search_state(cx: &mut TestAppContext) -> gpui::Entity<InputState> {
     cx.new(|cx| InputState::new(cx))
+}
+
+/// Items whose labels are unique, so the key can be the label itself. Tests
+/// that need duplicate labels build explicit keys instead.
+fn keyed(labels: &[&str]) -> Vec<PickerItem> {
+    labels
+        .iter()
+        .map(|l| PickerItem::new(l.to_string(), l.to_string()))
+        .collect()
 }
 
 #[gpui::test]
@@ -69,7 +78,7 @@ fn autocomplete_opens_filters_and_selects(cx: &mut TestAppContext) {
         let state = state_for_view.clone();
         // v3's Autocomplete is a trigger whose popover holds a SearchField;
         // typing filters, clicking a row selects.
-        Autocomplete::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+        Autocomplete::new(state, keyed(&["Typst", "Rust", "Go"]))
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
@@ -126,7 +135,7 @@ fn autocomplete_uncontrolled_selection_sticks(cx: &mut TestAppContext) {
         let single = single.clone();
         let all = all.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Alpha".into(), "Beta".into(), "Gamma".into()])
+        Autocomplete::new(state, keyed(&["Alpha", "Beta", "Gamma"]))
             .selection_mode(SelectionMode::Multiple)
             .on_change(move |item, _, _| single.borrow_mut().push(item.to_string()))
             .on_selection_change_all(move |keys, _, _| {
@@ -176,7 +185,7 @@ fn autocomplete_escape_closes(cx: &mut TestAppContext) {
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Alpha".into(), "Beta".into(), "Gamma".into()])
+        Autocomplete::new(state, keyed(&["Alpha", "Beta", "Gamma"]))
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
@@ -218,7 +227,7 @@ fn autocomplete_arrows_and_enter_select(cx: &mut TestAppContext) {
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Rust".into(), "Go".into(), "Python".into()])
+        Autocomplete::new(state, keyed(&["Rust", "Go", "Python"]))
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
@@ -264,13 +273,7 @@ fn autocomplete_page_keys_ignore_a_closed_field(cx: &mut TestAppContext) {
         let state = state_for_view.clone();
         Autocomplete::new(
             state,
-            vec![
-                "Alpha".into(),
-                "Beta".into(),
-                "Gamma".into(),
-                "Delta".into(),
-                "Epsilon".into(),
-            ],
+            keyed(&["Alpha", "Beta", "Gamma", "Delta", "Epsilon"]),
         )
         .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
         .on_open_change(move |open, _, _| {
@@ -330,8 +333,12 @@ fn autocomplete_page_keys_ignore_a_closed_field(cx: &mut TestAppContext) {
 fn autocomplete_page_keys_move_one_visible_page_after_a_cursor_exists(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();
-    let options: Vec<gpui::SharedString> =
-        (0..20).map(|i| format!("Option {i:02}").into()).collect();
+    let options: Vec<PickerItem> = (0..20)
+        .map(|i| {
+            let label = format!("Option {i:02}");
+            PickerItem::new(label.clone(), label)
+        })
+        .collect();
     let state = search_state(cx);
     let state_for_view = state;
 
@@ -451,8 +458,12 @@ fn autocomplete_page_keys_move_one_visible_page_after_a_cursor_exists(cx: &mut T
 fn autocomplete_row_height_pages_by_fixed_row_steps(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();
-    let options: Vec<gpui::SharedString> =
-        (0..20).map(|i| format!("Option {i:02}").into()).collect();
+    let options: Vec<PickerItem> = (0..20)
+        .map(|i| {
+            let label = format!("Option {i:02}");
+            PickerItem::new(label.clone(), label)
+        })
+        .collect();
     let state = search_state(cx);
     let state_for_view = state;
 
@@ -524,7 +535,7 @@ fn autocomplete_forward_typing_focuses_the_first_match_for_enter(cx: &mut TestAp
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Alpha".into(), "Rust".into(), "Rusty".into()])
+        Autocomplete::new(state, keyed(&["Alpha", "Rust", "Rusty"]))
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
@@ -568,7 +579,7 @@ fn autocomplete_forward_typing_focuses_the_first_enabled_match(cx: &mut TestAppC
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Rust".into(), "Rusty".into(), "Go".into()])
+        Autocomplete::new(state, keyed(&["Rust", "Rusty", "Go"]))
             .disabled_keys(["Rust".into()])
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
@@ -605,7 +616,7 @@ fn autocomplete_space_resets_focus_to_the_first_match(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let changes = changes.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Rust book".into(), "Rust belt".into()])
+        Autocomplete::new(state, keyed(&["Rust book", "Rust belt"]))
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .into_any_element()
     });
@@ -636,7 +647,7 @@ fn autocomplete_backspace_clears_virtual_focus(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let changes = changes.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Rust".into(), "Rusty".into()])
+        Autocomplete::new(state, keyed(&["Rust", "Rusty"]))
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .into_any_element()
     });
@@ -662,7 +673,7 @@ fn autocomplete_paste_clears_virtual_focus(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let changes = changes.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Rust".into(), "Rusty".into()])
+        Autocomplete::new(state, keyed(&["Rust", "Rusty"]))
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .into_any_element()
     });
@@ -689,7 +700,7 @@ fn autocomplete_modified_space_does_not_activate_a_match(cx: &mut TestAppContext
     let cx = open_host(cx, move || {
         let changes = changes.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Rust".into(), "Rusty".into()])
+        Autocomplete::new(state, keyed(&["Rust", "Rusty"]))
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .into_any_element()
     });
@@ -715,7 +726,7 @@ fn autocomplete_controlled_query_update_does_not_focus_a_match(cx: &mut TestAppC
     let cx = open_host(cx, move || {
         let changes = changes.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Alpha".into(), "Rust".into(), "Rusty".into()])
+        Autocomplete::new(state, keyed(&["Alpha", "Rust", "Rusty"]))
             .default_open(true)
             .input_value(query_for_view.borrow().clone())
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
@@ -747,14 +758,11 @@ fn autocomplete_controlled_query_waits_for_owner_acceptance(cx: &mut TestAppCont
 
     let cx = open_host(cx, move || {
         let inputs = inputs.clone();
-        Autocomplete::new(
-            state_for_view.clone(),
-            vec!["Alpha".into(), "Rust".into(), "Rusty".into()],
-        )
-        .default_open(true)
-        .input_value("ru")
-        .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
-        .into_any_element()
+        Autocomplete::new(state_for_view.clone(), keyed(&["Alpha", "Rust", "Rusty"]))
+            .default_open(true)
+            .input_value("ru")
+            .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
+            .into_any_element()
     });
 
     cx.simulate_input("s");
@@ -779,7 +787,7 @@ fn autocomplete_custom_indicator_receives_trigger_open_state(cx: &mut TestAppCon
 
     let cx = open_host(cx, move || {
         let seen = seen.clone();
-        Autocomplete::new(state.clone(), vec!["Alpha".into(), "Beta".into()])
+        Autocomplete::new(state.clone(), keyed(&["Alpha", "Beta"]))
             .indicator(move |is_open| {
                 *seen.borrow_mut() = Some(is_open);
                 gpui::div().into_any_element()
@@ -805,7 +813,7 @@ fn autocomplete_item_indicator_receives_row_selection_state(cx: &mut TestAppCont
 
     let _cx = open_host(cx, move || {
         let seen = seen.clone();
-        Autocomplete::new(state.clone(), vec!["Alpha".into(), "Beta".into()])
+        Autocomplete::new(state.clone(), keyed(&["Alpha", "Beta"]))
             .default_value(["Alpha"])
             .default_open(true)
             .item_indicator(move |is_selected| {
@@ -833,7 +841,7 @@ fn autocomplete_exiting_panel_does_not_repeat_outside_dismissal(cx: &mut TestApp
 
     let cx = open_host(cx, move || {
         let opens = opens.clone();
-        Autocomplete::new(state.clone(), vec!["Alpha".into(), "Beta".into()])
+        Autocomplete::new(state.clone(), keyed(&["Alpha", "Beta"]))
             .default_open(true)
             .on_open_change(move |is_open, _, _| {
                 opens.borrow_mut().push(format!("open:{is_open}"));

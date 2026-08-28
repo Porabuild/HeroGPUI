@@ -74,13 +74,22 @@ use gpui::{
 use harness::{click, events, open_host, press, Events};
 use herogpui_components::{
     Autocomplete, ComboBox, Drawer, DrawerPlacement, Form, FormData, Input, InputState,
-    MenuTrigger, Select, SelectionMode,
+    MenuTrigger, PickerItem, Select, SelectionMode,
 };
 
 /// An `InputState` entity for the search-field-backed controls, created before
 /// the host opens so the test can keep its own handle to it.
 fn search_state(cx: &mut TestAppContext) -> gpui::Entity<InputState> {
     cx.new(|cx| InputState::new(cx))
+}
+
+/// Items whose labels are unique, so the key can be the label itself. Tests
+/// that need duplicate labels build explicit keys instead.
+fn keyed(labels: &[&str]) -> Vec<PickerItem> {
+    labels
+        .iter()
+        .map(|l| PickerItem::new(l.to_string(), l.to_string()))
+        .collect()
 }
 
 /// A fixed-size pressable probe: records `label` on click. Every geometry
@@ -152,7 +161,7 @@ fn autocomplete_programmatic_focus_departure_closes_without_refocusing(cx: &mut 
         let opens = opens.clone();
         gpui::div()
             .child(
-                Autocomplete::new(search_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                Autocomplete::new(search_for_view.clone(), keyed(&["Alpha", "Beta"]))
                     .default_open(true)
                     .on_open_change(move |open, _, _| {
                         opens.borrow_mut().push(format!("open:{open}"));
@@ -195,7 +204,7 @@ fn autocomplete_allows_empty_collection_keeps_the_panel_up_with_no_matches(
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+        Autocomplete::new(state, keyed(&["Typst", "Rust", "Go"]))
             .allows_empty_collection(true)
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
@@ -254,7 +263,7 @@ fn autocomplete_filtered_empty_without_the_prop_keeps_the_panel_mounted(cx: &mut
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+        Autocomplete::new(state, keyed(&["Typst", "Rust", "Go"]))
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
@@ -403,21 +412,13 @@ fn autocomplete_disabled_rows_are_unclickable_and_not_a_stop(cx: &mut TestAppCon
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(
-            state,
-            vec![
-                "Alpha".into(),
-                "Beta".into(),
-                "Gamma".into(),
-                "Delta".into(),
-            ],
-        )
-        .disabled_keys(["Beta".into()])
-        .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
-        .on_open_change(move |open, _, _| {
-            opens.borrow_mut().push(format!("open:{open}"));
-        })
-        .into_any_element()
+        Autocomplete::new(state, keyed(&["Alpha", "Beta", "Gamma", "Delta"]))
+            .disabled_keys(["Beta".into()])
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -482,21 +483,13 @@ fn autocomplete_section_heading_is_never_a_stop(cx: &mut TestAppContext) {
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(
-            state,
-            vec![
-                "Alpha".into(),
-                "Beta".into(),
-                "Gamma".into(),
-                "Delta".into(),
-            ],
-        )
-        .section_before("Gamma", "Tropical")
-        .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
-        .on_open_change(move |open, _, _| {
-            opens.borrow_mut().push(format!("open:{open}"));
-        })
-        .into_any_element()
+        Autocomplete::new(state, keyed(&["Alpha", "Beta", "Gamma", "Delta"]))
+            .section_before("Gamma", "Tropical")
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -569,13 +562,7 @@ fn autocomplete_max_items_caps_the_long_list(cx: &mut TestAppContext) {
         let state = state_for_view.clone();
         Autocomplete::new(
             state,
-            vec![
-                "Alpha".into(),
-                "Alpine".into(),
-                "Beta".into(),
-                "Bravo".into(),
-                "Charlie".into(),
-            ],
+            keyed(&["Alpha", "Alpine", "Beta", "Bravo", "Charlie"]),
         )
         .max_items(2)
         .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
@@ -631,7 +618,7 @@ fn autocomplete_clear_button_fires_on_clear_and_vanishes(cx: &mut TestAppContext
         let clears = clears.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Alpha".into(), "Beta".into(), "Gamma".into()])
+        Autocomplete::new(state, keyed(&["Alpha", "Beta", "Gamma"]))
             .default_value(["Alpha"])
             .on_clear(move |_, _| clears.borrow_mut().push("cleared".into()))
             .on_open_change(move |open, _, _| {
@@ -680,7 +667,7 @@ fn autocomplete_clear_button_works_without_an_on_clear_callback(cx: &mut TestApp
         let selections = selections.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Alpha".into(), "Beta".into()])
+        Autocomplete::new(state, keyed(&["Alpha", "Beta"]))
             .default_value(["Alpha"])
             .on_selection_change_all(move |keys, _, _| {
                 selections.borrow_mut().push(
@@ -718,7 +705,7 @@ fn autocomplete_controlled_clear_waits_for_the_owner(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let selections = selections.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Alpha".into(), "Beta".into()])
+        Autocomplete::new(state, keyed(&["Alpha", "Beta"]))
             .value(["Alpha"])
             .on_selection_change_all(move |keys, _, _| {
                 selections.borrow_mut().push(keys.len().to_string());
@@ -746,7 +733,7 @@ fn autocomplete_clear_handles_a_controlled_key_missing_from_items(cx: &mut TestA
     let cx = open_host(cx, move || {
         let selections = selections.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Alpha".into(), "Beta".into()])
+        Autocomplete::new(state, keyed(&["Alpha", "Beta"]))
             .value(["loading-item"])
             .on_selection_change_all(move |keys, _, _| {
                 selections.borrow_mut().push(keys.len().to_string());
@@ -772,7 +759,7 @@ fn autocomplete_disabled_clear_is_inert(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let selections = selections.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Alpha".into()])
+        Autocomplete::new(state, keyed(&["Alpha"]))
             .default_value(["Alpha"])
             .is_disabled(true)
             .on_selection_change_all(move |_, _, _| {
@@ -798,7 +785,7 @@ fn autocomplete_read_only_clear_is_inert(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let selections = selections.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Alpha".into()])
+        Autocomplete::new(state, keyed(&["Alpha"]))
             .default_value(["Alpha"])
             .is_read_only(true)
             .on_selection_change_all(move |_, _, _| {
@@ -830,27 +817,19 @@ fn autocomplete_clear_empties_the_owned_selection_before_the_next_pick(cx: &mut 
         let picks = picks.clone();
         let clear_events = picks.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(
-            state,
-            vec![
-                "Alpha".into(),
-                "Beta".into(),
-                "Gamma".into(),
-                "Delta".into(),
-            ],
-        )
-        .selection_mode(SelectionMode::Multiple)
-        .default_value(["Alpha", "Beta"])
-        .on_clear(move |_, _| clear_events.borrow_mut().push("clear:cleared".into()))
-        .on_selection_change_all(move |keys, _, _| {
-            let joined = keys
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join(",");
-            picks.borrow_mut().push(joined);
-        })
-        .into_any_element()
+        Autocomplete::new(state, keyed(&["Alpha", "Beta", "Gamma", "Delta"]))
+            .selection_mode(SelectionMode::Multiple)
+            .default_value(["Alpha", "Beta"])
+            .on_clear(move |_, _| clear_events.borrow_mut().push("clear:cleared".into()))
+            .on_selection_change_all(move |keys, _, _| {
+                let joined = keys
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                picks.borrow_mut().push(joined);
+            })
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -896,7 +875,7 @@ fn autocomplete_no_wrap_holds_at_both_ends(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let changes = changes.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Alpha".into(), "Beta".into(), "Gamma".into()])
+        Autocomplete::new(state, keyed(&["Alpha", "Beta", "Gamma"]))
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .into_any_element()
     });
@@ -936,7 +915,7 @@ fn autocomplete_wrap_joins_both_ends(cx: &mut TestAppContext) {
     let cx = open_host(cx, move || {
         let changes = changes.clone();
         let state = state_for_view.clone();
-        Autocomplete::new(state, vec!["Alpha".into(), "Beta".into(), "Gamma".into()])
+        Autocomplete::new(state, keyed(&["Alpha", "Beta", "Gamma"]))
             .should_focus_wrap(true)
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .into_any_element()
@@ -963,6 +942,765 @@ fn autocomplete_wrap_joins_both_ends(cx: &mut TestAppContext) {
     );
 }
 
+// -- Autocomplete keyed identity ----------------------------------------------
+//
+// Pinned v3.2.4 / React Aria Components 1.20.0 keep a stable `Key` separate
+// from each item's `textValue`: the selection, `disabledKeys`, the callbacks
+// and the form value address items by key, while filtering and the visible
+// text use labels. The tests below use two items that share the label "Rust"
+// with the distinct keys "rust" and "rusty" — under the old label-as-key
+// identity every one of these expectations fails, because the duplicates
+// aliased each other's selection, disabled state and row element id.
+
+/// Two same-label items with distinct keys: the duplicate-labelled collection
+/// the keyed-identity tests in this section drive.
+fn duplicate_labels() -> Vec<PickerItem> {
+    vec![
+        PickerItem::new("rust", "Rust"),
+        PickerItem::new("rusty", "Rust"),
+        PickerItem::new("go", "Go"),
+    ]
+}
+
+/// Picking the *second* of two same-label rows must report that row's own key
+/// and render the label once — not alias onto the first item's key.
+#[gpui::test]
+fn autocomplete_duplicate_labels_pick_the_second_by_its_key(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let values = Rc::new(RefCell::new(Vec::new()));
+    let seen_values = values.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let seen_values = seen_values.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, duplicate_labels())
+            .value_content(move |v| {
+                seen_values.borrow_mut().push(format!(
+                    "text:{} keys:{} indices:{}",
+                    v.selected_text,
+                    v.selected_keys
+                        .unwrap_or(&[])
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                    v.selected_indices
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                ));
+                v.default_children
+            })
+            .on_change(move |key, _, _| changes.borrow_mut().push(key.to_string()))
+            .into_any_element()
+    });
+
+    // Row 1 is the second "Rust", key "rusty": y = 124 + 36.
+    click(cx, 60., 18.);
+    click(cx, 60., 160.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["rusty"],
+        "the second same-label row must report its own key, not the first \
+         item's key"
+    );
+    flush_frame(cx);
+    assert_eq!(
+        values.borrow().last().map(String::as_str),
+        Some("text:Rust keys:rusty indices:1"),
+        "the trigger must render the selected key's label once, with the \
+         selected key and collection index of the row that was picked"
+    );
+
+    // Reopening and picking the first "Rust" reports the *other* key — the
+    // two rows are distinct selections.
+    click(cx, 60., 18.);
+    click(cx, 60., 124.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["rusty", "rust"],
+        "the first same-label row must keep its own key too"
+    );
+}
+
+/// With both same-label items selected, the trigger renders each selected
+/// item once in the selection's own order — two picks with one label are two
+/// labels, and the render props see the keys behind them.
+#[gpui::test]
+fn autocomplete_duplicate_labels_selected_together_render_each_once(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let values = Rc::new(RefCell::new(Vec::new()));
+    let seen_values = values.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let seen_values = seen_values.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, duplicate_labels())
+            .selection_mode(SelectionMode::Multiple)
+            .default_value(["rust", "rusty"])
+            .value_content(move |v| {
+                seen_values.borrow_mut().push(format!(
+                    "text:{} keys:{} indices:{}",
+                    v.selected_text,
+                    v.selected_keys
+                        .unwrap_or(&[])
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                    v.selected_indices
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                ));
+                v.default_children
+            })
+            .on_selection_change_all(move |keys, _, _| {
+                changes.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    assert_eq!(
+        values.borrow().last().map(String::as_str),
+        Some("text:Rust, Rust keys:rust,rusty indices:0,1"),
+        "both same-label selections must render, once each, in the \
+         selection's own order — the keys prove they are two items, not one"
+    );
+
+    // Adding "Go" keeps every selected key distinct from its label, and the
+    // callback reports the selection set's insertion order: the seeded pair
+    // first, "go" appended last — not the collection's or a sorted order.
+    click(cx, 60., 18.);
+    click(cx, 60., 196.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["rust,rusty,go"],
+        "the complete selection must report all three keys in insertion \
+         order — a sorted set would have reported go,rust,rusty"
+    );
+    flush_frame(cx);
+    assert_eq!(
+        values.borrow().last().map(String::as_str),
+        Some("text:Rust, Rust, Go keys:rust,rusty,go indices:0,1,2"),
+        "the trigger text must stay in the selection's own order with one \
+         render per selected key"
+    );
+}
+
+/// `disabledKeys` addresses one key: disabling the first "Rust" leaves the
+/// same-label sibling enabled and clickable, and as a keyboard stop.
+#[gpui::test]
+fn autocomplete_duplicate_labels_disable_one_key_keeps_the_sibling_enabled(
+    cx: &mut TestAppContext,
+) {
+    let changes = events();
+    let recorded = changes.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, duplicate_labels())
+            .disabled_keys(["rust".into()])
+            .on_change(move |key, _, _| changes.borrow_mut().push(key.to_string()))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    assert_eq!(opened.borrow().as_slice(), ["open:true"]);
+
+    // Keyboard leg on the freshly opened panel (a pointer press inside the
+    // panel blurs the autofocused search field, so it always comes first):
+    // Down enters the first *enabled* row — the sibling "rusty" at index 1 —
+    // so Enter commits "rusty". Disabling both same-label items (the
+    // aliasing bug) would have made "go" the first enabled stop instead.
+    flush_frame(cx);
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["rusty"],
+        "disabling one key must leave its same-label sibling enabled and \
+         selectable"
+    );
+    assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
+
+    // Pointer leg on a reopened panel: a press on the disabled key's row
+    // records nothing and leaves the panel up, while the same-label sibling
+    // row next to it still answers.
+    flush_frame(cx);
+    click(cx, 60., 18.);
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false", "open:true"]
+    );
+    flush_frame(cx);
+    click(cx, 60., 124.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["rusty"],
+        "the disabled key's row must not answer the pointer"
+    );
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false", "open:true"],
+        "a press on a disabled row must not dismiss the panel either"
+    );
+    click(cx, 60., 160.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["rusty", "rusty"],
+        "the same-label sibling row must answer the pointer"
+    );
+}
+
+/// Two same-label rows are two interactive elements in the plain list path:
+/// in multiple mode each row toggles only its own key.
+#[gpui::test]
+fn autocomplete_duplicate_labels_keep_distinct_rows_in_the_plain_path(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, duplicate_labels())
+            .selection_mode(SelectionMode::Multiple)
+            .on_selection_change_all(move |keys, _, _| {
+                changes.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    // Row 0 at y = 124, row 1 at y = 160. The second click must ADD "rusty"
+    // beside "rust" — one aliased row id would have made it toggle the first
+    // pick off.
+    click(cx, 60., 18.);
+    click(cx, 60., 124.);
+    click(cx, 60., 160.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["rust", "rust,rusty"],
+        "the two same-label rows must be distinct clickable rows"
+    );
+    // A third click on the first row toggles only "rust" back off.
+    click(cx, 60., 124.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["rust", "rust,rusty", "rusty"],
+        "each row must toggle only its own key"
+    );
+}
+
+/// The virtual (`row_height`) list builds its rows through `uniform_list`,
+/// but the identity contract is the same: two same-label rows are two
+/// distinct interactive rows that each report their own key.
+#[gpui::test]
+fn autocomplete_duplicate_labels_keep_distinct_rows_in_the_virtual_path(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, duplicate_labels())
+            .selection_mode(SelectionMode::Multiple)
+            .row_height(px(36.))
+            .on_selection_change_all(move |keys, _, _| {
+                changes.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    // Same row geometry as the plain path: row 0 at y = 124, row 1 at
+    // y = 160.
+    click(cx, 60., 18.);
+    click(cx, 60., 124.);
+    click(cx, 60., 160.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["rust", "rust,rusty"],
+        "the two same-label rows must stay distinct rows under virtualization"
+    );
+    click(cx, 60., 124.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["rust", "rust,rusty", "rusty"],
+        "each virtual row must toggle only its own key"
+    );
+}
+
+/// A held selection is a set of keys: reordering the collection must not move
+/// it onto another item, and the trigger keeps rendering the held key's label
+/// from wherever that item now sits.
+#[gpui::test]
+fn autocomplete_selection_survives_an_item_reorder_by_key(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let values = Rc::new(RefCell::new(Vec::new()));
+    let seen_values = values.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+    let items = Rc::new(RefCell::new(duplicate_labels()));
+    let items_for_view = items.clone();
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let seen_values = seen_values.clone();
+        let state = state_for_view.clone();
+        let items = items_for_view.borrow().clone();
+        Autocomplete::new(state, items)
+            .default_value(["rusty"])
+            .value_content(move |v| {
+                seen_values.borrow_mut().push(format!(
+                    "text:{} keys:{}",
+                    v.selected_text,
+                    v.selected_keys
+                        .unwrap_or(&[])
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                ));
+                v.default_children
+            })
+            .on_change(move |key, _, _| changes.borrow_mut().push(key.to_string()))
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    assert_eq!(
+        values.borrow().last().map(String::as_str),
+        Some("text:Rust keys:rusty"),
+        "the seeded key must resolve to its item's label"
+    );
+
+    // Reorder the collection: "rusty" moves from index 1 to the end.
+    *items.borrow_mut() = vec![
+        PickerItem::new("go", "Go"),
+        PickerItem::new("rust", "Rust"),
+        PickerItem::new("rusty", "Rust"),
+    ];
+    flush_frame(cx);
+    assert_eq!(
+        values.borrow().last().map(String::as_str),
+        Some("text:Rust keys:rusty"),
+        "the held selection must follow its key through the reorder, not \
+         the row the label used to sit on"
+    );
+
+    // Picking the row that now sits at index 1 commits that row's own key.
+    click(cx, 60., 18.);
+    click(cx, 60., 160.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["rust"],
+        "the row's key must be reported from its new position"
+    );
+    flush_frame(cx);
+    assert_eq!(
+        values.borrow().last().map(String::as_str),
+        Some("text:Rust keys:rust"),
+        "the trigger must show the newly committed key's label"
+    );
+}
+
+// -- Autocomplete selection order ---------------------------------------------
+//
+// Pinned react-stately 3.49.0's `useSelectState` keeps `selectedKeys` as a
+// JavaScript `Set`, which iterates in insertion order: `selectedItems`,
+// `selectedText`, the `onChange` slice and the form value all follow the
+// order keys were picked (or the owner listed) in — never the collection's
+// order and never a sorted order.
+
+/// Nonlexicographic keys whose collection order differs from any pick order:
+/// a sorted set would report Alpha,Mike,Zulu; the pick order below never is.
+fn misordered() -> Vec<PickerItem> {
+    keyed(&["Zulu", "Alpha", "Mike"])
+}
+
+/// Multiple picks must report and render in insertion order, whichever way
+/// each pick was made: the keyboard leg toggles "Mike" on first, then pointer
+/// picks append "Zulu" and "Alpha", and toggling "Zulu" off removes it in
+/// place — re-adding appends it at the end.
+#[gpui::test]
+fn autocomplete_multiple_picks_follow_insertion_order(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, misordered())
+            .selection_mode(SelectionMode::Multiple)
+            .on_selection_change_all(move |keys, _, _| {
+                changes.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    // Keyboard leg: three Downs walk 0 -> 1 -> 2 and Enter toggles "Mike" on.
+    click(cx, 60., 18.);
+    press(cx, "down down down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Mike"],
+        "the keyboard pick must report the toggled key"
+    );
+
+    // Pointer legs: "Zulu" then "Alpha" append in pick order.
+    click(cx, 60., 124.);
+    click(cx, 60., 160.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Mike", "Mike,Zulu", "Mike,Zulu,Alpha"],
+        "pointer picks must append in pick order — a sorted set would have \
+         reported Alpha,Mike,Zulu"
+    );
+
+    // Toggling "Zulu" off removes it in place — "Alpha" keeps its position
+    // behind "Mike" — and toggling it back on appends it at the end.
+    click(cx, 60., 124.);
+    click(cx, 60., 124.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [
+            "Mike",
+            "Mike,Zulu",
+            "Mike,Zulu,Alpha",
+            "Mike,Alpha",
+            "Mike,Alpha,Zulu"
+        ],
+        "remove-in-place must keep the remaining order and re-adding must \
+         append at the end"
+    );
+}
+
+/// A controlled selection's order is the owner's order: the render props see
+/// the keys exactly as `value` listed them, and a pick appends to that order
+/// in the reported slice.
+#[gpui::test]
+fn autocomplete_controlled_value_keeps_the_owner_order(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let values = Rc::new(RefCell::new(Vec::new()));
+    let seen_values = values.clone();
+    let current = Rc::new(RefCell::new(vec![
+        gpui::SharedString::from("k-mid"),
+        gpui::SharedString::from("k-last"),
+    ]));
+    let state = search_state(cx);
+    let state_for_view = state;
+    let current_for_view = current;
+    let items = vec![
+        PickerItem::new("k-last", "One"),
+        PickerItem::new("k-mid", "Two"),
+        PickerItem::new("k-first", "Three"),
+    ];
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let seen_values = seen_values.clone();
+        let current = current_for_view.clone();
+        let state = state_for_view.clone();
+        let selected = current.borrow().clone();
+        Autocomplete::new(state, items.clone())
+            .selection_mode(SelectionMode::Multiple)
+            .value(selected)
+            .value_content(move |v| {
+                seen_values.borrow_mut().push(format!(
+                    "text:{} keys:{} indices:{}",
+                    v.selected_text,
+                    v.selected_keys
+                        .unwrap_or(&[])
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                    v.selected_indices
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                ));
+                v.default_children
+            })
+            .on_selection_change_all(move |keys, _, _| {
+                *current.borrow_mut() = keys.to_vec();
+                changes.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    assert_eq!(
+        values.borrow().last().map(String::as_str),
+        Some("text:Two, One keys:k-mid,k-last indices:1,0"),
+        "the controlled render must follow the owner's listed order — keys, \
+         resolved items and collection indices alike — not the collection's \
+         or a sorted order"
+    );
+
+    // Picking "Three" appends to the owner's order; the owner accepts the
+    // reported slice, so the next frame renders it back.
+    click(cx, 60., 18.);
+    click(cx, 60., 196.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["k-mid,k-last,k-first"],
+        "the reported slice must append the pick to the owner's order"
+    );
+    flush_frame(cx);
+    assert_eq!(
+        values.borrow().last().map(String::as_str),
+        Some("text:Two, One, Three keys:k-mid,k-last,k-first indices:1,0,2"),
+        "the trigger render props must agree with the reported slice"
+    );
+}
+
+/// The uncontrolled default order persists, and reordering the collection
+/// must not reorder the selected keys' history: only the indices re-resolve
+/// to wherever each key's item now sits.
+#[gpui::test]
+fn autocomplete_default_order_persists_through_a_collection_reorder(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let values = Rc::new(RefCell::new(Vec::new()));
+    let seen_values = values.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+    let items = Rc::new(RefCell::new(duplicate_labels()));
+    let items_for_view = items.clone();
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let seen_values = seen_values.clone();
+        let state = state_for_view.clone();
+        let items = items_for_view.borrow().clone();
+        Autocomplete::new(state, items)
+            .selection_mode(SelectionMode::Multiple)
+            .default_value(["rusty", "rust"])
+            .value_content(move |v| {
+                seen_values.borrow_mut().push(format!(
+                    "text:{} keys:{} indices:{}",
+                    v.selected_text,
+                    v.selected_keys
+                        .unwrap_or(&[])
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                    v.selected_indices
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                ));
+                v.default_children
+            })
+            .on_selection_change_all(move |keys, _, _| {
+                changes.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    assert_eq!(
+        values.borrow().last().map(String::as_str),
+        Some("text:Rust, Rust keys:rusty,rust indices:1,0"),
+        "the default's listed order must persist — a sorted set would have \
+         reported rust,rusty"
+    );
+
+    // Reorder the collection: "go" moves to the front. The key history must
+    // not move; only the indices re-resolve.
+    *items.borrow_mut() = vec![
+        PickerItem::new("go", "Go"),
+        PickerItem::new("rust", "Rust"),
+        PickerItem::new("rusty", "Rust"),
+    ];
+    flush_frame(cx);
+    assert_eq!(
+        values.borrow().last().map(String::as_str),
+        Some("text:Rust, Rust keys:rusty,rust indices:2,1"),
+        "a collection reorder must not reorder the selected keys' history"
+    );
+
+    // The next pick appends to the preserved history, wherever its row sits.
+    click(cx, 60., 18.);
+    click(cx, 60., 124.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["rusty,rust,go"],
+        "the pick must append to the preserved selection order"
+    );
+}
+
+/// The form value follows the same order: `FormData::get_all` must return the
+/// picked keys in pick order, one value per key.
+#[gpui::test]
+fn autocomplete_form_get_all_follows_the_selection_order(cx: &mut TestAppContext) {
+    let submitted = Rc::new(RefCell::new(Vec::new()));
+    let submitted_for_form = submitted.clone();
+    let state = search_state(cx);
+    let items = misordered();
+    let field = Autocomplete::new(state.clone(), items.clone())
+        .selection_mode(SelectionMode::Multiple)
+        .name("lang")
+        .form_field()
+        .expect("named Autocomplete");
+    let form = Form::new().field(field).on_submit(move |data, _, _| {
+        submitted_for_form.borrow_mut().push(data.get_all("lang"));
+    });
+    let submit = form.submit_handler();
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        Autocomplete::new(state_for_view.clone(), items.clone())
+            .selection_mode(SelectionMode::Multiple)
+            .name("lang")
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    click(cx, 60., 124.);
+    click(cx, 60., 160.);
+    flush_frame(cx);
+    cx.update(|window, cx| submit(window, cx));
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        [vec![
+            gpui::SharedString::from("Zulu"),
+            gpui::SharedString::from("Alpha")
+        ]],
+        "FormData::get_all must return the picked keys in pick order — a \
+         sorted set would have returned Alpha,Zulu"
+    );
+}
+
+/// Filtering matches labels, never keys: a query naming a key matches
+/// nothing, while the same-label duplicates both answer a label query and
+/// remain individually addressable.
+#[gpui::test]
+fn autocomplete_filter_matches_labels_not_keys(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    // Opaque keys that appear in no label: anything a "k" query reached would
+    // be filtering on keys.
+    let items = vec![
+        PickerItem::new("k1", "Rust"),
+        PickerItem::new("k2", "Rust"),
+        PickerItem::new("k3", "Go"),
+    ];
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        let items = items.clone();
+        Autocomplete::new(state, items)
+            .on_change(move |key, _, _| changes.borrow_mut().push(key.to_string()))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    assert_eq!(opened.borrow().as_slice(), ["open:true"]);
+
+    // Typing "k2" — an existing item's key — must match nothing: the query
+    // only ever reaches labels. The empty state sits where the rows would
+    // be, so a press there records nothing and dismisses nothing.
+    cx.simulate_input("k2");
+    click(cx, 60., 124.);
+    assert!(
+        recorded.borrow().is_empty(),
+        "a key-shaped query must not match any row: filtering runs on labels"
+    );
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "the filtered-empty panel must stay mounted"
+    );
+
+    // Reopen (that press blurred the search field, so the fresh popover
+    // refocuses it) and filter by label instead: clear the key-shaped query,
+    // type "rus", which matches both same-label duplicates, and pick the
+    // second one — still its own row.
+    click(cx, 60., 18.);
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    press(cx, "backspace backspace");
+    cx.simulate_input("rus");
+    click(cx, 60., 160.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["k2"],
+        "a label query must surface both duplicates, each pickable by key"
+    );
+}
+
 fn form_entry(data: &FormData, name: &str) -> String {
     data.get(name)
         .map_or_else(|| "omitted".to_owned(), |value| value.as_text().to_string())
@@ -975,7 +1713,7 @@ fn autocomplete_form_submits_live_uncontrolled_selection(cx: &mut TestAppContext
     let submitted = events();
     let submitted_for_form = submitted.clone();
     let state = search_state(cx);
-    let items = vec!["Alpha".into(), "Beta".into(), "Gamma".into()];
+    let items = keyed(&["Alpha", "Beta", "Gamma"]);
     let field = Autocomplete::new(state.clone(), items.clone())
         .name("lang")
         .default_value(["Alpha"])
@@ -1032,7 +1770,7 @@ fn autocomplete_form_waits_for_controlled_owner_acceptance(cx: &mut TestAppConte
     let recorded = changes.clone();
     let current = Rc::new(RefCell::new(vec![gpui::SharedString::from("Alpha")]));
     let state = search_state(cx);
-    let items = vec!["Alpha".into(), "Beta".into(), "Gamma".into()];
+    let items = keyed(&["Alpha", "Beta", "Gamma"]);
     let selected = current.borrow().clone();
     let field = Autocomplete::new(state.clone(), items.clone())
         .name("lang")
@@ -1088,7 +1826,7 @@ fn autocomplete_form_keeps_owner_value_when_controlled_pick_is_ignored(cx: &mut 
     let recorded = changes.clone();
     let current = Rc::new(RefCell::new(vec![gpui::SharedString::from("Alpha")]));
     let state = search_state(cx);
-    let items = vec!["Alpha".into(), "Beta".into(), "Gamma".into()];
+    let items = keyed(&["Alpha", "Beta", "Gamma"]);
     let selected = current.borrow().clone();
     let field = Autocomplete::new(state.clone(), items.clone())
         .name("lang")
@@ -1137,7 +1875,7 @@ fn autocomplete_disabled_form_field_is_omitted(cx: &mut TestAppContext) {
     let submitted = events();
     let submitted_for_form = submitted.clone();
     let state = search_state(cx);
-    let items = vec!["Alpha".into(), "Beta".into()];
+    let items = keyed(&["Alpha", "Beta"]);
     let field = Autocomplete::new(state.clone(), items.clone())
         .name("lang")
         .default_value(["Alpha"])
@@ -1170,7 +1908,7 @@ fn autocomplete_disabled_form_field_becomes_successful_after_rerender(cx: &mut T
     let submitted = events();
     let submitted_for_form = submitted.clone();
     let state = search_state(cx);
-    let items = vec!["Alpha".into(), "Beta".into()];
+    let items = keyed(&["Alpha", "Beta"]);
     let field = Autocomplete::new(state.clone(), items.clone())
         .name("lang")
         .default_value(["Alpha"])
@@ -1205,7 +1943,7 @@ fn autocomplete_read_only_form_field_remains_successful(cx: &mut TestAppContext)
     let submitted = events();
     let submitted_for_form = submitted.clone();
     let state = search_state(cx);
-    let items = vec!["Alpha".into(), "Beta".into()];
+    let items = keyed(&["Alpha", "Beta"]);
     let field = Autocomplete::new(state.clone(), items.clone())
         .name("lang")
         .default_value(["Alpha"])
@@ -1236,7 +1974,7 @@ fn autocomplete_form_reset_restores_uncontrolled_default(cx: &mut TestAppContext
     let submitted = events();
     let submitted_for_form = submitted.clone();
     let state = search_state(cx);
-    let items = vec!["Alpha".into(), "Beta".into(), "Gamma".into()];
+    let items = keyed(&["Alpha", "Beta", "Gamma"]);
     let field = Autocomplete::new(state.clone(), items.clone())
         .name("lang")
         .default_value(["Alpha"])
@@ -1278,7 +2016,7 @@ fn autocomplete_form_reset_reports_controlled_default_to_owner(cx: &mut TestAppC
     let recorded_picks = picks.clone();
     let current = Rc::new(RefCell::new(vec![gpui::SharedString::from("Beta")]));
     let state = search_state(cx);
-    let items = vec!["Alpha".into(), "Beta".into(), "Gamma".into()];
+    let items = keyed(&["Alpha", "Beta", "Gamma"]);
     let selected = current.borrow().clone();
     let field = Autocomplete::new(state.clone(), items.clone())
         .name("lang")
@@ -1330,7 +2068,7 @@ fn autocomplete_form_reset_reports_disabled_controlled_default_to_owner(cx: &mut
     let recorded = changes.clone();
     let current = Rc::new(RefCell::new(vec![gpui::SharedString::from("Beta")]));
     let state = search_state(cx);
-    let items = vec!["Alpha".into(), "Beta".into()];
+    let items = keyed(&["Alpha", "Beta"]);
     let selected = current.borrow().clone();
     let field = Autocomplete::new(state.clone(), items.clone())
         .name("lang")

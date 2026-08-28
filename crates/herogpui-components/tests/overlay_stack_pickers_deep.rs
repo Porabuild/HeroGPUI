@@ -10,7 +10,9 @@ mod harness;
 
 use gpui::{prelude::*, TestAppContext, VisualTestContext};
 use harness::{click, events, open_host, press};
-use herogpui_components::{Autocomplete, Button, ComboBox, InputState, Popover, Select};
+use herogpui_components::{
+    Autocomplete, Button, ComboBox, InputState, PickerItem, Popover, Select,
+};
 
 fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
@@ -30,6 +32,15 @@ fn autocomplete_search_point(cx: &mut VisualTestContext) {
 
 fn outside_parent(cx: &mut VisualTestContext) {
     click(cx, 300., 78.);
+}
+
+/// Items whose labels are unique, so the key can be the label itself. Tests
+/// that need duplicate labels build explicit keys instead.
+fn keyed(labels: &[&str]) -> Vec<PickerItem> {
+    labels
+        .iter()
+        .map(|l| PickerItem::new(l.to_string(), l.to_string()))
+        .collect()
 }
 
 #[gpui::test]
@@ -132,7 +143,7 @@ fn nested_autocomplete_escape_closes_child_once_inside_parent(cx: &mut TestAppCo
             .default_open(true)
             .show_close_button(false)
             .child(
-                Autocomplete::new(state.clone(), vec!["Alpha".into(), "Beta".into()])
+                Autocomplete::new(state.clone(), keyed(&["Alpha", "Beta"]))
                     .default_open(true)
                     .on_open_change(move |open, _, _| {
                         child_events
@@ -216,7 +227,7 @@ fn autocomplete_trigger_latch_is_one_mouse_down_without_parent_repaint(cx: &mut 
     let state = cx.new(|cx| InputState::new(cx));
     let cx = open_host(cx, move || {
         let opens = recorded.clone();
-        Autocomplete::new(state.clone(), vec!["Alpha".into()])
+        Autocomplete::new(state.clone(), keyed(&["Alpha"]))
             .is_open(true)
             .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
             .into_any_element()
@@ -309,7 +320,7 @@ fn read_only_autocomplete_keeps_query_immutable_while_roving_the_collection(
     let state_for_view = state.clone();
     let cx = open_host(cx, move || {
         let changes = recorded.clone();
-        Autocomplete::new(state_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+        Autocomplete::new(state_for_view.clone(), keyed(&["Alpha", "Beta"]))
             .default_open(true)
             .is_read_only(true)
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))

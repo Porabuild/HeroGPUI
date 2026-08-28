@@ -16,6 +16,19 @@
 //! [`InputState`] therefore backs the **search field inside the popover**, which
 //! is what `Autocomplete.Filter`'s `inputValue` and `onInputChange` address. The
 //! selection is a set of item keys, held by `value` / `defaultValue`.
+//!
+//! Pinned v3.2.4 / React Aria Components 1.20.0 keep a stable `Key` separate
+//! from each item's `textValue`: `value` / `defaultValue` / `disabledKeys`,
+//! the selection callbacks and the form value address items by key, while
+//! filtering and the visible text use the label. Items are therefore
+//! [`crate::PickerItem`]s; using a label as the key made duplicate labels alias
+//! each other's selection, disabled state and row identity.
+//!
+//! Pinned react-stately 3.49.0's `useSelectState` holds `selectedKeys` as a
+//! JavaScript `Set`, which iterates in insertion order: `selectedItems`,
+//! `selectedText`, the selection callbacks and the form value all follow the
+//! *selection's* order, not the collection's. The selection is therefore an
+//! ordered unique key list, and toggling removes in place or appends.
 
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
@@ -29,6 +42,7 @@ use herogpui_theme::ActiveTheme;
 use crate::{
     icons,
     input::{InputState, SearchField},
+    picker_item::PickerItem,
     util,
 };
 
@@ -59,15 +73,42 @@ fn autocomplete_form_state(entity_id: u64) -> AutocompleteFormState {
     })
 }
 
-fn form_selection_value(
-    selected: &std::collections::BTreeSet<SharedString>,
-) -> crate::form::FormValue {
-    crate::form::FormValue::Keys(selected.iter().cloned().collect())
+fn form_selection_value(selected: &[SharedString]) -> crate::form::FormValue {
+    crate::form::FormValue::Keys(selected.to_vec())
+}
+
+/// Normalizes the selection to the shape of pinned react-stately 3.49.0's
+/// `selectedKeys`: a `Set`, which collapses duplicates to the first insertion
+/// and iterates in insertion order. A single-mode selection holds at most one
+/// key — the first the owner (or default) listed.
+fn normalize_selection(keys: Vec<SharedString>, multiple: bool) -> Vec<SharedString> {
+    let mut out: Vec<SharedString> = Vec::with_capacity(keys.len());
+    for key in keys {
+        if out.contains(&key) {
+            continue;
+        }
+        out.push(key);
+        if !multiple {
+            break;
+        }
+    }
+    out
+}
+
+/// Toggles `key` in the ordered selection: removing takes it out in place so
+/// the remaining keys keep their insertion order; adding appends — the
+/// mutation a JS `Set` performs.
+fn toggle_key(selection: &mut Vec<SharedString>, key: &SharedString) {
+    if let Some(at) = selection.iter().position(|k| k == key) {
+        selection.remove(at);
+    } else {
+        selection.push(key.clone());
+    }
 }
 
 fn sync_form_state(
     state: &AutocompleteFormState,
-    selected: &std::collections::BTreeSet<SharedString>,
+    selected: &[SharedString],
     is_disabled: bool,
     is_invalid: bool,
 ) {
@@ -85,7 +126,7 @@ pub struct Autocomplete {
     name: Option<SharedString>,
     /// The search field's text state — `Autocomplete.Filter`'s `inputValue`.
     state: Entity<InputState>,
-    items: Vec<SharedString>,
+    items: Vec<PickerItem>,
     max_items: usize,
     /// `ListLayout`'s `rowHeight`, which virtualizes the popover list.
     row_height: Option<gpui::Pixels>,
@@ -99,11 +140,13 @@ pub struct Autocomplete {
     is_read_only: bool,
     is_invalid: bool,
     is_required: bool,
-    /// `disabledKeys` — suggestions that render but cannot be chosen.
+    /// `disabledKeys` — suggestions that render but cannot be chosen,
+    /// addressed by item key so a disabled item never disables its
+    /// same-label sibling.
     disabled_keys: std::collections::HashSet<SharedString>,
     /// `shouldFocusWrap` — whether the arrow keys wrap at the ends of the list.
     should_focus_wrap: bool,
-    /// `ListBox.Section` — a heading above the item with this label.
+    /// `ListBox.Section` — a heading above the item with this key.
     sections: Vec<(SharedString, SharedString)>,
     /// `Autocomplete.Indicator` — replaces the trigger chevron. The closure is
     /// handed whether the popover is open.
@@ -119,14 +162,18 @@ pub struct Autocomplete {
     /// to zero keeps it mounted with the empty state either way.
     allows_empty_collection: bool,
     selection_mode: SelectionMode,
-    selected_keys: std::collections::BTreeSet<SharedString>,
+    /// The selection as ordered unique item keys — react-stately 3.49.0's
+    /// `selectedKeys` is a JS `Set`, which iterates in insertion order, so
+    /// callbacks, the form value and the trigger all follow the order the
+    /// keys were picked (or the owner listed) in.
+    selected_keys: Vec<SharedString>,
     /// Whether the caller drives the selection. An unset `value` is not an empty
     /// controlled selection: without this flag every uncontrolled Autocomplete
     /// would hand its own clicks back to a set nobody owns, and picking an item
     /// would do nothing.
     is_controlled: bool,
     /// `defaultValue` — set it to hand this component its own selection.
-    default_value: Option<std::collections::BTreeSet<SharedString>>,
+    default_value: Option<Vec<SharedString>>,
     on_selection_change_all:
         Option<std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>>,
     /// `isOpen`. `None` lets the trigger own it, seeded from `defaultOpen`.
@@ -154,7 +201,8 @@ impl Autocomplete {
     /// `defaultValue` — the uncontrolled initial selection.
     ///
     /// Supplying it hands the component its own selection set, seeded once;
-    /// [`Self::value`] is the controlled spelling.
+    /// [`Self::value`] is the controlled spelling. The listed order is the
+    /// selection's order, exactly as the owner listed it.
     pub fn default_value(
         mut self,
         keys: impl IntoIterator<Item = impl Into<SharedString>>,
@@ -163,7 +211,8 @@ impl Autocomplete {
         self
     }
 
-    /// `value` — the controlled selection, as item keys.
+    /// `value` — the controlled selection, as item keys. The listed order is
+    /// the owner's order and is preserved everywhere the selection is read.
     pub fn value(mut self, keys: impl IntoIterator<Item = impl Into<SharedString>>) -> Self {
         self.selected_keys = keys.into_iter().map(Into::into).collect();
         self.is_controlled = true;
@@ -217,7 +266,8 @@ impl Autocomplete {
     /// `filter` on `Autocomplete.Filter` — replaces the default
     /// case-insensitive substring match.
     ///
-    /// Called as `filter(item_text, input)`.
+    /// Called as `filter(item_label, input)`: v3 filters on the item's
+    /// `textValue`, not on its key.
     pub fn filter(mut self, f: impl Fn(&str, &str) -> bool + 'static) -> Self {
         self.filter = Some(std::sync::Arc::new(f));
         self
@@ -257,7 +307,7 @@ impl Autocomplete {
         self.on_selection_change(handler)
     }
 
-    pub fn new(state: Entity<InputState>, items: Vec<SharedString>) -> Self {
+    pub fn new(state: Entity<InputState>, items: Vec<PickerItem>) -> Self {
         let form_state = autocomplete_form_state(state.entity_id().as_u64());
         Self {
             name: None,
@@ -283,7 +333,7 @@ impl Autocomplete {
             value_content: None,
             allows_empty_collection: false,
             selection_mode: SelectionMode::Single,
-            selected_keys: std::collections::BTreeSet::new(),
+            selected_keys: Vec::new(),
             is_controlled: false,
             default_value: None,
             on_selection_change_all: None,
@@ -397,7 +447,9 @@ impl Autocomplete {
         self
     }
 
-    /// `disabledKeys`
+    /// `disabledKeys` — keys of the suggestions that render but cannot be
+    /// chosen. Disabled state is per key, so one of two same-label items can
+    /// be disabled alone.
     pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.disabled_keys = keys.into_iter().collect();
         self
@@ -409,7 +461,7 @@ impl Autocomplete {
         self
     }
 
-    /// `ListBox.Section` — a heading rendered above `item`.
+    /// `ListBox.Section` — a heading rendered above the item with this key.
     pub fn section_before(
         mut self,
         item: impl Into<SharedString>,
@@ -490,12 +542,17 @@ impl RenderOnce for Autocomplete {
         }
         // `defaultValue` opts into the component holding its own selection;
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
+        // Both spellings normalize to the `Set` shape first: duplicates
+        // collapse to their first insertion, and single mode keeps one key.
+        // A controlled order is the owner's order — nothing is sorted.
+        let multiple = self.selection_mode == SelectionMode::Multiple;
+        self.selected_keys = normalize_selection(self.selected_keys.clone(), multiple);
         let (selection, selection_own) = util::controlled(
             window,
             cx,
             el_name(format!("{base}-selection")),
             self.is_controlled.then(|| self.selected_keys.clone()),
-            self.default_value.clone().unwrap_or_default(),
+            normalize_selection(self.default_value.clone().unwrap_or_default(), multiple),
         );
         self.selected_keys = selection;
 
@@ -542,10 +599,12 @@ impl RenderOnce for Autocomplete {
                 cx,
             ))
         };
-        // Which row the keyboard is on.
-        let cursor =
-            window.use_keyed_state(el_name(format!("{base}-cursor")), cx, |_, _| None::<usize>);
-        let cursor_at = *cursor.read(cx);
+        // Which row the keyboard is on, held as the item's *key* so the cursor
+        // stays on the same item when the query filters or the caller reorders
+        // the collection.
+        let cursor = window.use_keyed_state(el_name(format!("{base}-cursor")), cx, |_, _| {
+            None::<SharedString>
+        });
         // React Aria keeps the focused row in view, and v3's list is
         // `overflow-y-auto`. The virtual list has its own handle kind, a
         // scrolling div the other. `use_keyed_state` takes `cx` mutably, so both
@@ -588,23 +647,29 @@ impl RenderOnce for Autocomplete {
             None => self.state.read(cx).value().to_owned(),
         };
         let query = raw_query.to_lowercase();
-        let multiple = self.selection_mode == SelectionMode::Multiple;
 
         // The list starts unfiltered: v3's popover shows the whole collection
-        // until something is typed into the search field.
+        // until something is typed into the search field. Filtering reads the
+        // items' labels, never their keys.
         let custom = self.filter.clone();
-        let matches: Vec<SharedString> = self
+        let matches: Vec<PickerItem> = self
             .items
             .iter()
             .filter(|it| match &custom {
                 // A custom filter owns the whole decision, including what an
                 // empty query means.
-                Some(f) => f(it.as_ref(), &raw_query),
-                None => query.is_empty() || it.to_lowercase().contains(&query),
+                Some(f) => f(it.label(), &raw_query),
+                None => query.is_empty() || it.label().to_lowercase().contains(&query),
             })
             .take(self.max_items)
             .cloned()
             .collect();
+        // The stored cursor is the focused item's key; the row it lands on is
+        // wherever that key sits in the filtered collection now.
+        let cursor_at = cursor
+            .read(cx)
+            .as_ref()
+            .and_then(|k| matches.iter().position(|it| it.key() == k));
 
         // Forward typing while the popover is open puts the collection cursor
         // on its first enabled filtered row. react-aria 3.51.0 does this from
@@ -618,13 +683,14 @@ impl RenderOnce for Autocomplete {
             let next = if open && forward {
                 matches
                     .iter()
-                    .position(|item| !self.disabled_keys.contains(item))
+                    .position(|item| !self.disabled_keys.contains(item.key()))
             } else {
                 None
             };
             if cursor_at != next {
+                let next_key = next.and_then(|i| matches.get(i)).map(|it| it.key().clone());
                 cursor.update(cx, |v, cx| {
-                    *v = next;
+                    *v = next_key;
                     cx.notify();
                 });
                 if let Some(next) = next {
@@ -659,7 +725,8 @@ impl RenderOnce for Autocomplete {
         self.form_state.borrow_mut().focus = focus_handle.clone();
         let restore_own = selection_own.clone();
         let restore_state = self.form_state.clone();
-        let restore_default = self.default_value.clone().unwrap_or_default();
+        let restore_default =
+            normalize_selection(self.default_value.clone().unwrap_or_default(), multiple);
         let restore_all = self.on_selection_change_all.clone();
         self.form_state.borrow_mut().restore = (restore_own.is_some() || restore_all.is_some())
             .then(|| {
@@ -673,8 +740,7 @@ impl RenderOnce for Autocomplete {
                         });
                     }
                     if let Some(cb) = &restore_all {
-                        let all: Vec<SharedString> = restore_default.iter().cloned().collect();
-                        cb(&all, window, cx);
+                        cb(&restore_default, window, cx);
                     }
                 }) as std::sync::Arc<dyn Fn(&mut Window, &mut App)>
             });
@@ -741,12 +807,27 @@ impl RenderOnce for Autocomplete {
 
         // --- `.autocomplete__value` -----------------------------------------
         let has_selection = !self.selected_keys.is_empty();
-        let selected_items: Vec<SharedString> = self
-            .items
-            .iter()
-            .filter(|it| self.selected_keys.contains(*it))
-            .cloned()
-            .collect();
+        // The trigger renders the selection in the selection set's own order —
+        // pinned react-stately 3.49.0's `selectedKeys` is a JS `Set`, whose
+        // iteration order is insertion order, so `selectedItems`, the render
+        // props' keys and `selectedText` follow the pick (or owner) order, not
+        // the collection's. Each key resolves to its item wherever that item
+        // now sits; a key whose item is not in the collection (still loading)
+        // renders nothing, which is what v3's `selectedItems` does too.
+        let mut selected_items: Vec<SharedString> = Vec::new();
+        let mut selected_indices: Vec<usize> = Vec::new();
+        for key in &self.selected_keys {
+            if let Some((index, item)) = self
+                .items
+                .iter()
+                .enumerate()
+                .find(|(_, it)| it.key() == key)
+            {
+                selected_items.push(item.label().clone());
+                selected_indices.push(index);
+            }
+        }
+        let selected_key_order = self.selected_keys.clone();
         // `selectedText` — v3 joins with locale-aware separators; without CLDR
         // data this is a comma and a space.
         let selected_text = selected_items
@@ -778,13 +859,6 @@ impl RenderOnce for Autocomplete {
                 selected_text.clone()
             })
             .into_any_element();
-        let selected_indices: Vec<usize> = self
-            .items
-            .iter()
-            .enumerate()
-            .filter(|(_, it)| self.selected_keys.contains(*it))
-            .map(|(i, _)| i)
-            .collect();
         let value_slot = match self.value_content.take() {
             Some(render) => gpui::div()
                 .flex_1()
@@ -792,6 +866,7 @@ impl RenderOnce for Autocomplete {
                 .child(render(util::SelectionValue {
                     selected_items: &selected_items,
                     selected_indices: &selected_indices,
+                    selected_keys: Some(&selected_key_order),
                     selected_text: &selected_text,
                     is_placeholder,
                     default_children,
@@ -958,7 +1033,7 @@ impl RenderOnce for Autocomplete {
                 .filter(|i| {
                     matches
                         .get(*i)
-                        .is_some_and(|item| !self.disabled_keys.contains(item))
+                        .is_some_and(|item| !self.disabled_keys.contains(item.key()))
                 })
                 .collect();
             let held = cursor.clone();
@@ -1040,7 +1115,12 @@ impl RenderOnce for Autocomplete {
                 if plain_insert || key == "space" {
                     return;
                 }
-                let from = *held.read(cx);
+                // The held cursor is the focused item's key; resolve it to the
+                // row it occupies in the filtered collection now.
+                let from = held
+                    .read(cx)
+                    .as_ref()
+                    .and_then(|k| rows.iter().position(|it| it.key() == k));
                 // Pinned React Aria 3.51.0 binds PageUp/PageDown through the
                 // listbox's `useSelectableCollection`, which the closed branch
                 // above never reaches. Those handlers require
@@ -1125,8 +1205,9 @@ impl RenderOnce for Autocomplete {
                     crate::list_nav::Move::To,
                 ) {
                     crate::list_nav::Move::To(next) => {
+                        let next_key = rows.get(next).map(|item| item.key().clone());
                         held.update(cx, |v, cx| {
-                            *v = Some(next);
+                            *v = next_key;
                             cx.notify();
                         });
                         if virtual_rows {
@@ -1136,17 +1217,16 @@ impl RenderOnce for Autocomplete {
                         }
                     }
                     crate::list_nav::Move::Activate => {
-                        let Some(item) = from.and_then(|i| rows.get(i).cloned()) else {
+                        let Some(item) = from.and_then(|i| rows.get(i)) else {
                             return;
                         };
+                        let item_key = item.key().clone();
                         let mut next = selected_now.clone();
                         if multiple {
-                            if !next.remove(&item) {
-                                next.insert(item.clone());
-                            }
+                            toggle_key(&mut next, &item_key);
                         } else {
                             next.clear();
-                            next.insert(item.clone());
+                            next.push(item_key.clone());
                         }
                         if let Some(own) = &key_selection_own {
                             let set = next.clone();
@@ -1157,11 +1237,10 @@ impl RenderOnce for Autocomplete {
                             key_form_state.borrow_mut().value = form_selection_value(&next);
                         }
                         if let Some(cb) = &on_change_one {
-                            cb(&item, window, cx);
+                            cb(&item_key, window, cx);
                         }
                         if let Some(cb) = &on_change_all {
-                            let all: Vec<SharedString> = next.into_iter().collect();
-                            cb(&all, window, cx);
+                            cb(&next, window, cx);
                         }
                         // A single selection closes the popover, as v3's does;
                         // a multiple one stays open for the next pick.
@@ -1338,7 +1417,7 @@ impl RenderOnce for Autocomplete {
                         .into_any_element()
                 };
                 // `ListBox.Section`'s `Header`, above the item it introduces.
-                if let Some((_, label)) = sections.iter().find(|(at, _)| at == item) {
+                if let Some((_, label)) = sections.iter().find(|(at, _)| at == item.key()) {
                     head.push(
                         gpui::div()
                             .px(px(10.))
@@ -1350,11 +1429,13 @@ impl RenderOnce for Autocomplete {
                             .into_any_element(),
                     );
                 }
-                let item_disabled = row_disabled_keys.contains(item);
+                // The row's element id comes from the item's key, so two items
+                // that share a label never share an interactive row.
+                let item_disabled = row_disabled_keys.contains(item.key());
                 let item_interactive = !item_disabled && !overlay_exiting;
-                let row_selected = row_selected_keys.contains(item);
+                let row_selected = row_selected_keys.contains(item.key());
                 let mut row = gpui::div()
-                    .id(el_name(format!("{base}-{item}")))
+                    .id(el_name(format!("{base}-{}", item.key())))
                     .flex()
                     .items_center()
                     .justify_between()
@@ -1368,7 +1449,7 @@ impl RenderOnce for Autocomplete {
                     .py(px(6.))
                     .gap(px(12.))
                     .text_size(util::FIELD_TEXT)
-                    .child(gpui::div().truncate().child(item.to_string()));
+                    .child(gpui::div().truncate().child(item.label().to_string()));
 
                 if item_disabled {
                     row = row.opacity(row_disabled_opacity);
@@ -1403,7 +1484,7 @@ impl RenderOnce for Autocomplete {
                 }
 
                 if item_interactive {
-                    let value = item.clone();
+                    let value = item.key().clone();
                     let current = row_selected_keys.clone();
                     let own = row_selection_own.clone();
                     let row_form_state = row_form_state.clone();
@@ -1415,12 +1496,10 @@ impl RenderOnce for Autocomplete {
                     row = row.on_click(move |_, window, cx| {
                         let mut next = current.clone();
                         if multiple {
-                            if !next.remove(&value) {
-                                next.insert(value.clone());
-                            }
+                            toggle_key(&mut next, &value);
                         } else {
                             next.clear();
-                            next.insert(value.clone());
+                            next.push(value.clone());
                         }
                         // Uncontrolled: keep the new set, or picking an item
                         // would do nothing.
@@ -1436,8 +1515,7 @@ impl RenderOnce for Autocomplete {
                             cb(&value, window, cx);
                         }
                         if let Some(cb) = &cb_all {
-                            let all: Vec<SharedString> = next.into_iter().collect();
-                            cb(&all, window, cx);
+                            cb(&next, window, cx);
                         }
                         // A single selection closes the popover; a multiple one
                         // stays open for the next pick.

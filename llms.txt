@@ -417,8 +417,8 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
   - the key defaults to the tip text; give two tooltips with the same text distinct `id`s.
 
 ### Pickers
-- **Autocomplete** — `Autocomplete::new(state, items).placement(Placement).max_items().on_selection_change()` — filters while focused
-  - `filter(fn(item, input) -> bool)` replaces the default case-insensitive substring match and owns the whole decision, including what an empty query means; `input_value` / `on_input_change` for a controlled query; `on_clear` renders the clear affordance (and only then).
+- **Autocomplete** — `Autocomplete::new(state, items).placement(Placement).max_items().on_selection_change()` — filters while focused. Items are `PickerItem::new(key, label)`: v3 keeps a stable `Key` separate from the visible `textValue`, so `value` / `defaultValue` / `disabledKeys`, the selection callbacks and the form value address items by key, while filtering and the trigger's visible text use labels — duplicate labels never alias each other's selection or row.
+  - `filter(fn(item_label, input) -> bool)` replaces the default case-insensitive substring match and owns the whole decision, including what an empty query means; `input_value` / `on_input_change` for a controlled query; `on_clear` renders the clear affordance (and only then).
 - **ComboBox** — `ComboBox::new(state, items).is_open().placement(Placement).menu_trigger(MenuTrigger::{Input,Manual,Focus}).allows_custom_value().max_items().on_selection_change().on_open_change()`
 - **Select** — `Select::new(id, options).selected(..)/.value(..).is_open().placement(Placement).variant().full_width().disabled_keys().is_invalid().is_required().on_selection_change()/.on_change().on_open_change()`; `selection_mode(SelectionMode::Multiple)` with `selected_indices()` + `on_selection_change_all()`
 
