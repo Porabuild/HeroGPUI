@@ -166,6 +166,16 @@ fn extend_selection_range(
     next
 }
 
+/// Pinned `useSelectableCollection` (`isCtrlKeyPressed`): a Shift move
+/// extends the range on the collection's navigation keys, while Home and
+/// End extend only when the platform secondary modifier joins Shift --
+/// Meta on macOS, Ctrl elsewhere, exactly GPUI 0.2.2's
+/// `Modifiers::secondary()`. A plain Shift+Home/End moves the focus
+/// alone.
+fn shift_home_end_extends(key_name: &str, secondary: bool) -> bool {
+    !matches!(key_name, "home" | "end") || secondary
+}
+
 /// HeroUI ListBox.
 #[derive(IntoElement)]
 pub struct ListBox {
@@ -610,7 +620,7 @@ impl RenderOnce for ListBox {
             let on_selection_change = self.on_selection_change.clone();
             let on_action = self.on_action.clone();
             let selection_own_for_keys = selection_own.clone();
-            let selection_range_for_keys = selection_range;
+            let selection_range_for_keys = selection_range.clone();
             let interaction_for_keys = interaction.clone();
             let entry_at = cursor_at;
             let selectable_keys: HashSet<SharedString> = stops_for_keys
@@ -806,7 +816,17 @@ impl RenderOnce for ListBox {
                 match navigation {
                     crate::list_nav::Move::To(next) => {
                         let modifiers = event.keystroke.modifiers;
-                        let exact_shift_navigation = if cfg!(target_os = "macos") {
+                        // Pinned `useSelectableCollection`: Shift extends a
+                        // multiple selection from the anchor with no other
+                        // chord, so plain Shift navigation is exact. Home and
+                        // End are exempt from the platform-key veto: their
+                        // extension chord is exactly the platform secondary
+                        // modifier, and a secondary-less Shift+Home/End stays
+                        // focus-only through the gate helper below.
+                        let home_or_end = matches!(key_name, "home" | "end");
+                        let exact_shift_navigation = if home_or_end {
+                            !modifiers.alt && !modifiers.function
+                        } else if cfg!(target_os = "macos") {
                             !modifiers.control && !modifiers.platform && !modifiers.function
                         } else {
                             !modifiers.alt && !modifiers.platform && !modifiers.function
@@ -814,6 +834,7 @@ impl RenderOnce for ListBox {
                         let extends_selection = modifiers.shift
                             && mode == SelectionMode::Multiple
                             && exact_shift_navigation
+                            && shift_home_end_extends(key_name, modifiers.secondary())
                             && Some(next) != from;
                         if extends_selection {
                             if let Some(target) = keys.get(next) {
@@ -990,6 +1011,7 @@ impl RenderOnce for ListBox {
                 state.reset(count);
             }
             let interaction = interaction.clone();
+            let row_range = selection_range.clone();
             let measured_heights =
                 variable_row_heights.expect("estimated row height creates a measurement store");
             return list
@@ -1001,6 +1023,7 @@ impl RenderOnce for ListBox {
                             None,
                             interaction.get(index),
                             &cursor,
+                            &row_range,
                             selection_own.as_ref(),
                             cx,
                         );
@@ -1041,6 +1064,7 @@ impl RenderOnce for ListBox {
             let count = self.items.len();
             let rows = std::rc::Rc::new(self);
             let interaction = interaction.clone();
+            let row_range = selection_range.clone();
             return list
                 .child(
                     gpui::uniform_list(
@@ -1055,6 +1079,7 @@ impl RenderOnce for ListBox {
                                         Some(row_height),
                                         interaction.get(i),
                                         &cursor,
+                                        &row_range,
                                         selection_own.as_ref(),
                                         cx,
                                     )
@@ -1078,6 +1103,7 @@ impl RenderOnce for ListBox {
                 None,
                 interaction.get(index),
                 &cursor,
+                &selection_range,
                 selection_own.as_ref(),
                 cx,
             ));
@@ -1101,6 +1127,7 @@ impl ListBox {
         fixed_h: Option<gpui::Pixels>,
         interaction: Option<&util::Interaction>,
         cursor: &gpui::Entity<Option<usize>>,
+        selection_range: &gpui::Entity<ListBoxSelectionRange>,
         selection_own: Option<&gpui::Entity<HashSet<SharedString>>>,
         cx: &mut App,
     ) -> gpui::AnyElement {
@@ -1285,6 +1312,28 @@ impl ListBox {
                     let on_action = self.on_action.clone();
                     let moved = cursor.clone();
                     let selection_own = selection_own.cloned();
+                    let range_for_click = selection_range.clone();
+                    // The collection order the range resolves against -- every
+                    // option's key, disabled ones included: they keep their
+                    // collection positions so the span traversal preserves
+                    // indexes, while the `selectable` filter keeps their
+                    // insertions out of the range.
+                    let collection: Vec<SharedString> = self
+                        .items
+                        .iter()
+                        .filter_map(|item| item.key().cloned())
+                        .collect();
+                    let selectable: HashSet<SharedString> = self
+                        .items
+                        .iter()
+                        .filter_map(|item| match item {
+                            ListBoxItem::Option {
+                                key, is_disabled, ..
+                            } => (!is_disabled && !self.disabled_keys.contains(key))
+                                .then(|| key.clone()),
+                            _ => None,
+                        })
+                        .collect();
                     row = row
                         .on_mouse_down(gpui::MouseButton::Left, move |_, _, cx| {
                             moved.update(cx, |value, cx| {
@@ -1292,7 +1341,7 @@ impl ListBox {
                                 cx.notify();
                             });
                         })
-                        .on_click(move |_, window, cx| {
+                        .on_click(move |ev, window, cx| {
                             let has_primary_action = on_action.is_some()
                                 && (mode == SelectionMode::None || current.is_empty());
                             if has_primary_action {
@@ -1302,25 +1351,45 @@ impl ListBox {
                                 return;
                             }
                             if crate::selection::reports_changes(mode) {
-                                let next = match mode {
-                                    SelectionMode::None => current.clone(),
-                                    SelectionMode::Single => {
-                                        if current.contains(&key) && !disallow_empty {
-                                            HashSet::new()
-                                        } else {
-                                            HashSet::from([key.clone()])
+                                let was_selected = current.contains(&key);
+                                // A Shift click extends from the anchor in
+                                // multiple mode; an ordinary click toggles and
+                                // seats the range on itself. A controlled
+                                // selection only reports; the owner's prop
+                                // stays in charge until it feeds the value
+                                // back, while the range keeps advancing.
+                                let extends_selection =
+                                    ev.modifiers().shift && mode == SelectionMode::Multiple;
+                                let next = if extends_selection {
+                                    let range = range_for_click.read(cx).clone();
+                                    extend_selection_range(
+                                        &current,
+                                        &collection,
+                                        &selectable,
+                                        &range,
+                                        &key,
+                                    )
+                                } else {
+                                    match mode {
+                                        SelectionMode::None => current.clone(),
+                                        SelectionMode::Single => {
+                                            if current.contains(&key) && !disallow_empty {
+                                                HashSet::new()
+                                            } else {
+                                                HashSet::from([key.clone()])
+                                            }
                                         }
-                                    }
-                                    SelectionMode::Multiple => {
-                                        let mut set = current.clone();
-                                        if set.remove(&key) {
-                                            if disallow_empty && set.is_empty() {
+                                        SelectionMode::Multiple => {
+                                            let mut set = current.clone();
+                                            if set.remove(&key) {
+                                                if disallow_empty && set.is_empty() {
+                                                    set.insert(key.clone());
+                                                }
+                                            } else {
                                                 set.insert(key.clone());
                                             }
-                                        } else {
-                                            set.insert(key.clone());
+                                            set
                                         }
-                                        set
                                     }
                                 };
                                 if next != current {
@@ -1334,6 +1403,32 @@ impl ListBox {
                                         change(&next, window, cx);
                                     }
                                 }
+                                if extends_selection {
+                                    range_for_click.update(cx, |range, _| {
+                                        if range.anchor.is_none() {
+                                            range.anchor = Some(key.clone());
+                                        }
+                                        range.current = Some(key.clone());
+                                        range.is_all = false;
+                                    });
+                                } else if mode == SelectionMode::Multiple {
+                                    if was_selected {
+                                        // A deselect ends a raw `all`, so the
+                                        // next Shift click extends instead of
+                                        // collapsing to its target.
+                                        range_for_click.update(cx, |range, _| {
+                                            if range.is_all {
+                                                *range = ListBoxSelectionRange::default();
+                                            }
+                                        });
+                                    } else {
+                                        range_for_click.update(cx, |range, _| {
+                                            range.anchor = Some(key.clone());
+                                            range.current = Some(key.clone());
+                                            range.is_all = false;
+                                        });
+                                    }
+                                }
                             }
                         });
                 }
@@ -1341,5 +1436,52 @@ impl ListBox {
                 row.into_any_element()
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The Home/End extension gate takes the platform secondary modifier as
+    /// a plain bool, so this test is free of `cfg!` and mechanically proves
+    /// the same predicate every platform runs: Home and End extend only
+    /// when the secondary joins Shift, and a secondary-less Shift+Home/End
+    /// stays focus-only.
+    #[test]
+    fn shift_home_end_extend_only_with_the_platform_secondary() {
+        for key in ["home", "end"] {
+            assert!(
+                !shift_home_end_extends(key, false),
+                "plain Shift+{key} must only move the focus"
+            );
+            assert!(shift_home_end_extends(key, true));
+        }
+    }
+
+    /// Arrows and page keys never gate on the secondary: their forbidden
+    /// extra chords are rejected earlier, by `exact_shift_navigation`.
+    #[test]
+    fn shift_navigation_keys_do_not_consult_the_secondary() {
+        for key in ["up", "down", "left", "right", "pageup", "pagedown"] {
+            assert!(shift_home_end_extends(key, false));
+            assert!(shift_home_end_extends(key, true));
+        }
+    }
+
+    /// The bool the event path hands the gate is GPUI 0.2.2's
+    /// `Modifiers::secondary()` -- Meta on macOS, Ctrl elsewhere -- so the
+    /// platform's own secondary spelling must pass and no modifier at all
+    /// must not.
+    #[test]
+    fn platform_secondary_spelling_reaches_the_gate() {
+        assert!(shift_home_end_extends(
+            "home",
+            gpui::Modifiers::secondary_key().secondary()
+        ));
+        assert!(!shift_home_end_extends(
+            "end",
+            gpui::Modifiers::none().secondary()
+        ));
     }
 }

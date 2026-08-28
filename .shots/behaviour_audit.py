@@ -173,9 +173,11 @@ ESCAPE_CLEAR_KEYS = ('ListBox', 'TagGroup')
 # move shrinks again; only enabled keys join the range; a raw `all` selection
 # collapses to the moved-to key; and a first extension without an anchor
 # selects the target alone. Home and End extend only when the platform
-# secondary modifier joins Shift. HeroUI's TagGroup page does not restate this
-# inherited contract, so it is derived like Table's and ListBox's range work.
-RANGE_SELECT = ('TagGroup',)
+# secondary modifier joins Shift -- pinned `isCtrlKeyPressed`, Meta on
+# macOS and Ctrl elsewhere. HeroUI's TagGroup and ListBox pages do not
+# restate this inherited contract, so it is derived like the other
+# collection range work.
+RANGE_SELECT = ('TagGroup', 'ListBox')
 
 # Pinned React Aria 3.51.0's `useSelectableCollection` seats a collection on
 # pointer-down: a press on an enabled item moves the roving cursor to it and
@@ -726,6 +728,30 @@ EVIDENCE = {
         r'(?=.*"home" \| "end"\)\s*\|\|\s*\(!cfg!\(target_os = "macos"\)\s*&& modifiers\.secondary\(\)\)\))'
         r'(?=.*fn seat\(&mut self, target: SharedString\))(?=.*self\.is_all = false;)'
         r'(?=.*ev\.modifiers\(\)\.shift && mode == SelectionMode::Multiple)',
+    ),
+    # ListBox's Shift range halves: the same range helper with its raw `all`
+    # collapse, the platform-independent Home/End extension gate driven by
+    # `Modifiers::secondary()` -- Meta on macOS, Ctrl elsewhere -- so the
+    # secondary chord works everywhere while plain Shift+Home/End stay
+    # focus-only and extra chords stay inert, the keyboard extension's seat,
+    # the Shift+Click route with the pointer seat, and the pointer deselect
+    # that ends a raw `all` so the next extension extends instead of
+    # collapsing.
+    ('ListBox', 'shift-range'): (
+        'list_box.rs',
+        r'(?s)\A(?=.*fn extend_selection_range\()(?=.*if range\.is_all \{)'
+        r'(?=.*anchor\.as_ref\(\)\.unwrap_or\(target\))'
+        r'(?=.*current\.as_ref\(\)\.unwrap_or\(target\))'
+        r'(?=.*let extends_selection = modifiers\.shift)'
+        r'(?=.*&& mode == SelectionMode::Multiple)'
+        r'(?=.*shift_home_end_extends\(key_name, modifiers\.secondary\(\)\))'
+        r'(?=.*fn shift_home_end_extends\(key_name: &str, secondary: bool\) -> bool \{)'
+        r'(?=.*!matches!\(key_name, "home" \| "end"\) \|\| secondary)'
+        r'(?=.*if home_or_end \{\s*\n\s*!modifiers\.alt && !modifiers\.function\s*\n)'
+        r'(?=.*range\.current = Some\(target\.clone\(\)\);)'
+        r'(?=.*ev\.modifiers\(\)\.shift && mode == SelectionMode::Multiple)'
+        r'(?=.*range\.anchor = Some\(key\.clone\(\)\);)'
+        r'(?=.*if range\.is_all \{\s*\n\s*\*range = ListBoxSelectionRange::default\(\);)',
     ),
     # The pointer seat the port must carry: the tag body's mouse-down seats
     # the cursor and the group handle behind a default_prevented guard and a

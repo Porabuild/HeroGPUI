@@ -655,6 +655,186 @@ fn list_box_pointer_focuses_the_pressed_row_for_immediate_enter(cx: &mut TestApp
     );
 }
 
+/// A controlled owner feeds the pointer range back through its prop: a Shift
+/// click extends from the anchor the last ordinary click seated, and a repeat
+/// Shift click replaces the anchor..current range so walking back shrinks.
+#[gpui::test]
+fn list_box_controlled_shift_click_extends_and_repeat_shrinks(cx: &mut TestAppContext) {
+    let held = Rc::new(RefCell::new(HashSet::<SharedString>::new()));
+    let held_for_view = held;
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let selected = held_for_view.borrow().clone();
+        let held = held_for_view.clone();
+        let recorded = for_view.clone();
+        ListBox::new(
+            "contract-list-shift-click",
+            vec![
+                ListBoxItem::new("alpha", "Alpha"),
+                ListBoxItem::new("beta", "Beta"),
+                ListBoxItem::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .selected_keys(selected)
+        .on_selection_change(move |keys, window, _| {
+            *held.borrow_mut() = keys.clone();
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    // p-1 plus 36px rows put the row centres at y = 22, 58 and 94.
+    click(cx, 60., 22.);
+    flush_frame(cx);
+    let mut modifiers = gpui::Modifiers::none();
+    modifiers.shift = true;
+    cx.simulate_click(point(px(60.), px(94.)), modifiers);
+    flush_frame(cx);
+    cx.simulate_click(point(px(60.), px(58.)), modifiers);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "alpha,beta,gamma", "alpha,beta"],
+        "Shift+Click must extend from the seated anchor and a repeat must shrink the range rather than toggle"
+    );
+}
+
+/// Home and End carry Shift range semantics only with the platform secondary
+/// modifier in pinned `useSelectableCollection`; plain Shift+Home/End move the
+/// focus alone, and an extra chord beyond the secondary stays inert. The
+/// `secondary` keystroke spelling parses to Meta on macOS and Ctrl elsewhere,
+/// so the extension chord here exercises the same platform-independent gate
+/// on every platform.
+#[gpui::test]
+fn list_box_plain_shift_home_end_move_focus_only(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ListBox::new(
+            "contract-list-shift-home-end",
+            vec![
+                ListBoxItem::new("alpha", "Alpha"),
+                ListBoxItem::new("beta", "Beta"),
+                ListBoxItem::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .on_selection_change(move |keys, window, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab shift-end");
+    flush_frame(cx);
+    assert!(
+        recorded.borrow().is_empty(),
+        "plain Shift+End must only move focus"
+    );
+    press(cx, "space");
+    flush_frame(cx);
+    press(cx, "secondary-shift-home");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["gamma", "alpha,beta,gamma"],
+        "the secondary+Shift+Home chord must extend the anchor's range to the first option"
+    );
+    // The extension seats the cursor on Alpha; a further Home/End move with
+    // an extra chord may walk the focus but must not extend again.
+    press(cx, "secondary-alt-shift-end");
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["gamma", "alpha,beta,gamma"],
+        "an extra chord beyond the secondary must leave Home and End inert"
+    );
+}
+
+/// Pinned Stately's raw `all` ends when a pointer deselect toggles a key off,
+/// so the next Shift click extends instead of collapsing to its target.
+#[gpui::test]
+fn list_box_pointer_deselect_after_select_all_clears_the_raw_all(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ListBox::new(
+            "contract-list-raw-all-deselect",
+            vec![
+                ListBoxItem::new("alpha", "Alpha"),
+                ListBoxItem::new("beta", "Beta").is_disabled(true),
+                ListBoxItem::new("gamma", "Gamma"),
+                ListBoxItem::new("delta", "Delta"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .on_selection_change(move |keys, window, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    // Click Alpha to seat an anchor, then replace the selection with the raw
+    // `all` Mod+A produces. Row centres sit at y = 22, 58, 94 and 130.
+    click(cx, 60., 22.);
+    flush_frame(cx);
+    recorded.borrow_mut().clear();
+    press_mod_a(cx);
+    flush_frame(cx);
+    click(cx, 60., 94.);
+    flush_frame(cx);
+    let mut modifiers = gpui::Modifiers::none();
+    modifiers.shift = true;
+    cx.simulate_click(point(px(60.), px(130.)), modifiers);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha,delta,gamma", "alpha,delta"],
+        "the deselect must end the raw `all`, and the Shift click on an already selected row must extend to it without reporting"
+    );
+}
+
+/// A Shift range adds only enabled options: a disabled option between the
+/// anchor and the target keeps its collection position but never joins.
+#[gpui::test]
+fn list_box_pointer_shift_click_skips_disabled_options(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        ListBox::new(
+            "contract-list-shift-click-disabled",
+            vec![
+                ListBoxItem::new("alpha", "Alpha"),
+                ListBoxItem::new("beta", "Beta").is_disabled(true),
+                ListBoxItem::new("gamma", "Gamma"),
+                ListBoxItem::new("delta", "Delta"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .on_selection_change(move |keys, window, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    click(cx, 60., 22.);
+    flush_frame(cx);
+    let mut modifiers = gpui::Modifiers::none();
+    modifiers.shift = true;
+    cx.simulate_click(point(px(60.), px(130.)), modifiers);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "alpha,delta,gamma"],
+        "the Shift+Click range must span the disabled option without selecting it"
+    );
+}
+
 /// `useTagGroup` constructs a horizontal `ListKeyboardDelegate` with
 /// `shouldFocusWrap: true`, so moving left from the first enabled tag lands on
 /// the last enabled tag.
