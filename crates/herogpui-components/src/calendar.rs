@@ -28,17 +28,23 @@ impl Date {
     }
 
     pub fn today() -> Self {
-        // std has no civil-date API; derive from UNIX epoch days.
-        let secs = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_secs() as i64);
-        let days = secs.div_euclid(86_400);
-        civil_from_days(days)
+        // v3 marks "today" through React Aria's `today(getLocalTimeZone())`:
+        // the OS local zone's civil date, not UTC's. West of UTC the UTC
+        // date is ahead of the local one; east of UTC it is behind.
+        let now = jiff::Zoned::now();
+        civil_date_at(now.timestamp().as_second(), now.offset().seconds())
     }
 
     pub fn format_iso(&self) -> String {
         format!("{:04}-{:02}-{:02}", self.year, self.month, self.day)
     }
+}
+
+/// The civil date for `unix_secs` seconds past the UNIX epoch, observed in a
+/// zone `utc_offset_secs` east of UTC. Private seam so tests can prove the
+/// day crossings of [`Date::today`] without changing the machine timezone.
+fn civil_date_at(unix_secs: i64, utc_offset_secs: i32) -> Date {
+    civil_from_days((unix_secs + i64::from(utc_offset_secs)).div_euclid(86_400))
 }
 
 /// Days since epoch -> civil date (Howard Hinnant's algorithm).
@@ -1711,5 +1717,66 @@ mod tests {
         assert_eq!(add_months(2026, 8, -12), (2025, 8));
         assert_eq!(add_months(2026, 8, 12), (2027, 8));
         assert_eq!(add_months(2026, 8, -20), (2024, 12));
+    }
+
+    // `Date::today` must be the local zone's civil date (v3
+    // `today(getLocalTimeZone())`), not UTC's. `civil_date_at` is the
+    // deterministic seam, so the crossings are proven with fixed instants and
+    // offsets instead of the machine timezone. 2024-03-10T02:30:00Z is
+    // 1710037800 and 2024-01-01T00:00:00Z is 1704067200.
+
+    #[test]
+    fn utc_offset_west_moves_today_to_the_previous_day() {
+        // 2024-03-10T02:30 UTC is 2024-03-09T19:30 at UTC-07:00 ...
+        assert_eq!(civil_date_at(1_710_037_800, -25_200), Date::new(2024, 3, 9));
+        // ... and 2024-01-01T02:00 UTC is 2023-12-31T21:00 at UTC-05:00.
+        assert_eq!(
+            civil_date_at(1_704_074_400, -18_000),
+            Date::new(2023, 12, 31)
+        );
+    }
+
+    #[test]
+    fn utc_offset_east_moves_today_to_the_next_day() {
+        // 2024-01-01T15:00 UTC is 2024-01-02T00:00 at UTC+09:00 ...
+        assert_eq!(civil_date_at(1_704_121_200, 32_400), Date::new(2024, 1, 2));
+        // ... and 2023-12-31T22:00 UTC is 2024-01-01T01:00 at UTC+03:00.
+        assert_eq!(civil_date_at(1_704_060_000, 10_800), Date::new(2024, 1, 1));
+    }
+
+    #[test]
+    fn utc_offset_day_crossings_survive_leap_and_year_boundaries() {
+        // 2024-02-28T20:00 UTC at UTC+05:00 lands on leap day 2024-02-29 ...
+        assert_eq!(civil_date_at(1_709_150_400, 18_000), Date::new(2024, 2, 29));
+        // ... and 2024-02-29T20:00 UTC at UTC+05:00 lands on 2024-03-01.
+        assert_eq!(civil_date_at(1_709_236_800, 18_000), Date::new(2024, 3, 1));
+    }
+
+    #[test]
+    fn fractional_offsets_resolve_midnight_aligned_local_dates() {
+        // 2024-06-01T18:20 UTC is 2024-06-02T00:05 at Nepal's UTC+05:45.
+        assert_eq!(civil_date_at(1_717_266_000, 20_700), Date::new(2024, 6, 2));
+    }
+
+    #[test]
+    fn pre_epoch_instants_carry_the_crossing_too() {
+        // 1969-12-31T23:00 UTC is 1970-01-01T01:00 at UTC+02:00.
+        assert_eq!(civil_date_at(-3_600, 7_200), Date::new(1970, 1, 1));
+    }
+
+    #[test]
+    fn today_reads_the_live_local_zone() {
+        // Whatever zone this machine is in, `today` may only land on the UTC
+        // date itself or on one of its neighbours; the old UTC-only derivation
+        // and a hardcoded zone both break this bound.
+        let now = jiff::Zoned::now();
+        let utc_date = civil_date_at(now.timestamp().as_second(), 0);
+        let diff = days_from_civil(&Date::today()) - days_from_civil(&utc_date);
+        assert!(
+            diff.abs() <= 1,
+            "today {} vs UTC date {}",
+            Date::today().format_iso(),
+            utc_date.format_iso()
+        );
     }
 }
