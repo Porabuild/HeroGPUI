@@ -14,7 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - run: cargo fmt --all -- --check
-      - run: cargo test -p herogpui-components --locked
+      - run: cargo test --workspace --locked
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
       - shell: pwsh
         run: .shots/lint.ps1
       - name: Fetch pinned parity inputs
@@ -40,6 +44,16 @@ jobs:
         run: |
           cargo install --path gallery --locked --debug --root target/install-smoke
           if (-not (Test-Path target/install-smoke/bin/herogpui-gallery.exe)) { exit 1 }
+
+  rust-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang pkg-config libvulkan-dev libwayland-dev libxkbcommon-dev libx11-dev libxcb1-dev libx11-xcb-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libfontconfig-dev libfreetype-dev
+      - run: cargo test --workspace --locked
 
   npm-launcher:
     runs-on: ubuntu-24.04
