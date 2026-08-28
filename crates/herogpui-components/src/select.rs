@@ -27,6 +27,91 @@ fn format_selected_names(names: &[String]) -> String {
     }
 }
 
+/// Pinned React Stately 3.49.0 `useMultipleSelectionState`'s anchor record,
+/// on the option indices a Select's `stops` walk: where a Shift extension
+/// reaches from, how far the last one went, and whether the selection is the
+/// raw `all` a `selectAll` produced. It lives beside the cursor in keyed
+/// state, so it survives closing and reopening the popover the way the
+/// pinned hook survives a listbox remount.
+#[derive(Clone, Debug, Default)]
+struct SelectSelectionRange {
+    anchor: Option<usize>,
+    current: Option<usize>,
+    is_all: bool,
+}
+
+/// The selection after extending to `target` from `range`'s anchor.
+///
+/// The old anchor..current range is *replaced* by anchor..target, so extending
+/// backwards shrinks again; a raw `all` collapses to the new key; a first
+/// extension without an anchor selects from the target itself, which is what
+/// the pinned SelectionManager does when nothing anchors it yet. Only
+/// `selectable` keys enter the range, so disabled options are skipped.
+fn extend_selection_range(
+    current: &BTreeSet<usize>,
+    collection: &[usize],
+    selectable: &[usize],
+    range: &SelectSelectionRange,
+    target: usize,
+) -> BTreeSet<usize> {
+    if range.is_all {
+        return BTreeSet::from([target]);
+    }
+    let anchor = range.anchor.unwrap_or(target);
+    let previous = range.current.unwrap_or(target);
+    let anchor_at = collection.iter().position(|index| *index == anchor);
+    let previous_at = collection.iter().position(|index| *index == previous);
+    let target_at = collection.iter().position(|index| *index == target);
+    let between = |from: Option<usize>, to: Option<usize>| {
+        from.zip(to)
+            .map(|(from, to)| if from <= to { from..=to } else { to..=from })
+    };
+    let mut next = current.clone();
+    if let Some(previous_range) = between(anchor_at, previous_at) {
+        for index in previous_range {
+            next.remove(&collection[index]);
+        }
+    }
+    if let Some(target_range) = between(anchor_at, target_at) {
+        for index in target_range {
+            let index = collection[index];
+            if selectable.contains(&index) {
+                next.insert(index);
+            }
+        }
+    }
+    next
+}
+
+/// Pinned React Aria 3.51.0 `useSelectableCollection` registers Home and End
+/// only for the chords each platform's handler admits: none, Shift, Alt, and
+/// Alt+Shift on macOS -- no Meta or Control handler exists -- and none,
+/// Shift, Control, and Control+Shift on Windows and Linux. The upstream
+/// matcher reads exactly the browser's canonical modifier flags -- Alt,
+/// Control, Meta, Shift -- so GPUI's `function` flag is ignored here: a
+/// browser exposes no Fn state for it to read, so vetoing on the flag would
+/// claim a pinned guard that does not exist, and the framework delivers an
+/// Fn-bearing press with every matched modifier flag still false. A chord
+/// outside the registration is entirely inert: no cursor move, no selection,
+/// no preventDefault. `macos` is simulated explicitly so every platform's
+/// unit tests can prove both maps.
+fn home_end_registered(modifiers: gpui::Modifiers, macos: bool) -> bool {
+    if macos {
+        !modifiers.control && !modifiers.platform
+    } else {
+        !modifiers.alt && !modifiers.platform
+    }
+}
+
+/// Pinned `useSelectableCollection` (`isCtrlKeyPressed`): a Shift move
+/// extends the range on the collection's navigation keys, while Home and
+/// End extend only from Control+Shift on Windows and Linux. macOS registers
+/// no Home/End extension at all -- its Shift and Alt+Shift chords move the
+/// cursor alone -- so the platform is an explicit bool rather than a `cfg!`.
+fn shift_home_end_extends(key_name: &str, control: bool, macos: bool) -> bool {
+    !matches!(key_name, "home" | "end") || (!macos && control)
+}
+
 /// HeroUI Select (controlled).
 #[derive(IntoElement)]
 pub struct Select {
@@ -485,6 +570,14 @@ impl RenderOnce for Select {
             |_, _| None::<usize>,
         );
         let cursor_at = *cursor.read(cx);
+        // The Shift-range anchor lives beside the cursor, keyed off the same
+        // instance id, so two selects never share an anchor and a closed
+        // popover leaves its anchor standing for the reopen.
+        let selection_range = window.use_keyed_state(
+            el_name(format!("select-{}-range", id_debug(&self.id))),
+            cx,
+            |_, _| SelectSelectionRange::default(),
+        );
         // v3's list is `overflow-y-auto`, and React Aria keeps the focused
         // option in view. Both need a handle: the virtual list has its own kind,
         // and a plain scrolling div has the other. `use_keyed_state` takes `cx`
@@ -590,7 +683,11 @@ impl RenderOnce for Select {
             let stops: Vec<usize> = (0..self.options.len())
                 .filter(|i| !self.disabled_keys.contains(i))
                 .collect();
-            let held = cursor;
+            // The full index list the range is resolved against -- disabled
+            // keys keep their positions so range spans stay indexable, while
+            // `stops` keeps their insertions out of the range.
+            let collection: Vec<usize> = (0..self.options.len()).collect();
+            let held = cursor.clone();
             let wrap = self.should_focus_wrap;
             // Every option's text, so a typed letter can find one.
             let labels: Vec<String> = self.options.iter().map(ToString::to_string).collect();
@@ -604,6 +701,7 @@ impl RenderOnce for Select {
             let on_open_change = self.on_open_change.clone();
             let on_select = self.on_selection_change.clone();
             let on_select_all = self.on_selection_change_all.clone();
+            let range_keys = selection_range.clone();
             let was_open = is_open;
             let virtual_rows = self.row_height.is_some();
             let key_list_scroll = list_scroll_now.clone();
@@ -635,9 +733,18 @@ impl RenderOnce for Select {
                             }
                             return;
                         }
-                        // A closed select still answers letters: React Aria
-                        // picks the matching option where it stands rather than
-                        // opening the list.
+                        // A closed select still answers letters in single
+                        // mode: React Aria picks the matching option where it
+                        // stands rather than opening the list. A multiple
+                        // select answers no typeahead on the closed trigger --
+                        // the closed pick reports through the single-key
+                        // callback, which a set-valued selection has no use
+                        // for. Open, the RAC ListBox keeps its type-select and
+                        // moves the cursor without selecting, exactly as in
+                        // single mode.
+                        if multiple {
+                            return;
+                        }
                         if !crate::list_nav::is_typeahead_key(key) {
                             return;
                         }
@@ -666,6 +773,53 @@ impl RenderOnce for Select {
                         return;
                     }
                     let from = *held.read(cx);
+                    let modifiers = event.keystroke.modifiers;
+                    // Pinned React Aria 3.51.0 `useSelectableCollection`
+                    // answers `Mod+A` with `selectAll` -- multiple mode only,
+                    // and only while the list is open. Pinned SelectState
+                    // drops the symbolic `all`: the uncontrolled set becomes
+                    // every enabled key while `on_selection_change_all` stays
+                    // silent, a repeat over a complete selection is not a
+                    // toggle, and a controlled owner's state is not this
+                    // keystroke's to mutate.
+                    if key == "a"
+                        && modifiers.secondary()
+                        && !modifiers.shift
+                        && !modifiers.alt
+                        && if cfg!(target_os = "macos") {
+                            !modifiers.control
+                        } else {
+                            !modifiers.platform
+                        }
+                        && multiple
+                    {
+                        let all: BTreeSet<usize> = stops.iter().copied().collect();
+                        let complete = all
+                            .iter()
+                            .all(|index| selected_indices_keys.contains(index));
+                        if !complete {
+                            if let Some(held) = &indices_own_keys {
+                                form_state_keys.borrow_mut().value = select_form_value(
+                                    SelectionMode::Multiple,
+                                    &form_options_keys,
+                                    None,
+                                    &all,
+                                );
+                                held.update(cx, |selected, cx| {
+                                    *selected = all.clone();
+                                    cx.notify();
+                                });
+                                range_keys.update(cx, |range, _| {
+                                    *range = SelectSelectionRange {
+                                        is_all: true,
+                                        ..SelectSelectionRange::default()
+                                    };
+                                });
+                            }
+                        }
+                        cx.stop_propagation();
+                        return;
+                    }
                     // Pinned React Aria 3.51.0 binds PageUp/PageDown only
                     // while the collection has a focused key: mouse-opening a
                     // selection-less Select leaves the cursor null, and the
@@ -689,6 +843,25 @@ impl RenderOnce for Select {
                         crate::list_nav::Move::To,
                     ) {
                         crate::list_nav::Move::To(next) => {
+                            // The pinned registrations install no Home/End
+                            // handler for an unregistered chord -- Cmd- or
+                            // Ctrl-bearing on macOS, Alt- or platform-bearing
+                            // elsewhere -- so in either mode the whole event
+                            // stays inert: no cursor move, no selection, no
+                            // preventDefault.
+                            if matches!(key, "home" | "end")
+                                && !home_end_registered(modifiers, cfg!(target_os = "macos"))
+                            {
+                                return;
+                            }
+                            // A Shift extension reaches from the cursor, and a
+                            // null cursor is nothing to reach from: pinned
+                            // `useSelectableCollection` extends only from a
+                            // focused key, so the registered Shift+Home/End is
+                            // wholly inert rather than seating a fresh cursor.
+                            if matches!(key, "home" | "end") && modifiers.shift && from.is_none() {
+                                return;
+                            }
                             held.update(cx, |v, cx| {
                                 *v = Some(next);
                                 cx.notify();
@@ -701,6 +874,72 @@ impl RenderOnce for Select {
                             } else {
                                 key_panel_scroll.scroll_to_item(next);
                             }
+                            // Pinned `useSelectableCollection`: Shift extends a
+                            // multiple selection over exactly the chords the
+                            // platform's registration admits, so the extension
+                            // gate reuses the Home/End registration map -- the
+                            // pinned matcher reads the browser's canonical
+                            // modifier flags only, and GPUI's `function` flag
+                            // never reaches it. The pinned arrow delegates
+                            // return null at an enabled boundary, so a
+                            // Shift+Arrow that held ran no extension at all
+                            // and must not report; Home and End resolve their
+                            // end key again, so their repeated registered
+                            // extension does report; and the page keys only
+                            // reach here off the unchanged filter above.
+                            let exact_shift_navigation =
+                                home_end_registered(modifiers, cfg!(target_os = "macos"));
+                            let extends_selection = multiple
+                                && modifiers.shift
+                                && exact_shift_navigation
+                                && shift_home_end_extends(
+                                    key,
+                                    modifiers.control,
+                                    cfg!(target_os = "macos"),
+                                )
+                                && (matches!(key, "home" | "end") || Some(next) != from);
+                            if extends_selection {
+                                let range = range_keys.read(cx).clone();
+                                let next_selection = extend_selection_range(
+                                    &selected_indices_keys,
+                                    &collection,
+                                    &stops,
+                                    &range,
+                                    next,
+                                );
+                                range_keys.update(cx, |range, _| {
+                                    if range.anchor.is_none() {
+                                        range.anchor = Some(next);
+                                    }
+                                    range.current = Some(next);
+                                    range.is_all = false;
+                                });
+                                // The uncontrolled set and the form only move
+                                // when the extension actually changed something,
+                                // but pinned `useMultipleSelectionState` with
+                                // Select's `allowDuplicateSelectionEvents`
+                                // reports every extension it is handed -- so a
+                                // repeated registered Shift+Home/End that
+                                // resolved the end already held still reports.
+                                if next_selection != selected_indices_keys {
+                                    if let Some(held) = &indices_own_keys {
+                                        form_state_keys.borrow_mut().value = select_form_value(
+                                            SelectionMode::Multiple,
+                                            &form_options_keys,
+                                            None,
+                                            &next_selection,
+                                        );
+                                        held.update(cx, |selected, cx| {
+                                            *selected = next_selection.clone();
+                                            cx.notify();
+                                        });
+                                    }
+                                }
+                                if let Some(cb) = &on_select_all {
+                                    let keys: Vec<usize> = next_selection.iter().copied().collect();
+                                    cb(&keys, window, cx);
+                                }
+                            }
                         }
                         crate::list_nav::Move::Activate => {
                             // Take the selection only. Closing is the trigger's
@@ -709,9 +948,27 @@ impl RenderOnce for Select {
                             // list back open.
                             let Some(index) = from else { return };
                             if multiple {
+                                let added = !selected_indices_keys.contains(&index);
                                 let mut next = selected_indices_keys.clone();
                                 if !next.remove(&index) {
                                     next.insert(index);
+                                }
+                                // Pinned `toggleSelection` re-anchors on the
+                                // add, and a deselect only ends a raw `all`
+                                // so the next Shift move extends instead of
+                                // collapsing to its target.
+                                if added {
+                                    range_keys.update(cx, |range, _| {
+                                        range.anchor = Some(index);
+                                        range.current = Some(index);
+                                        range.is_all = false;
+                                    });
+                                } else {
+                                    range_keys.update(cx, |range, _| {
+                                        if range.is_all {
+                                            *range = SelectSelectionRange::default();
+                                        }
+                                    });
                                 }
                                 if let Some(held) = &indices_own_keys {
                                     form_state_keys.borrow_mut().value = select_form_value(
@@ -745,7 +1002,10 @@ impl RenderOnce for Select {
                             }
                         }
                         crate::list_nav::Move::Ignore => {
-                            // Typeahead moves the cursor over the open list.
+                            // Typeahead moves the cursor over the open list in
+                            // either mode -- the open RAC ListBox keeps its
+                            // type-select in multiple mode too -- and the move
+                            // selects nothing.
                             if !crate::list_nav::is_typeahead_key(key) {
                                 return;
                             }
@@ -999,6 +1259,15 @@ impl RenderOnce for Select {
             let options = self.options.clone();
             let sections = self.sections.clone();
             let opt_disabled_keys = self.disabled_keys.clone();
+            // The index list the range is resolved against and the enabled
+            // keys that may join it, for the Shift-click extension.
+            let collection_rows: Vec<usize> = (0..options_len).collect();
+            let selectable_rows: Vec<usize> = (0..options_len)
+                .filter(|i| !self.disabled_keys.contains(i))
+                .collect();
+            let range_rows = selection_range;
+            let cursor_rows = cursor;
+            let focus_rows = focus_handle;
             let indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>> =
                 self.indicator.take().map(Rc::from);
             let on_change_all = self.on_selection_change_all.clone();
@@ -1011,6 +1280,7 @@ impl RenderOnce for Select {
             let row = move |i: usize, fixed_h: Option<gpui::Pixels>, cx: &mut App| {
                 let base = &base_row;
                 let opt = &options[i];
+                let focus_click = focus_rows.clone();
                 let mut rows = Vec::new();
                 // `ListBox.Section`'s `Header`: `text-xs` in the muted colour,
                 // above the option it introduces.
@@ -1088,10 +1358,59 @@ impl RenderOnce for Select {
                             let cb = on_change_all.clone();
                             let form_state_pick = form_state_rows.clone();
                             let options = options.clone();
-                            item = item.on_click(move |_, window, cx| {
+                            let range_click = range_rows.clone();
+                            let collection_click = collection_rows.clone();
+                            let selectable_click = selectable_rows.clone();
+                            let cursor_click = cursor_rows.clone();
+                            item = item.on_click(move |ev, window, cx| {
+                                // Pinned `useSelectableItem` seats the cursor
+                                // on pointer press, so a Shift+Arrow, page, or
+                                // Enter that follows starts from the clicked
+                                // row rather than from a null or stale cursor.
+                                cursor_click.update(cx, |v, cx| {
+                                    *v = Some(i);
+                                    cx.notify();
+                                });
+                                // gpui's own focus-on-press would park focus
+                                // on the row and deafen the trigger's key
+                                // handler; the trigger is what holds focus so
+                                // the open list stays keyboard-walkable.
+                                window.focus(&focus_click);
                                 let mut next = current.clone();
-                                if !next.remove(&i) {
+                                // A Shift click extends from the anchor
+                                // through `extendSelection`; an ordinary or
+                                // platform-Mod click toggles and re-anchors on
+                                // the add, the way pinned `toggleSelection`
+                                // does -- a deselect only ends a raw `all`.
+                                if ev.modifiers().shift {
+                                    let range = range_click.read(cx).clone();
+                                    next = extend_selection_range(
+                                        &current,
+                                        &collection_click,
+                                        &selectable_click,
+                                        &range,
+                                        i,
+                                    );
+                                    range_click.update(cx, |range, _| {
+                                        if range.anchor.is_none() {
+                                            range.anchor = Some(i);
+                                        }
+                                        range.current = Some(i);
+                                        range.is_all = false;
+                                    });
+                                } else if !next.remove(&i) {
                                     next.insert(i);
+                                    range_click.update(cx, |range, _| {
+                                        range.anchor = Some(i);
+                                        range.current = Some(i);
+                                        range.is_all = false;
+                                    });
+                                } else {
+                                    range_click.update(cx, |range, _| {
+                                        if range.is_all {
+                                            *range = SelectSelectionRange::default();
+                                        }
+                                    });
                                 }
                                 if let Some(held) = &own {
                                     form_state_pick.borrow_mut().value = select_form_value(
@@ -1272,6 +1591,88 @@ fn id_debug(id: &gpui::ElementId) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The Home/End gate takes the platform as an explicit bool, so this
+    /// truth table is free of `cfg!` and mechanically proves both maps from
+    /// any host: no macOS chord ever extends -- Shift and Alt+Shift move the
+    /// cursor alone -- while Windows and Linux extend exactly from
+    /// Control+Shift.
+    #[test]
+    fn shift_home_end_extends_only_from_control_outside_macos() {
+        for key in ["home", "end"] {
+            assert!(
+                !shift_home_end_extends(key, true, true),
+                "macOS registers no Home/End extension"
+            );
+            assert!(!shift_home_end_extends(key, false, true));
+            assert!(
+                shift_home_end_extends(key, true, false),
+                "Control+Shift+{key} must extend on Windows and Linux"
+            );
+            assert!(
+                !shift_home_end_extends(key, false, false),
+                "plain Shift+{key} must only move the cursor"
+            );
+        }
+    }
+
+    /// Arrows and page keys never consult the Home/End gate: their forbidden
+    /// extra chords are rejected earlier, by `exact_shift_navigation`.
+    #[test]
+    fn arrows_and_pages_skip_the_home_end_gate() {
+        assert!(shift_home_end_extends("down", false, true));
+        assert!(shift_home_end_extends("up", true, false));
+        assert!(shift_home_end_extends("pagedown", false, false));
+        assert!(shift_home_end_extends("pageup", true, true));
+    }
+
+    #[test]
+    fn home_end_registration_follows_the_platform_maps() {
+        let none = gpui::Modifiers::none();
+        let mut shift = none;
+        shift.shift = true;
+        let mut alt = none;
+        alt.alt = true;
+        let mut alt_shift = alt;
+        alt_shift.shift = true;
+        let mut control = none;
+        control.control = true;
+        let mut control_shift = control;
+        control_shift.shift = true;
+        let mut platform = none;
+        platform.platform = true;
+        let mut platform_shift = platform;
+        platform_shift.shift = true;
+        let mut function = none;
+        function.function = true;
+        let mut function_alt = function;
+        function_alt.alt = true;
+
+        for modifiers in [none, shift, alt, alt_shift, function, function_alt] {
+            assert!(
+                home_end_registered(modifiers, true),
+                "macOS must register {modifiers:?}"
+            );
+        }
+        for modifiers in [control, control_shift, platform, platform_shift] {
+            assert!(
+                !home_end_registered(modifiers, true),
+                "macOS must not register {modifiers:?}"
+            );
+        }
+        for modifiers in [none, shift, control, control_shift, function] {
+            assert!(
+                home_end_registered(modifiers, false),
+                "Windows and Linux must register {modifiers:?}"
+            );
+        }
+        for modifiers in [alt, alt_shift, function_alt, platform, platform_shift] {
+            assert!(
+                !home_end_registered(modifiers, false),
+                "Windows and Linux must not register {modifiers:?}"
+            );
+        }
+    }
 
     #[test]
     fn default_value_text_matches_pinned_select_value() {

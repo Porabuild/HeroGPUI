@@ -1574,6 +1574,902 @@ fn select_page_keys_reach_enabled_ends_on_a_scrolled_list(cx: &mut TestAppContex
     );
 }
 
+/// The platform Mod (`Ctrl` on Windows and Linux, `Cmd` on macOS), so the
+/// select-all tests prove the chord their host actually sends.
+fn press_mod_a(cx: &mut VisualTestContext) {
+    if cfg!(target_os = "macos") {
+        press(cx, "cmd-a");
+    } else {
+        press(cx, "ctrl-a");
+    }
+}
+
+/// Pinned React Stately's `extendSelection` replaces the anchor..current range
+/// with anchor..target: Shift+Down grows the range from the anchor, a reverse
+/// Shift+Up shrinks it again. The anchor is seated by the Enter toggle that
+/// added the first key.
+#[gpui::test]
+fn select_shift_arrows_extend_and_reverse_shrink(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new(
+            "sel-range-arrows",
+            vec![
+                "Alpha".into(),
+                "Beta".into(),
+                "Gamma".into(),
+                "Delta".into(),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_open(true)
+        .on_selection_change_all(move |keys, _, _| {
+            picks.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab down enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0"],
+        "the Enter toggle must seat the anchor on the added key"
+    );
+
+    press(cx, "shift-down shift-down");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0", "0,1", "0,1,2"],
+        "Shift+Down must extend the anchor's range forward"
+    );
+
+    press(cx, "shift-up");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0", "0,1", "0,1,2", "0,1"],
+        "a reverse Shift+Up must shrink the old anchor..cursor range"
+    );
+
+    press(cx, "shift-up");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0", "0,1", "0,1,2", "0,1", "0"],
+        "the shrink must replace the range, not toggle keys off"
+    );
+
+    press(cx, "shift-up");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0", "0,1", "0,1,2", "0,1", "0"],
+        "the held Shift+Up at the boundary must run no extension and report \
+         nothing: the pinned arrow delegate returns null there"
+    );
+}
+
+/// A Shift click extends from the seated anchor through `extendSelection`, and
+/// disabled keys never join the range; a reverse Shift click shrinks. An
+/// ordinary click toggles against the uncontrolled set and re-anchors on the
+/// add.
+#[gpui::test]
+fn select_shift_click_extends_and_disabled_keys_stay_out(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new(
+            "sel-shift-click",
+            vec![
+                "Alpha".into(),
+                "Beta".into(),
+                "Held".into(),
+                "Delta".into(),
+                "Echo".into(),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .disabled_keys([2])
+        .default_open(true)
+        .on_selection_change_all(move |keys, _, _| {
+            picks.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    let mut shift = Modifiers::none();
+    shift.shift = true;
+
+    // Row *i* centres at y = 66 + 36i inside the popover.
+    click(cx, 60., 66.);
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0"],
+        "the plain click must seat the anchor on the added key"
+    );
+
+    cx.simulate_click(point(px(60.), px(210.)), shift);
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0", "0,1,3,4"],
+        "Shift+Click must extend across the disabled row without selecting it"
+    );
+
+    cx.simulate_click(point(px(60.), px(102.)), shift);
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0", "0,1,3,4", "0,1"],
+        "a reverse Shift+Click must shrink the old anchor..cursor range"
+    );
+
+    click(cx, 60., 66.);
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0", "0,1,3,4", "0,1", "1"],
+        "an ordinary click must toggle against the current set, not extend"
+    );
+}
+
+/// Pinned `useSelectableCollection` registers Home and End per platform:
+/// Windows and Linux install none, Shift, Control, and Control+Shift, and
+/// only Control+Shift extends; macOS installs none, Shift, Alt, and Alt+Shift
+/// only, so every Control-bearing chord is entirely inert. Each branch drives
+/// its own host's real chords; the cfg-free unit truth tables in `select.rs`
+/// prove both maps everywhere.
+#[gpui::test]
+fn select_shift_home_end_follow_the_registered_chords(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new(
+            "sel-shift-home-end",
+            vec![
+                "Alpha".into(),
+                "Beta".into(),
+                "Gamma".into(),
+                "Delta".into(),
+                "Held".into(),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .disabled_keys([4])
+        .default_open(true)
+        .on_selection_change_all(move |keys, _, _| {
+            picks.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab down enter");
+    assert_eq!(picked.borrow().as_slice(), ["0"]);
+
+    press(cx, "ctrl-shift-end");
+    if cfg!(target_os = "macos") {
+        assert_eq!(
+            picked.borrow().as_slice(),
+            ["0"],
+            "macOS must leave Control-bearing Home/End entirely inert"
+        );
+    } else {
+        assert_eq!(
+            picked.borrow().as_slice(),
+            ["0", "0,1,2,3"],
+            "Control+Shift+End must extend the range to the last enabled option"
+        );
+    }
+
+    press(cx, "shift-home");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        if cfg!(target_os = "macos") {
+            &["0"][..]
+        } else {
+            &["0", "0,1,2,3"][..]
+        },
+        "plain Shift+Home must only move the cursor, on every platform"
+    );
+
+    if cfg!(target_os = "macos") {
+        // Alt+Shift *is* registered on macOS: the cursor walks, extends nothing.
+        press(cx, "alt-shift-end");
+        assert_eq!(
+            picked.borrow().as_slice(),
+            ["0"],
+            "Alt+Shift+End must walk the cursor without extending"
+        );
+        // The Enter target betrays where the cursor was left: on 3, and the
+        // selection still only holds 0, so the toggle adds it.
+        press(cx, "enter");
+        assert_eq!(
+            picked.borrow().as_slice(),
+            ["0", "0,3"],
+            "Alt+Shift+End must have walked the cursor without extending and \
+             the inert Control chord must never have selected the range"
+        );
+    } else {
+        // Alt-bearing chords sit outside the Windows/Linux registration: the
+        // event is entirely inert, not even the cursor moves.
+        press(cx, "alt-shift-end");
+        assert_eq!(
+            picked.borrow().as_slice(),
+            ["0", "0,1,2,3"],
+            "an unregistered Alt-bearing chord must leave Home and End inert"
+        );
+        // The cursor stayed on 0 through the inert chord, so Enter toggles 0.
+        press(cx, "enter");
+        assert_eq!(
+            picked.borrow().as_slice(),
+            ["0", "0,1,2,3", "1,2,3"],
+            "the inert chord must have left the cursor where Shift+Home put it"
+        );
+    }
+}
+
+/// A registered extending Home/End chord may resolve the end the cursor
+/// already holds: the pinned `end` handler calls `getLastKey` again and the
+/// repeated `extendSelection` still reports through Select's
+/// `allowDuplicateSelectionEvents`. Windows and Linux register Control+Shift
+/// as the extending chord; macOS registers no extending Home/End chord at
+/// all -- the cfg-free helper truth table in `select.rs` proves that map --
+/// so a macOS host only proves the Control-bearing chord inert there.
+#[gpui::test]
+fn select_registered_shift_home_end_reports_when_the_end_is_already_held(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new(
+            "sel-shift-end-held",
+            vec![
+                "Alpha".into(),
+                "Beta".into(),
+                "Gamma".into(),
+                "Delta".into(),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_open(true)
+        .on_selection_change_all(move |keys, _, _| {
+            picks.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab down down down down enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["3"],
+        "the walk must end with the cursor holding the last option"
+    );
+
+    press(cx, "ctrl-shift-end");
+    if cfg!(target_os = "macos") {
+        assert_eq!(
+            picked.borrow().as_slice(),
+            ["3"],
+            "macOS registers no extending Home/End chord: the Control-bearing \
+             chord is entirely inert and must not report"
+        );
+        press(cx, "up enter");
+        assert_eq!(
+            picked.borrow().as_slice(),
+            ["3", "2,3"],
+            "the inert chord must have left the cursor holding the end: Up \
+             stepped to 2 and Enter toggled it beside 3"
+        );
+    } else {
+        assert_eq!(
+            picked.borrow().as_slice(),
+            ["3", "3"],
+            "the pinned End handler resolves the end the cursor already \
+             holds, so the registered extending chord must report the \
+             unchanged set"
+        );
+        press(cx, "ctrl-shift-end");
+        assert_eq!(
+            picked.borrow().as_slice(),
+            ["3", "3", "3"],
+            "the repeated same-key extension must report again"
+        );
+    }
+}
+
+/// Pinned `useSelectableCollection` answers `Mod+A` with `selectAll` in
+/// multiple mode, but pinned SelectState drops the symbolic `all`: the
+/// uncontrolled set becomes every *enabled* key while `onSelectionChange`
+/// stays silent, a repeat over a complete selection is not a toggle, and a
+/// controlled owner's state is not touched at all. The click that follows
+/// proves what the silent select-all had done: toggling row 0 off leaves the
+/// rest of the enabled keys selected.
+#[gpui::test]
+fn select_mod_a_selects_every_enabled_key_without_a_toggle_or_callback(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new(
+            "sel-select-all",
+            vec![
+                "Alpha".into(),
+                "Held".into(),
+                "Gamma".into(),
+                "Delta".into(),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .disabled_keys([1])
+        .default_open(true)
+        .on_selection_change_all(move |keys, _, _| {
+            picks.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press_mod_a(cx);
+    assert!(
+        picked.borrow().is_empty(),
+        "the symbolic `all` must not report through onSelectionChange"
+    );
+
+    press_mod_a(cx);
+    assert!(
+        picked.borrow().is_empty(),
+        "a repeat Mod+A over a complete selection must not be a toggle"
+    );
+
+    click(cx, 60., 66.);
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["2,3"],
+        "toggling row 0 must expose the enabled-only set the silent \
+         select-all installed"
+    );
+}
+
+/// A controlled Select's owner state is not the select's to mutate: Mod+A
+/// reports nothing and leaves the owner-supplied set standing, so the next
+/// toggle still starts from it.
+#[gpui::test]
+fn select_mod_a_leaves_a_controlled_selection_to_its_owner(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new(
+            "sel-select-all-controlled",
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .selected_indices([0])
+        .default_open(true)
+        .on_selection_change_all(move |keys, _, _| {
+            picks.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press_mod_a(cx);
+    assert!(picked.borrow().is_empty());
+
+    click(cx, 60., 66.);
+    assert_eq!(
+        picked.borrow().as_slice(),
+        [""],
+        "the toggle must have started from the owner-supplied set, proving \
+         Mod+A never mutated it"
+    );
+}
+
+/// Pinned `useSelect` returns `menuProps` with `disallowEmptySelection: true`,
+/// so the generic collection's Escape-clear is unreachable for Select: Escape
+/// closes the panel on the first press and the selection survives it. A
+/// closed-proof click where row 0 was records nothing once the panel is gone.
+#[gpui::test]
+fn select_escape_closes_on_the_first_press_and_keeps_the_selection(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+    let opens = events();
+    let opened = opens.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        let opens = opens.clone();
+        Select::new(
+            "sel-escape-keeps",
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_selected_indices([0, 2])
+        .default_open(true)
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .on_selection_change_all(move |keys, _, _| {
+            picks.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "escape");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:false"],
+        "the first Escape must close the panel"
+    );
+    assert!(
+        picked.borrow().is_empty(),
+        "the closing Escape must not touch the selection or report one"
+    );
+
+    click(cx, 60., 66.);
+    assert!(
+        picked.borrow().is_empty(),
+        "the closed panel's old row must answer nothing"
+    );
+
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:false", "open:true"],
+        "the trigger must reopen the panel the Escape closed"
+    );
+
+    click(cx, 60., 66.);
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["2"],
+        "toggling row 0 off must leave row 2 selected, proving the Escape \
+         preserved the pre-close selection"
+    );
+}
+
+/// The Shift-range anchor is Select-owned state beside the cursor, so it
+/// survives closing and reopening the popover — and it survives a deselect
+/// that only ends a raw `all`, the way pinned `useMultipleSelectionState`
+/// keeps the anchor. The reopened Shift+Up must extend from the pre-close
+/// anchor, not seat a fresh one on the moved-to key.
+#[gpui::test]
+fn select_multiple_anchor_persists_across_close_and_reopen(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+    let opens = events();
+    let opened = opens.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        let opens = opens.clone();
+        Select::new(
+            "sel-anchor-persists",
+            vec![
+                "Alpha".into(),
+                "Beta".into(),
+                "Gamma".into(),
+                "Delta".into(),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_open(true)
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .on_selection_change_all(move |keys, _, _| {
+            picks.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    // Seat the anchor on 2, then deselect it: the anchor stays behind with an
+    // empty selection, exactly where closing finds it.
+    press(cx, "tab down enter down down enter enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0", "0,2", "0"],
+        "the probe must end with the anchor seated on deselected row 2"
+    );
+
+    click(cx, 600., 300.);
+    click(cx, 60., 18.);
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:false", "open:true"],
+        "the probe must close and reopen the panel around the anchor"
+    );
+
+    press(cx, "shift-up");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0", "0,2", "0", "0,1,2"],
+        "the reopened extension must reach from the pre-close anchor at 2; \
+         a fresh anchor on the moved-to 1 would leave the surviving 0 out \
+         and report only 0,1"
+    );
+}
+
+/// A multiple Select answers no typeahead on its closed trigger -- the closed
+/// pick would report through the single-key callback a set-valued selection
+/// has no use for -- but the open RAC ListBox keeps its type-select: a letter
+/// moves the cursor to the exact match without selecting, and Enter then
+/// toggles that row.
+#[gpui::test]
+fn select_multiple_typeahead_is_inert_on_the_closed_trigger_alone(cx: &mut TestAppContext) {
+    let single = events();
+    let singled = single.clone();
+    let all = events();
+    let reported = all.clone();
+    let opens = events();
+    let opened = opens.clone();
+
+    let cx = open_host(cx, move || {
+        let single = single.clone();
+        let all = all.clone();
+        let opens = opens.clone();
+        Select::new(
+            "sel-multi-typeahead",
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .on_selection_change(move |i, _, _| {
+            single.borrow_mut().push(format!("{i:?}"));
+        })
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .on_selection_change_all(move |keys, _, _| {
+            all.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab g");
+    assert!(
+        singled.borrow().is_empty(),
+        "the closed trigger's typeahead must not report through the \
+         single-key callback"
+    );
+    assert!(
+        reported.borrow().is_empty(),
+        "the closed trigger's typeahead must not report through the plural \
+         callback"
+    );
+    assert!(
+        opened.borrow().is_empty(),
+        "the closed trigger's typeahead must not open the popover either"
+    );
+
+    press(cx, "down g enter");
+    assert_eq!(opened.borrow().as_slice(), ["open:true"]);
+    assert_eq!(
+        reported.borrow().as_slice(),
+        ["2"],
+        "the open list's typeahead must move the cursor to the exact match \
+         (Gamma), and Enter must toggle it"
+    );
+    assert!(
+        singled.borrow().is_empty(),
+        "an open multiple Select must never report through the single-key \
+         callback"
+    );
+}
+
+/// Pinned React Aria 3.51.0's arrow delegates return null at an enabled
+/// boundary, so a held Shift+Arrow there runs no `extendSelection` and must
+/// report nothing -- unlike a registered Shift+Home/End, whose handlers
+/// resolve their end key again and still report.
+#[gpui::test]
+fn select_held_shift_arrow_stays_silent_at_the_boundary(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new(
+            "sel-shift-boundary",
+            vec![
+                "Alpha".into(),
+                "Beta".into(),
+                "Gamma".into(),
+                "Delta".into(),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_open(true)
+        .on_selection_change_all(move |keys, _, _| {
+            picks.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab down enter");
+    assert_eq!(picked.borrow().as_slice(), ["0"]);
+
+    press(cx, "shift-up");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0"],
+        "the held Shift+Up at the top boundary must run no extension and \
+         report nothing beyond the Enter pick"
+    );
+
+    press(cx, "shift-down shift-down shift-down");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0", "0,1", "0,1,2", "0,1,2,3"],
+        "the walk to the last option must report every extension"
+    );
+
+    press(cx, "shift-down");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0", "0,1", "0,1,2", "0,1,2,3"],
+        "the held Shift+Down at the bottom boundary must run no extension \
+         and report nothing"
+    );
+
+    press(cx, "shift-up");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0", "0,1", "0,1,2", "0,1,2,3", "0,1,2"],
+        "a Shift+Arrow off the boundary must still shrink the anchored \
+         range, so the silence above is the boundary admission and not a \
+         dead handler"
+    );
+}
+
+/// Pinned `useSelectableItem` seats the cursor on pointer press, so a
+/// Shift+Arrow that follows a click on a later row extends the anchored
+/// adjacent range instead of resolving from a null or stale cursor.
+#[gpui::test]
+fn select_pointer_press_seats_the_cursor_for_shift_navigation(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new(
+            "sel-pointer-cursor",
+            vec![
+                "Alpha".into(),
+                "Beta".into(),
+                "Gamma".into(),
+                "Delta".into(),
+                "Echo".into(),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_open(true)
+        .on_selection_change_all(move |keys, _, _| {
+            picks.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    // Row *i* centres at y = 66 + 36i inside the popover: this is row 3.
+    click(cx, 60., 174.);
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["3"],
+        "the click must add row 3 and seat the anchor on it"
+    );
+
+    press(cx, "shift-down");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["3", "3,4"],
+        "the following Shift+Down must extend the adjacent anchored range \
+         3..4 from the seated cursor; a focus-theft or a null-cursor resolve \
+         would have reported nothing or 0,1,2,3"
+    );
+}
+
+/// From a null cursor a registered Shift+Home/End is wholly inert before
+/// cursor seating -- no cursor move, no selection, no callback -- so the
+/// later navigation probe starts at the top the null-cursor way.
+#[gpui::test]
+fn select_shift_home_end_from_a_null_cursor_stay_inert(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new(
+            "sel-shift-ends-null-cursor",
+            vec![
+                "Alpha".into(),
+                "Beta".into(),
+                "Gamma".into(),
+                "Delta".into(),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_open(true)
+        .on_selection_change_all(move |keys, _, _| {
+            picks.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "shift-home");
+    press(cx, "shift-end");
+    assert!(
+        picked.borrow().is_empty(),
+        "the registered Shift+Home and Shift+End must be wholly inert while \
+         the cursor is null"
+    );
+
+    press(cx, "down enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["0"],
+        "the probe must land on row 0: the inert chords never seated a \
+         cursor, so Down started from the top; a seated Home/End would have \
+         left the cursor on an end and reported 1 or 3 here"
+    );
+}
+
+/// The Home/End registration veto is mode-independent, so a single-mode
+/// Select leaves its host's unregistered chord entirely inert too: the
+/// cursor does not move, and Enter selects the row the arrows reached. The
+/// cfg-free unit truth tables in `select.rs` prove both platform maps.
+#[gpui::test]
+fn select_single_unregistered_home_end_chords_are_inert(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new(
+            "sel-single-unregistered",
+            vec![
+                "Alpha".into(),
+                "Beta".into(),
+                "Gamma".into(),
+                "Delta".into(),
+            ],
+        )
+        .default_open(true)
+        .on_selection_change(move |i, _, _| {
+            picks.borrow_mut().push(format!("{i:?}"));
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab down");
+    // Control-bearing is unregistered on macOS; Alt-bearing is unregistered
+    // on Windows and Linux.
+    if cfg!(target_os = "macos") {
+        press(cx, "ctrl-shift-end");
+    } else {
+        press(cx, "alt-shift-end");
+    }
+    assert!(
+        picked.borrow().is_empty(),
+        "the host's unregistered chord must not select anything"
+    );
+
+    press(cx, "enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Some(0)"],
+        "Enter must select row 0, proving the unregistered chord never \
+         moved the cursor off the arrows' row"
+    );
+}
+
+/// After Mod+A's symbolic `all` -- which itself stays callback-silent -- a
+/// Shift navigation collapses the selection to the target the way pinned
+/// `extendSelection` replaces a raw `all`, and that collapse reports.
+#[gpui::test]
+fn select_mod_a_then_shift_navigation_collapses_to_the_target(cx: &mut TestAppContext) {
+    let picks = events();
+    let picked = picks.clone();
+
+    let cx = open_host(cx, move || {
+        let picks = picks.clone();
+        Select::new(
+            "sel-select-all-collapse",
+            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .default_open(true)
+        .on_selection_change_all(move |keys, _, _| {
+            picks.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press_mod_a(cx);
+    assert!(
+        picked.borrow().is_empty(),
+        "the symbolic `all` must not report through onSelectionChange"
+    );
+
+    press(cx, "down shift-down");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["1"],
+        "the Shift+Down after the select-all must collapse the selection to \
+         its target (row 1) and report the collapse"
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Disclosure / DisclosureGroup
 // ---------------------------------------------------------------------------

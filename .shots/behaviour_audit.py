@@ -202,12 +202,18 @@ AUTOCOMPLETE_PAGING = ('Autocomplete',)
 # Windows and Linux, Cmd on macOS -- by selecting every enabled item. v3's own
 # pages do not enumerate this inherited shortcut, so it is derived from the
 # pinned React Aria 3.51.0 `useSelectableCollection` source (`Mod+A` ->
-# `selectAll`, multiple-selection mode only).
-SELECT_ALL_KEYS = ('Table', 'ListBox', 'TagGroup')
+# `selectAll`, multiple-selection mode only). Select is the one member whose
+# report differs: pinned SelectState drops the symbolic `all`, so its plural
+# callback stays silent while the uncontrolled set still becomes every enabled
+# key, and a controlled owner's state is not the keystroke's to mutate.
+SELECT_ALL_KEYS = ('Table', 'ListBox', 'TagGroup', 'Select')
 
 # A nonempty selectable collection clears on Escape by default and consumes the
 # key only when it changed selection. HeroUI inherits this from pinned React
-# Aria 3.51.0's `useSelectableCollection`.
+# Aria 3.51.0's `useSelectableCollection`. Select is not a member: pinned
+# `useSelect` returns `menuProps` with `disallowEmptySelection: true`, so the
+# generic clear is unreachable there -- Escape closes the panel on the first
+# press and the selection survives it.
 ESCAPE_CLEAR_KEYS = ('ListBox', 'TagGroup')
 
 # Pinned React Stately 3.49.0's `useMultipleSelectionState` extends a multiple
@@ -219,11 +225,25 @@ ESCAPE_CLEAR_KEYS = ('ListBox', 'TagGroup')
 # selects the target alone. Home and End are registered per platform:
 # macOS installs them only for none, Shift, Alt, and Alt+Shift, so Shift and
 # Alt+Shift move the focus alone and every Cmd- or Ctrl-bearing chord is
-# entirely inert; Windows and Linux install none, Shift, Control, and
-# Control+Shift, and only Control+Shift extends. HeroUI's Table, TagGroup,
-# and ListBox pages do not restate this inherited contract, so it is derived
-# like the other collection range work.
-RANGE_SELECT = ('TagGroup', 'ListBox', 'Table')
+# entirely inert in either mode; Windows and Linux install none, Shift,
+# Control, and Control+Shift, and only Control+Shift extends, and the same
+# veto governs a single-mode Select's Home and End. From a null cursor a
+# registered Shift+Home/End is wholly inert before cursor seating. Pointer
+# press seats the cursor (`useSelectableItem`), so a Shift+Arrow, page, or
+# Enter that follows a click starts from the clicked row. The anchor is state
+# the collection owns beside its cursor, so it survives closing and reopening
+# a popover. HeroUI's Table, TagGroup, ListBox, and Select pages do not
+# restate this inherited contract, so it is derived like the other collection
+# range work.
+RANGE_SELECT = ('TagGroup', 'ListBox', 'Table', 'Select')
+
+# A multiple Select answers no typeahead on its closed trigger: the closed
+# pick would report through the single-key callback a set-valued selection
+# has no use for. The open RAC ListBox still runs its type-select and moves
+# the cursor without selecting, exactly as in single mode. Derived from the
+# pinned React Aria Components 1.20.0 Select, whose multiple state gates the
+# trigger's letter picker only.
+MULTIPLE_TRIGGER_TYPEAHEAD = ('Select',)
 
 # Pinned React Aria 3.51.0's `useSelectableCollection` seats a collection on
 # pointer-down: a press on an enabled item moves the roving cursor to it and
@@ -890,6 +910,65 @@ EVIDENCE = {
         r'(?=.*range\.is_all = false;)'
         r'(?=.*ev\.modifiers\(\)\.shift && mode == SelectionMode::Multiple)',
     ),
+    # Select's Shift range halves, on option indices instead of keys: the same
+    # range helper with its raw `all` collapse and replace-old-range semantics,
+    # the anchor held in keyed state beside the cursor (`select-{}-range`) so
+    # it survives closing and reopening the popover, the extension gate that
+    # extends from plain Shift on the arrows and pages but only from
+    # Control+Shift Home/End off macOS and reuses the registration map, the
+    # mode-independent registration gate that leaves an unregistered chord
+    # entirely inert in either mode, the null-cursor Shift+Home/End guard
+    # before cursor seating, the pointer cursor seat for the following
+    # keyboard move, and the Shift+Click route.
+    ('Select', 'shift-range'): (
+        'select.rs',
+        r'(?s)\A(?=.*fn extend_selection_range\()(?=.*if range\.is_all \{)'
+        r'(?=.*range\.anchor\.unwrap_or\(target\))'
+        r'(?=.*range\.current\.unwrap_or\(target\))'
+        r'(?=.*select-\{\}-range)'
+        r'(?=.*let extends_selection = multiple\s*\n\s*&& modifiers\.shift)'
+        r'(?=.*fn home_end_registered\(modifiers: gpui::Modifiers, macos: bool\) -> bool \{)'
+        r'(?=.*if macos \{\s*\n\s*!modifiers\.control && !modifiers\.platform\s*\n\s*\} else \{\s*\n\s*!modifiers\.alt && !modifiers\.platform\s*\n\s*\})'
+        r'(?=.*if matches!\(key, "home" \| "end"\)\s*&& !home_end_registered\(modifiers, cfg!\(target_os = "macos"\)\)\s*\{\s*\n\s*return;)'
+        r'(?=.*if matches!\(key, "home" \| "end"\)\s*&& modifiers\.shift\s*&& from\.is_none\(\)\s*\{\s*\n\s*return;)'
+        r'(?=.*let exact_shift_navigation =\s*\n\s*home_end_registered\(modifiers, cfg!\(target_os = "macos"\)\);)'
+        r'(?=.*fn shift_home_end_extends\(key_name: &str, control: bool, macos: bool\) -> bool \{)'
+        r'(?=.*!matches!\(key_name, "home" \| "end"\) \|\| \(!macos && control\))'
+        r'(?=.*shift_home_end_extends\(\s*key,\s*modifiers\.control,\s*cfg!\(target_os = "macos"\),?\s*\))'
+        r'(?=.*range\.current = Some\(next\);)'
+        r'(?=.*range\.is_all = false;)'
+        r'(?=.*let cursor_click = cursor_rows\.clone\(\);)'
+        r'(?=.*cursor_click\.update\(cx, \|v, cx\| \{\s*\n\s*\*v = Some\(i\);)'
+        r'(?=.*ev\.modifiers\(\)\.shift)',
+    ),
+    # Select's select-all is the one member that must stay silent: pinned
+    # SelectState drops the symbolic `all`, so the evidence demands the Mod+A
+    # gate -- with `&& multiple` tied structurally to the branch's own opening
+    # brace, not to any later unrelated occurrence -- the enabled-only set,
+    # the uncontrolled-only update, and the raw `all` seat. From the gate to
+    # the branch's own `cx.stop_propagation()` the tail is one tempered scan:
+    # both the reach from the gate to the seat and the reach from the seat to
+    # that stop fail the moment the plural callback is ever invoked inside the
+    # branch, before or after the seat.
+    ('Select', 'select-all'): (
+        'select.rs',
+        r'(?s)key == "a"\s*\n\s*&& modifiers\.secondary\(\)'
+        r'(?=(?:(?!&& multiple).)*&& multiple\s*\n\s*\{)'
+        r'(?=.*stops\.iter\(\)\.copied\(\)\.collect\(\))'
+        r'(?:(?!on_select_all).){0,2500}?is_all: true'
+        r'(?:(?!on_select_all).)*?cx\.stop_propagation\(\)',
+    ),
+    # A multiple Select answers no typeahead on its closed trigger only: the
+    # closed gate returns before the typeahead buffer is ever touched, and the
+    # open list's cursor-mover must stay ungated -- the pinned RAC ListBox
+    # keeps its type-select in multiple mode, so the old `multiple ||`
+    # refusal is banned outright.
+    ('Select', 'multiple-trigger-typeahead'): (
+        'select.rs',
+        r'(?s)\A(?=.*if multiple \{\s*\n\s*return;\s*\n\s*\}\s*\n\s*'
+        r'if !crate::list_nav::is_typeahead_key\(key\))'
+        r'(?!.*multiple \|\| !crate::list_nav::is_typeahead_key\(key\))',
+    ),
     # The pointer seat the port must carry: the tag body's mouse-down seats
     # the cursor and the group handle behind a default_prevented guard and a
     # prevent_default that keeps an ancestor's press-focus from stealing the
@@ -1079,6 +1158,7 @@ def main():
         + TABLE_TYPEAHEAD + TABLE_PAGING + LISTBOX_PAGING + SELECT_PAGING + POPUP_PAGING
         + AUTOCOMPLETE_PAGING + SELECT_ALL_KEYS
         + ESCAPE_CLEAR_KEYS + RANGE_SELECT + POINTER_FOCUS
+        + MULTIPLE_TRIGGER_TYPEAHEAD
         + COMBOBOX_MULTIPLE_KEYS
         + RESIZE_BOUNDS + RESIZE_KEYS
         + LOAD_MORE
@@ -1100,6 +1180,7 @@ def main():
                       'popup-paging',
                       'autocomplete-paging',
                       'select-all', 'escape-clear', 'shift-range', 'pointer-focus', 'resize-bounds',
+                      'multiple-trigger-typeahead',
                       'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
                       'calendar-section-bounds', 'panel-focus', 'load-more',
                       'disabled-form-omission', 'close-on-blur', 'blur-commit',
