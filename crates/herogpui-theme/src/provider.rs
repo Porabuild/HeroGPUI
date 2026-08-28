@@ -129,23 +129,27 @@ impl ActiveTheme for App {
     }
 }
 
-/// Sets the global theme.
+/// Sets the global theme and schedules every open window to repaint.
 pub fn set_theme(theme: Theme, cx: &mut App) {
     let provider = cx.global_mut::<ThemeProvider>();
     provider.register(theme);
+    cx.refresh_windows();
 }
 
-/// Activates one of the registered themes by id (`"light"`, `"dark"`, custom).
+/// Activates one of the registered themes by id (`"light"`, `"dark"`, custom)
+/// and schedules every open window to repaint.
 pub fn use_theme(id: impl Into<SharedString>, cx: &mut App) {
     let provider = cx.global_mut::<ThemeProvider>();
     provider.set_active(id);
+    cx.refresh_windows();
 }
 
 /// Sets the app-level reduced-motion preference — the equivalent of putting
-/// `data-reduce-motion="true"` on the document element. Every animated
-/// component honours it without opt-in.
+/// `data-reduce-motion="true"` on the document element — and schedules every
+/// open window to repaint. Every animated component honours it without opt-in.
 pub fn set_reduce_motion(v: bool, cx: &mut App) {
     cx.global_mut::<ThemeProvider>().set_reduce_motion(v);
+    cx.refresh_windows();
 }
 
 /// Flips the reduced-motion preference.
