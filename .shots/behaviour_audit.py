@@ -172,12 +172,14 @@ ESCAPE_CLEAR_KEYS = ('ListBox', 'TagGroup')
 # The old anchor..current range is replaced by anchor..target, so a reverse
 # move shrinks again; only enabled keys join the range; a raw `all` selection
 # collapses to the moved-to key; and a first extension without an anchor
-# selects the target alone. Home and End extend only when the platform
-# secondary modifier joins Shift -- pinned `isCtrlKeyPressed`, Meta on
-# macOS and Ctrl elsewhere. HeroUI's TagGroup and ListBox pages do not
-# restate this inherited contract, so it is derived like the other
-# collection range work.
-RANGE_SELECT = ('TagGroup', 'ListBox')
+# selects the target alone. Home and End are registered per platform:
+# macOS installs them only for none, Shift, Alt, and Alt+Shift, so Shift and
+# Alt+Shift move the focus alone and every Cmd- or Ctrl-bearing chord is
+# entirely inert; Windows and Linux install none, Shift, Control, and
+# Control+Shift, and only Control+Shift extends. HeroUI's Table, TagGroup,
+# and ListBox pages do not restate this inherited contract, so it is derived
+# like the other collection range work.
+RANGE_SELECT = ('TagGroup', 'ListBox', 'Table')
 
 # Pinned React Aria 3.51.0's `useSelectableCollection` seats a collection on
 # pointer-down: a press on an enabled item moves the roving cursor to it and
@@ -715,10 +717,12 @@ EVIDENCE = {
         r'.*?selection_own_for_keys.*?on_selection_change.*?stop_propagation\(\)',
     ),
     # TagGroup's Shift range halves: the same range helper with its raw `all`
-    # collapse and replace-old-range semantics, the platform-independent
-    # Home/End extension gate driven by `Modifiers::secondary()` -- Meta on
-    # macOS, Ctrl elsewhere -- so the secondary chord works everywhere while
-    # plain Shift+Home/End stay focus-only and extra chords stay inert, the
+    # collapse and replace-old-range semantics, the per-platform Home/End
+    # registration gate -- macOS admits none, Shift, Alt, and Alt+Shift and
+    # an outside chord returns before anything moves, Windows and Linux
+    # admit none, Shift, Control, and Control+Shift; the browser matcher has
+    # no Fn flag, so the gate ignores GPUI's function modifier -- plus the
+    # extension gate that extends only from Control+Shift off macOS, the
     # seat that ends a raw `all` when an extension lands, and the Shift+Click
     # route.
     ('TagGroup', 'shift-range'): (
@@ -728,21 +732,24 @@ EVIDENCE = {
         r'(?=.*current\.as_ref\(\)\.unwrap_or\(target\))'
         r'(?=.*let extends_selection = modifiers\.shift)'
         r'(?=.*&& mode == SelectionMode::Multiple)'
-        r'(?=.*shift_home_end_extends\(key_name, modifiers\.secondary\(\)\))'
-        r'(?=.*fn shift_home_end_extends\(key_name: &str, secondary: bool\) -> bool \{)'
-        r'(?=.*!matches!\(key_name, "home" \| "end"\) \|\| secondary)'
-        r'(?=.*if home_or_end \{\s*\n\s*!modifiers\.alt && !modifiers\.function\s*\n)'
+        r'(?=.*fn home_end_registered\(modifiers: gpui::Modifiers, macos: bool\) -> bool \{)'
+        r'(?=.*if macos \{\s*\n\s*!modifiers\.control && !modifiers\.platform\s*\n\s*\} else \{\s*\n\s*!modifiers\.alt && !modifiers\.platform\s*\n\s*\})'
+        r'(?=.*matches!\(key, "home" \| "end"\)\s*\n\s*&& !home_end_registered\([^)]*cfg!\(target_os = "macos"\),?\s*\)\s*\{\s*\n\s*return;)'
+        r'(?=.*fn shift_home_end_extends\(key_name: &str, control: bool, macos: bool\) -> bool \{)'
+        r'(?=.*!matches!\(key_name, "home" \| "end"\) \|\| \(!macos && control\))'
+        r'(?=.*shift_home_end_extends\(\s*key_name,\s*modifiers\.control,\s*cfg!\(target_os = "macos"\),?\s*\))'
         r'(?=.*fn seat\(&mut self, target: SharedString\))(?=.*self\.is_all = false;)'
         r'(?=.*ev\.modifiers\(\)\.shift && mode == SelectionMode::Multiple)',
     ),
     # ListBox's Shift range halves: the same range helper with its raw `all`
-    # collapse, the platform-independent Home/End extension gate driven by
-    # `Modifiers::secondary()` -- Meta on macOS, Ctrl elsewhere -- so the
-    # secondary chord works everywhere while plain Shift+Home/End stay
-    # focus-only and extra chords stay inert, the keyboard extension's seat,
-    # the Shift+Click route with the pointer seat, and the pointer deselect
-    # that ends a raw `all` so the next extension extends instead of
-    # collapsing.
+    # collapse, the per-platform Home/End registration gate -- macOS admits
+    # none, Shift, Alt, and Alt+Shift and an outside chord returns before
+    # anything moves, Windows and Linux admit none, Shift, Control, and
+    # Control+Shift; the browser matcher has no Fn flag, so the gate ignores
+    # GPUI's function modifier -- plus the extension gate that extends only
+    # from Control+Shift off macOS, the keyboard extension's seat, the
+    # Shift+Click route with the pointer seat, and the pointer deselect that
+    # ends a raw `all` so the next extension extends instead of collapsing.
     ('ListBox', 'shift-range'): (
         'list_box.rs',
         r'(?s)\A(?=.*fn extend_selection_range\()(?=.*if range\.is_all \{)'
@@ -750,14 +757,44 @@ EVIDENCE = {
         r'(?=.*current\.as_ref\(\)\.unwrap_or\(target\))'
         r'(?=.*let extends_selection = modifiers\.shift)'
         r'(?=.*&& mode == SelectionMode::Multiple)'
-        r'(?=.*shift_home_end_extends\(key_name, modifiers\.secondary\(\)\))'
-        r'(?=.*fn shift_home_end_extends\(key_name: &str, secondary: bool\) -> bool \{)'
-        r'(?=.*!matches!\(key_name, "home" \| "end"\) \|\| secondary)'
-        r'(?=.*if home_or_end \{\s*\n\s*!modifiers\.alt && !modifiers\.function\s*\n)'
+        r'(?=.*fn home_end_registered\(modifiers: gpui::Modifiers, macos: bool\) -> bool \{)'
+        r'(?=.*if macos \{\s*\n\s*!modifiers\.control && !modifiers\.platform\s*\n\s*\} else \{\s*\n\s*!modifiers\.alt && !modifiers\.platform\s*\n\s*\})'
+        r'(?=.*matches!\(key_name, "home" \| "end"\)\s*\n\s*&& !home_end_registered\([^)]*cfg!\(target_os = "macos"\),?\s*\)\s*\{\s*\n\s*return;)'
+        r'(?=.*fn shift_home_end_extends\(key_name: &str, control: bool, macos: bool\) -> bool \{)'
+        r'(?=.*!matches!\(key_name, "home" \| "end"\) \|\| \(!macos && control\))'
+        r'(?=.*shift_home_end_extends\(\s*key_name,\s*modifiers\.control,\s*cfg!\(target_os = "macos"\),?\s*\))'
         r'(?=.*range\.current = Some\(target\.clone\(\)\);)'
         r'(?=.*ev\.modifiers\(\)\.shift && mode == SelectionMode::Multiple)'
         r'(?=.*range\.anchor = Some\(key\.clone\(\)\);)'
         r'(?=.*if range\.is_all \{\s*\n\s*\*range = ListBoxSelectionRange::default\(\);)',
+    ),
+    # Table's Shift range halves: the same range helper with its raw `all`
+    # collapse and replace-old-range semantics, the per-platform Home/End
+    # registration gate -- macOS admits none, Shift, Alt, and Alt+Shift and
+    # an outside chord returns before anything moves, Windows and Linux
+    # admit none, Shift, Control, and Control+Shift; the browser matcher has
+    # no Fn flag, so the gate ignores GPUI's function modifier -- plus the
+    # extension gate that extends only from Control+Shift off macOS, the
+    # no-cursor Shift+Home/End settle that the same predicate promotes into
+    # an extension from Control+Shift, the keyboard extension's seat that
+    # ends a raw `all`, and the Shift+Click route.
+    ('Table', 'shift-range'): (
+        'table.rs',
+        r'(?s)\A(?=.*fn extend_selection_range\()(?=.*if range\.is_all \{)'
+        r'(?=.*anchor\.as_ref\(\)\.unwrap_or\(target\))'
+        r'(?=.*current\.as_ref\(\)\.unwrap_or\(target\))'
+        r'(?=.*let extends_selection = modifiers\.shift)'
+        r'(?=.*&& mode == SelectionMode::Multiple)'
+        r'(?=.*fn home_end_registered\(modifiers: gpui::Modifiers, macos: bool\) -> bool \{)'
+        r'(?=.*if macos \{\s*\n\s*!modifiers\.control && !modifiers\.platform\s*\n\s*\} else \{\s*\n\s*!modifiers\.alt && !modifiers\.platform\s*\n\s*\})'
+        r'(?=.*matches!\(key_name, "home" \| "end"\)\s*\n\s*&& !home_end_registered\([^)]*cfg!\(target_os = "macos"\),?\s*\)\s*\{\s*\n\s*return;)'
+        r'(?=.*fn shift_home_end_extends\(key_name: &str, control: bool, macos: bool\) -> bool \{)'
+        r'(?=.*!matches!\(key_name, "home" \| "end"\) \|\| \(!macos && control\))'
+        r'(?=.*shift_home_end_extends\(\s*key_name,\s*modifiers\.control,\s*cfg!\(target_os = "macos"\),?\s*\))'
+        r'(?=.*let initial_home_end_extends = shift_home_end_extends\(\s*"home",\s*modifiers\.control,\s*cfg!\(target_os = "macos"\),?\s*\);)'
+        r'(?=.*range\.current = Some\(target\.clone\(\)\);)'
+        r'(?=.*range\.is_all = false;)'
+        r'(?=.*ev\.modifiers\(\)\.shift && mode == SelectionMode::Multiple)',
     ),
     # The pointer seat the port must carry: the tag body's mouse-down seats
     # the cursor and the group handle behind a default_prevented guard and a

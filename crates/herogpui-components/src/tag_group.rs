@@ -139,14 +139,33 @@ fn extend_selection_range(
     next
 }
 
+/// Pinned React Aria 3.51.0 `useSelectableCollection` registers Home and End
+/// only for the chords each platform's handler admits: none, Shift, Alt, and
+/// Alt+Shift on macOS -- no Meta or Control handler exists -- and none,
+/// Shift, Control, and Control+Shift on Windows and Linux. The upstream
+/// matcher reads exactly the browser's canonical modifier flags -- Alt,
+/// Control, Meta, Shift -- so GPUI's `function` flag is ignored here: a
+/// browser exposes no Fn state for it to read, so vetoing on the flag would
+/// claim a pinned guard that does not exist, and the framework delivers an
+/// Fn-bearing press with every matched modifier flag still false. A chord
+/// outside the registration is entirely inert: no focus move, no selection,
+/// no preventDefault. `macos` is simulated explicitly so every platform's
+/// unit tests can prove both maps.
+fn home_end_registered(modifiers: gpui::Modifiers, macos: bool) -> bool {
+    if macos {
+        !modifiers.control && !modifiers.platform
+    } else {
+        !modifiers.alt && !modifiers.platform
+    }
+}
+
 /// Pinned `useSelectableCollection` (`isCtrlKeyPressed`): a Shift move
 /// extends the range on the collection's navigation keys, while Home and
-/// End extend only when the platform secondary modifier joins Shift --
-/// Meta on macOS, Ctrl elsewhere, exactly GPUI 0.2.2's
-/// `Modifiers::secondary()`. A plain Shift+Home/End moves the focus
-/// alone.
-fn shift_home_end_extends(key_name: &str, secondary: bool) -> bool {
-    !matches!(key_name, "home" | "end") || secondary
+/// End extend only from Control+Shift on Windows and Linux. macOS registers
+/// no Home/End extension at all -- its Shift and Alt+Shift chords move the
+/// focus alone -- so the platform is an explicit bool rather than a `cfg!`.
+fn shift_home_end_extends(key_name: &str, control: bool, macos: bool) -> bool {
+    !matches!(key_name, "home" | "end") || (!macos && control)
 }
 
 /// HeroUI TagGroup.
@@ -684,6 +703,20 @@ impl RenderOnce for TagGroup {
                             }
                         }
                         key @ ("left" | "right" | "home" | "end") => {
+                            // The pinned registrations install no Home/End
+                            // handler for an unregistered chord -- Cmd- or
+                            // Ctrl-bearing on macOS, Alt- or platform-bearing
+                            // elsewhere -- so the whole event stays inert: no
+                            // focus move, no selection, no preventDefault,
+                            // and no consumption of the key either.
+                            if matches!(key, "home" | "end")
+                                && !home_end_registered(
+                                    event.keystroke.modifiers,
+                                    cfg!(target_os = "macos"),
+                                )
+                            {
+                                return;
+                            }
                             let key = match key {
                                 "right" => "down",
                                 "left" => "up",
@@ -701,22 +734,15 @@ impl RenderOnce for TagGroup {
                             };
                             // Pinned `useSelectableCollection`: Shift extends a
                             // multiple selection from the anchor with no other
-                            // chord, so plain Shift navigation is exact. Home
-                            // and End are exempt from the platform-key veto:
-                            // their extension chord is exactly the platform
-                            // secondary modifier, and a secondary-less
-                            // Shift+Home/End stays focus-only through the gate
-                            // helper below. A wrap-to-self move or a Home/End
+                            // chord, so plain Shift navigation is exact. A
+                            // wrap-to-self move or a Home/End
                             // already at its target still extends: pinned
                             // `extendSelection` replaces the anchor..target
                             // range even when the cursor does not move, and
                             // the unchanged-selection guard below is what
                             // keeps true no-ops silent.
                             let modifiers = event.keystroke.modifiers;
-                            let home_or_end = matches!(key_name, "home" | "end");
-                            let exact_shift_navigation = if home_or_end {
-                                !modifiers.alt && !modifiers.function
-                            } else if cfg!(target_os = "macos") {
+                            let exact_shift_navigation = if cfg!(target_os = "macos") {
                                 !modifiers.control && !modifiers.platform && !modifiers.function
                             } else {
                                 !modifiers.alt && !modifiers.platform && !modifiers.function
@@ -724,7 +750,11 @@ impl RenderOnce for TagGroup {
                             let extends_selection = modifiers.shift
                                 && mode == SelectionMode::Multiple
                                 && exact_shift_navigation
-                                && shift_home_end_extends(key_name, modifiers.secondary());
+                                && shift_home_end_extends(
+                                    key_name,
+                                    modifiers.control,
+                                    cfg!(target_os = "macos"),
+                                );
                             if extends_selection {
                                 if let Some(target) = collection_for_keys.get(next) {
                                     let range = range_for_keys.read(cx).clone();
@@ -894,46 +924,127 @@ impl RenderOnce for TagGroup {
 mod tests {
     use super::*;
 
-    /// The Home/End extension gate takes the platform secondary modifier as
-    /// a plain bool, so this test is free of `cfg!` and mechanically proves
-    /// the same predicate every platform runs: Home and End extend only
-    /// when the secondary joins Shift, and a secondary-less Shift+Home/End
-    /// stays focus-only.
+    /// The Home/End gate takes the platform as an explicit bool, so this
+    /// truth table is free of `cfg!` and mechanically proves both maps from
+    /// any host: no macOS chord ever extends -- Shift and Alt+Shift move the
+    /// focus alone -- while Windows and Linux extend exactly from
+    /// Control+Shift.
     #[test]
-    fn shift_home_end_extend_only_with_the_platform_secondary() {
+    fn shift_home_end_extends_only_from_control_outside_macos() {
         for key in ["home", "end"] {
             assert!(
-                !shift_home_end_extends(key, false),
+                !shift_home_end_extends(key, true, true),
+                "macOS registers no Home/End extension"
+            );
+            assert!(!shift_home_end_extends(key, false, true));
+            assert!(
+                shift_home_end_extends(key, true, false),
+                "Control+Shift+{key} must extend on Windows and Linux"
+            );
+            assert!(
+                !shift_home_end_extends(key, false, false),
                 "plain Shift+{key} must only move the focus"
             );
-            assert!(shift_home_end_extends(key, true));
         }
     }
 
-    /// The horizontal delegate's arrows never gate on the secondary: their
-    /// forbidden extra chords are rejected earlier, by
+    /// The horizontal delegate's arrows never consult the Home/End gate:
+    /// their forbidden extra chords are rejected earlier, by
     /// `exact_shift_navigation`.
     #[test]
-    fn shift_navigation_keys_do_not_consult_the_secondary() {
+    fn shift_navigation_keys_do_not_consult_the_home_end_gate() {
         for key in ["left", "right"] {
-            assert!(shift_home_end_extends(key, false));
-            assert!(shift_home_end_extends(key, true));
+            assert!(shift_home_end_extends(key, false, true));
+            assert!(shift_home_end_extends(key, true, false));
         }
     }
 
-    /// The bool the event path hands the gate is GPUI 0.2.2's
-    /// `Modifiers::secondary()` -- Meta on macOS, Ctrl elsewhere -- so the
-    /// platform's own secondary spelling must pass and no modifier at all
-    /// must not.
+    /// The registration gate takes `Modifiers`, so the pinned chord map can
+    /// be spelled out: macOS registers none, Shift, Alt, and Alt+Shift and
+    /// every Control- or Meta-bearing chord is entirely inert, while
+    /// Windows and Linux register none, Shift, Control, and Control+Shift
+    /// and reject every Alt- or Meta-bearing chord. The upstream matcher
+    /// sees only the browser's Alt/Control/Meta/Shift flags, so GPUI's
+    /// `function` flag is ignored: `fn` stays registered on both maps, and
+    /// it never rescues a chord the platform itself rejects.
     #[test]
-    fn platform_secondary_spelling_reaches_the_gate() {
-        assert!(shift_home_end_extends(
-            "home",
-            gpui::Modifiers::secondary_key().secondary()
-        ));
-        assert!(!shift_home_end_extends(
-            "end",
-            gpui::Modifiers::none().secondary()
-        ));
+    fn home_end_registration_matches_the_pinned_chord_map() {
+        let none = gpui::Modifiers::none();
+        let shift = gpui::Modifiers {
+            shift: true,
+            ..none
+        };
+        let alt = gpui::Modifiers { alt: true, ..none };
+        let alt_shift = gpui::Modifiers { shift: true, ..alt };
+        let function = gpui::Modifiers {
+            function: true,
+            ..none
+        };
+        let function_alt = gpui::Modifiers {
+            alt: true,
+            ..function
+        };
+        for modifiers in [none, shift, alt, alt_shift, function, function_alt] {
+            assert!(
+                home_end_registered(modifiers, true),
+                "macOS must register {modifiers:?}"
+            );
+        }
+        let control = gpui::Modifiers {
+            control: true,
+            ..none
+        };
+        let control_shift = gpui::Modifiers {
+            shift: true,
+            ..control
+        };
+        let platform = gpui::Modifiers {
+            platform: true,
+            ..none
+        };
+        let platform_shift = gpui::Modifiers {
+            shift: true,
+            ..platform
+        };
+        for modifiers in [control, control_shift, platform, platform_shift] {
+            assert!(
+                !home_end_registered(modifiers, true),
+                "macOS must not register {modifiers:?}"
+            );
+        }
+        for modifiers in [none, shift, control, control_shift, function] {
+            assert!(
+                home_end_registered(modifiers, false),
+                "Windows and Linux must register {modifiers:?}"
+            );
+        }
+        for modifiers in [alt, alt_shift, function_alt, platform, platform_shift] {
+            assert!(
+                !home_end_registered(modifiers, false),
+                "Windows and Linux must not register {modifiers:?}"
+            );
+        }
+    }
+
+    /// The keystroke spellings real events hand the gate: `ctrl` parses to
+    /// the Control field the Windows/Linux registration admits and macOS
+    /// vetoes, `cmd` to the platform field macOS vetoes, `alt-shift` to
+    /// the chord that stays registered (focus-only) on macOS alone, and
+    /// `fn` to the flag the browser matcher never sees, so it registers
+    /// exactly like the bare key on both maps.
+    #[test]
+    fn keystroke_spellings_reach_the_registration_gate() {
+        let ctrl_shift_home = gpui::Keystroke::parse("ctrl-shift-home").unwrap();
+        assert!(home_end_registered(ctrl_shift_home.modifiers, false));
+        assert!(!home_end_registered(ctrl_shift_home.modifiers, true));
+        let cmd_shift_home = gpui::Keystroke::parse("cmd-shift-home").unwrap();
+        assert!(!home_end_registered(cmd_shift_home.modifiers, true));
+        let alt_shift_end = gpui::Keystroke::parse("alt-shift-end").unwrap();
+        assert!(home_end_registered(alt_shift_end.modifiers, true));
+        assert!(!home_end_registered(alt_shift_end.modifiers, false));
+        let fn_home = gpui::Keystroke::parse("fn-home").unwrap();
+        assert!(fn_home.modifiers.function);
+        assert!(home_end_registered(fn_home.modifiers, true));
+        assert!(home_end_registered(fn_home.modifiers, false));
     }
 }

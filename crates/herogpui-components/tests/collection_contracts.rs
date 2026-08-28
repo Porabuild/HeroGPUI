@@ -701,14 +701,15 @@ fn list_box_controlled_shift_click_extends_and_repeat_shrinks(cx: &mut TestAppCo
     );
 }
 
-/// Home and End carry Shift range semantics only with the platform secondary
-/// modifier in pinned `useSelectableCollection`; plain Shift+Home/End move the
-/// focus alone, and an extra chord beyond the secondary stays inert. The
-/// `secondary` keystroke spelling parses to Meta on macOS and Ctrl elsewhere,
-/// so the extension chord here exercises the same platform-independent gate
-/// on every platform.
+/// Pinned `useSelectableCollection` registers Home and End per platform:
+/// Windows and Linux install none, Shift, Control, and Control+Shift, and
+/// only Control+Shift extends; macOS installs none, Shift, Alt, and
+/// Alt+Shift only, so Shift and Alt+Shift move the focus alone and every
+/// Control- or Meta-bearing chord is entirely inert. Each branch drives its
+/// own host's real chords; the cfg-free unit truth tables in the components
+/// prove both maps everywhere.
 #[gpui::test]
-fn list_box_plain_shift_home_end_move_focus_only(cx: &mut TestAppContext) {
+fn list_box_home_end_extend_only_from_the_registered_chord(cx: &mut TestAppContext) {
     let recorded = events();
     let for_view = recorded.clone();
     let cx = open_host(cx, move || {
@@ -737,20 +738,116 @@ fn list_box_plain_shift_home_end_move_focus_only(cx: &mut TestAppContext) {
     );
     press(cx, "space");
     flush_frame(cx);
-    press(cx, "secondary-shift-home");
-    assert_eq!(
-        recorded.borrow().as_slice(),
-        ["gamma", "alpha,beta,gamma"],
-        "the secondary+Shift+Home chord must extend the anchor's range to the first option"
+    if cfg!(target_os = "macos") {
+        // Control-bearing chords sit outside the macOS registration: the
+        // event is entirely inert, not even the focus moves.
+        press(cx, "ctrl-shift-home");
+        flush_frame(cx);
+        assert_eq!(
+            recorded.borrow().as_slice(),
+            ["gamma"],
+            "macOS must leave Control-bearing Home/End entirely inert"
+        );
+        // Alt+Shift *is* registered on macOS: the focus walks, extends nothing.
+        press(cx, "alt-shift-home");
+        flush_frame(cx);
+        assert_eq!(
+            recorded.borrow().as_slice(),
+            ["gamma"],
+            "macOS Alt+Shift+Home must move the focus without extending"
+        );
+    } else {
+        press(cx, "ctrl-shift-home");
+        assert_eq!(
+            recorded.borrow().as_slice(),
+            ["gamma", "alpha,beta,gamma"],
+            "Control+Shift+Home must extend the anchor's range to the first option"
+        );
+        // The extension seats the cursor on Alpha; an Alt-bearing chord is
+        // outside the Windows/Linux registration, so it cannot move the
+        // focus or extend again.
+        press(cx, "alt-shift-end");
+        flush_frame(cx);
+        assert_eq!(
+            recorded.borrow().as_slice(),
+            ["gamma", "alpha,beta,gamma"],
+            "an unregistered Alt-bearing chord must leave Home and End inert"
+        );
+    }
+}
+
+/// The whole-event registration guard keeps an unregistered Home/End chord
+/// from moving the collection's focus, not only from reporting a selection:
+/// the row render state still names Beta after the chord, and the Space that
+/// follows must toggle Beta through the focus that never moved.
+#[gpui::test]
+fn list_box_unregistered_home_end_leave_the_focus_in_place(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let focused = Rc::new(RefCell::new(HashMap::<String, bool>::new()));
+    let focused_for_view = focused.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        let focused = focused_for_view.clone();
+        ListBox::new(
+            "contract-list-inert-home-end",
+            vec![
+                ListBoxItem::new("alpha", "Alpha"),
+                ListBoxItem::new("beta", "Beta"),
+                ListBoxItem::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .item_content(move |key, state| {
+            focused
+                .borrow_mut()
+                .insert(key.to_string(), state.is_focused);
+            gpui::div().into_any_element()
+        })
+        .on_selection_change(move |keys, window, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+    cx.update(|window, _| window.activate_window());
+    flush_frame(cx);
+
+    press(cx, "tab down");
+    flush_frame(cx);
+    assert!(
+        focused.borrow()["beta"],
+        "Down must seat the collection focus on Beta"
     );
-    // The extension seats the cursor on Alpha; a further Home/End move with
-    // an extra chord may walk the focus but must not extend again.
-    press(cx, "secondary-alt-shift-end");
+    assert!(
+        !focused.borrow()["alpha"] && !focused.borrow()["gamma"],
+        "the focus entry rows must yield once Down moves the cursor"
+    );
+
+    // Each host's own unregistered chord: Control-bearing on macOS, Alt-
+    // bearing on Windows and Linux. Removing the whole-event guard would
+    // walk Home to Alpha, which both the render state and the Space target
+    // below expose.
+    if cfg!(target_os = "macos") {
+        press(cx, "ctrl-shift-home");
+    } else {
+        press(cx, "alt-shift-home");
+    }
+    flush_frame(cx);
+    assert!(
+        focused.borrow()["beta"],
+        "an unregistered Home/End chord must not move the collection focus"
+    );
+    assert!(
+        !focused.borrow()["alpha"] && !focused.borrow()["gamma"],
+        "no other row may pick up the focus the chord must not move"
+    );
+    press(cx, "space");
     flush_frame(cx);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["gamma", "alpha,beta,gamma"],
-        "an extra chord beyond the secondary must leave Home and End inert"
+        ["beta"],
+        "the focus the unregistered chord left in place must answer Space with Beta"
     );
 }
 
@@ -1417,14 +1514,15 @@ fn tag_group_first_shift_arrow_selects_from_an_empty_selection(cx: &mut TestAppC
     );
 }
 
-/// Home and End carry Shift range semantics only with the platform secondary
-/// modifier in pinned `useSelectableCollection`; plain Shift+Home/End move the
-/// focus alone, and an extra chord beyond the secondary stays inert. The
-/// `secondary` keystroke spelling parses to Meta on macOS and Ctrl elsewhere,
-/// so the extension chord here exercises the same platform-independent gate
-/// on every platform.
+/// Pinned `useSelectableCollection` registers Home and End per platform:
+/// Windows and Linux install none, Shift, Control, and Control+Shift, and
+/// only Control+Shift extends; macOS installs none, Shift, Alt, and
+/// Alt+Shift only, so Shift and Alt+Shift move the focus alone and every
+/// Control- or Meta-bearing chord is entirely inert. Each branch drives its
+/// own host's real chords; the cfg-free unit truth tables in the components
+/// prove both maps everywhere.
 #[gpui::test]
-fn tag_group_plain_shift_home_end_move_focus_only(cx: &mut TestAppContext) {
+fn tag_group_home_end_extend_only_from_the_registered_chord(cx: &mut TestAppContext) {
     let recorded = events();
     let for_view = recorded.clone();
     let cx = open_host(cx, move || {
@@ -1448,19 +1546,111 @@ fn tag_group_plain_shift_home_end_move_focus_only(cx: &mut TestAppContext) {
         "plain Shift+End must only move focus"
     );
     press(cx, "space");
-    press(cx, "secondary-shift-home");
-    assert_eq!(
-        recorded.borrow().as_slice(),
-        ["gamma", "alpha,beta,gamma"],
-        "the secondary+Shift+Home chord must extend the anchor's range to the first tag"
+    if cfg!(target_os = "macos") {
+        // Control-bearing chords sit outside the macOS registration: the
+        // event is entirely inert, not even the focus moves.
+        press(cx, "ctrl-shift-home");
+        assert_eq!(
+            recorded.borrow().as_slice(),
+            ["gamma"],
+            "macOS must leave Control-bearing Home/End entirely inert"
+        );
+        // Alt+Shift *is* registered on macOS: the focus walks, extends nothing.
+        press(cx, "alt-shift-home");
+        assert_eq!(
+            recorded.borrow().as_slice(),
+            ["gamma"],
+            "macOS Alt+Shift+Home must move the focus without extending"
+        );
+    } else {
+        press(cx, "ctrl-shift-home");
+        assert_eq!(
+            recorded.borrow().as_slice(),
+            ["gamma", "alpha,beta,gamma"],
+            "Control+Shift+Home must extend the anchor's range to the first tag"
+        );
+        // The extension seats the cursor on Alpha; an Alt-bearing chord is
+        // outside the Windows/Linux registration, so it cannot move the
+        // focus or extend again.
+        press(cx, "alt-shift-end");
+        assert_eq!(
+            recorded.borrow().as_slice(),
+            ["gamma", "alpha,beta,gamma"],
+            "an unregistered Alt-bearing chord must leave Home and End inert"
+        );
+    }
+}
+
+/// The whole-event registration guard keeps an unregistered Home/End chord
+/// from moving the group's roving focus, not only from reporting a
+/// selection: the tag render state still names Beta after the chord, and
+/// the Space that follows must toggle Beta through the focus that never
+/// moved.
+#[gpui::test]
+fn tag_group_unregistered_home_end_leave_the_focus_in_place(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let focused = Rc::new(RefCell::new(HashMap::<String, bool>::new()));
+    let focused_for_view = focused.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        let focused = focused_for_view.clone();
+        TagGroup::new(
+            "contract-tags-inert-home-end",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .tag_content(move |tag, state| {
+            focused
+                .borrow_mut()
+                .insert(tag.key().to_string(), state.is_focused);
+            gpui::div().w(px(40.)).h(px(20.)).into_any_element()
+        })
+        .on_selection_change(move |keys, _, _| recorded.borrow_mut().push(sorted_join(keys)))
+        .into_any_element()
+    });
+    cx.update(|window, _| window.activate_window());
+    flush_frame(cx);
+
+    press(cx, "tab right");
+    flush_frame(cx);
+    assert!(
+        focused.borrow()["beta"],
+        "Right must move the group's roving focus to Beta"
     );
-    // The extension seats the cursor on Alpha; a further Home/End move with
-    // an extra chord may walk the focus but must not extend again.
-    press(cx, "secondary-alt-shift-end");
+    assert!(
+        !focused.borrow()["alpha"] && !focused.borrow()["gamma"],
+        "the neighbouring tags must yield once Right moves the cursor"
+    );
+
+    // Each host's own unregistered chord: Control-bearing on macOS, Alt-
+    // bearing on Windows and Linux. Removing the whole-event guard would
+    // walk Home to Alpha, which both the render state and the Space target
+    // below expose.
+    if cfg!(target_os = "macos") {
+        press(cx, "ctrl-shift-home");
+    } else {
+        press(cx, "alt-shift-home");
+    }
+    flush_frame(cx);
+    assert!(
+        focused.borrow()["beta"],
+        "an unregistered Home/End chord must not move the group's roving focus"
+    );
+    assert!(
+        !focused.borrow()["alpha"] && !focused.borrow()["gamma"],
+        "no other tag may pick up the focus the chord must not move"
+    );
+    press(cx, "space");
+    flush_frame(cx);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["gamma", "alpha,beta,gamma"],
-        "an extra chord beyond the secondary must leave Home and End inert"
+        ["beta"],
+        "the focus the unregistered chord left in place must answer Space with Beta"
     );
 }
 
@@ -1606,10 +1796,13 @@ fn tag_group_redundant_select_all_preserves_the_click_anchor(cx: &mut TestAppCon
     );
 }
 
-/// A secondary+Shift+Home whose target already holds the cursor still
+/// A registered extension whose Home target already holds the cursor still
 /// extends: pinned `extendSelection` replaces the anchor..target range even
-/// when the cursor does not move, so anchoring on Gamma and pressing it from
-/// Alpha spans the whole group.
+/// when the cursor does not move, so anchoring on Gamma and pressing the
+/// registered chord from Alpha spans the whole group. The registration is
+/// per platform: `secondary` is Ctrl on Windows and Linux, where
+/// Ctrl+Shift+Home is exactly the extension chord, and Cmd on macOS, where
+/// both chords sit outside the macOS registration and stay entirely inert.
 #[gpui::test]
 fn tag_group_home_target_equal_to_focus_still_extends(cx: &mut TestAppContext) {
     let recorded = events();
@@ -1635,11 +1828,19 @@ fn tag_group_home_target_equal_to_focus_still_extends(cx: &mut TestAppContext) {
     press(cx, "tab right right space");
     press(cx, "secondary-home");
     press(cx, "secondary-shift-home");
-    assert_eq!(
-        recorded.borrow().as_slice(),
-        ["gamma", "alpha,beta,gamma"],
-        "the extension must run even though Home's target already holds the cursor, replacing the anchor's range"
-    );
+    if cfg!(target_os = "macos") {
+        assert_eq!(
+            recorded.borrow().as_slice(),
+            ["gamma"],
+            "macOS must leave the Cmd-bearing Home chords entirely inert"
+        );
+    } else {
+        assert_eq!(
+            recorded.borrow().as_slice(),
+            ["gamma", "alpha,beta,gamma"],
+            "the extension must run even though Home's target already holds the cursor, replacing the anchor's range"
+        );
+    }
 }
 
 /// A one-tag group's Shift+Arrow wraps to the tag itself: pinned
