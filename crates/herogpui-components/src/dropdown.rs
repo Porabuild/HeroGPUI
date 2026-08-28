@@ -649,7 +649,27 @@ impl RenderOnce for Menu {
                     }
                     return;
                 }
-                match crate::list_nav::resolve(&stops_for_keys, from, key, false) {
+                // Pinned React Aria 3.51.0 binds PageUp/PageDown through the
+                // menu's `useSelectableCollection`, which only runs while the
+                // panel is mounted: a closed trigger answers no page key at
+                // all. The handlers also require `manager.focusedKey != null`
+                // -- a mouse-opened menu has a null cursor until an arrow (or
+                // a keyboard open's focus-first) seats one, and the page keys
+                // must stay inert until then. With a cursor the list is
+                // non-scrollable -- HeroUI v3.2.4 puts the overflow scrolling
+                // on the Popover while the Menu element is `overflow-clip` --
+                // so a page takes the enabled end: `stops` already omits
+                // disabled rows, whatever the menu's length or scroll state.
+                let page_move = match key {
+                    "pagedown" if from.is_some() => stops_for_keys.last().copied(),
+                    "pageup" if from.is_some() => stops_for_keys.first().copied(),
+                    _ => None,
+                }
+                .filter(|next| Some(*next) != from);
+                match page_move.map_or_else(
+                    || crate::list_nav::resolve(&stops_for_keys, from, key, false),
+                    crate::list_nav::Move::To,
+                ) {
                     crate::list_nav::Move::To(next) => {
                         held.update(cx, |v, cx| {
                             *v = Some(next);

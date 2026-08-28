@@ -427,3 +427,165 @@ fn combo_box_arrow_open_reports_to_a_controlled_owner(cx: &mut TestAppContext) {
         "ArrowDown must report a manual open even when the owner has not accepted it"
     );
 }
+
+/// PageUp/PageDown belong to the open suggestion list: pinned React Aria
+/// 3.51.0 binds them through `useSelectableCollection`, which a closed
+/// ComboBox never runs. The proof is not vacuous: the field is focused but
+/// closed under the `MenuTrigger::Input` trigger, so the page keys land on
+/// the very handler that answers them on an open list — and a following Down
+/// still opens. A page key on the closed field must not open the list and
+/// must not commit anything.
+#[gpui::test]
+fn combo_box_page_keys_ignore_a_closed_field(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = combo_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        ComboBox::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+            .menu_trigger(MenuTrigger::Input)
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
+    });
+
+    // Clicking into the field focuses it without opening: the Input trigger
+    // opens on the first edit, so the presses land on a live handler.
+    click(cx, 60., 18.);
+    assert!(
+        opened.borrow().is_empty(),
+        "the probe must begin from a focused, closed field"
+    );
+
+    press(cx, "pagedown");
+    press(cx, "pageup");
+    assert!(
+        opened.borrow().is_empty(),
+        "a page key on the closed field must not open the list"
+    );
+
+    // The presses were delivered: the same focused handler still opens on
+    // Down, which also seats the cursor on the first row.
+    press(cx, "down");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "the page keys must have reached a live handler, not a dead one"
+    );
+
+    // Escape closes the list but leaves the cursor seated on "Typst" -- so
+    // the page keys now reach the handler *with* a cursor, exactly the state
+    // an unconditional end mapping would move (and the Move::To path would
+    // even reopen the list with).
+    press(cx, "escape");
+    press(cx, "pagedown");
+    press(cx, "pageup");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "a page key on the closed field must not reopen the list: the only \
+         reports are the open and the Escape close"
+    );
+    assert!(
+        recorded.borrow().is_empty(),
+        "a page key on the closed field must not commit anything"
+    );
+
+    // Down then reopens, walks the retained cursor to the second row, and
+    // Enter commits it -- the page keys left the cursor where they found it.
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Rust"],
+        "the page keys must have left the closed field answering as before"
+    );
+}
+
+/// Pinned HeroUI v3.2.4 scrolls the *popover*, with the ListBox element
+/// itself `overflow-clip`, so pinned React Aria 3.51.0 never sees a
+/// scrollable list behind a ComboBox: with a cursor, page keys take the
+/// enabled ends whatever the list's length. Those handlers require a focused
+/// key, though — a chevron-opened, selection-less ComboBox has a null cursor,
+/// so its page keys are inert; a Down establishes the cursor, and paging from
+/// there reaches the first and last enabled rows, skipping the disabled rows
+/// at both ends. Paging only moves the highlight until Enter commits it.
+#[gpui::test]
+fn combo_box_page_keys_reach_enabled_ends_after_a_cursor_exists(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let options: Vec<gpui::SharedString> =
+        (0..20).map(|i| format!("Option {i:02}").into()).collect();
+    let state = combo_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let state = state_for_view.clone();
+        ComboBox::new(state, options.clone())
+            .max_items(20)
+            .menu_trigger(MenuTrigger::Input)
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .disabled_keys(["Option 00".into(), "Option 19".into()])
+            .into_any_element()
+    });
+
+    // Chevron-open with no selection: the cursor is null, so both page keys
+    // must be inert. Down from a null cursor enters the first enabled row
+    // (Option 01); had either page key created a cursor, Down would hold on
+    // Option 18 or step to Option 02, and the commit would betray the
+    // unconditional cursor creation.
+    click(cx, 298., 18.);
+    press(cx, "pagedown");
+    press(cx, "pageup");
+    assert!(
+        recorded.borrow().is_empty(),
+        "page keys on a chevron-opened, cursor-less list must commit nothing"
+    );
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Option 01"],
+        "page keys on a cursor-less list must be inert: Down must still \
+         enter the first enabled row"
+    );
+
+    // Enter closed the list; the chevron reopens it, two Downs establish the
+    // cursor on Option 02, and PageDown must take the last enabled row
+    // (Option 18), never the disabled Option 19.
+    click(cx, 298., 18.);
+    press(cx, "down down");
+    press(cx, "pagedown");
+    assert!(
+        recorded.borrow().as_slice() == ["Option 01"],
+        "PageDown must only move the highlight, never commit by itself"
+    );
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Option 01", "Option 18"],
+        "PageDown with a cursor must reach the last enabled row"
+    );
+
+    // Reopen once more; the cursor starts over on the first enabled row and
+    // PageUp must walk back to it — which is also the first enabled row, so
+    // take two Downs first — never the disabled Option 00.
+    click(cx, 298., 18.);
+    press(cx, "down down");
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Option 01", "Option 18", "Option 01"],
+        "PageUp with a cursor must reach the first enabled row"
+    );
+}

@@ -168,6 +168,36 @@ LISTBOX_PAGING = ('ListBox',)
 # only while the list is open.
 SELECT_PAGING = ('Select',)
 
+# The other popup collections share Select's composition: pinned HeroUI
+# v3.2.4 mounts the ListBox/Menu element with `overflow-clip` inside a popup
+# that owns the scrolling, so pinned React Aria 3.51.0's ListKeyboardDelegate
+# treats each as non-scrollable and -- only when `manager.focusedKey != null`
+# -- takes page keys to the enabled ends; the port's `stops` already omit
+# disabled rows. No viewport step or rectangle geometry may survive: the
+# evidence rejects it outright. The closed surface answers no page key at all
+# (`useSelectableCollection` binds them only while the collection is open):
+# the Dropdown's panel handler exists only while open, but the ComboBox drives
+# open and navigation from one root handler, so its mapping must also demand
+# the open state or a closed field with a retained cursor would move -- and
+# its `Move::To` path would even reopen the list.
+POPUP_PAGING = ('ComboBox', 'Dropdown')
+
+# Autocomplete is the exception: `autocomplete.css` styles the composed
+# `[data-slot="list-box"]` itself `max-h-[320px] min-h-0 overflow-y-auto` --
+# the list element *is* the scroller -- so pinned React Aria 3.51.0's
+# `ListKeyboardDelegate` sees a scrollable list and pages by one visible
+# rectangle of it: from the cursor row's laid-out rect, walk enabled rows
+# until one crosses a viewport-sized boundary (320px minus one row), and
+# take the enabled end only when the walk runs out. The handlers still
+# require `manager.focusedKey != null`, so a mouse-opened, selection-less
+# Autocomplete answers nothing until an arrow seats a cursor. The default
+# rows are laid out, so the boundary reads real scroll-handle rects (the
+# plain ListBox shape); a `rowHeight` list is uniform and pages by
+# whole-row steps across its fixed 320px viewport (the fixed ListBox shape).
+# No cursor-gated enabled-end mapping may survive -- the evidence rejects it
+# outright -- and neither may a mapping with no geometry behind it.
+AUTOCOMPLETE_PAGING = ('Autocomplete',)
+
 # Multiple-selection collections answer `Mod+A` -- the platform Mod, Ctrl on
 # Windows and Linux, Cmd on macOS -- by selecting every enabled item. v3's own
 # pages do not enumerate this inherited shortcut, so it is derived from the
@@ -501,6 +531,41 @@ EVIDENCE = {
         r'(?!.*plain_page_move)(?!.*bounds_for_item)(?!.*max_offset)'
         r'(?=.*"pagedown" if from\.is_some\(\) => stops\.last\(\))'
         r'(?=.*"pageup" if from\.is_some\(\) => stops\.first\(\))',
+    ),
+    # The same load-bearing shape as Select's evidence, per popup owner: the
+    # negative lookaheads fail the file if viewport-step paging machinery ever
+    # returns, and the required lookaheads demand the cursor gate (plus, for
+    # the ComboBox's single root handler, the open gate) so an unconditional
+    # end mapping -- which would move a mouse-opened, cursor-less list, or
+    # move and even reopen a closed ComboBox with a retained cursor --
+    # cannot satisfy the claim.
+    ('ComboBox', 'popup-paging'): (
+        'combo_box.rs',
+        r'(?s)\A(?!.*fixed_page_step)(?!.*variable_page_move)'
+        r'(?!.*plain_page_move)(?!.*bounds_for_item)(?!.*max_offset)'
+        r'(?=.*"pagedown" if is_open && from\.is_some\(\) => stops\.last\(\))'
+        r'(?=.*"pageup" if is_open && from\.is_some\(\) => stops\.first\(\))',
+    ),
+    # The load-bearing shape in the opposite direction from Select/ComboBox/
+    # Dropdown's: Autocomplete's list element is itself the scroller, so the
+    # required lookaheads demand the cursor gate (`page_move = from.and_then`)
+    # and the real geometry -- the fixed whole-row step for a `rowHeight`
+    # list and the laid-out `bounds_for_item` rect walk for the default rows
+    # -- while the negative lookaheads fail the file if the cursor-gated
+    # enabled-end mapping ever returns.
+    ('Autocomplete', 'autocomplete-paging'): (
+        'autocomplete.rs',
+        r'(?s)\A(?!.*"pagedown" if from\.is_some\(\) => stops\.last\(\))'
+        r'(?!.*"pageup" if from\.is_some\(\) => stops\.first\(\))'
+        r'(?=.*page_move = from\.and_then)(?=.*fixed_page_step)'
+        r'(?=.*bounds_for_item)',
+    ),
+    ('Dropdown', 'popup-paging'): (
+        'dropdown.rs',
+        r'(?s)\A(?!.*fixed_page_step)(?!.*variable_page_move)'
+        r'(?!.*plain_page_move)(?!.*bounds_for_item)(?!.*max_offset)'
+        r'(?=.*"pagedown" if from\.is_some\(\) => stops_for_keys\.last\(\))'
+        r'(?=.*"pageup" if from\.is_some\(\) => stops_for_keys\.first\(\))',
     ),
     ('Tooltip', 'focus-open'): ('tooltip.rs', r'contains_focused'),
     ('Tooltip', 'global-sequence'): (
@@ -1011,7 +1076,8 @@ def main():
         ARROW_NAV + REMOVE_KEY + TOOLBAR_FOCUS + OVERLAY_DISMISS + CLOSE_ON_BLUR + COMBOBOX_BLUR_COMMIT
         + SPIN_KEYS + AREA_KEYS
         + FOCUS_OPEN + TOOLTIP_SEQUENCE + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS
-        + TABLE_TYPEAHEAD + TABLE_PAGING + LISTBOX_PAGING + SELECT_PAGING + SELECT_ALL_KEYS
+        + TABLE_TYPEAHEAD + TABLE_PAGING + LISTBOX_PAGING + SELECT_PAGING + POPUP_PAGING
+        + AUTOCOMPLETE_PAGING + SELECT_ALL_KEYS
         + ESCAPE_CLEAR_KEYS + RANGE_SELECT + POINTER_FOCUS
         + COMBOBOX_MULTIPLE_KEYS
         + RESIZE_BOUNDS + RESIZE_KEYS
@@ -1031,6 +1097,8 @@ def main():
                       'table-typeahead', 'table-page-down', 'table-page-up-header',
                       'listbox-paging',
                       'select-paging',
+                      'popup-paging',
+                      'autocomplete-paging',
                       'select-all', 'escape-clear', 'shift-range', 'pointer-focus', 'resize-bounds',
                       'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
                       'calendar-section-bounds', 'panel-focus', 'load-more',

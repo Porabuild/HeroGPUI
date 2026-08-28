@@ -1161,7 +1161,28 @@ impl RenderOnce for ComboBox {
                 } else {
                     key
                 };
-                match crate::list_nav::resolve(&stops, from, nav_key, wrap) {
+                // Pinned React Aria 3.51.0 binds PageUp/PageDown through the
+                // listbox's `useSelectableCollection`, which a closed field
+                // never runs: the suggestion list is not mounted, so the page
+                // keys must not open it and must not move a retained cursor.
+                // Open, those handlers require `manager.focusedKey != null` --
+                // a mouse-opened, selection-less ComboBox has a null cursor
+                // and must answer nothing until an arrow establishes one.
+                // With a cursor the list is non-scrollable -- HeroUI v3.2.4
+                // puts the overflow scrolling on the Popover while the ListBox
+                // element is `overflow-clip` -- so a page takes the enabled
+                // end: `stops` already omits disabled rows, whatever the
+                // list's length or scroll state.
+                let page_move = match nav_key {
+                    "pagedown" if is_open && from.is_some() => stops.last().copied(),
+                    "pageup" if is_open && from.is_some() => stops.first().copied(),
+                    _ => None,
+                }
+                .filter(|next| Some(*next) != from);
+                match page_move.map_or_else(
+                    || crate::list_nav::resolve(&stops, from, nav_key, wrap),
+                    crate::list_nav::Move::To,
+                ) {
                     crate::list_nav::Move::To(next) => {
                         let next_cursor = Some(cursor_for(&rows, next, None));
                         held.update(cx, |v, cx| {

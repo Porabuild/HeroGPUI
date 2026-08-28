@@ -918,3 +918,244 @@ fn blank_quadrant_between_panels_is_outside_the_dropdown(cx: &mut TestAppContext
 
     assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
 }
+
+/// PageUp/PageDown belong to the *open* menu: pinned `useSelectableCollection`
+/// binds them only while the collection is mounted, which a closed Dropdown
+/// never is. The proof is not vacuous: the trigger is focused, so a
+/// following Enter still opens and the menu's keyboard cursor still answers.
+#[gpui::test]
+fn dropdown_page_keys_ignore_a_closed_trigger(cx: &mut TestAppContext) {
+    let actions = events();
+    let fired = actions.clone();
+    let opens = events();
+    let opened = opens.clone();
+
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        let opens = opens.clone();
+        Dropdown::uncontrolled(
+            "dd-page-closed",
+            Button::new("dd-page-closed-trigger").label("Actions"),
+            vec![MenuItem::new("one", "One"), MenuItem::new("two", "Two")],
+        )
+        .id("dd-page-closed")
+        .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string()))
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "pagedown");
+    press(cx, "pageup");
+    assert!(
+        opened.borrow().is_empty(),
+        "a page key on the closed trigger must not open the menu"
+    );
+    assert!(
+        fired.borrow().is_empty(),
+        "a page key on the closed trigger must not fire any action"
+    );
+
+    // The presses were delivered: the same focused trigger still opens on
+    // Enter, and the menu then picks as before the page keys arrived.
+    press(cx, "enter");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "the page keys must have reached a live trigger, not a dead one"
+    );
+    press(cx, "enter");
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["one"],
+        "the page keys must have left the menu answering as before"
+    );
+}
+
+/// The menu's page handlers require `manager.focusedKey != null`: a
+/// mouse-opened menu has a null cursor until an arrow seats one, so both
+/// page keys must be inert. Down from a null cursor enters the first row;
+/// had either page key created a cursor, Down would hold on the last row or
+/// step off the first, and the pick would betray the unconditional cursor
+/// creation.
+#[gpui::test]
+fn dropdown_page_keys_stay_inert_until_a_cursor_is_seated(cx: &mut TestAppContext) {
+    let actions = events();
+    let fired = actions.clone();
+    let opens = events();
+    let opened = opens.clone();
+
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        let opens = opens.clone();
+        Dropdown::uncontrolled(
+            "dd-page-cursorless",
+            Button::new("dd-page-cursorless-trigger").label("Actions"),
+            vec![MenuItem::new("one", "One"), MenuItem::new("two", "Two")],
+        )
+        .id("dd-page-cursorless")
+        .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string()))
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    click(cx, 40., 18.);
+    press(cx, "pagedown");
+    press(cx, "pageup");
+    assert!(
+        fired.borrow().is_empty(),
+        "page keys on a mouse-opened, cursor-less menu must fire nothing"
+    );
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "page keys on a mouse-opened, cursor-less menu must not dismiss it"
+    );
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["one"],
+        "page keys on a cursor-less menu must be inert: Down must still \
+         seat the cursor on the first row"
+    );
+}
+
+/// Pinned HeroUI v3.2.4 puts the overflow scrolling on the Popover while the
+/// Menu element is `overflow-clip`, so pinned React Aria 3.51.0 treats the
+/// menu as non-scrollable: with a cursor, page keys take the enabled ends
+/// whatever the menu's length. A keyboard open seats the cursor on the first
+/// enabled row, so PageDown must reach the last enabled row -- never the
+/// disabled tail -- and PageUp must walk back to the first enabled row --
+/// never the disabled head. Paging only moves the highlight until Enter
+/// activates it.
+#[gpui::test]
+fn dropdown_page_keys_reach_enabled_ends_after_a_cursor_exists(cx: &mut TestAppContext) {
+    let actions = events();
+    let fired = actions.clone();
+
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        let items = (0..20)
+            .map(|i| MenuItem::new(format!("option-{i:02}"), format!("Option {i:02}")))
+            .collect::<Vec<_>>();
+        Dropdown::uncontrolled(
+            "dd-page-ends",
+            Button::new("dd-page-ends-trigger").label("Actions"),
+            items,
+        )
+        .id("dd-page-ends")
+        .disabled_keys(["option-00", "option-19"])
+        .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string()))
+        .into_any_element()
+    });
+
+    // The keyboard open focuses the first *enabled* row (Option 01). PageDown
+    // must take the last enabled row (Option 18), skipping the disabled
+    // Option 19, and PageUp must walk straight back to Option 01 -- and
+    // neither page key may activate by itself.
+    press(cx, "tab");
+    press(cx, "enter");
+    press(cx, "pagedown");
+    assert!(
+        fired.borrow().is_empty(),
+        "PageDown must only move the highlight, never activate by itself"
+    );
+    press(cx, "pageup");
+    assert!(
+        fired.borrow().is_empty(),
+        "PageUp must only move the highlight, never activate by itself"
+    );
+    press(cx, "enter");
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["option-01"],
+        "PageDown then PageUp must leave the highlight on the first enabled row"
+    );
+
+    // A pointer open seats no cursor: Down from a null cursor enters the
+    // first enabled row and a second Down steps to Option 02, and PageDown
+    // must take the last enabled row (Option 18) -- the pick betrays any
+    // shorter step.
+    let_exit_finish(cx);
+    click(cx, 40., 18.);
+    press(cx, "down down");
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["option-01", "option-18"],
+        "PageDown with a cursor must reach the last enabled row"
+    );
+}
+
+/// With the submenu open, the page keys answer the child's own collection --
+/// its cursor pages to the child's enabled end -- and the parent menu's
+/// state stays untouched: the submenu stays open, the parent highlight does
+/// not move, and nothing activates until Enter.
+#[gpui::test]
+fn dropdown_page_keys_page_the_open_submenu_without_disturbing_the_parent(cx: &mut TestAppContext) {
+    let actions = events();
+    let fired = actions.clone();
+    let submenu = events();
+    let opened = submenu.clone();
+    let probe = submenu;
+
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        gpui::div()
+            .child(
+                Dropdown::uncontrolled(
+                    "dd-page-sub",
+                    Button::new("dd-page-sub-trigger").label("Share"),
+                    vec![MenuItem::new("share", "Other").submenu(vec![
+                        MenuItem::new("blocked", "Blocked"),
+                        MenuItem::new("sms", "SMS"),
+                        MenuItem::new("email", "Email"),
+                    ])],
+                )
+                .id("dd-page-sub")
+                .disabled_keys(["blocked"])
+                .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string())),
+            )
+            .child(submenu_open_probe("dd-page-sub", probe.clone()))
+            .into_any_element()
+    });
+
+    click(cx, 40., 18.);
+    press(cx, "down");
+    press(cx, "right");
+    cx.update(|window, _| window.refresh());
+    assert_eq!(last(&opened), "open:true", "the submenu must be open");
+    assert!(
+        fired.borrow().is_empty(),
+        "the probe must begin from a submenu with no activation"
+    );
+
+    // The child's focus-first cursor sits on SMS; PageDown must page it to
+    // the child's last enabled row (Email, skipping the disabled Blocked)
+    // while the submenu stays open and nothing activates.
+    press(cx, "pagedown");
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        last(&opened),
+        "open:true",
+        "paging the child must not disturb the open submenu"
+    );
+    assert!(
+        fired.borrow().is_empty(),
+        "paging the child must not activate anything"
+    );
+
+    // Enter activates the paged child row and dismisses the root Dropdown.
+    press(cx, "enter");
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["email"],
+        "PageDown in the submenu must reach the child's last enabled row"
+    );
+}

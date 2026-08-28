@@ -966,8 +966,10 @@ impl RenderOnce for Autocomplete {
             let key_plain_edit = plain_edit_key.clone();
             let wrap = self.should_focus_wrap;
             let virtual_rows = self.row_height.is_some();
+            let page_row_height = self.row_height;
             let key_list_scroll = list_scroll_now.clone();
             let key_panel_scroll = panel_scroll_now.clone();
+            let key_page_stops = stops.clone();
             let rows = matches.clone();
             let key_open_own = open_own.clone();
             let key_open_change = self.on_open_change.clone();
@@ -1039,7 +1041,89 @@ impl RenderOnce for Autocomplete {
                     return;
                 }
                 let from = *held.read(cx);
-                match crate::list_nav::resolve(&stops, from, key, wrap) {
+                // Pinned React Aria 3.51.0 binds PageUp/PageDown through the
+                // listbox's `useSelectableCollection`, which the closed branch
+                // above never reaches. Those handlers require
+                // `manager.focusedKey != null` -- a mouse-opened, selection-less
+                // Autocomplete has a null cursor and must answer nothing until
+                // an arrow establishes one.
+                //
+                // With a cursor this popup pages by viewport, unlike the
+                // Select/ComboBox/Dropdown popups: `autocomplete.css` styles
+                // the composed `[data-slot="list-box"]` itself
+                // `max-h-[320px] min-h-0 overflow-y-auto`, so the list element
+                // is its own scroller and pinned `ListKeyboardDelegate` walks
+                // enabled rows from the cursor until one crosses a
+                // one-viewport boundary, taking the enabled end only when the
+                // walk runs out. The default rows are laid out, so the
+                // boundary reads real `ScrollHandle` rects (the plain ListBox
+                // shape); a `row_height` list is uniform and pages by
+                // whole-row steps across its fixed 320px viewport (the fixed
+                // ListBox shape).
+                let fixed_page_step = page_row_height.map(|row_height| {
+                    ((f32::from(px(320.)) / f32::from(row_height)).ceil() as usize)
+                        .saturating_sub(1)
+                });
+                let page_target = |from: usize| -> Option<usize> {
+                    if let Some(step) = fixed_page_step {
+                        let boundary = match key {
+                            "pagedown" => (from + step).min(rows.len().saturating_sub(1)),
+                            "pageup" => from.saturating_sub(step),
+                            _ => return None,
+                        };
+                        return match key {
+                            "pagedown" => key_page_stops
+                                .iter()
+                                .copied()
+                                .find(|stop| *stop >= boundary)
+                                .or_else(|| key_page_stops.last().copied()),
+                            "pageup" => key_page_stops
+                                .iter()
+                                .rev()
+                                .copied()
+                                .find(|stop| *stop <= boundary)
+                                .or_else(|| key_page_stops.first().copied()),
+                            _ => None,
+                        };
+                    }
+                    let current = key_panel_scroll.bounds_for_item(from)?;
+                    let viewport_height = key_panel_scroll.bounds().size.height;
+                    let target = match key {
+                        "pagedown" => current.top() - current.size.height + viewport_height,
+                        "pageup" => current.top() + current.size.height - viewport_height,
+                        _ => return None,
+                    };
+                    match key {
+                        "pagedown" => key_page_stops
+                            .iter()
+                            .copied()
+                            .filter(|stop| *stop >= from)
+                            .find(|stop| {
+                                key_panel_scroll
+                                    .bounds_for_item(*stop)
+                                    .is_some_and(|bounds| bounds.top() >= target)
+                            })
+                            .or_else(|| key_page_stops.last().copied()),
+                        "pageup" => key_page_stops
+                            .iter()
+                            .rev()
+                            .copied()
+                            .filter(|stop| *stop <= from)
+                            .find(|stop| {
+                                key_panel_scroll
+                                    .bounds_for_item(*stop)
+                                    .is_some_and(|bounds| bounds.top() <= target)
+                            })
+                            .or_else(|| key_page_stops.first().copied()),
+                        _ => None,
+                    }
+                };
+                let page_move = from.and_then(page_target);
+                let page_move = page_move.filter(|next| Some(*next) != from);
+                match page_move.map_or_else(
+                    || crate::list_nav::resolve(&stops, from, key, wrap),
+                    crate::list_nav::Move::To,
+                ) {
                     crate::list_nav::Move::To(next) => {
                         held.update(cx, |v, cx| {
                             *v = Some(next);

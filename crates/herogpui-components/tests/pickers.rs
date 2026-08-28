@@ -243,6 +243,266 @@ fn autocomplete_arrows_and_enter_select(cx: &mut TestAppContext) {
     assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
 }
 
+/// PageUp/PageDown belong to the *open* list: pinned `useSelectableCollection`
+/// binds them only while the collection is mounted, which a closed
+/// Autocomplete never is. The proof is not vacuous: Escape closes onto the
+/// field and leaves the cursor seated on the second row, so the page keys
+/// land on the handler *with* a cursor -- exactly the state a page key would
+/// move -- and a following Down still opens.
+#[gpui::test]
+fn autocomplete_page_keys_ignore_a_closed_field(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let opens = opens.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(
+            state,
+            vec![
+                "Alpha".into(),
+                "Beta".into(),
+                "Gamma".into(),
+                "Delta".into(),
+                "Epsilon".into(),
+            ],
+        )
+        .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        })
+        .into_any_element()
+    });
+
+    // Two Downs seat the cursor on the second row (Beta); Escape closes onto
+    // the field and keeps the cursor.
+    click(cx, 60., 18.);
+    press(cx, "down down");
+    press(cx, "escape");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "the probe must begin from a list the Escape closed onto its field"
+    );
+
+    press(cx, "pagedown");
+    press(cx, "pageup");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "a page key on the closed field must not open the list"
+    );
+    assert!(
+        recorded.borrow().is_empty(),
+        "a page key on the closed field must not commit anything"
+    );
+
+    // Down reopens without moving the retained cursor; a second Down steps it
+    // to the third row, and Enter commits it. Had the page keys moved the
+    // cursor at all, this commit would betray them.
+    press(cx, "down down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Gamma"],
+        "the page keys must have left the closed field answering as before"
+    );
+}
+
+/// Autocomplete is the one popup whose list really scrolls: pinned
+/// `autocomplete.css` styles the composed `[data-slot="list-box"]` itself
+/// `max-h-[320px] min-h-0 overflow-y-auto`, so pinned React Aria 3.51.0's
+/// `ListKeyboardDelegate` pages by one visible rectangle of that 320px
+/// viewport -- from the cursor row's rect, the first enabled row whose top
+/// crosses `cursor top - row + 320` -- and takes the enabled end only when
+/// the walk runs out. Those handlers still require `manager.focusedKey !=
+/// null`, so a mouse-opened, selection-less Autocomplete is inert until a
+/// Down seats the cursor. Rows are 36px (`util::FIELD_HEIGHT`) under a 6px
+/// list padding, so one page from row *i* first crosses row *i + 8*
+/// (320 - 36 = 284 = seven rows and 32px). Paging only moves the highlight
+/// until Enter commits it.
+#[gpui::test]
+fn autocomplete_page_keys_move_one_visible_page_after_a_cursor_exists(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let options: Vec<gpui::SharedString> =
+        (0..20).map(|i| format!("Option {i:02}").into()).collect();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let state = state_for_view.clone();
+        // Option 09 sits exactly on the first page-down boundary from
+        // Option 01, and the tail rows sit past every later boundary, so the
+        // disabled set probes both the walk's skip and its end fallback.
+        Autocomplete::new(state, options.clone())
+            .disabled_keys(["Option 00".into(), "Option 09".into(), "Option 19".into()])
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .into_any_element()
+    });
+
+    // Mouse-open with no selection: the cursor is null, so both page keys
+    // must be inert. Down from a null cursor enters the first enabled row
+    // (Option 01); had either page key created a cursor, Down would hold on
+    // a later row or step to Option 02, and the commit would betray the
+    // unconditional cursor creation.
+    click(cx, 60., 18.);
+    press(cx, "pagedown");
+    press(cx, "pageup");
+    assert!(
+        recorded.borrow().is_empty(),
+        "page keys on a mouse-opened, cursor-less list must commit nothing"
+    );
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Option 01"],
+        "page keys on a cursor-less list must be inert: Down must still \
+         enter the first enabled row"
+    );
+
+    // Reopen; the cursor stands where the commit left it (Option 01). One
+    // page down first crosses row 9 -- disabled, so the walk lands on the
+    // next enabled row, Option 10. An enabled-end mapping would have taken
+    // Option 18, and a boundary step blind to disabled rows would have
+    // stopped on Option 09.
+    click(cx, 60., 18.);
+    press(cx, "pagedown");
+    assert!(
+        recorded.borrow().as_slice() == ["Option 01"],
+        "PageDown must only move the highlight, never commit by itself"
+    );
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Option 01", "Option 10"],
+        "PageDown must move one visible page, skipping the disabled row \
+         the page boundary lands on"
+    );
+
+    // Another page down from Option 10 crosses row 18 exactly (8 rows =
+    // 288px), which is also the last enabled row -- never the disabled
+    // Option 19 past it.
+    click(cx, 60., 18.);
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Option 01", "Option 10", "Option 18"],
+        "PageDown from the lower half must land on the last enabled row"
+    );
+
+    // PageUp walks the same geometry in reverse: from Option 18 one page up
+    // crosses row 10, and from Option 10 it crosses row 2.
+    click(cx, 60., 18.);
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Option 01", "Option 10", "Option 18", "Option 10"],
+        "PageUp must reverse one visible page"
+    );
+    click(cx, 60., 18.);
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [
+            "Option 01",
+            "Option 10",
+            "Option 18",
+            "Option 10",
+            "Option 02"
+        ],
+        "PageUp must keep moving one visible page"
+    );
+
+    // One page up from Option 02 runs off the top of the list, and the walk
+    // falls back to the first enabled row -- never the disabled Option 00.
+    click(cx, 60., 18.);
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [
+            "Option 01",
+            "Option 10",
+            "Option 18",
+            "Option 10",
+            "Option 02",
+            "Option 01"
+        ],
+        "PageUp off the top must fall back to the first enabled row"
+    );
+}
+
+/// A `row_height` list is uniform, so it pages by the fixed ListBox shape:
+/// whole-row steps across its fixed 320px viewport -- `ceil(320 / 36) - 1`
+/// = 8 rows per page -- with the same enabled-end fallback when the step
+/// runs past an end.
+#[gpui::test]
+fn autocomplete_row_height_pages_by_fixed_row_steps(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let options: Vec<gpui::SharedString> =
+        (0..20).map(|i| format!("Option {i:02}").into()).collect();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, options.clone())
+            .row_height(px(36.))
+            .disabled_keys(["Option 00".into(), "Option 19".into()])
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .into_any_element()
+    });
+
+    // Down seats the cursor on Option 01; one page down runs to the row
+    // eight places past it, Option 09.
+    click(cx, 60., 18.);
+    press(cx, "down");
+    press(cx, "pagedown");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Option 09"],
+        "PageDown in a uniform list must step eight rows"
+    );
+
+    // Reopen; the cursor stands on Option 09 and one page up reverses the
+    // same step back to Option 01.
+    click(cx, 60., 18.);
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Option 09", "Option 01"],
+        "PageUp in a uniform list must reverse the eight-row step"
+    );
+
+    // Reopen; a Down seats the cursor on Option 02, and one page up from
+    // there runs past the top -- the fallback takes the first enabled row,
+    // never the disabled Option 00.
+    click(cx, 60., 18.);
+    press(cx, "down");
+    press(cx, "pageup");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["Option 09", "Option 01", "Option 01"],
+        "PageUp past the top must fall back to the first enabled row"
+    );
+}
+
 #[gpui::test]
 fn autocomplete_forward_typing_focuses_the_first_match_for_enter(cx: &mut TestAppContext) {
     // react-aria 3.51.0's `useAutocomplete.onChange` treats a forward
