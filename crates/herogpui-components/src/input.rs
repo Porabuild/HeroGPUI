@@ -40,6 +40,23 @@ pub struct InputState {
     /// same mirror through the inner `InputState` it forwards its own
     /// `isReadOnly` to.
     is_read_only: bool,
+    /// Server messages routed to this field by its `Form`'s
+    /// `validationErrors` record (`form.rs`). The form writes them on a new
+    /// record, and *this field's own editing* clears them — v3:
+    /// "displayed immediately and cleared when user modifies the field" —
+    /// so a message never outlives the edit that answers it, and a sibling's
+    /// message never disappears with someone else's edit. `Input::render`
+    /// merges them into the resolved validity, ahead of the field's own
+    /// `validationErrors` prop.
+    routed_errors: Vec<SharedString>,
+    /// The delivery receipt for `routed_errors`: the record revision these
+    /// messages last came from, `0` before anything arrived. The form's
+    /// delivery consults it — a record the receipt already names is a clone
+    /// of one already delivered and re-arms nothing — so it moves with the
+    /// messages in one write and survives edit suppression: clearing the
+    /// messages must never rewind the receipt, or the next frame's clone
+    /// would resurrect what the edit answered.
+    routed_revision: u64,
 }
 
 impl InputState {
@@ -55,6 +72,8 @@ impl InputState {
             validity: crate::validation::Validity::default(),
             is_successful: true,
             is_read_only: false,
+            routed_errors: Vec::new(),
+            routed_revision: 0,
         }
     }
 
@@ -121,6 +140,37 @@ impl InputState {
 
     pub(crate) fn set_read_only(&mut self, is_read_only: bool) {
         self.is_read_only = is_read_only;
+    }
+
+    /// The server messages the form routed to this field, as last written by
+    /// the form's `validationErrors` delivery — what this field's error slot
+    /// renders, and what a native submit consults beside the stored
+    /// validity. Empty once the user edited the field or a reset hid them.
+    pub fn routed_errors(&self) -> &[SharedString] {
+        &self.routed_errors
+    }
+
+    /// The delivery receipt beside [`Self::routed_errors`] — the record
+    /// revision these messages last came from, `0` before any delivery.
+    pub(crate) fn routed_revision(&self) -> u64 {
+        self.routed_revision
+    }
+
+    /// Replaces the routed server messages *and* the receipt that names the
+    /// record they came from, in one update. Guarded by the caller, which
+    /// compares the receipt before writing so a render cannot notify-loop.
+    pub(crate) fn set_routed(&mut self, messages: Vec<SharedString>, revision: u64) {
+        self.routed_errors = messages;
+        self.routed_revision = revision;
+    }
+
+    /// Suppresses the routed server messages: the user modified *this* field,
+    /// so only its messages clear and its siblings keep theirs. The delivery
+    /// receipt is deliberately untouched — the record that delivered already
+    /// named this field, so a clone re-rendered on the next frame must not
+    /// resurrect what the edit answered.
+    pub(crate) fn clear_routed_errors(&mut self) {
+        self.routed_errors.clear();
     }
 
     pub fn set_value(&mut self, value: impl Into<String>) {
@@ -200,6 +250,38 @@ fn validate_value(
     }
 
     InputValidity::Valid
+}
+
+/// Refreshes the stored validity mirror after an accepted edit. `render`
+/// writes that mirror, so without this it is one frame old — and an
+/// `on_change` may submit the enclosing `Form` synchronously (the auto-submit
+/// v3's own docs invite) before any frame catches up, reading the routed
+/// server error the edit just answered as still blocking. The routed slot is
+/// left out — the edit suppressed it — so the mirror is resolved from the
+/// builder's own sources exactly as the next render would resolve it with an
+/// empty routed slot, HTML5 attribute check included.
+fn refresh_stored_validity(
+    state: &Entity<InputState>,
+    is_invalid: bool,
+    validation_errors: &[SharedString],
+    validate: Option<&crate::validation::Validator<str>>,
+    error_message: Option<SharedString>,
+    native_valid: &dyn Fn(&str) -> bool,
+    cx: &mut App,
+) {
+    let value = state.read(cx).value().to_owned();
+    let mut validity = crate::validation::resolve(
+        is_invalid,
+        validation_errors,
+        validate.and_then(|f| f(&value)),
+        error_message,
+    );
+    if !native_valid(&value) {
+        validity.is_invalid = true;
+    }
+    if state.read(cx).validity() != &validity {
+        state.update(cx, |s, _| s.set_validity(validity));
+    }
 }
 
 /// Whether `ch` may be inserted, honouring `type` and `maxLength`.
@@ -1111,11 +1193,16 @@ impl RenderOnce for Input {
         }
         // v3 order: the controlled flag, then server errors, then `validate`,
         // with `errorMessage` as the fallback. Resolved here, ahead of the
-        // theme borrow, because the write below needs `&mut cx`.
+        // theme borrow, because the write below needs `&mut cx`. The server
+        // slot is two sources: the messages the `Form`'s `validationErrors`
+        // record routed into this state by name, then the field's own
+        // `validationErrors` prop.
         let value_now = self.state.read(cx).value().to_owned();
+        let mut server_errors = self.state.read(cx).routed_errors().to_vec();
+        server_errors.extend(self.validation_errors.iter().cloned());
         let mut validity = crate::validation::resolve(
             self.is_invalid,
-            &self.validation_errors,
+            &server_errors,
             self.validate.as_ref().and_then(|f| f(&value_now)),
             self.error_message.clone(),
         );
@@ -1443,6 +1530,35 @@ impl RenderOnce for Input {
             );
         }
 
+        // The builder inputs an accepted edit re-resolves the stored validity
+        // from (see `refresh_stored_validity`): this field's own sources,
+        // never the routed slot the edit suppresses, plus the HTML5 attribute
+        // check render merges into the flag.
+        let edit_is_invalid = self.is_invalid;
+        let edit_validation_errors = self.validation_errors.clone();
+        let edit_validate = self.validate.clone();
+        let edit_error_message = self.error_message.clone();
+        let native_validity = {
+            let input_type = self.input_type;
+            let min_length = self.min_length;
+            let min = self.min;
+            let max = self.max;
+            let step = self.step;
+            let pattern = self.pattern.clone();
+            move |value: &str| {
+                validate_value(
+                    value,
+                    input_type,
+                    min_length,
+                    min,
+                    max,
+                    step,
+                    pattern.as_deref(),
+                )
+                .is_valid()
+            }
+        };
+
         field = field.children(self.start_content);
         field = field.child(row);
         // isClearable — show X when has value and not disabled/readonly
@@ -1458,6 +1574,10 @@ impl RenderOnce for Input {
             let clear_state = self.state.clone();
             let clear_on_change = self.on_change.clone();
             let on_clear = self.on_clear.clone();
+            let clear_validation_errors = edit_validation_errors.clone();
+            let clear_validate = edit_validate.clone();
+            let clear_error_message = edit_error_message.clone();
+            let clear_native = native_validity.clone();
             field = field.child(
                 gpui::div()
                     .id(gpui::ElementId::Name(
@@ -1482,8 +1602,24 @@ impl RenderOnce for Input {
                             s.value.clear();
                             s.cursor = 0;
                             s.anchor = None;
+                            // The clear affordance is a user modification:
+                            // it suppresses the routed server errors too.
+                            s.clear_routed_errors();
                             cx.notify();
                         });
+                        // The emptied value is the mirror's too, before any
+                        // callback can observe the field: a synchronous
+                        // submit inside `on_change` must not be blocked by
+                        // the routed error this click just answered.
+                        refresh_stored_validity(
+                            &clear_state,
+                            edit_is_invalid,
+                            &clear_validation_errors,
+                            clear_validate.as_ref(),
+                            clear_error_message.clone(),
+                            &clear_native,
+                            cx,
+                        );
                         if let Some(cb) = &clear_on_change {
                             cb("", window, cx);
                         }
@@ -1504,6 +1640,10 @@ impl RenderOnce for Input {
         let clear_on_escape = self.clear_on_escape;
         let is_read_only = self.is_read_only;
         let is_disabled = self.is_disabled;
+        let key_validation_errors = edit_validation_errors;
+        let key_validate = edit_validate.clone();
+        let key_error_message = edit_error_message;
+        let key_native = native_validity;
         field = field.on_key_down(move |ev: &KeyDownEvent, window, cx| {
             if is_disabled {
                 return;
@@ -1704,6 +1844,23 @@ impl RenderOnce for Input {
             }
 
             if changed {
+                // v3: server errors are "cleared when user modifies the
+                // field" — this edit suppresses only this field's routed
+                // messages, and only because the value really changed.
+                state_entity.update(cx, |s, _| s.clear_routed_errors());
+                // The stored mirror is refreshed in the same stroke: an
+                // `on_change` may submit the enclosing `Form` synchronously,
+                // and it must not be blocked by the routed error the edit
+                // just answered.
+                refresh_stored_validity(
+                    &state_entity,
+                    edit_is_invalid,
+                    &key_validation_errors,
+                    key_validate.as_ref(),
+                    key_error_message.clone(),
+                    &key_native,
+                    cx,
+                );
                 if let Some(cb) = &on_change {
                     {
                         let v = state_entity.read(cx).value().to_owned();
@@ -1768,12 +1925,14 @@ impl RenderOnce for Input {
             el = el.child(label_row);
         }
         el = el.child(field);
-        if let Some(err) = validity.first() {
+        if !validity.messages.is_empty() {
+            // Every message, space-joined in upstream order — React Aria's
+            // `FieldError` default — not just the first.
             el = el.child(
                 gpui::div()
                     .text_size(px(12.))
                     .text_color(colors.danger.color)
-                    .child(err.to_string()),
+                    .child(validity.joined()),
             );
         } else if let Some(desc) = self.description {
             el = el.child(

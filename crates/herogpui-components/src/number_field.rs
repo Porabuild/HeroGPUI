@@ -551,10 +551,15 @@ impl RenderOnce for NumberField {
         }
 
         // v3 order: the controlled flag, then server errors, then `validate`.
+        // The server slot carries the messages the `Form`'s
+        // `validationErrors` record routed into the inner state by name,
+        // ahead of this field's own `validationErrors` prop.
         let value_now = self.state.read(cx).value();
+        let mut server_errors = input_state.read(cx).routed_errors().to_vec();
+        server_errors.extend(self.validation_errors.iter().cloned());
         let validity = crate::validation::resolve(
             self.is_invalid,
-            &self.validation_errors,
+            &server_errors,
             self.validate.as_ref().and_then(|f| f(&value_now)),
             None,
         );
@@ -703,6 +708,9 @@ impl RenderOnce for NumberField {
                     .child(stepper_btn(
                         &self.state,
                         &self.on_change,
+                        self.is_invalid,
+                        self.validation_errors.clone(),
+                        self.validate.clone(),
                         &colors,
                         px(18.),
                         px(24.),
@@ -715,6 +723,9 @@ impl RenderOnce for NumberField {
                     .child(stepper_btn(
                         &self.state,
                         &self.on_change,
+                        self.is_invalid,
+                        self.validation_errors.clone(),
+                        self.validate.clone(),
                         &colors,
                         px(18.),
                         px(24.),
@@ -731,6 +742,9 @@ impl RenderOnce for NumberField {
                     stepper_btn(
                         &self.state,
                         &self.on_change,
+                        self.is_invalid,
+                        self.validation_errors.clone(),
+                        self.validate.clone(),
                         &colors,
                         h,
                         btn_px,
@@ -748,6 +762,9 @@ impl RenderOnce for NumberField {
                     stepper_btn(
                         &self.state,
                         &self.on_change,
+                        self.is_invalid,
+                        self.validation_errors.clone(),
+                        self.validate.clone(),
                         &colors,
                         h,
                         btn_px,
@@ -768,6 +785,9 @@ impl RenderOnce for NumberField {
         if !self.is_disabled && !self.is_read_only {
             let key_state = self.state.clone();
             let key_change = self.on_change.clone();
+            let key_is_invalid = self.is_invalid;
+            let key_validation_errors = self.validation_errors.clone();
+            let key_validate = self.validate.clone();
             let (min_value, max_value) = self.state.read(cx).bounds();
             group = group.on_key_down(move |ev: &gpui::KeyDownEvent, window, cx| {
                 let dir = match ev.keystroke.key.as_str() {
@@ -778,6 +798,13 @@ impl RenderOnce for NumberField {
                             return;
                         };
                         if set_number_value(&key_state, min, cx) {
+                            suppress_routed_server_errors(
+                                &key_state,
+                                key_is_invalid,
+                                &key_validation_errors,
+                                key_validate.as_ref(),
+                                cx,
+                            );
                             if let Some(cb) = &key_change {
                                 cb(key_state.read(cx).value(), window, cx);
                             }
@@ -789,6 +816,13 @@ impl RenderOnce for NumberField {
                             return;
                         };
                         if set_number_value(&key_state, max, cx) {
+                            suppress_routed_server_errors(
+                                &key_state,
+                                key_is_invalid,
+                                &key_validation_errors,
+                                key_validate.as_ref(),
+                                cx,
+                            );
                             if let Some(cb) = &key_change {
                                 cb(key_state.read(cx).value(), window, cx);
                             }
@@ -797,12 +831,24 @@ impl RenderOnce for NumberField {
                     }
                     _ => return,
                 };
-                report_bump(&key_state, dir, &key_change, window, cx);
+                report_bump(
+                    &key_state,
+                    dir,
+                    &key_change,
+                    key_is_invalid,
+                    &key_validation_errors,
+                    key_validate.as_ref(),
+                    window,
+                    cx,
+                );
             });
         }
         if !self.is_disabled && !self.is_read_only && !self.is_wheel_disabled {
             let wheel_state = self.state.clone();
             let wheel_change = self.on_change.clone();
+            let wheel_is_invalid = self.is_invalid;
+            let wheel_validation_errors = self.validation_errors.clone();
+            let wheel_validate = self.validate.clone();
             let wheel_focus = self.state.read(cx).input.read(cx).focus_handle.clone();
             group = group.on_scroll_wheel(move |event, window, cx| {
                 if !wheel_focus.contains_focused(window, cx) {
@@ -821,6 +867,9 @@ impl RenderOnce for NumberField {
                         &wheel_state,
                         f64::from(direction),
                         &wheel_change,
+                        wheel_is_invalid,
+                        &wheel_validation_errors,
+                        wheel_validate.as_ref(),
                         window,
                         cx,
                     );
@@ -847,8 +896,10 @@ impl RenderOnce for NumberField {
             );
         }
         el = el.child(group);
-        if let Some(message) = validity.first() {
-            el = el.child(crate::field::ErrorMessage::new(message));
+        if !validity.messages.is_empty() {
+            // Every message, space-joined in upstream order — React Aria's
+            // `FieldError` default — not just the first.
+            el = el.child(crate::field::ErrorMessage::new(validity.joined()));
         } else if let Some(description) = self.description.clone() {
             el = el.child(crate::field::Description::new(description));
         }
@@ -862,6 +913,9 @@ impl RenderOnce for NumberField {
 fn stepper_btn(
     state: &Entity<NumberState>,
     on_change: &Option<OnChange>,
+    is_invalid: bool,
+    validation_errors: Vec<SharedString>,
+    validate: Option<crate::validation::Validator<f64>>,
     colors: &herogpui_theme::ThemeColors,
     h: gpui::Pixels,
     btn_px: gpui::Pixels,
@@ -873,6 +927,8 @@ fn stepper_btn(
 ) -> gpui::Stateful<gpui::Div> {
     let st = state.clone();
     let on_change = on_change.clone();
+    let edit_validation_errors = validation_errors;
+    let edit_validate = validate.clone();
     let id = gpui::ElementId::Name(format!("num-{}-{dir}", state.entity_id().as_u64()).into());
     let press = window.use_keyed_state(
         gpui::ElementId::Name(format!("num-{}-{dir}-press", state.entity_id().as_u64()).into()),
@@ -916,11 +972,22 @@ fn stepper_btn(
                     press.generation = press.generation.wrapping_add(1);
                     press.generation
                 });
-                report_bump(&st, dir, &on_change, window, cx);
+                report_bump(
+                    &st,
+                    dir,
+                    &on_change,
+                    is_invalid,
+                    &edit_validation_errors,
+                    edit_validate.as_ref(),
+                    window,
+                    cx,
+                );
 
                 let repeat_press = press.downgrade();
                 let repeat_state = st.clone();
                 let repeat_change = on_change.clone();
+                let repeat_errors = edit_validation_errors.clone();
+                let repeat_validate = edit_validate.clone();
                 window
                     .spawn(cx, async move |cx| {
                         cx.background_executor()
@@ -939,8 +1006,16 @@ fn stepper_btn(
                                     if !active {
                                         return false;
                                     }
-                                    let changed =
-                                        report_bump(&repeat_state, dir, &repeat_change, window, cx);
+                                    let changed = report_bump(
+                                        &repeat_state,
+                                        dir,
+                                        &repeat_change,
+                                        is_invalid,
+                                        &repeat_errors,
+                                        repeat_validate.as_ref(),
+                                        window,
+                                        cx,
+                                    );
                                     if !changed {
                                         if let Some(press) = repeat_press.upgrade() {
                                             press.update(cx, |press, _| press.active = false);
@@ -1000,10 +1075,52 @@ fn set_number_value(state: &Entity<NumberState>, value: f64, cx: &mut App) -> bo
     })
 }
 
+/// A user-driven value change — the steppers, the arrows, Home/End, the wheel
+/// — suppresses the routed server messages the way an edit does (v3: server
+/// errors are "cleared when user modifies the field") and refreshes the inner
+/// state's stored validity in the same stroke. `NumberField::render` writes
+/// that mirror, so without the refresh it is one frame old — and `on_change`
+/// may submit the enclosing `Form` synchronously before any frame catches up,
+/// reading the routed error the change just answered as still blocking. The
+/// routed slot is left out — the change suppressed it — so the inner mirror
+/// is resolved from the builder's own sources exactly as the next render
+/// would resolve it with an empty routed slot. Typing flows through the inner
+/// `Input`'s own edit path, which clears the same slot and refreshes the same
+/// mirror.
+fn suppress_routed_server_errors(
+    state: &Entity<NumberState>,
+    is_invalid: bool,
+    validation_errors: &[SharedString],
+    validate: Option<&crate::validation::Validator<f64>>,
+    cx: &mut App,
+) {
+    let input = state.read(cx).input.clone();
+    if !input.read(cx).routed_errors().is_empty() {
+        input.update(cx, |input, cx| {
+            input.clear_routed_errors();
+            cx.notify();
+        });
+    }
+    let value = state.read(cx).value();
+    let validity = crate::validation::resolve(
+        is_invalid,
+        validation_errors,
+        validate.and_then(|f| f(&value)),
+        None,
+    );
+    if input.read(cx).validity() != &validity {
+        input.update(cx, |input, _| input.set_validity(validity));
+    }
+}
+
+#[allow(clippy::too_many_arguments)] // one user change: state, direction, callback and the three validity sources
 fn report_bump(
     state: &Entity<NumberState>,
     dir: f64,
     on_change: &Option<OnChange>,
+    is_invalid: bool,
+    validation_errors: &[SharedString],
+    validate: Option<&crate::validation::Validator<f64>>,
     window: &mut Window,
     cx: &mut App,
 ) -> bool {
@@ -1015,6 +1132,7 @@ fn report_bump(
         next
     });
     let Some(next) = next else { return false };
+    suppress_routed_server_errors(state, is_invalid, validation_errors, validate, cx);
     if let Some(callback) = on_change {
         callback(next, window, cx);
     }

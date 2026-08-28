@@ -1,5 +1,6 @@
 //! Component gallery pages — one page per HeroUI v3 component.
 
+use std::cell::RefCell;
 use std::collections::HashSet;
 
 use gpui::{prelude::*, px, AnyElement, Context, SharedString};
@@ -9,6 +10,18 @@ use herogpui_theme::ActiveTheme;
 
 use crate::app::Gallery;
 use crate::pages::para;
+
+thread_local! {
+    /// The Form "Server Errors" demo's current `validationErrors` record.
+    ///
+    /// Held outside the page function on purpose: the page rebuilds its
+    /// elements every frame, and the record's *identity* is the contract the
+    /// demo exists to show. A record minted per frame would re-arm both
+    /// fields on every keystroke; this one is cloned per frame — clones keep
+    /// the record's revision — and replaced only by the demo's New response
+    /// button, which is a genuinely new response.
+    static FORM_SERVER_RECORD: RefCell<Option<h::ValidationErrors>> = const { RefCell::new(None) };
+}
 
 macro_rules! component_doc_page {
     (
@@ -6165,91 +6178,194 @@ impl Gallery {
             "Form",
             crate::pages::Page::Form.description(),
             crate::pages::Page::Form.import_line(),
-            vec![(
-                "Usage",
-                col(vec![
-                    para(
-                        "The wired Submit button and Enter in a focused field run the same \
+            vec![
+                (
+                    "Usage",
+                    col(vec![
+                        para(
+                            "The wired Submit button and Enter in a focused field run the same \
                          submission: with the required Name empty, either door reports the \
                          invalid path instead.",
-                        cx,
-                    ),
-                    {
-                        // `name` rides on each field's state, so the form finds
-                        // it without the call site repeating the name.
-                        let form = h::Form::new()
-                            .field(
-                                h::FormField::text(self.input_name.clone())
-                                    .is_required(true)
-                                    .default_text(self.input_name.clone(), ""),
+                            cx,
+                        ),
+                        {
+                            // `name` rides on each field's state, so the form finds
+                            // it without the call site repeating the name.
+                            let form = h::Form::new()
+                                .field(
+                                    h::FormField::text(self.input_name.clone())
+                                        .is_required(true)
+                                        .default_text(self.input_name.clone(), ""),
+                                )
+                                .field(
+                                    h::FormField::text(self.input_email.clone())
+                                        .default_text(self.input_email.clone(), ""),
+                                )
+                                .on_submit(cx.listener(|this, data: &h::FormData, _, cx| {
+                                    this.input_submitted = data
+                                        .iter()
+                                        .map(|(n, v)| format!("{n}={}", v.as_text()))
+                                        .collect::<Vec<_>>()
+                                        .join(", ");
+                                    cx.notify();
+                                }))
+                                .on_invalid(cx.listener(|this, _: &h::FormData, _, cx| {
+                                    this.input_submitted = "Name is required".to_owned();
+                                    cx.notify();
+                                }))
+                                .on_reset({
+                                    let l = cx.listener(
+                                        |this: &mut Self, _: &(), _: &mut gpui::Window, cx| {
+                                            this.input_submitted = String::new();
+                                            cx.notify();
+                                        },
+                                    );
+                                    move |w: &mut gpui::Window, cx: &mut gpui::App| l(&(), w, cx)
+                                });
+                            let submit = form.submit_handler();
+                            let reset = form.reset_handler();
+                            form.child(
+                                h::TextField::new(self.input_name.clone())
+                                    .name("name")
+                                    .label("Name")
+                                    .is_required(true),
                             )
-                            .field(
-                                h::FormField::text(self.input_email.clone())
-                                    .default_text(self.input_email.clone(), ""),
+                            .child(
+                                h::TextField::new(self.input_email.clone())
+                                    .name("email")
+                                    .label("Email")
+                                    .description("We reply within a day."),
                             )
-                            .on_submit(cx.listener(|this, data: &h::FormData, _, cx| {
-                                this.input_submitted = data
-                                    .iter()
-                                    .map(|(n, v)| format!("{n}={}", v.as_text()))
-                                    .collect::<Vec<_>>()
-                                    .join(", ");
-                                cx.notify();
-                            }))
-                            .on_invalid(cx.listener(|this, _: &h::FormData, _, cx| {
-                                this.input_submitted = "Name is required".to_owned();
-                                cx.notify();
-                            }))
-                            .on_reset({
-                                let l = cx.listener(
-                                    |this: &mut Self, _: &(), _: &mut gpui::Window, cx| {
-                                        this.input_submitted = String::new();
-                                        cx.notify();
-                                    },
-                                );
-                                move |w: &mut gpui::Window, cx: &mut gpui::App| l(&(), w, cx)
-                            });
-                        let submit = form.submit_handler();
-                        let reset = form.reset_handler();
+                            .child(
+                                gpui::div()
+                                    .flex()
+                                    .gap(px(8.))
+                                    .child(
+                                        h::Button::new("form-submit")
+                                            .label("Submit")
+                                            .on_press(move |_, w, cx| submit(w, cx)),
+                                    )
+                                    .child(
+                                        h::Button::new("form-reset")
+                                            .label("Reset")
+                                            .variant(Variant::Tertiary)
+                                            .on_press(move |_, w, cx| reset(w, cx)),
+                                    ),
+                            )
+                            .into_any_element()
+                        },
+                        para(
+                            &if submitted.is_empty() {
+                                "Nothing submitted yet".to_owned()
+                            } else {
+                                format!("Submitted: {submitted}")
+                            },
+                            cx,
+                        ),
+                    ]),
+                ),
+                ("Server Errors", {
+                    let email = self.demo_text("form-srv-email", "ada@example.com", cx);
+                    let name = self.demo_text("form-srv-name", "Ada", cx);
+                    let report = self.demo_text_value("form-srv-report");
+                    FORM_SERVER_RECORD.with_borrow_mut(|slot| {
+                        slot.get_or_insert_with(|| {
+                            h::ValidationErrors::new()
+                                .set("email", "Already registered")
+                                .set("name", "That name is taken")
+                        });
+                    });
+                    // A clone per frame keeps the record's identity, so the
+                    // page's own re-renders never re-arm a field the user has
+                    // edited; only the New response button mints a record.
+                    let record = FORM_SERVER_RECORD
+                        .with_borrow(|slot| slot.as_ref().expect("seeded below").clone());
+                    let form = h::Form::new()
+                        .validation_errors(record)
+                        .field(h::FormField::text(email.clone()))
+                        .field(h::FormField::text(name.clone()))
+                        .on_submit(cx.listener(|this, data: &h::FormData, _, cx| {
+                            let body = data
+                                .iter()
+                                .map(|(n, v)| format!("{n}={}", v.as_text()))
+                                .collect::<Vec<_>>()
+                                .join(", ");
+                            this.set_demo_text_value("form-srv-report", body);
+                            cx.notify();
+                        }))
+                        .on_invalid(cx.listener(|this, _: &h::FormData, _, cx| {
+                            this.set_demo_text_value(
+                                "form-srv-report",
+                                "onInvalid: a routed server error is still blocking".to_owned(),
+                            );
+                            cx.notify();
+                        }));
+                    let submit = form.submit_handler();
+                    let reset = form.reset_handler();
+                    col(vec![
+                        para(
+                            "`validationErrors` is HeroUI's `ValidationErrors` record — server \
+                             errors keyed by field name, `Record<string, string | string[]>`. \
+                             The Form routes each name into that field's own error slot: \
+                             editing a field clears only its message while its sibling keeps \
+                             theirs, Reset hides them all, and a re-render that passes the \
+                             same record re-arms nothing. New response supplies a genuinely \
+                             new record — identical content, fresh identity — so both \
+                             messages re-arm.",
+                            cx,
+                        ),
                         form.child(
-                            h::TextField::new(self.input_name.clone())
-                                .name("name")
-                                .label("Name")
-                                .is_required(true),
-                        )
-                        .child(
-                            h::TextField::new(self.input_email.clone())
+                            h::TextField::new(email)
                                 .name("email")
                                 .label("Email")
-                                .description("We reply within a day."),
+                                .description("Edit this and only its server message clears."),
                         )
+                        .child(h::TextField::new(name).name("name").label("Name"))
                         .child(
                             gpui::div()
                                 .flex()
                                 .gap(px(8.))
                                 .child(
-                                    h::Button::new("form-submit")
+                                    h::Button::new("form-srv-submit")
                                         .label("Submit")
                                         .on_press(move |_, w, cx| submit(w, cx)),
                                 )
                                 .child(
-                                    h::Button::new("form-reset")
+                                    h::Button::new("form-srv-reset")
                                         .label("Reset")
                                         .variant(Variant::Tertiary)
                                         .on_press(move |_, w, cx| reset(w, cx)),
+                                )
+                                .child(
+                                    h::Button::new("form-srv-rearm")
+                                        .label("New response")
+                                        .on_press(|_, window, _| {
+                                            FORM_SERVER_RECORD.with_borrow_mut(|slot| {
+                                                // Same content, fresh record: a
+                                                // new response re-arms every
+                                                // named field.
+                                                *slot = Some(
+                                                    h::ValidationErrors::new()
+                                                        .set("email", "Already registered")
+                                                        .set("name", "That name is taken"),
+                                                );
+                                            });
+                                            window.refresh();
+                                        }),
                                 ),
                         )
-                        .into_any_element()
-                    },
-                    para(
-                        &if submitted.is_empty() {
-                            "Nothing submitted yet".to_owned()
-                        } else {
-                            format!("Submitted: {submitted}")
-                        },
-                        cx,
-                    ),
-                ]),
-            )],
+                        .into_any_element(),
+                        para(
+                            &if report.is_empty() {
+                                "Submit while a message is showing and onInvalid runs.".to_owned()
+                            } else {
+                                report
+                            },
+                            cx,
+                        ),
+                    ])
+                },),
+            ],
             cx,
         )
     }

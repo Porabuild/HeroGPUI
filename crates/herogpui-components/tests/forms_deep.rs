@@ -34,9 +34,10 @@
 //!
 //! - A `Form` stacks its children `gap(16)` (form.rs). A bare `Input` is
 //!   `util::FIELD_HEIGHT` = 36px, an `InputOTP` row is 40px
-//!   (`input_otp.rs`: cells 38x40), and a form-level `validationErrors`
-//!   message renders an `ErrorMessage` 16px tall *above* the fields, so a
-//!   form that carries one shifts every control down by 32px (16 + the gap).
+//!   (`input_otp.rs`: cells 38x40). A routed server error renders that
+//!   field's own error line *under the field* — 36px field + 4px gap + a
+//!   16px message = a 56px column — so a field carrying one is 20px taller
+//!   than a clean one, and clearing it shifts everything below up.
 //! - An `InputOTP` cell *i* spans x 46·i..46·i+38 with an 8px gap, so its
 //!   centre is (46·i+19, row_top + 20) — 4 cells fill x 0..152 and every
 //!   click below that targets cell 0 is (19, ...) (`input_otp.rs`).
@@ -71,6 +72,7 @@ use herogpui_components::{
     Button, ComboBox, Description, Fieldset, FieldsetActions, FieldsetGroup, FieldsetLegend, Form,
     FormData, FormField, Input, InputOTP, InputState, NumberField, NumberState, OtpPattern,
     OtpState, SearchField, Select, SelectionMode, Switch, TextArea, ValidationBehavior,
+    ValidationErrors,
 };
 
 use harness::{click, events, open_host, press};
@@ -100,6 +102,34 @@ fn record_missing(data: &FormData, required: &[&str]) -> String {
         .collect();
     names.sort();
     names.join(",")
+}
+
+/// Where a test grabs the *rendered* form's own submit handler: the host
+/// closure stores it on the first frame, so a server-error test can drive a
+/// submission without clicking through a layout that shifts as error lines
+/// come and go. The handler reads the same live entities the rendered form
+/// reads, because that is the rendered form's handler.
+type HandlerSlot = std::rc::Rc<
+    std::cell::RefCell<Option<std::sync::Arc<dyn Fn(&mut gpui::Window, &mut gpui::App) + 'static>>>,
+>;
+
+fn handler_slot() -> HandlerSlot {
+    std::rc::Rc::new(std::cell::RefCell::new(None))
+}
+
+/// Runs the handler a rendered form stored in `slot`.
+///
+/// A pending frame is drawn first: a delivery or an edit-suppression that ran
+/// in a previous update's prepaint schedules the very frame whose layout and
+/// validity mirror this submission must be judged against — within one
+/// update, the closure runs before the draw.
+fn run_handler(slot: &HandlerSlot, cx: &mut gpui::VisualTestContext) {
+    cx.update(|window, _| window.refresh());
+    let handler = slot
+        .borrow()
+        .clone()
+        .expect("the rendered form must have stored its handler");
+    cx.update(|window, cx| handler(window, cx));
 }
 
 // ---------------------------------------------------------------------------
@@ -479,103 +509,1246 @@ fn form_two_invalid_fields_report_both_then_valid_submit(cx: &mut TestAppContext
 }
 
 #[gpui::test]
-fn form_validation_errors_block_native_submit(cx: &mut TestAppContext) {
-    // v3's `validationErrors` are "server-side validation errors ... displayed
-    // immediately", and under `native` invalid fields block submission — the
-    // form-level errors the port renders above the fields are the same signal.
-    // Both fields are filled, so ONLY the form-level errors can be blocking;
-    // the submit must route to onInvalid with the message still present.
+fn form_server_errors_route_by_name_and_block_native_submit(cx: &mut TestAppContext) {
+    // v3: `validationErrors` is a `ValidationErrors` record — server-side
+    // errors "mapped by field name. Displayed immediately and cleared when
+    // user modifies the field." Routing is the contract: a name lands in
+    // *that* field's own error slot, and under `native` a field carrying a
+    // routed message blocks. Both fields are filled, so ONLY the routed
+    // message can block; the unnamed sibling must receive nothing.
     let submits = events();
     let submitted = submits.clone();
     let invalids = events();
     let invalid = invalids.clone();
-    let state = cx.new(|cx| InputState::new(cx));
+    let email_state = cx.new(|cx| InputState::with_value(cx, "ada@x.y"));
+    let name_state = cx.new(|cx| InputState::with_value(cx, "bob"));
+    let email_for_view = email_state.clone();
+    let name_for_view = name_state.clone();
+    let record = std::rc::Rc::new(std::cell::RefCell::new(
+        ValidationErrors::new().set_many("email", ["Already registered", "Check the server"]),
+    ));
+    let record_for_view = record.clone();
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
     let cx = open_host(cx, move || {
         let submits = submits.clone();
         let invalids = invalids.clone();
+        // A clone per frame retains the record's identity; only an explicit
+        // swap below (a genuinely new record) re-arms.
+        let record = record_for_view.borrow().clone();
         let form = Form::new()
-            .validation_errors(["Email already registered"])
-            .field(FormField::text(state.clone()).is_required(true))
+            .validation_errors(record)
+            .field(FormField::text(email_for_view.clone()))
+            .field(FormField::text(name_for_view.clone()))
             .on_submit(move |data: &FormData, _, _| {
                 submits.borrow_mut().push(record_data(data));
             })
             .on_invalid(move |data: &FormData, _, _| {
-                invalids.borrow_mut().push(record_missing(data, &["name"]));
+                invalids.borrow_mut().push(record_data(data));
             });
-        let submit = form.submit_handler();
-        form.child(Input::new(state.clone()).name("name"))
-            .child(
-                gpui::div().flex().gap(px(8.)).child(
-                    Button::new("fb-err-native")
-                        .label("Submit")
-                        .on_press(move |_, window, cx| submit(window, cx)),
-                ),
-            )
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(Input::new(email_for_view.clone()).name("email"))
+            .child(Input::new(name_for_view.clone()).name("name"))
             .into_any_element()
     });
 
-    // The ErrorMessage is a 16px line above the stack: message y 0..16, field
-    // y 32..68, button y 84..120 — centres (60, 50) and (60, 102).
-    click(cx, 60., 50.);
-    cx.simulate_input("ada@x.y");
-    click(cx, 60., 102.);
+    run_handler(&submit_slot, cx);
     assert_eq!(
         invalid.borrow().as_slice(),
-        [""],
-        "form-level validation errors must route a native submit to onInvalid \
-         even with every field filled (the empty record is the no-missing-name \
-         case: nothing was required-empty)"
+        ["email=ada@x.y,name=bob"],
+        "a routed server message must route a native submit to onInvalid \
+         even with every field filled"
     );
     assert!(
         submitted.borrow().is_empty(),
-        "a native form carrying validationErrors must not submit"
+        "a native form carrying a routed server error must not submit"
+    );
+    let routed = cx.update(|_, cx| {
+        (
+            email_state.read(cx).routed_errors().to_vec(),
+            name_state.read(cx).routed_errors().to_vec(),
+        )
+    });
+    assert_eq!(
+        routed.0,
+        vec![
+            SharedString::from("Already registered"),
+            SharedString::from("Check the server")
+        ],
+        "the named field must receive every message of its entry, in \
+         upstream order — this is the slice its error slot renders"
+    );
+    assert!(
+        routed.1.is_empty(),
+        "the sibling the record does not name must receive nothing"
+    );
+
+    // A genuinely new (empty) record is a new response: delivery clears the
+    // named field's messages and the same form submits.
+    record.replace(ValidationErrors::new());
+    cx.update(|window, _| window.refresh());
+    let routed = cx.update(|_, cx| email_state.read(cx).routed_errors().to_vec());
+    assert!(
+        routed.is_empty(),
+        "a new record that drops the name must clear the routed messages"
+    );
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["email=ada@x.y,name=bob"],
+        "with the routed message gone the same form must submit"
     );
 }
 
 #[gpui::test]
-fn form_allow_ignores_validation_errors(cx: &mut TestAppContext) {
-    // The `aria` half of the same story: the message is shown ("doesn't block
-    // submission"), and the submit goes through with the data — the empty
-    // required field is included unblocked.
+fn form_server_errors_unmatched_name_neither_displays_nor_blocks(cx: &mut TestAppContext) {
+    // A name no registered field displays cannot block: there is nothing to
+    // show, and blocking without display would be an invisible failure.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state = cx.new(|cx| InputState::with_value(cx, "ada@x.y"));
+    let state_for_view = state.clone();
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let form = Form::new()
+            .validation_errors(ValidationErrors::new().set("unknown-field", "Nope"))
+            .field(FormField::text(state_for_view.clone()))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(Input::new(state_for_view.clone()).name("email"))
+            .into_any_element()
+    });
+
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["email=ada@x.y"],
+        "a name no field matches must not block the submission"
+    );
+    assert!(
+        invalid.borrow().is_empty(),
+        "the invalid path must not run for an unmatched name"
+    );
+    let routed = cx.update(|_, cx| state.read(cx).routed_errors().to_vec());
+    assert!(
+        routed.is_empty(),
+        "the unmatched message must not land in the field's error slot"
+    );
+}
+
+#[gpui::test]
+fn form_allow_displays_routed_errors_without_blocking(cx: &mut TestAppContext) {
+    // The `aria` half: "displays errors in realtime ... doesn't block
+    // submission". The routed message must be present (it is what the
+    // field's error slot renders) while the submit still goes through with
+    // the empty required field.
     let submits = events();
     let submitted = submits.clone();
     let invalids = events();
     let invalid = invalids.clone();
     let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
     let cx = open_host(cx, move || {
         let submits = submits.clone();
         let invalids = invalids.clone();
         let form = Form::new()
             .validation_behavior(ValidationBehavior::Allow)
-            .validation_errors(["Email already registered"])
-            .field(FormField::text(state.clone()).is_required(true))
+            .validation_errors(ValidationErrors::new().set("name", "Check this field"))
+            .field(FormField::text(state_for_view.clone()).is_required(true))
             .on_submit(move |data: &FormData, _, _| {
                 submits.borrow_mut().push(record_data(data));
             })
             .on_invalid(move |data: &FormData, _, _| {
                 invalids.borrow_mut().push(record_missing(data, &["name"]));
             });
-        let submit = form.submit_handler();
-        form.child(Input::new(state.clone()).name("name"))
-            .child(
-                gpui::div().flex().gap(px(8.)).child(
-                    Button::new("fb-err-allow")
-                        .label("Submit")
-                        .on_press(move |_, window, cx| submit(window, cx)),
-                ),
-            )
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(Input::new(state_for_view.clone()).name("name"))
             .into_any_element()
     });
 
-    click(cx, 60., 102.);
+    let routed = cx.update(|_, cx| state.read(cx).routed_errors().to_vec());
+    assert_eq!(
+        routed,
+        vec![SharedString::from("Check this field")],
+        "the routed message must be delivered so the field displays it, \
+         whatever the behavior"
+    );
+    run_handler(&submit_slot, cx);
     assert_eq!(
         submitted.borrow().as_slice(),
         ["name="],
-        "an aria form must submit regardless of validationErrors and empty fields"
+        "an aria form must submit regardless of routed server errors and \
+         empty fields"
     );
     assert!(
         invalid.borrow().is_empty(),
         "the invalid path must not run when the form allows submission"
+    );
+}
+
+#[gpui::test]
+fn form_server_errors_clear_on_edit_and_siblings_persist(cx: &mut TestAppContext) {
+    // "Displayed immediately and cleared when user modifies the field": the
+    // modification is *this field's* — one edit suppresses only its own
+    // routed message, and the sibling's message survives it. While any named
+    // field still carries its message, the native submit stays blocked; once
+    // both are answered by edits, the same form submits.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let email_state = cx.new(|cx| InputState::with_value(cx, "a@b.c"));
+    let name_state = cx.new(|cx| InputState::with_value(cx, "n"));
+    let email_for_view = email_state.clone();
+    let name_for_view = name_state.clone();
+    let record_for_view = std::rc::Rc::new(std::cell::RefCell::new(
+        ValidationErrors::new()
+            .set("email", "Taken")
+            .set("name", "Too short"),
+    ));
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let record = record_for_view.borrow().clone();
+        let form = Form::new()
+            .validation_errors(record)
+            .field(FormField::text(email_for_view.clone()))
+            .field(FormField::text(name_for_view.clone()))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(Input::new(email_for_view.clone()).name("email"))
+            .child(Input::new(name_for_view.clone()).name("name"))
+            .into_any_element()
+    });
+
+    // Both fields carry a routed error, so both are 56px columns: email
+    // y 0..56, name y 72..128. Draw the delivery's scheduled frame first, so
+    // the click below hit-tests the error-line layout it names. Clicking the
+    // name field is only valid while that layout stands, so the sibling edit
+    // goes first.
+    cx.update(|window, _| window.refresh());
+    click(cx, 60., 90.);
+    cx.simulate_input("ame");
+    let routed = cx.update(|_, cx| {
+        (
+            email_state.read(cx).routed_errors().to_vec(),
+            name_state.read(cx).routed_errors().to_vec(),
+        )
+    });
+    assert!(
+        !routed.0.is_empty(),
+        "the sibling edit must not suppress email's routed message"
+    );
+    assert!(
+        routed.1.is_empty(),
+        "editing the name field must suppress only its own routed message"
+    );
+    run_handler(&submit_slot, cx);
+    assert!(
+        submitted.borrow().is_empty(),
+        "the surviving sibling message must keep the submit blocked"
+    );
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        ["email=a@b.c,name=name"],
+        "the blocked submit must report the FormData it refused"
+    );
+
+    // The email field's top band never moves, with or without its error
+    // line, and a click past the text's end parks the caret at the end.
+    click(cx, 310., 18.);
+    cx.simulate_input("x");
+    let routed = cx.update(|_, cx| email_state.read(cx).routed_errors().to_vec());
+    assert!(
+        routed.is_empty(),
+        "editing the email field must suppress its own routed message"
+    );
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["email=a@b.cx,name=name"],
+        "with every routed message answered by an edit, the same form must \
+         submit"
+    );
+}
+
+#[gpui::test]
+fn form_server_errors_reset_hides_and_a_clone_does_not_resurrect(cx: &mut TestAppContext) {
+    // Reset hides the routed server errors. What keeps them hidden is record
+    // identity: the record that delivered already spent its revision, so a
+    // re-render passing the same record (every frame passes a clone) must
+    // not resurrect the message. A genuinely new record re-arms — the next
+    // test pins that half against the clone.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state = cx.new(|cx| InputState::with_value(cx, "ada@x.y"));
+    let state_for_view = state.clone();
+    let record = std::rc::Rc::new(std::cell::RefCell::new(
+        ValidationErrors::new().set("email", "Already registered"),
+    ));
+    let record_for_view = record.clone();
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let record = record_for_view.borrow().clone();
+        let form = Form::new()
+            .validation_errors(record)
+            .field(FormField::text(state_for_view.clone()))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(Input::new(state_for_view.clone()).name("email"))
+            .into_any_element()
+    });
+
+    run_handler(&submit_slot, cx);
+    assert!(
+        submitted.borrow().is_empty(),
+        "the routed message must block before the reset"
+    );
+    assert_eq!(invalid.borrow().as_slice(), ["email=ada@x.y"]);
+    invalid.borrow_mut().clear();
+
+    // Reset hides the routed errors — the same reset_handler() a rendered
+    // reset button wires, driven directly so the click needs no geometry.
+    // It restores declared defaults and clears every routed message.
+    cx.update(|window, cx| {
+        let record = record.borrow().clone();
+        let form = Form::new()
+            .validation_errors(record)
+            .field(FormField::text(state.clone()));
+        let reset = form.reset_handler();
+        reset(window, cx);
+    });
+    let routed = cx.update(|_, cx| state.read(cx).routed_errors().to_vec());
+    assert!(
+        routed.is_empty(),
+        "reset must hide the routed server errors"
+    );
+
+    // Re-renders keep passing the same record — every frame a clone, same
+    // revision, identity already spent. None may resurrect the message.
+    cx.update(|window, _| window.refresh());
+    let routed = cx.update(|_, cx| state.read(cx).routed_errors().to_vec());
+    assert!(
+        routed.is_empty(),
+        "a re-render passing a clone of the record must not resurrect the \
+         message the reset hid"
+    );
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["email=ada@x.y"],
+        "after the reset the same form must submit"
+    );
+    assert!(
+        invalid.borrow().is_empty(),
+        "the only invalid run must be the blocked submit before the reset"
+    );
+}
+
+#[gpui::test]
+fn form_server_errors_a_new_record_rearms_but_a_clone_does_not(cx: &mut TestAppContext) {
+    // The identity contract, end to end: an edit suppresses the routed
+    // message; re-delivering the SAME record (a clone, same revision) keeps
+    // it suppressed; a genuinely NEW record with content equal to the old
+    // one re-arms it, because a re-sent server response is a response, not
+    // silence. Structural equality cannot decide this — the revision does.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state = cx.new(|cx| InputState::with_value(cx, "ada@x.y"));
+    let state_for_view = state.clone();
+    let record = std::rc::Rc::new(std::cell::RefCell::new(
+        ValidationErrors::new().set("email", "Already registered"),
+    ));
+    let record_for_view = record.clone();
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let record = record_for_view.borrow().clone();
+        let form = Form::new()
+            .validation_errors(record)
+            .field(FormField::text(state_for_view.clone()))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(Input::new(state_for_view.clone()).name("email"))
+            .into_any_element()
+    });
+
+    run_handler(&submit_slot, cx);
+    assert!(
+        submitted.borrow().is_empty(),
+        "the first delivery must block"
+    );
+    invalid.borrow_mut().clear();
+
+    // The user answers the error by editing; the message suppresses. The
+    // click parks the caret at the value's end (past the text), so the typed
+    // character appends.
+    click(cx, 310., 18.);
+    cx.simulate_input("x");
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["email=ada@x.yx"],
+        "the edit must have suppressed the routed message"
+    );
+    assert!(invalid.borrow().is_empty());
+
+    // The same record again — a clone, the revision already spent. Nothing
+    // re-arms.
+    let same_record = record.borrow().clone();
+    record.replace(same_record);
+    cx.update(|window, _| window.refresh());
+    let routed = cx.update(|_, cx| state.read(cx).routed_errors().to_vec());
+    assert!(
+        routed.is_empty(),
+        "a clone of the delivered record must retain its identity and keep \
+         the edit's suppression"
+    );
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        submitted.borrow().len(),
+        2,
+        "the clone must not re-block the submit"
+    );
+
+    // A genuinely new record, content-equal to the first: a new response,
+    // so every named field re-arms.
+    record.replace(ValidationErrors::new().set("email", "Already registered"));
+    cx.update(|window, _| window.refresh());
+    let routed = cx.update(|_, cx| state.read(cx).routed_errors().to_vec());
+    assert_eq!(
+        routed,
+        vec![SharedString::from("Already registered")],
+        "the new record must re-deliver despite equal content"
+    );
+    run_handler(&submit_slot, cx);
+    assert!(
+        submitted.borrow().len() == 2 && !invalid.borrow().is_empty(),
+        "the re-armed message must block again"
+    );
+}
+
+#[gpui::test]
+fn form_server_errors_receipt_survives_first_registration_churn(cx: &mut TestAppContext) {
+    // The delivery receipt is per field — each field's own state stores the
+    // revision of the record its messages came from — so the registration
+    // list can churn without moving anyone's receipt. The regression this
+    // pins is a receipt keyed to the form rather than to each field: a form
+    // that looked undelivered because one registration was replaced would
+    // redeliver the same clone everywhere, resurrecting errors the user had
+    // edited away and re-blocking. Here the first registration is replaced
+    // between submissions: the surviving field's edit suppression must hold
+    // (the same clone must not re-arm it), and the fresh replacement entity
+    // must receive the current record only on the next genuinely new
+    // revision.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let surviving = cx.new(|cx| InputState::with_value(cx, "keep@x.y"));
+    let replaced = cx.new(|cx| InputState::with_value(cx, "old@x.y"));
+    let fresh = cx.new(|cx| InputState::with_value(cx, "new@x.y"));
+    let surviving_for_view = surviving.clone();
+    // `replaced` is only read through the rendered field, so move it.
+    let replaced_for_view = replaced;
+    let fresh_for_view = fresh.clone();
+    let record = std::rc::Rc::new(std::cell::RefCell::new(
+        ValidationErrors::new()
+            .set("keep", "Still taken")
+            .set("old", "Gone"),
+    ));
+    let record_for_view = record.clone();
+    let swap = std::rc::Rc::new(std::cell::Cell::new(false));
+    let swap_for_view = swap.clone();
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        // A clone per frame retains the record's identity across the churn.
+        let record = record_for_view.borrow().clone();
+        let mut form = Form::new()
+            .validation_errors(record)
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        // The FIRST registration swaps between two entity-backed fields;
+        // the surviving field keeps its entity behind it.
+        form = if swap_for_view.get() {
+            form.field(FormField::text(fresh_for_view.clone()).name("fresh"))
+        } else {
+            form.field(FormField::text(replaced_for_view.clone()).name("old"))
+        };
+        let form = form.field(FormField::text(surviving_for_view.clone()).name("keep"));
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(
+            Input::new(if swap_for_view.get() {
+                fresh_for_view.clone()
+            } else {
+                replaced_for_view.clone()
+            })
+            .name(if swap_for_view.get() { "fresh" } else { "old" }),
+        )
+        .child(Input::new(surviving_for_view.clone()).name("keep"))
+        .into_any_element()
+    });
+
+    // Both named fields carry a routed message: the same clone blocks.
+    run_handler(&submit_slot, cx);
+    assert!(
+        submitted.borrow().is_empty(),
+        "the first delivery must block"
+    );
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        ["old=old@x.y,keep=keep@x.y"],
+        "the blocked submit must report both routed messages"
+    );
+
+    // The surviving field answers its error by editing; a click past the
+    // text's end parks the caret at the end, so the typed run appends.
+    click(cx, 310., 90.);
+    cx.simulate_input("x");
+    let routed = cx.update(|_, cx| surviving.read(cx).routed_errors().to_vec());
+    assert!(
+        routed.is_empty(),
+        "the edit must suppress the surviving field's routed message"
+    );
+
+    // Replace the first registration with a fresh entity (the record stays
+    // a clone of the same revision) and redraw. The fresh entity has never
+    // seen the record, but the SURVIVING field's receipt already names it —
+    // the clone must not re-arm either of them.
+    swap.set(true);
+    cx.update(|window, _| window.refresh());
+    let routed = cx.update(|_, cx| {
+        (
+            surviving.read(cx).routed_errors().to_vec(),
+            fresh.read(cx).routed_errors().to_vec(),
+        )
+    });
+    assert!(
+        routed.0.is_empty(),
+        "replacing the first registration must not resurrect the surviving \
+         field's edit-suppressed message"
+    );
+    assert!(
+        routed.1.is_empty(),
+        "the fresh entity receives only what the current record names — \
+         \"fresh\" is not in it"
+    );
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["fresh=new@x.y,keep=keep@x.yx"],
+        "with the surviving field suppressed and the fresh name unrouted, \
+         the same clone must not re-block"
+    );
+
+    // A genuinely new record naming the fresh field is a new response: the
+    // fresh entity's receipt (0) differs, so it receives the current
+    // record; the surviving field's suppression survives the churn too.
+    record.replace(ValidationErrors::new().set("fresh", "Fresh is taken"));
+    cx.update(|window, _| window.refresh());
+    let routed = cx.update(|_, cx| {
+        (
+            surviving.read(cx).routed_errors().to_vec(),
+            fresh.read(cx).routed_errors().to_vec(),
+        )
+    });
+    assert!(
+        routed.0.is_empty(),
+        "a new record that does not name the surviving field must leave its \
+         suppression alone"
+    );
+    assert_eq!(
+        routed.1,
+        vec![SharedString::from("Fresh is taken")],
+        "the fresh replacement entity must receive the current record"
+    );
+    run_handler(&submit_slot, cx);
+    assert!(
+        submitted.borrow().len() == 1 && !invalid.borrow().is_empty(),
+        "the fresh field's routed message must block again"
+    );
+    assert_eq!(
+        invalid.borrow().last().unwrap().as_str(),
+        "fresh=new@x.y,keep=keep@x.yx",
+        "the replaced registration must not contribute to the FormData"
+    );
+}
+
+#[gpui::test]
+fn form_server_errors_otp_suppress_before_the_on_complete_submit(cx: &mut TestAppContext) {
+    // v3: server errors are "cleared when user modifies the field" — and the
+    // completing keystroke IS that modification, so the suppression must land
+    // before `onComplete` runs. The auto-submit a one-time code invites fires
+    // *synchronously inside* `onComplete`, so a suppression that runs after
+    // the callbacks would let the stale routed error block the very submit
+    // the keystroke was meant to finish. The scenario also pins delivery and
+    // the native block: the record arrives between the third and fourth
+    // digit, blocks once, and the completing keystroke answers it.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state = cx.new(|cx| OtpState::with_length(cx, 4));
+    let state_for_view = state.clone();
+    let record = std::rc::Rc::new(std::cell::RefCell::new(ValidationErrors::new()));
+    let record_for_view = record.clone();
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let record = record_for_view.borrow().clone();
+        let form = Form::new()
+            .validation_errors(record)
+            .field(FormField::code("otp", state_for_view.clone()))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        let submit = form.submit_handler();
+        form.child(
+            InputOTP::new(state_for_view.clone())
+                .on_complete(move |_, window, cx| submit(window, cx)),
+        )
+        .into_any_element()
+    });
+
+    // The row is 40px, so cell 0's centre is (19, 20). Three digits land;
+    // nothing is routed yet.
+    click(cx, 19., 20.);
+    press(cx, "1");
+    press(cx, "2");
+    press(cx, "3");
+    assert!(
+        submitted.borrow().is_empty() && invalid.borrow().is_empty(),
+        "no record, no completion: nothing may have submitted yet"
+    );
+
+    // The server responds between the third and fourth digit. The delivery
+    // canvas runs on the next drawn frame.
+    record.replace(ValidationErrors::new().set("otp", "Expired code"));
+    cx.update(|window, _| window.refresh());
+    let routed = cx.update(|_, cx| state.read(cx).routed_errors().to_vec());
+    assert_eq!(
+        routed,
+        vec![SharedString::from("Expired code")],
+        "the record's entry must be routed into the OTP state by name"
+    );
+
+    // The stale routed error blocks a native submit.
+    run_handler(&submit_slot, cx);
+    assert!(
+        submitted.borrow().is_empty(),
+        "the routed error must block the native submit"
+    );
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        ["otp=123"],
+        "the blocked submit must report the partial code"
+    );
+
+    // The completing keystroke: the accepted mutation suppresses the routed
+    // error BEFORE `on_complete` runs, and the synchronous submit inside it
+    // must go through.
+    press(cx, "4");
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["otp=1234"],
+        "the auto-submit from on_complete must not be blocked by the error \
+         the completing keystroke itself answered"
+    );
+    assert_eq!(
+        invalid.borrow().len(),
+        1,
+        "only the pre-completion block may have run the invalid path"
+    );
+    let routed = cx.update(|_, cx| state.read(cx).routed_errors().to_vec());
+    assert!(
+        routed.is_empty(),
+        "the accepted edit must have suppressed the routed message"
+    );
+}
+
+#[gpui::test]
+fn form_server_errors_number_field_step_suppresses(cx: &mut TestAppContext) {
+    // The NumberField routes through its inner `InputState`: delivery, native
+    // block and suppression all speak the same channel the text field does.
+    // A user-driven step (the up arrow, which `report_bump` handles) is a
+    // modification, so it must suppress the routed message and unblock the
+    // same form.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state = cx.new(|cx| NumberState::new(cx, 5.));
+    let state_for_view = state.clone();
+    let record_for_view = std::rc::Rc::new(std::cell::RefCell::new(
+        ValidationErrors::new().set("amount", "Out of range"),
+    ));
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let record = record_for_view.borrow().clone();
+        let form = Form::new()
+            .validation_errors(record)
+            .field(FormField::number(state_for_view.clone()))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(NumberField::new(state_for_view.clone()).name("amount"))
+            .into_any_element()
+    });
+
+    // The group is 36px tall, so the delivery frame puts the message under
+    // it; the input band itself never moves.
+    cx.update(|window, _| window.refresh());
+    let routed = cx.update(|_, cx| state.read(cx).input.read(cx).routed_errors().to_vec());
+    assert_eq!(
+        routed,
+        vec![SharedString::from("Out of range")],
+        "the record's entry must be routed into the inner InputState by name"
+    );
+
+    // The routed error blocks a native submit.
+    run_handler(&submit_slot, cx);
+    assert!(
+        submitted.borrow().is_empty(),
+        "the routed error must block the native submit"
+    );
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        ["amount=5"],
+        "the blocked submit must report the current value"
+    );
+
+    // A user-driven step is a modification: the up arrow steps 5 -> 6 and
+    // suppresses the routed message, unblocking the same form.
+    click(cx, 110., 18.);
+    press(cx, "up");
+    let routed = cx.update(|_, cx| state.read(cx).input.read(cx).routed_errors().to_vec());
+    assert!(
+        routed.is_empty(),
+        "the step must have suppressed the routed message"
+    );
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["amount=6"],
+        "the stepped value must submit now the routed error is answered"
+    );
+    assert!(
+        invalid.borrow().len() == 1,
+        "only the pre-step block may have run the invalid path"
+    );
+}
+
+#[gpui::test]
+fn form_server_errors_input_edit_unblocks_a_synchronous_on_change_submit(cx: &mut TestAppContext) {
+    // The mirror a native submit reads is written by `Input::render`, so an
+    // accepted edit must refresh it in the same stroke as the suppression:
+    // an `on_change` that submits the form synchronously (the auto-submit
+    // v3's own docs invite) runs before any frame can catch up, and without
+    // the refresh it is blocked by the routed error the very keystroke
+    // answered — the OTP bug, one field over.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state = cx.new(|cx| InputState::with_value(cx, "ada@x.y"));
+    let state_for_view = state.clone();
+    let record_for_view = std::rc::Rc::new(std::cell::RefCell::new(
+        ValidationErrors::new().set("email", "Already registered"),
+    ));
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let record = record_for_view.borrow().clone();
+        let form = Form::new()
+            .validation_errors(record)
+            .field(FormField::text(state_for_view.clone()))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        let submit = form.submit_handler();
+        *slot_for_view.borrow_mut() = Some(submit.clone());
+        form.child(
+            Input::new(state_for_view.clone())
+                .name("email")
+                // The auto-submit: the form is judged synchronously inside
+                // `on_change`, before any frame has redrawn the field.
+                .on_change(move |_, window, cx| submit(window, cx)),
+        )
+        .into_any_element()
+    });
+
+    // The routed error blocks a native submit.
+    run_handler(&submit_slot, cx);
+    assert!(
+        submitted.borrow().is_empty(),
+        "the routed error must block the native submit"
+    );
+    assert_eq!(invalid.borrow().as_slice(), ["email=ada@x.y"]);
+    invalid.borrow_mut().clear();
+
+    // The answering edit: a click past the text's end parks the caret at the
+    // end, so the typed run appends. The keystroke itself suppresses the
+    // routed message, refreshes the stored mirror, and — still inside the
+    // key handler — submits through `on_change`.
+    click(cx, 310., 18.);
+    cx.simulate_input("x");
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["email=ada@x.yx"],
+        "the synchronous submit inside on_change must not be blocked by the \
+         routed error the edit itself answered"
+    );
+    assert!(
+        invalid.borrow().is_empty(),
+        "the answered error must not route this submit to onInvalid"
+    );
+    let routed = cx.update(|_, cx| state.read(cx).routed_errors().to_vec());
+    assert!(
+        routed.is_empty(),
+        "the accepted edit must have suppressed the routed message"
+    );
+    // The refreshed mirror is the one the next submit reads too — still
+    // unblocked, and reporting the edited value.
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["email=ada@x.yx", "email=ada@x.yx"],
+        "the refreshed mirror must keep the form unblocked on the next \
+         submit as well"
+    );
+}
+
+#[gpui::test]
+fn form_server_errors_number_step_unblocks_a_synchronous_on_change_submit(cx: &mut TestAppContext) {
+    // NumberField routes through its inner `InputState`, whose stored
+    // validity `NumberField::render` writes. A user-driven step must
+    // suppress the routed message AND refresh that inner mirror before its
+    // `on_change` runs: a synchronous submit inside the callback is judged
+    // before any frame can catch up, and without the refresh the inner
+    // state still carries the routed error the step itself answered.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state = cx.new(|cx| NumberState::new(cx, 5.));
+    let state_for_view = state.clone();
+    let record_for_view = std::rc::Rc::new(std::cell::RefCell::new(
+        ValidationErrors::new().set("amount", "Out of range"),
+    ));
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let record = record_for_view.borrow().clone();
+        let form = Form::new()
+            .validation_errors(record)
+            .field(FormField::number(state_for_view.clone()))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        let submit = form.submit_handler();
+        *slot_for_view.borrow_mut() = Some(submit.clone());
+        form.child(
+            NumberField::new(state_for_view.clone())
+                .name("amount")
+                // The auto-submit: judged synchronously inside `on_change`.
+                .on_change(move |_, window, cx| submit(window, cx)),
+        )
+        .into_any_element()
+    });
+
+    // The routed error blocks a native submit.
+    run_handler(&submit_slot, cx);
+    assert!(
+        submitted.borrow().is_empty(),
+        "the routed error must block the native submit"
+    );
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        ["amount=5"],
+        "the blocked submit must report the current value"
+    );
+    invalid.borrow_mut().clear();
+
+    // The answering step: the click focuses the input (the group is 36px
+    // tall, the field band y 0..36), and the up arrow steps 5 -> 6 through
+    // `report_bump`, which must suppress and refresh before `on_change`
+    // submits synchronously.
+    click(cx, 110., 18.);
+    press(cx, "up");
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["amount=6"],
+        "the synchronous submit inside on_change must not be blocked by the \
+         routed error the step itself answered"
+    );
+    assert!(
+        invalid.borrow().is_empty(),
+        "the answered error must not route this submit to onInvalid"
+    );
+    let routed = cx.update(|_, cx| state.read(cx).input.read(cx).routed_errors().to_vec());
+    assert!(
+        routed.is_empty(),
+        "the step must have suppressed the routed message"
+    );
+}
+
+#[gpui::test]
+fn form_server_errors_late_named_field_receives_the_current_record(cx: &mut TestAppContext) {
+    // A field registered before its control first renders has no name yet —
+    // and must stamp no receipt. A receipt taken before the name exists
+    // spends the record's revision on an empty delivery, so the error could
+    // never reach the field once its control renders and publishes its
+    // name. Here the record is already present while the control is
+    // missing; the later frame renders it against the same record (a
+    // clone), and the field must receive the error then.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state = cx.new(|cx| InputState::with_value(cx, "ada@x.y"));
+    let state_for_view = state.clone();
+    let record_for_view = std::rc::Rc::new(std::cell::RefCell::new(
+        ValidationErrors::new().set("email", "Already registered"),
+    ));
+    let shown = std::rc::Rc::new(std::cell::Cell::new(false));
+    let shown_for_view = shown.clone();
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let record = record_for_view.borrow().clone();
+        let form = Form::new()
+            .validation_errors(record)
+            .field(FormField::text(state_for_view.clone()))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        // The registration is constant; only the control's first render is
+        // deferred. The form renders either way, so the delivery runs on
+        // every frame.
+        if shown_for_view.get() {
+            form.child(Input::new(state_for_view.clone()).name("email"))
+                .into_any_element()
+        } else {
+            form.into_any_element()
+        }
+    });
+
+    // The control has not rendered: the field has no name to route into,
+    // and nothing may be written on its behalf — not even a receipt.
+    cx.update(|window, _| window.refresh());
+    let routed = cx.update(|_, cx| state.read(cx).routed_errors().to_vec());
+    assert!(
+        routed.is_empty(),
+        "a field whose control has not rendered has no name to route into"
+    );
+
+    // The control renders and publishes its name. The record is the same
+    // clone — identical revision — and the field must receive its entry
+    // now, because the earlier unnamed frames spent no receipt.
+    shown.set(true);
+    cx.update(|window, _| window.refresh());
+    let routed = cx.update(|_, cx| state.read(cx).routed_errors().to_vec());
+    assert_eq!(
+        routed,
+        vec![SharedString::from("Already registered")],
+        "the record delivered while the field was unnamed must still reach \
+         it once its control renders under the same revision"
+    );
+    run_handler(&submit_slot, cx);
+    assert!(
+        submitted.borrow().is_empty(),
+        "the late-delivered message must block the native submit"
+    );
+    assert_eq!(invalid.borrow().as_slice(), ["email=ada@x.y"]);
+}
+
+#[gpui::test]
+fn form_read_only_field_displays_routed_errors_without_blocking_or_focus(cx: &mut TestAppContext) {
+    // A read-only field displays its routed message but is barred from
+    // constraint validation: it neither blocks nor takes the failed-submit
+    // focus, even when it is the FIRST field the record names. The block
+    // and the focus belong to the eligible field behind it.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let ro_state = cx.new(|cx| InputState::with_value(cx, "locked"));
+    let b_state = cx.new(|cx| InputState::with_value(cx, "bee"));
+    let ro_for_view = ro_state.clone();
+    let b_for_view = b_state.clone();
+    let record_for_view = std::rc::Rc::new(std::cell::RefCell::new(
+        ValidationErrors::new()
+            .set("ro", "Locked")
+            .set("b", "Too short"),
+    ));
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let record = record_for_view.borrow().clone();
+        let form = Form::new()
+            .validation_errors(record)
+            .field(FormField::text(ro_for_view.clone()))
+            .field(FormField::text(b_for_view.clone()))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(
+            Input::new(ro_for_view.clone())
+                .name("ro")
+                .is_read_only(true),
+        )
+        .child(Input::new(b_for_view.clone()).name("b"))
+        .into_any_element()
+    });
+
+    run_handler(&submit_slot, cx);
+    assert!(
+        submitted.borrow().is_empty(),
+        "the eligible field's routed message must block the submit"
+    );
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        ["ro=locked,b=bee"],
+        "the blocked submit must report both values — the read-only field \
+         stayed successful"
+    );
+    let focused = cx.update(|window, cx| {
+        (
+            ro_state.read(cx).focus_handle(cx).is_focused(window),
+            b_state.read(cx).focus_handle(cx).is_focused(window),
+        )
+    });
+    assert!(
+        !focused.0 && focused.1,
+        "the failed-submit focus must skip the read-only field and land on \
+         the first eligible one"
+    );
+    let routed = cx.update(|_, cx| ro_state.read(cx).routed_errors().to_vec());
+    assert_eq!(
+        routed,
+        vec![SharedString::from("Locked")],
+        "the read-only field must still display its routed message"
+    );
+}
+
+#[gpui::test]
+fn form_disabled_field_displays_routed_errors_without_blocking(cx: &mut TestAppContext) {
+    // A disabled control is not a successful form control: it can never
+    // block, whatever its state carries. The routed message is still
+    // delivered so the field displays it — display and blocking are
+    // independent halves of the routing.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state = cx.new(|cx| InputState::with_value(cx, "stale"));
+    let state_for_view = state.clone();
+    let record_for_view = std::rc::Rc::new(std::cell::RefCell::new(
+        ValidationErrors::new().set("d", "Gone"),
+    ));
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let record = record_for_view.borrow().clone();
+        let form = Form::new()
+            .validation_errors(record)
+            .field(FormField::text(state_for_view.clone()))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(
+            Input::new(state_for_view.clone())
+                .name("d")
+                .is_disabled(true),
+        )
+        .into_any_element()
+    });
+
+    let routed = cx.update(|_, cx| state.read(cx).routed_errors().to_vec());
+    assert_eq!(
+        routed,
+        vec![SharedString::from("Gone")],
+        "the disabled field must receive its routed message so it can display"
+    );
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        [""],
+        "the disabled field is not successful: it submits nothing and its \
+         routed message cannot block"
+    );
+    assert!(
+        invalid.borrow().is_empty(),
+        "a disabled field must never route the submit to onInvalid"
+    );
+}
+
+#[gpui::test]
+fn form_duplicate_names_validate_each_field_not_the_record(cx: &mut TestAppContext) {
+    // Two fields registered under one name are validated independently: the
+    // submission record's first-wins `get` must never decide required
+    // validity or focus. Here the FIRST "email" is filled and the second is
+    // empty — reading the record alone would call the form complete and
+    // submit. The per-field check blocks, and the failed-submit focus lands
+    // on the empty field, not the filled one. FormData itself stays exact:
+    // `get` still returns the first entry, the browser `getAll` shape.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let first_state = cx.new(|cx| InputState::with_value(cx, "a@b.c"));
+    let second_state = cx.new(|cx| InputState::new(cx));
+    let first_for_view = first_state.clone();
+    let second_for_view = second_state.clone();
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let form = Form::new()
+            .field(
+                FormField::text(first_for_view.clone())
+                    .name("email")
+                    .is_required(true),
+            )
+            .field(
+                FormField::text(second_for_view.clone())
+                    .name("email")
+                    .is_required(true),
+            )
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(Input::new(first_for_view.clone()).name("email"))
+            .child(Input::new(second_for_view.clone()).name("email"))
+            .into_any_element()
+    });
+
+    // The FormData itself must stay browser-exact: first entry wins.
+    let record_text = cx.update(|_, cx| {
+        let form = Form::new()
+            .field(FormField::text(first_state.clone()).name("email"))
+            .field(FormField::text(second_state.clone()).name("email"));
+        form.data(cx).text("email").map(|v| v.to_string())
+    });
+    assert_eq!(
+        record_text.as_deref(),
+        Some("a@b.c"),
+        "FormData::get must keep its first-wins semantics"
+    );
+
+    run_handler(&submit_slot, cx);
+    assert!(
+        submitted.borrow().is_empty(),
+        "the empty duplicate must block — the record's filled first entry \
+         must not stand in for it"
+    );
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        ["email=a@b.c,email="],
+        "the blocked submit reports the record, which keeps every successful \
+         entry — both duplicates — with first-wins `get`"
+    );
+    let focused = cx.update(|window, cx| {
+        (
+            first_state.read(cx).focus_handle(cx).is_focused(window),
+            second_state.read(cx).focus_handle(cx).is_focused(window),
+        )
+    });
+    assert!(
+        !focused.0 && focused.1,
+        "the failed-submit focus must land on the empty duplicate, not the \
+         filled one the record happens to expose"
     );
 }
 
@@ -685,6 +1858,65 @@ fn form_native_submit_focuses_first_invalid_field(cx: &mut TestAppContext) {
         "the first invalid field must be focused after a failed native submit \
          (v3: 'By default, the first invalid field will be focused'); it is \
          not, which proves the submit path never moves the focus"
+    );
+}
+
+#[gpui::test]
+fn form_failed_submit_focus_skips_unnamed_fields(cx: &mut TestAppContext) {
+    // The blocking lists collect NAMES — each `filter_map`s `field_name` —
+    // so an unnamed field can never block a submission, however empty and
+    // required it is. The failed-submit focus consults the same union, so it
+    // must never land on the unnamed field either: the focus belongs to the
+    // first NAMED blocker behind it. A focus that landed on the unnamed
+    // field would point the user at an error the report never mentions.
+    let invalids = events();
+    let invalid = invalids.clone();
+    let unnamed = cx.new(|cx| InputState::new(cx));
+    let named = cx.new(|cx| InputState::new(cx));
+    let unnamed_for_view = unnamed.clone();
+    let named_for_view = named.clone();
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let invalids = invalids.clone();
+        let form = Form::new()
+            // Registered first and required-empty, but carries no name: it
+            // is not in the submission and cannot block.
+            .field(
+                FormField::text(unnamed_for_view.clone())
+                    .is_required(true),
+            )
+            .field(
+                FormField::text(named_for_view.clone())
+                    .name("named")
+                    .is_required(true),
+            )
+            .on_submit(|_, _, _| {})
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(Input::new(unnamed_for_view.clone()))
+            .child(Input::new(named_for_view.clone()).name("named"))
+            .into_any_element()
+    });
+
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        ["named="],
+        "only the named field may block: the unnamed one is not a form field"
+    );
+    let focused = cx.update(|window, cx| {
+        (
+            unnamed.read(cx).focus_handle(cx).is_focused(window),
+            named.read(cx).focus_handle(cx).is_focused(window),
+        )
+    });
+    assert!(
+        !focused.0 && focused.1,
+        "the failed-submit focus must skip the unnamed field and land on the \
+         named blocker"
     );
 }
 

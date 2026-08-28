@@ -871,14 +871,20 @@ mod tests {
                 && entry.description.contains("first invalid field")
                 && entry.description.contains("preventDefault")
         }));
-        // validationErrors is typed exactly as v3's alias, and the Partial
-        // spells the flat-port limitation rather than hiding it.
+        // validationErrors is typed exactly as v3's alias, and now that the
+        // record is routed the Implemented row names every load-bearing
+        // mechanism rather than the flat Vec it replaced.
         assert!(metadata.api.iter().any(|entry| {
             entry.prop == "validationErrors"
-                && entry.status == partial
+                && entry.status == implemented
                 && entry.ty.contains("Record<string, string | string[]>")
-                && entry.description.contains("flat form-level Vec")
-                && entry.description.contains("no clear-on-edit")
+                && entry.description.contains("routed by field name")
+                && entry.description.contains("suppresses only its messages")
+                && entry.description.contains("re-arms every named field")
+                && entry
+                    .description
+                    .contains("clone keeps the record's identity")
+                && entry.description.contains("never block invisibly")
         }));
         for prop in ["onReset", "validationBehavior"] {
             assert!(metadata
@@ -924,6 +930,12 @@ mod tests {
             .states
             .iter()
             .any(|entry| entry.state == "Disabled omission" && entry.status == implemented));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Server errors displayed"
+                && entry.status == implemented
+                && entry.rust.contains("deliver_server_errors")
+                && entry.description.contains("keyed to the record's identity")
+        }));
 
         // Classless styling: no form.css, and the built-in stack is named.
         assert!(metadata.styling.iter().any(|entry| {

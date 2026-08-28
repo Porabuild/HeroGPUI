@@ -12889,10 +12889,10 @@ const FORM_API: &[ApiDoc] = &[
         prop: "validationErrors",
         ty: "ValidationErrors = Record<string, string | string[]>",
         default: "—",
-        description: "Server-side errors shown immediately. The port stores a flat form-level Vec rendered above the fields: no routing by field name into a matching field's error slot, no clear-on-edit, and reset does not hide them.",
+        description: "Server-side errors shown immediately, routed by field name: each named field's own state receives its messages and displays them in its error slot, joined in upstream order. Editing a field suppresses only its messages, reset hides them all, and a genuinely new record re-arms every named field even when the content is identical — a clone keeps the record's identity and re-arms nothing. Unmatched names neither display nor block, and fields without an error-display path (the live-registered selects, switches, checkboxes and pickers) receive no routed messages, so a name can never block invisibly.",
         rust_owner: "Form",
-        rust: "validation_errors(errors)",
-        status: ImplementationStatus::Partial,
+        rust: "validation_errors(ValidationErrors)",
+        status: ImplementationStatus::Implemented,
     },
     ApiDoc {
         owner: "Form",
@@ -12970,8 +12970,8 @@ const FORM_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Server errors displayed",
         selector: "form validationErrors",
-        description: "Form-level messages render above the fields and block a native submission while present.",
-        rust: "ErrorMessage children above the field stack",
+        description: "Routed, not form-level: each named field displays its own messages in its error slot and blocks a native submit while present — unless it is disabled or read-only, which display without blocking. Delivery is keyed to the record's identity, so an edit stays suppressed across re-renders and reset keeps a clone from resurrecting a message.",
+        rust: "Form::render delivery canvas -> FormField::deliver_server_errors -> InputState/OtpState routed_errors",
         status: ImplementationStatus::Implemented,
     },
 ];

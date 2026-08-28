@@ -38,6 +38,27 @@
 //! validation bars them — neither a missing value nor a stored error on a
 //! read-only field can block a submission, as a native form has it.
 //!
+//! `validationErrors` is HeroUI v3's `ValidationErrors` record —
+//! `Record<string, string | string[]>` — a *name-keyed* mapping of server
+//! errors, not a form-level message stack. The form routes it: every named
+//! field's own state receives its messages and displays them in its own
+//! error slot, exactly as React Aria routes server errors into the field a
+//! `<FieldError />` composes. The upstream row is "displayed immediately and
+//! cleared when user modifies the field", and both halves live with the
+//! field: an edit suppresses only that field's messages, reset hides them
+//! all, and each field keeps its own delivery receipt — the record revision
+//! stored beside its messages (see `SetServerErrors`) — so a clone of a
+//! delivered record re-arms nothing, wherever the field sits or however the
+//! registrations churn, while a freshly built record — same content or not —
+//! re-arms every named field it mentions. Blocking follows the same
+//! routing: a native submit is blocked by a field whose routed messages are
+//! present (unless the field is disabled or read-only, which display without
+//! blocking), `validationBehavior: "aria"` displays without blocking, and a
+//! name nothing displays is a name that never blocks — a control with no
+//! error-display path (the live-registered selects, switches, checkboxes and
+//! pickers) receives no routed messages at all, so a record can never block a
+//! submission invisibly.
+//!
 //! What is deliberately absent is the HTTP half — `action`, `method`, `encType`
 //! and `target`. There is no browser to navigate.
 
@@ -48,7 +69,7 @@ use gpui::{
     KeyUpEvent, ParentElement, RenderOnce, SharedString, Styled, Window,
 };
 
-use crate::{input::InputState, number_field::NumberState};
+use crate::{input::InputState, number_field::NumberState, validation::ValidationErrors};
 
 /// One field's value in a submission.
 #[derive(Clone, Debug, PartialEq)]
@@ -150,6 +171,24 @@ type ReadSuccessful = Arc<dyn Fn(&App) -> bool + 'static>;
 /// Reads the field's stored validity — whether its own validation is in error,
 /// which blocks a native submission like a missing required value.
 type ReadInvalid = Arc<dyn Fn(&App) -> bool + 'static>;
+/// Reads the server messages currently routed to this field by the form's
+/// `validationErrors` record — present from the moment the record arrives,
+/// empty once the user edited the field or reset cleared them.
+type ReadServerErrors = Arc<dyn Fn(&App) -> Vec<SharedString> + 'static>;
+/// Writes the routed server messages *with the revision of the record they
+/// came from*, in one update. Idempotent per field: the revision is stored
+/// beside the messages as the field's own delivery receipt, so re-running
+/// with a record the field has already received — a clone re-rendered on a
+/// later frame, or after this field moved or was replaced within the
+/// registration — is a no-op, and only a genuinely new revision re-arms.
+/// Present only on fields with an error-display path of their own: a control
+/// that cannot show a routed message must never be blocked by one.
+type SetServerErrors = Arc<dyn Fn(&mut App, Vec<SharedString>, u64) + 'static>;
+/// Clears the routed server messages *without rewinding the delivery
+/// receipt* — the reset half. The record that delivered already named the
+/// field, so its clones must stay hidden; only a genuinely new revision
+/// re-arms.
+type ClearServerErrors = Arc<dyn Fn(&mut App) + 'static>;
 /// Moves the focus to this field, which a blocked submit uses for v3's
 /// "the first invalid field will be focused".
 type FocusField = Arc<dyn Fn(&mut Window, &mut App) + 'static>;
@@ -201,6 +240,18 @@ pub struct FormField {
     /// Reads the field's stored validity — whether the field considers itself
     /// in error, written by `Input::render`.
     invalid_of: Option<ReadInvalid>,
+    /// Reads the server messages routed to this field by the form's
+    /// `validationErrors` record — what a native submit consults beside the
+    /// stored validity.
+    server_errors_of: Option<ReadServerErrors>,
+    /// Writes (or clears) the routed server messages. `None` on every field
+    /// without an error-display path, so a routed name can neither display
+    /// nor block there.
+    set_server_errors: Option<SetServerErrors>,
+    /// Clears the routed server messages for reset, leaving the field's
+    /// delivery receipt alone. `None` wherever [`Self::set_server_errors`]
+    /// is: a field that cannot display routed messages has nothing to hide.
+    clear_server_errors: Option<ClearServerErrors>,
     /// Focuses the field — the invalid-path step, when it has a reachable
     /// handle.
     focus: Option<FocusField>,
@@ -233,6 +284,9 @@ impl FormField {
         let invalid_state = state.clone();
         let enter_state = state.clone();
         let read_only_state = state.clone();
+        let routed_read_state = state.clone();
+        let routed_set_state = state.clone();
+        let routed_clear_state = state.clone();
         let state_id = state.entity_id();
         let focus_state = state;
         Self {
@@ -246,6 +300,36 @@ impl FormField {
             })),
             invalid_of: Some(Arc::new(move |cx: &App| {
                 invalid_state.read(cx).validity().is_invalid
+            })),
+            server_errors_of: Some(Arc::new(move |cx: &App| {
+                routed_read_state.read(cx).routed_errors().to_vec()
+            })),
+            set_server_errors: Some(Arc::new(
+                move |cx: &mut App, messages: Vec<SharedString>, revision: u64| {
+                    // The receipt is the field's own: a revision this state
+                    // has already delivered is a clone of a delivered record,
+                    // and re-delivering it — however many frames re-render it
+                    // or wherever this field now sits in the registration —
+                    // would resurrect a message the user edited away. Receipt
+                    // and messages move in one update, so no frame can see
+                    // one without the other.
+                    if routed_set_state.read(cx).routed_revision() == revision {
+                        return;
+                    }
+                    routed_set_state.update(cx, |s, cx| {
+                        s.set_routed(messages, revision);
+                        cx.notify();
+                    });
+                },
+            )),
+            clear_server_errors: Some(Arc::new(move |cx: &mut App| {
+                // Reset hides the messages but never rewinds the receipt.
+                if !routed_clear_state.read(cx).routed_errors().is_empty() {
+                    routed_clear_state.update(cx, |s, cx| {
+                        s.clear_routed_errors();
+                        cx.notify();
+                    });
+                }
             })),
             read: Arc::new(move |cx: &App| {
                 FormValue::Text(SharedString::from(read_state.read(cx).value().to_owned()))
@@ -299,6 +383,9 @@ impl FormField {
         let invalid_state = state.clone();
         let enter_state = state.clone();
         let read_only_state = state.clone();
+        let routed_read_state = state.clone();
+        let routed_set_state = state.clone();
+        let routed_clear_state = state.clone();
         let state_id = state.entity_id();
         let focus_state = state;
         Self {
@@ -315,6 +402,41 @@ impl FormField {
             })),
             invalid_of: Some(Arc::new(move |cx: &App| {
                 invalid_state.read(cx).input.read(cx).validity().is_invalid
+            })),
+            // The routed channel lives on the inner `InputState`, the same
+            // state that displays the messages — and the same state that
+            // carries the delivery receipt.
+            server_errors_of: Some(Arc::new(move |cx: &App| {
+                routed_read_state
+                    .read(cx)
+                    .input
+                    .read(cx)
+                    .routed_errors()
+                    .to_vec()
+            })),
+            set_server_errors: Some(Arc::new(
+                move |cx: &mut App, messages: Vec<SharedString>, revision: u64| {
+                    let inner = routed_set_state.read(cx).input.clone();
+                    // Same per-field receipt as the text field, one level
+                    // down: a revision the inner state has already delivered
+                    // is a clone, never a re-arm.
+                    if inner.read(cx).routed_revision() == revision {
+                        return;
+                    }
+                    inner.update(cx, |s, cx| {
+                        s.set_routed(messages, revision);
+                        cx.notify();
+                    });
+                },
+            )),
+            clear_server_errors: Some(Arc::new(move |cx: &mut App| {
+                let inner = routed_clear_state.read(cx).input.clone();
+                if !inner.read(cx).routed_errors().is_empty() {
+                    inner.update(cx, |s, cx| {
+                        s.clear_routed_errors();
+                        cx.notify();
+                    });
+                }
             })),
             read: Arc::new(move |cx: &App| FormValue::Number(read_state.read(cx).value())),
             restore: None,
@@ -353,6 +475,9 @@ impl FormField {
         let successful_state = state.clone();
         let invalid_state = state.clone();
         let enter_state = state.clone();
+        let routed_read_state = state.clone();
+        let routed_set_state = state.clone();
+        let routed_clear_state = state.clone();
         let state_id = state.entity_id();
         let focus_state = state;
         Self {
@@ -370,6 +495,29 @@ impl FormField {
             })),
             invalid_of: Some(Arc::new(move |cx: &App| {
                 invalid_state.read(cx).validity().is_invalid
+            })),
+            server_errors_of: Some(Arc::new(move |cx: &App| {
+                routed_read_state.read(cx).routed_errors().to_vec()
+            })),
+            set_server_errors: Some(Arc::new(
+                move |cx: &mut App, messages: Vec<SharedString>, revision: u64| {
+                    // Same per-field receipt as the text field.
+                    if routed_set_state.read(cx).routed_revision() == revision {
+                        return;
+                    }
+                    routed_set_state.update(cx, |s, cx| {
+                        s.set_routed(messages, revision);
+                        cx.notify();
+                    });
+                },
+            )),
+            clear_server_errors: Some(Arc::new(move |cx: &mut App| {
+                if !routed_clear_state.read(cx).routed_errors().is_empty() {
+                    routed_clear_state.update(cx, |s, cx| {
+                        s.clear_routed_errors();
+                        cx.notify();
+                    });
+                }
             })),
             focus: Some(Arc::new(move |window, cx| {
                 let fh = focus_state.read(cx).focus_handle.clone();
@@ -401,6 +549,11 @@ impl FormField {
             behavior_of: None,
             successful_of: None,
             invalid_of: None,
+            // A caller-held value has no state to route messages into — and
+            // nothing to display them with.
+            server_errors_of: None,
+            set_server_errors: None,
+            clear_server_errors: None,
             focus: None,
             // A caller-held value has no rendered control to be read-only.
             read_only_of: None,
@@ -434,6 +587,13 @@ impl FormField {
             behavior_of: None,
             successful_of: Some(Arc::new(move |_| successful_state.borrow().is_successful)),
             invalid_of: Some(Arc::new(move |_| invalid_state.borrow().is_invalid)),
+            // A live field belongs to a rendered non-text control — a switch,
+            // a select, a checkbox — none of which has an error-display path
+            // the form could route into. No channel: a name landing here
+            // neither displays nor blocks.
+            server_errors_of: None,
+            set_server_errors: None,
+            clear_server_errors: None,
             focus: Some(Arc::new(move |window, _| {
                 let focus = focus_state.borrow().focus.clone();
                 if let Some(focus) = focus {
@@ -461,6 +621,9 @@ impl FormField {
             behavior_of: None,
             successful_of: None,
             invalid_of: None,
+            server_errors_of: None,
+            set_server_errors: None,
+            clear_server_errors: None,
             focus: None,
             read_only_of: None,
             submits_on_enter_of: None,
@@ -480,6 +643,9 @@ impl FormField {
             behavior_of: None,
             successful_of: None,
             invalid_of: None,
+            server_errors_of: None,
+            set_server_errors: None,
+            clear_server_errors: None,
             focus: None,
             read_only_of: None,
             submits_on_enter_of: None,
@@ -503,6 +669,9 @@ impl FormField {
             behavior_of: None,
             successful_of: None,
             invalid_of: None,
+            server_errors_of: None,
+            set_server_errors: None,
+            clear_server_errors: None,
             focus: None,
             read_only_of: None,
             submits_on_enter_of: None,
@@ -596,6 +765,56 @@ impl FormField {
         self.invalid_of.as_ref().is_some_and(|f| f(cx))
     }
 
+    /// The server messages currently routed to this field by the form's
+    /// `validationErrors` record — present from the moment the record
+    /// arrives, gone once the user edited the field or a reset hid them.
+    fn server_errors(&self, cx: &App) -> Vec<SharedString> {
+        self.server_errors_of
+            .as_ref()
+            .map_or_else(Vec::new, |f| f(cx))
+    }
+
+    /// Whether this field carries routed server messages.
+    fn has_server_errors(&self, cx: &App) -> bool {
+        !self.server_errors(cx).is_empty()
+    }
+
+    /// Delivers this field's messages from the record — the routing half of
+    /// `Form::validation_errors`. A name the record does not mention clears
+    /// the field's routed messages; a field with no display channel is never
+    /// written, so a name landing there can never block invisibly. The write
+    /// is receipted on the field's own state (see [`SetServerErrors`]), so
+    /// calling this every frame — or after this field moved or was replaced
+    /// within the registration — delivers nothing until a genuinely new
+    /// record arrives.
+    fn deliver_server_errors(&self, record: &ValidationErrors, cx: &mut App) {
+        let Some(set) = self.set_server_errors.as_ref() else {
+            return;
+        };
+        // An unnamed field — its control has not rendered yet, so its name
+        // reader still answers None — receives nothing and stamps no receipt.
+        // A receipt taken before the name exists would spend this record's
+        // revision on an empty delivery, and the error would never reach the
+        // field once its control later renders and publishes its name.
+        let Some(name) = self.field_name(cx) else {
+            return;
+        };
+        let messages = record
+            .get(&name)
+            .map(<[SharedString]>::to_vec)
+            .unwrap_or_default();
+        // A record with nothing for this field, over a slot already empty, is
+        // an unobservable delivery: a freshly built empty record mints a new
+        // revision every frame, and stamping it would rewrite every field's
+        // receipt — and notify — for nothing. An occupied slot fails this
+        // guard and clears below, so an emptied record still hides what it
+        // used to name; a non-empty entry always reaches the receipted write.
+        if messages.is_empty() && self.server_errors(cx).is_empty() {
+            return;
+        }
+        set(cx, messages, record.revision());
+    }
+
     fn is_successful(&self, cx: &App) -> bool {
         self.successful_of.as_ref().is_none_or(|f| f(cx))
     }
@@ -617,8 +836,9 @@ pub enum ValidationBehavior {
 /// HeroUI Form: a vertical field stack that collects a named submission.
 #[derive(IntoElement)]
 pub struct Form {
-    /// `validationErrors` — form-level messages, shown above the fields.
-    validation_errors: Vec<SharedString>,
+    /// `validationErrors` — the [`ValidationErrors`] record the form routes
+    /// into its named fields' own error slots.
+    validation_errors: ValidationErrors,
     validation_behavior: ValidationBehavior,
     fields: Vec<FormField>,
     on_submit: Option<OnSubmit>,
@@ -630,7 +850,7 @@ pub struct Form {
 impl Form {
     pub fn new() -> Self {
         Self {
-            validation_errors: Vec::new(),
+            validation_errors: ValidationErrors::new(),
             validation_behavior: ValidationBehavior::default(),
             fields: Vec::new(),
             on_submit: None,
@@ -640,12 +860,28 @@ impl Form {
         }
     }
 
-    /// `validationErrors` — form-level messages, shown above the fields.
-    pub fn validation_errors(
-        mut self,
-        errors: impl IntoIterator<Item = impl Into<SharedString>>,
-    ) -> Self {
-        self.validation_errors = errors.into_iter().map(Into::into).collect();
+    /// `validationErrors` — HeroUI v3's `ValidationErrors` record:
+    /// server-side errors mapped by field name
+    /// (`Record<string, string | string[]>`).
+    ///
+    /// The form routes the record; the fields display it. Each entry lands in
+    /// the named field's own state and error slot — there is no form-level
+    /// message stack. Delivery is receipted per field: each field's own state
+    /// stores the record's [`ValidationErrors::revision`] beside its routed
+    /// messages, so re-rendering with a clone keeps the per-field state (an
+    /// edit stays suppressed, and reordering or replacing the registrations
+    /// re-arms nothing), while any freshly built record re-arms every named
+    /// field it mentions, content-equal or not. Names no registered field
+    /// displays neither block nor render.
+    ///
+    /// Identity is the caller's to preserve: keep one record for as long as
+    /// the response is current and pass a [`Clone`] of it each frame; building
+    /// a fresh record per frame — `ValidationErrors::new()` inline, or a
+    /// re-run builder chain — is a new server response every frame and re-arms
+    /// every named field it mentions, even with identical content. This is
+    /// React Stately's reference identity, unchanged.
+    pub fn validation_errors(mut self, errors: ValidationErrors) -> Self {
+        self.validation_errors = errors;
         self
     }
 
@@ -675,11 +911,12 @@ impl Form {
 
     /// `onInvalid` — runs instead of `onSubmit` when validation blocks it.
     ///
-    /// Blocked means a form-level `validationErrors` entry, a required field
-    /// with no value, or a field whose own stored validity is in error
-    /// (`validate`, `isInvalid`, `validationErrors`, or an HTML5 attribute
-    /// violation) — and only under [`ValidationBehavior::Native`]; `Allow`
-    /// submits regardless, as v3's does.
+    /// Blocked means a required field with no value, or a field whose own
+    /// resolved validity is in error (`validate`, `isInvalid`, the field's
+    /// `validationErrors`, an HTML5 attribute violation, or a server message
+    /// routed to it by the form's `validationErrors` record) — and only under
+    /// [`ValidationBehavior::Native`]; `Allow` submits regardless, as v3's
+    /// does. Disabled and read-only fields never block.
     pub fn on_invalid(mut self, f: impl Fn(&FormData, &mut Window, &mut App) + 'static) -> Self {
         self.on_invalid = Some(Arc::new(f));
         self
@@ -716,10 +953,12 @@ impl Form {
         FormData { entries }
     }
 
-    /// The names of the fields whose emptiness blocks submission: required,
-    /// and not opted out with `validationBehavior: "aria"`. A read-only field
-    /// is barred from constraint validation, so its emptiness never blocks.
-    fn required_names(fields: &[FormField], cx: &App) -> Vec<SharedString> {
+    /// The names of the required fields whose *own* value is missing and
+    /// whose error would block: enabled, native, not read-only. Each field is
+    /// asked about its own live value — two fields registered under one name
+    /// are validated independently, never collapsed through the submission
+    /// record's first-wins `get`.
+    fn missing_required_fields(fields: &[FormField], cx: &App) -> Vec<SharedString> {
         fields
             .iter()
             .filter(|f| {
@@ -727,6 +966,7 @@ impl Form {
                     && f.is_required
                     && !f.is_read_only(cx)
                     && f.blocks_submission(cx)
+                    && (f.read)(cx).is_empty()
             })
             .filter_map(|f| f.field_name(cx))
             .collect()
@@ -748,10 +988,8 @@ impl Form {
     /// text field would open the Select it moved the focus to, or flip the
     /// Switch. So the latch is set instead, the release handler disarms the
     /// release and moves the focus once the dispatch is over.
-    #[allow(clippy::too_many_arguments)] // one submission: fields, routing, callbacks, and the Enter-origin latch
     fn run_submission(
         fields: &[FormField],
-        errors: &[SharedString],
         behavior: ValidationBehavior,
         on_submit: Option<&OnSubmit>,
         on_invalid: Option<&OnSubmit>,
@@ -760,24 +998,26 @@ impl Form {
         cx: &mut App,
     ) {
         let data = Self::collect_data(fields, cx);
-        let missing = data.missing_required(&Self::required_names(fields, cx));
-        // A field error blocks a native submit however it arose: a
-        // required field with no value, or a field whose stored validity
-        // says it is in error (`validate`, `isInvalid`,
-        // `validationErrors`, or an HTML5 attribute violation). Read-only
-        // fields are barred from constraint validation on both counts.
+        let missing = Self::missing_required_fields(fields, cx);
+        // A field error blocks a native submit however it arose: a required
+        // field with no value, a field whose stored validity says it is in
+        // error (`validate`, `isInvalid`, the field's `validationErrors`, or
+        // an HTML5 attribute violation), or a field the form's
+        // `validationErrors` record routed a server message to. Read-only
+        // fields are barred from constraint validation on all counts, and a
+        // disabled field is not successful, so neither can block.
         let own_invalid: Vec<SharedString> = fields
             .iter()
             .filter(|f| {
                 f.is_successful(cx)
                     && f.blocks_submission(cx)
                     && !f.is_read_only(cx)
-                    && f.is_invalid(cx)
+                    && (f.is_invalid(cx) || f.has_server_errors(cx))
             })
             .filter_map(|f| f.field_name(cx))
             .collect();
         let blocked = behavior == ValidationBehavior::Native
-            && (!errors.is_empty() || !missing.is_empty() || !own_invalid.is_empty());
+            && (!missing.is_empty() || !own_invalid.is_empty());
         if blocked {
             // v3, verbatim: "By default, the first invalid field will be
             // focused." A blocked submit moves the focus to the first
@@ -808,20 +1048,23 @@ impl Form {
     /// the submission — the same union [`Self::run_submission`] tests for
     /// the blocked decision, so the focus lands on the field the report is
     /// about. Read-only fields cannot nominate themselves, and a field with
-    /// no reachable handle contributes none.
+    /// no reachable handle contributes none. An unnamed field cannot either:
+    /// the blocking lists collect names (each `filter_map`s `field_name`),
+    /// so an unnamed required or invalid field never blocks and must never
+    /// take the focus from the named blocker behind it. Each field is asked
+    /// about its own live value, so duplicate names never collapse into the
+    /// record's first-wins `get`.
     fn first_invalid_focus(fields: &[FormField], cx: &App) -> Option<FocusField> {
-        let data = Self::collect_data(fields, cx);
         fields
             .iter()
             .find(|field| {
-                !field.is_read_only(cx)
+                field.field_name(cx).is_some()
+                    && !field.is_read_only(cx)
                     && field.is_successful(cx)
                     && field.blocks_submission(cx)
                     && (field.is_invalid(cx)
-                        || (field.is_required
-                            && field.field_name(cx).is_some_and(|name| {
-                                data.get(&name).is_none_or(FormValue::is_empty)
-                            })))
+                        || field.has_server_errors(cx)
+                        || (field.is_required && (field.read)(cx).is_empty()))
             })
             .and_then(|field| field.focus.clone())
     }
@@ -838,14 +1081,12 @@ impl Form {
         let fields = self.fields.clone();
         let on_submit = self.on_submit.clone();
         let on_invalid = self.on_invalid.clone();
-        let errors = self.validation_errors.clone();
         let behavior = self.validation_behavior;
         Arc::new(move |window: &mut Window, cx: &mut App| {
             // Button origin: no keystroke is in flight, so the focus move
             // needs no deferral.
             Self::run_submission(
                 &fields,
-                &errors,
                 behavior,
                 on_submit.as_ref(),
                 on_invalid.as_ref(),
@@ -857,7 +1098,11 @@ impl Form {
     }
 
     /// The handler a reset button calls: restores every field that declared a
-    /// default, then fires `onReset`.
+    /// default, hides the routed server errors, then fires `onReset`.
+    ///
+    /// Hiding is a clear, not a rewind: each field keeps its delivery receipt
+    /// (see [`SetServerErrors`]), so a re-render passing a *clone* keeps the
+    /// messages hidden, and only a genuinely new record re-arms.
     #[allow(clippy::arc_with_non_send_sync)] // see `util::shared`
     pub fn reset_handler(&self) -> Arc<dyn Fn(&mut Window, &mut App) + 'static> {
         let restores: Vec<Restore> = self
@@ -865,10 +1110,18 @@ impl Form {
             .iter()
             .filter_map(|f| f.restore.clone())
             .collect();
+        let clear_server_errors: Vec<ClearServerErrors> = self
+            .fields
+            .iter()
+            .filter_map(|f| f.clear_server_errors.clone())
+            .collect();
         let on_reset = self.on_reset.clone();
         Arc::new(move |window: &mut Window, cx: &mut App| {
             for restore in &restores {
                 restore(window, cx);
+            }
+            for clear in &clear_server_errors {
+                clear(cx);
             }
             if let Some(f) = &on_reset {
                 f(window, cx);
@@ -892,7 +1145,7 @@ impl ParentElement for Form {
 impl RenderOnce for Form {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let Self {
-            validation_errors: errors,
+            validation_errors: record,
             validation_behavior: behavior,
             fields,
             on_submit,
@@ -901,10 +1154,15 @@ impl RenderOnce for Form {
             ..
         } = self;
         let mut el = gpui::div().flex().flex_col().gap(px(16.)).w_full();
-        // Form-level messages sit above the fields, as v3's do.
-        for message in &errors {
-            el = el.child(crate::field::ErrorMessage::new(message.clone()));
-        }
+        // The `validationErrors` record routes; it does not render here.
+        // Each field carries its own delivery receipt — the record revision
+        // stored beside its routed messages (see [`SetServerErrors`]) — so
+        // a re-render passing a *clone* redelivers nothing (a message the
+        // user edited away stays suppressed), and replacing or reordering
+        // this form's field registrations re-arms nothing either: the
+        // receipt travels with the field, not with the form. A genuinely
+        // new record — its content equal or not — re-arms every named field
+        // it mentions.
         // The blocked-Enter latch: "the keystroke whose release must not
         // click anything". Keyed window state, because the release can be
         // dispatched against a frame drawn after the press — closures from
@@ -930,7 +1188,6 @@ impl RenderOnce for Form {
         // which gpui fires on key-up, so firing here too would submit twice;
         // and the non-text compound controls never submit implicitly.
         let down_fields = fields.clone();
-        let down_errors = errors;
         let down_latch = latch.clone();
         el = el.on_key_down(move |ev: &KeyDownEvent, window, cx| {
             // A latch still set when a press arrives is from a keystroke
@@ -950,7 +1207,6 @@ impl RenderOnce for Form {
             {
                 Self::run_submission(
                     &down_fields,
-                    &down_errors,
                     behavior,
                     on_submit.as_ref(),
                     on_invalid.as_ref(),
@@ -967,7 +1223,7 @@ impl RenderOnce for Form {
         // to the first invalid field only after the keystroke has fully
         // dispatched — the newly focused Select or Switch never holds the
         // focus during a key event, so the release cannot click it.
-        let up_fields = fields;
+        let up_fields = fields.clone();
         let up_latch = latch;
         el = el.capture_key_up(move |ev: &KeyUpEvent, window, cx| {
             let Some(latch) = &up_latch else {
@@ -988,7 +1244,32 @@ impl RenderOnce for Form {
                 window.defer(cx, move |window, cx| focus(window, cx));
             }
         });
-        el.children(children)
+        // The delivery itself runs as the last child of the stack: a
+        // zero-size canvas appended *after* the caller's fields, whose
+        // prepaint callback therefore fires after every field has rendered
+        // and written its `name` into its own state — the same tree-order
+        // trick that lets a field remember its text origin, or a table arm
+        // its load-more sentinel. Delivering from `Form::render` instead
+        // would resolve every `name_of` reader to None: the form renders
+        // before its fields do. The canvas runs every frame; the per-field
+        // receipt makes each write idempotent, so a settled frame writes
+        // nothing.
+        el = el.children(children);
+        if fields.iter().any(|f| f.set_server_errors.is_some()) {
+            let delivery_fields = fields;
+            el = el.child(
+                gpui::canvas(
+                    move |_, _, cx| {
+                        for field in &delivery_fields {
+                            field.deliver_server_errors(&record, cx);
+                        }
+                    },
+                    |_, _, _, _| {},
+                )
+                .size_0(),
+            );
+        }
+        el
     }
 }
 

@@ -275,7 +275,23 @@ FORM_TEXT_SUCCESS = (
 # read-only controls barred from constraint validation while still
 # successful. The port's own additions — the suppression a field with its own
 # Enter needs, the OTP row's participation — hang off the same derived claim.
+# So does the `validationErrors` record contract, which the prop table states
+# in one line ("mapped by field name. Displayed immediately and cleared when
+# user modifies the field") and whose load-bearing mechanics are four: the
+# record routes into named fields' own error slots, an edit suppresses only
+# the edited field's messages, reset hides them, and delivery is receipted
+# per field — the record revision stored beside the messages — so a new
+# record re-arms while a clone does not.
 FORM_SUBMISSION = ('Form',)
+# The record type itself, with its revision identity: `new` mints, `Clone`
+# derives (so a clone shares the revision), and `PartialEq` compares content
+# only because structural equality must not decide delivery.
+RECORD_IDENTITY = (
+    r'(?s)static NEXT_RECORD_REVISION: AtomicU64 = AtomicU64::new\(1\);'
+    r'.*?#\[derive\(Clone, Debug\)\]\s*pub struct ValidationErrors \{'
+    r'.*?pub fn new\(\) -> Self \{\s*Self \{\s*revision: next_record_revision\(\),'
+    r'.*?fn eq\(&self, other: &Self\) -> bool \{\s*self\.entries == other\.entries'
+)
 
 
 # (component, claim) -> (module, a pattern that must appear in it).
@@ -523,6 +539,56 @@ EVIDENCE = {
         r'(?s)pub fn code\(name: impl Into<SharedString>, state: Entity<crate::input_otp::OtpState>\)'
         r'(?:(?!pub fn text_value\().)*?submits_on_enter_of: Some',
     ),
+    # HeroUI's Form row: "Server-side validation errors mapped by field name.
+    # Displayed immediately and cleared when user modifies the field." The
+    # routing half: delivery runs as the stack's LAST child (a zero-size
+    # canvas), because the form renders before its fields and the names the
+    # routing keys on are written by the fields themselves; each named
+    # field's own state receives its messages, and the block decision reads
+    # that same channel (`has_server_errors`), so nothing else can render or
+    # enforce them. `\s*` around the `.` only tolerates rustfmt wrapping the
+    # `record.get(&name)` lookup across lines.
+    ('Form', 'server-errors-route'): (
+        'form.rs',
+        r'(?s)(?=.*fn deliver_server_errors)'
+        r'(?=.*record\s*\.\s*get\(&name\))'
+        r'(?=.*gpui::canvas\()'
+        r'(?=.*field\.deliver_server_errors\(&record, cx\);)'
+        r'(?=.*f\.has_server_errors\(cx\))',
+    ),
+    # "cleared when user modifies the field": the suppression lives in the
+    # edited field's own edit path, inside the `changed` gate a caret move
+    # cannot set, so only this field's messages clear and its siblings keep
+    # theirs. The same stroke refreshes the stored validity mirror (the
+    # `refresh_stored_validity` call that follows), so a synchronous submit
+    # inside `on_change` never reads the error the edit just answered.
+    # (NumberField's steppers and the OTP's accepted edits clear the same
+    # slot — and refresh the same mirror — through their own modules.)
+    ('Form', 'server-errors-suppress'): (
+        'input.rs',
+        r'(?s)if changed \{(?:(?!if let Some\(cb\)).){0,400}?clear_routed_errors\(\)',
+    ),
+    # Reset hides the routed errors without rewinding the field's delivery
+    # receipt — the record that delivered already named the field, so a
+    # re-render passing a clone cannot resurrect a message.
+    ('Form', 'server-errors-reset'): (
+        'form.rs',
+        r'(?s)for clear in &clear_server_errors \{\s*clear\(cx\);\s*\}',
+    ),
+    # Re-arm is receipted per field, not per form: each `set_server_errors`
+    # closure short-circuits when the field's own state already carries the
+    # record's revision, and writes messages + revision in one update — so a
+    # genuinely new record (content equal or not) re-arms every named field,
+    # a clone re-arms nothing, and reordering or replacing the registrations
+    # re-arms nothing either.
+    ('Form', 'server-errors-rearm'): (
+        'form.rs',
+        r"(?s)routed_revision\(\) == revision \{\s*return;\s*\}"
+        r".*?set_routed\(messages, revision\)",
+    ),
+    # The record's identity contract: revisions minted at construction and
+    # kept by Clone, with PartialEq comparing content only.
+    ('Form', 'server-errors-record'): ('validation.rs', RECORD_IDENTITY),
     ('Dropdown', 'focus-return'): ('dropdown.rs', r'back_to_trigger'),
     # The panel itself claims the focus, only when nothing inside already holds
     # it -- a click on the trigger leaves the ring where the user put it, while
@@ -775,7 +841,10 @@ def main():
     for page in FORM_SUBMISSION:
         for claim in ('implicit-enter', 'blocked-focus', 'textarea-suppression',
                       'field-own-submit-suppression', 'combobox-enter-suppression',
-                      'read-only-bar', 'otp-enter', 'shared-funnel'):
+                      'read-only-bar', 'otp-enter', 'shared-funnel',
+                      'server-errors-route', 'server-errors-suppress',
+                      'server-errors-reset', 'server-errors-rearm',
+                      'server-errors-record'):
             key = (page, claim)
             if key not in EVIDENCE and key not in WONT_DO:
                 unmapped.append('%-14s %-14s' % key)
@@ -818,7 +887,10 @@ def main():
                       'controlled-uncontrolled',
                       'implicit-enter', 'blocked-focus', 'textarea-suppression',
                       'field-own-submit-suppression', 'combobox-enter-suppression',
-                      'read-only-bar', 'otp-enter', 'shared-funnel'):
+                      'read-only-bar', 'otp-enter', 'shared-funnel',
+                      'server-errors-route', 'server-errors-suppress',
+                      'server-errors-reset', 'server-errors-rearm',
+                      'server-errors-record'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach
             # the breakdown: reading only EVIDENCE skipped `TextArea`'s

@@ -245,7 +245,17 @@ TextField::new(state)
 `validationErrors`, then `validate`, with the component's own `error_message` as
 the fallback rather than an addition. Available on Input, TextField, TextArea,
 SearchField, NumberField, Checkbox, Switch, InputOTP, ColorField, DateField and
-TimeField; `Form` takes `validation_errors` for form-level messages.
+TimeField. `Form` takes `validation_errors(ValidationErrors)` — HeroUI's
+`Record<string, string | string[]>` record of server errors keyed by field
+name. The form routes each name into that field's own error slot; editing a
+field clears only its messages, reset hides them all, and a genuinely new
+record re-arms every named field even when the content is identical (a clone
+keeps the record's identity and re-arms nothing). Identity is reference
+identity, as in React Stately: retain one record for as long as the response
+is current and pass a clone each frame; building a fresh record per frame —
+even with identical content — is a new server response and re-arms.
+Unmatched names neither display nor block; fields without an error-display
+path receive no routed messages, so a name can never block invisibly.
 
 ## Component API pattern
 

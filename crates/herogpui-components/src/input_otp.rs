@@ -54,6 +54,18 @@ pub struct OtpState {
     is_successful: bool,
     /// Resolved component validation, read by native Form submission.
     validity: crate::validation::Validity,
+    /// Server messages routed to this field by its `Form`'s
+    /// `validationErrors` record (`form.rs`). The form writes them on a new
+    /// record; an accepted edit in any cell clears them — v3: "displayed
+    /// immediately and cleared when user modifies the field".
+    routed_errors: Vec<SharedString>,
+    /// The delivery receipt for `routed_errors`: the record revision these
+    /// messages last came from, `0` before anything arrived. The form's
+    /// delivery consults it — a record the receipt already names is a clone
+    /// of one already delivered and re-arms nothing — and an accepted edit
+    /// clears the messages without rewinding it, so the next frame's clone
+    /// cannot resurrect what the keystroke answered.
+    routed_revision: u64,
 }
 
 impl OtpState {
@@ -77,6 +89,8 @@ impl OtpState {
             focus_handle: cx.focus_handle().tab_stop(true),
             is_successful: true,
             validity: crate::validation::Validity::default(),
+            routed_errors: Vec::new(),
+            routed_revision: 0,
         }
     }
 
@@ -108,6 +122,36 @@ impl OtpState {
     pub(crate) fn set_validity(&mut self, validity: crate::validation::Validity) {
         self.validity = validity;
     }
+
+    /// The server messages the form routed to this field, as last written by
+    /// the form's `validationErrors` delivery — what this field's error slot
+    /// renders. Empty once an accepted edit suppressed them or a reset hid
+    /// them.
+    pub fn routed_errors(&self) -> &[SharedString] {
+        &self.routed_errors
+    }
+
+    /// The delivery receipt beside [`Self::routed_errors`] — the record
+    /// revision these messages last came from, `0` before any delivery.
+    pub(crate) fn routed_revision(&self) -> u64 {
+        self.routed_revision
+    }
+
+    /// Replaces the routed server messages *and* the receipt that names the
+    /// record they came from, in one update. Guarded by the caller, which
+    /// compares the receipt before writing so a render cannot notify-loop.
+    pub(crate) fn set_routed(&mut self, messages: Vec<SharedString>, revision: u64) {
+        self.routed_errors = messages;
+        self.routed_revision = revision;
+    }
+
+    /// Suppresses the routed server messages after an accepted edit. The
+    /// delivery receipt is deliberately untouched — the record that delivered
+    /// already named this field, so the next frame's clone must not resurrect
+    /// what the keystroke answered.
+    pub(crate) fn clear_routed_errors(&mut self) {
+        self.routed_errors.clear();
+    }
 }
 
 impl Focusable for OtpState {
@@ -117,6 +161,45 @@ impl Focusable for OtpState {
 }
 
 type OnComplete = std::sync::Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>;
+
+/// An accepted edit — a typed digit, a paste, a backspace that removed
+/// something — suppresses the routed server messages (v3: server errors are
+/// "cleared when user modifies the field"). A rejected keystroke is not an
+/// edit and clears nothing.
+fn suppress_routed_errors(state: &Entity<OtpState>, cx: &mut App) {
+    if !state.read(cx).routed_errors().is_empty() {
+        state.update(cx, |state, cx| {
+            state.clear_routed_errors();
+            cx.notify();
+        });
+    }
+}
+
+/// An accepted edit also refreshes the stored validity mirror. `render`
+/// writes that mirror, so without this it is one frame old — and a
+/// completion handler may submit the form synchronously (the one-time-code
+/// auto-submit v3's `onComplete` invites) before any frame catches up. The
+/// routed messages the edit just suppressed are left out, so the mirror
+/// says what the field says *now*: its own `isInvalid`, `validationErrors`
+/// and `validate` against the current code.
+fn refresh_stored_validity(
+    state: &Entity<OtpState>,
+    is_invalid: bool,
+    validation_errors: &[SharedString],
+    validate: Option<&crate::validation::Validator<str>>,
+    cx: &mut App,
+) {
+    let code: String = state.read(cx).code();
+    let validity = crate::validation::resolve(
+        is_invalid,
+        validation_errors,
+        validate.and_then(|f| f(code.as_str())),
+        None,
+    );
+    if state.read(cx).validity() != &validity {
+        state.update(cx, |s, _| s.set_validity(validity));
+    }
+}
 
 type Slot = std::sync::Arc<dyn Fn(usize, Option<char>) -> gpui::AnyElement + 'static>;
 
@@ -381,10 +464,15 @@ impl RenderOnce for InputOTP {
         let disabled = self.is_disabled;
 
         // v3 order: the controlled flag, then server errors, then `validate`.
+        // The server slot carries the messages the `Form`'s
+        // `validationErrors` record routed into this state by name, ahead of
+        // this field's own `validationErrors` prop.
         let code_now = self.state.read(cx).code();
+        let mut server_errors = self.state.read(cx).routed_errors().to_vec();
+        server_errors.extend(self.validation_errors.iter().cloned());
         let validity = crate::validation::resolve(
             self.is_invalid,
-            &self.validation_errors,
+            &server_errors,
             self.validate.as_ref().and_then(|f| f(code_now.as_str())),
             None,
         );
@@ -581,6 +669,12 @@ impl RenderOnce for InputOTP {
         let on_change = self.on_change.clone();
         let pattern = self.pattern;
         let paste_transformer = self.paste_transformer.clone();
+        // The sources an accepted edit re-resolves the stored validity from
+        // (see `refresh_stored_validity`): the field's own, never the
+        // routed slot the edit suppresses.
+        let edit_is_invalid = self.is_invalid;
+        let edit_validation_errors = self.validation_errors.clone();
+        let edit_validate = self.validate.clone();
         row = row.on_key_down(move |ev: &KeyDownEvent, window, cx| {
             if disabled {
                 return;
@@ -626,6 +720,14 @@ impl RenderOnce for InputOTP {
                     });
                     let code: String = state_entity.read(cx).code();
                     if accepted {
+                        suppress_routed_errors(&state_entity, cx);
+                        refresh_stored_validity(
+                            &state_entity,
+                            edit_is_invalid,
+                            &edit_validation_errors,
+                            edit_validate.as_ref(),
+                            cx,
+                        );
                         if let Some(cb) = &on_change {
                             cb(&code, window, cx);
                         }
@@ -660,6 +762,14 @@ impl RenderOnce for InputOTP {
                     // A backspace that clears nothing is not a change:
                     // `onChange` reports what changed, never what it was told.
                     if changed {
+                        suppress_routed_errors(&state_entity, cx);
+                        refresh_stored_validity(
+                            &state_entity,
+                            edit_is_invalid,
+                            &edit_validation_errors,
+                            edit_validate.as_ref(),
+                            cx,
+                        );
                         if let Some(cb) = &on_change {
                             let code = state_entity.read(cx).code();
                             cb(&code, window, cx);
@@ -684,7 +794,8 @@ impl RenderOnce for InputOTP {
                     let (Some(c), None) = (chars.next(), chars.next()) else {
                         return;
                     };
-                    if pattern.accepts(c) {
+                    let accepted = pattern.accepts(c);
+                    if accepted {
                         let completed = state_entity.update(cx, |s, cx| {
                             s.cells[s.cursor] = c;
                             if s.cursor + 1 < s.cells.len() {
@@ -694,6 +805,22 @@ impl RenderOnce for InputOTP {
                             cx.notify();
                             done
                         });
+                        // The accepted mutation above *is* the user
+                        // modification, so the routed server errors must be
+                        // gone — and the stored validity mirror must agree —
+                        // before any callback can observe the field: a
+                        // completion handler that submits the form
+                        // synchronously (the one-time-code auto-submit v3's
+                        // `onComplete` invites) must never be blocked by the
+                        // very error this keystroke answers.
+                        suppress_routed_errors(&state_entity, cx);
+                        refresh_stored_validity(
+                            &state_entity,
+                            edit_is_invalid,
+                            &edit_validation_errors,
+                            edit_validate.as_ref(),
+                            cx,
+                        );
                         let code = state_entity.read(cx).code();
                         if let Some(cb) = &on_change {
                             cb(&code, window, cx);
@@ -709,15 +836,17 @@ impl RenderOnce for InputOTP {
             }
         });
 
-        // A field that can be invalid has to be able to say why.
-        match validity.first() {
-            None => row.into_any_element(),
-            Some(message) => gpui::div()
+        // A field that can be invalid has to be able to say why — every
+        // message, space-joined in upstream order (React Aria's `FieldError`
+        // default), not just the first.
+        match validity.messages.is_empty() {
+            true => row.into_any_element(),
+            false => gpui::div()
                 .flex()
                 .flex_col()
                 .gap(px(6.))
                 .child(row)
-                .child(crate::field::ErrorMessage::new(message))
+                .child(crate::field::ErrorMessage::new(validity.joined()))
                 .into_any_element(),
         }
     }

@@ -10,6 +10,14 @@ structs in one file share a field name, a read in either satisfies both. That
 hid an unwired `SearchField::validate` sitting beside `Input::validate`. Shared
 names are listed at the end so they get checked by hand instead of passing
 silently.
+
+A `RenderOnce` render that takes `self` by value reads its fields by
+destructuring — `let Self { validation_errors: record, .. } = self` never
+spells `self.validation_errors` — so a destructuring that BINDS the field
+counts as a read: the shorthand (`field,` or a trailing `field }`) and the
+renamed binding (`field: record`) both move the field out for the body that
+follows. `field: _` binds nothing and reads nothing, so it does not count —
+an explicit ignore is exactly how a write-only field would hide.
 """
 import io
 import re
@@ -41,8 +49,19 @@ for path in sorted(glob.glob(SRC + '*.rs')):
             writes = len(re.findall(r'self\s*\.\s*%s\s*=(?![=>])' % re.escape(f), src))
             # `self\s*\.\s*` so a wrapped builder chain still counts as a read.
             uses = len(re.findall(r'self\s*\.\s*%s\b' % re.escape(f), src))
-            # Destructuring / shorthand init also counts as neither.
-            reads = uses - writes
+            # A binding destructuring counts as a read. For field F the three
+            # accepted shapes after `let Self { ... F` are, explicitly:
+            #   `F,` / `F }`  — shorthand binding, `\s*[,}]`
+            #   `F: binding`  — renamed binding, `:\s*` + an identifier that
+            #                   is not exactly `_` (the `(?!_(?![A-Za-z0-9_]))`
+            #                   lookahead rejects a lone underscore while
+            #                   still accepting `_`-prefixed names, which do
+            #                   bind and can be read)
+            #   `F: _`        — matches neither branch: an ignore, not a read
+            destructures = len(re.findall(
+                r'let Self \{[^}]*\b%s(?:\s*[,}]|\s*:\s*(?!_(?![A-Za-z0-9_]))[A-Za-z_]\w*)'
+                % re.escape(f), src))
+            reads = uses - writes + destructures
             seen.setdefault((name, f), set()).add(struct)
             if reads == 0:
                 findings.append('%-22s %-22s %s' % (name, struct, f))
