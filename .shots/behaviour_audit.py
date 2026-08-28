@@ -714,10 +714,13 @@ EVIDENCE = {
         r'.*?!selected_now\.is_empty\(\).*?HashSet::new\(\)'
         r'.*?selection_own_for_keys.*?on_selection_change.*?stop_propagation\(\)',
     ),
-    # The pinned extendSelection halves the port must carry: the range helper
-    # with its replace-old-range collapse semantics, the Shift keyboard gate
-    # that holds Home/End back without the secondary modifier, the seat that
-    # ends a raw `all` when an extension lands, and the Shift+Click route.
+    # TagGroup's Shift range halves: the same range helper with its raw `all`
+    # collapse and replace-old-range semantics, the platform-independent
+    # Home/End extension gate driven by `Modifiers::secondary()` -- Meta on
+    # macOS, Ctrl elsewhere -- so the secondary chord works everywhere while
+    # plain Shift+Home/End stay focus-only and extra chords stay inert, the
+    # seat that ends a raw `all` when an extension lands, and the Shift+Click
+    # route.
     ('TagGroup', 'shift-range'): (
         'tag_group.rs',
         r'(?s)\A(?=.*fn extend_selection_range\()(?=.*if range\.is_all \{)'
@@ -725,7 +728,10 @@ EVIDENCE = {
         r'(?=.*current\.as_ref\(\)\.unwrap_or\(target\))'
         r'(?=.*let extends_selection = modifiers\.shift)'
         r'(?=.*&& mode == SelectionMode::Multiple)'
-        r'(?=.*"home" \| "end"\)\s*\|\|\s*\(!cfg!\(target_os = "macos"\)\s*&& modifiers\.secondary\(\)\)\))'
+        r'(?=.*shift_home_end_extends\(key_name, modifiers\.secondary\(\)\))'
+        r'(?=.*fn shift_home_end_extends\(key_name: &str, secondary: bool\) -> bool \{)'
+        r'(?=.*!matches!\(key_name, "home" \| "end"\) \|\| secondary)'
+        r'(?=.*if home_or_end \{\s*\n\s*!modifiers\.alt && !modifiers\.function\s*\n)'
         r'(?=.*fn seat\(&mut self, target: SharedString\))(?=.*self\.is_all = false;)'
         r'(?=.*ev\.modifiers\(\)\.shift && mode == SelectionMode::Multiple)',
     ),

@@ -1418,7 +1418,11 @@ fn tag_group_first_shift_arrow_selects_from_an_empty_selection(cx: &mut TestAppC
 }
 
 /// Home and End carry Shift range semantics only with the platform secondary
-/// modifier in pinned `useSelectableCollection`.
+/// modifier in pinned `useSelectableCollection`; plain Shift+Home/End move the
+/// focus alone, and an extra chord beyond the secondary stays inert. The
+/// `secondary` keystroke spelling parses to Meta on macOS and Ctrl elsewhere,
+/// so the extension chord here exercises the same platform-independent gate
+/// on every platform.
 #[gpui::test]
 fn tag_group_plain_shift_home_end_move_focus_only(cx: &mut TestAppContext) {
     let recorded = events();
@@ -1444,11 +1448,19 @@ fn tag_group_plain_shift_home_end_move_focus_only(cx: &mut TestAppContext) {
         "plain Shift+End must only move focus"
     );
     press(cx, "space");
-    press(cx, "ctrl-shift-home");
+    press(cx, "secondary-shift-home");
     assert_eq!(
         recorded.borrow().as_slice(),
         ["gamma", "alpha,beta,gamma"],
-        "Ctrl+Shift+Home must extend the anchor's range to the first tag"
+        "the secondary+Shift+Home chord must extend the anchor's range to the first tag"
+    );
+    // The extension seats the cursor on Alpha; a further Home/End move with
+    // an extra chord may walk the focus but must not extend again.
+    press(cx, "secondary-alt-shift-end");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["gamma", "alpha,beta,gamma"],
+        "an extra chord beyond the secondary must leave Home and End inert"
     );
 }
 
@@ -1594,10 +1606,10 @@ fn tag_group_redundant_select_all_preserves_the_click_anchor(cx: &mut TestAppCon
     );
 }
 
-/// A Ctrl+Shift+Home whose target already holds the cursor still extends:
-/// pinned `extendSelection` replaces the anchor..target range even when the
-/// cursor does not move, so anchoring on Gamma and pressing it from Alpha
-/// spans the whole group.
+/// A secondary+Shift+Home whose target already holds the cursor still
+/// extends: pinned `extendSelection` replaces the anchor..target range even
+/// when the cursor does not move, so anchoring on Gamma and pressing it from
+/// Alpha spans the whole group.
 #[gpui::test]
 fn tag_group_home_target_equal_to_focus_still_extends(cx: &mut TestAppContext) {
     let recorded = events();
@@ -1621,8 +1633,8 @@ fn tag_group_home_target_equal_to_focus_still_extends(cx: &mut TestAppContext) {
     });
 
     press(cx, "tab right right space");
-    press(cx, "ctrl-home");
-    press(cx, "ctrl-shift-home");
+    press(cx, "secondary-home");
+    press(cx, "secondary-shift-home");
     assert_eq!(
         recorded.borrow().as_slice(),
         ["gamma", "alpha,beta,gamma"],

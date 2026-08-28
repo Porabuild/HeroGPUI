@@ -139,6 +139,16 @@ fn extend_selection_range(
     next
 }
 
+/// Pinned `useSelectableCollection` (`isCtrlKeyPressed`): a Shift move
+/// extends the range on the collection's navigation keys, while Home and
+/// End extend only when the platform secondary modifier joins Shift --
+/// Meta on macOS, Ctrl elsewhere, exactly GPUI 0.2.2's
+/// `Modifiers::secondary()`. A plain Shift+Home/End moves the focus
+/// alone.
+fn shift_home_end_extends(key_name: &str, secondary: bool) -> bool {
+    !matches!(key_name, "home" | "end") || secondary
+}
+
 /// HeroUI TagGroup.
 #[derive(IntoElement)]
 pub struct TagGroup {
@@ -690,16 +700,23 @@ impl RenderOnce for TagGroup {
                                 return;
                             };
                             // Pinned `useSelectableCollection`: Shift extends a
-                            // multiple selection from the anchor, Home and End
-                            // only when the platform secondary modifier joins
-                            // Shift, and no other chord extends at all. A
-                            // wrap-to-self move or a Home/End already at its
-                            // target still extends: pinned `extendSelection`
-                            // replaces the anchor..target range even when the
-                            // cursor does not move, and the unchanged-selection
-                            // guard below is what keeps true no-ops silent.
+                            // multiple selection from the anchor with no other
+                            // chord, so plain Shift navigation is exact. Home
+                            // and End are exempt from the platform-key veto:
+                            // their extension chord is exactly the platform
+                            // secondary modifier, and a secondary-less
+                            // Shift+Home/End stays focus-only through the gate
+                            // helper below. A wrap-to-self move or a Home/End
+                            // already at its target still extends: pinned
+                            // `extendSelection` replaces the anchor..target
+                            // range even when the cursor does not move, and
+                            // the unchanged-selection guard below is what
+                            // keeps true no-ops silent.
                             let modifiers = event.keystroke.modifiers;
-                            let exact_shift_navigation = if cfg!(target_os = "macos") {
+                            let home_or_end = matches!(key_name, "home" | "end");
+                            let exact_shift_navigation = if home_or_end {
+                                !modifiers.alt && !modifiers.function
+                            } else if cfg!(target_os = "macos") {
                                 !modifiers.control && !modifiers.platform && !modifiers.function
                             } else {
                                 !modifiers.alt && !modifiers.platform && !modifiers.function
@@ -707,8 +724,7 @@ impl RenderOnce for TagGroup {
                             let extends_selection = modifiers.shift
                                 && mode == SelectionMode::Multiple
                                 && exact_shift_navigation
-                                && (!matches!(key_name, "home" | "end")
-                                    || (!cfg!(target_os = "macos") && modifiers.secondary()));
+                                && shift_home_end_extends(key_name, modifiers.secondary());
                             if extends_selection {
                                 if let Some(target) = collection_for_keys.get(next) {
                                     let range = range_for_keys.read(cx).clone();
@@ -871,5 +887,53 @@ impl RenderOnce for TagGroup {
         }
 
         root
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The Home/End extension gate takes the platform secondary modifier as
+    /// a plain bool, so this test is free of `cfg!` and mechanically proves
+    /// the same predicate every platform runs: Home and End extend only
+    /// when the secondary joins Shift, and a secondary-less Shift+Home/End
+    /// stays focus-only.
+    #[test]
+    fn shift_home_end_extend_only_with_the_platform_secondary() {
+        for key in ["home", "end"] {
+            assert!(
+                !shift_home_end_extends(key, false),
+                "plain Shift+{key} must only move the focus"
+            );
+            assert!(shift_home_end_extends(key, true));
+        }
+    }
+
+    /// The horizontal delegate's arrows never gate on the secondary: their
+    /// forbidden extra chords are rejected earlier, by
+    /// `exact_shift_navigation`.
+    #[test]
+    fn shift_navigation_keys_do_not_consult_the_secondary() {
+        for key in ["left", "right"] {
+            assert!(shift_home_end_extends(key, false));
+            assert!(shift_home_end_extends(key, true));
+        }
+    }
+
+    /// The bool the event path hands the gate is GPUI 0.2.2's
+    /// `Modifiers::secondary()` -- Meta on macOS, Ctrl elsewhere -- so the
+    /// platform's own secondary spelling must pass and no modifier at all
+    /// must not.
+    #[test]
+    fn platform_secondary_spelling_reaches_the_gate() {
+        assert!(shift_home_end_extends(
+            "home",
+            gpui::Modifiers::secondary_key().secondary()
+        ));
+        assert!(!shift_home_end_extends(
+            "end",
+            gpui::Modifiers::none().secondary()
+        ));
     }
 }
