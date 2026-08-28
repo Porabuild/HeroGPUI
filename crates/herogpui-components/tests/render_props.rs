@@ -1149,7 +1149,10 @@ fn tag_group_tag_content_tracks_hover_press_and_selection(cx: &mut TestAppContex
     );
 
     // A click on chip 1 moves the single selection to it: Single collapses to
-    // the clicked key, so the closure sees the first chip lose its tick.
+    // the clicked key, so the closure sees the first chip lose its tick — and
+    // the click itself seats the group's focus and roving cursor on Beta.
+    // Pointer focus: `is_focused` without the ring, because the app root
+    // cleared the focus-visible flag on the mouse-down.
     click(cx, 90., 14.);
     flush_frame(cx);
     assert!(
@@ -1160,14 +1163,20 @@ fn tag_group_tag_content_tracks_hover_press_and_selection(cx: &mut TestAppContex
         !state_of(&recorded, "alpha").is_selected,
         "the single selection must have moved off the first chip"
     );
-
-    press(cx, "tab");
-    flush_frame(cx);
-    let alpha = state_of(&recorded, "alpha");
+    let beta = state_of(&recorded, "beta");
     assert!(
-        alpha.is_focused && alpha.is_focus_visible,
-        "Tab must focus and ring the TagGroup's roving stop"
+        beta.is_focused && !beta.is_focus_visible,
+        "the click's pointer seat must focus the clicked chip without a focus-visible ring"
     );
+    assert!(
+        !state_of(&recorded, "alpha").is_focused,
+        "the pointer seat must carry the cursor off the first chip"
+    );
+
+    // Keyboard re-entry: Tab leaves the pointer-focused group for the button
+    // after it, clearing every render-prop focus and ring state, and the next
+    // Tab wraps back in — where the ring shows, because this focus came from
+    // the keyboard.
     press(cx, "tab");
     flush_frame(cx);
     assert!(
@@ -1176,6 +1185,17 @@ fn tag_group_tag_content_tracks_hover_press_and_selection(cx: &mut TestAppContex
             !state.is_focused && !state.is_focus_visible
         }),
         "moving focus out of the TagGroup must clear every render-prop focus and ring state"
+    );
+    press(cx, "tab");
+    flush_frame(cx);
+    let beta = state_of(&recorded, "beta");
+    assert!(
+        beta.is_focused && beta.is_focus_visible,
+        "keyboard re-entry must ring the TagGroup's roving stop"
+    );
+    assert!(
+        !state_of(&recorded, "alpha").is_focused,
+        "keyboard re-entry must land on the seated cursor's chip"
     );
 }
 

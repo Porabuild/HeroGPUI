@@ -9,7 +9,7 @@
 mod harness;
 
 use std::cell::{Cell, RefCell};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use gpui::{
@@ -1050,6 +1050,500 @@ fn tag_group_remove_button_does_not_toggle_selection(cx: &mut TestAppContext) {
         recorded.borrow().as_slice(),
         ["remove:beta"],
         "the nested remove action must not also select Beta"
+    );
+}
+
+/// A remove click reports the removal and then seats the group's focus and
+/// roving cursor on the tag that owned the button. Pinned
+/// `useSelectableItem` only isolates the child's press and hands DOM focus
+/// to the button; this port seats the owning tag itself because the
+/// report-only Rust model has no persisting native child and keyboard
+/// continuity needs a stable roving target. The next Space and Shift
+/// extension therefore originate from Beta — and the selection is not the
+/// removal's to change.
+#[gpui::test]
+fn tag_group_remove_click_seats_the_owning_tag(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let removed = for_view.clone();
+        let selected = for_view.clone();
+        TagGroup::new(
+            "contract-tags-remove-cursor",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .tag_content(|_, _| gpui::div().w(px(40.)).h(px(20.)).into_any_element())
+        .on_remove(move |keys, _, _| {
+            removed
+                .borrow_mut()
+                .push(format!("remove:{}", sorted_join(keys)));
+        })
+        .on_selection_change(move |keys, _, _| selected.borrow_mut().push(sorted_join(keys)))
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    flush_frame(cx);
+    // A 72px tag plus 6px gap puts Beta's 12px remove button centre at x=136.
+    click(cx, 136., 14.);
+    press(cx, "space");
+    press(cx, "shift-right");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["remove:beta", "beta", "beta,gamma"],
+        "the remove click must seat focus and cursor on Beta, so Space and the Shift extension act from there"
+    );
+}
+
+/// A body press is how a pointer user takes the group: React Aria seats the
+/// roving cursor and the collection focus on pointer-down, so with no prior
+/// Tab the arrows and Space still answer the tag that was pressed. Pointer
+/// focus shows no focus-visible ring (the app root clears the flag on any
+/// mouse-down, proved here by forcing the flag on first); the flag returns
+/// when a keyboard press reaches the group again.
+#[gpui::test]
+fn tag_group_body_pointer_seats_cursor_and_focus(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let focused = Rc::new(RefCell::new(HashMap::<String, (bool, bool)>::new()));
+    let focused_for_view = focused.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        let focused = focused_for_view.clone();
+        TagGroup::new(
+            "contract-tags-pointer-seat",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .tag_content(move |tag, state| {
+            focused.borrow_mut().insert(
+                tag.key().to_string(),
+                (state.is_focused, state.is_focus_visible),
+            );
+            gpui::div().w(px(40.)).h(px(20.)).into_any_element()
+        })
+        .on_selection_change(move |keys, _, _| recorded.borrow_mut().push(sorted_join(keys)))
+        .into_any_element()
+    });
+    cx.update(|window, _| window.activate_window());
+    cx.update(|_, cx| herogpui_components::util::set_focus_visible(true, cx));
+    flush_frame(cx);
+
+    // Alpha's body centre: the 12px remove button spans x 52..64, so x=28 is
+    // the tag body and no prior Tab has happened.
+    click(cx, 28., 14.);
+    flush_frame(cx);
+    let (alpha_focused, alpha_ring) = focused.borrow()["alpha"];
+    assert!(
+        alpha_focused && !alpha_ring,
+        "the body press must seat the group's focus on Alpha without a focus-visible ring"
+    );
+    assert!(
+        !focused.borrow()["beta"].0,
+        "the cursor must stay on the pressed tag"
+    );
+
+    // The arrows answer because the press took the group: Right carries the
+    // cursor to Beta and Space toggles it. The Space key-down is the first
+    // key that bubbles past the chip's stop_propagation, so it is also where
+    // the keyboard re-arms the focus-visible flag the click cleared.
+    press(cx, "right");
+    flush_frame(cx);
+    assert!(
+        focused.borrow()["beta"].0,
+        "the keyboard move must carry the cursor to Beta"
+    );
+    press(cx, "space");
+    flush_frame(cx);
+    let (beta_focused, beta_ring) = focused.borrow()["beta"];
+    assert!(
+        beta_focused && beta_ring,
+        "the keyboard press must ring the tag it activates"
+    );
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "alpha,beta"],
+        "the click must have selected Alpha and Space must toggle the tag the seated cursor moved to"
+    );
+}
+
+/// Pinned React Stately's `extendSelection` replaces the anchor..current range
+/// with anchor..target, so walking past a tag and back shrinks to one again.
+#[gpui::test]
+fn tag_group_shift_arrows_extend_and_reverse_shrink(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-shift-range",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .on_selection_change(move |keys, window, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab shift-right shift-right shift-left");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["beta", "beta,gamma", "beta"],
+        "Shift+Right must extend from the anchor and Shift+Left must shrink back"
+    );
+}
+
+/// The first Shift move with nothing selected has no anchor: the pinned
+/// SelectionManager selects the moved-to key alone.
+#[gpui::test]
+fn tag_group_first_shift_arrow_selects_from_an_empty_selection(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-shift-empty",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .on_selection_change(move |keys, _, _| recorded.borrow_mut().push(sorted_join(keys)))
+        .into_any_element()
+    });
+
+    press(cx, "tab shift-right");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["beta"],
+        "the first Shift+Right from an empty selection must select only the target tag"
+    );
+}
+
+/// Home and End carry Shift range semantics only with the platform secondary
+/// modifier in pinned `useSelectableCollection`.
+#[gpui::test]
+fn tag_group_plain_shift_home_end_move_focus_only(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-shift-home-end",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .on_selection_change(move |keys, _, _| recorded.borrow_mut().push(sorted_join(keys)))
+        .into_any_element()
+    });
+
+    press(cx, "tab shift-end");
+    assert!(
+        recorded.borrow().is_empty(),
+        "plain Shift+End must only move focus"
+    );
+    press(cx, "space");
+    press(cx, "ctrl-shift-home");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["gamma", "alpha,beta,gamma"],
+        "Ctrl+Shift+Home must extend the anchor's range to the first tag"
+    );
+}
+
+/// Pinned row presses route Shift+Click through `extendSelection`, preserving
+/// the anchor established by the prior toggle.
+#[gpui::test]
+fn tag_group_shift_click_extends_from_the_selection_anchor(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-shift-click",
+            vec![Tag::new("alpha", "Alpha"), Tag::new("beta", "Beta")],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .tag_content(|_, _| gpui::div().w(px(40.)).h(px(20.)).into_any_element())
+        .on_selection_change(move |keys, window, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab space");
+    flush_frame(cx);
+    // A 56px tag plus 6px gap puts Beta's centre at x=90. The second press
+    // tells extension from toggling: extending keeps Beta, toggling drops it.
+    let mut modifiers = gpui::Modifiers::none();
+    modifiers.shift = true;
+    cx.simulate_click(point(px(90.), px(14.)), modifiers);
+    cx.simulate_click(point(px(90.), px(14.)), modifiers);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "alpha,beta"],
+        "Shift+Click must extend from the anchor rather than re-anchor and toggle"
+    );
+}
+
+/// A Shift range adds only enabled tags: a disabled tag between the anchor and
+/// the target is neither stopped on nor selected.
+#[gpui::test]
+fn tag_group_shift_extension_skips_disabled_tags(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-shift-disabled",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .disabled_keys([SharedString::from("beta")])
+        .on_selection_change(move |keys, _, _| recorded.borrow_mut().push(sorted_join(keys)))
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "space");
+    press(cx, "shift-right");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "alpha,gamma"],
+        "the Shift range must skip the disabled tag between anchor and target"
+    );
+}
+
+/// Pinned Stately's raw `all` selection collapses to the moved-to key on the
+/// next Shift move instead of extending across everything.
+#[gpui::test]
+fn tag_group_select_all_then_shift_collapses_to_the_new_tag(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-shift-collapse",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .on_selection_change(move |keys, window, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press_mod_a(cx);
+    flush_frame(cx);
+    press(cx, "shift-right");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha,beta,gamma", "beta"],
+        "the Shift move after select-all must collapse to the target tag"
+    );
+}
+
+/// Pinned `SelectionManager::selectAll` is idempotent: when ordinary clicks
+/// already selected every selectable tag, a redundant Mod+A preserves the
+/// anchor instead of arming the raw-`all` collapse, so the next Shift move
+/// extends from where the clicks left it.
+#[gpui::test]
+fn tag_group_redundant_select_all_preserves_the_click_anchor(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-shift-redundant-all",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .on_selection_change(move |keys, window, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab space");
+    press(cx, "right space");
+    press(cx, "right space");
+    press_mod_a(cx);
+    flush_frame(cx);
+    press(cx, "shift-left");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "alpha,beta", "alpha,beta,gamma"],
+        "a redundant Mod+A must keep the click anchor, so Shift extends within the full selection instead of collapsing to one tag"
+    );
+}
+
+/// A Ctrl+Shift+Home whose target already holds the cursor still extends:
+/// pinned `extendSelection` replaces the anchor..target range even when the
+/// cursor does not move, so anchoring on Gamma and pressing it from Alpha
+/// spans the whole group.
+#[gpui::test]
+fn tag_group_home_target_equal_to_focus_still_extends(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-shift-home-seated",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .on_selection_change(move |keys, window, _| {
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab right right space");
+    press(cx, "ctrl-home");
+    press(cx, "ctrl-shift-home");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["gamma", "alpha,beta,gamma"],
+        "the extension must run even though Home's target already holds the cursor, replacing the anchor's range"
+    );
+}
+
+/// A one-tag group's Shift+Arrow wraps to the tag itself: pinned
+/// `extendSelection` still selects it, and a repeat whose selection is
+/// already the target stays silent.
+#[gpui::test]
+fn tag_group_single_tag_shift_arrow_selects_the_wrapped_target(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new("contract-tags-shift-single", vec![Tag::new("only", "Only")])
+            .selection_mode(SelectionMode::Multiple)
+            .on_selection_change(move |keys, _, _| recorded.borrow_mut().push(sorted_join(keys)))
+            .into_any_element()
+    });
+
+    press(cx, "tab shift-right");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["only"],
+        "the wrap-to-self Shift move must still extend to the single tag"
+    );
+    press(cx, "shift-left");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["only"],
+        "a repeat extension whose selection is unchanged must not report again"
+    );
+}
+
+/// Single mode has no ranges: a Shift click replaces the selection exactly
+/// like an ordinary click.
+#[gpui::test]
+fn tag_group_single_mode_shift_click_toggles_instead_of_extending(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-single-shift-click",
+            vec![Tag::new("alpha", "Alpha"), Tag::new("beta", "Beta")],
+        )
+        .selection_mode(SelectionMode::Single)
+        .tag_content(|_, _| gpui::div().w(px(40.)).h(px(20.)).into_any_element())
+        .on_selection_change(move |keys, _, _| recorded.borrow_mut().push(sorted_join(keys)))
+        .into_any_element()
+    });
+
+    press(cx, "tab space");
+    flush_frame(cx);
+    let mut modifiers = gpui::Modifiers::none();
+    modifiers.shift = true;
+    cx.simulate_click(point(px(90.), px(14.)), modifiers);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha", "beta"],
+        "single mode must never range-extend"
+    );
+}
+
+/// A controlled owner feeds the extension back through its prop; the component
+/// only reports and keeps its own anchor across frames.
+#[gpui::test]
+fn tag_group_controlled_shift_range_reports_and_shrinks(cx: &mut TestAppContext) {
+    let held = Rc::new(RefCell::new(HashSet::<SharedString>::new()));
+    let held_for_view = held;
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let selected = held_for_view.borrow().clone();
+        let held = held_for_view.clone();
+        let recorded = for_view.clone();
+        TagGroup::new(
+            "contract-tags-controlled-shift",
+            vec![
+                Tag::new("alpha", "Alpha"),
+                Tag::new("beta", "Beta"),
+                Tag::new("gamma", "Gamma"),
+            ],
+        )
+        .selection_mode(SelectionMode::Multiple)
+        .selected_keys(selected)
+        .on_selection_change(move |keys, window, _| {
+            *held.borrow_mut() = keys.clone();
+            recorded.borrow_mut().push(sorted_join(keys));
+            window.refresh();
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab shift-right shift-right shift-left");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["beta", "beta,gamma", "beta"],
+        "the controlled selection must report each range move and re-anchor from the owner's value"
     );
 }
 

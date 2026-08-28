@@ -74,6 +74,71 @@ impl Tag {
 type OnSelectionChange = Arc<dyn Fn(&HashSet<SharedString>, &mut Window, &mut App) + 'static>;
 type OnRemove = Arc<dyn Fn(&HashSet<SharedString>, &mut Window, &mut App) + 'static>;
 
+/// Pinned React Stately `useMultipleSelectionState`'s anchor record: where a
+/// Shift extension reaches from, how far the last one went, and whether the
+/// selection is the raw `all` a `selectAll` produced.
+#[derive(Clone, Debug, Default)]
+struct TagSelectionRange {
+    anchor: Option<SharedString>,
+    current: Option<SharedString>,
+    is_all: bool,
+}
+
+impl TagSelectionRange {
+    /// Seats the range on `target`: the anchor stays whatever a first
+    /// extension chose, the cursor lands on `target`, and a raw `all` ends.
+    fn seat(&mut self, target: SharedString) {
+        if self.anchor.is_none() {
+            self.anchor = Some(target.clone());
+        }
+        self.current = Some(target);
+        self.is_all = false;
+    }
+}
+
+/// The selection after extending to `target` from `range`'s anchor.
+///
+/// The old anchor..current range is *replaced* by anchor..target, so extending
+/// backwards shrinks again; a raw `all` collapses to the new key; a first
+/// extension without an anchor selects from the target itself, which is what
+/// the pinned SelectionManager does when nothing anchors it yet. Only
+/// `selectable` keys enter the range, so disabled tags are skipped.
+fn extend_selection_range(
+    current: &HashSet<SharedString>,
+    collection: &[SharedString],
+    selectable: &HashSet<SharedString>,
+    range: &TagSelectionRange,
+    target: &SharedString,
+) -> HashSet<SharedString> {
+    if range.is_all {
+        return HashSet::from([target.clone()]);
+    }
+    let anchor = range.anchor.as_ref().unwrap_or(target);
+    let previous = range.current.as_ref().unwrap_or(target);
+    let anchor_at = collection.iter().position(|key| key == anchor);
+    let previous_at = collection.iter().position(|key| key == previous);
+    let target_at = collection.iter().position(|key| key == target);
+    let between = |from: Option<usize>, to: Option<usize>| {
+        from.zip(to)
+            .map(|(from, to)| if from <= to { from..=to } else { to..=from })
+    };
+    let mut next = current.clone();
+    if let Some(previous_range) = between(anchor_at, previous_at) {
+        for index in previous_range {
+            next.remove(&collection[index]);
+        }
+    }
+    if let Some(target_range) = between(anchor_at, target_at) {
+        for index in target_range {
+            let key = &collection[index];
+            if selectable.contains(key) {
+                next.insert(key.clone());
+            }
+        }
+    }
+    next
+}
+
 /// HeroUI TagGroup.
 #[derive(IntoElement)]
 pub struct TagGroup {
@@ -252,6 +317,13 @@ impl RenderOnce for TagGroup {
             cx,
             |_, _| 0usize,
         );
+        // The Shift-range anchor lives beside the cursor, keyed off the same
+        // instance id so two groups never share an anchor.
+        let selection_range = window.use_keyed_state(
+            ElementId::Name(format!("{:?}-range", self.id).into()),
+            cx,
+            |_, _| TagSelectionRange::default(),
+        );
         let (selected_keys, selection_own) = crate::util::controlled(
             window,
             cx,
@@ -281,6 +353,12 @@ impl RenderOnce for TagGroup {
             .iter()
             .map(|index| self.tags[*index].key.clone())
             .collect();
+        // The collection order the range is resolved against — every tag's
+        // key, including disabled ones: disabled keys keep their collection
+        // positions so range span traversal preserves indexes, while the
+        // `selectable` filter keeps their insertions out of the range.
+        let collection_keys: Vec<SharedString> =
+            self.tags.iter().map(|tag| tag.key.clone()).collect();
         let owns_focus = window.is_window_active() && group_focus.is_focused(window);
         // One hover/press slot per tag, for a `tag_content` closure.
         let interaction: Vec<crate::util::Interaction> = if self.tag_content.is_some() {
@@ -465,15 +543,35 @@ impl RenderOnce for TagGroup {
                     );
                 if !disabled {
                     let hover_bg = colors.default.hover();
+                    let focus_for_remove = group_focus.clone();
+                    let cursor_for_remove = cursor.clone();
                     close = close
                         .cursor_pointer()
                         .hover(move |s| s.bg(hover_bg))
+                        // The press belongs to the button. Stopping it here
+                        // keeps the tag body's mouse-down -- which seats the
+                        // group's focus and cursor -- out of a remove press.
+                        .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
+                            cx.stop_propagation();
+                        })
                         .on_click(move |_, window, cx| {
                             // The remove button is an action inside a
                             // selectable tag. Its press belongs to the button,
                             // never to the tag behind it.
                             cx.stop_propagation();
                             on_remove(&HashSet::from([key.clone()]), window, cx);
+                            // Pinned `useSelectableItem` only isolates the
+                            // child's press -- DOM focus goes to the button.
+                            // This port seats the owning tag itself because
+                            // the report-only Rust model has no persisting
+                            // native child and keyboard continuity needs a
+                            // stable roving target. Removal only reports;
+                            // the selection is not this click's to change.
+                            window.focus(&focus_for_remove);
+                            cursor_for_remove.update(cx, |v, cx| {
+                                *v = index;
+                                cx.notify();
+                            });
                         });
                 }
                 chip = chip.child(close);
@@ -491,8 +589,12 @@ impl RenderOnce for TagGroup {
                 let disallow_empty = self.disallow_empty_selection;
                 let selected_now = self.selected_keys.clone();
                 let selectable_keys = enabled_keys.clone();
+                let collection_for_keys = collection_keys.clone();
+                let range_for_keys = selection_range.clone();
                 let on_selection_change = self.on_selection_change.clone();
                 let selection_own_for_keys = selection_own.clone();
+                let range_for_all = selection_range.clone();
+                let range_for_escape = selection_range.clone();
                 chip = chip.on_key_down(move |event, window, cx| {
                     let key_name = event.keystroke.key.as_str();
                     // Pinned React Aria 3.51 routes TagGroup through
@@ -521,6 +623,17 @@ impl RenderOnce for TagGroup {
                             if let Some(change) = &on_selection_change {
                                 change(&selectable_keys, window, cx);
                             }
+                            // The raw `all`: the next Shift move collapses to
+                            // its target instead of extending across
+                            // everything. A redundant Mod+A over an already
+                            // complete selection is idempotent and keeps the
+                            // anchor, like pinned `SelectionManager::selectAll`.
+                            range_for_all.update(cx, |range, _| {
+                                *range = TagSelectionRange {
+                                    is_all: true,
+                                    ..TagSelectionRange::default()
+                                };
+                            });
                         }
                         cx.stop_propagation();
                         return;
@@ -543,6 +656,9 @@ impl RenderOnce for TagGroup {
                         if let Some(change) = &on_selection_change {
                             change(&next, window, cx);
                         }
+                        range_for_escape.update(cx, |range, _| {
+                            *range = TagSelectionRange::default();
+                        });
                         cx.stop_propagation();
                         return;
                     }
@@ -573,6 +689,51 @@ impl RenderOnce for TagGroup {
                             else {
                                 return;
                             };
+                            // Pinned `useSelectableCollection`: Shift extends a
+                            // multiple selection from the anchor, Home and End
+                            // only when the platform secondary modifier joins
+                            // Shift, and no other chord extends at all. A
+                            // wrap-to-self move or a Home/End already at its
+                            // target still extends: pinned `extendSelection`
+                            // replaces the anchor..target range even when the
+                            // cursor does not move, and the unchanged-selection
+                            // guard below is what keeps true no-ops silent.
+                            let modifiers = event.keystroke.modifiers;
+                            let exact_shift_navigation = if cfg!(target_os = "macos") {
+                                !modifiers.control && !modifiers.platform && !modifiers.function
+                            } else {
+                                !modifiers.alt && !modifiers.platform && !modifiers.function
+                            };
+                            let extends_selection = modifiers.shift
+                                && mode == SelectionMode::Multiple
+                                && exact_shift_navigation
+                                && (!matches!(key_name, "home" | "end")
+                                    || (!cfg!(target_os = "macos") && modifiers.secondary()));
+                            if extends_selection {
+                                if let Some(target) = collection_for_keys.get(next) {
+                                    let range = range_for_keys.read(cx).clone();
+                                    let next_selection = extend_selection_range(
+                                        &selected_now,
+                                        &collection_for_keys,
+                                        &selectable_keys,
+                                        &range,
+                                        target,
+                                    );
+                                    range_for_keys
+                                        .update(cx, |range, _| range.seat(target.clone()));
+                                    if next_selection != selected_now {
+                                        if let Some(held) = &selection_own_for_keys {
+                                            held.update(cx, |value, cx| {
+                                                *value = next_selection.clone();
+                                                cx.notify();
+                                            });
+                                        }
+                                        if let Some(change) = &on_selection_change {
+                                            change(&next_selection, window, cx);
+                                        }
+                                    }
+                                }
+                            }
                             // No refocusing: the next render has the tag
                             // at `next` claim the group's handle, so the
                             // focus goes with it.
@@ -584,6 +745,28 @@ impl RenderOnce for TagGroup {
                         _ => {}
                     }
                 });
+                // React Aria seats a collection on pointer-down: pressing a
+                // tag's body moves the roving cursor to it and takes the
+                // group's focus, so the arrows and Space answer the tag the
+                // user pressed with no Tab first. A child that prevented the
+                // press -- the remove button -- keeps the body out of it, and
+                // preventing the default here is the other half of the seat:
+                // gpui's own focus-on-press for `track_focus` elements works
+                // the same way, so an ancestor's -- the app root's -- press
+                // focus cannot steal the handle back in the same dispatch.
+                let focus_for_seat = group_focus.clone();
+                let cursor_for_seat = cursor.clone();
+                chip = chip.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                    if window.default_prevented() {
+                        return;
+                    }
+                    window.focus(&focus_for_seat);
+                    window.prevent_default();
+                    cursor_for_seat.update(cx, |v, cx| {
+                        *v = index;
+                        cx.notify();
+                    });
+                });
             }
 
             if selectable && !disabled {
@@ -593,39 +776,73 @@ impl RenderOnce for TagGroup {
                 let current = self.selected_keys.clone();
                 let on_change = self.on_selection_change.clone();
                 let selection_own = selection_own.clone();
-                chip = chip.on_click(move |_, window, cx| {
-                    let next = match mode {
-                        SelectionMode::None => current.clone(),
-                        SelectionMode::Single => {
-                            if current.contains(&key) && !disallow_empty {
-                                HashSet::new()
-                            } else {
-                                HashSet::from([key.clone()])
+                let collection_for_click = collection_keys.clone();
+                let selectable_for_click = enabled_keys.clone();
+                let range_for_click = selection_range.clone();
+                chip = chip.on_click(move |ev, window, cx| {
+                    let was_selected = current.contains(&key);
+                    // A Shift click extends from the anchor in multiple mode;
+                    // an ordinary click toggles and re-anchors instead.
+                    let extends_selection = ev.modifiers().shift && mode == SelectionMode::Multiple;
+                    let next = if extends_selection {
+                        let range = range_for_click.read(cx).clone();
+                        extend_selection_range(
+                            &current,
+                            &collection_for_click,
+                            &selectable_for_click,
+                            &range,
+                            &key,
+                        )
+                    } else {
+                        match mode {
+                            SelectionMode::None => current.clone(),
+                            SelectionMode::Single => {
+                                if current.contains(&key) && !disallow_empty {
+                                    HashSet::new()
+                                } else {
+                                    HashSet::from([key.clone()])
+                                }
                             }
-                        }
-                        SelectionMode::Multiple => {
-                            let mut set = current.clone();
-                            if set.remove(&key) {
-                                if disallow_empty && set.is_empty() {
+                            SelectionMode::Multiple => {
+                                let mut set = current.clone();
+                                if set.remove(&key) {
+                                    if disallow_empty && set.is_empty() {
+                                        set.insert(key.clone());
+                                    }
+                                } else {
                                     set.insert(key.clone());
                                 }
-                            } else {
-                                set.insert(key.clone());
+                                set
                             }
-                            set
                         }
                     };
-                    if next == current {
-                        return;
+                    // A controlled selection only reports; the owner's prop
+                    // stays in charge until it feeds the value back.
+                    if next != current {
+                        if let Some(held) = &selection_own {
+                            held.update(cx, |value, cx| {
+                                *value = next.clone();
+                                cx.notify();
+                            });
+                        }
+                        if let Some(change) = &on_change {
+                            change(&next, window, cx);
+                        }
                     }
-                    if let Some(held) = &selection_own {
-                        held.update(cx, |value, cx| {
-                            *value = next.clone();
-                            cx.notify();
+                    if extends_selection {
+                        range_for_click.update(cx, |range, _| range.seat(key.clone()));
+                    } else if mode == SelectionMode::Multiple && !was_selected {
+                        range_for_click.update(cx, |range, _| {
+                            range.anchor = Some(key.clone());
+                            range.current = Some(key.clone());
+                            range.is_all = false;
                         });
-                    }
-                    if let Some(change) = &on_change {
-                        change(&next, window, cx);
+                    } else if mode == SelectionMode::Multiple {
+                        range_for_click.update(cx, |range, _| {
+                            if range.is_all {
+                                *range = TagSelectionRange::default();
+                            }
+                        });
                     }
                 });
             }

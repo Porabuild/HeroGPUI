@@ -166,6 +166,30 @@ SELECT_ALL_KEYS = ('Table', 'ListBox', 'TagGroup')
 # Aria 3.51.0's `useSelectableCollection`.
 ESCAPE_CLEAR_KEYS = ('ListBox', 'TagGroup')
 
+# Pinned React Stately 3.49.0's `useMultipleSelectionState` extends a multiple
+# selection from its anchor on Shift+Arrow and Shift+Click -- React Aria
+# 3.51.0's `useSelectableCollection` routes both through `extendSelection`.
+# The old anchor..current range is replaced by anchor..target, so a reverse
+# move shrinks again; only enabled keys join the range; a raw `all` selection
+# collapses to the moved-to key; and a first extension without an anchor
+# selects the target alone. Home and End extend only when the platform
+# secondary modifier joins Shift. HeroUI's TagGroup page does not restate this
+# inherited contract, so it is derived like Table's and ListBox's range work.
+RANGE_SELECT = ('TagGroup',)
+
+# Pinned React Aria 3.51.0's `useSelectableCollection` seats a collection on
+# pointer-down: a press on an enabled item moves the roving cursor to it and
+# takes the group's focus, so the arrows and Space answer it with no Tab
+# first. A press on an interactive child (TagGroup's remove button) belongs
+# to the child -- pinned `useSelectableItem` only isolates the child's press
+# and hands DOM focus to the button. This port seats the owning tag itself
+# after the removal report because the report-only Rust model has no
+# persisting native child and keyboard continuity needs a stable roving
+# target. Pointer focus is not focus-visible (the modality the app root
+# records), and a disabled item takes no press at all. HeroUI inherits this
+# without restating it, so it is a derived claim like the range work above.
+POINTER_FOCUS = ('TagGroup',)
+
 # Pinned React Stately keeps custom input independent from a ComboBox's
 # multiple selection. Enter on an unmatched value neither replaces the selected
 # set nor reports either selection callback; Enter on a focused row toggles it
@@ -688,6 +712,38 @@ EVIDENCE = {
         r'.*?!selected_now\.is_empty\(\).*?HashSet::new\(\)'
         r'.*?selection_own_for_keys.*?on_selection_change.*?stop_propagation\(\)',
     ),
+    # The pinned extendSelection halves the port must carry: the range helper
+    # with its replace-old-range collapse semantics, the Shift keyboard gate
+    # that holds Home/End back without the secondary modifier, the seat that
+    # ends a raw `all` when an extension lands, and the Shift+Click route.
+    ('TagGroup', 'shift-range'): (
+        'tag_group.rs',
+        r'(?s)\A(?=.*fn extend_selection_range\()(?=.*if range\.is_all \{)'
+        r'(?=.*anchor\.as_ref\(\)\.unwrap_or\(target\))'
+        r'(?=.*current\.as_ref\(\)\.unwrap_or\(target\))'
+        r'(?=.*let extends_selection = modifiers\.shift)'
+        r'(?=.*&& mode == SelectionMode::Multiple)'
+        r'(?=.*"home" \| "end"\)\s*\|\|\s*\(!cfg!\(target_os = "macos"\)\s*&& modifiers\.secondary\(\)\)\))'
+        r'(?=.*fn seat\(&mut self, target: SharedString\))(?=.*self\.is_all = false;)'
+        r'(?=.*ev\.modifiers\(\)\.shift && mode == SelectionMode::Multiple)',
+    ),
+    # The pointer seat the port must carry: the tag body's mouse-down seats
+    # the cursor and the group handle behind a default_prevented guard and a
+    # prevent_default that keeps an ancestor's press-focus from stealing the
+    # handle back (gpui's own focus-on-press works that way), the remove
+    # button's press stops the body handler, and the remove click reports the
+    # removal and then seats the owning tag's focus and cursor.
+    ('TagGroup', 'pointer-focus'): (
+        'tag_group.rs',
+        r'(?s)\A(?=.*if window\.default_prevented\(\) \{\s*\n\s*return;)'
+        r'(?=.*on_mouse_down\(gpui::MouseButton::Left, move \|_, window, cx\| \{)'
+        r'(?=.*window\.focus\(&focus_for_seat\);)'
+        r'(?=.*window\.prevent_default\(\);)'
+        r'(?=.*on_mouse_down\(gpui::MouseButton::Left, \|_, _, cx\| \{\s*\n\s*cx\.stop_propagation\(\);)'
+        r'(?=.*on_remove\(&HashSet::from\(\[key\.clone\(\)\]\), window, cx\);)'
+        r'(?=.*window\.focus\(&focus_for_remove\);)'
+        r'(?=.*cursor_for_remove\.update\(cx, \|v, cx\| \{\s*\n\s*\*v = index;)',
+    ),
     ('Table', 'resize-bounds'): (
         'table.rs',
         r'(?s)DEFAULT_COLUMN_MIN_WIDTH: f32 = 75\..*?floor\(\)\.min\(max\)\.max\(min\)',
@@ -858,7 +914,7 @@ def main():
         + SPIN_KEYS + AREA_KEYS
         + FOCUS_OPEN + TOOLTIP_SEQUENCE + TEXT_KEYS + POINTER_CARET + SORT_KEYS + TREE_KEYS
         + TABLE_TYPEAHEAD + TABLE_PAGING + LISTBOX_PAGING + SELECT_ALL_KEYS
-        + ESCAPE_CLEAR_KEYS
+        + ESCAPE_CLEAR_KEYS + RANGE_SELECT + POINTER_FOCUS
         + COMBOBOX_MULTIPLE_KEYS
         + RESIZE_BOUNDS + RESIZE_KEYS
         + LOAD_MORE
@@ -876,7 +932,7 @@ def main():
                       'focus-open', 'global-sequence', 'text-keys', 'pointer-caret', 'sort-keys', 'tree-keys',
                       'table-typeahead', 'table-page-down', 'table-page-up-header',
                       'listbox-paging',
-                      'select-all', 'escape-clear', 'resize-bounds',
+                      'select-all', 'escape-clear', 'shift-range', 'pointer-focus', 'resize-bounds',
                       'resize-keys', 'focus-return', 'scroll-into-view', 'calendar-paging',
                       'calendar-section-bounds', 'panel-focus', 'load-more',
                       'disabled-form-omission', 'close-on-blur', 'blur-commit',
