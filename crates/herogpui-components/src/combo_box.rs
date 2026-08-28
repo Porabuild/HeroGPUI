@@ -1114,6 +1114,11 @@ impl RenderOnce for ComboBox {
                         }
                     }
                     key_close(window, cx);
+                    // The ComboBox acted on this Enter — it committed the
+                    // typed value, open list or not — so the keystroke is
+                    // the list's, and must not also submit an enclosing
+                    // form.
+                    cx.stop_propagation();
                     return;
                 }
                 if key == "enter" && (stale_cursor || held.read(cx).is_none()) {
@@ -1137,6 +1142,14 @@ impl RenderOnce for ComboBox {
                         }
                     }
                     key_close(window, cx);
+                    // Only an Enter the list acted on is kept from an
+                    // enclosing form: an open list reverted, or a typed
+                    // query discarded. A closed field with nothing to revert
+                    // answers Enter with nothing here, and the keystroke may
+                    // still bubble into the form's implicit submission.
+                    if is_open || stale_cursor || input_changed {
+                        cx.stop_propagation();
+                    }
                     return;
                 }
                 let from = held
@@ -1179,6 +1192,12 @@ impl RenderOnce for ComboBox {
                         else {
                             return;
                         };
+                        // An Enter that picks a row is the list's, not an
+                        // enclosing form's. A Tab mapped here keeps its
+                        // native motion: only Enter is stopped.
+                        if key == "enter" {
+                            cx.stop_propagation();
+                        }
                         if multiple {
                             let had_query = !state.read(cx).value().is_empty();
                             state.update(cx, |st, cx| {

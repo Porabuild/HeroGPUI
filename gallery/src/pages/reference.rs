@@ -804,6 +804,145 @@ mod tests {
     }
 
     #[test]
+    fn form_metadata_tracks_pinned_submission_contract() {
+        let metadata =
+            reference_metadata::for_route("Form", "use herogpui::components::form::Form;")
+                .expect("Form metadata is registered");
+
+        // Exactly the pinned v3.2.4 API table — 14 rows, and v3 documents no
+        // `isDisabled` on Form: a form-level disable was a v2 leftover and is
+        // gone from the port entirely.
+        assert_eq!(metadata.api.len(), 14);
+        assert!(metadata.api.iter().all(|entry| entry.prop != "isDisabled"));
+        let implemented = reference_metadata::ImplementationStatus::Implemented;
+        let partial = reference_metadata::ImplementationStatus::Partial;
+        let unavailable = reference_metadata::ImplementationStatus::Unavailable;
+        for prop in [
+            "action",
+            "className",
+            "children",
+            "encType",
+            "method",
+            "onInvalid",
+            "onReset",
+            "onSubmit",
+            "target",
+            "validationBehavior",
+            "validationErrors",
+            "aria-label",
+            "aria-labelledby",
+            "render",
+        ] {
+            assert!(
+                metadata.api.iter().any(|entry| entry.prop == prop),
+                "the pinned row {prop} must be documented"
+            );
+        }
+
+        // The HTTP half and the DOM/accessibility spellings are honest holes.
+        for prop in [
+            "action",
+            "className",
+            "encType",
+            "method",
+            "target",
+            "aria-label",
+            "aria-labelledby",
+            "render",
+        ] {
+            assert!(metadata.api.iter().any(|entry| {
+                entry.prop == prop && entry.status == unavailable && entry.rust == "—"
+            }));
+        }
+
+        // onSubmit carries the record-shape wording: what the submission
+        // looks like, however it arrived.
+        assert!(metadata.api.iter().any(|entry| {
+            entry.prop == "onSubmit"
+                && entry.status == implemented
+                && entry.description.contains("name=value")
+                && entry.description.contains("registration order")
+        }));
+        // onInvalid keeps the default focus claim and names the missing
+        // cancelable event rather than implying it.
+        assert!(metadata.api.iter().any(|entry| {
+            entry.prop == "onInvalid"
+                && entry.status == partial
+                && entry.description.contains("first invalid field")
+                && entry.description.contains("preventDefault")
+        }));
+        // validationErrors is typed exactly as v3's alias, and the Partial
+        // spells the flat-port limitation rather than hiding it.
+        assert!(metadata.api.iter().any(|entry| {
+            entry.prop == "validationErrors"
+                && entry.status == partial
+                && entry.ty.contains("Record<string, string | string[]>")
+                && entry.description.contains("flat form-level Vec")
+                && entry.description.contains("no clear-on-edit")
+        }));
+        for prop in ["onReset", "validationBehavior"] {
+            assert!(metadata
+                .api
+                .iter()
+                .any(|entry| entry.prop == prop && entry.status == implemented));
+        }
+        assert!(metadata.api.iter().any(|entry| {
+            entry.prop == "children"
+                && entry.status == partial
+                && entry.description.contains("field(..)")
+        }));
+
+        // Anatomy: one root, no composition parts.
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        assert_eq!(metadata.parts.len(), 1);
+        assert_eq!(metadata.parts[0].name, "Form");
+
+        // States are backed by behaviour: the blocked-submit focus, the
+        // read-only bar and the disabled omission are Implemented; the
+        // Enter/default-submitter row is Partial and spells the exact GPUI
+        // limitation instead of implying a browser rule.
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Blocked submit focuses first invalid"
+                && entry.status == implemented
+                && entry.rust.contains("first_invalid_focus")
+        }));
+        let enter = metadata
+            .states
+            .iter()
+            .find(|entry| entry.state == "Enter / default submitter")
+            .expect("the Enter row is the honest core of the form");
+        assert_eq!(enter.status, partial);
+        assert!(enter.description.contains("default submitter"));
+        assert!(enter.description.contains("opaque"));
+        assert!(enter.description.contains("GPUI substitute"));
+        assert!(metadata.states.iter().any(|entry| {
+            entry.state == "Read-only bar"
+                && entry.status == implemented
+                && entry.selector.contains("readonly")
+        }));
+        assert!(metadata
+            .states
+            .iter()
+            .any(|entry| entry.state == "Disabled omission" && entry.status == implemented));
+
+        // Classless styling: no form.css, and the built-in stack is named.
+        assert!(metadata.styling.iter().any(|entry| {
+            entry.class_or_token.contains("no form.css") && entry.rust.contains("gap(px(16.))")
+        }));
+
+        assert_eq!(metadata.version, "3.2.4");
+        assert!(metadata.api_source.contains("form.tsx"));
+        assert!(metadata.api_source.contains("react-aria-components@1.20.0"));
+        for url in [
+            metadata.docs_source,
+            metadata.api_source,
+            metadata.style_source,
+        ] {
+            assert!(url.contains("/blob/v3.2.4/"));
+        }
+    }
+
+    #[test]
     fn button_metadata_tracks_render_state_and_pinned_style_limits() {
         let metadata = reference_metadata::for_route(
             "Button",

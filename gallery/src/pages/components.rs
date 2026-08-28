@@ -6168,6 +6168,12 @@ impl Gallery {
             vec![(
                 "Usage",
                 col(vec![
+                    para(
+                        "The wired Submit button and Enter in a focused field run the same \
+                         submission: with the required Name empty, either door reports the \
+                         invalid path instead.",
+                        cx,
+                    ),
                     {
                         // `name` rides on each field's state, so the form finds
                         // it without the call site repeating the name.

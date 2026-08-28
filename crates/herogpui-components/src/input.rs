@@ -32,6 +32,14 @@ pub struct InputState {
     /// contribute an entry to FormData. Written by `Input::render` so the
     /// registered [`crate::form::FormField`] can read the live state.
     is_successful: bool,
+    /// Read-only native controls stay successful and focusable, but HTML
+    /// constraint validation bars them: neither a missing value nor a stored
+    /// error on a read-only field may block a submission. Mirrored by
+    /// `Input::render` like `is_successful`, so the form reads the rendered
+    /// state rather than a builder snapshot — and `NumberField` inherits the
+    /// same mirror through the inner `InputState` it forwards its own
+    /// `isReadOnly` to.
+    is_read_only: bool,
 }
 
 impl InputState {
@@ -46,6 +54,7 @@ impl InputState {
             validation_behavior: crate::form::ValidationBehavior::Native,
             validity: crate::validation::Validity::default(),
             is_successful: true,
+            is_read_only: false,
         }
     }
 
@@ -103,6 +112,15 @@ impl InputState {
 
     pub(crate) fn set_successful(&mut self, is_successful: bool) {
         self.is_successful = is_successful;
+    }
+
+    /// The rendered read-only state, as last written by `Input::render`.
+    pub(crate) fn is_read_only(&self) -> bool {
+        self.is_read_only
+    }
+
+    pub(crate) fn set_read_only(&mut self, is_read_only: bool) {
+        self.is_read_only = is_read_only;
     }
 
     pub fn set_value(&mut self, value: impl Into<String>) {
@@ -1084,6 +1102,13 @@ impl RenderOnce for Input {
             self.state
                 .update(cx, |s, _| s.set_successful(is_successful));
         }
+        // The read-only mirror: the form's constraint-validation bar reads
+        // the rendered flag, the way it reads `name` and the resolved
+        // validity off this state.
+        if self.state.read(cx).is_read_only() != self.is_read_only {
+            let read_only = self.is_read_only;
+            self.state.update(cx, |s, _| s.set_read_only(read_only));
+        }
         // v3 order: the controlled flag, then server errors, then `validate`,
         // with `errorMessage` as the fallback. Resolved here, ahead of the
         // theme borrow, because the write below needs `&mut cx`.
@@ -1697,6 +1722,14 @@ impl RenderOnce for Input {
                         let v = state_entity.read(cx).value().to_owned();
                         cb(&v, window, cx);
                     }
+                    // A field with its own `onSubmit` owns Enter, the way a
+                    // native input whose keydown handler handles the key
+                    // stops the form's implicit submission: the keystroke
+                    // must not also bubble into the enclosing `Form`. A
+                    // field without `onSubmit` swallows nothing — its Enter
+                    // bubbling is exactly how a plain field submits its
+                    // form.
+                    cx.stop_propagation();
                 }
             }
         });

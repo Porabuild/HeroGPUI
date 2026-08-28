@@ -8,6 +8,28 @@
 //! paste, arrows, no-op backspace, click-to-caret) and Fieldset's
 //! composition parts.
 //!
+//! The Enter tests pin the native submission contract v3's Form inherits
+//! ("renders a native `<form>` element"): Enter in a focused single-line
+//! registered field runs the same submission the wired submit button runs
+//! (valid data → `on_submit` once; empty required data → `on_invalid`, no
+//! submit, first invalid field focused), a TextArea's Enter is a newline and
+//! never submits, Enter on a focused submit button submits exactly once, and
+//! Enter released on a non-text compound control (a Switch) never submits.
+//! A blocked Enter defers its focus move past the keystroke, so the release
+//! cannot click, open or toggle the control the repair lands on. The controls
+//! that own Enter keep it: a field with its own `onSubmit`, and a ComboBox
+//! whose open list answers Enter. Read-only fields stay successful and
+//! focusable but are barred from constraint validation, and the OTP row —
+//! one text input in pinned v3 — participates like any single-line field.
+//!
+//! These tests describe a GPUI substitute for implicit submission, not the
+//! browser's rule. A browser picks the default submitter (the first submit
+//! button in tree order) and skips implicit submission when there is no
+//! submit button and more than one field blocking validation; gpui children
+//! are opaque, so neither the submitter nor the blocking count can be read.
+//! Enter in a participating field always runs the one shared submission —
+//! the desktop composition documented in `form.rs`.
+//!
 //! Geometry is derived from the components' own constants, not guessed:
 //!
 //! - A `Form` stacks its children `gap(16)` (form.rs). A bare `Input` is
@@ -46,9 +68,9 @@ mod harness;
 
 use gpui::{prelude::*, px, Focusable, SharedString, TestAppContext};
 use herogpui_components::{
-    Button, Description, Fieldset, FieldsetActions, FieldsetGroup, FieldsetLegend, Form, FormData,
-    FormField, Input, InputOTP, InputState, NumberField, NumberState, OtpPattern, OtpState, Select,
-    SelectionMode, Switch, ValidationBehavior,
+    Button, ComboBox, Description, Fieldset, FieldsetActions, FieldsetGroup, FieldsetLegend, Form,
+    FormData, FormField, Input, InputOTP, InputState, NumberField, NumberState, OtpPattern,
+    OtpState, SearchField, Select, SelectionMode, Switch, TextArea, ValidationBehavior,
 };
 
 use harness::{click, events, open_host, press};
@@ -816,6 +838,764 @@ fn form_native_blocks_on_min_length(cx: &mut TestAppContext) {
         invalid.borrow().as_slice(),
         [""],
         "a minLength violation must route the native submit to onInvalid"
+    );
+}
+
+#[gpui::test]
+fn form_enter_in_focused_field_runs_the_submit_button_path(cx: &mut TestAppContext) {
+    // v3's Form "renders a native `<form>` element" (the pinned docs), so
+    // Enter pressed in a focused single-line text control is the browser's
+    // implicit submission and must run the same validation-and-route path
+    // the wired submit button runs: one `on_submit` carrying the typed
+    // value, `on_invalid` never. The same record arriving from both
+    // activations — the keystroke and the click — is the proof that both
+    // doors share one submission implementation.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state_for_view = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let form = Form::new()
+            .field(FormField::text(state_for_view.clone()).is_required(true))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_missing(data, &["name"]));
+            });
+        let submit = form.submit_handler();
+        form.child(Input::new(state_for_view.clone()).name("name"))
+            .child(
+                gpui::div().flex().gap(px(8.)).child(
+                    Button::new("fe-enter-valid")
+                        .label("Submit")
+                        .on_press(move |_, window, cx| submit(window, cx)),
+                ),
+            )
+            .into_any_element()
+    });
+
+    // Field y 0..36, md button y 52..88. Clicking a `track_focus` element
+    // transfers the focus (gpui registers a focus-transferring mouse-down),
+    // so the field holds the focus when Enter goes down.
+    click(cx, 60., 18.);
+    cx.simulate_input("ada");
+    press(cx, "enter");
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["name=ada"],
+        "Enter in a focused single-line registered field must run the \
+         submission path exactly once with the typed value"
+    );
+    assert!(
+        invalid.borrow().is_empty(),
+        "a valid Enter submission must never route to on_invalid"
+    );
+
+    // The button click must produce the same record: one path, two doors.
+    click(cx, 60., 70.);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["name=ada", "name=ada"],
+        "the submit button and the Enter keystroke must submit identical \
+         data through one shared implementation"
+    );
+}
+
+#[gpui::test]
+fn form_enter_with_empty_required_focuses_first_invalid(cx: &mut TestAppContext) {
+    // The blocked half of the same native path: Enter with the required
+    // fields empty must not submit, must route to on_invalid once, and —
+    // v3, verbatim — "the first invalid field will be focused". The focus
+    // moves mid-keystroke here (the second field holds it when Enter goes
+    // down, the first registered field receives it), which is safe for
+    // these fields because a text field binds no click listener for gpui's
+    // key-up activation to fire.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let name_state = cx.new(|cx| InputState::new(cx));
+    let name_for_view = name_state.clone();
+    let email_for_view = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let form = Form::new()
+            .field(FormField::text(name_for_view.clone()).is_required(true))
+            .field(FormField::text(email_for_view.clone()).is_required(true))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids
+                    .borrow_mut()
+                    .push(record_missing(data, &["name", "email"]));
+            });
+        form.child(Input::new(name_for_view.clone()).name("name"))
+            .child(Input::new(email_for_view.clone()).name("email"))
+            .into_any_element()
+    });
+
+    // Field 1 y 0..36, field 2 y 52..88 — focus the second, press Enter.
+    click(cx, 60., 70.);
+    press(cx, "enter");
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        ["email,name"],
+        "Enter with both required fields empty must run the invalid path, \
+         reporting both missing names"
+    );
+    assert!(
+        submitted.borrow().is_empty(),
+        "a blocked Enter must never reach on_submit"
+    );
+    let focused = cx.update(|window, cx| name_state.read(cx).focus_handle(cx).is_focused(window));
+    assert!(
+        focused,
+        "a blocked Enter must focus the first registered invalid field (v3: \
+         'By default, the first invalid field will be focused'), not the \
+         field the keystroke started in"
+    );
+}
+
+#[gpui::test]
+fn form_textarea_enter_is_a_newline_and_never_submits(cx: &mut TestAppContext) {
+    // A native form never implicitly submits from a `<textarea>`: Enter is
+    // a newline there. The port's multiline-ness lives on the TextArea
+    // builder, not on the shared `InputState`, so a registration names the
+    // control kind — `FormField::text_area` reads exactly like
+    // `FormField::text` but never participates in implicit submission.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let form = Form::new()
+            .field(FormField::text_area(state_for_view.clone()).is_required(true))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_missing(data, &["bio"]));
+            });
+        form.child(TextArea::new(state_for_view.clone()).name("bio"))
+            .into_any_element()
+    });
+
+    // An EMPTY multi-line field hugs its content (~32px wide); a click at
+    // (10, 40) is the proven-inside point (text_fields.rs). Enter must land
+    // as a newline in the value and nowhere else.
+    click(cx, 10., 40.);
+    cx.simulate_input("hello");
+    press(cx, "enter");
+    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(
+        value, "hello\n",
+        "Enter in a focused TextArea must insert a newline into the value"
+    );
+    assert!(
+        submitted.borrow().is_empty(),
+        "a TextArea's Enter must never submit the form"
+    );
+    assert!(
+        invalid.borrow().is_empty(),
+        "a TextArea's newline must not run the invalid path either"
+    );
+}
+
+#[gpui::test]
+fn form_enter_on_focused_submit_button_submits_exactly_once(cx: &mut TestAppContext) {
+    // Click the submit button — which focuses it *and* submits — then press
+    // Enter while it holds the focus. gpui activates a focused element's
+    // click listeners on key-up, so the button owns exactly one submission
+    // per activation; a form-root handler that also fired on the key-down
+    // would make it two. Two records total, each the same data.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state_for_view = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let form = Form::new()
+            .field(FormField::text(state_for_view.clone()).is_required(true))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_missing(data, &["name"]));
+            });
+        let submit = form.submit_handler();
+        form.child(Input::new(state_for_view.clone()).name("name"))
+            .child(
+                gpui::div().flex().gap(px(8.)).child(
+                    Button::new("fe-enter-button")
+                        .label("Submit")
+                        .on_press(move |_, window, cx| submit(window, cx)),
+                ),
+            )
+            .into_any_element()
+    });
+
+    // Field y 0..36 (fill it so the form is submittable), button y 52..88.
+    click(cx, 60., 18.);
+    cx.simulate_input("ada");
+    click(cx, 60., 70.);
+    press(cx, "enter");
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["name=ada", "name=ada"],
+        "Enter on a focused submit button must submit exactly once per \
+         activation — one record from the click, one from the keystroke"
+    );
+    assert!(
+        invalid.borrow().is_empty(),
+        "a valid submission must never route to on_invalid"
+    );
+}
+
+#[gpui::test]
+fn form_enter_in_a_compound_control_never_submits(cx: &mut TestAppContext) {
+    // A required text field plus a Switch — a non-text compound control.
+    // Fill the field, Tab to the switch (the app focus root's arrow, and
+    // the way the switch tests focus a control without a pointer), press
+    // Enter: the switch toggles through its own key-up activation — the
+    // record proves the key really reached it — and the form does not
+    // submit. Implicit submission is a text-field behaviour; an Enter
+    // bubbling out of a compound control must not be read as one.
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let changes = events();
+    let recorded = changes.clone();
+    let state_for_view = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let changes = changes.clone();
+        let form = Form::new()
+            .field(FormField::text(state_for_view.clone()).is_required(true))
+            .field(FormField::flag("notify", false))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_missing(data, &["name"]));
+            });
+        form.child(Input::new(state_for_view.clone()).name("name"))
+            .child(
+                Switch::new("fe-enter-switch").on_change(move |checked, _, _| {
+                    changes.borrow_mut().push(checked.to_string());
+                }),
+            )
+            .into_any_element()
+    });
+
+    // Field y 0..36 — fill it so a spurious submission would have a record
+    // to show; Switch track y 52..72, reached by Tab from the field.
+    click(cx, 60., 18.);
+    cx.simulate_input("ada");
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["true"],
+        "the Enter must have reached the focused switch and toggled it — \
+         without this record the no-submit assertion would prove nothing"
+    );
+    assert!(
+        submitted.borrow().is_empty(),
+        "Enter released on a focused compound control must not submit the form"
+    );
+    assert!(
+        invalid.borrow().is_empty(),
+        "a compound control's Enter must run neither submission path"
+    );
+}
+
+#[gpui::test]
+fn form_enter_blocked_submission_defers_focus_so_the_release_cannot_activate(
+    cx: &mut TestAppContext,
+) {
+    // The reproduction the inline focus move failed: a required text field
+    // (filled) and a required empty Select, registered through
+    // `Select::form_field`. Enter in the text field blocks on the select's
+    // missing value, and the repair focuses the select trigger. gpui
+    // activates a focused element's click listeners on key *release*, and
+    // the release arrives after the focus moved, against a frame drawn with
+    // the trigger focused — so an inline move opened the panel. The form
+    // defers the move past the keystroke and disarms the release instead:
+    // the trigger ends up focused with the panel still closed, which the
+    // final Down proves (it is the closed trigger's own open key).
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let state_for_view = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let opens = opens.clone();
+        let select = Select::new(
+            "fe-defer-select",
+            vec!["Typst".into(), "Rust".into(), "Go".into()],
+        )
+        .name("tool")
+        .is_required(true)
+        .on_open_change(move |open, _, _| {
+            opens.borrow_mut().push(format!("open:{open}"));
+        });
+        let select_field = select.form_field().expect("named select field");
+        let form = Form::new()
+            .field(FormField::text(state_for_view.clone()).is_required(true))
+            .field(select_field)
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_missing(data, &["tool"]));
+            });
+        form.child(Input::new(state_for_view.clone()).name("name"))
+            .child(select)
+            .into_any_element()
+    });
+
+    // Field y 0..36, select trigger y 52..88. Fill the field so the ONLY
+    // blocker is the select, then Enter in the field.
+    click(cx, 60., 18.);
+    cx.simulate_input("ada");
+    press(cx, "enter");
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        ["tool"],
+        "the blocked Enter must run the invalid path with the select's missing \
+         name"
+    );
+    assert!(
+        submitted.borrow().is_empty(),
+        "a blocked Enter must never reach on_submit"
+    );
+    assert!(
+        opened.borrow().is_empty(),
+        "the release that follows a blocked Enter must not click the newly \
+         focused select trigger open — this is the activation the deferred \
+         focus exists to prevent"
+    );
+
+    // The Down probe: the closed select trigger answers Down by opening, and
+    // an input answers it with nothing. An open record here proves the focus
+    // really moved to the trigger even though the release clicked nothing.
+    press(cx, "down");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true"],
+        "the first invalid field must hold the focus after the blocked Enter \
+         (v3: 'By default, the first invalid field will be focused'), and its \
+         panel must still be closed"
+    );
+}
+
+#[gpui::test]
+fn form_field_with_own_on_submit_suppresses_implicit_submission(cx: &mut TestAppContext) {
+    // A field with its own `onSubmit` owns Enter the way a native input with
+    // a keydown handler for the key stops the form's implicit submission:
+    // the callback fires and the keystroke is stopped from bubbling, so the
+    // form stays silent. Without the stop the same Enter would both call the
+    // field's callback and run the form's submission — two actions, one key.
+    let own_submits = events();
+    let own = own_submits.clone();
+    let form_submits = events();
+    let submitted = form_submits.clone();
+    let state_for_view = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        let own = own_submits.clone();
+        let submitted = form_submits.clone();
+        let form = Form::new()
+            .field(FormField::text(state_for_view.clone()))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(record_data(data));
+            });
+        form.child(Input::new(state_for_view.clone()).name("name").on_submit(
+            move |value: &str, _, _| {
+                own.borrow_mut().push(value.to_owned());
+            },
+        ))
+        .into_any_element()
+    });
+
+    // Field y 0..36. Two Enters: each fires the field's own callback once
+    // and the form never submits.
+    click(cx, 60., 18.);
+    cx.simulate_input("ada");
+    press(cx, "enter");
+    press(cx, "enter");
+    assert_eq!(
+        own.borrow().as_slice(),
+        ["ada", "ada"],
+        "Enter must reach the field's own onSubmit on every press"
+    );
+    assert!(
+        submitted.borrow().is_empty(),
+        "a field that owns Enter must stop it from also submitting the form"
+    );
+}
+
+#[gpui::test]
+fn form_search_field_without_on_submit_bubbles_to_implicit_submission(cx: &mut TestAppContext) {
+    // The other half of the same contract: a SearchField with no `onSubmit`
+    // answers Enter with nothing of its own, so the keystroke still bubbles
+    // and the form submits — a plain field's bubbling Enter is how it
+    // submits its form.
+    let form_submits = events();
+    let submitted = form_submits.clone();
+    let state_for_view = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        let submitted = form_submits.clone();
+        let form = Form::new()
+            .field(FormField::text(state_for_view.clone()))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(record_data(data));
+            });
+        form.child(SearchField::new(state_for_view.clone()).name("query"))
+            .into_any_element()
+    });
+
+    // The search field's group is a 36px row at the window origin.
+    click(cx, 60., 18.);
+    cx.simulate_input("ada");
+    press(cx, "enter");
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["query=ada"],
+        "a SearchField without onSubmit must let Enter bubble into the form's \
+         implicit submission"
+    );
+}
+
+#[gpui::test]
+fn form_combo_box_open_enter_selects_and_closed_enter_submits(cx: &mut TestAppContext) {
+    // While the suggestion list is open, Enter belongs to the list: with a
+    // cursor row it picks the row and closes, and the same keystroke must
+    // not also run the form's submission. Closed, the ComboBox answers Enter
+    // with nothing — the query already matches the selection — so the
+    // keystroke bubbles and the form submits.
+    let form_submits = events();
+    let submitted = form_submits.clone();
+    let picks = events();
+    let picked = picks.clone();
+    let state_for_view = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        let submitted = form_submits.clone();
+        let picked = picks.clone();
+        let combo = ComboBox::new(
+            state_for_view.clone(),
+            vec!["Typst".into(), "Rust".into(), "Go".into()],
+        )
+        .name("tool")
+        .on_change(move |item, _, _| picked.borrow_mut().push(item.to_string()));
+        // `ComboBox::form_field` carries the name, which the raw text state
+        // alone does not.
+        let combo_field = combo.form_field().expect("named combo field");
+        let form = Form::new()
+            .field(combo_field)
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(record_data(data));
+            });
+        form.child(combo).into_any_element()
+    });
+
+    // The field is a 36px row at the origin (centre (60, 18)); the default
+    // Focus trigger opens the list on the click, Down puts the cursor on row
+    // 0, and Enter picks it.
+    click(cx, 60., 18.);
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Typst"],
+        "Enter on an open list must pick the cursor row"
+    );
+    assert!(
+        submitted.borrow().is_empty(),
+        "an Enter the open list consumed must not also submit the form"
+    );
+
+    // Closed again, the query is the selection, so the ComboBox has nothing
+    // to answer Enter with: the keystroke bubbles and the form submits with
+    // the picked value.
+    press(cx, "enter");
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["tool=Typst"],
+        "a closed ComboBox must let Enter bubble into the form's implicit \
+         submission"
+    );
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Typst"],
+        "the closed Enter must not pick anything further"
+    );
+}
+
+#[gpui::test]
+fn form_number_field_resolved_validity_blocks_and_enter_submits(cx: &mut TestAppContext) {
+    // v3's NumberField runs the same validation the other fields do: a
+    // `validate` failure resolves into the field's validity — mirrored onto
+    // the inner InputState by `NumberField::render` — and under `native` it
+    // blocks, with the failed field focused. `<input type=number>` is a
+    // single-line text control, so a valid Enter submits from it.
+    let form_submits = events();
+    let submitted = form_submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state = cx.new(|cx| NumberState::new(cx, 5.));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let submitted = form_submits.clone();
+        let invalid = invalids.clone();
+        let form = Form::new()
+            .field(FormField::number(state_for_view.clone()))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalid.borrow_mut().push(record_missing(data, &["amount"]));
+            });
+        form.child(
+            NumberField::new(state_for_view.clone())
+                .name("amount")
+                .validate(|value: &f64| (*value < 18.).then(|| "Must be 18 or more".into())),
+        )
+        .into_any_element()
+    });
+
+    // The group is 220px wide and 36px tall; click into the input area
+    // (clear of the 40px stepper cells) and press Enter on the failing 5.
+    click(cx, 110., 18.);
+    press(cx, "enter");
+    assert!(
+        submitted.borrow().is_empty(),
+        "a NumberField validate failure must block the native submit"
+    );
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        [""],
+        "a NumberField validate failure must route the submit to onInvalid"
+    );
+    let focused = cx.update(|window, cx| {
+        state
+            .read(cx)
+            .input
+            .read(cx)
+            .focus_handle(cx)
+            .is_focused(window)
+    });
+    assert!(
+        focused,
+        "the invalid number field must receive the failed-submit focus"
+    );
+
+    // Fix the value and press Enter again: the resolved validity clears and
+    // the same door submits.
+    cx.update(|_, cx| {
+        state.update(cx, |s, cx| {
+            s.set_value(42., cx);
+            cx.notify();
+        });
+    });
+    press(cx, "enter");
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["amount=42"],
+        "Enter in a valid number field must submit the form"
+    );
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        [""],
+        "the valid Enter must not run the invalid path again"
+    );
+}
+
+#[gpui::test]
+fn form_read_only_field_is_successful_but_barred_from_validation(cx: &mut TestAppContext) {
+    // Native gates, three ways: a read-only field stays successful — its
+    // value submits — and focusable, but constraint validation bars it, so
+    // neither `isRequired` emptiness nor `isInvalid` blocks. Lift the
+    // read-only flag and the same form blocks on the very same field, which
+    // is what ties the bar to the flag rather than to an accident of the
+    // registration.
+    let read_only = std::rc::Rc::new(std::cell::Cell::new(true));
+    let read_only_for_view = read_only.clone();
+    let form_submits = events();
+    let submitted = form_submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state_for_view = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        let submitted = form_submits.clone();
+        let invalid = invalids.clone();
+        let form = Form::new()
+            .field(FormField::text(state_for_view.clone()).is_required(true))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalid.borrow_mut().push(record_missing(data, &["name"]));
+            });
+        let submit = form.submit_handler();
+        form.child(
+            Input::new(state_for_view.clone())
+                .name("name")
+                .is_read_only(read_only_for_view.get())
+                .is_invalid(true)
+                .error_message("Locked"),
+        )
+        .child(
+            gpui::div().flex().gap(px(8.)).child(
+                Button::new("fe-readonly-submit")
+                    .label("Submit")
+                    .on_press(move |_, window, cx| submit(window, cx)),
+            ),
+        )
+        .into_any_element()
+    });
+
+    // The invalid field renders its error line, so the field column is
+    // 36px + gap(4) + a 16px message = 56px tall, and the md button sits at
+    // y 72..108 — centre (60, 90).
+    click(cx, 60., 90.);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["name="],
+        "a read-only field must stay successful: its value submits even when \
+         empty and flagged invalid"
+    );
+    assert!(
+        invalid.borrow().is_empty(),
+        "constraint validation must bar a read-only field: neither its \
+         required emptiness nor its stored error may block"
+    );
+
+    // Lift read-only: the same empty, still-invalid field now blocks.
+    read_only.set(false);
+    cx.update(|window, _| window.refresh());
+    click(cx, 60., 90.);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["name="],
+        "the lifted flag must let validation block again — no second submit"
+    );
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        ["name"],
+        "the same field without read-only must route the submit to onInvalid \
+         with its missing name"
+    );
+}
+
+#[gpui::test]
+fn form_otp_enter_participates_in_implicit_submission(cx: &mut TestAppContext) {
+    // Pinned v3 builds InputOTP on a single text input, and its cells share
+    // one focus handle: a focused Enter participates exactly like a
+    // single-line field's — blocked while the required code is missing, and
+    // submitting once it is filled.
+    let form_submits = events();
+    let submitted = form_submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state_for_view = cx.new(|cx| OtpState::with_length(cx, 4));
+    let cx = open_host(cx, move || {
+        let submitted = form_submits.clone();
+        let invalid = invalids.clone();
+        let form = Form::new()
+            .field(FormField::code("code", state_for_view.clone()).is_required(true))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalid.borrow_mut().push(record_missing(data, &["code"]));
+            });
+        form.child(InputOTP::new(state_for_view.clone()))
+            .into_any_element()
+    });
+
+    // Cell 0 spans x 0..38 in the 40px row: centre (19, 20). The empty
+    // required code blocks, and the OTP is the invalid field that holds the
+    // focus already.
+    click(cx, 19., 20.);
+    press(cx, "enter");
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        ["code"],
+        "a focused Enter on an empty required OTP must run the invalid path"
+    );
+    assert!(
+        submitted.borrow().is_empty(),
+        "the blocked OTP Enter must not submit"
+    );
+
+    // Fill the code and press Enter again: the same door submits.
+    press(cx, "1");
+    press(cx, "2");
+    press(cx, "3");
+    press(cx, "4");
+    press(cx, "enter");
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["code=1234"],
+        "a focused Enter on a filled OTP must submit the form"
+    );
+}
+
+#[gpui::test]
+fn form_enter_modifiers_match_the_rendered_control(cx: &mut TestAppContext) {
+    // The rendered single-line control submits on plain and shift+enter —
+    // its own Enter branch only refuses ctrl/alt/platform chords — so the
+    // form's implicit submission must match: shift+enter submits, a chord
+    // does nothing at all, and the field's value is untouched by any of
+    // them.
+    let form_submits = events();
+    let submitted = form_submits.clone();
+    let state_for_view = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        let submitted = form_submits.clone();
+        let form = Form::new()
+            .field(FormField::text(state_for_view.clone()))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(record_data(data));
+            });
+        form.child(Input::new(state_for_view.clone()).name("name"))
+            .into_any_element()
+    });
+
+    // Field y 0..36.
+    click(cx, 60., 18.);
+    cx.simulate_input("ada");
+    press(cx, "ctrl-enter");
+    press(cx, "alt-enter");
+    press(cx, "cmd-enter");
+    assert!(
+        submitted.borrow().is_empty(),
+        "a ctrl/alt/platform-modified Enter must neither submit the form nor \
+         reach the field's own Enter branch"
+    );
+    press(cx, "shift-enter");
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["name=ada"],
+        "shift+enter must submit, matching the rendered single-line control"
     );
 }
 

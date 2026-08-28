@@ -12781,6 +12781,233 @@ pub(crate) const TOOLBAR: ReferenceMetadata = ReferenceMetadata {
     styling: TOOLBAR_STYLING,
 };
 
+const FORM_REQUIRED_PARTS: &[&str] = &["Form"];
+
+const FORM_API: &[ApiDoc] = &[
+    ApiDoc {
+        owner: "Form",
+        prop: "action",
+        ty: "string | FormHTMLAttributes['action']",
+        default: "—",
+        description: "The URL the submission navigates to; there is no browser here and no submission endpoint, so the HTTP half of a native form is out of reach.",
+        rust_owner: "Form",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "Form",
+        prop: "className",
+        ty: "string",
+        default: "—",
+        description: "gpui has no class-name surface; the documented container layout is built in.",
+        rust_owner: "Form",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "Form",
+        prop: "children",
+        ty: "React.ReactNode",
+        default: "—",
+        description: "Takes child elements like any container; the fields among them are additionally registered with field(..), because gpui gives a child no way to discover its ancestor form.",
+        rust_owner: "Form",
+        rust: "new()",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "Form",
+        prop: "encType",
+        ty: "'application/x-www-form-urlencoded' | 'multipart/form-data' | 'text/plain'",
+        default: "—",
+        description: "A wire-format choice for the HTTP submission this port does not perform.",
+        rust_owner: "Form",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "Form",
+        prop: "method",
+        ty: "'get' | 'post'",
+        default: "—",
+        description: "The HTTP verb for a navigation this port does not perform; onSubmit receives the collected FormData instead.",
+        rust_owner: "Form",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "Form",
+        prop: "onInvalid",
+        ty: "(event: FormEvent<HTMLFormElement>) => void",
+        default: "—",
+        description: "Runs instead of onSubmit when validation blocks, and focuses the first invalid field by default. v3's cancelable event — preventDefault() to customize that focus — has no port: the callback receives the FormData and the focus move is not cancelable.",
+        rust_owner: "Form",
+        rust: "on_invalid(callback)",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "Form",
+        prop: "onReset",
+        ty: "(event: FormEvent<HTMLFormElement>) => void",
+        default: "—",
+        description: "Fires after the registered fields that declared a default are restored; wired through reset_handler() the way the submit button is wired through submit_handler().",
+        rust_owner: "Form",
+        rust: "on_reset(callback)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "Form",
+        prop: "onSubmit",
+        ty: "(event: FormEvent<HTMLFormElement>) => void",
+        default: "—",
+        description: "Receives the collected record in registration order, read back as name=value pairs through FormData::text/get_all — the same shape however the submission arrived: the wired submit button or Enter in a participating field.",
+        rust_owner: "Form",
+        rust: "on_submit(callback)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "Form",
+        prop: "target",
+        ty: "'_self' | '_blank' | '_parent' | '_top'",
+        default: "—",
+        description: "Where a browser displays the response; there is no navigation to target.",
+        rust_owner: "Form",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "Form",
+        prop: "validationBehavior",
+        ty: "'native' | 'aria'",
+        default: "'native'",
+        description: "native blocks submission on a failed field and routes to onInvalid; aria shows messages without blocking. Settable per field as well as per form.",
+        rust_owner: "Form",
+        rust: "validation_behavior(ValidationBehavior)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "Form",
+        prop: "validationErrors",
+        ty: "ValidationErrors = Record<string, string | string[]>",
+        default: "—",
+        description: "Server-side errors shown immediately. The port stores a flat form-level Vec rendered above the fields: no routing by field name into a matching field's error slot, no clear-on-edit, and reset does not hide them.",
+        rust_owner: "Form",
+        rust: "validation_errors(errors)",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "Form",
+        prop: "aria-label",
+        ty: "string",
+        default: "—",
+        description: "Names the form landmark; gpui exposes no accessibility tree.",
+        rust_owner: "Form",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "Form",
+        prop: "aria-labelledby",
+        ty: "string",
+        default: "—",
+        description: "Labels the form landmark by element id; gpui exposes no accessibility tree.",
+        rust_owner: "Form",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "Form",
+        prop: "render",
+        ty: "DOMRenderFunction<keyof React.JSX.IntrinsicElements, undefined>",
+        default: "—",
+        description: "Substitutes the DOM form element; a gpui element tree has no DOM root to replace.",
+        rust_owner: "Form",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+];
+
+const FORM_PARTS: &[PartDoc] = &[
+    // v3's Form is one native `<form>` with no composition parts; the fields
+    // and buttons are the caller's.
+    PartDoc {
+        name: "Form",
+        slot: "form",
+        description: "One root with native form semantics: a flex column on the 16px rhythm whose fields are registered, not discovered.",
+        rust_owner: "Form",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const FORM_STATES: &[StateDoc] = &[
+    StateDoc {
+        state: "Blocked submit focuses first invalid",
+        selector: "(native) the first invalid field on a blocked submit",
+        description: "A blocked submission moves the focus to the first registered field whose error blocks — required emptiness or stored invalidity — on both the button and the Enter path; from Enter the move is deferred past the keystroke so the release cannot click the control it lands on.",
+        rust: "Form::run_submission -> Form::first_invalid_focus",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Enter / default submitter",
+        selector: "(native) form implicit submission",
+        description: "A browser picks the default submitter (the first submit button in tree order) and skips implicit submission with no submit button and more than one field blocking validation; gpui children are opaque elements, so neither can be inferred. This port always runs the one shared submission when Enter lands in a participating registered field — a GPUI substitute for the browser rule, which fields with their own Enter (a set onSubmit, an open ComboBox list) keep by stopping propagation.",
+        rust: "Form::run_submission + FormField submits_on_enter readers",
+        status: ImplementationStatus::Partial,
+    },
+    StateDoc {
+        state: "Read-only bar",
+        selector: "input[readonly]",
+        description: "A read-only field stays successful and focusable — its value still submits — but constraint validation bars it: neither required emptiness nor a stored error blocks.",
+        rust: "FormField::is_read_only gate over required_names/own_invalid/first_invalid_focus",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Disabled omission",
+        selector: "form :disabled",
+        description: "A disabled control is not successful: it contributes no FormData and cannot block with stale validity, until a rerender re-enables it.",
+        rust: "successful_of mirrors (InputState/OtpState/live)",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Server errors displayed",
+        selector: "form validationErrors",
+        description: "Form-level messages render above the fields and block a native submission while present.",
+        rust: "ErrorMessage children above the field stack",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const FORM_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: "(no form.css — classless root)",
+        value: "renders a native <form>; no dedicated BEM classes ship in @heroui/styles",
+        description: "Field appearance and validation states come from the field components the form composes; the form itself ships no stylesheet.",
+        rust: "built-in flex_col + gap(px(16.)) + w_full stack",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: "className",
+        value: "flex w-96 flex-col gap-4 (the docs' own Usage example)",
+        description: "Container layout is className work in v3; gpui has no class-name surface, so the documented column rhythm is the built-in stack and width stays with the caller.",
+        rust: "flex_col + gap(px(16.)) + w_full",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+pub(crate) const FORM: ReferenceMetadata = ReferenceMetadata {
+    page: "Form",
+    import_line: "use herogpui::components::form::Form;",
+    source_module: "form",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(forms)/form.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/form/form.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/Form.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components",
+    required_parts: FORM_REQUIRED_PARTS,
+    api: FORM_API,
+    parts: FORM_PARTS,
+    states: FORM_STATES,
+    styling: FORM_STYLING,
+};
+
 pub(crate) const ALL: &[ReferenceMetadata] = &[
     DROPDOWN,
     LIST_BOX,
@@ -12829,6 +13056,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     ACCORDION,
     DISCLOSURE,
     TOOLBAR,
+    FORM,
 ];
 
 pub(crate) fn for_import(import_line: &str) -> Option<&'static ReferenceMetadata> {

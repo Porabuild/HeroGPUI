@@ -7,14 +7,45 @@
 //! discovering them. Everything downstream of that is the same: names, a
 //! collected submission, reset, and an invalid path that runs instead of submit.
 //!
+//! Submission has two doors that share one implementation
+//! ([`Form::run_submission`]): the caller-wired submit button
+//! (`Form::submit_handler`, standing in for `<button type="submit">`) and the
+//! native form's implicit submission — Enter pressed in a focused field that
+//! semantically participates, which the form root's key handler answers. Only
+//! the fields that participate carry the Enter reader; a TextArea's Enter is a
+//! newline, and a focused submit button submits through its own click.
+//!
+//! The second door is a GPUI substitute for the browser's implicit submission,
+//! not a port of it. A browser picks the *default submitter* — the first
+//! submit button in tree order — and skips implicit submission entirely when a
+//! form has no submit button and more than one field blocking validation; both
+//! rules read the form's children, which are opaque elements here. A browser
+//! also lets a field's own keydown handler cancel the keystroke; the controls
+//! that own Enter here stop propagation to the same effect. So Enter in a
+//! participating field always runs this form's one submission, whoever else
+//! could have been the submitter.
+//!
+//! A blocked Enter-origin submission defers the focus move to the key's
+//! release. gpui activates whichever element the frame drawn for the release
+//! shows as focused, so focusing a Select trigger or a Switch mid-keystroke
+//! would let the release click it — opening or toggling the very control the
+//! repair was meant to reach. The form latches the blocked keystroke in keyed
+//! state, disarms the release (`prevent_default` gates gpui's activation
+//! listener), and moves the focus once the dispatch is over.
+//!
+//! Read-only controls are the third gate, after disabled and inert: they stay
+//! successful (they submit their value) and focusable, but constraint
+//! validation bars them — neither a missing value nor a stored error on a
+//! read-only field can block a submission, as a native form has it.
+//!
 //! What is deliberately absent is the HTTP half — `action`, `method`, `encType`
 //! and `target`. There is no browser to navigate.
 
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 use gpui::{
-    px, AnyElement, App, Entity, FocusHandle, IntoElement, ParentElement, RenderOnce, SharedString,
-    Styled, Window,
+    px, AnyElement, App, Entity, FocusHandle, InteractiveElement, IntoElement, KeyDownEvent,
+    KeyUpEvent, ParentElement, RenderOnce, SharedString, Styled, Window,
 };
 
 use crate::{input::InputState, number_field::NumberState};
@@ -122,6 +153,19 @@ type ReadInvalid = Arc<dyn Fn(&App) -> bool + 'static>;
 /// Moves the focus to this field, which a blocked submit uses for v3's
 /// "the first invalid field will be focused".
 type FocusField = Arc<dyn Fn(&mut Window, &mut App) + 'static>;
+/// Whether a focused press of Enter submits the form from this field — the
+/// reader half of a native form's implicit submission. Only the controls a
+/// browser submits a form from carry one: the single-line text family (a
+/// `<input type=number>` among them) and, as pinned v3 builds it, the OTP
+/// row's single text input. A multi-line field and every non-text compound
+/// control (switch, select, checkbox group) never do.
+type SubmitsOnEnter = Arc<dyn Fn(&Window, &App) -> bool + 'static>;
+/// Whether the rendered control is read-only. A read-only field stays
+/// successful and focusable, but HTML constraint validation bars it: neither
+/// required emptiness nor stored invalidity may block a submission. Read from
+/// the mirror the component's render writes, so the answer is the rendered
+/// state and not a stale builder flag.
+type ReadReadOnly = Arc<dyn Fn(&App) -> bool + 'static>;
 
 /// Value, validity and focus owned by a rendered control without an entity.
 pub(crate) struct LiveFormFieldState {
@@ -160,16 +204,36 @@ pub struct FormField {
     /// Focuses the field — the invalid-path step, when it has a reachable
     /// handle.
     focus: Option<FocusField>,
+    /// Whether a focused Enter submits from this field. `None` on every
+    /// non-text or compound field, which never submits implicitly.
+    submits_on_enter_of: Option<SubmitsOnEnter>,
+    /// Whether the rendered control is read-only — still successful and
+    /// focusable, but barred from constraint validation.
+    read_only_of: Option<ReadReadOnly>,
+    /// The state entity carrying this field's value, when one exists. That
+    /// entity outlives the frames, so it is the stable identity the form's
+    /// blocked-keystroke latch is keyed by — the same trick
+    /// `Input`'s `defaultValue` seed uses.
+    state_id: Option<gpui::EntityId>,
 }
 
 impl FormField {
-    /// A text field, read from its [`InputState`].
+    /// A single-line text field, read from its [`InputState`].
+    ///
+    /// This is the registration for an [`Input`](crate::Input) or
+    /// [`SearchField`](crate::SearchField) — the controls a native form
+    /// implicitly submits from, so the field carries the Enter reader. A
+    /// multi-line field rendered from the same state must register with
+    /// [`FormField::text_area`].
     pub fn text(state: Entity<InputState>) -> Self {
         let read_state = state.clone();
         let name_state = state.clone();
         let behavior_state = state.clone();
         let successful_state = state.clone();
         let invalid_state = state.clone();
+        let enter_state = state.clone();
+        let read_only_state = state.clone();
+        let state_id = state.entity_id();
         let focus_state = state;
         Self {
             name: None,
@@ -193,15 +257,49 @@ impl FormField {
                 let fh = focus_state.read(cx).focus_handle.clone();
                 window.focus(&fh);
             })),
+            submits_on_enter_of: Some(Arc::new(move |window, cx| {
+                enter_state.read(cx).focus_handle.is_focused(window)
+            })),
+            read_only_of: Some(Arc::new(move |cx: &App| {
+                read_only_state.read(cx).is_read_only()
+            })),
+            state_id: Some(state_id),
+        }
+    }
+
+    /// A multi-line text field, read from its [`InputState`] — the state a
+    /// [`TextArea`](crate::TextArea) renders.
+    ///
+    /// Identical to [`FormField::text`] except that Enter never submits the
+    /// form: a native form does not implicitly submit from a `<textarea>`,
+    /// whose Enter is a newline. The multiline flag lives on the
+    /// [`TextArea`](crate::TextArea) builder, not on the shared state, so
+    /// the registration is where the control kind is named.
+    pub fn text_area(state: Entity<InputState>) -> Self {
+        let field = Self::text(state);
+        Self {
+            submits_on_enter_of: None,
+            ..field
         }
     }
 
     /// A numeric field, read from its [`NumberState`].
+    ///
+    /// The field's validity is the one `NumberField::render` resolved —
+    /// controlled flags, then server errors, then `validate` — mirrored onto
+    /// the inner [`InputState`] exactly as `name` is, so the submission reads
+    /// the rendered state rather than a builder snapshot. Read-only travels
+    /// the same way: `NumberField` forwards the flag to the inner input,
+    /// whose render mirrors it here.
     pub fn number(state: Entity<NumberState>) -> Self {
         let read_state = state.clone();
         let name_state = state.clone();
         let behavior_state = state.clone();
         let successful_state = state.clone();
+        let invalid_state = state.clone();
+        let enter_state = state.clone();
+        let read_only_state = state.clone();
+        let state_id = state.entity_id();
         let focus_state = state;
         Self {
             name: None,
@@ -215,7 +313,9 @@ impl FormField {
             successful_of: Some(Arc::new(move |cx: &App| {
                 successful_state.read(cx).input.read(cx).is_successful()
             })),
-            invalid_of: None,
+            invalid_of: Some(Arc::new(move |cx: &App| {
+                invalid_state.read(cx).input.read(cx).validity().is_invalid
+            })),
             read: Arc::new(move |cx: &App| FormValue::Number(read_state.read(cx).value())),
             restore: None,
             is_required: false,
@@ -224,14 +324,36 @@ impl FormField {
                 let fh = focus_state.read(cx).input.read(cx).focus_handle.clone();
                 window.focus(&fh);
             })),
+            // `<input type=number>` is a single-line text control: a native
+            // form submits from it.
+            submits_on_enter_of: Some(Arc::new(move |window, cx| {
+                enter_state
+                    .read(cx)
+                    .input
+                    .read(cx)
+                    .focus_handle
+                    .is_focused(window)
+            })),
+            read_only_of: Some(Arc::new(move |cx: &App| {
+                read_only_state.read(cx).input.read(cx).is_read_only()
+            })),
+            state_id: Some(state_id),
         }
     }
 
     /// An OTP field, read from its [`crate::input_otp::OtpState`].
+    ///
+    /// Pinned v3 builds `InputOTP` on a single text input, and the row's
+    /// cells share one focus handle, so a focused Enter here is the same
+    /// implicit submission it is in any single-line field. The OTP answers
+    /// no Enter of its own — its handler fills cells and walks the caret —
+    /// so the keystroke bubbles to the form.
     pub fn code(name: impl Into<SharedString>, state: Entity<crate::input_otp::OtpState>) -> Self {
         let read_state = state.clone();
         let successful_state = state.clone();
         let invalid_state = state.clone();
+        let enter_state = state.clone();
+        let state_id = state.entity_id();
         let focus_state = state;
         Self {
             name: Some(name.into()),
@@ -253,6 +375,15 @@ impl FormField {
                 let fh = focus_state.read(cx).focus_handle.clone();
                 window.focus(&fh);
             })),
+            // The whole row is one text input to the form: Enter while any
+            // cell holds the focus submits, exactly as it does from a
+            // single-line field.
+            submits_on_enter_of: Some(Arc::new(move |window, cx| {
+                enter_state.read(cx).focus_handle.is_focused(window)
+            })),
+            // The OTP row has no read-only prop, so there is nothing to bar.
+            read_only_of: None,
+            state_id: Some(state_id),
         }
     }
 
@@ -271,6 +402,10 @@ impl FormField {
             successful_of: None,
             invalid_of: None,
             focus: None,
+            // A caller-held value has no rendered control to be read-only.
+            read_only_of: None,
+            submits_on_enter_of: None,
+            state_id: None,
         }
     }
 
@@ -305,6 +440,12 @@ impl FormField {
                     window.focus(&focus);
                 }
             })),
+            // A live field belongs to a rendered non-text control — a switch,
+            // a select, a checkbox — none of which submits implicitly, and
+            // whose read-only state is not mirrored on this shared state.
+            read_only_of: None,
+            submits_on_enter_of: None,
+            state_id: None,
         }
     }
 
@@ -321,6 +462,9 @@ impl FormField {
             successful_of: None,
             invalid_of: None,
             focus: None,
+            read_only_of: None,
+            submits_on_enter_of: None,
+            state_id: None,
         }
     }
 
@@ -337,6 +481,9 @@ impl FormField {
             successful_of: None,
             invalid_of: None,
             focus: None,
+            read_only_of: None,
+            submits_on_enter_of: None,
+            state_id: None,
         }
     }
 
@@ -357,6 +504,9 @@ impl FormField {
             successful_of: None,
             invalid_of: None,
             focus: None,
+            read_only_of: None,
+            submits_on_enter_of: None,
+            state_id: None,
         }
     }
 
@@ -423,6 +573,23 @@ impl FormField {
             .or_else(|| self.name_of.as_ref().and_then(|f| f(cx)))
     }
 
+    /// Whether Enter pressed right now submits the form from this field —
+    /// the field holds the focus and is a single-line text control, the
+    /// only thing a native form implicitly submits from.
+    fn submits_on_enter(&self, window: &Window, cx: &App) -> bool {
+        self.submits_on_enter_of
+            .as_ref()
+            .is_some_and(|f| f(window, cx))
+    }
+
+    /// Whether the rendered control is read-only: still successful and
+    /// focusable, but barred from constraint validation — a native form
+    /// neither blocks on a read-only field's emptiness nor on its stored
+    /// errors, while its value still submits.
+    fn is_read_only(&self, cx: &App) -> bool {
+        self.read_only_of.as_ref().is_some_and(|f| f(cx))
+    }
+
     /// Whether the field's stored validity is in error — the render-side of
     /// the validation a native submit consults.
     fn is_invalid(&self, cx: &App) -> bool {
@@ -452,7 +619,6 @@ pub enum ValidationBehavior {
 pub struct Form {
     /// `validationErrors` — form-level messages, shown above the fields.
     validation_errors: Vec<SharedString>,
-    is_disabled: bool,
     validation_behavior: ValidationBehavior,
     fields: Vec<FormField>,
     on_submit: Option<OnSubmit>,
@@ -465,7 +631,6 @@ impl Form {
     pub fn new() -> Self {
         Self {
             validation_errors: Vec::new(),
-            is_disabled: false,
             validation_behavior: ValidationBehavior::default(),
             fields: Vec::new(),
             on_submit: None,
@@ -481,11 +646,6 @@ impl Form {
         errors: impl IntoIterator<Item = impl Into<SharedString>>,
     ) -> Self {
         self.validation_errors = errors.into_iter().map(Into::into).collect();
-        self
-    }
-
-    pub fn is_disabled(mut self, v: bool) -> Self {
-        self.is_disabled = v;
         self
     }
 
@@ -527,8 +687,14 @@ impl Form {
 
     /// Collects the registered fields into a submission.
     pub fn data(&self, cx: &App) -> FormData {
-        let mut entries = Vec::with_capacity(self.fields.len());
-        for field in &self.fields {
+        Self::collect_data(&self.fields, cx)
+    }
+
+    /// Collects `fields` into a submission — the body of [`Form::data`],
+    /// shared with the submission path.
+    fn collect_data(fields: &[FormField], cx: &App) -> FormData {
+        let mut entries = Vec::with_capacity(fields.len());
+        for field in fields {
             if !field.is_successful(cx) {
                 continue;
             }
@@ -550,21 +716,123 @@ impl Form {
         FormData { entries }
     }
 
-    /// The names of the fields whose emptiness blocks submission: required, and
-    /// not opted out with `validationBehavior: "aria"`.
-    fn required_names(&self, cx: &App) -> Vec<SharedString> {
-        self.fields
+    /// The names of the fields whose emptiness blocks submission: required,
+    /// and not opted out with `validationBehavior: "aria"`. A read-only field
+    /// is barred from constraint validation, so its emptiness never blocks.
+    fn required_names(fields: &[FormField], cx: &App) -> Vec<SharedString> {
+        fields
             .iter()
-            .filter(|f| f.is_successful(cx) && f.is_required && f.blocks_submission(cx))
+            .filter(|f| {
+                f.is_successful(cx)
+                    && f.is_required
+                    && !f.is_read_only(cx)
+                    && f.blocks_submission(cx)
+            })
             .filter_map(|f| f.field_name(cx))
             .collect()
+    }
+
+    /// The one submission implementation: collect the named fields, decide
+    /// whether validation blocks, and route to `on_submit` or `on_invalid`.
+    /// Both doors into a submission — the caller-wired submit button
+    /// ([`Form::submit_handler`]) and the form root's implicit Enter key
+    /// handler — run this, so a submission is validated, focused and
+    /// reported identically however it arrived.
+    ///
+    /// `defer_focus` is the Enter-origin latch. On the button path it is
+    /// `None` and a blocked submit focuses the first invalid field inline,
+    /// exactly as a click handler may. On the Enter path it is the keyed
+    /// latch: focusing mid-keystroke would leave the newly focused control
+    /// holding the focus when the key is *released*, and gpui activates a
+    /// focused element's click listeners on release — a blocked Enter in a
+    /// text field would open the Select it moved the focus to, or flip the
+    /// Switch. So the latch is set instead, the release handler disarms the
+    /// release and moves the focus once the dispatch is over.
+    #[allow(clippy::too_many_arguments)] // one submission: fields, routing, callbacks, and the Enter-origin latch
+    fn run_submission(
+        fields: &[FormField],
+        errors: &[SharedString],
+        behavior: ValidationBehavior,
+        on_submit: Option<&OnSubmit>,
+        on_invalid: Option<&OnSubmit>,
+        defer_focus: Option<&Entity<bool>>,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let data = Self::collect_data(fields, cx);
+        let missing = data.missing_required(&Self::required_names(fields, cx));
+        // A field error blocks a native submit however it arose: a
+        // required field with no value, or a field whose stored validity
+        // says it is in error (`validate`, `isInvalid`,
+        // `validationErrors`, or an HTML5 attribute violation). Read-only
+        // fields are barred from constraint validation on both counts.
+        let own_invalid: Vec<SharedString> = fields
+            .iter()
+            .filter(|f| {
+                f.is_successful(cx)
+                    && f.blocks_submission(cx)
+                    && !f.is_read_only(cx)
+                    && f.is_invalid(cx)
+            })
+            .filter_map(|f| f.field_name(cx))
+            .collect();
+        let blocked = behavior == ValidationBehavior::Native
+            && (!errors.is_empty() || !missing.is_empty() || !own_invalid.is_empty());
+        if blocked {
+            // v3, verbatim: "By default, the first invalid field will be
+            // focused." A blocked submit moves the focus to the first
+            // registered field whose error keeps the form from submitting —
+            // the same union the blocked condition above computes. From the
+            // button path this is an ordinary click handler; from the Enter
+            // path the move is deferred past the keystroke (see
+            // `defer_focus`). The tests drive both paths and assert the
+            // field holds the focus after.
+            let focus = Self::first_invalid_focus(fields, cx);
+            match (defer_focus, focus) {
+                (Some(latch), Some(_)) => latch.update(cx, |pending, _| *pending = true),
+                (_, focus) => {
+                    if let Some(focus) = focus {
+                        focus(window, cx);
+                    }
+                }
+            }
+            if let Some(f) = on_invalid {
+                f(&data, window, cx);
+            }
+        } else if let Some(f) = on_submit {
+            f(&data, window, cx);
+        }
+    }
+
+    /// The focus callback of the first registered field whose error blocks
+    /// the submission — the same union [`Self::run_submission`] tests for
+    /// the blocked decision, so the focus lands on the field the report is
+    /// about. Read-only fields cannot nominate themselves, and a field with
+    /// no reachable handle contributes none.
+    fn first_invalid_focus(fields: &[FormField], cx: &App) -> Option<FocusField> {
+        let data = Self::collect_data(fields, cx);
+        fields
+            .iter()
+            .find(|field| {
+                !field.is_read_only(cx)
+                    && field.is_successful(cx)
+                    && field.blocks_submission(cx)
+                    && (field.is_invalid(cx)
+                        || (field.is_required
+                            && field.field_name(cx).is_some_and(|name| {
+                                data.get(&name).is_none_or(FormValue::is_empty)
+                            })))
+            })
+            .and_then(|field| field.focus.clone())
     }
 
     /// The handler a submit button calls: collects the submission, then routes
     /// it to `onSubmit` or `onInvalid`.
     ///
     /// gpui gives a child no way to reach its form, so the caller wires this to
-    /// the button in place of `<button type="submit">`.
+    /// the button in place of `<button type="submit">`. The form root's Enter
+    /// key handler runs the same implementation, so a submission is decided
+    /// identically however it arrived.
     #[allow(clippy::arc_with_non_send_sync)] // see `util::shared`
     pub fn submit_handler(&self) -> Arc<dyn Fn(&mut Window, &mut App) + 'static> {
         let fields = self.fields.clone();
@@ -573,60 +841,18 @@ impl Form {
         let errors = self.validation_errors.clone();
         let behavior = self.validation_behavior;
         Arc::new(move |window: &mut Window, cx: &mut App| {
-            let form = Form {
-                validation_errors: errors.clone(),
-                is_disabled: false,
-                validation_behavior: behavior,
-                fields: fields.clone(),
-                on_submit: None,
-                on_reset: None,
-                on_invalid: None,
-                children: Vec::new(),
-            };
-            let data = form.data(cx);
-            let missing = data.missing_required(&form.required_names(cx));
-            // A field error blocks a native submit however it arose: a
-            // required field with no value, or a field whose stored validity
-            // says it is in error (`validate`, `isInvalid`,
-            // `validationErrors`, or an HTML5 attribute violation).
-            let own_invalid: Vec<SharedString> = fields
-                .iter()
-                .filter(|f| f.is_successful(cx) && f.blocks_submission(cx) && f.is_invalid(cx))
-                .filter_map(|f| f.field_name(cx))
-                .collect();
-            let blocked = behavior == ValidationBehavior::Native
-                && (!errors.is_empty() || !missing.is_empty() || !own_invalid.is_empty());
-            if blocked {
-                // v3, verbatim: "By default, the first invalid field will be
-                // focused." A blocked submit moves the focus to the first
-                // registered field whose error keeps the form from
-                // submitting — the same union the blocked condition above
-                // computes. This runs inside the submit *button's* click
-                // handler, not a keystroke, so moving the focus cannot
-                // re-activate the focused control's click listener on the way
-                // up (AGENTS.md); the tests below drive a submit with a
-                // button click and assert the field holds the focus after.
-                for field in &fields {
-                    let invalid = field.is_successful(cx)
-                        && field.blocks_submission(cx)
-                        && (field.is_invalid(cx)
-                            || (field.is_required
-                                && field.field_name(cx).is_some_and(|name| {
-                                    data.get(&name).is_none_or(FormValue::is_empty)
-                                })));
-                    if invalid {
-                        if let Some(focus) = &field.focus {
-                            focus(window, cx);
-                        }
-                        break;
-                    }
-                }
-                if let Some(f) = &on_invalid {
-                    f(&data, window, cx);
-                }
-            } else if let Some(f) = &on_submit {
-                f(&data, window, cx);
-            }
+            // Button origin: no keystroke is in flight, so the focus move
+            // needs no deferral.
+            Self::run_submission(
+                &fields,
+                &errors,
+                behavior,
+                on_submit.as_ref(),
+                on_invalid.as_ref(),
+                None,
+                window,
+                cx,
+            );
         })
     }
 
@@ -664,16 +890,105 @@ impl ParentElement for Form {
 }
 
 impl RenderOnce for Form {
-    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let Self {
+            validation_errors: errors,
+            validation_behavior: behavior,
+            fields,
+            on_submit,
+            on_invalid,
+            children,
+            ..
+        } = self;
         let mut el = gpui::div().flex().flex_col().gap(px(16.)).w_full();
-        if self.is_disabled {
-            el = el.opacity(0.5);
-        }
         // Form-level messages sit above the fields, as v3's do.
-        for message in self.validation_errors {
-            el = el.child(crate::field::ErrorMessage::new(message));
+        for message in &errors {
+            el = el.child(crate::field::ErrorMessage::new(message.clone()));
         }
-        el.children(self.children)
+        // The blocked-Enter latch: "the keystroke whose release must not
+        // click anything". Keyed window state, because the release can be
+        // dispatched against a frame drawn after the press — closures from
+        // different frames — and keyed by the first participating field's
+        // state entity, the one stable identity a form without a DOM id has
+        // (only entity-backed fields — text, number, OTP — can submit on
+        // Enter, so a form without one never arms the latch).
+        let latch = fields.iter().find_map(|f| f.state_id).map(|id| {
+            window.use_keyed_state(
+                gpui::ElementId::Name(format!("form-enter-latch-{}", id.as_u64()).into()),
+                cx,
+                |_, _| false,
+            )
+        });
+        // A native `<form>` also submits when Enter is pressed in a
+        // single-line text control — the implicit submission React Aria's
+        // Form inherits, and the door this port must wire itself because the
+        // submit button is caller-wired. The handler never infers from an
+        // arbitrary bubbling Enter: it fires only while a *registered field
+        // that participates* — [`FormField::text`], [`FormField::number`] or
+        // [`FormField::code`] — holds the focus. A TextArea's Enter is a
+        // newline; a focused submit Button submits through its own click,
+        // which gpui fires on key-up, so firing here too would submit twice;
+        // and the non-text compound controls never submit implicitly.
+        let down_fields = fields.clone();
+        let down_errors = errors;
+        let down_latch = latch.clone();
+        el = el.on_key_down(move |ev: &KeyDownEvent, window, cx| {
+            // A latch still set when a press arrives is from a keystroke
+            // whose release never happened here — always stale, because a
+            // release follows its own press through this same dispatch
+            // path. Clear it before anything else arms a fresh one.
+            if let Some(latch) = &down_latch {
+                latch.update(cx, |pending, _| *pending = false);
+            }
+            // Mirror the single-line field's own Enter branch: the plain key
+            // (shift allowed — the rendered control submits on shift+enter
+            // too), never a chord.
+            let mods = &ev.keystroke.modifiers;
+            if ev.keystroke.key.as_str() == "enter"
+                && !(mods.control || mods.alt || mods.platform)
+                && down_fields.iter().any(|f| f.submits_on_enter(window, cx))
+            {
+                Self::run_submission(
+                    &down_fields,
+                    &down_errors,
+                    behavior,
+                    on_submit.as_ref(),
+                    on_invalid.as_ref(),
+                    down_latch.as_ref(),
+                    window,
+                    cx,
+                );
+            }
+        });
+        // The release half of the same door: a blocked Enter set the latch
+        // instead of moving the focus. Consume it on the plain release,
+        // disarm gpui's key-up activation (`prevent_default` gates the
+        // listener that fires a focused element's click), and move the focus
+        // to the first invalid field only after the keystroke has fully
+        // dispatched — the newly focused Select or Switch never holds the
+        // focus during a key event, so the release cannot click it.
+        let up_fields = fields;
+        let up_latch = latch;
+        el = el.capture_key_up(move |ev: &KeyUpEvent, window, cx| {
+            let Some(latch) = &up_latch else {
+                return;
+            };
+            let mods = &ev.keystroke.modifiers;
+            if ev.keystroke.key.as_str() != "enter"
+                || mods.control
+                || mods.alt
+                || mods.platform
+                || !*latch.read(cx)
+            {
+                return;
+            }
+            latch.update(cx, |pending, _| *pending = false);
+            window.prevent_default();
+            if let Some(focus) = Self::first_invalid_focus(&up_fields, cx) {
+                window.defer(cx, move |window, cx| focus(window, cx));
+            }
+        });
+        el.children(children)
     }
 }
 

@@ -268,6 +268,15 @@ FORM_TEXT_SUCCESS = (
     r'(?:(?!pub fn number\().)*?successful_of: Some\(.*?is_successful'
 )
 
+# v3's Form "renders a native `<form>` element" and inherits the browser's
+# submission behaviour from React Aria's Form primitive, none of which appears
+# in a prop table: implicit submission from a participating single-line field,
+# onInvalid focusing the first invalid field, disabled controls omitted,
+# read-only controls barred from constraint validation while still
+# successful. The port's own additions — the suppression a field with its own
+# Enter needs, the OTP row's participation — hang off the same derived claim.
+FORM_SUBMISSION = ('Form',)
+
 
 # (component, claim) -> (module, a pattern that must appear in it).
 #
@@ -452,6 +461,68 @@ EVIDENCE = {
     ('Input', 'text-keys'): ('input.rs', r'fn word_target'),
     ('TextArea', 'text-keys'): ('input.rs', r'fn vertical_target'),
     ('TextField', 'text-keys'): ('input.rs', r'key_char'),
+    # The whole native submission contract on one shared implementation: the
+    # button door (`submit_handler`) and the Enter door (the form root's key
+    # handler) both route through `run_submission`, and the Enter door fires
+    # only while a field that carries an Enter reader holds the focus.
+    ('Form', 'shared-funnel'): (
+        'form.rs',
+        r'(?s)(?=.*pub fn submit_handler)(?=.*down_fields\.iter\(\)\.any\(\|f\| f\.submits_on_enter\(window, cx\)\))'
+        r'(?=.*Self::run_submission\(\s*&down_fields)(?=.*Self::run_submission\(\s*&fields)',
+    ),
+    # Implicit submission: the reader half (which fields participate — text,
+    # number, and the OTP row's single input) beside the gate that reads it.
+    ('Form', 'implicit-enter'): (
+        'form.rs',
+        r'(?s)(?=.*type SubmitsOnEnter = Arc<dyn Fn\(&Window, &App\) -> bool)'
+        r'(?=.*submits_on_enter_of: Some\(Arc::new\(move \|window, cx\| \{\s*enter_state\s*\n?\s*\.read\(cx\))'
+        r'(?=.*fn submits_on_enter\(&self, window: &Window, cx: &App\))',
+    ),
+    # onInvalid's default focus, deferred past an Enter-origin keystroke: the
+    # first-invalid computation, the release-side latch consumed in a capture
+    # handler, and the disarm-plus-deferred move that keeps the release from
+    # clicking the control the focus lands on.
+    ('Form', 'blocked-focus'): (
+        'form.rs',
+        r'(?s)(?=.*fn first_invalid_focus)(?=.*capture_key_up)'
+        r'(?=.*window\.prevent_default\(\);)(?=.*window\.defer\(cx, move \|window, cx\| focus\(window, cx\)\))',
+    ),
+    # A TextArea's Enter is a newline: the text-area registration carries no
+    # Enter reader, so the form's gate never fires from it.
+    ('Form', 'textarea-suppression'): (
+        'form.rs',
+        r'(?s)pub fn text_area\(state: Entity<InputState>\)'
+        r'(?:(?!pub fn number\().)*?submits_on_enter_of: None',
+    ),
+    # A field with its own onSubmit owns Enter: the callback fires and the
+    # keystroke is stopped from also bubbling into the form's submission.
+    ('Form', 'field-own-submit-suppression'): (
+        'input.rs',
+        r'(?s)if submit \{\s*if let Some\(cb\) = &on_submit \{(?:(?!if cleared).)*?cx\.stop_propagation\(\);',
+    ),
+    # An open ComboBox answers Enter by picking: the list keeps the key, and
+    # a closed one — with nothing to commit or revert — lets it bubble.
+    ('Form', 'combobox-enter-suppression'): (
+        'combo_box.rs',
+        r'(?s)crate::list_nav::Move::Activate => \{(?:(?!Move::Ignore).)*?if key == "enter" \{\s*cx\.stop_propagation\(\);',
+    ),
+    # Constraint validation bars a read-only field: no required emptiness, no
+    # stored error, no first-invalid nomination — while its value still
+    # submits. The gate reads the mirror `Input::render` writes.
+    ('Form', 'read-only-bar'): (
+        'form.rs',
+        r'(?s)(?=.*type ReadReadOnly = Arc<dyn Fn\(&App\) -> bool)'
+        r'(?=.*!f\.is_read_only\(cx\))'
+        r'(?=.*!field\.is_read_only\(cx\))'
+        r'(?=.*fn is_read_only\(&self, cx: &App\) -> bool)',
+    ),
+    # Pinned v3 builds InputOTP on a single text input whose cells share one
+    # focus handle: a focused Enter participates like any single-line field.
+    ('Form', 'otp-enter'): (
+        'form.rs',
+        r'(?s)pub fn code\(name: impl Into<SharedString>, state: Entity<crate::input_otp::OtpState>\)'
+        r'(?:(?!pub fn text_value\().)*?submits_on_enter_of: Some',
+    ),
     ('Dropdown', 'focus-return'): ('dropdown.rs', r'back_to_trigger'),
     # The panel itself claims the focus, only when nothing inside already holds
     # it -- a click on the trigger leaves the ring where the user put it, while
@@ -701,6 +772,13 @@ def main():
         key = (page, 'blur-commit')
         if key not in EVIDENCE and key not in WONT_DO:
             unmapped.append('%-14s %-14s' % key)
+    for page in FORM_SUBMISSION:
+        for claim in ('implicit-enter', 'blocked-focus', 'textarea-suppression',
+                      'field-own-submit-suppression', 'combobox-enter-suppression',
+                      'read-only-bar', 'otp-enter', 'shared-funnel'):
+            key = (page, claim)
+            if key not in EVIDENCE and key not in WONT_DO:
+                unmapped.append('%-14s %-14s' % key)
 
     # The derived claims first, so their numbers land in the same totals.
     # Deduplicated: a component appears in several of these tuples (a text area
@@ -719,6 +797,7 @@ def main():
         + PANEL_FOCUS + SUCCESSFUL_FORM_CONTROLS
         + DISCLOSURE_GROUP_STATE
         + DISCLOSURE_STATE
+        + FORM_SUBMISSION
     )
     for page in derived:
         for claim in ('arrow-nav', 'remove-key', 'toolbar-end-stops',
@@ -736,7 +815,10 @@ def main():
                       'multiple-row-pointer', 'default-expanded',
                       'controlled-expanded', 'selection-modes',
                       'default-normalization', 'group-disabled',
-                      'controlled-uncontrolled'):
+                      'controlled-uncontrolled',
+                      'implicit-enter', 'blocked-focus', 'textarea-suppression',
+                      'field-own-submit-suppression', 'combobox-enter-suppression',
+                      'read-only-bar', 'otp-enter', 'shared-funnel'):
             key = (page, claim)
             # A derived claim can be excused too, and the reason has to reach
             # the breakdown: reading only EVIDENCE skipped `TextArea`'s
