@@ -203,7 +203,7 @@ impl RenderOnce for FieldError {
 
 /// HeroUI Fieldset — groups related form controls under a legend.
 ///
-/// Compose with [`FieldsetLegend`], [`FieldsetGroup`] and [`FieldsetActions`],
+/// Compose with [`FieldsetLegend`], [`FieldGroup`] and [`FieldsetActions`],
 /// mirroring `Fieldset.Legend` / `.Group` / `.Actions` in React.
 #[derive(IntoElement)]
 pub struct Fieldset {
@@ -273,15 +273,15 @@ impl RenderOnce for FieldsetLegend {
 
 /// `Fieldset.Group` — layout wrapper for the grouped controls.
 #[derive(IntoElement)]
-pub struct FieldsetGroup {
+pub struct FieldGroup {
     gap: Pixels,
     children: Vec<AnyElement>,
 }
 
-impl FieldsetGroup {
+impl FieldGroup {
     pub fn new() -> Self {
         Self {
-            gap: px(12.),
+            gap: px(16.),
             children: Vec::new(),
         }
     }
@@ -292,24 +292,26 @@ impl FieldsetGroup {
     }
 }
 
-impl Default for FieldsetGroup {
+impl Default for FieldGroup {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ParentElement for FieldsetGroup {
+impl ParentElement for FieldGroup {
     fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
         self.children.extend(elements);
     }
 }
 
-/// `.fieldset__field_group` is `w-full space-y-4`: the stack of fields.
-impl RenderOnce for FieldsetGroup {
+/// `.fieldset__field_group` is `w-full space-y-4`: the stack of fields, 16px
+/// apart (`--spacing` × 4).
+impl RenderOnce for FieldGroup {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
         div()
             .flex()
             .flex_col()
+            .w_full()
             .gap(self.gap)
             .children(self.children)
     }

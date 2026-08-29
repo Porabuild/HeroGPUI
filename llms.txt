@@ -383,7 +383,7 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
 - **CheckboxGroup** — `CheckboxGroup::new(id, options).label().value(keys).orientation().variant().is_read_only().error_message().on_change(HashSet)`, `CheckboxOption::new(key,label).description()`
 - **RadioGroup** — `RadioGroup::new(id, options).selected(Option<usize>).orientation().on_change(usize)`
 - **Form** — `Form::new().field(FormField::text(state).is_required(true)).on_submit(&FormData).on_invalid(&FormData).on_reset()`, plus `submit_handler()` / `reset_handler()` to wire to buttons. v3's `name` rides on the field: the entity-backed ones (`Input`, `TextField`, `SearchField`, `TextArea`, `NumberField`) store it on their state and `FormField::text`/`number` read it back; the prop-based ones (`Checkbox`, `Switch`, `CheckboxGroup`, `RadioGroup`, `Select`, `Slider`, `ColorSlider`, `ColorField`, `InputOTP`, `Autocomplete`, `DatePicker`, `TimeField`) expose `form_field()`, which borrows, so the control is still yours to place. `DateRangePicker` has `start_name`/`end_name` and `form_fields()`. `validationBehavior` travels the same way: `Allow` shows a field's message without blocking submission. `FormData::text(name)` reads a submission. The HTTP half — `action`/`method`/`encType`/`target` — has no browser to post to.
-- **Label / Description / ErrorMessage / FieldError / Fieldset** — the composition slots; `Label::new(t).is_required().is_disabled().is_invalid()`, `FieldError::new().message(t)`, `Fieldset` + `FieldsetLegend` / `FieldsetGroup` / `FieldsetActions`
+- **Label / Description / ErrorMessage / FieldError / Fieldset** — the composition slots; `Label::new(t).is_required().is_disabled().is_invalid()`, `FieldError::new().message(t)`, `Fieldset` + `FieldsetLegend` / `FieldGroup` / `FieldsetActions`
 
 ### Layout
 - **Card** — `variant(CardVariant::{Transparent,Default,Secondary,Tertiary})`, `w`, parts `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`. The card itself is the padded box (`gap-3 p-4` and the capped container radius) and its parts carry none of their own: the header is a plain column, the title is `text-sm` medium on the foreground, the description `text-sm` muted, the content a `gap-1` column — its upstream `flex-1` is dropped, because the pinned-geometry test in `tests/card_deep.rs` measures the card as an auto-height column hugging its parts, which flex-1 regresses — and the footer a centered row. `transparent` paints nothing: no border, background or shadow. v3's Card is presentational: `isPressable`/`isHoverable`/`isBlurred` were v2, and an interactive card composes a `Button`.
@@ -426,7 +426,7 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
 - **Select** — `Select::new(id, options).selected(..)/.value(..).is_open().placement(Placement).variant().full_width().disabled_keys().is_invalid().is_required().on_selection_change()/.on_change().on_open_change()`; `selection_mode(SelectionMode::Multiple)` with `selected_indices()` + `on_selection_change_all()`
 
 ### Typography
-- **Kbd** — `Kbd::new().size().variant(KbdVariant::{Default,Light}).child("Ctrl")`
+- **Kbd** — `Kbd::new().variant(KbdVariant::{Default,Light}).child("Ctrl")`
 - **Typography** — `Typography::new(text).kind(TypographyType::{H1..H6,Body,BodySm,BodyXs,Code}).align().color(TextColor::{Default,Muted}).weight(FontWeight).truncate()`; helpers `heading(level, t)`, `paragraph(ParagraphSize, t)`, `code(t)`; `Prose::new()` for rich text
 
 ### Utilities

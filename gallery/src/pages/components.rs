@@ -5995,7 +5995,7 @@ impl Gallery {
                             h::Fieldset::new()
                                 .child(h::FieldsetLegend::new("Profile"))
                                 .child(
-                                    h::FieldsetGroup::new()
+                                    h::FieldGroup::new()
                                         .child(
                                             h::TextField::new(self.demo_text("fset-name", "", cx))
                                                 .label("Name")
@@ -6018,7 +6018,7 @@ impl Gallery {
                     col(vec![h::Fieldset::new()
                         .child(h::FieldsetLegend::new("Shipping address"))
                         .child(
-                            h::FieldsetGroup::new()
+                            h::FieldGroup::new()
                                 .child(
                                     h::TextField::new(self.input_name.clone())
                                         .label("Street")
@@ -11871,13 +11871,16 @@ impl Gallery {
                     "Render Props",
                     col(vec![
                         para(
-                            "v3's `Prose` hands its children the resolved styles. Here the same \
-                             thing is a nested element: `Prose` styles whatever it wraps.",
+                            "`Prose` provides only the `text-foreground` color. GPUI has no \
+                             per-tag CSS selectors, so the per-tag descendant styles in v3's \
+                             `.typography-prose` — `h1`–`h6`, `p`, `code`, `a`, lists — \
+                             cannot be inherited; children must already be semantic elements.",
                             cx,
                         ),
                         h::Prose::new()
-                            .child(gpui::div().child(
-                                "A paragraph inside `Prose` inherits its measure and rhythm.",
+                            .child(h::Typography::paragraph(
+                                h::ParagraphSize::Base,
+                                "A paragraph inside `Prose` carries its own body metrics.",
                             ))
                             .into_any_element(),
                     ]),
@@ -11924,6 +11927,32 @@ impl Gallery {
                             .into_any_element(),
                         h::Typography::new("Bold body")
                             .weight(h::FontWeight::Bold)
+                            .into_any_element(),
+                    ]),
+                ),
+                (
+                    "Alignment & truncation",
+                    col(vec![
+                        h::Typography::new("Centered against the measure")
+                            .align(h::TextAlign::Center)
+                            .into_any_element(),
+                        h::Typography::new("Aligned to the end")
+                            .align(h::TextAlign::End)
+                            .into_any_element(),
+                        h::Typography::new(
+                            "Justify falls back to start alignment: gpui has no text-justify.",
+                        )
+                        .align(h::TextAlign::Justify)
+                        .into_any_element(),
+                        gpui::div()
+                            .w(px(220.))
+                            .child(
+                                h::Typography::new(
+                                    "A long line that truncates to a single ellipsis at the \
+                                     edge of its 220px box instead of wrapping.",
+                                )
+                                .truncate(true),
+                            )
                             .into_any_element(),
                     ]),
                 ),

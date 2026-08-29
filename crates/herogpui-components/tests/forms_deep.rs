@@ -44,7 +44,7 @@
 //! - An md `Button` is `Size::Md::control_height` = 36px (herogpui-core
 //!   enums.rs); an md `Switch` track is 40x20 (`switch.rs`).
 //! - A `Fieldset` gaps its children by 24 and its legend is a 24px line
-//!   (`field.rs`); `Description` is 16px, `FieldsetGroup` gaps by 12.
+//!   (`field.rs`); `Description` is 16px, `FieldGroup` gaps by 16.
 //!   Legend(24) + gap(24) + 36px input → the input's centre is (60, 66);
 //!   a Group of one input ends at y 84, so `Fieldset.Actions` under it sits
 //!   at y 108 and its button centre is (30, 126). With a `Description`
@@ -69,7 +69,7 @@ mod harness;
 
 use gpui::{prelude::*, px, Focusable, SharedString, TestAppContext};
 use herogpui_components::{
-    Button, ComboBox, ComboBoxFormValue, Description, Fieldset, FieldsetActions, FieldsetGroup,
+    Button, ComboBox, ComboBoxFormValue, Description, FieldGroup, Fieldset, FieldsetActions,
     FieldsetLegend, Form, FormData, FormField, Input, InputOTP, InputState, NumberField,
     NumberState, OtpPattern, OtpState, PickerItem, SearchField, Select, SelectionMode, Switch,
     TextArea, ValidationBehavior, ValidationErrors,
@@ -3341,6 +3341,44 @@ fn input_otp_disabled_click_does_not_focus(cx: &mut TestAppContext) {
 // ---------------------------------------------------------------------------
 
 #[gpui::test]
+fn fieldset_group_spaces_consecutive_fields_16px(cx: &mut TestAppContext) {
+    // `.fieldset__field_group` is `w-full space-y-4` in v3.2.4's fieldset.css:
+    // `--spacing` × 4 = 16px between consecutive fields and nothing above the
+    // first. The rendered stack is a flex column whose gap must be that 16px.
+    let cx = open_host(cx, || {
+        FieldGroup::new()
+            .child(
+                gpui::div()
+                    .size(px(20.))
+                    .debug_selector(move || "field-group-first".to_owned()),
+            )
+            .child(
+                gpui::div()
+                    .size(px(20.))
+                    .debug_selector(move || "field-group-second".to_owned()),
+            )
+            .into_any_element()
+    });
+
+    let first = cx
+        .debug_bounds("field-group-first")
+        .expect("the first field probe must paint");
+    let second = cx
+        .debug_bounds("field-group-second")
+        .expect("the second field probe must paint");
+    assert_eq!(
+        first.origin.y,
+        px(0.),
+        "space-y puts no margin above the first field"
+    );
+    assert_eq!(
+        second.origin.y,
+        px(36.),
+        "consecutive fields sit 20px + the pinned 16px space-y-4 apart"
+    );
+}
+
+#[gpui::test]
 fn fieldset_parts_compose_and_controls_stay_interactive(cx: &mut TestAppContext) {
     // v3's `Fieldset.Legend`/`.Group`/`.Actions` compose (the docs' Basic
     // anatomy: Legend, Description, Group of fields, Actions) and the controls
@@ -3364,7 +3402,7 @@ fn fieldset_parts_compose_and_controls_stay_interactive(cx: &mut TestAppContext)
             .child(FieldsetLegend::new("Profile settings"))
             .child(Description::new("Update your profile information."))
             .child(
-                FieldsetGroup::new()
+                FieldGroup::new()
                     .child(
                         Input::new(state_for_view.clone()).on_change(move |text, _, _| {
                             changes.borrow_mut().push(text.to_owned());
@@ -3385,14 +3423,14 @@ fn fieldset_parts_compose_and_controls_stay_interactive(cx: &mut TestAppContext)
     });
 
     // Legend 24px, gap 24, Description 16px, gap 24 → the group starts at
-    // y 88: input y 88..124 (centre 60, 106), switch y 136..156 (track 40x20,
-    // centre 20, 146), group height 68 → Actions y 180, md button 180..216
-    // (centre 30, 198). All derived from field.rs's gaps and the component
+    // y 88: input y 88..124 (centre 60, 106), switch y 140..160 (track 40x20,
+    // centre 20, 150), group height 72 → Actions y 184, md button 184..220
+    // (centre 30, 202). All derived from field.rs's gaps and the component
     // heights above.
     click(cx, 60., 106.);
     cx.simulate_input("ada");
-    click(cx, 20., 146.);
-    click(cx, 30., 198.);
+    click(cx, 20., 150.);
+    click(cx, 30., 202.);
     assert_eq!(
         recorded.borrow().as_slice(),
         ["a", "ad", "ada"],
@@ -3432,14 +3470,14 @@ fn fieldset_nested_fieldset_keeps_inner_controls_alive(cx: &mut TestAppContext) 
         Fieldset::new()
             .child(FieldsetLegend::new("Outer"))
             .child(
-                FieldsetGroup::new().child(Input::new(outer_for_view.clone()).on_change(
+                FieldGroup::new().child(Input::new(outer_for_view.clone()).on_change(
                     move |text, _, _| {
                         outer_changes.borrow_mut().push(text.to_owned());
                     },
                 )),
             )
             .child(Fieldset::new().child(FieldsetLegend::new("Inner")).child(
-                FieldsetGroup::new().child(Input::new(inner_for_view.clone()).on_change(
+                FieldGroup::new().child(Input::new(inner_for_view.clone()).on_change(
                     move |text, _, _| {
                         inner_changes.borrow_mut().push(text.to_owned());
                     },
@@ -3498,7 +3536,7 @@ fn fieldset_actions_submit_drives_the_forms_submit(cx: &mut TestAppContext) {
         form.child(
             Fieldset::new()
                 .child(FieldsetLegend::new("Billing address"))
-                .child(FieldsetGroup::new().child(Input::new(state.clone()).name("street")))
+                .child(FieldGroup::new().child(Input::new(state.clone()).name("street")))
                 .child(
                     FieldsetActions::new().child(
                         Button::new("fda-submit")
@@ -3553,9 +3591,7 @@ fn fieldset_actions_reset_drives_the_forms_reset(cx: &mut TestAppContext) {
         form.child(
             Fieldset::new()
                 .child(FieldsetLegend::new("Billing address"))
-                .child(
-                    FieldsetGroup::new().child(Input::new(state_for_view.clone()).name("street")),
-                )
+                .child(FieldGroup::new().child(Input::new(state_for_view.clone()).name("street")))
                 .child(
                     FieldsetActions::new().child(
                         Button::new("fda-reset")

@@ -464,7 +464,7 @@ impl Page {
             Page::Checkbox => "use herogpui::components::checkbox::Checkbox;",
             Page::CheckboxGroup => "use herogpui::components::checkbox::CheckboxGroup;",
             Page::Fieldset => {
-                "use herogpui::components::field::{Fieldset, FieldsetGroup, FieldsetLegend};"
+                "use herogpui::components::field::{Fieldset, FieldGroup, FieldsetLegend};"
             }
             Page::FieldSlots => {
                 "use herogpui::components::field::{Description, ErrorMessage, FieldError, Label};"

@@ -48,9 +48,9 @@ mod harness;
 
 use gpui::{prelude::*, px, Focusable, TestAppContext, VisualTestContext};
 use herogpui_components::{
-    Button, ColorField, Date, DateField, Fieldset, FieldsetGroup, FieldsetLegend, Input,
-    InputAddon, InputGroup, InputOTP, InputState, OtpPattern, OtpState, PickerColor, SearchField,
-    TextArea, TextField,
+    Button, ColorField, Date, DateField, FieldGroup, Fieldset, FieldsetLegend, Input, InputAddon,
+    InputGroup, InputOTP, InputState, OtpPattern, OtpState, PickerColor, SearchField, TextArea,
+    TextField,
 };
 
 use harness::{click, events, open_host, press};
@@ -1177,7 +1177,7 @@ fn fieldset_disabled_disables_its_children(cx: &mut TestAppContext) {
         Fieldset::new()
             .child(FieldsetLegend::new("Billing address"))
             .child(
-                FieldsetGroup::new().child(
+                FieldGroup::new().child(
                     Input::new(state_for_view.clone())
                         .on_change(move |text, _, _| changes.borrow_mut().push(text.to_owned())),
                 ),

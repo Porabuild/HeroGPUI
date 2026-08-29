@@ -1,17 +1,15 @@
 //! Kbd — port of `@heroui/kbd`.
 
-use gpui::{
-    prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Styled, Window,
-};
+use gpui::{px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Styled, Window};
 use herogpui_theme::ActiveTheme;
 
 /// Visual style of a key (`variant`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum KbdVariant {
-    /// Raised key with a border and the field shadow.
+    /// Neutral key on the `bg-default` chip.
     #[default]
     Default,
-    /// Flat, borderless key for inline prose.
+    /// Transparent key for inline prose.
     Light,
 }
 
@@ -59,36 +57,32 @@ impl ParentElement for Kbd {
     }
 }
 
-const MONO_FONT: &str = "Consolas";
-
 impl RenderOnce for Kbd {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
-        let layout = cx.layout();
 
-        let (h, min_w, text) = (px(24.), px(24.), px(14.));
+        let (h, text) = (px(24.), px(14.));
 
         let mut el = gpui::div()
             .flex()
             .items_center()
             .justify_center()
+            .text_center()
+            .gap(px(2.))
             .px(px(8.))
-            .min_w(min_w)
             .h(h)
             .rounded(crate::util::key_radius(cx))
+            // Tailwind's `text-sm` pairs 14px with a 20px leading; gpui's phi
+            // default would give 14 x 1.618 ≈ 23px.
             .text_size(text)
-            .font_family(MONO_FONT);
+            .line_height(px(20.))
+            .font_weight(gpui::FontWeight::MEDIUM)
+            .whitespace_nowrap()
+            .text_color(colors.muted);
 
         el = match self.variant {
-            KbdVariant::Default => el
-                .bg(colors.surface.background)
-                .border(layout.border_width)
-                .border_color(colors.border)
-                .text_color(colors.foreground)
-                .when(!layout.field_shadow.is_empty(), |e: gpui::Div| {
-                    e.shadow(layout.field_shadow.clone())
-                }),
-            KbdVariant::Light => el.bg(colors.default.soft()).text_color(colors.muted),
+            KbdVariant::Default => el.bg(colors.default.color),
+            KbdVariant::Light => el.bg(gpui::transparent_black()),
         };
 
         // `.kbd__content` is the key text itself; `.kbd__abbr` is the `<abbr>`

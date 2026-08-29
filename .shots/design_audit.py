@@ -45,7 +45,14 @@ RADIUS = {
     '2xl': RADIUS_BASE * 2, '3xl': RADIUS_BASE * 3, '4xl': RADIUS_BASE * 4,
     'full': 9999.0, 'field': RADIUS_BASE * 1.5,
 }
-TEXT = {'xs': 12.0, 'sm': 14.0, 'base': 16.0, 'lg': 18.0, 'xl': 20.0, '2xl': 24.0}
+TEXT = {'xs': 12.0, 'sm': 14.0, 'base': 16.0, 'lg': 18.0, 'xl': 20.0, '2xl': 24.0,
+        '3xl': 30.0, '4xl': 36.0}
+# Tailwind's `text-*` utilities set a default line height alongside the size
+# (text-4xl is 36/40). A rule only inherits the pair when it declares no
+# explicit `leading-*` of its own -- `.typography--body` is `text-base
+# leading-7`, and the leading-7 wins.
+TEXT_LEADING = {'xs': 16.0, 'sm': 20.0, 'base': 24.0, 'lg': 28.0, 'xl': 28.0,
+                '2xl': 32.0, '3xl': 36.0, '4xl': 40.0}
 BREAKPOINTS = ['', 'sm', 'md', 'lg', 'xl', '2xl']
 
 # A metric v3 deliberately does not declare. Absent means zero here, not
@@ -860,10 +867,66 @@ CHECKS = [
     ('close-button', '.close-button', 'h', 'CloseButton box', SRC + 'close_button.rs',
      r'let \(box_size, icon_size\) = \(px\((\d+(?:\.\d*)?)\)', None),
     ('kbd', '.kbd', 'h', 'Kbd height', SRC + 'kbd.rs',
-     r'let \(h, min_w, text\) = \(px\((\d+(?:\.\d*)?)\)', None),
+     r'let \(h, text\) = \(px\((\d+(?:\.\d*)?)\)', None),
     ('kbd', '.kbd', 'text', 'Kbd text', SRC + 'kbd.rs',
-     r'let \(h, min_w, text\) = \(px\(\d+(?:\.\d*)?\), px\(\d+(?:\.\d*)?\), px\((\d+(?:\.\d*)?)\)',
+     r'let \(h, text\) = \(px\(\d+(?:\.\d*)?\), px\((\d+(?:\.\d*)?)\)',
      None),
+    # `text-sm` also pairs a 20px leading, which the port must set explicitly
+    # (gpui's phi default would round 14 x 1.618 to 23).
+    ('kbd', '.kbd', 'leading', 'Kbd text-sm line height', SRC + 'kbd.rs',
+     r'\.text_size\(text\)\s*\n\s*\.line_height\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
+
+    # --- Typography -------------------------------------------------------
+    # Each type's (size, leading) pair lives in `TypographyType::metrics`;
+    # the two rows per type read the same arm's first and second `px`.
+    ('typography', '.typography--h1', 'text', 'Typography h1 size', SRC + 'typography.rs',
+     r'Self::H1 => \(px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--h1', 'leading', 'Typography h1 leading', SRC + 'typography.rs',
+     r'Self::H1 => \(px\(\d+(?:\.\d*)?\), px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--h2', 'text', 'Typography h2 size', SRC + 'typography.rs',
+     r'Self::H2 => \(px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--h2', 'leading', 'Typography h2 leading', SRC + 'typography.rs',
+     r'Self::H2 => \(px\(\d+(?:\.\d*)?\), px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--h3', 'text', 'Typography h3 size', SRC + 'typography.rs',
+     r'Self::H3 => \(px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--h3', 'leading', 'Typography h3 leading', SRC + 'typography.rs',
+     r'Self::H3 => \(px\(\d+(?:\.\d*)?\), px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--h4', 'text', 'Typography h4 size', SRC + 'typography.rs',
+     r'Self::H4 => \(px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--h4', 'leading', 'Typography h4 leading', SRC + 'typography.rs',
+     r'Self::H4 => \(px\(\d+(?:\.\d*)?\), px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--h5', 'text', 'Typography h5 size', SRC + 'typography.rs',
+     r'Self::H5 => \(px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--h5', 'leading', 'Typography h5 leading', SRC + 'typography.rs',
+     r'Self::H5 => \(px\(\d+(?:\.\d*)?\), px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--h6', 'text', 'Typography h6 size', SRC + 'typography.rs',
+     r'Self::H6 => \(px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--h6', 'leading', 'Typography h6 leading', SRC + 'typography.rs',
+     r'Self::H6 => \(px\(\d+(?:\.\d*)?\), px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--body', 'text', 'Typography body size', SRC + 'typography.rs',
+     r'Self::Body => \(px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--body', 'leading', 'Typography body leading', SRC + 'typography.rs',
+     r'Self::Body => \(px\(\d+(?:\.\d*)?\), px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--body-sm', 'text', 'Typography body-sm size', SRC + 'typography.rs',
+     r'Self::BodySm => \(px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--body-sm', 'leading', 'Typography body-sm leading', SRC + 'typography.rs',
+     r'Self::BodySm => \(px\(\d+(?:\.\d*)?\), px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--body-xs', 'text', 'Typography body-xs size', SRC + 'typography.rs',
+     r'Self::BodyXs => \(px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--body-xs', 'leading', 'Typography body-xs leading', SRC + 'typography.rs',
+     r'Self::BodyXs => \(px\(\d+(?:\.\d*)?\), px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--code', 'text', 'Typography code size', SRC + 'typography.rs',
+     r'Self::Code => \(px\((\d+(?:\.\d*)?)\)', None),
+    ('typography', '.typography--code', 'leading', 'Typography code leading', SRC + 'typography.rs',
+     r'Self::Code => \(px\(\d+(?:\.\d*)?\), px\((\d+(?:\.\d*)?)\)', None),
+    # The code chip's own box, anchored on the `is_mono` block that paints it.
+    ('typography', '.typography--code', 'px', 'Typography code px', SRC + 'typography.rs',
+     r'\.rounded\(crate::util::mark_radius\(cx\)\)\s*\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('typography', '.typography--code', 'py', 'Typography code py', SRC + 'typography.rs',
+     r'\.px\(px\(\d+(?:\.\d*)?\.\)\)\s*\.py\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('typography', '.typography--code', 'radius', 'Typography code -> util::_radius', SRC + 'typography.rs',
+     r'\.rounded\(crate::util::(mark_radius)\(cx\)\)', helper_px),
     ('skeleton', '.skeleton', 'radius', 'Skeleton -> util::_radius', SRC + 'skeleton.rs',
      r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
     # Anchor the menu metrics to the row's own construction chain. A fixed
@@ -1715,6 +1778,7 @@ def utilities(body):
 def measure(body):
     """One rule's metrics, preferring the largest breakpoint's value."""
     found = {}
+    text_leads = []
 
     def offer(metric, value, bp):
         rank = BREAKPOINTS.index(bp) if bp in BREAKPOINTS else 0
@@ -1792,6 +1856,10 @@ def measure(body):
                     v = px(tok[len(prefix):])
                     if v is not None:
                         offer(metric, v, bp)
+            if tok.startswith('text-') and tok[5:] in TEXT:
+                offer('text', TEXT[tok[5:]], bp)
+                if tok[5:] in TEXT_LEADING:
+                    text_leads.append((TEXT_LEADING[tok[5:]], bp))
             m = re.fullmatch(r'border-(\d+(?:\.\d*)?)', tok)
             if m:
                 offer('border', float(m.group(1)), bp)
@@ -1807,8 +1875,14 @@ def measure(body):
                 offer('radius', RADIUS[tok[8:]], bp)
             elif tok == 'rounded':
                 offer('radius', RADIUS['lg'], bp)
-            if tok.startswith('text-') and tok[5:] in TEXT:
-                offer('text', TEXT[tok[5:]], bp)
+
+    # A `text-*` utility sets a default line height only where the rule
+    # declares no explicit `leading-*` of its own -- the explicit utility wins
+    # in the cascade, so `.typography--body` keeps leading-7 over text-base's
+    # paired 24.
+    if 'leading' not in found:
+        for value, bp in text_leads:
+            offer('leading', value, bp)
 
     # `size-*` and `h-*`/`w-*` set the same properties, so a rule that applies
     # both keeps whichever comes last: `.autocomplete__clear-button` is
@@ -1994,6 +2068,11 @@ FILLS = [
      SRC + 'surface.rs', 'colors.surface_secondary'),
     ('surface', '.surface--tertiary', 'bg-surface-tertiary',
      SRC + 'surface.rs', 'colors.surface_tertiary'),
+    # The key chip and the inline code chip both fill with `--default`; Kbd's
+    # light variant clears it, which the non-numeric contract below guards.
+    ('kbd', '.kbd', 'bg-default', SRC + 'kbd.rs', 'colors.default.color'),
+    ('typography', '.typography--code', 'bg-default', SRC + 'typography.rs',
+     'colors.default.color'),
 ]
 
 
@@ -2282,6 +2361,59 @@ def check_surface_style_contract():
     return bad
 
 
+def check_kbd_typography_style_contract():
+    """Non-numeric Kbd and Typography styling the metric rows cannot read.
+
+    Kbd's old port invented a mono family, a border and a field shadow v3's
+    `.kbd` never declares, and the light variant is distinguished *only* by
+    clearing the background. Typography's honest paint limitations
+    (`tracking-tight`, `text-justify`) and the code chip must stay exactly
+    that -- a fallback, not a silently dropped style.
+    """
+    kbd_css = rule_body(io.open(os.path.join(CACHE, 'kbd.css'), encoding='utf-8',
+                                errors='replace').read(), '.kbd') or ''
+    kbd_src = io.open(SRC + 'kbd.rs', encoding='utf-8', errors='replace').read()
+    kbd_render = kbd_src.split('impl RenderOnce for Kbd {', 1)
+    kbd_render = kbd_render[1] if len(kbd_render) == 2 else ''
+    typo_css = io.open(os.path.join(CACHE, 'typography.css'), encoding='utf-8',
+                       errors='replace').read()
+    typo_src = io.open(SRC + 'typography.rs', encoding='utf-8', errors='replace').read()
+    checks = [
+        ('kbd base has no border', 'border' not in kbd_css
+         and '.border(' not in kbd_render and '.border_' not in kbd_render),
+        ('kbd base has no shadow', 'shadow' not in kbd_css
+         and '.shadow(' not in kbd_render),
+        ('kbd has no mono family', 'font_family' not in kbd_render
+         and 'MONO_FONT' not in kbd_src),
+        ('kbd medium muted text', '.font_weight(gpui::FontWeight::MEDIUM)' in kbd_render
+         and '.text_color(colors.muted)' in kbd_render),
+        ('kbd nowrap', '.whitespace_nowrap()' in kbd_render),
+        ('kbd light clears the fill only',
+         'KbdVariant::Light => el.bg(gpui::transparent_black())' in kbd_render),
+        ('v3 kbd word-spacing (port limitation)', 'word-spacing' in kbd_css),
+        ('typography default/muted colors',
+         'TextColor::Default => colors.foreground' in typo_src
+         and 'TextColor::Muted => colors.muted' in typo_src),
+        ('typography justify falls back to start',
+         'TextAlign::Start | TextAlign::Justify => el.text_left()' in typo_src),
+        ('typography headings semibold',
+         'Self::H1 | Self::H2 | Self::H3 | Self::H4 | Self::H5 | Self::H6'
+         ' => FontWeight::Semibold' in typo_src),
+        ('typography code is mono', 'font_family(MONO_FONT)' in typo_src),
+        ('typography truncate wired', 'el = el.truncate()' in typo_src),
+        ('typography prose foreground', 'text_color(cx.colors().foreground)' in typo_src),
+        ('v3 heading tracking-tight (port limitation)',
+         'tracking-tight' in (rule_body(typo_css, '.typography--h1') or '')),
+    ]
+    print()
+    print('kbd/typography non-numeric styling:')
+    for name, ok in checks:
+        print('%s %-38s %s' % (' ' if ok else '!', name, 'ok' if ok else 'missing'))
+    bad = sum(not ok for _, ok in checks)
+    print('KBD/TYPO STYLE BAD : %d' % bad)
+    return bad
+
+
 def check_color_picker_style_contract():
     """ColorPicker's asymmetric padding must survive its zoom refinement."""
     css = io.open(os.path.join(CACHE, 'color-picker.css'),
@@ -2450,9 +2582,11 @@ def main():
     toolbar_bad = check_toolbar_style_contract()
     card_bad = check_card_style_contract()
     surface_bad = check_surface_style_contract()
+    kbd_typo_bad = check_kbd_typography_style_contract()
     return int(bool(
         mismatched or unreadable or wrong_fills or stale_fills or toggle_bad or pagination_bad
         or tabs_bad or color_picker_bad or toolbar_bad or card_bad or surface_bad
+        or kbd_typo_bad
     ))
 
 
