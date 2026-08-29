@@ -17,19 +17,94 @@ PAGES = os.path.join(ROOT, "gallery", "src", "pages", "mod.rs")
 SOURCE_ROOT = os.path.join(ROOT, "crates", "herogpui-components", "src")
 
 
+def skip_string(source, index):
+    """Return the index just past the string literal opening at index."""
+    i = index + 1
+    while i < len(source):
+        if source[i] == "\\":
+            i += 2
+        elif source[i] == '"':
+            return i + 1
+        else:
+            i += 1
+    raise ValueError(f"unterminated string literal at offset {index}")
+
+
+def skip_comment(source, index):
+    if source.startswith("//", index):
+        end = source.find("\n", index)
+        return len(source) if end < 0 else end
+    if source.startswith("/*", index):
+        end = source.find("*/", index + 2)
+        if end < 0:
+            raise ValueError(f"unterminated block comment at offset {index}")
+        return end + 2
+    return index + 1
+
+
+def skip_balanced(source, index, open_char, close_char):
+    """Return the index just past the bracket group opening at index."""
+    depth = 1
+    i = index + 1
+    while i < len(source):
+        char = source[i]
+        if char == '"':
+            i = skip_string(source, i)
+        elif char == "/" and source[i : i + 2] in ("//", "/*"):
+            i = skip_comment(source, i)
+        elif char == open_char:
+            depth += 1
+            i += 1
+        elif char == close_char:
+            depth -= 1
+            i += 1
+            if depth == 0:
+                return i
+        else:
+            i += 1
+    raise ValueError(f"unclosed {open_char}...{close_char} group at offset {index}")
+
+
+def masked(source):
+    """Blank string and comment text so token counts ignore their contents."""
+    out = list(source)
+    i = 0
+    while i < len(source):
+        char = source[i]
+        if char == '"':
+            end = skip_string(source, i)
+            for j in range(i + 1, end - 1):
+                if out[j] != "\n":
+                    out[j] = " "
+            i = end
+        elif char == "/" and source[i : i + 2] in ("//", "/*"):
+            end = skip_comment(source, i)
+            for j in range(i, end):
+                if out[j] != "\n":
+                    out[j] = " "
+            i = end
+        else:
+            i += 1
+    return "".join(out)
+
+
 def array_body(source, name):
-    prefix = rf"const\s+{re.escape(name)}\b.*?=\s*&\["
-    match = re.search(prefix + r"([^\r\n]*)\];", source)
-    if not match:
-        match = re.search(prefix + r"(.*?)\n\];", source, re.S)
+    """Return the element text between the brackets of one declared array."""
+    match = re.search(
+        rf"(?m)^(?:pub(?:\([^)]*\))?\s+)?const\s+{re.escape(name)}\b", source
+    )
     if not match:
         raise ValueError(f"missing metadata array {name}")
-    return match.group(1)
-
-
-def metadata_rows(source, ref, item):
-    body = array_body(source, ref)
-    return body.count(f"{item} {{"), body
+    following = re.search(
+        r"(?m)^(?:pub(?:\([^)]*\))?\s+)?const\s+[A-Za-z_]", source[match.end() :]
+    )
+    limit = match.end() + following.start() if following else len(source)
+    initializer = re.compile(r"=\s*&\[").search(source, match.end(), limit)
+    if not initializer:
+        raise ValueError(f"metadata array {name} has no &[ initializer")
+    start = initializer.end() - 1
+    end = skip_balanced(source, start, "[", "]")
+    return source[start + 1 : end - 1]
 
 
 def field(block, name):
@@ -46,8 +121,53 @@ def enum_field(block, name):
 
 
 def records(source, ref, item):
+    """Parse every record literal in one declared array, single- or multi-line."""
     body = array_body(source, ref)
-    return re.findall(rf"{item}\s*\{{(.*?)\n\s*\}},?", body, re.S)
+    opener = re.compile(rf"\b{item}\s*\{{")
+    declared = len(opener.findall(masked(body)))
+    parsed = []
+    i = 0
+    while i < len(body):
+        char = body[i]
+        if char == '"':
+            i = skip_string(body, i)
+        elif char == "/" and body[i : i + 2] in ("//", "/*"):
+            i = skip_comment(body, i)
+        else:
+            match = opener.match(body, i)
+            if match:
+                end = skip_balanced(body, match.end() - 1, "{", "}")
+                parsed.append(body[match.start() : end])
+                i = end
+            else:
+                i += 1
+    if declared != len(parsed):
+        raise ValueError(f"{ref}: declared {declared} {item} rows but parsed {len(parsed)}")
+    return parsed
+
+
+def api_row_errors(page, entry, methods):
+    errors = []
+    status = enum_field(entry, "status")
+    rust_owner = field(entry, "rust_owner")
+    rust = field(entry, "rust") or ""
+    if not rust_owner:
+        errors.append(f"{page}: API row has no rust_owner")
+    elif rust_owner not in methods:
+        errors.append(f"{page}: unresolved Rust owner {rust_owner}")
+    if status in ("Implemented", "Partial") and rust != "—":
+        method = mapping_method(rust)
+        if method:
+            source_signature = methods.get(rust_owner, {}).get(method)
+            if source_signature is None:
+                errors.append(f"{page}: {rust_owner}::{method} is not a real public method")
+            elif argument_count(rust) != method_argument_count(source_signature):
+                errors.append(
+                    f"{page}: {rust_owner}::{method} mapping arity does not match source signature"
+                )
+        elif status == "Implemented":
+            errors.append(f"{page}: Implemented API row has no method mapping: {rust}")
+    return errors
 
 
 def route_imports(page_source):
@@ -175,7 +295,189 @@ def dropdown_context_value(source, selector):
     return None
 
 
+def self_test():
+    failures = []
+
+    def expect(condition, message):
+        if not condition:
+            failures.append(message)
+
+    def expect_error(parse, message):
+        try:
+            parse()
+        except ValueError as error:
+            expect(message in str(error), f"expected {message!r} in {str(error)!r}")
+        else:
+            failures.append(f"expected ValueError: {message}")
+
+    component_source = """impl Widget {
+    pub fn variant(&mut self, variant: Variant) -> &mut Self {
+        self
+    }
+
+    pub fn full_width(&mut self, full: bool) -> &mut Self {
+        self
+    }
+}
+"""
+    metadata_source = r'''
+const WIDGET_REQUIRED_PARTS: &[&str] = &["Widget"];
+
+const WIDGET_SPLIT: &[&str] =
+    &["Widget.Split"];
+
+const WIDGET_API: &[ApiDoc] = &[
+    ApiDoc {
+        owner: "Widget",
+        prop: "variant",
+        ty: "'solid' | 'outline'",
+        default: "'solid'",
+        description: "Visual weight with {brace} and \"quoted\" text.",
+        rust_owner: "Widget",
+        rust: "variant(Variant)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc { owner: "Widget", prop: "fullWidth", ty: "boolean", default: "false", description: "One row on one line.", rust_owner: "Widget", rust: "full_width(bool)", status: ImplementationStatus::Implemented },
+];
+
+const WIDGET_PARTS: &[PartDoc] = &[PartDoc {
+    name: "Widget",
+    slot: "widget",
+    description: "Root part.",
+    rust_owner: "Widget",
+    status: ImplementationStatus::Implemented,
+}];
+'''
+
+    rows = records(metadata_source, "WIDGET_API", "ApiDoc")
+    expect(len(rows) == 2, f"expected 2 ApiDoc rows, parsed {len(rows)}")
+    expect(
+        field(rows[0], "description") == 'Visual weight with {brace} and "quoted" text.',
+        f"multi-line row field read {field(rows[0], 'description')!r}",
+    )
+    expect(field(rows[1], "prop") == "fullWidth", "single-line row not parsed")
+    expect(len(records(metadata_source, "WIDGET_PARTS", "PartDoc")) == 1, "PartDoc row not parsed")
+    expect(array_body(metadata_source, "WIDGET_SPLIT") == '"Widget.Split"', "initializer split across lines not read")
+
+    methods = owner_methods(component_source)
+    expect("variant" in methods.get("Widget", {}), "owner_methods missed Widget::variant")
+    clean = rows[1]
+    expect(api_row_errors("Widget", clean, methods) == [], f"clean row flagged: {api_row_errors('Widget', clean, methods)}")
+
+    corrupt = clean.replace('rust_owner: "Widget"', 'rust_owner: "Widge"')
+    flagged = api_row_errors("Widget", corrupt, methods)
+    expect(
+        any("unresolved Rust owner Widge" in error for error in flagged),
+        f"corrupt rust_owner not flagged: {flagged}",
+    )
+
+    ghost = clean.replace("full_width(bool)", "no_such_method(bool)")
+    flagged = api_row_errors("Widget", ghost, methods)
+    expect(
+        any("Widget::no_such_method is not a real public method" in error for error in flagged),
+        f"non-existent method mapping not flagged: {flagged}",
+    )
+
+    unmapped = clean.replace("full_width(bool)", "resolved in render")
+    flagged = api_row_errors("Widget", unmapped, methods)
+    expect(
+        any("Implemented API row has no method mapping" in error for error in flagged),
+        f"implemented row without mapping not flagged: {flagged}",
+    )
+
+    arity = clean.replace("full_width(bool)", "full_width(bool, Variant)")
+    flagged = api_row_errors("Widget", arity, methods)
+    expect(
+        flagged
+        == ["Widget: Widget::full_width mapping arity does not match source signature"],
+        f"arity mismatch not flagged exactly: {flagged}",
+    )
+
+    unclosed = 'const A: &[ApiDoc] = &[\n    ApiDoc {\n        prop: "x",\n'
+    expect_error(lambda: records(unclosed, "A", "ApiDoc"), "unclosed")
+
+    mismatched = (
+        "const A: &[ApiDoc] = &[\n"
+        "    ApiDoc {\n"
+        '        prop: "x",\n'
+        '        inner: ApiDoc { prop: "nested" },\n'
+        "    },\n"
+        "];"
+    )
+    expect_error(
+        lambda: records(mismatched, "A", "ApiDoc"),
+        "A: declared 2 ApiDoc rows but parsed 1",
+    )
+
+    commented = (
+        "const A: &[ApiDoc] = &[\n"
+        '    // ApiDoc { prop: "commented out" }\n'
+        '    ApiDoc { owner: "A", prop: "y", status: ImplementationStatus::Unavailable },\n'
+        "];"
+    )
+    expect(len(records(commented, "A", "ApiDoc")) == 1, "commented-out row miscounted")
+
+    block_commented = (
+        "const A: &[ApiDoc] = &[\n"
+        "    /*\n"
+        "    ApiDoc {\n"
+        '        prop: "commented out",\n'
+        "    },\n"
+        "    */\n"
+        '    ApiDoc { owner: "A", prop: "y", status: ImplementationStatus::Unavailable },\n'
+        "];"
+    )
+    expect(len(records(block_commented, "A", "ApiDoc")) == 1, "block-commented row miscounted")
+
+    backslashed = (
+        "const A: &[ApiDoc] = &[\n"
+        '    ApiDoc { owner: "A", prop: "y", description: "ends with a backslash \\\\", status: ImplementationStatus::Unavailable },\n'
+        "];"
+    )
+    backslash_rows = records(backslashed, "A", "ApiDoc")
+    expect(
+        len(backslash_rows) == 1
+        and field(backslash_rows[0], "description") == "ends with a backslash \\\\",
+        "escaped backslash before the closing quote misparsed",
+    )
+
+    pub_crate = (
+        "pub(crate) const P_API: &[ApiDoc] = &[\n"
+        '    ApiDoc { owner: "P", prop: "y", status: ImplementationStatus::Unavailable },\n'
+        "];"
+    )
+    expect(len(records(pub_crate, "P_API", "ApiDoc")) == 1, "pub(crate) array not located")
+
+    quoted = (
+        "const A: &[ApiDoc] = &[\n"
+        '    ApiDoc { owner: "A", prop: "y", description: "mentions ApiDoc { inline", status: ImplementationStatus::Unavailable },\n'
+        "];"
+    )
+    expect(len(records(quoted, "A", "ApiDoc")) == 1, "record opener inside a string miscounted")
+
+    scoped = (
+        'const A: &[&str] = &["x"];\n'
+        "const A_EXTRA: &[ApiDoc] = &[\n"
+        '    ApiDoc { owner: "A", prop: "y", status: ImplementationStatus::Unavailable },\n'
+        "];"
+    )
+    expect(records(scoped, "A", "ApiDoc") == [], "array scoping crossed into A_EXTRA")
+    expect(len(records(scoped, "A_EXTRA", "ApiDoc")) == 1, "A_EXTRA array not scoped correctly")
+
+    expect_error(lambda: array_body(scoped, "MISSING"), "missing metadata array MISSING")
+
+    if failures:
+        print("self-test FAIL")
+        for failure in failures:
+            print(f"- {failure}")
+        return 1
+    print("self-test PASS: record parser and API row checks")
+    return 0
+
+
 def main():
+    if "--self-test" in sys.argv[1:]:
+        return self_test()
     metadata = io.open(METADATA, encoding="utf-8").read()
     pages = io.open(PAGES, encoding="utf-8").read()
     errors = []
@@ -228,7 +530,7 @@ def main():
             else:
                 refs[name] = match.group(1)
 
-        counts = {}
+        parsed = {}
         for name, item in (
             ("api", "ApiDoc"),
             ("parts", "PartDoc"),
@@ -238,65 +540,46 @@ def main():
             if name not in refs:
                 continue
             try:
-                counts[name], _ = metadata_rows(metadata, refs[name], item)
+                parsed[name] = records(metadata, refs[name], item)
             except ValueError as error:
                 errors.append(f"{page}: {error}")
                 continue
-            totals[name] += counts[name]
-            if counts[name] == 0 and name in ("api", "parts", "styling"):
+            totals[name] += len(parsed[name])
+            if not parsed[name] and name in ("api", "parts", "styling"):
                 errors.append(f"{page}: zero {name} input")
-        if all(counts.get(name, 0) for name in ("api", "parts", "styling")):
+        if all(parsed.get(name) for name in ("api", "parts", "styling")):
             detailed += 1
 
         try:
             required_body = array_body(metadata, refs["required_parts"])
-            parts_body = array_body(metadata, refs["parts"])
-            api_body = array_body(metadata, refs["api"])
-            state_body = array_body(metadata, refs["states"])
-            style_body = array_body(metadata, refs["styling"])
         except (KeyError, ValueError) as error:
             errors.append(f"{page}: {error}")
             continue
 
         required = set(re.findall(r'"([^\"]+)"', required_body))
-        part_names = set(re.findall(r'name:\s*"([^\"]+)"', parts_body))
-        if required != part_names:
+        part_names = {
+            name
+            for name in (field(entry, "name") for entry in parsed.get("parts", []))
+            if name
+        }
+        if "parts" in parsed and required != part_names:
             errors.append(
                 f"{page}: compound parts changed; missing={sorted(required - part_names)}, extra={sorted(part_names - required)}"
             )
 
-        api_records = records(metadata, refs["api"], "ApiDoc")
-        for entry in api_records:
-            status = enum_field(entry, "status")
-            rust_owner = field(entry, "rust_owner")
-            rust = field(entry, "rust") or ""
-            if not rust_owner:
-                errors.append(f"{page}: API row has no rust_owner")
-            elif rust_owner not in methods:
-                errors.append(f"{page}: unresolved Rust owner {rust_owner}")
-            if status in ("Implemented", "Partial") and rust != "—":
-                method = mapping_method(rust)
-                if method:
-                    source_signature = methods.get(rust_owner, {}).get(method)
-                    if source_signature is None:
-                        errors.append(f"{page}: {rust_owner}::{method} is not a real public method")
-                    elif argument_count(rust) != method_argument_count(source_signature):
-                        errors.append(
-                            f"{page}: {rust_owner}::{method} mapping arity does not match source signature"
-                        )
-                elif status == "Implemented":
-                    errors.append(f"{page}: Implemented API row has no method mapping: {rust}")
+        for entry in parsed.get("api", []):
+            errors.extend(api_row_errors(page, entry, methods))
 
-        for entry in records(metadata, refs["parts"], "PartDoc"):
+        for entry in parsed.get("parts", []):
             owner = field(entry, "rust_owner")
             if not owner or owner not in methods:
                 errors.append(f"{page}: unresolved part Rust owner {owner or '<empty>'}")
 
-        for entry in records(metadata, refs["states"], "StateDoc"):
+        for entry in parsed.get("states", []):
             if not field(entry, "selector") or not field(entry, "rust"):
                 errors.append(f"{page}: state row has incomplete selector/source mapping")
 
-        for entry in records(metadata, refs["styling"], "StyleDoc"):
+        for entry in parsed.get("styling", []):
             selector = field(entry, "class_or_token") or ""
             value = field(entry, "value") or ""
             rust = field(entry, "rust") or ""
