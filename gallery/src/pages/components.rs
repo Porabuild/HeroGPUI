@@ -414,18 +414,18 @@ impl Gallery {
                     "With icons",
                     row(vec![
                         h::Button::new("btn-i-1")
-                            .label("Search")
-                            .start_content(icon(h::icons::SEARCH, cx))
+                            .child(icon(h::icons::SEARCH, cx))
+                            .child("Search")
                             .into_any_element(),
                         h::Button::new("btn-i-2")
-                            .label("Add member")
                             .variant(Variant::Secondary)
-                            .start_content(icon(h::icons::PLUS, cx))
+                            .child(icon(h::icons::PLUS, cx))
+                            .child("Add member")
                             .into_any_element(),
                         h::Button::new("btn-i-3")
-                            .label("Delete")
                             .variant(Variant::Danger)
-                            .start_content(icon(h::icons::CLOSE, cx))
+                            .child(icon(h::icons::CLOSE, cx))
+                            .child("Delete")
                             .into_any_element(),
                     ]),
                 ),
@@ -435,17 +435,17 @@ impl Gallery {
                         h::Button::new("btn-io-1")
                             .is_icon_only(true)
                             .variant(Variant::Tertiary)
-                            .start_content(icon(h::icons::ELLIPSIS, cx))
+                            .child(icon(h::icons::ELLIPSIS, cx))
                             .into_any_element(),
                         h::Button::new("btn-io-2")
                             .is_icon_only(true)
                             .variant(Variant::Secondary)
-                            .start_content(icon(h::icons::PLUS, cx))
+                            .child(icon(h::icons::PLUS, cx))
                             .into_any_element(),
                         h::Button::new("btn-io-3")
                             .is_icon_only(true)
                             .variant(Variant::Danger)
-                            .start_content(icon(h::icons::CLOSE, cx))
+                            .child(icon(h::icons::CLOSE, cx))
                             .into_any_element(),
                     ]),
                 ),
@@ -503,24 +503,24 @@ impl Gallery {
                             .gap(px(12.))
                             .child(
                                 h::Button::new("btn-soc-1")
-                                    .label("Sign in with Email")
                                     .variant(Variant::Tertiary)
                                     .full_width(true)
-                                    .start_content(icon(h::icons::MAIL, cx)),
+                                    .child(icon(h::icons::MAIL, cx))
+                                    .child("Sign in with Email"),
                             )
                             .child(
                                 h::Button::new("btn-soc-2")
-                                    .label("Sign in with a passkey")
                                     .variant(Variant::Tertiary)
                                     .full_width(true)
-                                    .start_content(icon(h::icons::KEY, cx)),
+                                    .child(icon(h::icons::KEY, cx))
+                                    .child("Sign in with a passkey"),
                             )
                             .child(
                                 h::Button::new("btn-soc-3")
-                                    .label("Single sign-on")
                                     .variant(Variant::Tertiary)
                                     .full_width(true)
-                                    .start_content(icon(h::icons::GLOBE, cx)),
+                                    .child(icon(h::icons::GLOBE, cx))
+                                    .child("Single sign-on"),
                             )
                             .into_any_element(),
                     ]),
@@ -554,7 +554,7 @@ impl Gallery {
                         .button(
                             h::Button::new("bgu-2")
                                 .is_icon_only(true)
-                                .start_content(icon(h::icons::CHEVRON_DOWN, cx)),
+                                .child(icon(h::icons::CHEVRON_DOWN, cx)),
                         )
                         .into_any_element()]),
                 ),
@@ -596,18 +596,18 @@ impl Gallery {
                         .separators(true)
                         .button(
                             h::Button::new("bgi-1")
-                                .label("Fork")
-                                .start_content(icon(h::icons::COPY, cx)),
+                                .child(icon(h::icons::COPY, cx))
+                                .child("Fork"),
                         )
                         .button(
                             h::Button::new("bgi-2")
-                                .label("Star")
-                                .start_content(icon(h::icons::PLUS, cx)),
+                                .child(icon(h::icons::PLUS, cx))
+                                .child("Star"),
                         )
                         .button(
                             h::Button::new("bgi-3")
                                 .is_icon_only(true)
-                                .start_content(icon(h::icons::ELLIPSIS, cx)),
+                                .child(icon(h::icons::ELLIPSIS, cx)),
                         )
                         .into_any_element()]),
                 ),
@@ -2892,9 +2892,13 @@ impl Gallery {
                                 h::Slider::new("sl-output", volume)
                                     .label("Brightness")
                                     .output(|values, labels| {
-                                        h::Chip::new(format!("{:.0}% ({})", values[0], labels[0]))
+                                        h::Chip::new()
                                             .variant(h::ChipVariant::Soft)
                                             .color(Color::Accent)
+                                            .child(h::ChipLabel::new().child(format!(
+                                                "{:.0}% ({})",
+                                                values[0], labels[0]
+                                            )))
                                             .into_any_element()
                                     })
                                     .on_change(f32_cb(cx.listener(|this, v: &f32, _, cx| {
@@ -3300,9 +3304,9 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    row(vec![h::Badge::new()
-                        .content("5")
+                    row(vec![h::BadgeAnchor::new()
                         .child(avatar_box(cx))
+                        .child(h::Badge::new().child(h::BadgeLabel::new().child("5")))
                         .into_any_element()]),
                 ),
                 (
@@ -3312,7 +3316,11 @@ impl Gallery {
                         .map(|sz| {
                             spec(
                                 sz.label(),
-                                h::Badge::new().content("5").size(*sz).child(avatar_box(cx)),
+                                h::BadgeAnchor::new().child(avatar_box(cx)).child(
+                                    h::Badge::new()
+                                        .size(*sz)
+                                        .child(h::BadgeLabel::new().child("5")),
+                                ),
                                 cx,
                             )
                         })
@@ -3325,7 +3333,10 @@ impl Gallery {
                         .map(|c| {
                             spec(
                                 c.label(),
-                                h::Badge::new().color(*c).child(avatar_box(cx)),
+                                // No children is v3's dot badge.
+                                h::BadgeAnchor::new()
+                                    .child(avatar_box(cx))
+                                    .child(h::Badge::new().color(*c)),
                                 cx,
                             )
                         })
@@ -3336,32 +3347,35 @@ impl Gallery {
                     row(vec![
                         spec(
                             "Number",
-                            h::Badge::new()
-                                .content("5")
-                                .color(Color::Danger)
-                                .size(Size::Sm)
-                                .child(avatar_box(cx)),
+                            h::BadgeAnchor::new().child(avatar_box(cx)).child(
+                                h::Badge::new()
+                                    .color(Color::Danger)
+                                    .size(Size::Sm)
+                                    .child(h::BadgeLabel::new().child("5")),
+                            ),
                             cx,
                         ),
                         spec(
                             "Text",
-                            h::Badge::new()
-                                .content("NEW")
-                                .color(Color::Accent)
-                                .child(avatar_box(cx)),
+                            h::BadgeAnchor::new().child(avatar_box(cx)).child(
+                                h::Badge::new()
+                                    .color(Color::Accent)
+                                    .child(h::BadgeLabel::new().child("NEW")),
+                            ),
                             cx,
                         ),
                         spec(
                             "Icon",
-                            h::Badge::new()
-                                .content(
+                            // Only plain text is auto-wrapped upstream; an
+                            // element child composes straight into the badge.
+                            h::BadgeAnchor::new().child(avatar_box(cx)).child(
+                                h::Badge::new().color(Color::Success).child(
                                     gpui::svg()
                                         .size(px(10.))
                                         .path(h::icons::CHECK)
                                         .text_color(cx.colors().success.foreground),
-                                )
-                                .color(Color::Success)
-                                .child(avatar_box(cx)),
+                                ),
+                            ),
                             cx,
                         ),
                     ]),
@@ -3373,11 +3387,12 @@ impl Gallery {
                         .map(|v| {
                             spec(
                                 v.label(),
-                                h::Badge::new()
-                                    .content("5")
-                                    .color(Color::Accent)
-                                    .variant(*v)
-                                    .child(avatar_box(cx)),
+                                h::BadgeAnchor::new().child(avatar_box(cx)).child(
+                                    h::Badge::new()
+                                        .color(Color::Accent)
+                                        .variant(*v)
+                                        .child(h::BadgeLabel::new().child("5")),
+                                ),
                                 cx,
                             )
                         })
@@ -3390,7 +3405,11 @@ impl Gallery {
                         .map(|c| {
                             spec(
                                 c.label(),
-                                h::Badge::new().content("5").color(*c).child(avatar_box(cx)),
+                                h::BadgeAnchor::new().child(avatar_box(cx)).child(
+                                    h::Badge::new()
+                                        .color(*c)
+                                        .child(h::BadgeLabel::new().child("5")),
+                                ),
                                 cx,
                             )
                         })
@@ -3399,20 +3418,26 @@ impl Gallery {
                 (
                     "Dot & placement",
                     row(vec![
-                        // No content is v3's dot badge.
-                        h::Badge::new()
-                            .color(Color::Success)
+                        // No children is v3's dot badge.
+                        h::BadgeAnchor::new()
                             .child(avatar_box(cx))
+                            .child(h::Badge::new().color(Color::Success))
                             .into_any_element(),
-                        h::Badge::new()
-                            .content("9")
-                            .placement(h::BadgePlacement::BottomRight)
+                        h::BadgeAnchor::new()
                             .child(avatar_box(cx))
+                            .child(
+                                h::Badge::new()
+                                    .placement(h::BadgePlacement::BottomRight)
+                                    .child(h::BadgeLabel::new().child("9")),
+                            )
                             .into_any_element(),
-                        h::Badge::new()
-                            .content("New")
-                            .placement(h::BadgePlacement::TopLeft)
+                        h::BadgeAnchor::new()
                             .child(avatar_box(cx))
+                            .child(
+                                h::Badge::new()
+                                    .placement(h::BadgePlacement::TopLeft)
+                                    .child(h::BadgeLabel::new().child("New")),
+                            )
                             .into_any_element(),
                     ]),
                 ),
@@ -3427,37 +3452,48 @@ impl Gallery {
             crate::pages::Page::Chip.description(),
             crate::pages::Page::Chip.import_line(),
             vec![
-                ("Usage", row(vec![h::Chip::new("Chip").into_any_element()])),
+                (
+                    "Usage",
+                    row(vec![h::Chip::new()
+                        .child(h::ChipLabel::new().child("Chip"))
+                        .into_any_element()]),
+                ),
                 (
                     "Statuses",
                     row(vec![
-                        h::Chip::new("Active")
+                        h::Chip::new()
                             .color(Color::Success)
                             .variant(h::ChipVariant::Soft)
+                            .child(h::ChipLabel::new().child("Active"))
                             .into_any_element(),
-                        h::Chip::new("Paused")
+                        h::Chip::new()
                             .color(Color::Warning)
                             .variant(h::ChipVariant::Soft)
+                            .child(h::ChipLabel::new().child("Paused"))
                             .into_any_element(),
-                        h::Chip::new("Vacation")
+                        h::Chip::new()
                             .color(Color::Danger)
                             .variant(h::ChipVariant::Soft)
+                            .child(h::ChipLabel::new().child("Vacation"))
                             .into_any_element(),
                     ]),
                 ),
                 (
                     "With Icons",
                     row(vec![
-                        h::Chip::new("Verified")
+                        h::Chip::new()
                             .color(Color::Success)
-                            .start_content(icon(h::icons::CHECK, cx))
+                            .child(icon(h::icons::CHECK, cx))
+                            .child(h::ChipLabel::new().child("Verified"))
                             .into_any_element(),
-                        h::Chip::new("Link")
-                            .start_content(icon(h::icons::EXTERNAL_LINK, cx))
+                        h::Chip::new()
+                            .child(icon(h::icons::EXTERNAL_LINK, cx))
+                            .child(h::ChipLabel::new().child("Link"))
                             .into_any_element(),
-                        h::Chip::new("Search")
+                        h::Chip::new()
                             .color(Color::Accent)
-                            .start_content(icon(h::icons::SEARCH, cx))
+                            .child(icon(h::icons::SEARCH, cx))
+                            .child(h::ChipLabel::new().child("Search"))
                             .into_any_element(),
                     ]),
                 ),
@@ -3465,21 +3501,34 @@ impl Gallery {
                     "Variants",
                     row(h::ChipVariant::ALL
                         .iter()
-                        .map(|v| h::Chip::new(v.label()).variant(*v).color(Color::Accent))
+                        .map(|v| {
+                            h::Chip::new()
+                                .variant(*v)
+                                .color(Color::Accent)
+                                .child(h::ChipLabel::new().child(v.label()))
+                        })
                         .els()),
                 ),
                 (
                     "Colors",
                     row(Color::ALL
                         .iter()
-                        .map(|c| h::Chip::new(c.label()).color(*c))
+                        .map(|c| {
+                            h::Chip::new()
+                                .color(*c)
+                                .child(h::ChipLabel::new().child(c.label()))
+                        })
                         .els()),
                 ),
                 (
                     "Sizes",
                     row(Size::ALL
                         .iter()
-                        .map(|s| h::Chip::new(s.label()).size(*s))
+                        .map(|s| {
+                            h::Chip::new()
+                                .size(*s)
+                                .child(h::ChipLabel::new().child(s.label()))
+                        })
                         .els()),
                 ),
             ],
@@ -3497,9 +3546,10 @@ impl Gallery {
                     h::TableRow::new(vec![
                         gpui::div().child("Tony Reichert").into_any_element(),
                         gpui::div().child("CEO").into_any_element(),
-                        h::Chip::new("Active")
+                        h::Chip::new()
                             .color(Color::Success)
                             .size(Size::Sm)
+                            .child(h::ChipLabel::new().child("Active"))
                             .into_any_element(),
                     ])
                     .text_value("Tony Reichert"),
@@ -3508,9 +3558,10 @@ impl Gallery {
                     h::TableRow::new(vec![
                         gpui::div().child("Zoey Lang").into_any_element(),
                         gpui::div().child("Tech Lead").into_any_element(),
-                        h::Chip::new("Paused")
+                        h::Chip::new()
                             .color(Color::Warning)
                             .size(Size::Sm)
+                            .child(h::ChipLabel::new().child("Paused"))
                             .into_any_element(),
                     ])
                     .text_value("Zoey Lang"),
@@ -3519,9 +3570,10 @@ impl Gallery {
                     h::TableRow::new(vec![
                         gpui::div().child("Jane Fisher").into_any_element(),
                         gpui::div().child("Designer").into_any_element(),
-                        h::Chip::new("Vacation")
+                        h::Chip::new()
                             .color(Color::Danger)
                             .size(Size::Sm)
+                            .child(h::ChipLabel::new().child("Vacation"))
                             .into_any_element(),
                     ])
                     .text_value("Jane Fisher"),
@@ -3909,10 +3961,11 @@ impl Gallery {
                             )
                             .into_any_element(),
                         gpui::div().child("CEO").into_any_element(),
-                        h::Chip::new("Active")
+                        h::Chip::new()
                             .color(Color::Success)
                             .variant(h::ChipVariant::Soft)
                             .size(Size::Sm)
+                            .child(h::ChipLabel::new().child("Active"))
                             .into_any_element(),
                     ])
                     .row(vec![
@@ -3935,10 +3988,11 @@ impl Gallery {
                             )
                             .into_any_element(),
                         gpui::div().child("Tech Lead").into_any_element(),
-                        h::Chip::new("Paused")
+                        h::Chip::new()
                             .color(Color::Warning)
                             .variant(h::ChipVariant::Soft)
                             .size(Size::Sm)
+                            .child(h::ChipLabel::new().child("Paused"))
                             .into_any_element(),
                     ])
                     .into_any_element()]),
@@ -6647,7 +6701,7 @@ impl Gallery {
                                     .is_icon_only(true)
                                     .variant(Variant::Ghost)
                                     .size(Size::Sm)
-                                    .start_content(icon(h::icons::COPY, cx)),
+                                    .child(icon(h::icons::COPY, cx)),
                             ),
                         )
                         .into_any_element()]),
@@ -6667,7 +6721,7 @@ impl Gallery {
                                     .is_icon_only(true)
                                     .variant(Variant::Ghost)
                                     .size(Size::Sm)
-                                    .start_content(icon(h::icons::COPY, cx)),
+                                    .child(icon(h::icons::COPY, cx)),
                             ),
                         )
                         .into_any_element()]),
@@ -6691,7 +6745,7 @@ impl Gallery {
                                     .is_icon_only(true)
                                     .variant(Variant::Ghost)
                                     .size(Size::Sm)
-                                    .start_content(icon(
+                                    .child(icon(
                                         if ig_reveal {
                                             h::icons::EYE_OFF
                                         } else {
@@ -6731,10 +6785,11 @@ impl Gallery {
                         .input(h::Input::new(self.demo_text("ig-badge", "Pro", cx)))
                         .suffix(
                             gpui::div().pr(px(8.)).child(
-                                h::Chip::new("Trial")
+                                h::Chip::new()
                                     .size(Size::Sm)
                                     .variant(h::ChipVariant::Soft)
-                                    .color(Color::Accent),
+                                    .color(Color::Accent)
+                                    .child(h::ChipLabel::new().child("Trial")),
                             ),
                         )
                         .into_any_element()]),
@@ -9461,9 +9516,10 @@ impl Gallery {
                                 .id("ad-custom-trigger")
                                 .cursor_pointer()
                                 .child(
-                                    h::Chip::new("Delete account")
+                                    h::Chip::new()
                                         .color(Color::Danger)
-                                        .variant(h::ChipVariant::Soft),
+                                        .variant(h::ChipVariant::Soft)
+                                        .child(h::ChipLabel::new().child("Delete account")),
                                 )
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.set_demo_flag("ad-custom", true);
@@ -10771,9 +10827,10 @@ impl Gallery {
                         h::Tooltip::new("Verified account")
                             .delay(0)
                             .child(
-                                h::Chip::new("Verified")
+                                h::Chip::new()
                                     .color(Color::Success)
-                                    .variant(h::ChipVariant::Soft),
+                                    .variant(h::ChipVariant::Soft)
+                                    .child(h::ChipLabel::new().child("Verified")),
                             )
                             .into_any_element(),
                         h::Tooltip::new("What is this?")
@@ -11796,9 +11853,10 @@ impl Gallery {
                                 .items_center()
                                 .gap(px(8.))
                                 .child(
-                                    h::Chip::new(format!("#{}", i + 1))
+                                    h::Chip::new()
                                         .size(Size::Sm)
-                                        .variant(h::ChipVariant::Soft),
+                                        .variant(h::ChipVariant::Soft)
+                                        .child(h::ChipLabel::new().child(format!("#{}", i + 1))),
                                 )
                                 .child(languages().get(*i).cloned().unwrap_or_default().to_string())
                                 .into_any_element(),

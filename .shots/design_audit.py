@@ -117,6 +117,30 @@ def helper_px(name):
     return None
 
 
+def fraction_leading(text_px):
+    """A unitless `leading-[f]` resolves against the rule's own text size.
+
+    The badge rows capture the fraction the port renders; each pattern's
+    `px(...)` anchor already pins the text size that multiplies it, so the
+    helper applies that size instead of comparing the bare multiplier.
+    """
+    return lambda fraction: text_px * float(fraction)
+
+
+def press_scale(name):
+    """`anim::PRESSED_SCALE_*` -> its f32, as a percentage, read from the
+    constant itself.
+
+    v3 spells a press scale as plain CSS (`transform: scale(0.95)`), the port
+    as a named constant, so this follows the constant rather than restating
+    0.95 here and going stale when a scale is retuned. The percentage matches
+    `measure`'s scale unit, where the half-pixel tolerance is one point.
+    """
+    src = io.open(SRC + 'anim.rs', encoding='utf-8').read()
+    m = re.search(r'pub const ' + re.escape(name) + r': f32 = ([\d.]+);', src)
+    return float(m.group(1)) * 100.0 if m else None
+
+
 def SIZE_XL(name):
     """`SizeXl` variant -> pixels, matching `SizeXl::swatch_px`.
 
@@ -283,12 +307,18 @@ CHECKS = [
     ('toggle-button', '.toggle-button', 'text', 'ToggleButton Md text',
      SRC + 'toggle_button.rs',
      r'Size::Sm \| Size::Md => \(px\((\d+(?:\.\d*)?)\.\), px\(20\.\)\)', None),
+    # The Rust readers below anchor on the quoted upstream selector comment
+    # (or the owning `let` declaration) and stay inside that Rust statement:
+    # `[^;{]*?` cannot cross a `;` or open a `{`, so an edited comment line
+    # cannot push the span into a neighbouring builder chain -- it fails the
+    # statement instead.
     ('calendar-year-picker', '.calendar-year-picker__trigger', 'gap', 'Year trigger gap',
      SRC + 'calendar.rs',
-     r'`\.calendar-year-picker__trigger` is `gap-1 rounded-lg`\.[\s\S]{0,60}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.calendar-year-picker__trigger` is `gap-1 rounded-lg`[^;{]*?'
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('calendar-year-picker', '.calendar-year-picker__trigger', 'radius', 'Year trigger -> util::_radius',
      SRC + 'calendar.rs',
-     r'`gap-1 rounded-lg`[\s\S]{0,200}?\.rounded\(crate::util::(\w+_radius)', helper_px),
+     r'`gap-1 rounded-lg`[^;{]*?\.rounded\(crate::util::(\w+_radius)', helper_px),
     ('calendar-year-picker', '.calendar-year-picker__trigger-heading', 'text', 'Year heading text',
      SRC + 'calendar.rs',
      r'let heading = \|text: String[\s\S]{0,400}?let label = gpui::div\(\)[\s\S]{0,120}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -312,13 +342,13 @@ CHECKS = [
      r'herogpui_core::Size::Md => px\((\d+(?:\.\d*)?)\.\)', None),
     ('badge', '.badge--sm', 'min_w', 'Badge Sm box (square)',
      SRC + 'badge.rs',
-     r'Size::Sm => \(px\((\d+(?:\.\d*)?)\.\)', None),
+     r'Size::Sm => \(\s*px\((\d+(?:\.\d*)?)\.\)', None),
     ('badge', '.badge--lg', 'min_w', 'Badge Lg box (square)',
      SRC + 'badge.rs',
-     r'Size::Lg => \(px\((\d+(?:\.\d*)?)\.\)', None),
+     r'Size::Lg => \(\s*px\((\d+(?:\.\d*)?)\.\)', None),
     ('badge', '.badge', 'min_w', 'Badge Md box (square)',
      SRC + 'badge.rs',
-     r'Size::Md => \(px\((\d+(?:\.\d*)?)\.\)', None),
+     r'Size::Md => \(\s*px\((\d+(?:\.\d*)?)\.\)', None),
     ('chip', '.chip--sm', 'text', 'Chip Sm text',
      SRC + 'chip.rs',
      r'Size::Sm => \(px\(4\.\), px\(0\.\), px\((\d+(?:\.\d*)?)\.\)', None),
@@ -589,13 +619,13 @@ CHECKS = [
     ('calendar', '.calendar__header-cell', 'text', 'Calendar header cell', SRC + 'calendar.rs',
      r'`\.calendar__header-cell` is `text-xs`\.[\s\S]{0,40}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('calendar', '.calendar__cell', 'text', 'Calendar day cell text', SRC + 'calendar.rs',
-     r'Uniform circular hit area[\s\S]{0,260}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'let mut circle = gpui::div\(\)[^;]*?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     # `rounded-3xl` on a 36px box is clamped to a circle by any renderer, so
     # `rounded_full` is the same pixels -- the equality only holds because the
     # cell is smaller than twice the radius, which is why it is stated here.
     ('calendar', '.calendar__cell', 'radius', 'Calendar day cell (circle == 3xl at 36px)',
      SRC + 'calendar.rs',
-     r'Uniform circular hit area[\s\S]{0,260}?\.rounded_(full)\(\)', lambda _: 24.0),
+     r'let mut circle = gpui::div\(\)[^;]*?\.rounded_(full)\(\)', lambda _: 24.0),
     ('calendar', '.calendar__cell-indicator', 'size', 'Calendar cell indicator',
      SRC + 'calendar.rs',
      r'smaller than any radius[\s\S]{0,120}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -609,10 +639,64 @@ CHECKS = [
      r'`size-6 rounded-xl`[\s\S]{0,200}?\.rounded\(util::(\w+_radius)', helper_px),
     ('range-calendar', '.range-calendar__nav-button-icon', 'size', 'RangeCalendar nav icon',
      SRC + 'range_calendar.rs',
-     r'`\.range-calendar__nav-button-icon` is `size-4`\.[\s\S]{0,40}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.range-calendar__nav-button-icon` is `size-4`[^;{]*?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('range-calendar', '.range-calendar__header-cell', 'text', 'RangeCalendar header cell',
      SRC + 'range_calendar.rs',
      r'`\.range-calendar__header-cell` is `text-xs`\.[\s\S]{0,40}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # The range day cell is a seventh of the root: `.range-calendar` is
+    # `w-63` -- the 252px the root row compares -- and its grid is seven
+    # gap-free `1fr` columns, so the outer cell the track paints is 36px,
+    # not the 38px a two-pixel gutter would suggest.
+    ('range-calendar', '.range-calendar', 'w',
+     'RangeCalendar: seven day cells fill the 252px root',
+     SRC + 'range_calendar.rs',
+     r'let track_key = format!\("\{key\}-track"\);[\s\S]{0,400}?'
+     r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)',
+     lambda cell: float(cell) * 7.0),
+    # The selected outer cell is `rounded-none bg-accent-soft` -- a square
+    # that reads as one continuous run. The port rounds it per corner: caps
+    # take `3xl` and row edges `lg` (the two rows below), while the interior
+    # stays at the zero this row captures from the fallback arms, applied
+    # through the corner setters.
+    ('range-calendar',
+     '.range-calendar__cell[data-selected="true"]:not([data-outside-month="true"])',
+     'radius', 'RangeCalendar selected track interior stays square',
+     SRC + 'range_calendar.rs',
+     r'let left = if draw_start \{[\s\S]{0,160}?\} else if slot\.is_first\(\) \{'
+     r'[\s\S]{0,120}?\} else \{\s*px\(([\d.]+)\.\)\s*\};[\s\S]{0,600}?'
+     r'\.rounded_tl\(left\)\s*\n\s*\.rounded_bl\(left\)\s*\n\s*'
+     r'\.rounded_tr\(right\)\s*\n\s*\.rounded_br\(right\)',
+     None),
+    # A cap rounds its own side with `3xl` (`rounded-ss-3xl rounded-es-3xl`
+    # for a start, the mirrored pair for an end) over the square fill.
+    ('range-calendar',
+     '.range-calendar__cell[data-selection-start="true"]:not([data-outside-month="true"])',
+     'radius', 'RangeCalendar cap corner -> 3xl', SRC + 'range_calendar.rs',
+     r'\n            let cap_radius = util::(control_radius)\(cx\);', helper_px),
+    # A selected row edge rounds off with `lg`, so a run crossing a week
+    # boundary reads as one shape.
+    ('range-calendar',
+     '.range-calendar__cell[data-selected="true"]:is(td:first-child > *, [aria-disabled] + td > *)',
+     'radius', 'RangeCalendar row edge -> lg', SRC + 'range_calendar.rs',
+     r'\n            let edge_radius = util::(key_radius)\(cx\);', helper_px),
+    # The cap pill: `.range-calendar__cell-button` is `rounded-3xl`, which on
+    # a 36px box clamps to the circle `rounded_full` draws -- the same pixels
+    # as the single calendar's cell, for the same reason.
+    ('range-calendar', '.range-calendar__cell-button', 'radius',
+     'RangeCalendar cap (circle == 3xl at 36px)', SRC + 'range_calendar.rs',
+     r'if draw_start \|\| draw_end \{[^;]*?\.rounded_(full)\(\)', lambda _: 24.0),
+    # The pinned `.calendar__nav-button:active` is a bare
+    # `transform: scale(0.95)` on the same 24px box -- `anim::pressed` with
+    # no background, whose scale is the constant named here, read from
+    # `anim` itself. Both calendars press at 0.95.
+    ('calendar', '.calendar__nav-button[data-pressed]', 'scale',
+     'Calendar nav press scale', SRC + 'calendar.rs',
+     r'let state_for_nav = self\.state\.clone\(\);[\s\S]*?'
+     r'scale: crate::anim::(PRESSED_SCALE_\w+),', press_scale),
+    ('range-calendar', '.range-calendar__nav-button[data-pressed]', 'scale',
+     'RangeCalendar nav press scale', SRC + 'range_calendar.rs',
+     r'let state_for_nav = self\.state\.clone\(\);[\s\S]*?'
+     r'scale: crate::anim::(PRESSED_SCALE_\w+),', press_scale),
     # --- Tabs, Table, Pagination -----------------------------------------
     ('tabs', '.tabs__list', 'p', 'Tabs list padding', SRC + 'tabs.rs',
      r'list = list[\s\S]{0,40}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -694,7 +778,20 @@ CHECKS = [
     ('chip', '.chip--lg', 'text', 'Chip Lg text', SRC + 'chip.rs',
      r'Size::Lg => \(px\(12\.\), px\(4\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('chip', '.chip__label', 'px', 'Chip label px', SRC + 'chip.rs',
-     r'`\.chip__label` is `px-0\.5`\.[\s\S]{0,60}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'"chip-label"[\s\S]{0,60}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # The base `.chip` rule is `text-xs leading-5`. Compiled Tailwind 4
+    # lowers `leading-5` to `--tw-leading: var(--leading-5)` and lowers every
+    # `text-*` utility to `line-height: var(--tw-leading, <its pair>)`, so
+    # the size rules' restated `text-xs`/`text-sm` keep the base 20px line at
+    # every size instead of resetting it -- and the port sets 20 for each.
+    ('chip', '.chip', 'leading', 'Chip base leading-5 (all sizes)', SRC + 'chip.rs',
+     r'Size::Md => \(px\(8\.\), px\(2\.\), px\(12\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('chip', '.chip--sm', 'leading', 'Chip Sm leading', SRC + 'chip.rs',
+     r'Size::Sm => \(px\(4\.\), px\(0\.\), px\(12\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('chip', '.chip--md', 'leading', 'Chip Md leading', SRC + 'chip.rs',
+     r'Size::Md => \(px\(8\.\), px\(2\.\), px\(12\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+    ('chip', '.chip--lg', 'leading', 'Chip Lg leading', SRC + 'chip.rs',
+     r'Size::Lg => \(px\(12\.\), px\(4\.\), px\(14\.\), px\((\d+(?:\.\d*)?)\.\)', None),
 
     # --- The field groups -------------------------------------------------
     # Every v3 field is one height (`h-9`) and one radius (`rounded-field`); the
@@ -718,25 +815,40 @@ CHECKS = [
     # `rounded_full` on a 32px badge is not `rounded-2xl`, and a tag has no
     # height of its own at all.
     ('badge', '.badge', 'min_h', 'Badge Md box', SRC + 'badge.rs',
-     r'Size::Md => \(px\((\d+(?:\.\d*)?)\.\)', None),
+     r'Size::Md => \(\s*px\((\d+(?:\.\d*)?)\.\)', None),
     ('badge', '.badge--sm', 'min_h', 'Badge Sm box', SRC + 'badge.rs',
-     r'Size::Sm => \(px\((\d+(?:\.\d*)?)\.\)', None),
+     r'Size::Sm => \(\s*px\((\d+(?:\.\d*)?)\.\)', None),
     ('badge', '.badge--lg', 'min_h', 'Badge Lg box', SRC + 'badge.rs',
-     r'Size::Lg => \(px\((\d+(?:\.\d*)?)\.\)', None),
+     r'Size::Lg => \(\s*px\((\d+(?:\.\d*)?)\.\)', None),
     ('badge', '.badge', 'text', 'Badge Md text', SRC + 'badge.rs',
-     r'Size::Md => \(px\(28\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+     r'Size::Md => \(\s*px\(28\.\),\s*px\((\d+(?:\.\d*)?)\.\)', None),
     ('badge', '.badge--lg', 'text', 'Badge Lg text', SRC + 'badge.rs',
-     r'Size::Lg => \(px\(32\.\), px\((\d+(?:\.\d*)?)\.\)', None),
+     r'Size::Lg => \(\s*px\(32\.\),\s*px\((\d+(?:\.\d*)?)\.\)', None),
     ('badge', '.badge', 'radius', 'Badge Md -> util::_radius', SRC + 'badge.rs',
-     r'Size::Md => \(px\(28\.\), px\(12\.\), crate::util::(\w+_radius)', helper_px),
+     r'Size::Md => \(\s*px\(28\.\),\s*px\(12\.\),\s*crate::util::(\w+_radius)', helper_px),
     ('badge', '.badge--sm', 'radius', 'Badge Sm -> util::_radius', SRC + 'badge.rs',
-     r'Size::Sm => \(px\(16\.\), px\(10\.\), crate::util::(\w+_radius)', helper_px),
+     r'Size::Sm => \(\s*px\(16\.\),\s*px\(10\.\),\s*crate::util::(\w+_radius)', helper_px),
     ('badge', '.badge--lg', 'radius', 'Badge Lg -> util::_radius', SRC + 'badge.rs',
-     r'Size::Lg => \(px\(32\.\), px\(14\.\), crate::util::(\w+_radius)', helper_px),
+     r'Size::Lg => \(\s*px\(32\.\),\s*px\(14\.\),\s*crate::util::(\w+_radius)', helper_px),
     ('badge', '.badge', 'gap', 'Badge gap', SRC + 'badge.rs',
      r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)[\s\S]{0,20}?\.rounded\(radius\)', None),
     ('badge', '.badge__label', 'px', 'Badge label px', SRC + 'badge.rs',
-     r'gpui::div\(\)\.px\(px\((\d+(?:\.\d*)?)\.\)\)\.child\(content\)', None),
+     r'"badge-label"[\s\S]{0,60}?\.px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # `leading-[1.34]` / `leading-[1.43]` are unitless multipliers of each
+    # size's own text size; the CSS side resolves them the same way (see
+    # `measure`), and `fraction_leading` applies the size the pattern pins.
+    ('badge', '.badge', 'leading', 'Badge Md leading', SRC + 'badge.rs',
+     r'Size::Md => \(\s*px\(\d+(?:\.\d*)?\.\),\s*px\(12\.\),\s*crate::util::\w+_radius\(cx\),\s*'
+     r'DefiniteLength::Fraction\((\d+(?:\.\d*)?)\)',
+     fraction_leading(12.0)),
+    ('badge', '.badge--sm', 'leading', 'Badge Sm leading', SRC + 'badge.rs',
+     r'Size::Sm => \(\s*px\(\d+(?:\.\d*)?\.\),\s*px\(10\.\),\s*crate::util::\w+_radius\(cx\),\s*'
+     r'DefiniteLength::Fraction\((\d+(?:\.\d*)?)\)',
+     fraction_leading(10.0)),
+    ('badge', '.badge--lg', 'leading', 'Badge Lg leading', SRC + 'badge.rs',
+     r'Size::Lg => \(\s*px\(\d+(?:\.\d*)?\.\),\s*px\(14\.\),\s*crate::util::\w+_radius\(cx\),\s*'
+     r'DefiniteLength::Fraction\((\d+(?:\.\d*)?)\)',
+     fraction_leading(14.0)),
     ('tag', '.tag', 'gap', 'Tag gap', SRC + 'tag_group.rs',
      r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)[\s\S]{0,20}?\.px\(pad_x\)', None),
     ('tag', '.tag--sm', 'px', 'Tag Sm px', SRC + 'tag_group.rs',
@@ -776,6 +888,8 @@ CHECKS = [
      r'let header = if self\.title[\s\S]*?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('modal', '.modal__body', 'text', 'Modal body text-sm', SRC + 'modal.rs',
      r'\.id\("modal-body"\)[\s\S]*?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('modal', '.modal__body', 'leading', 'Modal body leading-[1.43]', SRC + 'modal.rs',
+     r'\.id\("modal-body"\)[\s\S]{0,400}?\.line_height\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('modal', '.modal__footer', 'gap', 'Modal footer gap-2', SRC + 'modal.rs',
      r'v3\'s sheet[\s\S]*?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('alert-dialog', '.alert-dialog__dialog', 'p', 'AlertDialog dialog p-6',
@@ -816,6 +930,8 @@ CHECKS = [
      r'header = header\.child\([\s\S]*?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('drawer', '.drawer__body', 'text', 'Drawer body text-sm', SRC + 'drawer.rs',
      r'\.when\(has_header, \|b\| b\.mt\(px\(8\.\)\)\)\s*\n\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('drawer', '.drawer__body', 'leading', 'Drawer body leading-[1.43]', SRC + 'drawer.rs',
+     r'\.drawer__header \+ \.drawer__body[\s\S]{0,200}?\.line_height\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('drawer', '.drawer__footer', 'gap', 'Drawer footer gap-2', SRC + 'drawer.rs',
      r'not in v3\'s sheet[\s\S]*?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     # --- Button, the whole size scale -------------------------------------
@@ -947,7 +1063,7 @@ CHECKS = [
     ('tooltip', '.tooltip', 'text', 'Tooltip text', SRC + 'tooltip.rs',
      r'\.text_size\(px\((\d+(?:\.\d*)?)\)\)', None),
     ('chip', '.chip', 'radius', 'Chip -> util::_radius', SRC + 'chip.rs',
-     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+     r'let radius = crate::util::(\w+_radius)\(cx\)', helper_px),
     # --- The sweep: the rest of the measurable geometry -------------------
     ('chip', '.chip', 'gap', 'Chip gap', SRC + 'chip.rs',
      '\\.gap\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
@@ -964,7 +1080,7 @@ CHECKS = [
     ('link', '.link', 'radius', 'Link -> util::_radius', SRC + 'link.rs',
      '\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
     ('badge', '.badge', 'min_w', 'Badge min width Md', SRC + 'badge.rs',
-     'Size::Md => \\(px\\((\\d+(?:\\.\\d*)?)\\)', None),
+     'Size::Md => \\(\\s*px\\((\\d+(?:\\.\\d*)?)\\)', None),
     ('kbd', '.kbd', 'px', 'Kbd padding_x', SRC + 'kbd.rs',
      '\\n            \\.px\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
     ('fieldset', '.fieldset', 'gap', 'Fieldset gap', SRC + 'field.rs',
@@ -1353,6 +1469,10 @@ CHECKS = [
      SRC + 'alert_dialog.rs',
      r'\.when\(self\.size == AlertDialogSize::Cover, \|e\| e\.flex_1\(\)\)\s*\n\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)',
      None),
+    ('alert-dialog', '.alert-dialog__body', 'leading', 'AlertDialog body leading-[1.43]',
+     SRC + 'alert_dialog.rs',
+     r'AlertDialogSize::Cover, \|e\| e\.flex_1\(\)\)[\s\S]{0,160}?\.line_height\(px\((\d+(?:\.\d*)?)\.\)\)',
+     None),
 
     # --- the odds and ends ----------------------------------------------------
     ('kbd', '.kbd', 'radius', 'Kbd radius -> key_radius', SRC + 'util.rs',
@@ -1483,7 +1603,7 @@ CHECKS = [
     # --- what a Disclosure borrows from the Accordion -------------------------
     ('disclosure', '.disclosure__indicator', 'size', 'Disclosure indicator',
      SRC + 'disclosure.rs',
-     r'`\.disclosure__indicator` is `ms-auto size-4`[\s\S]{0,200}?'
+     r'`\.disclosure__indicator` is `ms-auto size-4`[^;{]*?'
      r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('disclosure', '.disclosure__body', 'p', 'Disclosure body padding',
      SRC + 'disclosure.rs',
@@ -1541,11 +1661,11 @@ CHECKS = [
      r'\.gap\(gpui::px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('range-calendar', '.range-calendar__cell-indicator', 'size',
      'RangeCalendar cell indicator', SRC + 'range_calendar.rs',
-     r'`\.range-calendar__cell-indicator` is a `size-\[3px\][\s\S]{0,600}?'
+     r'`\.range-calendar__cell-indicator` is a `size-\[3px\][\s\S]{0,900}?'
      r'\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('range-calendar', '.range-calendar__cell-indicator', 'radius',
      'RangeCalendar cell indicator radius', SRC + 'range_calendar.rs',
-     r'`\.range-calendar__cell-indicator` is a `size-\[3px\][\s\S]{0,660}?'
+     r'`\.range-calendar__cell-indicator` is a `size-\[3px\][\s\S]{0,960}?'
      r'\.rounded\(px\((\d+(?:\.\d*)?)\.\)\)', None),
 
     ('toast', '.toast__close-button', 'border', 'Toast close button border', SRC + 'toast.rs',
@@ -1615,6 +1735,30 @@ NESTED_SELECTOR_CHAINS = {
         '.slider', '&[data-orientation="horizontal"]', '.slider__thumb|last', '&::after'),
     ('slider', '.slider[data-orientation="vertical"] .slider__thumb::after'): (
         '.slider', '&[data-orientation="vertical"]', '.slider__thumb|last', '&::after'),
+    # A press scale lives on the pressed state rule, and the range track's
+    # rounding on the selected one; both are nested under their part.
+    ('calendar', '.calendar__nav-button[data-pressed]'): (
+        '.calendar__nav-button', '&:active,\n  &[data-pressed="true"]'),
+    ('range-calendar', '.range-calendar__nav-button[data-pressed]'): (
+        '.range-calendar__nav-button', '&:active,\n  &[data-pressed="true"]'),
+    ('range-calendar',
+     '.range-calendar__cell[data-selected="true"]:not([data-outside-month="true"])'): (
+        '.range-calendar__cell',
+        '&[data-selected="true"]:not([data-outside-month="true"])'),
+    # The standalone cap-rounding rule is the second rule with this selector;
+    # the first only raises z and recolours the button.
+    ('range-calendar',
+     '.range-calendar__cell[data-selection-start="true"]:not([data-outside-month="true"])'): (
+        '.range-calendar__cell',
+        '&[data-selection-start="true"]:not([data-outside-month="true"])|last'),
+    ('range-calendar',
+     '.range-calendar__cell[data-selected="true"]:is(td:first-child > *, [aria-disabled] + td > *)'): (
+        '.range-calendar__cell',
+        '&[data-selected="true"]:is(td:first-child > *, [aria-disabled] + td > *)'),
+    # The day-glyph button is nested inside the cell; its `text-foreground`
+    # base is what the range interior's text keeps.
+    ('range-calendar', '.range-calendar__cell-button'): (
+        '.range-calendar__cell', '.range-calendar__cell-button'),
 }
 
 
@@ -1775,10 +1919,32 @@ def utilities(body):
     return out
 
 
-def measure(body):
-    """One rule's metrics, preferring the largest breakpoint's value."""
+def leading_step(body):
+    """The `--tw-leading` value an explicit `leading-<step>` in this rule sets.
+
+    Compiled Tailwind 4 emits `--tw-leading: var(--leading-<step>)` for a
+    `leading-<step>` utility, and emits every `text-*` utility's line height
+    as `var(--tw-leading, <its pair>)` -- so the step a base rule sets
+    survives a size rule's restated `text-*` on the same element, and only a
+    rule with no such ancestor falls back to the text-* pair. A unitless
+    `leading-[f]` is not a step; `measure` resolves it against the text size.
+    """
+    for tok in utilities(body):
+        m = re.fullmatch(r'leading-(\d+(?:\.\d*)?)', tok)
+        if m:
+            return float(m.group(1)) * SPACING
+    return None
+
+
+def measure(body, inherited_leading=None):
+    """One rule's metrics, preferring the largest breakpoint's value.
+
+    `inherited_leading` carries a base rule's `--tw-leading` into a size
+    modifier rule (see `leading_step`); `None` means the rule stands alone.
+    """
     found = {}
     text_leads = []
+    fraction_leads = []
 
     def offer(metric, value, bp):
         rank = BREAKPOINTS.index(bp) if bp in BREAKPOINTS else 0
@@ -1856,6 +2022,12 @@ def measure(body):
                     v = px(tok[len(prefix):])
                     if v is not None:
                         offer(metric, v, bp)
+            # A unitless arbitrary leading (`leading-[1.34]`) is a
+            # multiplier of the rule's own text size, not a spacing
+            # step; it resolves once the text size is known.
+            m = re.fullmatch(r'leading-\[(\d+(?:\.\d*)?)\]', tok)
+            if m:
+                fraction_leads.append((float(m.group(1)), bp))
             if tok.startswith('text-') and tok[5:] in TEXT:
                 offer('text', TEXT[tok[5:]], bp)
                 if tok[5:] in TEXT_LEADING:
@@ -1873,16 +2045,45 @@ def measure(body):
                         offer('border', v, bp)
             if tok.startswith('rounded-') and tok[8:] in RADIUS:
                 offer('radius', RADIUS[tok[8:]], bp)
+            # Tailwind's logical corners spell a two-corner radius
+            # `rounded-ss-3xl` / `rounded-es-3xl`; the plain `rounded-` check
+            # above only reads the all-corner form. Same border-radius metric,
+            # on the pair of corners the range caps and row edges round.
+            m = re.fullmatch(r'rounded-(?:ss|se|es|ee)-([\w-]+)', tok)
+            if m and m.group(1) in RADIUS:
+                offer('radius', RADIUS[m.group(1)], bp)
             elif tok == 'rounded':
                 offer('radius', RADIUS['lg'], bp)
 
     # A `text-*` utility sets a default line height only where the rule
     # declares no explicit `leading-*` of its own -- the explicit utility wins
     # in the cascade, so `.typography--body` keeps leading-7 over text-base's
-    # paired 24.
+    # paired 24. In compiled Tailwind 4 that win happens through the
+    # `--tw-leading` custom property: `leading-<step>` sets it, and every
+    # `text-*` utility declares `line-height: var(--tw-leading, <its pair>)`.
+    # A size rule that restates `text-*` on an element whose base rule sets
+    # `leading-5` therefore keeps the base 20px line, passed in as
+    # `inherited_leading`, instead of falling back to the pair.
     if 'leading' not in found:
-        for value, bp in text_leads:
-            offer('leading', value, bp)
+        if inherited_leading is not None:
+            offer('leading', inherited_leading, '')
+        else:
+            for value, bp in text_leads:
+                offer('leading', value, bp)
+
+    # A unitless `leading-[f]` resolves against the rule's own text size --
+    # `.badge` is `text-xs leading-[1.34]`, a 16.08px line -- and the explicit
+    # utility wins over the `text-*` pairing above, which offer()'s replace
+    # keeps straight. An arbitrary `text-[10px]` the TEXT scale does not carry
+    # is read here for the multiplication only; the `text` rows stay on the
+    # named sizes.
+    if fraction_leads:
+        text_px = found.get('text', (None, 0))[0]
+        if text_px is None:
+            m = re.search(r'text-\[(\d+(?:\.\d*)?)px\]', body)
+            text_px = float(m.group(1)) if m else 16.0
+        for fraction, bp in fraction_leads:
+            offer('leading', fraction * text_px, bp)
 
     # `size-*` and `h-*`/`w-*` set the same properties, so a rule that applies
     # both keeps whichever comes last: `.autocomplete__clear-button` is
@@ -1904,6 +2105,18 @@ def measure(body):
     m = re.search(r'-m-\[(\d+(?:\.\d*)?)px\]', body)
     if m and found.get('p', (None,))[0] == float(m.group(1)):
         offer('p', 0.0, '')
+
+    # A press scale is plain CSS on a state rule -- `transform: scale(0.95)`
+    # on a nav button, the modern `scale: 0.9` on a range cell -- never an
+    # `@apply` utility, so the utilities loop cannot see it. Offered as a
+    # percentage, so the half-pixel comparison tolerance reads as one point
+    # of scale instead of waving through a 0.01 difference.
+    m = re.search(r'transform:\s*scale\(([\d.]+)\)', body)
+    if m:
+        offer('scale', float(m.group(1)) * 100.0, '')
+    m = re.search(r'(?<![\w-])scale:\s*([\d.]+)', body)
+    if m:
+        offer('scale', float(m.group(1)) * 100.0, '')
 
     # A border width is sometimes a utility and sometimes a declaration, and the
     # declaration is what a field uses to override the utility -- so it is read
@@ -2073,6 +2286,25 @@ FILLS = [
     ('kbd', '.kbd', 'bg-default', SRC + 'kbd.rs', 'colors.default.color'),
     ('typography', '.typography--code', 'bg-default', SRC + 'typography.rs',
      'colors.default.color'),
+    # The indicator hangs at `bottom-1` -- 4px above the cell's lower edge,
+    # not the 2px a first read of the 3px dot suggests. Both sides are
+    # checked: the token in v3's rule and the `.bottom(px(4.))` call in ours.
+    ('calendar', '.calendar__cell-indicator', 'bottom-1',
+     SRC + 'calendar.rs', '.bottom(px(4.))'),
+    ('range-calendar', '.range-calendar__cell-indicator', 'bottom-1',
+     SRC + 'range_calendar.rs', '.bottom(px(4.))'),
+    # The selected outer cell -- caps included -- paints the soft track fill,
+    # and the interior day glyph keeps the button's base `text-foreground`:
+    # the port paints no text colour on the interior branch, which its
+    # comment states, while a cap's button recolours to
+    # `text-accent-foreground`.
+    ('range-calendar',
+     '.range-calendar__cell[data-selected="true"]:not([data-outside-month="true"])',
+     'bg-accent-soft', SRC + 'range_calendar.rs',
+     '\n            track = track.bg(accent.soft());'),
+    ('range-calendar', '.range-calendar__cell-button', 'text-foreground',
+     SRC + 'range_calendar.rs',
+     'stays transparent with the base foreground text'),
 ]
 
 
@@ -2120,7 +2352,10 @@ def check_toggle_button_style_contract():
         ('no border', '.border_1()' not in render),
         ('font-medium', '.font_weight(gpui::FontWeight::MEDIUM)' in render),
         ('default fill', '.bg(colors.default.color)' in render),
-        ('selected soft fill', 'e.bg(sem.soft()).text_color(sem.soft_foreground())' in render),
+        ('selected soft fill', bool(re.search(
+            r'e\.bg\(sem\.soft\(\)\)\s*\.\s*'
+            r'text_color\(sem\.soft_foreground\(colors\.foreground\)\)',
+            render))),
         ('selected hover', 'colors.accent.soft_hover()' in render),
         ('default hover', 'colors.default.hover()' in render),
         ('pressed fill', 'pressed_with_background(' in render and
@@ -2545,6 +2780,17 @@ def main():
             if body is not None:
                 measured_body = body.split('{', 1)[0] if chain else body
                 want = measure(measured_body).get(metric)
+                # A size rule that restates `text-*` still consumes the base
+                # rule's `--tw-leading` (see `leading_step`): the base's
+                # explicit `leading-<step>` wins over the text-* pair, while
+                # any leading the size rule declares itself stands.
+                if metric == 'leading' and '--' in selector \
+                        and leading_step(measured_body) is None:
+                    base = rule_body(css, selector.split('--')[0])
+                    if base:
+                        inherited = leading_step(base)
+                        if inherited is not None:
+                            want = measure(measured_body, inherited).get(metric)
                 if want is None and '--' in selector:
                     base = rule_body(css, selector.split('--')[0])
                     if base:

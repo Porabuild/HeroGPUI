@@ -1324,22 +1324,25 @@ impl RenderOnce for Table {
                 (true, Some(cb)) => {
                     let next =
                         SortDescriptor::next(self.sort_descriptor.as_ref(), column.label.clone());
-                    let hover = colors.default.soft();
+                    // `.table__column[data-allows-sorting]:hover` recolours the
+                    // header text to `--foreground`; it paints no background.
+                    let sort_group: SharedString =
+                        format!("table-sort-hover-{}", column.label).into();
                     let header_cell = gpui::div()
                         .id(gpui::ElementId::Name(
                             format!("table-sort-{}", column.label).into(),
                         ))
+                        .group(sort_group.clone())
                         .flex_1()
                         .flex()
                         .cursor_pointer()
-                        .hover(move |s| s.bg(hover))
                         // The focus is what makes Enter and Space sort: gpui
                         // fires a *focused* element's click listeners for them.
                         .when_some(sort_focus[column_index].as_ref(), |c, handle| {
                             c.track_focus(handle)
                         })
                         .on_click(move |_, window, cx| cb(next.clone(), window, cx))
-                        .child(cell);
+                        .child(cell.group_hover(sort_group, |s| s.text_color(colors.foreground)));
                     // `.table__column` rings *inside* itself: the next column
                     // is flush against this one, and a ring drawn outside bled
                     // through the transparent cell and filled it.
@@ -1692,6 +1695,7 @@ impl RenderOnce for Table {
             focus: table_focus.clone(),
             cursor_own: row_cursor.clone(),
             cursor: cursor_at,
+            secondary,
         });
 
         // v3 gives a table a roving row focus: the arrows walk it, Home and End
@@ -2507,6 +2511,9 @@ struct RowCtx {
     cursor_own: gpui::Entity<Option<SharedString>>,
     /// The row the keyboard is on, which wears `status-focused`.
     cursor: Option<usize>,
+    /// The `.table-root--secondary` flat layout, whose row hover is a
+    /// different token from the primary's.
+    secondary: bool,
 }
 
 impl RowCtx {
@@ -2529,7 +2536,6 @@ impl RowCtx {
         cx: &mut App,
     ) -> AnyElement {
         let colors = cx.colors();
-        let accent = colors.accent;
         let tree_column = self.tree_column;
         let tree_column_has_children = self.tree_column_has_children;
         let key = tree_key.clone();
@@ -2697,9 +2703,14 @@ impl RowCtx {
         }));
 
         // A selected row reads as selected even where the checkbox is off
-        // screen, and outranks striping.
-        if is_selected {
-            row = row.bg(accent.soft());
+        // screen, and outranks striping. `.table__row[data-selected]` fills
+        // `bg-surface/10`, and the pinned rule follows the hover rule, so a
+        // hovered selected row keeps this fill instead of the hover's. gpui
+        // allows one hover refinement per element, so the fill rides the
+        // single hover below.
+        let selected_bg = is_selected.then(|| colors.surface.background.alpha(0.1));
+        if let Some(selected_bg) = selected_bg {
+            row = row.bg(selected_bg);
         }
 
         let row_action = self.on_row_click.clone();
@@ -2723,9 +2734,20 @@ impl RowCtx {
             let focus = self.focus.clone();
             let focus_for_click = self.focus.clone();
             let key_for_cursor = key.clone();
+            // `.table-root--primary` hovers `bg-surface/40`;
+            // `.table-root--secondary` rows hover `bg-default/50`. A selected
+            // row keeps its `bg-surface/10` fill instead -- the pinned
+            // selected rule wins the cascade over the hover's.
+            let secondary = self.secondary;
             row = row
                 .cursor_pointer()
-                .hover(move |s| s.bg(colors.default.soft()))
+                .hover(move |s| {
+                    s.bg(selected_bg.unwrap_or(if secondary {
+                        colors.default.color.alpha(0.5)
+                    } else {
+                        colors.surface.background.alpha(0.4)
+                    }))
+                })
                 .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
                     if window.default_prevented() {
                         return;
@@ -2993,5 +3015,75 @@ mod tests {
         assert!(fn_home.modifiers.function);
         assert!(home_end_registered(fn_home.modifiers, true));
         assert!(home_end_registered(fn_home.modifiers, false));
+    }
+
+    // The pinned sortable column hover only recolours the header text to
+    // `--foreground`; it paints no background. `soft()` is a lighter, wrong
+    // wash, so the check is mechanical.
+    #[test]
+    fn the_sort_header_hover_paints_no_background() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden accessor.
+        let source = include_str!("table.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains(".group_hover(sort_group, |s| s.text_color(colors.foreground))"),
+            "the sortable header hover must recolour the text to `--foreground` \
+             (pinned `.table__column[data-allows-sorting]:hover`)"
+        );
+        assert!(
+            !source.contains("colors.default.soft()"),
+            "the sortable header hover must not come back as a soft background"
+        );
+    }
+
+    // The pinned row hover is variant-specific: `.table-root--primary` rows
+    // fill `bg-surface/40`, `.table-root--secondary` rows fill
+    // `bg-default/50`.
+    #[test]
+    fn the_row_hover_is_variant_specific() {
+        // Scan the implementation only.
+        let source = include_str!("table.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("colors.default.color.alpha(0.5)")
+                && source.contains("colors.surface.background.alpha(0.4)"),
+            "the row hover must read `bg-default/50` on secondary and \
+             `bg-surface/40` on primary"
+        );
+    }
+
+    // The pinned selected row fills `bg-surface/10`, and the rule follows the
+    // hover rule in the pinned stylesheet, so it wins the cascade: a hovered
+    // selected row keeps the selected fill. `accent.soft()` is a role wash
+    // the pinned table never paints, so the check is mechanical.
+    #[test]
+    fn the_selected_row_fills_surface_ten_percent_and_outranks_the_hover() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden accessor.
+        let source = include_str!("table.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains(
+                "let selected_bg = is_selected.then(|| colors.surface.background.alpha(0.1));"
+            ),
+            "the selected row must fill `bg-surface/10` \
+             (pinned `.table__row[data-selected] .table__cell`)"
+        );
+        assert!(
+            source.contains("s.bg(selected_bg.unwrap_or(if secondary {"),
+            "the hover must give way to the selected fill -- the pinned \
+                 selected rule wins the cascade over `.table__row:hover`"
+        );
+        assert!(
+            !source.contains("accent.soft()"),
+            "the selected row must not paint a role soft wash"
+        );
     }
 }

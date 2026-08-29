@@ -492,7 +492,7 @@ impl RenderOnce for Modal {
             let (bg, fg) = match self.icon_color {
                 Some(color) => {
                     let role = cx.role(color);
-                    (role.soft(), role.soft_foreground())
+                    (role.soft(), role.soft_foreground(colors.foreground))
                 }
                 None => (colors.default.color, colors.foreground),
             };

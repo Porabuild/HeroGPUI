@@ -264,12 +264,12 @@ All components are `#[derive(IntoElement)]` builders implementing `RenderOnce`:
 
 ```rust
 Button::new("save")
-    .label("Save")
+    .child(icon)          // ordered children: leading icon first, then label text
+    .child("Save")
     .variant(Variant::Primary)
     .size(Size::Md)
     .is_pending(true)
     .full_width(true)
-    .start_content(icon)
     .on_press(cx.listener(|this, _, _, cx| this.save(cx)))
 ```
 
@@ -295,7 +295,7 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 `status`, on Alert) is the whole visual vocabulary. `CloseButton` has neither.
 
 ### Buttons
-- **Button** — `variant(Variant)`, `size`, `full_width`, `is_icon_only`, `is_disabled`, `is_pending`, `start_content`/`end_content`, `on_press`
+- **Button** — `variant(Variant)`, `size`, `full_width`, `is_icon_only`, `is_disabled`, `is_pending`, ordered children (the icons and label text are children in order, matching v3 — there are no start/end content slots), `on_press`
 - **ButtonGroup** — `variant`, `size`, `orientation`, `button(Button)` (members inherit), `is_disabled`, `full_width`
 - **CloseButton** — `is_disabled`, `icon(el)`, `on_press` (v3's `variant` has one value, so there is nothing to select and no builder for it)
 - **ToggleButton / ToggleButtonGroup** — `is_selected`, `variant(ToggleVariant::{Default,Ghost})`, `size`, `selection_mode`, `is_detached`, `orientation`, `full_width`, `ToggleSeparator`. Both apply v3's `scale(0.97)` press.
@@ -323,8 +323,8 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 - **Switch** — `is_selected`, `size`, `is_disabled`, `is_read_only`, `is_invalid`, `is_required`, `label(el)`, `on_change(bool)` / `on_press`. v3's `value` is the form-submission value, not the state, so there is no builder for it.
 
 ### Data Display
-- **Badge** — `variant(BadgeVariant::{Primary,Secondary,Soft})`, `color`, `size`, `placement(BadgePlacement)`, `content(el)`. One struct stands in for v3's `Badge.Anchor` + `Badge`: the [`ParentElement`] children are the anchor, `content` is the badge's own content, and no content is v3's dot badge. The ring against the page background is unconditional, as it is in v3.
-- **Chip** — `variant(ChipVariant::{Primary,Secondary,Tertiary,Soft})`, `color`, `size`, `start_content`. A removable chip is `TagGroup`, which is where v3 puts `onRemove`.
+- **Badge** — `BadgeAnchor::new()` is v3's `Badge.Anchor`, the positioning wrapper whose children are the anchored element plus the `Badge::new().variant(BadgeVariant::{Primary,Secondary,Soft}).color().size().placement(BadgePlacement)` composed as a later child. `BadgeLabel::new()` is the `px-0.5` text slot — v3 auto-wraps plain text children in it, which GPUI cannot intercept, so the wrap is explicit. No children on the badge is v3's dot badge, and the page-background ring stays unconditional.
+- **Chip** — `Chip::new().variant(ChipVariant::{Primary,Secondary,Tertiary,Soft}).color().size()` renders arbitrary ordered children verbatim (an icon, a dot, a `ChipLabel`, a trailing element); `ChipLabel::new()` is the `px-0.5` text slot for the label text. A removable chip is `TagGroup`, which is where v3 puts `onRemove`.
 - **Table** — `Table::new(columns).row(cells).variant(TableVariant::{Primary,Secondary}).on_row_click(usize)` — `variant` is the whole visual story in v3; `isStriped`/`isBordered` were v2
   - columns: `column(TableColumn::new("Name").allows_sorting(true).is_row_header(true))`. `is_row_header` has no a11y layer to reach, so it renders that column's cells in medium weight.
   - selection: `selection_mode`, `selected_keys`, `on_selection_change(&[SharedString])`, `keyed_row(key, cells)` (a row's key defaults to its index). Adds a checkbox column, with select-all in the header for `Multiple`.
@@ -422,7 +422,7 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
 
 ### Pickers
 - **Autocomplete** — `Autocomplete::new(state, items).placement(Placement).max_items().on_selection_change()` — filters while focused. Items are `PickerItem::new(key, label)`: v3 keeps a stable `Key` separate from the visible `textValue`, so `value` / `defaultValue` / `disabledKeys`, the selection callbacks and the form value address items by key, while filtering and the trigger's visible text use labels — duplicate labels never alias each other's selection or row.
-  - `filter(fn(item_label, input) -> bool)` replaces the default case-insensitive substring match and owns the whole decision, including what an empty query means; `input_value` / `on_input_change` for a controlled query; `on_clear` renders the clear affordance (and only then).
+  - `filter(fn(item_label, input) -> bool)` replaces the default case-insensitive substring match and owns the whole decision, including what an empty query means; `input_value` / `on_input_change` for a controlled query; `on_clear` is only the after-clear callback — the clear affordance is always mounted with the trigger, invisible and inert while the selection is empty or the field is disabled, and still working when read-only.
 - **ComboBox** — `ComboBox::new(state, items).is_open().placement(Placement).menu_trigger(MenuTrigger::{Input,Manual,Focus}).allows_custom_value().max_items().on_selection_change().on_open_change()` — items are keyed `PickerItem::new(key, label)`s: the selection, `disabledKeys`, the callbacks and the form value address items by key, while filtering and the input text use labels. `selected_keys(keys)` is the controlled ordered selection; `selected_key(key, cx)` the single-key spelling (the empty string is v3's `null`). A committed custom value keeps the typed text and reports a null selected key — as an empty `on_selection_change_all` slice, and only when a selection actually existed; `form_value(ComboBoxFormValue::{Key,Text})` chooses what a named field submits (key by default — an empty selection still submits one empty value — and text under `allowsCustomValue`).
 - **Select** — `Select::new(id, options).selected(..)/.value(..).is_open().placement(Placement).variant().full_width().disabled_keys().is_invalid().is_required().on_selection_change()/.on_change().on_open_change()`; `selection_mode(SelectionMode::Multiple)` with `selected_indices()` + `on_selection_change_all()`
 

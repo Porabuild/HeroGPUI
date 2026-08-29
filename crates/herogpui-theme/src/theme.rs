@@ -6,7 +6,7 @@
 use gpui::{Hsla, Pixels, SharedString};
 
 use crate::layout::LayoutTheme;
-use crate::semantic::{RoleColor, SurfaceColor, ThemeColors};
+use crate::semantic::{SurfaceColor, ThemeColors};
 
 /// Visual appearance of a theme (`color-scheme`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -174,20 +174,32 @@ impl ThemeBuilder {
 
     // -- roles --------------------------------------------------------------
 
-    /// Sets a role's base value and foreground. `--focus` tracks `--accent`
-    /// unless it is overridden afterwards.
+    /// Sets a role's base value and foreground. Like overriding a CSS
+    /// variable, the role's hover and soft mix weights carry over — only the
+    /// inputs change. `--focus` tracks `--accent` unless it is overridden
+    /// afterwards.
     pub fn role(mut self, name: &str, color: Hsla, foreground: Hsla) -> Self {
-        let value = RoleColor::new(color, foreground);
         match name {
             "default" => {
-                self.theme.colors.default = value.with_hover_mix(0.04);
+                self.theme.colors.default.color = color;
+                self.theme.colors.default.foreground = foreground;
                 self.theme.colors.field.background = color;
             }
-            "success" => self.theme.colors.success = value,
-            "warning" => self.theme.colors.warning = value,
-            "danger" => self.theme.colors.danger = value,
+            "success" => {
+                self.theme.colors.success.color = color;
+                self.theme.colors.success.foreground = foreground;
+            }
+            "warning" => {
+                self.theme.colors.warning.color = color;
+                self.theme.colors.warning.foreground = foreground;
+            }
+            "danger" => {
+                self.theme.colors.danger.color = color;
+                self.theme.colors.danger.foreground = foreground;
+            }
             _ => {
-                self.theme.colors.accent = value;
+                self.theme.colors.accent.color = color;
+                self.theme.colors.accent.foreground = foreground;
                 self.theme.colors.focus = color;
             }
         }
@@ -221,5 +233,53 @@ impl ThemeBuilder {
 
     pub fn build(self) -> Theme {
         self.theme
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use herogpui_core::{mix_oklab, oklch};
+
+    #[test]
+    fn overriding_a_role_keeps_its_soft_semantics() {
+        // v3's soft variables are `color-mix`es of the role variables: an
+        // override replaces the input, never the weights.
+        let theme = Theme::builder("brand", Theme::light())
+            .role("success", oklch(0.55, 0.18, 145.0), oklch(1.0, 0.0, 0.0))
+            .build();
+        assert!((theme.colors.success.soft().a - 0.15).abs() < 1e-4);
+        assert!((theme.colors.success.soft_hover().a - 0.20).abs() < 1e-4);
+        assert_eq!(
+            theme
+                .colors
+                .success
+                .soft_foreground(theme.colors.foreground),
+            mix_oklab(
+                theme.colors.success.color,
+                theme.colors.foreground,
+                80.0 / 140.0
+            )
+        );
+    }
+
+    #[test]
+    fn a_default_role_override_keeps_the_half_strength_soft() {
+        let theme = Theme::builder("brand", Theme::light())
+            .role(
+                "default",
+                oklch(0.90, 0.01, 286.0),
+                oklch(0.20, 0.01, 286.0),
+            )
+            .build();
+        assert!((theme.colors.default.soft().a - 0.50).abs() < 1e-4);
+        assert!((theme.colors.default.soft_hover().a - 0.60).abs() < 1e-4);
+        assert_eq!(
+            theme
+                .colors
+                .default
+                .soft_foreground(theme.colors.foreground),
+            theme.colors.default.foreground
+        );
     }
 }

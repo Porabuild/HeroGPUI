@@ -666,7 +666,8 @@ impl RenderOnce for Select {
         if !self.is_disabled {
             let hover_bg = match self.variant {
                 FieldVariant::Primary => colors.field.hover(),
-                FieldVariant::Secondary => colors.default.soft_hover(),
+                // `.select--secondary` hovers `--select-trigger-bg-hover: var(--default-hover)`.
+                FieldVariant::Secondary => colors.default.hover(),
             };
             field = field.hover(move |s| s.bg(hover_bg));
         } else {
@@ -1250,7 +1251,7 @@ impl RenderOnce for Select {
             let row_muted = colors.muted;
             let row_fg = colors.foreground;
             let row_focus = colors.focus;
-            let row_hover_bg = colors.default.soft();
+            let row_hover_bg = colors.default.color;
             let row_accent = sem.color;
             let row_disabled_opacity = layout.disabled_opacity;
             // Everything a row reads, owned: `uniform_list`'s callback is
@@ -1695,6 +1696,35 @@ mod tests {
         assert_eq!(
             Select::new("select-default-placeholder", Vec::new()).placeholder,
             "Select an item"
+        );
+    }
+
+    // The pinned `.select--secondary` hover fill is
+    // `--select-trigger-bg-hover: var(--default-hover)` and the popup rows
+    // fill with the full `bg-default`. The two accessors differ by one word
+    // and the wrong one still looks plausible on screen, so the check is
+    // mechanical.
+    #[test]
+    fn secondary_trigger_and_menu_rows_use_the_pinned_hover_tokens() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden accessors.
+        let source = include_str!("select.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("FieldVariant::Secondary => colors.default.hover()"),
+            "the secondary trigger hover must read `colors.default.hover()` \
+             (pinned `--select-trigger-bg-hover: var(--default-hover)`)"
+        );
+        assert!(
+            source.contains("let row_hover_bg = colors.default.color;"),
+            "the popup rows must hover the full `bg-default` \
+             (pinned `.list-box-item:hover`)"
+        );
+        assert!(
+            !source.contains("soft_hover()") && !source.contains("default.soft()"),
+            "no select surface may hover a soft token"
         );
     }
 }

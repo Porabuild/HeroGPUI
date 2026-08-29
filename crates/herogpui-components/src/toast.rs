@@ -670,7 +670,7 @@ impl RenderOnce for ToastCardEl {
         let title_color = match self.t.color {
             Color::Default => colors.overlay.foreground,
             Color::Accent | Color::Success | Color::Warning | Color::Danger => {
-                sem.soft_foreground()
+                sem.soft_foreground(colors.foreground)
             }
         };
 
@@ -724,7 +724,7 @@ impl RenderOnce for ToastCardEl {
                         gpui::svg()
                             .size(px(16.))
                             .path(icon)
-                            .text_color(sem.soft_foreground()),
+                            .text_color(sem.soft_foreground(colors.foreground)),
                     ),
             );
         }
@@ -791,7 +791,10 @@ impl RenderOnce for ToastCardEl {
                 .rounded(crate::util::small_radius(cx));
             if self.frontmost {
                 close_btn = close_btn.cursor_pointer();
-                let hover_bg = colors.default.soft_hover();
+                // `.toast__close-button:hover` fills with `bg-default` --
+                // the full token, overriding the composed CloseButton's own
+                // `--default-hover` refinement.
+                let hover_bg = colors.default.color;
                 close_btn = close_btn.hover(move |s| s.bg(hover_bg));
                 close_btn = close_btn.on_click(move |_, _, cx| dismiss_toast(id, cx));
                 // A keyboard tab stop that rings on focus-visible — gpui builds
@@ -855,5 +858,27 @@ mod tests {
     #[test]
     fn accent_uses_the_pinned_info_indicator() {
         assert_eq!(default_indicator(Color::Accent), Some(icons::INFO_CIRCLE));
+    }
+
+    // The pinned `.toast__close-button:hover` fills with `bg-default`, the
+    // full token -- the composed CloseButton's own `--default-hover`
+    // refinement is overridden, and no soft token survives here.
+    #[test]
+    fn the_close_button_hovers_the_full_default() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden accessor.
+        let source = include_str!("toast.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("let hover_bg = colors.default.color;"),
+            "the toast close button must hover `bg-default` \
+             (pinned `.toast__close-button:hover`)"
+        );
+        assert!(
+            !source.contains("soft_hover()"),
+            "the close button must not come back on a soft token"
+        );
     }
 }

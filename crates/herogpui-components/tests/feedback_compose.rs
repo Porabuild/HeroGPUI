@@ -36,9 +36,10 @@
 //!   1920-16; a composed `Size::Md` Button is 36px tall with `px-4` (16px)
 //!   each side and no border, so its centre x is 1904 - 16 - w/2 where w is
 //!   the measured label width, and its centre y is 12 + 18 = 30.
-//! - A `Size::Md` badge is a 28px box anchored `offset = -28/2 + 4 = -10`
-//!   from the anchor's top-right corner; a 64px anchor at the origin puts the
-//!   badge's box at x 46..74, y -10..18, centre (60, 4).
+//! - A `Size::Md` badge is a 28px box anchored a quarter of its own box (7px)
+//!   past the anchor's top-right corner (`translate(25%, -25%)`); a 64px
+//!   anchor at the origin puts the badge's box at x 43..71, y -7..21, centre
+//!   (57, 7).
 
 mod harness;
 
@@ -47,7 +48,7 @@ use std::time::Duration;
 use gpui::{
     prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, TestAppContext, VisualTestContext,
 };
-use herogpui_components::{Alert, Avatar, Badge, Button};
+use herogpui_components::{Alert, Avatar, Badge, BadgeAnchor, BadgeLabel, Button};
 
 use harness::{click, events, open_host, press};
 
@@ -259,16 +260,22 @@ fn badge_default_color_stays_behind_the_anchor_and_is_inert(cx: &mut TestAppCont
     let recorded = events();
     let cx = open_host(cx, move || {
         // A 64px anchor at the origin with the 28px `Size::Md` badge on its
-        // top-right corner (`offset = -28/2 + 4 = -10`): the badge's box is
-        // x 46..74, y -10..18, centre (60, 4); the anchor's centre is (32, 32).
-        Badge::new()
-            .content("5")
-            .child(gpui::div().w(px(64.)).h(px(64.)).child("anchor"))
+        // top-right corner (`offset = -28/4 = -7`): the badge's box is
+        // x 43..71, y -7..21, centre (57, 7); the anchor's centre is (32, 32).
+        // The row is flex because the anchor wrapper only hugs its child
+        // there (v3's `inline-flex`; a block parent would stretch it).
+        gpui::div()
+            .flex()
+            .child(
+                BadgeAnchor::new()
+                    .child(gpui::div().w(px(64.)).h(px(64.)).child("anchor"))
+                    .child(Badge::new().child(BadgeLabel::new().child("5"))),
+            )
             .into_any_element()
     });
 
-    // Centre of the badge box: (60, 4).
-    click(cx, 60., 4.);
+    // Centre of the badge box: (57, 7).
+    click(cx, 57., 7.);
     // Centre of the anchor: (32, 32).
     click(cx, 32., 32.);
     assert!(

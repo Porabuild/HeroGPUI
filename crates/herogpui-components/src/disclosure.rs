@@ -99,8 +99,9 @@ impl RenderOnce for Disclosure {
         .label(self.title.clone())
         .is_disabled(self.is_disabled)
         // `.disclosure__indicator` is `ms-auto size-4` and turns 180 degrees
-        // when the panel is open, which is a glyph swap here.
-        .end_content(
+        // when the panel is open, which is a glyph swap here. It trails the
+        // label as the button's ordered child, the way v3 composes it.
+        .child(
             gpui::svg()
                 .size(px(16.))
                 .path(if expanded {

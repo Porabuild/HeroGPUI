@@ -669,7 +669,9 @@ impl RenderOnce for NumberField {
         if !self.is_disabled && !validity.is_invalid && !focus_handle.is_focused(window) {
             let hover_bg = match self.variant {
                 FieldVariant::Primary => colors.field.hover(),
-                FieldVariant::Secondary => colors.default.soft_hover(),
+                // `.number-field--secondary` hovers
+                // `--number-field-group-bg-hover: var(--default-hover)`.
+                FieldVariant::Secondary => colors.default.hover(),
             };
             let hover_border = colors.field.border_hover();
             group = group.hover(move |style| style.bg(hover_bg).border_color(hover_border));
@@ -1137,4 +1139,26 @@ fn report_bump(
         callback(next, window, cx);
     }
     true
+}
+
+// The pinned `.number-field--secondary` hover fill is
+// `--number-field-group-bg-hover: var(--default-hover)`, which
+// `RoleColor::hover()` computes; `soft_hover()` is a different, lighter
+// token. The two accessors differ by one word and the wrong one still looks
+// plausible on screen, so the check is mechanical.
+#[cfg(test)]
+mod hover_tokens {
+    #[test]
+    fn secondary_group_uses_the_pinned_default_hover_token() {
+        // Scan the implementation only.
+        let source = include_str!("number_field.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("FieldVariant::Secondary => colors.default.hover()"),
+            "the secondary group hover must read `colors.default.hover()` \
+             (pinned `--number-field-group-bg-hover: var(--default-hover)`)"
+        );
+    }
 }

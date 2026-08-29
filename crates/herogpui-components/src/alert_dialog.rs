@@ -105,10 +105,8 @@ crate::modal::close_trigger_part!(AlertDialogCloseTrigger, "alert-dialog-close")
 /// `.alert-dialog__icon--{status}`: the disc's background, the glyph colour
 /// and the glyph. `--default` uses the plain `bg-default text-foreground`
 /// pair with the info glyph, not a soft mix; the status roles use their soft
-/// background and `RoleColor::soft_foreground()`. Upstream's
-/// `--color-*-soft-foreground` tokens are role/foreground `color-mix`es, so
-/// the raw role colour the theme crate returns here is its audited
-/// semantic-token approximation. The glyphs follow upstream's icon map:
+/// background and `RoleColor::soft_foreground(..)`, upstream's role/foreground
+/// `color-mix` token. The glyphs follow upstream's icon map:
 /// info for `default` and `accent`, then success, warning and danger.
 fn icon_presentation(
     status: Color,
@@ -118,22 +116,22 @@ fn icon_presentation(
         Color::Default => (colors.default.color, colors.foreground, icons::INFO_CIRCLE),
         Color::Accent => (
             colors.accent.soft(),
-            colors.accent.soft_foreground(),
+            colors.accent.soft_foreground(colors.foreground),
             icons::INFO_CIRCLE,
         ),
         Color::Success => (
             colors.success.soft(),
-            colors.success.soft_foreground(),
+            colors.success.soft_foreground(colors.foreground),
             icons::CHECK_CIRCLE,
         ),
         Color::Warning => (
             colors.warning.soft(),
-            colors.warning.soft_foreground(),
+            colors.warning.soft_foreground(colors.foreground),
             icons::WARNING_TRIANGLE,
         ),
         Color::Danger => (
             colors.danger.soft(),
-            colors.danger.soft_foreground(),
+            colors.danger.soft_foreground(colors.foreground),
             icons::CIRCLE_EXCLAMATION,
         ),
     }
@@ -747,7 +745,7 @@ mod tests {
                 Color::Danger => &colors.danger,
             };
             assert_same_color(bg, role.soft());
-            assert_same_color(fg, role.soft_foreground());
+            assert_same_color(fg, role.soft_foreground(colors.foreground));
         }
     }
 }

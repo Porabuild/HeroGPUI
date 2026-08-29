@@ -271,7 +271,8 @@ impl RenderOnce for ToggleButton {
             .flex_shrink_0()
             .font_weight(gpui::FontWeight::MEDIUM)
             .when(is_selected, |e| {
-                e.bg(sem.soft()).text_color(sem.soft_foreground())
+                e.bg(sem.soft())
+                    .text_color(sem.soft_foreground(colors.foreground))
             })
             .when(!is_selected, |e| match self.variant {
                 ToggleVariant::Default => e.bg(colors.default.color).text_color(colors.foreground),

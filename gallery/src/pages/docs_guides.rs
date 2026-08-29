@@ -236,14 +236,14 @@ impl Gallery {
             .child(h::Button::new("dp-l1").label("Click me"))
             .child(
                 h::Button::new("dp-l2")
-                    .label("Submit")
                     .size(Size::Lg)
-                    .start_content(
+                    .child(
                         gpui::svg()
                             .size(px(16.))
                             .path(h::icons::CHECK)
                             .text_color(cx.colors().accent.foreground),
-                    ),
+                    )
+                    .child("Submit"),
             )
             .child(h::Button::new("dp-l3").label("Submitting").is_pending(true))
             .into_any_element();
@@ -446,9 +446,9 @@ Slider::new("volume")
 const STYLING_WRAPPER: &str = r#"/// A save button, everywhere the same.
 fn save_button(id: impl Into<ElementId>) -> Button {
     Button::new(id)
-        .label("Save")
         .variant(Variant::Primary)
-        .start_content(icon(icons::CHECK))
+        .child(icon(icons::CHECK))
+        .child("Save")
 }
 
 // Still a `Button`, so the caller keeps every other prop.
@@ -487,14 +487,14 @@ const DP_DISCLOSURE: &str = r#"// Level 1
 Button::new("go").label("Click me")
 
 // Level 2
-Button::new("go").label("Submit").size(Size::Lg).start_content(check)
+Button::new("go").size(Size::Lg).child(check).child("Submit")
 
 // Level 3
 Button::new("go").label("Submitting").is_pending(true)"#;
 
 const DP_PREDICTABLE: &str = r#"// The same three props, on three different components.
 Button::new("b").size(Size::Lg).is_disabled(true)
-Chip::new("c").size(Size::Lg)
+Chip::new().size(Size::Lg).child(ChipLabel::new().child("c"))
 Avatar::new().size(SizeXl::Lg)
 
 // And one callback shape everywhere.

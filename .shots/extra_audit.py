@@ -72,6 +72,42 @@ BANNED_V2 = {
     'hide_close_button': 'removed v2 prop (v3: compose or omit the CloseTrigger part)',
 }
 
+# Builders v3 removed from one component, banned only inside that component's
+# own module. The `BANNED_V2` names above are v2 leftovers everywhere, but
+# `content` and `start_content` are not: render-prop `content` builders are
+# live port spellings across the fields and lists, and v3's Input legitimately
+# spells `startContent` for its leading slot (see `input.rs`, which only the
+# button scope must not confuse with its own removed builder). So the ban is
+# scoped to the badge, button and chip modules, where v3 composes the removed
+# builders' content as the root's own ordered children (`Badge`'s label text
+# through `Badge.Label`, `Button`'s icon/label sequence through
+# `ParentElement` order, `Chip`'s icon/dot/label sequence through `Chip.Label`
+# and `ParentElement` order) -- a reintroduction would re-fork the anatomy the
+# compound parts exist to carry. Note `Button` bans both `start_content` and
+# `end_content`: its render-prop `content` builder is v3's children-as-a-function
+# and stays, while v3 composes icons and the label as ordered `ParentElement`
+# children with no slot builders at all.
+SCOPED_BANNED = {
+    'crates/herogpui-components/src/badge.rs': (
+        ('content',
+         'removed Badge builder (v3 composes the badge content as ParentElement children)'),
+        ('start_content',
+         'removed Badge builder (v3 composes badge content as ParentElement children)'),
+    ),
+    'crates/herogpui-components/src/button.rs': (
+        ('start_content',
+         'removed Button builder (v3 composes the icon and label as ordered children)'),
+        ('end_content',
+         'removed Button builder (v3 composes the trailing icon as an ordered child)'),
+    ),
+    'crates/herogpui-components/src/chip.rs': (
+        ('content',
+         'removed Chip builder (v3 composes chip content as ParentElement children)'),
+        ('start_content',
+         'removed Chip builder (v3 composes the icon and Chip.Label as ordered children)'),
+    ),
+}
+
 # Declaration shapes, anchored on `pub`. The `fn` pattern reads the Rust
 # modifiers (`async`, `const`, `unsafe`, `extern "ABI"`, in any order) and the
 # whitespace -- newlines included -- that may sit between `pub` and `fn`, so
@@ -232,6 +268,34 @@ def strip_rust(text):
         out.append(ch)
         i += 1
     return ''.join(out)
+
+
+def scoped_banned_in_text(text, banned, source='<synthetic>'):
+    """Banned component builders declared in `text`, as `ban_scan` reports them.
+
+    Same declaration shapes and stripper as `banned_in_text`, but the name
+    list is the calling module's own `SCOPED_BANNED` entry.
+    """
+    stripped = strip_rust(text)
+    hits = []
+    for pattern in DECL_PATTERNS:
+        for m in pattern.finditer(stripped):
+            name = m.group(1)
+            for banned_name, reason in banned:
+                if name == banned_name:
+                    hits.append((source, stripped.count('\n', 0, m.start(1)) + 1,
+                                 name, reason))
+    hits.sort(key=lambda hit: hit[1])
+    return hits
+
+
+def scoped_ban_scan():
+    """The component-scoped builder ban over the owning modules only."""
+    hits = []
+    for path, banned in sorted(SCOPED_BANNED.items()):
+        with io.open(path, encoding='utf-8') as handle:
+            hits.extend(scoped_banned_in_text(handle.read(), banned, path))
+    return hits
 
 
 def banned_in_text(text, source='<synthetic>'):
@@ -597,14 +661,21 @@ def main():
           'entry, or an ALIAS)')
 
     hits = ban_scan()
+    scoped_hits = scoped_ban_scan()
     print()
     if hits:
         print('BANNED v2 PUBLIC NAMES:')
         for source, lineno, name, reason in hits:
             print('  %s:%d  %-18s %s' % (source, lineno, name, reason))
         print()
+    if scoped_hits:
+        print('REMOVED COMPONENT-SCOPED BUILDERS:')
+        for source, lineno, name, reason in scoped_hits:
+            print('  %s:%d  %-18s %s' % (source, lineno, name, reason))
+        print()
     print('banned v2 public names    : %d' % len(hits))
-    if hits:
+    print('scoped removed builders   : %d' % len(scoped_hits))
+    if hits or scoped_hits:
         sys.exit(1)
 
 
@@ -785,6 +856,70 @@ def self_test():
     expect('isLoading' not in A.ALIAS
            and A.ALIAS.get('Table.LoadMore.isLoading') == 'is_pending',
            'the isLoading narrowing is missing from api_audit.ALIAS')
+
+    # The component-scoped ban: the removed Badge/Chip `content` and
+    # `start_content` builders are flagged inside their own modules in every
+    # declaration shape, while the global ban leaves the same spellings alone
+    # (they are legitimate elsewhere: `Input.start_content` is v3's real
+    # `startContent`, and field/list render props keep the `content` spelling).
+    badge_banned = SCOPED_BANNED['crates/herogpui-components/src/badge.rs']
+    chip_banned = SCOPED_BANNED['crates/herogpui-components/src/chip.rs']
+    scoped_reintroduced = (
+        'pub fn content(mut self, el: impl IntoElement) -> Self { self }\n'
+        'impl Badge {\n'
+        '    pub\nfn start_content(mut self, el: impl IntoElement) -> Self { self }\n'
+        '}\n'
+    )
+    scoped_hits = scoped_banned_in_text(scoped_reintroduced, badge_banned)
+    expect({name for _, _, name, _ in scoped_hits} == {'content', 'start_content'},
+           'a reintroduced Badge builder escaped the scoped ban: %r' % (scoped_hits,))
+    expect(scoped_banned_in_text(scoped_reintroduced, chip_banned) != [],
+           'the chip scope did not flag the same reintroductions: %r'
+           % (scoped_banned_in_text(scoped_reintroduced, chip_banned),))
+    expect(banned_in_text('pub fn content(mut self, el: impl IntoElement) -> Self { self }\n') == [],
+           'the global ban flagged a name that is only scoped, breaking Button.content')
+    expect(banned_in_text(
+        'pub fn start_content(mut self, el: impl IntoElement) -> Self { self }\n') == [],
+        'the global ban flagged start_content, breaking Input.start_content')
+    expect(banned_in_text(
+        'pub fn end_content(mut self, el: impl IntoElement) -> Self { self }\n') == [],
+        'the global ban flagged end_content, breaking Input.end_content')
+    expect({'content', 'start_content'} == {name for name, _ in badge_banned}
+           and {'content', 'start_content'} == {name for name, _ in chip_banned},
+           'the scoped builder bans are missing')
+    expect(sorted(SCOPED_BANNED) == [
+        'crates/herogpui-components/src/badge.rs',
+        'crates/herogpui-components/src/button.rs',
+        'crates/herogpui-components/src/chip.rs',
+    ], 'the scoped ban does not cover exactly the badge, button and chip modules')
+
+    # Known-negative for the Button scope: reintroduced `start_content` and
+    # `end_content` builders in `button.rs` are flagged (the removed v2 slot
+    # seams), while `Button.content` -- v3's children-as-a-function -- stays
+    # allowed there.
+    button_banned = SCOPED_BANNED['crates/herogpui-components/src/button.rs']
+    button_hits = scoped_banned_in_text(
+        'impl Button {\n'
+        '    pub\nfn start_content(mut self, el: impl IntoElement) -> Self { self }\n'
+        '    pub fn end_content(mut self, el: impl IntoElement) -> Self { self }\n'
+        '}\n',
+        button_banned)
+    expect({name for _, _, name, _ in button_hits}
+           == {'start_content', 'end_content'}
+           and all(reason.startswith('removed Button builder')
+                   for _, _, _, reason in button_hits),
+           'a reintroduced Button.start_content/end_content escaped the scoped '
+           'ban: %r' % (button_hits,))
+    expect(scoped_banned_in_text(
+        'impl Button {\n'
+        '    pub fn content(\n'
+        '        mut self,\n'
+        '        render: impl Fn(InteractiveState) -> AnyElement + \'static,\n'
+        '    ) -> Self { self }\n'
+        '}\n',
+        button_banned) == [],
+        'the button scope flagged Button.content, which v3 keeps as its '
+        'children-as-a-function')
 
     if failures:
         print('self-test FAIL')

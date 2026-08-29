@@ -458,7 +458,7 @@ impl RenderOnce for TagGroup {
             let selectable = self.selection_mode != SelectionMode::None;
             let interactive = selectable && !disabled;
             let tag_foreground = if selected {
-                colors.accent.soft_foreground()
+                colors.accent.soft_foreground(colors.foreground)
             } else {
                 match self.variant {
                     TagVariant::Default => colors.default.foreground,

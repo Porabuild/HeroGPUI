@@ -404,7 +404,9 @@ impl Autocomplete {
         self
     }
 
-    /// A read-only Autocomplete shows its selection and does not open.
+    /// A read-only Autocomplete shows its selection and does not open. Pinned
+    /// v3 puts no read-only gate on the clear button part (only `disabled`),
+    /// so a read-only control keeps a working clear button.
     pub fn is_read_only(mut self, v: bool) -> Self {
         self.is_read_only = v;
         self
@@ -606,6 +608,41 @@ impl RenderOnce for Autocomplete {
         );
         let plain_edit_key =
             window.use_keyed_state(el_name(format!("{base}-plain-edit-key")), cx, |_, _| false);
+        // The pinned trigger hover carries
+        // `:not(:has(.autocomplete__clear-button:hover))`: while the pointer is
+        // on the clear button inside the trigger, the trigger's own hover fill
+        // is suppressed so the affordance does not double-hover the whole
+        // field. gpui 0.2.2 has no `:has` analog and a parent hitbox stays
+        // hovered while a child's is, so the clear button feeds its own hover
+        // into this keyed (hovered, pressed) slot (`on_hover` dispatches with
+        // the moved position, before the next paint) and the trigger's
+        // refinement reads it. The same slot carries the press, for the pinned
+        // `:active, &[data-pressed] { transform: scale(0.93) }`.
+        let clear_slot = util::interaction(el_name(format!("{base}-clear-ix")), window, cx);
+        // The slot is read before the theme tokens for the same reason the
+        // other keyed states are: the normalization below takes `cx` mutably.
+        // `.autocomplete__clear-button` stays mounted for as long as it is
+        // composed: pinned v3 gates the part only through `disabled={isDisabled}`
+        // and its own `data-empty` (`pointer-events-none opacity-0`), and
+        // neither the part nor pinned react-stately 3.49.0's
+        // `selectionManager.setSelectedKeys` knows a read-only gate (RAC
+        // 1.20.0's `Select` has no `isReadOnly` at all), so a read-only
+        // control keeps a working clear button.
+        let clear_empty = self.selected_keys.is_empty();
+        let clear_active = !clear_empty && !self.is_disabled;
+        // A hover or press recorded on the button outlives the listener that
+        // would clear it when the button goes inert (cleared, disabled): the
+        // pointer can leave and the selection can flip with no event reaching
+        // the detached handler. The inert frames normalize the slot back to
+        // rest, so a stale flag cannot survive a clear-and-reselect.
+        if !clear_active && *clear_slot.read(cx) != (false, false) {
+            clear_slot.update(cx, |state, _| *state = (false, false));
+        }
+        let (clear_hovered, clear_pressed) = if clear_active {
+            *clear_slot.read(cx)
+        } else {
+            (false, false)
+        };
         let search_focus = self.state.read(cx).focus_handle.clone();
         if open && !*autofocused.read(cx) {
             window.focus(&search_focus);
@@ -743,6 +780,13 @@ impl RenderOnce for Autocomplete {
         // `pe-7` because the indicator sits inside it.
         let mut field = gpui::div()
             .id(el_name(format!("{base}-trigger")))
+            // Headless probe: the decision that gates the hover refinement
+            // above, so a test can drive real hover coordinates and read the
+            // rendered state without painted-color access.
+            .debug_selector({
+                let base = base.clone();
+                move || format!("{base}-trigger-suppressed-{clear_hovered}")
+            })
             .relative()
             .flex()
             .items_center()
@@ -763,9 +807,13 @@ impl RenderOnce for Autocomplete {
         } else {
             let hover_bg = match self.variant {
                 FieldVariant::Primary => colors.field.hover(),
-                FieldVariant::Secondary => colors.default.soft_hover(),
+                // `.autocomplete--secondary` hovers
+                // `--autocomplete-trigger-bg-hover: var(--default-hover)`.
+                FieldVariant::Secondary => colors.default.hover(),
             };
-            field = field.hover(move |s| s.bg(hover_bg)).cursor_pointer();
+            field = field
+                .hover(move |s| if clear_hovered { s } else { s.bg(hover_bg) })
+                .cursor_pointer();
         }
         if self.full_width {
             field = field.w_full();
@@ -779,7 +827,6 @@ impl RenderOnce for Autocomplete {
         }
 
         // --- `.autocomplete__value` -----------------------------------------
-        let has_selection = !self.selected_keys.is_empty();
         // The trigger renders the selection in the selection set's own order —
         // pinned react-stately 3.49.0's `selectedKeys` is a JS `Set`, whose
         // iteration order is insertion order, so `selectedItems`, the render
@@ -849,62 +896,91 @@ impl RenderOnce for Autocomplete {
         };
         field = field.child(value_slot);
 
-        // `.autocomplete__clear-button` — present whenever there is a mutable
-        // selection to clear (`data-empty` hides it otherwise). v3 clears the
-        // selection first and only then calls the optional `onClear` handler.
-        if has_selection && !self.is_disabled && !self.is_read_only {
+        // `.autocomplete__clear-button` — mounted whenever the trigger is:
+        // `data-empty` only makes it invisible and pointer-inert, and
+        // `disabled={isDisabled}` only disables it. The pinned part is a
+        // 20px `rounded-xl p-1` box holding the `size-3.5` (14px) glyph, and
+        // `:active, &[data-pressed]` scales the whole button to 0.93 about
+        // its center. gpui 0.2.2 cannot scale a div, so the 20px hit box
+        // stays put for the pointer and a centered *visual* box carries the
+        // scale while pressed.
+        let clear_scale = if clear_pressed { 0.93 } else { 1. };
+        let clear_visual = px(20. * clear_scale);
+        let clear_glyph = px(14. * clear_scale);
+        let clear_radius = px(f32::from(util::small_radius(cx)) * clear_scale);
+        // `.autocomplete__clear-button:hover` fills with `bg-default-hover`,
+        // the role-hover mix -- not the lighter soft-hover wash.
+        let hover_bg = colors.default.hover();
+        let mut clear = gpui::div()
+            .id(el_name(format!("{base}-clear")))
+            // `.autocomplete__clear-button` is `h-6 w-6`
+            // and then `size-5`, so 20px, `rounded-xl` and `p-1`
+            // -- with the pinned `size-3.5` (14px) glyph inside.
+            .size(px(20.))
+            .p(px(4.))
+            .rounded(util::small_radius(cx))
+            .relative()
+            .flex()
+            .items_center()
+            .justify_center()
+            .flex_shrink_0()
+            .when(clear_active, |el| el.cursor_pointer())
+            .when(clear_empty, |el| el.opacity(0.))
+            .debug_selector({
+                let base = base.clone();
+                move || format!("{base}-clear")
+            })
+            .child(
+                gpui::div()
+                    .debug_selector({
+                        let base = base.clone();
+                        move || format!("{base}-clear-visual")
+                    })
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .flex_shrink_0()
+                    .size(clear_visual)
+                    .rounded(clear_radius)
+                    .when(clear_active, |el| el.hover(move |st| st.bg(hover_bg)))
+                    .child(
+                        gpui::svg()
+                            .size(clear_glyph)
+                            .path(icons::CLOSE)
+                            .text_color(colors.muted),
+                    ),
+            );
+        if clear_active {
             let own = selection_own.clone();
             let selection_cb = self.on_selection_change_all.clone();
             let clear_cb = self.on_clear.clone();
             let clear_form_state = self.form_state.clone();
-            let hover_bg = colors.default.soft_hover();
-            field = field.child(
-                gpui::div()
-                    .id(el_name(format!("{base}-clear")))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    // `.autocomplete__clear-button` is `h-6 w-6`
-                    // and then `size-5`, so 20px, `rounded-xl` and `p-1`
-                    // -- which leaves the glyph 12.
-                    .size(px(20.))
-                    .p(px(4.))
-                    .rounded(util::small_radius(cx))
-                    .cursor_pointer()
-                    .hover(move |st| st.bg(hover_bg))
-                    .child(
-                        gpui::svg()
-                            .size(px(12.))
-                            .path(icons::CLOSE)
-                            .text_color(colors.muted),
-                    )
-                    .on_click(move |_, window, cx| {
-                        // The button sits *inside* the trigger, so gpui
-                        // dispatches its click up to the trigger's own
-                        // `on_click` too -- and clearing is not an open
-                        // gesture (React Aria's trigger press is
-                        // pointer-bound, so a bubbled DOM click is inert
-                        // there).
-                        cx.stop_propagation();
-                        // Uncontrolled: drop our own selection too, or the
-                        // button would clear nothing.
-                        if let Some(held) = &own {
-                            held.update(cx, |v, cx| {
-                                v.clear();
-                                cx.notify();
-                            });
-                            clear_form_state.borrow_mut().value =
-                                crate::form::FormValue::Keys(Vec::new());
-                        }
-                        if let Some(cb) = &selection_cb {
-                            cb(&[], window, cx);
-                        }
-                        if let Some(cb) = &clear_cb {
-                            cb(window, cx);
-                        }
-                    }),
-            );
+            clear = util::track_interaction(clear, &clear_slot).on_click(move |_, window, cx| {
+                // The button sits *inside* the trigger, so gpui
+                // dispatches its click up to the trigger's own
+                // `on_click` too -- and clearing is not an open
+                // gesture (React Aria's trigger press is
+                // pointer-bound, so a bubbled DOM click is inert
+                // there).
+                cx.stop_propagation();
+                // Uncontrolled: drop our own selection too, or the
+                // button would clear nothing.
+                if let Some(held) = &own {
+                    held.update(cx, |v, cx| {
+                        v.clear();
+                        cx.notify();
+                    });
+                    clear_form_state.borrow_mut().value = crate::form::FormValue::Keys(Vec::new());
+                }
+                if let Some(cb) = &selection_cb {
+                    cb(&[], window, cx);
+                }
+                if let Some(cb) = &clear_cb {
+                    cb(window, cx);
+                }
+            });
         }
+        field = field.child(clear);
 
         // `.autocomplete__indicator` is `absolute inset-y-0 end-2 my-auto`, and
         // its glyph is `size-4`. gpui 0.2.2 cannot rotate a div, so the chevron
@@ -1365,7 +1441,7 @@ impl RenderOnce for Autocomplete {
             let base_row = format!("{base}-list");
             let row_muted = colors.muted;
             let row_fg = colors.foreground;
-            let row_hover_bg = colors.default.soft();
+            let row_hover_bg = colors.default.color;
             let row_focus = colors.focus;
             let row_accent = colors.accent.color;
             let row_disabled_opacity = layout.disabled_opacity;
@@ -1588,5 +1664,69 @@ impl RenderOnce for Autocomplete {
         }
 
         root
+    }
+}
+
+// The pinned `.autocomplete--secondary` hover fill is
+// `--autocomplete-trigger-bg-hover: var(--default-hover)` and the popup rows
+// fill with the full `bg-default`. The two accessors differ by one word and
+// the wrong one still looks plausible on screen, so the check is mechanical.
+#[cfg(test)]
+mod hover_tokens {
+    #[test]
+    fn secondary_trigger_and_menu_rows_use_the_pinned_hover_tokens() {
+        // Scan the implementation only.
+        let source = include_str!("autocomplete.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("FieldVariant::Secondary => colors.default.hover()"),
+            "the secondary trigger hover must read `colors.default.hover()` \
+             (pinned `--autocomplete-trigger-bg-hover: var(--default-hover)`)"
+        );
+        assert!(
+            source.contains("let row_hover_bg = colors.default.color;"),
+            "the popup rows must hover the full `bg-default` \
+             (pinned `.list-box-item:hover`)"
+        );
+    }
+
+    #[test]
+    fn the_clear_button_hovers_the_role_hover_token() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden accessor.
+        let source = include_str!("autocomplete.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("let hover_bg = colors.default.hover();"),
+            "the clear button must hover `bg-default-hover` \
+             (pinned `.autocomplete__clear-button:hover`)"
+        );
+        assert!(
+            !source.contains("colors.default.soft_hover()"),
+            "the clear button must not hover the lighter soft-hover wash"
+        );
+    }
+
+    #[test]
+    fn the_trigger_hover_defers_to_a_hovered_clear_button() {
+        // Painted-only claim, so it is pinned by source shape: headless tests
+        // prove the wiring (real coordinates flip the keyed flag) but cannot
+        // read the painted quad. The refinement must leave the trigger's
+        // resting style untouched while the clear button is hovered, which is
+        // what `:not(:has(.autocomplete__clear-button:hover))` does upstream.
+        let source = include_str!("autocomplete.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains(".hover(move |s| if clear_hovered { s } else { s.bg(hover_bg) })"),
+            "the trigger hover must be suppressed while the clear button is hovered \
+             (pinned `.autocomplete__trigger:hover:not(\
+             :has(.autocomplete__clear-button:hover))`)"
+        );
     }
 }

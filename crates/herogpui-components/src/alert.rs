@@ -60,17 +60,18 @@ impl RenderOnce for Alert {
         let colors = cx.colors();
 
         // v3 dropped Alert's `variant`: the color role is the only axis.
-        let bg = if self.color == Color::Default {
-            colors.surface_secondary
-        } else {
-            sem.soft()
-        };
+        // `.alert` is `bg-surface` for every status -- the role never paints
+        // the container.
+        let bg = colors.surface.background;
         let fg = colors.foreground;
-        let title_color = if self.color == Color::Default {
+        // `.alert--default` paints the title *and* the indicator
+        // `text-foreground`; every status paints `text-{role}-soft-foreground`.
+        let role_fg = if self.color == Color::Default {
             colors.foreground
         } else {
-            sem.soft_foreground()
+            sem.soft_foreground(colors.foreground)
         };
+        let title_color = role_fg;
 
         let mut alert = gpui::div()
             .flex()
@@ -84,11 +85,7 @@ impl RenderOnce for Alert {
             .text_color(fg);
 
         // icon dot
-        let icon_color = if self.color == Color::Default {
-            colors.muted
-        } else {
-            sem.color
-        };
+        let icon_color = role_fg;
         // `.alert__indicator` is a `p-1` box around the glyph, not the glyph on
         // its own.
         alert = alert.child(
@@ -126,5 +123,47 @@ impl RenderOnce for Alert {
         alert = alert.children(self.children);
 
         alert
+    }
+}
+
+// The pinned `.alert` is `bg-surface` for every status: the role paints the
+// indicator and the title only, never the container. A soft wash looks
+// plausible on screen, so the check is mechanical.
+#[cfg(test)]
+mod hover_tokens {
+    #[test]
+    fn the_alert_container_is_always_surface() {
+        // Scan the implementation only.
+        let source = include_str!("alert.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("let bg = colors.surface.background;"),
+            "every status must paint `bg-surface` (pinned `.alert`)"
+        );
+        assert!(
+            !source.contains("sem.soft()"),
+            "no alert container may paint a role soft background"
+        );
+    }
+
+    #[test]
+    fn the_indicator_follows_the_status_soft_foreground() {
+        // Scan the implementation only.
+        let source = include_str!("alert.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("let icon_color = role_fg;"),
+            "the indicator must paint the same token as the title: \
+             `text-foreground` on default, `text-{{role}}-soft-foreground` \
+             otherwise (pinned `.alert__indicator`)"
+        );
+        assert!(
+            !source.contains("let icon_color = colors.muted"),
+            "the default indicator is `text-foreground`, not the muted tone"
+        );
     }
 }

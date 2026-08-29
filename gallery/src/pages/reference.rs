@@ -2365,7 +2365,7 @@ impl Widget {
     fn drawer_metadata_keeps_drag_contract_and_style_gaps_explicit() {
         let metadata = reference_metadata::for_route(
             "Drawer",
-            "use herogpui::components::drawer::{Drawer, DrawerPlacement};",
+            "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerPlacement};",
         )
         .expect("Drawer metadata is registered");
 
@@ -2401,7 +2401,7 @@ impl Widget {
     fn modal_metadata_tracks_compound_parts_and_full_size_parity() {
         let metadata = reference_metadata::for_route(
             "Modal",
-            "use herogpui::components::modal::{Modal, ModalSize};",
+            "use herogpui::components::modal::{Modal, ModalCloseTrigger, ModalSize};",
         )
         .expect("Modal metadata is registered");
 
@@ -2415,7 +2415,6 @@ impl Widget {
         for (owner, prop) in [
             ("Modal.Backdrop", "isDismissable"),
             ("Modal.Container", "size"),
-            ("Modal.CloseTrigger", "children"),
         ] {
             assert!(metadata.api.iter().any(|entry| {
                 entry.owner == owner
@@ -2423,6 +2422,13 @@ impl Widget {
                     && entry.status == reference_metadata::ImplementationStatus::Partial
             }));
         }
+        // v3.2.4 parity: the composed close trigger accepts custom children while
+        // staying wired to the modal's dismissal paths, so it is Implemented.
+        assert!(metadata.api.iter().any(|entry| {
+            entry.owner == "Modal.CloseTrigger"
+                && entry.prop == "children"
+                && entry.status == reference_metadata::ImplementationStatus::Implemented
+        }));
         for class_or_token in [
             ".modal__container--full",
             ".modal__dialog--full",
@@ -2493,7 +2499,7 @@ impl Widget {
     fn popover_metadata_tracks_compound_anatomy_and_true_flipping() {
         let metadata = reference_metadata::for_route(
             "Popover",
-            "use herogpui::components::popover::{Popover, PopoverPlacement};",
+            "use herogpui::components::popover::{Popover, PopoverArrow, PopoverPlacement};",
         )
         .expect("Popover metadata is registered");
 
@@ -2522,9 +2528,12 @@ impl Widget {
             part.name == "Popover.Arrow"
                 && part.status == reference_metadata::ImplementationStatus::Partial
         }));
+        // The arrow matches size, curve, fill and flip-aware rotation, but a
+        // custom child cannot inherit the placement rotation because GPUI 0.2.2
+        // transforms only svg elements; the row stays Partial by design.
         assert!(metadata.styling.iter().any(|entry| {
             entry.class_or_token == ".popover [data-slot=popover-overlay-arrow]"
-                && entry.status == reference_metadata::ImplementationStatus::Implemented
+                && entry.status == reference_metadata::ImplementationStatus::Partial
         }));
     }
 

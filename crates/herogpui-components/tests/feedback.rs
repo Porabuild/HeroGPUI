@@ -49,12 +49,16 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
+use gpui::{
+    canvas, prelude::*, px, AbsoluteLength, AnyElement, Bounds, Pixels, TestAppContext,
+    VisualTestContext,
+};
 use harness::{click, events, open_host, press, Events};
 use herogpui_components::{
     clear_toasts, dismiss_toast, pause_toasts, toast_store, Alert, Avatar, AvatarVariant, Badge,
-    BadgePlacement, BadgeVariant, Color, Meter, NumberFormat, ProgressBar, ProgressCircle, Size,
-    Skeleton, Spinner, SpinnerSize, Toast, ToastData, ToastPlacement, ToastViewport,
+    BadgeAnchor, BadgeLabel, BadgePlacement, BadgeVariant, Color, Meter, NumberFormat, ProgressBar,
+    ProgressCircle, Size, Skeleton, Spinner, SpinnerSize, Toast, ToastData, ToastPlacement,
+    ToastViewport,
 };
 use herogpui_theme::SkeletonAnimation;
 
@@ -1198,12 +1202,15 @@ fn badge_renders_every_variant_size_placement_and_dot(cx: &mut TestAppContext) {
         for (i, variant) in BadgeVariant::ALL.into_iter().enumerate() {
             for (j, size) in [Size::Sm, Size::Md, Size::Lg].into_iter().enumerate() {
                 col = col.child(
-                    Badge::new()
-                        .variant(variant)
-                        .size(size)
-                        .color(Color::Accent)
-                        .content(gpui::div().child((i * 3 + j).to_string()))
-                        .child(gpui::div().w(px(40.)).h(px(40.))),
+                    BadgeAnchor::new()
+                        .child(gpui::div().w(px(40.)).h(px(40.)))
+                        .child(
+                            Badge::new()
+                                .variant(variant)
+                                .size(size)
+                                .color(Color::Accent)
+                                .child(BadgeLabel::new().child((i * 3 + j).to_string())),
+                        ),
                 );
             }
         }
@@ -1215,23 +1222,217 @@ fn badge_renders_every_variant_size_placement_and_dot(cx: &mut TestAppContext) {
             BadgePlacement::BottomRight,
         ] {
             col = col.child(
-                Badge::new()
-                    .placement(placement)
-                    .content("5")
-                    .child(gpui::div().w(px(40.)).h(px(40.))),
+                BadgeAnchor::new()
+                    .child(gpui::div().w(px(40.)).h(px(40.)))
+                    .child(
+                        Badge::new()
+                            .placement(placement)
+                            .child(BadgeLabel::new().child("5")),
+                    ),
             );
         }
-        // Dot badges (content omitted) in every size.
+        // Dot badges (label omitted) in every size.
         for size in [Size::Sm, Size::Md, Size::Lg] {
             col = col.child(
-                Badge::new()
-                    .size(size)
-                    .color(Color::Success)
-                    .child(gpui::div().w(px(40.)).h(px(40.))),
+                BadgeAnchor::new()
+                    .child(gpui::div().w(px(40.)).h(px(40.)))
+                    .child(Badge::new().size(size).color(Color::Success)),
             );
         }
         col.into_any_element()
     });
+}
+
+// ---------------------------------------------------------------------------
+// Badge geometry: the 25% anchor overhang, the pinned leading, `shrink-0`
+// ---------------------------------------------------------------------------
+
+/// The badge's own painted box, read through the component's debug selector.
+/// The selector map keeps only the last painted match, so every probed badge
+/// gets its own window.
+fn badge_box(cx: &mut VisualTestContext) -> Bounds<Pixels> {
+    cx.debug_bounds("badge")
+        .unwrap_or_else(|| panic!("badge must paint"))
+}
+
+fn bounds_str(b: &Bounds<Pixels>) -> String {
+    format!(
+        "{:.1}..{:.1} x {:.1}..{:.1}",
+        f32::from(b.origin.x),
+        f32::from(b.origin.x + b.size.width),
+        f32::from(b.origin.y),
+        f32::from(b.origin.y + b.size.height)
+    )
+}
+
+/// A 64px anchor whose top-left sits at (100, 40), via a padded flex row, with
+/// an optional dot/label badge of the given size. The row is flex because the
+/// anchor wrapper only hugs its child there: v3's `.badge-anchor` is
+/// `inline-flex`, which GPUI 0.2.2 has no equivalent of (a block parent
+/// stretches the wrapper across its width).
+fn anchored_badge(
+    placement: BadgePlacement,
+    content: Option<&'static str>,
+    size: Size,
+) -> AnyElement {
+    let mut badge = Badge::new().size(size).placement(placement);
+    if let Some(text) = content {
+        badge = badge.child(BadgeLabel::new().child(text));
+    }
+    gpui::div()
+        .pt(px(40.))
+        .pl(px(100.))
+        .flex()
+        .child(
+            BadgeAnchor::new()
+                .child(gpui::div().w(px(64.)).h(px(64.)))
+                .child(badge),
+        )
+        .into_any_element()
+}
+
+/// v3 anchors every badge to its anchor's corner with `top/right/bottom/left:
+/// 0` plus `transform: translate(±25%, ±25%)` (`badge.css`, placement block) —
+/// an outward overhang of a quarter of the badge's own box: 4px sm, 7px md,
+/// 8px lg. Dot badges make the box exactly the min size, so the overhang is
+/// directly readable: an md dot on a 64px anchor at (100, 40) must span x
+/// 143..171, y 33..61. GPUI 0.2.2 has no div-level transform, so the port
+/// overhangs a quarter of the *min* box; a badge grown past it (a longer
+/// label) keeps that min-box offset — pinned in `badge_parts.rs`.
+#[gpui::test]
+fn badge_overhangs_the_anchor_by_a_quarter_of_its_box(cx: &mut TestAppContext) {
+    {
+        let cx = open_host(cx, || {
+            anchored_badge(BadgePlacement::TopRight, None, Size::Md)
+        });
+        assert_eq!(
+            bounds_str(&badge_box(cx)),
+            "143.0..171.0 x 33.0..61.0",
+            "the md top-right dot must overhang 7px past the anchor's corner"
+        );
+    }
+    // lg: 32px box, 8px overhang → x 92..124, y 32..64.
+    {
+        let cx = open_host(cx, || {
+            anchored_badge(BadgePlacement::TopLeft, None, Size::Lg)
+        });
+        assert_eq!(
+            bounds_str(&badge_box(cx)),
+            "92.0..124.0 x 32.0..64.0",
+            "the lg top-left dot must overhang 8px past the anchor's corner"
+        );
+    }
+    // sm: 16px box, 4px overhang → x 96..112, y 92..108.
+    {
+        let cx = open_host(cx, || {
+            anchored_badge(BadgePlacement::BottomLeft, None, Size::Sm)
+        });
+        assert_eq!(
+            bounds_str(&badge_box(cx)),
+            "96.0..112.0 x 92.0..108.0",
+            "the sm bottom-left dot must overhang 4px past the anchor's corner"
+        );
+    }
+    // A labelled md badge keeps the same 28px min box, so the same corner
+    // geometry holds with content ("5" plus `badge__label`'s px-0.5 still
+    // fits the min width).
+    {
+        let cx = open_host(cx, || {
+            anchored_badge(BadgePlacement::TopRight, Some("5"), Size::Md)
+        });
+        assert_eq!(
+            bounds_str(&badge_box(cx)),
+            "143.0..171.0 x 33.0..61.0",
+            "the md top-right label badge must overhang 7px past the anchor's corner"
+        );
+    }
+}
+
+/// The pinned leading from `badge.css`: `.badge` and `.badge--sm` are
+/// `leading-[1.34]`, `.badge--lg` is `leading-[1.43]` — unitless multipliers
+/// of the badge's own text size. Read through a paint-time text-style probe
+/// inside the badge's label.
+#[gpui::test]
+fn badge_leading_matches_the_pinned_css(cx: &mut TestAppContext) {
+    for (size, expected) in [
+        (Size::Sm, "10.00/13.40"),
+        (Size::Md, "12.00/16.08"),
+        (Size::Lg, "14.00/20.02"),
+    ] {
+        let seen = Rc::new(RefCell::new(None::<(f32, f32)>));
+        {
+            open_host(cx, {
+                let seen = seen.clone();
+                move || {
+                    gpui::div()
+                        .pt(px(40.))
+                        .pl(px(100.))
+                        .flex()
+                        .child(
+                            BadgeAnchor::new()
+                                .child(gpui::div().w(px(64.)).h(px(64.)))
+                                .child(
+                                    Badge::new().size(size).child(
+                                        canvas(|_, _, _| {}, {
+                                            let seen = seen.clone();
+                                            move |_, _, window, _| {
+                                                let style = window.text_style();
+                                                let rem = window.rem_size();
+                                                let font = style.font_size.to_pixels(rem);
+                                                *seen.borrow_mut() = Some((
+                                                    f32::from(font),
+                                                    f32::from(style.line_height.to_pixels(
+                                                        AbsoluteLength::Pixels(font),
+                                                        rem,
+                                                    )),
+                                                ));
+                                            }
+                                        })
+                                        .size_0(),
+                                    ),
+                                ),
+                        )
+                        .into_any_element()
+                }
+            });
+        }
+        let (font, leading) = seen.borrow().unwrap_or_else(|| panic!("probe must paint"));
+        assert_eq!(
+            format!("{font:.2}/{leading:.2}"),
+            expected,
+            "{size:?} badge must carry its pinned text size and leading"
+        );
+    }
+}
+
+/// `.badge-anchor` is `relative inline-flex shrink-0`; GPUI's default
+/// `flex_shrink` is 1.0, so without the ported `flex_shrink_0` the anchor
+/// wrapper compresses in an overflowing row: an 80px row with a 64px anchor
+/// and a 64px sibling shrinks the wrapper to 40px, while `shrink-0` must keep
+/// it at the 64px content width.
+#[gpui::test]
+fn badge_anchor_keeps_its_width_in_an_overflowing_row(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .pt(px(20.))
+            .flex()
+            .w(px(80.))
+            .child(
+                BadgeAnchor::new()
+                    .child(gpui::div().w(px(64.)).h(px(16.)))
+                    .child(Badge::new().child(BadgeLabel::new().child("5"))),
+            )
+            .child(gpui::div().w(px(64.)).h(px(16.)))
+            .into_any_element()
+    });
+    let anchor = cx
+        .debug_bounds("badge-anchor")
+        .unwrap_or_else(|| panic!("badge anchor must paint"));
+    assert_eq!(
+        format!("{:.1}", f32::from(anchor.size.width)),
+        "64.0",
+        "the badge anchor must not shrink below its content in an overflowing row"
+    );
 }
 
 /// Avatar's v3 table is size/color/variant on the root, `Avatar.Image`

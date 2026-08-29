@@ -52,10 +52,15 @@ fn cal_day(year: i32, month: u32, day: u32) -> (f32, f32) {
     (cal_col_x(idx % 7), cal_row_y(idx / 7))
 }
 
+/// The centre of the cell holding `day` of `(year, month)` in a bare
+/// RangeCalendar, derived from the month's leading blanks. The pinned grid
+/// runs seven 36px cells across the 252px width with no horizontal gaps, and
+/// 40px per row: the 36px cell plus the pinned `my-[2px]` cell margins that
+/// separate two rows.
 fn range_day(year: i32, month: u32, day: u32) -> (f32, f32) {
     let lead = DateConstraints::new().lead_cells(year, month);
     let idx = day as usize + lead - 1;
-    (19. + 38. * (idx % 7) as f32, 75. + 40. * (idx / 7) as f32)
+    (18. + 36. * (idx % 7) as f32, 74. + 40. * (idx / 7) as f32)
 }
 
 /// React Aria disables a month button when the day immediately beyond that
@@ -89,7 +94,7 @@ fn calendar_nav_buttons_stop_at_min_and_max(cx: &mut TestAppContext) {
 }
 
 /// RangeCalendar inherits the same useCalendarBase button contract. Its
-/// 266px column puts the next button at x=252; both adjacent months are fully
+/// 252px column puts the next button at x=238; both adjacent months are fully
 /// outside the allowed August interval.
 #[gpui::test]
 fn range_calendar_nav_buttons_stop_at_min_and_max(cx: &mut TestAppContext) {
@@ -110,7 +115,7 @@ fn range_calendar_nav_buttons_stop_at_min_and_max(cx: &mut TestAppContext) {
     });
     assert_eq!(previous, (2026, 8), "previous must stop at minValue");
 
-    click(cx, 252., 12.);
+    click(cx, 238., 12.);
     let next = cx.update(|_, cx| {
         let state = state.read(cx);
         (state.view_year, state.view_month)
@@ -181,7 +186,7 @@ fn range_calendar_implicit_bounds_stop_navigation(cx: &mut TestAppContext) {
         });
         window.refresh();
     });
-    click(cx, 252., 12.);
+    click(cx, 238., 12.);
     assert_eq!(
         cx.update(|_, cx| (state.read(cx).view_year, state.read(cx).view_month)),
         (2099, 12)
@@ -1823,4 +1828,880 @@ fn calendar_multiple_selection_reports_the_full_date_set(cx: &mut TestAppContext
         ],
         "the full callback must report the set after pointer and keyboard toggles"
     );
+}
+
+/// Turns a built selector string into the `&'static str` `debug_bounds`
+/// wants; only tests read these, so leaking is fine.
+fn leak(selector: String) -> &'static str {
+    Box::leak(selector.into_boxed_str())
+}
+
+/// A cell registers its bounds under its element-id key, whose prefix is the
+/// component id's Debug form (`Name("cal-N")`).
+fn cal_cell_selector(entity_id: u64, year: i32, month: u32, day: u32) -> String {
+    format!(r#"Name("cal-{entity_id}")-{year}-{month}-d{day}"#)
+}
+
+/// The cell indicator registers its bounds under the day circle's key plus
+/// `-indicator`.
+fn cal_indicator_selector(entity_id: u64, year: i32, month: u32, day: u32) -> String {
+    format!(r#"Name("cal-{entity_id}")-{year}-{month}-d{day}-indicator"#)
+}
+
+/// A pressed cell registers its bounds under its element-id key, whose
+/// prefix is the component id's Debug form (`Name("range-cal-N")`).
+fn range_cell_selector(entity_id: u64, year: i32, month: u32, day: u32) -> String {
+    format!(r#"Name("range-cal-{entity_id}")-{year}-{month}-day-{day}"#)
+}
+
+/// The outer `.range-calendar__cell` around a day registers its bounds under
+/// the inner button's key plus `-track`. It carries the range track fill,
+/// which must not scale with the pressed inner button.
+fn range_track_selector(entity_id: u64, year: i32, month: u32, day: u32) -> String {
+    format!(r#"Name("range-cal-{entity_id}")-{year}-{month}-day-{day}-track"#)
+}
+
+/// The centre of a probed cell, so the simulated press lands on the cell the
+/// frame actually laid out rather than on a derived coordinate.
+fn centre_of(bounds: gpui::Bounds<gpui::Pixels>) -> gpui::Point<gpui::Pixels> {
+    point(
+        px(f32::from(bounds.origin.x) + f32::from(bounds.size.width) / 2.),
+        px(f32::from(bounds.origin.y) + f32::from(bounds.size.height) / 2.),
+    )
+}
+
+/// The pinned pressed state scales the day cell to 0.95 and must still land
+/// its click: the pressed background merges with the press geometry in one
+/// refinement (`anim::pressed_with_background`), so a mid-press frame shows
+/// the shrunken circle and the release selects the day. A chained `.active`
+/// after `anim::pressed` would overwrite the whole refinement and leave the
+/// cell at its full 36px while pressed -- and a selected cell with no press
+/// at all would too, since the pinned CSS presses `bg-accent-hover` under
+/// `[data-selected]` as well.
+#[gpui::test]
+fn calendar_day_press_scales_and_still_selects(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let recorded = events();
+    let held = recorded.clone();
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let for_view = held.clone();
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .on_change(move |date, _, _| {
+                for_view
+                    .borrow_mut()
+                    .push(date.expect("a click always carries a date").format_iso());
+            })
+            .into_any_element()
+    });
+
+    // The selected day presses and releases through the accent-hover branch.
+    let selected = leak(cal_cell_selector(state.entity_id().as_u64(), 2026, 8, 15));
+    let at_rest = cx
+        .debug_bounds(selected)
+        .expect("the day cell registered its bounds")
+        .size;
+    assert!(
+        (f32::from(at_rest.width) - 36.).abs() < 0.01
+            && (f32::from(at_rest.height) - 36.).abs() < 0.01,
+        "a resting day cell is a 36px circle, got {at_rest:?}"
+    );
+    let centre = centre_of(
+        cx.debug_bounds(selected)
+            .expect("the day cell registered its bounds"),
+    );
+    cx.simulate_mouse_move(centre, None, Modifiers::none());
+    cx.refresh().unwrap();
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    let pressed = cx
+        .debug_bounds(selected)
+        .expect("the pressed cell kept its bounds")
+        .size;
+    assert!(
+        (f32::from(pressed.width) - 34.2).abs() < 0.5
+            && (f32::from(pressed.height) - 34.2).abs() < 0.5,
+        "a pressed day cell must scale to 0.95 (34.2px), got {pressed:?}"
+    );
+    cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    let released = cx.debug_bounds(selected).expect("the cell survives").size;
+    assert!(
+        (f32::from(released.width) - 36.).abs() < 0.01,
+        "the cell springs back after the release, got {released:?}"
+    );
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["2026-08-15"],
+        "the release must still select the day"
+    );
+
+    // A plain unselected day presses through the bg-default branch the same
+    // way.
+    let plain = leak(cal_cell_selector(state.entity_id().as_u64(), 2026, 8, 10));
+    let centre = centre_of(
+        cx.debug_bounds(plain)
+            .expect("the plain day cell registered its bounds"),
+    );
+    cx.simulate_mouse_move(centre, None, Modifiers::none());
+    cx.refresh().unwrap();
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    let pressed = cx
+        .debug_bounds(plain)
+        .expect("the pressed plain cell kept its bounds")
+        .size;
+    assert!(
+        (f32::from(pressed.width) - 34.2).abs() < 0.5
+            && (f32::from(pressed.height) - 34.2).abs() < 0.5,
+        "a pressed plain day cell must scale to 0.95 (34.2px), got {pressed:?}"
+    );
+    cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["2026-08-15", "2026-08-10"],
+        "the release must select the plain day through the unchanged handler"
+    );
+}
+
+/// A nav button registers its bounds under its element-id key, whose prefix is
+/// the component id's Debug form (`Name("cal-N")`). The month header and the
+/// week/day header share one `nav_btn` builder, so the same key serves both.
+fn cal_nav_selector(entity_id: u64, side: &str) -> String {
+    format!(r#"Name("cal-{entity_id}")-{side}"#)
+}
+
+/// The pinned `.calendar__nav-button:active` is a bare `transform: scale(0.95)`
+/// on top of the hover fill, so a mid-press frame shows the shrunken 24px box
+/// and the release still pages the month. The chevron itself keeps its size
+/// (gpui 0.2.2 cannot transform an svg), like every `anim::pressed` icon-only
+/// control.
+#[gpui::test]
+fn calendar_nav_press_scales_and_still_pages(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .into_any_element()
+    });
+    let entity_id = state.entity_id().as_u64();
+
+    for (side, expected) in [
+        ("prev", Date::new(2026, 7, 15)),
+        ("next", Date::new(2026, 8, 15)),
+    ] {
+        let selector = leak(cal_nav_selector(entity_id, side));
+        let at_rest = cx
+            .debug_bounds(selector)
+            .unwrap_or_else(|| panic!("the {side} nav button registered its bounds"))
+            .size;
+        assert!(
+            (f32::from(at_rest.width) - 24.).abs() < 0.01
+                && (f32::from(at_rest.height) - 24.).abs() < 0.01,
+            "a resting nav button is a 24px square, got {at_rest:?}"
+        );
+        let centre = centre_of(
+            cx.debug_bounds(selector)
+                .unwrap_or_else(|| panic!("the {side} nav button registered its bounds")),
+        );
+        cx.simulate_mouse_move(centre, None, Modifiers::none());
+        cx.refresh().unwrap();
+        cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+        cx.refresh().unwrap();
+        let pressed = cx
+            .debug_bounds(selector)
+            .expect("the pressed nav button kept its bounds")
+            .size;
+        assert!(
+            (f32::from(pressed.width) - 22.8).abs() < 0.5
+                && (f32::from(pressed.height) - 22.8).abs() < 0.5,
+            "a pressed nav button must scale to 0.95 (22.8px), got {pressed:?}"
+        );
+        cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
+        cx.refresh().unwrap();
+        let released = cx
+            .debug_bounds(selector)
+            .expect("the nav button survives")
+            .size;
+        assert!(
+            (f32::from(released.width) - 24.).abs() < 0.01,
+            "the nav button springs back after the release, got {released:?}"
+        );
+        assert_eq!(
+            cx.update(|_, cx| state.read(cx).anchor()),
+            expected,
+            "the {side} release must page the month"
+        );
+    }
+}
+
+/// The week/day header reuses the same `nav_btn` builder, and its next button
+/// pages across the December→January boundary. The press must scale there too,
+/// and the release must land the year-crossing anchor.
+#[gpui::test]
+fn calendar_day_view_nav_presses_across_the_year_boundary(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 12, 30))
+            .visible_duration(VisibleDuration::Days(3))
+            .into_any_element()
+    });
+
+    let selector = leak(cal_nav_selector(state.entity_id().as_u64(), "next"));
+    let rest = cx
+        .debug_bounds(selector)
+        .expect("the day view's next button registered its bounds")
+        .size;
+    let centre = centre_of(
+        cx.debug_bounds(selector)
+            .expect("the day view's next button registered its bounds"),
+    );
+    cx.simulate_mouse_move(centre, None, Modifiers::none());
+    cx.refresh().unwrap();
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    let pressed = cx
+        .debug_bounds(selector)
+        .expect("the pressed next button kept its bounds")
+        .size;
+    // The long range heading squeezes the fixed-width button horizontally at
+    // rest, so the horizontal check is the press inset giving way (2 * 0.6px)
+    // rather than the absolute 22.8; the height carries the 0.95 scale.
+    assert!(
+        (f32::from(pressed.height) - 22.8).abs() < 0.5
+            && (f32::from(pressed.width) - (f32::from(rest.width) - 1.2)).abs() < 0.5,
+        "the day view's pressed nav button must scale to 0.95, got {rest:?} -> {pressed:?}"
+    );
+    cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    // The selection realigns the window before the first frame, so the paged
+    // anchor is the realigned one advanced by the visible day count; what the
+    // boundary proves is that the release moved the window into 2027.
+    let after = cx.update(|_, cx| state.read(cx).anchor());
+    assert_eq!(
+        (after.year, after.month),
+        (2027, 1),
+        "the release must page the three-day window into the next year, got {after:?}"
+    );
+}
+
+/// A min/max-blocked nav button is disabled: no press geometry and no paging.
+/// The disabled button keeps its id (only its handlers are gated), so its
+/// bounds stay observable.
+#[gpui::test]
+fn calendar_disabled_nav_button_neither_presses_nor_pages(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .min_value(Date::new(2026, 8, 10))
+            .max_value(Date::new(2026, 8, 20))
+            .into_any_element()
+    });
+
+    let selector = leak(cal_nav_selector(state.entity_id().as_u64(), "prev"));
+    let bounds = cx
+        .debug_bounds(selector)
+        .expect("the disabled nav button registered its bounds");
+    let centre = centre_of(bounds);
+    cx.simulate_mouse_move(centre, None, Modifiers::none());
+    cx.refresh().unwrap();
+    cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    let pressed = cx
+        .debug_bounds(selector)
+        .expect("the disabled nav button kept its bounds")
+        .size;
+    assert!(
+        (f32::from(pressed.width) - 24.).abs() < 0.01
+            && (f32::from(pressed.height) - 24.).abs() < 0.01,
+        "a disabled nav button must not scale, got {pressed:?}"
+    );
+    cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2026, 8, 15),
+        "a disabled nav button must not page"
+    );
+}
+
+/// The pinned range pressed state scales only the inner
+/// `.range-calendar__cell-button` to 0.9 -- caps and the middle of the range
+/// alike -- while the outer `.range-calendar__cell` keeps the range track at
+/// its full 36px, so a pressed middle cell never breaks the run. The release
+/// still drives the anchor/extend pick. A chained `.active` after
+/// `anim::pressed` would overwrite the whole refinement and leave the button
+/// at its full 36px.
+#[gpui::test]
+fn range_calendar_press_scales_caps_and_interior_and_still_picks(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let recorded = events();
+    let held = recorded.clone();
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let for_view = held.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .default_value((Date::new(2026, 8, 10), Date::new(2026, 8, 14)))
+            .on_change(move |start, end, _, _| {
+                for_view
+                    .borrow_mut()
+                    .push(format!("{}..{}", start.format_iso(), end.format_iso()));
+            })
+            .into_any_element()
+    });
+
+    let entity_id = state.entity_id().as_u64();
+    let cap = leak(range_cell_selector(entity_id, 2026, 8, 10));
+    let middle = leak(range_cell_selector(entity_id, 2026, 8, 12));
+    for selector in [cap, middle] {
+        let at_rest = cx
+            .debug_bounds(selector)
+            .expect("the range cell registered its bounds")
+            .size;
+        assert!(
+            (f32::from(at_rest.width) - 36.).abs() < 0.01
+                && (f32::from(at_rest.height) - 36.).abs() < 0.01,
+            "a resting range cell is a 36px square, got {at_rest:?}"
+        );
+    }
+
+    // The range track is continuous across the middle days: every outer cell
+    // keeps the 36px footprint and the neighbours touch with no gap.
+    let track11 = leak(range_track_selector(entity_id, 2026, 8, 11));
+    let track12 = leak(range_track_selector(entity_id, 2026, 8, 12));
+    let track13 = leak(range_track_selector(entity_id, 2026, 8, 13));
+    for selector in [track11, track12, track13] {
+        let at_rest = cx
+            .debug_bounds(selector)
+            .expect("the range track registered its bounds")
+            .size;
+        assert!(
+            (f32::from(at_rest.width) - 36.).abs() < 0.01
+                && (f32::from(at_rest.height) - 36.).abs() < 0.01,
+            "a resting range track is a 36px square, got {at_rest:?}"
+        );
+    }
+    let track11_at_rest = cx
+        .debug_bounds(track11)
+        .expect("the range track registered its bounds");
+    let track12_at_rest = cx
+        .debug_bounds(track12)
+        .expect("the range track registered its bounds");
+    let track13_at_rest = cx
+        .debug_bounds(track13)
+        .expect("the range track registered its bounds");
+    assert!(
+        (f32::from(track11_at_rest.origin.x) + 36. - f32::from(track12_at_rest.origin.x)).abs()
+            < 0.01
+            && (f32::from(track12_at_rest.origin.x) + 36. - f32::from(track13_at_rest.origin.x))
+                .abs()
+                < 0.01,
+        "adjacent middle tracks must touch -- got {track11_at_rest:?}, \
+         {track12_at_rest:?}, {track13_at_rest:?}"
+    );
+
+    // Press the start cap: the 0.9 scale must show mid-press.
+    let (x, y) = range_day(2026, 8, 10);
+    cx.simulate_mouse_move(point(px(x), px(y)), None, Modifiers::none());
+    cx.refresh().unwrap();
+    cx.simulate_mouse_down(point(px(x), px(y)), MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    let pressed = cx
+        .debug_bounds(cap)
+        .expect("the pressed cap kept its bounds")
+        .size;
+    assert!(
+        (f32::from(pressed.width) - 32.4).abs() < 0.5
+            && (f32::from(pressed.height) - 32.4).abs() < 0.5,
+        "a pressed range cell must scale to 0.9 (32.4px), got {pressed:?}"
+    );
+    cx.simulate_mouse_up(point(px(x), px(y)), MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    assert!(
+        recorded.borrow().is_empty(),
+        "re-picking a cap starts a new anchor; no complete range is published yet"
+    );
+
+    // Press a middle cell: the inner button takes the same 0.9 scale while
+    // the outer track -- here and on the untouched neighbour -- keeps its
+    // full 36px, and the release completes the range through the unchanged
+    // click handler.
+    let (x, y) = range_day(2026, 8, 12);
+    cx.simulate_mouse_move(point(px(x), px(y)), None, Modifiers::none());
+    cx.refresh().unwrap();
+    cx.simulate_mouse_down(point(px(x), px(y)), MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    let pressed = cx
+        .debug_bounds(middle)
+        .expect("the pressed middle cell kept its bounds")
+        .size;
+    assert!(
+        (f32::from(pressed.width) - 32.4).abs() < 0.5
+            && (f32::from(pressed.height) - 32.4).abs() < 0.5,
+        "a pressed middle cell-button must scale to 0.9 (32.4px), got {pressed:?}"
+    );
+    for (selector, label) in [(track12, "the pressed"), (track11, "the neighbour")] {
+        let held_bounds = cx
+            .debug_bounds(selector)
+            .unwrap_or_else(|| panic!("{label} track kept its bounds"));
+        assert!(
+            (f32::from(held_bounds.size.width) - 36.).abs() < 0.01
+                && (f32::from(held_bounds.size.height) - 36.).abs() < 0.01,
+            "{label} middle track must stay a 36px square while the inner \
+             button presses, got {held_bounds:?}"
+        );
+    }
+    cx.simulate_mouse_up(point(px(x), px(y)), MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["2026-08-10..2026-08-12"],
+        "the release must complete the range"
+    );
+}
+
+/// A pressed today cell takes the same branch as a pressed middle cell: the
+/// inner `.range-calendar__cell-button` scales to 0.9 while the outer cell
+/// keeps its 36px footprint, and the release picks today as the range anchor.
+/// Today is derived at runtime -- the component and the test both read
+/// `Date::today()`, so no wall-clock date is hardcoded.
+#[gpui::test]
+fn range_calendar_today_press_scales_the_inner_button_and_keeps_the_cell(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let recorded = events();
+    let held = recorded.clone();
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let for_view = held.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .on_change(move |start, end, _, _| {
+                for_view
+                    .borrow_mut()
+                    .push(format!("{}..{}", start.format_iso(), end.format_iso()));
+            })
+            .into_any_element()
+    });
+
+    // `DateRangeState::new` anchors the view on today, so the today cell is
+    // an in-month, unselected cell of the default grid.
+    let today = Date::today();
+    let entity_id = state.entity_id().as_u64();
+    let button = leak(range_cell_selector(
+        entity_id,
+        today.year,
+        today.month,
+        today.day,
+    ));
+    let track = leak(range_track_selector(
+        entity_id,
+        today.year,
+        today.month,
+        today.day,
+    ));
+
+    let at_rest = cx
+        .debug_bounds(button)
+        .expect("the today cell registered its bounds")
+        .size;
+    assert!(
+        (f32::from(at_rest.width) - 36.).abs() < 0.01
+            && (f32::from(at_rest.height) - 36.).abs() < 0.01,
+        "a resting today cell-button is a 36px square, got {at_rest:?}"
+    );
+
+    let (x, y) = range_day(today.year, today.month, today.day);
+    cx.simulate_mouse_move(point(px(x), px(y)), None, Modifiers::none());
+    cx.refresh().unwrap();
+    cx.simulate_mouse_down(point(px(x), px(y)), MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    let pressed = cx
+        .debug_bounds(button)
+        .expect("the pressed today cell kept its bounds")
+        .size;
+    assert!(
+        (f32::from(pressed.width) - 32.4).abs() < 0.5
+            && (f32::from(pressed.height) - 32.4).abs() < 0.5,
+        "a pressed today cell-button must scale to 0.9 (32.4px), got {pressed:?}"
+    );
+    let held_cell = cx
+        .debug_bounds(track)
+        .expect("the outer cell kept its bounds");
+    assert!(
+        (f32::from(held_cell.size.width) - 36.).abs() < 0.01
+            && (f32::from(held_cell.size.height) - 36.).abs() < 0.01,
+        "the outer cell must stay a 36px square while the inner button \
+         presses, got {held_cell:?}"
+    );
+    cx.simulate_mouse_up(point(px(x), px(y)), MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+
+    let start = cx.update(|_, cx| state.read(cx).start);
+    assert_eq!(start, Some(today), "the release must anchor on today");
+    assert!(
+        recorded.borrow().is_empty(),
+        "a first pick anchors; no complete range is published yet"
+    );
+}
+
+/// `isInvalid` swaps the accent for danger everywhere, the pressed state
+/// included: a pressed cap recolours under the same 0.9 inner-button scale,
+/// and a pressed middle cell leaves the danger track -- its own and its
+/// neighbour's -- at the full 36px. The range derives from `Date::today()`
+/// at runtime, so no wall-clock date is hardcoded; days 10-14 always exist
+/// inside today's month.
+#[gpui::test]
+fn range_calendar_invalid_press_scales_the_inner_button_and_keeps_the_track(
+    cx: &mut TestAppContext,
+) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let recorded = events();
+    let held = recorded.clone();
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let for_view = held.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .is_invalid(true)
+            .default_value((
+                Date::new(Date::today().year, Date::today().month, 10),
+                Date::new(Date::today().year, Date::today().month, 14),
+            ))
+            .on_change(move |start, end, _, _| {
+                for_view
+                    .borrow_mut()
+                    .push(format!("{}..{}", start.format_iso(), end.format_iso()));
+            })
+            .into_any_element()
+    });
+
+    let month = Date::today();
+    let (year, month) = (month.year, month.month);
+    let entity_id = state.entity_id().as_u64();
+    let cap = leak(range_cell_selector(entity_id, year, month, 10));
+    let middle = leak(range_cell_selector(entity_id, year, month, 12));
+    let track11 = leak(range_track_selector(entity_id, year, month, 11));
+    let track12 = leak(range_track_selector(entity_id, year, month, 12));
+
+    // Press the invalid start cap: the 0.9 scale must show mid-press, and
+    // the release re-anchors without publishing a range.
+    let (x, y) = range_day(year, month, 10);
+    cx.simulate_mouse_move(point(px(x), px(y)), None, Modifiers::none());
+    cx.refresh().unwrap();
+    cx.simulate_mouse_down(point(px(x), px(y)), MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    let pressed = cx
+        .debug_bounds(cap)
+        .expect("the pressed invalid cap kept its bounds")
+        .size;
+    assert!(
+        (f32::from(pressed.width) - 32.4).abs() < 0.5
+            && (f32::from(pressed.height) - 32.4).abs() < 0.5,
+        "a pressed invalid cap must scale to 0.9 (32.4px), got {pressed:?}"
+    );
+    cx.simulate_mouse_up(point(px(x), px(y)), MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    assert!(
+        recorded.borrow().is_empty(),
+        "re-picking a cap starts a new anchor; no complete range is published yet"
+    );
+
+    // Press an invalid middle cell: the danger track keeps its full 36px
+    // here and on the neighbour, the inner button still scales, and the
+    // release completes the range through the unchanged handler.
+    let (x, y) = range_day(year, month, 12);
+    cx.simulate_mouse_move(point(px(x), px(y)), None, Modifiers::none());
+    cx.refresh().unwrap();
+    cx.simulate_mouse_down(point(px(x), px(y)), MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    let pressed = cx
+        .debug_bounds(middle)
+        .expect("the pressed invalid middle cell kept its bounds")
+        .size;
+    assert!(
+        (f32::from(pressed.width) - 32.4).abs() < 0.5
+            && (f32::from(pressed.height) - 32.4).abs() < 0.5,
+        "a pressed invalid middle cell-button must scale to 0.9 (32.4px), got {pressed:?}"
+    );
+    for (selector, label) in [(track12, "the pressed"), (track11, "the neighbour")] {
+        let held_bounds = cx
+            .debug_bounds(selector)
+            .unwrap_or_else(|| panic!("{label} invalid track kept its bounds"));
+        assert!(
+            (f32::from(held_bounds.size.width) - 36.).abs() < 0.01
+                && (f32::from(held_bounds.size.height) - 36.).abs() < 0.01,
+            "{label} invalid middle track must stay a 36px square while the \
+             inner button presses, got {held_bounds:?}"
+        );
+    }
+    cx.simulate_mouse_up(point(px(x), px(y)), MouseButton::Left, Modifiers::none());
+    cx.refresh().unwrap();
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [format!(
+            "{}..{}",
+            Date::new(year, month, 10).format_iso(),
+            Date::new(year, month, 12).format_iso()
+        )],
+        "the release must complete the range through the danger tokens"
+    );
+}
+
+/// A range nav button registers its bounds under its element-id key, whose
+/// prefix is the component id's Debug form (`Name("range-cal-N")`).
+fn range_nav_selector(entity_id: u64, side: &str) -> String {
+    format!(r#"Name("range-cal-{entity_id}")-{side}"#)
+}
+
+/// The cell indicator registers its bounds under the inner button's key plus
+/// `-indicator`.
+fn range_indicator_selector(entity_id: u64, year: i32, month: u32, day: u32) -> String {
+    format!(r#"Name("range-cal-{entity_id}")-{year}-{month}-day-{day}-indicator"#)
+}
+
+/// The pinned range track runs under the caps too, and it stays continuous
+/// across a week boundary: the last column of a row closes the run at the
+/// 252px right edge, the first column of the next row reopens it at x = 0
+/// exactly one 40px row pitch lower. August 2026 starts on a Saturday, so the
+/// five leading blanks put day 16 in the last column of its row and day 17 in
+/// the first column of the next one.
+#[gpui::test]
+fn range_calendar_track_crosses_the_row_boundary_and_caps_carry_it(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        RangeCalendar::new(state_for_view.clone())
+            .default_value((Date::new(2026, 8, 13), Date::new(2026, 8, 20)))
+            .into_any_element()
+    });
+
+    let entity_id = state.entity_id().as_u64();
+    let start_cap = leak(range_track_selector(entity_id, 2026, 8, 13));
+    let row_last = leak(range_track_selector(entity_id, 2026, 8, 16));
+    let row_first = leak(range_track_selector(entity_id, 2026, 8, 17));
+    let end_cap = leak(range_track_selector(entity_id, 2026, 8, 20));
+
+    // The caps carry the outer soft track as well: every selected cell's
+    // outer box registers its full 36px bounds.
+    for (selector, label) in [
+        (start_cap, "the start cap"),
+        (row_last, "the row's last interior day"),
+        (row_first, "the next row's first interior day"),
+        (end_cap, "the end cap"),
+    ] {
+        let bounds = cx
+            .debug_bounds(selector)
+            .unwrap_or_else(|| panic!("{label} track registered its bounds"));
+        assert!(
+            (f32::from(bounds.size.width) - 36.).abs() < 0.01
+                && (f32::from(bounds.size.height) - 36.).abs() < 0.01,
+            "{label} track must be a 36px square, got {bounds:?}"
+        );
+    }
+
+    let start = cx
+        .debug_bounds(start_cap)
+        .expect("the start cap registered its bounds");
+    let last = cx
+        .debug_bounds(row_last)
+        .expect("the row's last interior track registered its bounds");
+    let first = cx
+        .debug_bounds(row_first)
+        .expect("the next row's first interior track registered its bounds");
+    let end = cx
+        .debug_bounds(end_cap)
+        .expect("the end cap registered its bounds");
+
+    // Day 16 closes the row at the calendar's right edge; day 17 reopens it
+    // at x = 0, one 40px row pitch below.
+    assert!(
+        (f32::from(last.origin.x) + 36. - f32::from(CALENDAR_WIDTH)).abs() < 0.01,
+        "the last column's track must close the row at the 252px edge, got {last:?}"
+    );
+    assert!(
+        f32::from(first.origin.x).abs() < 0.01,
+        "the next row's first track must start at x = 0, got {first:?}"
+    );
+    assert!(
+        (f32::from(first.origin.y) - (f32::from(last.origin.y) + 40.)).abs() < 0.01,
+        "the track must resume exactly one 40px row pitch below the boundary, \
+         got {last:?} then {first:?}"
+    );
+
+    // The caps sit where the grid puts them: the start cap three columns
+    // left of the row's last interior day, the end cap one row below and
+    // three columns right of the boundary -- the run never breaks.
+    assert!(
+        (f32::from(last.origin.x) - (f32::from(start.origin.x) + 3. * 36.)).abs() < 0.01
+            && (f32::from(last.origin.y) - f32::from(start.origin.y)).abs() < 0.01,
+        "the start cap must share the row with the last interior day, \
+         got {start:?} then {last:?}"
+    );
+    assert!(
+        (f32::from(end.origin.y) - f32::from(first.origin.y)).abs() < 0.01
+            && (f32::from(end.origin.x) - (f32::from(first.origin.x) + 3. * 36.)).abs() < 0.01,
+        "the end cap must share the next row with the first interior day, \
+         got {first:?} then {end:?}"
+    );
+}
+
+/// The pinned `.range-calendar__cell-indicator` is a 3px dot at `bottom-1` --
+/// 4px above the cell's bottom edge, centred in the 36px cell.
+#[gpui::test]
+fn range_calendar_indicator_sits_four_pixels_above_the_cell_bottom(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        RangeCalendar::new(state_for_view.clone())
+            .default_value((Date::new(2026, 8, 10), Date::new(2026, 8, 14)))
+            .cell_indicator(|date| date.month == 8 && date.day == 12)
+            .into_any_element()
+    });
+
+    let entity_id = state.entity_id().as_u64();
+    let track = leak(range_track_selector(entity_id, 2026, 8, 12));
+    let indicator = leak(range_indicator_selector(entity_id, 2026, 8, 12));
+
+    let cell = cx
+        .debug_bounds(track)
+        .expect("the marked cell registered its bounds");
+    let dot = cx
+        .debug_bounds(indicator)
+        .expect("the indicator registered its bounds");
+    assert!(
+        (f32::from(dot.size.width) - 3.).abs() < 0.01
+            && (f32::from(dot.size.height) - 3.).abs() < 0.01,
+        "the indicator is a 3px dot, got {dot:?}"
+    );
+    assert!(
+        (f32::from(dot.origin.x) + 1.5 - (f32::from(cell.origin.x) + 18.)).abs() < 0.01,
+        "the indicator must be centred in the cell, got {dot:?} in {cell:?}"
+    );
+    assert!(
+        (f32::from(dot.origin.y) + 3. - (f32::from(cell.origin.y) + 36. - 4.)).abs() < 0.01,
+        "the indicator must sit 4px (bottom-1) above the cell's bottom edge, \
+         got {dot:?} in {cell:?}"
+    );
+}
+
+/// The pinned `.calendar__cell-indicator` is a 3px dot at `bottom-1` --
+/// 4px above the 36px cell's bottom edge, centred in the slot like the
+/// RangeCalendar's dot, not hanging 2px low.
+#[gpui::test]
+fn calendar_indicator_sits_four_pixels_above_the_cell_bottom(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .cell_indicator(|date| date.month == 8 && date.day == 12)
+            .into_any_element()
+    });
+
+    let entity_id = state.entity_id().as_u64();
+    let circle = leak(cal_cell_selector(entity_id, 2026, 8, 12));
+    let indicator = leak(cal_indicator_selector(entity_id, 2026, 8, 12));
+
+    let cell = cx
+        .debug_bounds(circle)
+        .expect("the marked day circle registered its bounds");
+    let dot = cx
+        .debug_bounds(indicator)
+        .expect("the indicator registered its bounds");
+    assert!(
+        (f32::from(dot.size.width) - 3.).abs() < 0.01
+            && (f32::from(dot.size.height) - 3.).abs() < 0.01,
+        "the indicator is a 3px dot, got {dot:?}"
+    );
+    // The slot's flex alignment centres the dot the same way it centres the
+    // 36px day circle: both share the slot's horizontal centre.
+    assert!(
+        (f32::from(dot.origin.x) + 1.5 - (f32::from(cell.origin.x) + 18.)).abs() < 0.01,
+        "the indicator must be centred in the cell, got {dot:?} in {cell:?}"
+    );
+    assert!(
+        (f32::from(dot.origin.y) + 3. - (f32::from(cell.origin.y) + 36. - 4.)).abs() < 0.01,
+        "the indicator must sit 4px (bottom-1) above the cell's bottom edge, \
+         got {dot:?} in {cell:?}"
+    );
+}
+
+/// The pinned `.range-calendar__nav-button:active` is a bare
+/// `transform: scale(0.95)` on top of the hover fill, so a mid-press frame
+/// shows the shrunken 24px box and the release still pages the month. The
+/// chevron itself keeps its size (gpui 0.2.2 cannot transform an svg), like
+/// every `anim::pressed` icon-only control.
+#[gpui::test]
+fn range_calendar_nav_press_scales_and_still_pages(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        RangeCalendar::new(state_for_view.clone()).into_any_element()
+    });
+    let entity_id = state.entity_id().as_u64();
+
+    // `DateRangeState::new` anchors the view on today, so each press pages
+    // from whatever month the view holds at that point.
+    let mut expected = (Date::today().year, Date::today().month);
+    for (side, step) in [("prev", -1), ("next", 1)] {
+        let selector = leak(range_nav_selector(entity_id, side));
+        let at_rest = cx
+            .debug_bounds(selector)
+            .unwrap_or_else(|| panic!("the {side} nav button registered its bounds"))
+            .size;
+        assert!(
+            (f32::from(at_rest.width) - 24.).abs() < 0.01
+                && (f32::from(at_rest.height) - 24.).abs() < 0.01,
+            "a resting nav button is a 24px square, got {at_rest:?}"
+        );
+        let centre = centre_of(
+            cx.debug_bounds(selector)
+                .unwrap_or_else(|| panic!("the {side} nav button registered its bounds")),
+        );
+        cx.simulate_mouse_move(centre, None, Modifiers::none());
+        cx.refresh().unwrap();
+        cx.simulate_mouse_down(centre, MouseButton::Left, Modifiers::none());
+        cx.refresh().unwrap();
+        let pressed = cx
+            .debug_bounds(selector)
+            .expect("the pressed nav button kept its bounds")
+            .size;
+        assert!(
+            (f32::from(pressed.width) - 22.8).abs() < 0.5
+                && (f32::from(pressed.height) - 22.8).abs() < 0.5,
+            "a pressed nav button must scale to 0.95 (22.8px), got {pressed:?}"
+        );
+        cx.simulate_mouse_up(centre, MouseButton::Left, Modifiers::none());
+        cx.refresh().unwrap();
+        let released = cx
+            .debug_bounds(selector)
+            .expect("the nav button survives")
+            .size;
+        assert!(
+            (f32::from(released.width) - 24.).abs() < 0.01,
+            "the nav button springs back after the release, got {released:?}"
+        );
+        let (view_year, view_month) = cx.update(|_, cx| {
+            let state = state.read(cx);
+            (state.view_year, state.view_month)
+        });
+        let stepped = expected.1 as i32 - 1 + step;
+        expected = if stepped < 0 {
+            (expected.0 - 1, 12)
+        } else if stepped > 11 {
+            (expected.0 + 1, 1)
+        } else {
+            (expected.0, stepped as u32 + 1)
+        };
+        assert_eq!(
+            (view_year, view_month),
+            expected,
+            "the {side} release must page the month"
+        );
+    }
 }

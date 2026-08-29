@@ -33,9 +33,11 @@
 //!   children (v3 removed `isClosable`): a CloseButton child hugs the
 //!   content's right edge (1920-16-24..1920-16) and starts at the top padding
 //!   (12px), so its centre is (1920 - 16 - 12, 12 + 12) = (1892, 24).
-//! - Chip is `px-2 py-0.5` around its content, so a CloseButton composed into
-//!   its `start_content` slot starts at x = 8 (the leading padding) and its
-//!   24px box is vertically centred in the 28px-tall chip: centre (20, 14).
+//! - Chip is `px-2 py-0.5` around its composed children (one 20px `text-xs`
+//!   line: the base `leading-5` sets `--tw-leading`, which the re-applied
+//!   `text-*` sizes consume), so a CloseButton composed as the leading child
+//!   starts at x = 8 (the leading padding) and the 24px close box plus the
+//!   2px vertical padding make the chip 28px tall: close centre (20, 14).
 //!
 //! The one-frame hover/press lag is handled explicitly in
 //! `button_content_render_prop_sees_press`: `track_interaction` hears about a
@@ -66,8 +68,8 @@ use gpui::{
     Keystroke, Modifiers, MouseButton, TestAppContext, VisualTestContext,
 };
 use herogpui_components::{
-    util, Alert, Button, ButtonGroup, Chip, CloseButton, Link, SelectionMode, ToggleButton,
-    ToggleButtonGroup,
+    util, Alert, Button, ButtonGroup, Chip, ChipLabel, CloseButton, Link, SelectionMode,
+    ToggleButton, ToggleButtonGroup,
 };
 
 use harness::{click, events, open_host, press};
@@ -765,23 +767,24 @@ fn chip_close_reports_and_plain_chip_has_nothing_to_press(cx: &mut TestAppContex
         // children/className/color/variant/size and nothing else, and this
         // port matches (the port's own docs route removable chips to TagGroup,
         // whose on_remove is driven in collections.rs). The closest pressable
-        // surface a Chip can host is a CloseButton composed into its one child
-        // slot (`start_content`): the `px-2` chip starts that slot at x = 8,
-        // and the 24px close box is vertically centred in the 28px-tall chip,
-        // so its centre is (20, 14).
+        // surface a Chip can host is a CloseButton composed as a leading
+        // child: the `px-2` root starts that child at x = 8, and the 24px
+        // close box plus the 2px vertical padding around the 20px label line
+        // make the chip 28px tall — close centre (20, 14).
         gpui::div()
             .flex()
             .flex_col()
             .gap(px(4.))
             .child(
-                Chip::new("Tag")
-                    .start_content(
+                Chip::new()
+                    .child(
                         CloseButton::new("chip-x")
                             .on_press(move |_, _, _| close.borrow_mut().push("close".into())),
-                    ),
+                    )
+                    .child(ChipLabel::new().child("Tag")),
             )
             // A plain chip below it (y 32..56) with no composed affordance.
-            .child(Chip::new("Tag"))
+            .child(Chip::new().child(ChipLabel::new().child("Tag")))
             .into_any_element()
     });
 
@@ -797,8 +800,8 @@ fn chip_close_reports_and_plain_chip_has_nothing_to_press(cx: &mut TestAppContex
     // the trailing slot where a close button would sit records anything (it
     // has no callback and takes no child slot, so a click cannot even reach
     // one — the probe proves nothing registered).
-    click(cx, 24., 44.);
-    click(cx, 40., 44.);
+    click(cx, 24., 40.);
+    click(cx, 40., 40.);
     assert_eq!(
         recorded.borrow().as_slice(),
         ["close"],

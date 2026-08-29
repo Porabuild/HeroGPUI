@@ -433,15 +433,33 @@ struct Frame<'a> {
     focused: Option<Date>,
 }
 
+/// Where a cell sits in its row: the row's first and last columns drive the
+/// pinned row-boundary rounding of the range track.
+struct CellSlot {
+    column: usize,
+    columns: usize,
+}
+
+impl CellSlot {
+    fn is_first(&self) -> bool {
+        self.column == 0
+    }
+
+    fn is_last(&self) -> bool {
+        self.column + 1 == self.columns
+    }
+}
+
 impl RangeCalendar {
-    /// One day cell. The range interior is a square fill so the run reads as
-    /// continuous; the two ends are pills.
+    /// One day cell. The range track lives on the outer cell and runs under
+    /// the caps too; the inner button is the circle that takes the press.
     fn range_cell(
         &self,
         date: Date,
         outside_month: bool,
         frame: &Frame<'_>,
         key: String,
+        slot: CellSlot,
         cx: &App,
     ) -> gpui::AnyElement {
         let colors = cx.colors();
@@ -475,12 +493,65 @@ impl RangeCalendar {
         let draw_end = is_end && !outside_month;
         let is_today = serial == days_from_civil(&frame.today);
 
-        let mut cell = div()
-            .id(ElementId::Name(key.into()))
+        // The pinned anatomy splits the cell in two. The outer
+        // `.range-calendar__cell` carries the range track -- the middle
+        // segment's `rounded-none bg-accent-soft`, painted unscaled so the
+        // run stays continuous across neighbours -- and the inner
+        // `.range-calendar__cell-button`, the circle holding the day glyph,
+        // is what takes the 0.9 press scale.
+        let track_key = format!("{key}-track");
+        let indicator_key = format!("{key}-indicator");
+        let mut track = div()
+            .relative()
+            // The debug selector lets the headless tests read the outer
+            // cell's laid-out bounds separately from the pressed button.
+            .debug_selector(move || track_key)
             .flex()
             .items_center()
             .justify_center()
-            .size(px(38.))
+            .size(px(36.));
+        if is_selected {
+            // `[data-selected]:not([data-outside-month])` is
+            // `rounded-none bg-accent-soft` -- on the caps too, whose solid
+            // button paints over it. The track carries no text colour: the
+            // inner button keeps the base `text-foreground` unless
+            // `data-today` recolours it. Row ends round off with `lg` so a
+            // run crossing a week boundary reads as one shape, and a cap
+            // rounds its own side with `3xl`
+            // (`rounded-ss-3xl rounded-es-3xl` / `rounded-se-3xl rounded-ee-3xl`).
+            let cap_radius = util::control_radius(cx);
+            let edge_radius = util::key_radius(cx);
+            let left = if draw_start {
+                cap_radius
+            } else if slot.is_first() {
+                edge_radius
+            } else {
+                px(0.)
+            };
+            let right = if draw_end {
+                cap_radius
+            } else if slot.is_last() {
+                edge_radius
+            } else {
+                px(0.)
+            };
+            track = track.bg(accent.soft());
+            track = track
+                .rounded_tl(left)
+                .rounded_bl(left)
+                .rounded_tr(right)
+                .rounded_br(right);
+        }
+
+        let mut cell = div()
+            .id(ElementId::Name(key.clone().into()))
+            // The debug selector lets the headless tests read the cell's
+            // laid-out bounds.
+            .debug_selector(move || key)
+            .flex()
+            .items_center()
+            .justify_center()
+            .size(px(36.))
             .text_size(px(13.))
             .child(match &self.cell {
                 Some(render) => render(RangeCalendarCellState {
@@ -503,40 +574,62 @@ impl RangeCalendar {
                 .bg(accent.color)
                 .text_color(accent.foreground)
                 .font_weight(gpui::FontWeight::SEMIBOLD);
+        } else if is_today {
+            // `.range-calendar__cell[data-today]` fills the button with
+            // `bg-accent-soft text-accent-soft-foreground`, today or inside
+            // the range alike; only its hover (never on a selected cell)
+            // deepens the same soft fill rather than `bg-default`.
+            cell = cell
+                .rounded_full()
+                .bg(accent.soft())
+                .text_color(accent.soft_foreground(colors.foreground));
+            if selectable {
+                cell = cell.cursor_pointer();
+                if !is_selected {
+                    let hover_bg = accent.soft_hover();
+                    cell = cell.hover(move |s| s.bg(hover_bg));
+                }
+            }
         } else if in_range {
-            cell = cell.bg(accent.soft()).text_color(accent.soft_foreground());
+            // The track fill lives on the outer cell, so the pressed inner
+            // button stays transparent with the base foreground text and the
+            // run never breaks.
         } else {
             cell = cell.rounded_full();
-            if is_today {
-                cell = cell.border_1().border_color(accent.color);
-            }
             if selectable {
                 let hover_bg = colors.default.color;
                 cell = cell.cursor_pointer().hover(move |s| s.bg(hover_bg));
             }
         }
 
-        // `.range-calendar__cell[data-pressed]` fills with `bg-default` and
-        // scales to 0.9.
+        // `.range-calendar__cell[data-pressed]` scales the inner button to
+        // 0.9 and only the range caps recolour, to `bg-accent-hover` even
+        // when the cap is also today; a pressed middle or today cell keeps
+        // its soft fill, while a pressed plain day shows the hover fill it
+        // already wears. The recolour has to merge with the press geometry
+        // in one refinement -- a chained `.active` would overwrite it and
+        // drop the scale.
         let cell = if selectable {
-            let pressed_bg = colors.default.color;
-            crate::anim::pressed(
-                cell,
-                crate::anim::PressBox {
-                    height: px(38.),
-                    padding_x: None,
-                    width: Some(px(38.)),
-                    min_width: None,
-                    text_size: px(13.),
-                    line_height: px(18.),
-                    gap: px(0.),
-                    radius: px(19.),
-                    shrink_x: true,
-                    scale: crate::anim::PRESSED_SCALE_RANGE,
-                },
-                cx,
-            )
-            .active(move |st| st.bg(pressed_bg))
+            let press_box = crate::anim::PressBox {
+                height: px(36.),
+                padding_x: None,
+                width: Some(px(36.)),
+                min_width: None,
+                text_size: px(13.),
+                line_height: px(18.),
+                gap: px(0.),
+                radius: px(18.),
+                shrink_x: true,
+                scale: crate::anim::PRESSED_SCALE_RANGE,
+            };
+            if draw_start || draw_end {
+                crate::anim::pressed_with_background(cell, press_box, accent.hover(), cx)
+            } else if is_today || in_range {
+                crate::anim::pressed(cell, press_box, cx)
+            } else {
+                let pressed_bg = colors.default.color;
+                crate::anim::pressed_with_background(cell, press_box, pressed_bg, cx)
+            }
         } else {
             cell
         };
@@ -635,25 +728,33 @@ impl RangeCalendar {
             });
         }
 
-        // `.range-calendar__cell-indicator` is a `size-[3px] rounded-xs` dot at
-        // `bottom-1`, in the selected cell's foreground when the day is chosen.
+        let mut track = track.child(cell);
+
+        // `.range-calendar__cell-indicator` is a `size-[3px] rounded-xs` dot
+        // at `bottom-1`, centred in the cell, in the selected cell's
+        // foreground when the day is chosen.
         if self.cell_indicator.as_ref().is_some_and(|f| f(date)) {
             let marker = if is_start || is_end || in_range {
                 accent.foreground
             } else {
                 colors.muted
             };
-            cell = cell.child(
+            track = track.child(
                 div()
                     .absolute()
-                    .bottom(px(2.))
+                    // The debug selector lets the headless tests read the
+                    // dot's laid-out bounds.
+                    .debug_selector(move || indicator_key)
+                    .left(px((36. - 3.) / 2.))
+                    .bottom(px(4.))
                     .size(px(3.))
                     .rounded(px(2.))
                     .bg(marker),
             );
         }
 
-        cell.when(outside_month, |cell| cell.opacity(0.5))
+        track
+            .when(outside_month, |track| track.opacity(0.5))
             .into_any_element()
     }
 
@@ -664,7 +765,7 @@ impl RangeCalendar {
         for label in self.constraints.first_day_of_week.header_row() {
             row = row.child(
                 div()
-                    .w(px(38.))
+                    .w(px(36.))
                     .text_center()
                     // `.range-calendar__header-cell` is `text-xs`.
                     .text_size(px(12.))
@@ -681,7 +782,9 @@ impl RangeCalendar {
         let total = days_in_month(y, m) as usize;
         let rows = self.constraints.rows(y, m);
 
-        let mut grid = div().flex().flex_col().gap(px(2.));
+        // The pinned cells carry `my-[2px]` margins, so two rows sit 4px
+        // apart vertically while the seven 36px columns touch horizontally.
+        let mut grid = div().flex().flex_col().gap(px(4.));
         for row_index in 0..rows {
             let mut row = div().flex().flex_row();
             for column in 0..7 {
@@ -698,6 +801,7 @@ impl RangeCalendar {
                             "{}-{y}-{m}-outside-{previous_year}-{previous_month}-day-{day}",
                             frame.base
                         ),
+                        CellSlot { column, columns: 7 },
                         cx,
                     )
                 } else {
@@ -708,6 +812,7 @@ impl RangeCalendar {
                             false,
                             frame,
                             format!("{}-{y}-{m}-day-{day}", frame.base),
+                            CellSlot { column, columns: 7 },
                             cx,
                         )
                     } else {
@@ -721,6 +826,7 @@ impl RangeCalendar {
                                 "{}-{y}-{m}-outside-{next_year}-{next_month}-day-{next_day}",
                                 frame.base
                             ),
+                            CellSlot { column, columns: 7 },
                             cx,
                         )
                     }
@@ -774,11 +880,14 @@ impl RangeCalendar {
                         .text_color(accent.foreground)
                         .font_weight(gpui::FontWeight::SEMIBOLD);
                 } else if !self.is_disabled {
-                    let hover_bg = colors.default.soft_hover();
+                    // `.calendar-year-picker__year-cell:hover` fills
+                    // `bg-default text-default-foreground`.
+                    let hover_bg = colors.default.color;
+                    let hover_fg = colors.default.foreground;
                     cell = cell
                         .text_color(colors.foreground)
                         .cursor_pointer()
-                        .hover(move |s| s.bg(hover_bg));
+                        .hover(move |s| s.bg(hover_bg).text_color(hover_fg));
                 }
                 if !self.is_disabled {
                     let st = self.state.clone();
@@ -1060,9 +1169,27 @@ impl RenderOnce for RangeCalendar {
                        focus: &gpui::FocusHandle,
                        disabled: bool| {
             let state = state_for_nav.clone();
+            // `.range-calendar__nav-button:hover` fills with `bg-default`.
             let hover_bg = colors.default.color;
+            let debug_key = key.clone();
+            // `.range-calendar__nav-button:active` scales the box to 0.95.
+            let press_box = crate::anim::PressBox {
+                height: px(24.),
+                padding_x: None,
+                width: Some(px(24.)),
+                min_width: None,
+                text_size: px(16.),
+                line_height: px(0.),
+                gap: px(0.),
+                radius: util::small_radius(cx),
+                shrink_x: true,
+                scale: crate::anim::PRESSED_SCALE_DEEP,
+            };
             let button = div()
                 .id(ElementId::Name(key.into()))
+                // The debug selector lets the headless tests read the
+                // button's laid-out bounds.
+                .debug_selector(move || debug_key)
                 .when(!disabled, |b| b.track_focus(focus))
                 .flex()
                 .items_center()
@@ -1072,24 +1199,26 @@ impl RenderOnce for RangeCalendar {
                 // `rounded-2xl`.
                 .size(px(24.))
                 .rounded(util::small_radius(cx))
-                .text_color(colors.muted)
                 .when(!disabled, |b| {
-                    b.cursor_pointer()
+                    let pressed = b
+                        .cursor_pointer()
                         .hover(move |s| s.bg(hover_bg))
                         .on_click(move |_, _, cx| {
                             state.update(cx, |s, cx| {
                                 s.set_anchor(target);
                                 cx.notify();
                             });
-                        })
+                        });
+                    crate::anim::pressed(pressed, press_box, cx)
                 })
                 .when(disabled, |b| b.opacity(layout.disabled_opacity));
             util::ring_if_focused(button, focus, true, Vec::new(), window, cx).child(
                 gpui::svg()
-                    // `.range-calendar__nav-button-icon` is `size-4`.
+                    // `.range-calendar__nav-button-icon` is `size-4`, painted
+                    // `text-accent-soft-foreground` like its button.
                     .size(px(16.))
                     .path(icon)
-                    .text_color(colors.muted),
+                    .text_color(colors.accent.soft_foreground(colors.foreground)),
             )
         };
 
@@ -1111,13 +1240,14 @@ impl RenderOnce for RangeCalendar {
                     let own = year_picker_own.clone();
                     let opener = year_trigger_index.clone();
                     let open = year_picker_open;
-                    let hover_bg = colors.default.soft_hover();
                     let trigger = div()
                         .id(ElementId::Name(key.into()))
                         .when(!self.is_disabled, |trigger| trigger.track_focus(focus))
                         .flex()
                         .items_center()
-                        // `.calendar-year-picker__trigger` is `gap-1 rounded-lg`.
+                        // `.calendar-year-picker__trigger` is `gap-1 rounded-lg`
+                        // and hovers nothing: only focus and the open state
+                        // recolour it.
                         .gap(px(4.))
                         .px(px(6.))
                         .py(px(2.))
@@ -1125,7 +1255,6 @@ impl RenderOnce for RangeCalendar {
                         .when(!self.is_disabled, |trigger| {
                             trigger
                                 .cursor_pointer()
-                                .hover(move |style| style.bg(hover_bg))
                                 .on_click(move |_, _, cx| {
                                     opener.update(cx, |value, _| *value = index);
                                     if let Some(held) = &own {
@@ -1158,13 +1287,14 @@ impl RenderOnce for RangeCalendar {
                     let open = year_picker_open;
                     let own = year_picker_own.clone();
                     let opener = year_trigger_index.clone();
-                    let hover_bg = colors.default.soft_hover();
                     let trigger = div()
                         .id(ElementId::Name(key.into()))
                         .when(!self.is_disabled, |trigger| trigger.track_focus(focus))
                         .flex()
                         .items_center()
-                        // `.calendar-year-picker__trigger` is `gap-1 rounded-lg`.
+                        // `.calendar-year-picker__trigger` is `gap-1 rounded-lg`
+                        // and hovers nothing: only focus and the open state
+                        // recolour it.
                         .gap(px(4.))
                         .px(px(6.))
                         .py(px(2.))
@@ -1172,7 +1302,6 @@ impl RenderOnce for RangeCalendar {
                         .when(!self.is_disabled, |trigger| {
                             trigger
                                 .cursor_pointer()
-                                .hover(move |style| style.bg(hover_bg))
                                 .on_click(move |_, window, cx| {
                                     opener.update(cx, |value, _| *value = index);
                                     // Uncontrolled: flip our own copy too, or
@@ -1529,7 +1658,7 @@ impl RenderOnce for RangeCalendar {
             for (i, &(y, m)) in months.iter().enumerate() {
                 let first = i == 0;
                 let last = i + 1 == columns;
-                let mut col = div().flex().flex_col().gap(px(8.)).w(px(266.));
+                let mut col = div().flex().flex_col().gap(px(8.)).w(px(252.));
                 // Only the outer columns carry nav buttons; the rest keep a
                 // same-size spacer so every heading lines up.
                 // The same box as a nav button, so every heading lines up.
@@ -1626,7 +1755,7 @@ impl RenderOnce for RangeCalendar {
             } else {
                 root = root.child(div().flex().flex_row().children(linear.iter().map(|d| {
                     div()
-                        .w(px(38.))
+                        .w(px(36.))
                         .text_center()
                         // A header cell is `text-xs`, like the seven-column one.
                         .text_size(px(12.))
@@ -1637,15 +1766,20 @@ impl RenderOnce for RangeCalendar {
             // `.range-calendar__grid` wraps the header and
             // `.range-calendar__grid-body`; each line is a
             // `.range-calendar__grid-row` of `.range-calendar__cell-button`s.
-            let mut grid = div().flex().flex_col().gap(px(2.));
+            // Rows sit 4px apart, matching the pinned cell margins.
+            let mut grid = div().flex().flex_col().gap(px(4.));
             for chunk in linear.chunks(per_row) {
                 let mut line = div().flex().flex_row();
-                for &date in chunk {
+                for (index, &date) in chunk.iter().enumerate() {
                     line = line.child(self.range_cell(
                         date,
                         false,
                         &frame,
                         format!("{base}-{}", date.format_iso()),
+                        CellSlot {
+                            column: index,
+                            columns: chunk.len(),
+                        },
                         cx,
                     ));
                 }
@@ -1659,5 +1793,145 @@ impl RenderOnce for RangeCalendar {
         }
 
         root
+    }
+}
+
+// The pinned today cell fills `bg-accent-soft` with
+// `text-accent-soft-foreground` and hovers `bg-accent-soft-hover`; the old
+// port invented an accent border, so the check is mechanical.
+#[cfg(test)]
+mod hover_tokens {
+    #[test]
+    fn the_today_cell_uses_the_accent_soft_tokens() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden accessor.
+        let source = include_str!("range_calendar.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.matches(".bg(accent.soft())").count() >= 2,
+            "the today cell must fill `bg-accent-soft` like the range \
+             interior (pinned `.range-calendar__cell[data-today]`)"
+        );
+        assert!(
+            source.contains("let hover_bg = accent.soft_hover();"),
+            "the today cell must hover `bg-accent-soft-hover` \
+             (pinned `.range-calendar__cell[data-today]:hover`)"
+        );
+        assert!(
+            !source.contains("cell.border_1()"),
+            "the today cell must not invent an accent border"
+        );
+    }
+
+    // gpui's `active` refinement overwrites the previous one, so chaining
+    // `.active` after `anim::pressed` would drop the 0.9 press scale. The
+    // pressed recolour must merge with the geometry in one refinement, which
+    // is what `pressed_with_background` exists for.
+    #[test]
+    fn the_pressed_cell_merges_background_with_the_scale() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden chaining.
+        let source = include_str!("range_calendar.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            !source.contains(".active("),
+            "a chained `.active` after `anim::pressed` replaces the pressed \
+             scale (gpui overwrites the active refinement)"
+        );
+    }
+
+    // Pinned pressed state: only the range caps recolour, to
+    // `bg-accent-hover` even when the cap is also today; a pressed middle or
+    // today cell keeps its `bg-accent-soft` fill, and a pressed plain day
+    // shows the hover fill it already wears.
+    #[test]
+    fn the_pressed_caps_recolour_and_the_interior_keeps_its_fill() {
+        let source = include_str!("range_calendar.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("pressed_with_background(cell, press_box, accent.hover(), cx)"),
+            "a pressed range cap must fill `bg-accent-hover` \
+             (pinned `[data-pressed] [data-selection-start|end]`)"
+        );
+        assert!(
+            source.contains("} else if is_today || in_range {"),
+            "a pressed middle or today cell must keep its `bg-accent-soft` \
+             fill (the pinned pressed state recolours only the caps)"
+        );
+    }
+
+    #[test]
+    fn the_year_picker_trigger_hovers_nothing() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden accessor.
+        let source = include_str!("range_calendar.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            !source.contains("colors.default.soft_hover()"),
+            "the year-picker trigger must not invent a hover background"
+        );
+    }
+
+    // Pinned anatomy: the selected track fill lives on the outer cell and
+    // recolours nothing, so the interior `.range-calendar__cell-button`
+    // keeps the base `text-foreground`; only `data-today` recolours its text,
+    // today or inside the range alike.
+    #[test]
+    fn the_interior_text_stays_base_foreground_unless_today() {
+        let source = include_str!("range_calendar.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("track = track.bg(accent.soft());"),
+            "the range track fill must not set a text colour (pinned \
+             `.range-calendar__cell-button` keeps `text-foreground`)"
+        );
+        let today = source
+            .find("} else if is_today {")
+            .expect("the today branch exists");
+        let interior = source
+            .find("} else if in_range {")
+            .expect("the interior branch exists");
+        assert!(
+            today < interior,
+            "the today branch must precede the interior branch, or a today \
+             cell inside the range would fall through to the base foreground"
+        );
+    }
+
+    // Pinned row-boundary rounding: a selected cell in the first column
+    // rounds its left side `lg`, the last column its right side, and a cap
+    // rounds its own side `3xl` on any column.
+    #[test]
+    fn the_track_rounds_row_boundaries_and_cap_sides() {
+        let source = include_str!("range_calendar.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        for snippet in [
+            "let cap_radius = util::control_radius(cx);",
+            "let edge_radius = util::key_radius(cx);",
+            "} else if slot.is_first() {",
+            "} else if slot.is_last() {",
+            ".rounded_tl(left)",
+            ".rounded_bl(left)",
+            ".rounded_tr(right)",
+            ".rounded_br(right)",
+        ] {
+            assert!(
+                source.contains(snippet),
+                "the track rounding must implement the pinned row-boundary \
+                 and cap variants; missing {snippet:?}"
+            );
+        }
     }
 }

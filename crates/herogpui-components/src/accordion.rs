@@ -320,8 +320,17 @@ impl RenderOnce for Accordion {
             if item_disabled {
                 header = header.opacity(layout.disabled_opacity);
             } else if !is_open {
-                // v3 hovers the row surface rather than dimming its text.
-                let hover_bg = colors.default.soft();
+                // v3 hovers the row surface rather than dimming its text. The
+                // default trigger washes the page foreground over the row —
+                // `color-mix(in oklab, var(--foreground) 3%, transparent 90%)`,
+                // whose weights normalise to 3/93 — while `.accordion--surface`
+                // overrides that with the full `bg-default`.
+                let hover_bg = match self.variant {
+                    AccordionVariant::Default => {
+                        herogpui_core::soft_mix(colors.foreground, 3.0 / 93.0)
+                    }
+                    AccordionVariant::Surface => colors.default.color,
+                };
                 header = header.cursor_pointer().hover(move |s| s.bg(hover_bg));
             } else {
                 header = header.cursor_pointer();
@@ -509,5 +518,34 @@ mod tests {
             set(&["b"])
         );
         assert!(next_expanded(&set(&["a"]), &SharedString::from("a"), false).is_empty());
+    }
+
+    // The pinned default trigger hover is
+    // `color-mix(in oklab, var(--foreground) 3%, transparent 90%)` -- whose
+    // weights normalise to 3/93 -- and `.accordion--surface` overrides it
+    // with the full `bg-default`. `soft()` is a lighter, wrong token, so the
+    // check is mechanical.
+    #[test]
+    fn the_trigger_hover_uses_the_exact_pinned_tokens() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden accessor.
+        let source = include_str!("accordion.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("herogpui_core::soft_mix(colors.foreground, 3.0 / 93.0)"),
+            "the default trigger must hover the 3/93 foreground wash \
+             (pinned `color-mix(in oklab, var(--foreground) 3%, transparent 90%)`)"
+        );
+        assert!(
+            source.contains("AccordionVariant::Surface => colors.default.color"),
+            "the surface trigger must hover the full `bg-default` \
+             (pinned `.accordion--surface .accordion__trigger:hover`)"
+        );
+        assert!(
+            !source.contains("colors.default.soft()"),
+            "no accordion trigger may hover a soft token"
+        );
     }
 }

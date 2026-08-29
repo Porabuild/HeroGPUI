@@ -1091,7 +1091,7 @@ impl RenderOnce for TimeField {
             if focused == segment && navigable {
                 seg = seg
                     .bg(colors.accent.soft())
-                    .text_color(colors.accent.soft_foreground());
+                    .text_color(colors.accent.soft_foreground(colors.foreground));
             }
 
             if navigable {

@@ -2,7 +2,9 @@
 //!
 //! v3 replaced v2's `variant` x `color` matrix with a single emphasis scale:
 //! `primary | secondary | tertiary | outline | ghost | danger | danger-soft`.
-//! There is no `color` or `radius` prop, and `isLoading` became `isPending`.
+//! There is no `color` or `radius` prop, `isLoading` became `isPending`, and
+//! v2's `startContent`/`endContent` slots are gone: icons are ordered
+//! [`ParentElement`] children around the label.
 
 use gpui::{
     div, prelude::*, AnyElement, App, ClickEvent, Div, ElementId, InteractiveElement, IntoElement,
@@ -60,10 +62,6 @@ pub struct Button {
     is_disabled: bool,
     is_disabled_is_set: bool,
     is_pending: bool,
-    /// Rendered before the label — the leading `<Icon />` child in React.
-    start_content: Option<AnyElement>,
-    /// Rendered after the label.
-    end_content: Option<AnyElement>,
     children: Vec<AnyElement>,
     on_press: Option<OnPress>,
 }
@@ -85,8 +83,6 @@ impl Button {
             is_disabled: false,
             is_disabled_is_set: false,
             is_pending: false,
-            start_content: None,
-            end_content: None,
             children: Vec::new(),
             on_press: None,
         }
@@ -192,16 +188,6 @@ impl Button {
         self
     }
 
-    pub fn start_content(mut self, content: impl IntoElement) -> Self {
-        self.start_content = Some(content.into_any_element());
-        self
-    }
-
-    pub fn end_content(mut self, content: impl IntoElement) -> Self {
-        self.end_content = Some(content.into_any_element());
-        self
-    }
-
     pub fn on_press(
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
@@ -275,7 +261,7 @@ fn apply_variant(
         // `bg-secondary` token to `bg-default`.
         Variant::Secondary => {
             let base = colors.default;
-            let el = el.text_color(colors.accent.soft_foreground());
+            let el = el.text_color(colors.accent.soft_foreground(colors.foreground));
             let el = if hover_bg { el.bg(base.color) } else { el };
             if interactive {
                 el.when(hover_bg, |e| e.hover(move |s| s.bg(base.hover())))
@@ -335,7 +321,7 @@ fn apply_variant(
         }
         Variant::DangerSoft => {
             let base = colors.danger;
-            let el = el.text_color(base.soft_foreground());
+            let el = el.text_color(base.soft_foreground(colors.foreground));
             let el = if hover_bg { el.bg(base.soft()) } else { el };
             if interactive {
                 el.when(hover_bg, |e| e.hover(move |s| s.bg(base.soft_hover())))
@@ -353,11 +339,11 @@ pub fn button_foreground(variant: Variant, cx: &App) -> gpui::Hsla {
     let colors = cx.colors();
     match variant {
         Variant::Primary => colors.accent.foreground,
-        Variant::Secondary => colors.accent.soft_foreground(),
+        Variant::Secondary => colors.accent.soft_foreground(colors.foreground),
         Variant::Tertiary => colors.foreground,
         Variant::Outline | Variant::Ghost => colors.default.foreground,
         Variant::Danger => colors.danger.foreground,
-        Variant::DangerSoft => colors.danger.soft_foreground(),
+        Variant::DangerSoft => colors.danger.soft_foreground(colors.foreground),
     }
 }
 
@@ -577,10 +563,6 @@ impl RenderOnce for Button {
             el = el.opacity(disabled_opacity);
         }
 
-        if let Some(start) = self.start_content {
-            el = el.child(start);
-        }
-
         if let Some(render) = self.content.clone() {
             let (is_hovered, is_pressed) = if interactive {
                 interaction
@@ -610,10 +592,6 @@ impl RenderOnce for Button {
             }
         }
         el = el.children(self.children);
-
-        if let Some(end) = self.end_content {
-            el = el.child(end);
-        }
 
         // v3's `[data-pressed]` scale. Applied last so the press geometry sits
         // on top of whatever the variant did to padding.

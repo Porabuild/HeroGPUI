@@ -1578,6 +1578,10 @@ impl RenderOnce for Input {
             let clear_validate = edit_validate.clone();
             let clear_error_message = edit_error_message.clone();
             let clear_native = native_validity.clone();
+            // `.search-field__clear-button` *is* a `CloseButton`, and
+            // `.close-button:hover` fills `bg-default-hover` -- not a
+            // hand-mixed wash.
+            let clear_hover_bg = colors.default.hover();
             field = field.child(
                 gpui::div()
                     .id(gpui::ElementId::Name(
@@ -1586,8 +1590,7 @@ impl RenderOnce for Input {
                     .flex()
                     .items_center()
                     .justify_center()
-                    // `.search-field__clear-button` *is* a `CloseButton`
-                    // (`rounded-xl p-1 text-muted`, hover `bg-default`), sized
+                    // (`rounded-xl p-1 text-muted`), sized
                     // down by the search field's own rule: `size-5` with a
                     // `size-3` glyph.
                     .size(px(20.))
@@ -1595,7 +1598,7 @@ impl RenderOnce for Input {
                     .rounded(crate::util::small_radius(cx))
                     .cursor_pointer()
                     .text_color(colors.muted)
-                    .hover(|s| s.bg(colors.default.with_alpha(0.15)))
+                    .hover(move |s| s.bg(clear_hover_bg))
                     .active(|s| s.opacity(0.7))
                     .on_click(move |_, window, cx| {
                         clear_state.update(cx, |s, cx| {
@@ -2674,5 +2677,31 @@ two";
             Some("sé")
         );
         assert_eq!(slice_selection("hello", None), None);
+    }
+}
+
+// The pinned `.search-field__clear-button` composes `.close-button`, whose
+// hover fills `bg-default-hover`; a hand-mixed wash looks plausible on
+// screen, so the check is mechanical.
+#[cfg(test)]
+mod hover_tokens {
+    #[test]
+    fn the_clear_button_hovers_the_role_hover_token() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden accessor.
+        let source = include_str!("input.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains(".hover(move |s| s.bg(clear_hover_bg))")
+                && source.contains("let clear_hover_bg = colors.default.hover();"),
+            "the clear button must hover `bg-default-hover` \
+             (pinned `.close-button:hover`)"
+        );
+        assert!(
+            !source.contains("with_alpha(0.15)"),
+            "the clear button must not hover a hand-mixed wash"
+        );
     }
 }

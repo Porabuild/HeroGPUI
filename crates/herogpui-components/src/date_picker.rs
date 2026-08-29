@@ -3292,7 +3292,7 @@ impl RenderOnce for DateField {
             if focused == segment {
                 seg = seg
                     .bg(colors.accent.soft())
-                    .text_color(colors.accent.soft_foreground());
+                    .text_color(colors.accent.soft_foreground(colors.foreground));
             }
 
             if navigable {

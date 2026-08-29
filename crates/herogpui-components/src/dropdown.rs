@@ -853,7 +853,9 @@ impl RenderOnce for Menu {
                         row = row.opacity(cx.layout().disabled_opacity);
                     } else {
                         row = row.cursor_pointer();
-                        row = row.hover(move |s| s.bg(colors.default.soft()));
+                        // `.menu-item:hover` fills with `bg-default`, the full
+                        // token, not the soft wash.
+                        row = row.hover(move |s| s.bg(colors.default.color));
                         // `.menu-item[data-pressed]` is `scale(0.98)`.
                         row = crate::anim::pressed(
                             row,
@@ -1755,5 +1757,29 @@ impl RenderOnce for Dropdown {
         }
 
         root
+    }
+}
+
+// The pinned `.menu-item:hover` fills with `bg-default`, the full token.
+// `soft()` is a lighter wash that looks plausible on screen, so the check is
+// mechanical.
+#[cfg(test)]
+mod hover_tokens {
+    #[test]
+    fn menu_rows_hover_the_full_default() {
+        // Scan the implementation only.
+        let source = include_str!("dropdown.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("row = row.hover(move |s| s.bg(colors.default.color));"),
+            "menu rows must hover the full `bg-default` \
+             (pinned `.menu-item:hover`)"
+        );
+        assert!(
+            !source.contains("colors.default.soft()"),
+            "no menu surface may hover a soft token"
+        );
     }
 }

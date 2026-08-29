@@ -31,6 +31,16 @@ pub fn eclipse() -> Hsla {
     oklch(0.2103, 0.0059, 285.89)
 }
 
+/// How a role resolves `--role-soft-foreground`.
+#[derive(Clone, Copy, Debug)]
+pub enum SoftForeground {
+    /// `--default-soft-foreground: var(--default-foreground)`
+    RoleForeground,
+    /// `color-mix(in oklab, var(--role) C%, var(--foreground) F%)`. CSS
+    /// normalises the weights, so the role contributes `C / (C + F)`.
+    Mix { color: f32, foreground: f32 },
+}
+
 /// A semantic color role (`accent`, `default`, `success`, `warning`, `danger`).
 ///
 /// v3 removed numbered scales; a role carries only its base value and readable
@@ -44,6 +54,12 @@ pub struct RoleColor {
     /// Weight of `foreground` in the `*-hover` mix. `0.10` for the status and
     /// accent roles, `0.04` for `default`.
     pub hover_mix: f32,
+    /// Share of the role color in `*-soft`, over transparent.
+    soft_mix: f32,
+    /// Share of the role color in `*-soft-hover`.
+    soft_hover_mix: f32,
+    /// How `*-soft-foreground` resolves.
+    soft_foreground: SoftForeground,
 }
 
 impl RoleColor {
@@ -52,12 +68,39 @@ impl RoleColor {
             color,
             foreground,
             hover_mix: 0.10,
+            soft_mix: 0.15,
+            soft_hover_mix: 0.20,
+            soft_foreground: SoftForeground::Mix {
+                color: 70.0,
+                foreground: 30.0,
+            },
         }
     }
 
     /// `default` mixes only 4% of its foreground on hover.
     pub fn with_hover_mix(mut self, hover_mix: f32) -> Self {
         self.hover_mix = hover_mix;
+        self
+    }
+
+    /// Sets the shares of the role color in `--role-soft` and
+    /// `--role-soft-hover` (`default` sits at 50/60, the rest at 15/20 in
+    /// light and 12/16 in dark for the cooler roles).
+    pub fn with_soft_mix(mut self, soft: f32, soft_hover: f32) -> Self {
+        self.soft_mix = soft;
+        self.soft_hover_mix = soft_hover;
+        self
+    }
+
+    /// `--role-soft-foreground: color-mix(in oklab, var(--role) C%, var(--foreground) F%)`
+    pub fn with_soft_foreground_mix(mut self, color: f32, foreground: f32) -> Self {
+        self.soft_foreground = SoftForeground::Mix { color, foreground };
+        self
+    }
+
+    /// `--default-soft-foreground: var(--default-foreground)`
+    pub fn with_soft_foreground_role(mut self) -> Self {
+        self.soft_foreground = SoftForeground::RoleForeground;
         self
     }
 
@@ -68,17 +111,26 @@ impl RoleColor {
 
     /// `--color-accent-soft: color-mix(in oklab, var(--accent) 15%, transparent)`
     pub fn soft(&self) -> Hsla {
-        soft_mix(self.color, 0.15)
+        soft_mix(self.color, self.soft_mix)
     }
 
     /// `--color-accent-soft-hover: color-mix(in oklab, var(--accent) 20%, transparent)`
     pub fn soft_hover(&self) -> Hsla {
-        soft_mix(self.color, 0.20)
+        soft_mix(self.color, self.soft_hover_mix)
     }
 
-    /// `--color-accent-soft-foreground: var(--accent)`
-    pub fn soft_foreground(&self) -> Hsla {
-        self.color
+    /// `--color-accent-soft-foreground: color-mix(in oklab, var(--accent) 70%, var(--foreground) 30%)`
+    ///
+    /// The mixing roles blend against the page foreground, so pass the live
+    /// `ThemeColors::foreground` — a `ThemeBuilder::foreground` override then
+    /// flows through without rebuilding the theme.
+    pub fn soft_foreground(&self, page_foreground: Hsla) -> Hsla {
+        match self.soft_foreground {
+            SoftForeground::RoleForeground => self.foreground,
+            SoftForeground::Mix { color, foreground } => {
+                mix_oklab(self.color, page_foreground, color / (color + foreground))
+            }
+        }
     }
 
     pub fn with_alpha(&self, alpha: f32) -> Hsla {
@@ -270,7 +322,9 @@ impl ThemeColors {
     pub fn light() -> Self {
         let foreground = eclipse();
         let muted = oklch(0.5517, 0.0138, 285.94);
-        let accent = RoleColor::new(oklch(0.6204, 0.195, 253.83), snow());
+        let accent = RoleColor::new(oklch(0.6204, 0.195, 253.83), snow())
+            .with_soft_mix(0.15, 0.20)
+            .with_soft_foreground_mix(70.0, 30.0);
         Self {
             background: oklch(0.9702, 0.0, 0.0),
             foreground,
@@ -292,11 +346,17 @@ impl ThemeColors {
                 foreground: eclipse(),
             },
 
-            default: RoleColor::new(oklch(0.94, 0.001, 286.375), eclipse()).with_hover_mix(0.04),
+            default: RoleColor::new(oklch(0.94, 0.001, 286.375), eclipse())
+                .with_hover_mix(0.04)
+                .with_soft_mix(0.50, 0.60)
+                .with_soft_foreground_role(),
             accent,
-            success: RoleColor::new(oklch(0.7329, 0.1935, 150.81), eclipse()),
-            warning: RoleColor::new(oklch(0.7819, 0.1585, 72.33), eclipse()),
-            danger: RoleColor::new(oklch(0.6532, 0.2328, 25.74), snow()),
+            success: RoleColor::new(oklch(0.7329, 0.1935, 150.81), eclipse())
+                .with_soft_foreground_mix(80.0, 60.0),
+            warning: RoleColor::new(oklch(0.7819, 0.1585, 72.33), eclipse())
+                .with_soft_foreground_mix(80.0, 70.0),
+            danger: RoleColor::new(oklch(0.6532, 0.2328, 25.74), snow())
+                .with_soft_foreground_mix(70.0, 40.0),
 
             field: FieldColors {
                 background: white(),
@@ -320,8 +380,13 @@ impl ThemeColors {
     pub fn dark() -> Self {
         let foreground = snow();
         let muted = oklch(0.705, 0.015, 286.067);
-        let accent = RoleColor::new(oklch(0.6204, 0.195, 253.83), snow());
-        let default = RoleColor::new(oklch(0.274, 0.006, 286.033), snow()).with_hover_mix(0.04);
+        let accent = RoleColor::new(oklch(0.6204, 0.195, 253.83), snow())
+            .with_soft_mix(0.12, 0.16)
+            .with_soft_foreground_mix(80.0, 30.0);
+        let default = RoleColor::new(oklch(0.274, 0.006, 286.033), snow())
+            .with_hover_mix(0.04)
+            .with_soft_mix(0.50, 0.60)
+            .with_soft_foreground_role();
         Self {
             background: oklch(0.12, 0.005, 285.823),
             foreground,
@@ -349,10 +414,16 @@ impl ThemeColors {
 
             default,
             accent,
-            // `--success` is not overridden in dark mode.
-            success: RoleColor::new(oklch(0.7329, 0.1935, 150.81), eclipse()),
-            warning: RoleColor::new(oklch(0.8203, 0.1388, 76.34), eclipse()),
-            danger: RoleColor::new(oklch(0.594, 0.1967, 24.63), snow()),
+            // `--success` is not overridden in dark mode; only its soft shares
+            // are (12/16 over transparent, foreground at 80/30).
+            success: RoleColor::new(oklch(0.7329, 0.1935, 150.81), eclipse())
+                .with_soft_mix(0.12, 0.16)
+                .with_soft_foreground_mix(80.0, 30.0),
+            warning: RoleColor::new(oklch(0.8203, 0.1388, 76.34), eclipse())
+                .with_soft_mix(0.12, 0.16)
+                .with_soft_foreground_mix(80.0, 30.0),
+            danger: RoleColor::new(oklch(0.594, 0.1967, 24.63), snow())
+                .with_soft_foreground_mix(80.0, 30.0),
 
             field: FieldColors {
                 // `--field-background: oklch(0.2103 0.0059 285.89)` -- the
@@ -383,6 +454,74 @@ mod tests {
         let c = ThemeColors::light();
         assert!((c.accent.soft().a - 0.15).abs() < 1e-4);
         assert!((c.accent.soft_hover().a - 0.20).abs() < 1e-4);
+    }
+
+    #[test]
+    fn the_soft_matrix_matches_the_pinned_stylesheet() {
+        // Weights transcribed from `variables.css` at v3.2.4. `None` means
+        // `--role-soft-foreground: var(--role-foreground)`; `Some` is the
+        // `color-mix(in oklab, var(--role) C%, var(--foreground) F%)` pair.
+        let light = ThemeColors::light();
+        let dark = ThemeColors::dark();
+        for (colors, role_name, soft, soft_hover, foreground) in [
+            (&light, "default", 0.50, 0.60, None),
+            (&light, "accent", 0.15, 0.20, Some((70.0, 30.0))),
+            (&light, "success", 0.15, 0.20, Some((80.0, 60.0))),
+            (&light, "warning", 0.15, 0.20, Some((80.0, 70.0))),
+            (&light, "danger", 0.15, 0.20, Some((70.0, 40.0))),
+            (&dark, "default", 0.50, 0.60, None),
+            (&dark, "accent", 0.12, 0.16, Some((80.0, 30.0))),
+            (&dark, "success", 0.12, 0.16, Some((80.0, 30.0))),
+            (&dark, "warning", 0.12, 0.16, Some((80.0, 30.0))),
+            (&dark, "danger", 0.15, 0.20, Some((80.0, 30.0))),
+        ] {
+            let role = colors.role(role_name);
+            assert!(
+                (role.soft().a - soft).abs() < 1e-4,
+                "{role_name} soft alpha"
+            );
+            assert!(
+                (role.soft_hover().a - soft_hover).abs() < 1e-4,
+                "{role_name} soft-hover alpha"
+            );
+            match foreground {
+                Some((color, page)) => assert_eq!(
+                    role.soft_foreground(colors.foreground),
+                    mix_oklab(role.color, colors.foreground, color / (color + page)),
+                    "{role_name} soft-foreground mix"
+                ),
+                None => assert_eq!(
+                    role.soft_foreground(colors.foreground),
+                    role.foreground,
+                    "{role_name} soft-foreground follows the role"
+                ),
+            }
+        }
+    }
+
+    #[test]
+    fn a_custom_foreground_stays_live_in_the_soft_foreground_mix() {
+        let base = ThemeColors::light();
+        let custom = ThemeColors {
+            foreground: oklch(0.30, 0.05, 120.0),
+            ..base
+        };
+        // The mixing roles resolve against the page foreground passed in, so a
+        // `ThemeBuilder::foreground` override flows through at render time.
+        assert_eq!(
+            custom.accent.soft_foreground(custom.foreground),
+            mix_oklab(custom.accent.color, custom.foreground, 0.70)
+        );
+        assert_ne!(
+            custom.accent.soft_foreground(custom.foreground),
+            base.accent.soft_foreground(base.foreground)
+        );
+        // `--default-soft-foreground: var(--default-foreground)` does not mix,
+        // so it follows the role's own foreground instead of the page's.
+        assert_eq!(
+            custom.default.soft_foreground(custom.foreground),
+            custom.default.foreground
+        );
     }
 
     #[test]

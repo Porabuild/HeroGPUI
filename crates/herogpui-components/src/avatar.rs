@@ -26,13 +26,13 @@ struct AvatarImageState {
     ready: bool,
 }
 
-/// Visual style of an avatar fallback (`variant`).
+/// Fill of an avatar fallback (`variant`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum AvatarVariant {
-    /// Solid fill in the avatar color.
+    /// The pinned base fill (`bg-default`); the color recolours the initials.
     #[default]
     Default,
-    /// The color at 15% with colored initials.
+    /// The color's soft wash with `text-{role}-soft-foreground` initials.
     Soft,
 }
 
@@ -150,15 +150,18 @@ fn initials(name: &str) -> String {
 
 impl RenderOnce for Avatar {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let colors = cx.colors();
         let sem = cx.role(self.color);
-        let neutral = self.color == Color::Default;
+        // Both variants paint the fallback text `text-{role}-soft-foreground`;
+        // for `--default` that resolves to `--default-foreground`.
+        let soft_fg = sem.soft_foreground(colors.foreground);
         let (bg, fg) = match self.variant {
-            AvatarVariant::Default if neutral => {
-                (cx.colors().surface_tertiary, cx.colors().foreground)
-            }
-            AvatarVariant::Default => (sem.color, sem.foreground),
-            AvatarVariant::Soft if neutral => (cx.colors().default.soft(), cx.colors().muted),
-            AvatarVariant::Soft => (sem.soft(), sem.soft_foreground()),
+            // `.avatar` fills `bg-default` for every color: the color recolours
+            // the initials, never the fill.
+            AvatarVariant::Default => (colors.default.color, soft_fg),
+            // `.avatar--soft` clears the base fill and the fallback paints
+            // `bg-{role}-soft` with the same soft foreground.
+            AvatarVariant::Soft => (sem.soft(), soft_fg),
         };
         // `.avatar__fallback` is `text-sm`, not a share of the box.
         let font = px(14.);
@@ -278,5 +281,45 @@ impl RenderOnce for Avatar {
         }
 
         el
+    }
+}
+
+// The pinned `.avatar` fills `bg-default` for every color and paints the
+// initials `text-{role}-soft-foreground`; a solid role fill or a muted
+// fallback looks plausible on screen, so the check is mechanical.
+#[cfg(test)]
+mod fill_tokens {
+    #[test]
+    fn the_fills_and_foregrounds_follow_the_pinned_css() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden accessors.
+        let source = include_str!("avatar.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("AvatarVariant::Default => (colors.default.color, soft_fg)"),
+            "the base avatar must fill `bg-default` with \
+             `text-{{role}}-soft-foreground` (pinned `.avatar` + \
+             `.avatar__fallback--{{color}}`)"
+        );
+        assert!(
+            source.contains("AvatarVariant::Soft => (sem.soft(), soft_fg)"),
+            "the soft avatar must fill `bg-{{role}}-soft` with \
+             `text-{{role}}-soft-foreground` (pinned `.avatar--soft`)"
+        );
+        assert!(
+            !source.contains("colors().muted"),
+            "the soft default initials are `text-default-soft-foreground`, \
+             not the muted tone"
+        );
+        assert!(
+            !source.contains("surface_tertiary"),
+            "the base avatar fills `bg-default`, not a surface level"
+        );
+        assert!(
+            !source.contains("(sem.color, sem.foreground)"),
+            "the base avatar never paints a solid role fill"
+        );
     }
 }

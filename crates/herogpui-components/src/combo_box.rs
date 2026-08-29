@@ -903,6 +903,12 @@ impl RenderOnce for ComboBox {
         // same ComboBox. Capture the whole subtree for one dispatch: input
         // presses keep the list open, and the chevron or a row owns its click.
         let inside_pressed = Rc::new(std::cell::Cell::new(false));
+        // `.combo-box__trigger` is `border-none bg-transparent
+        // text-field-placeholder`, and its hover recolours the text to
+        // `text-field-foreground`, filling nothing. `svg()` paints from its own
+        // style rather than the inherited text color, so the hover refinement
+        // goes on the glyph as well as the trigger that wraps it.
+        let trigger_hover_fg = colors.field.foreground;
         let mut trigger = div()
             .id(gpui::ElementId::Name(
                 format!("combobox-{entity_id}-trigger").into(),
@@ -918,11 +924,15 @@ impl RenderOnce for ComboBox {
                 gpui::svg()
                     .size(util::FIELD_ICON)
                     .path(icons::CHEVRON_DOWN)
-                    .text_color(colors.muted),
+                    .text_color(colors.muted)
+                    .when(!self.is_disabled && !self.is_read_only, |glyph| {
+                        glyph.hover(move |st| st.text_color(trigger_hover_fg))
+                    }),
             );
         if !self.is_disabled && !self.is_read_only {
-            let hover_bg = colors.default.hover();
-            trigger = trigger.cursor_pointer().hover(move |s| s.bg(hover_bg));
+            trigger = trigger
+                .cursor_pointer()
+                .hover(move |s| s.text_color(trigger_hover_fg));
             if on_open_change.is_some() || open_own.is_some() {
                 let own = open_own.clone();
                 let focus_open = focus_open.clone();
@@ -1862,5 +1872,31 @@ impl RenderOnce for ComboBox {
         root.child(input_group)
             .when_some(value_content, |root, value| root.child(value))
             .track_focus(&blur_focus)
+    }
+}
+
+// The pinned `.combo-box__trigger` hovers `text-field-foreground` and stays
+// `bg-transparent`; a filled hover looks plausible on screen, so the check is
+// mechanical.
+#[cfg(test)]
+mod hover_tokens {
+    #[test]
+    fn the_trigger_hover_recolours_the_text_and_fills_nothing() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden accessor.
+        let source = include_str!("combo_box.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains(".hover(move |s| s.text_color(trigger_hover_fg))"),
+            "the trigger hover must recolour the text to `text-field-foreground` \
+             (pinned `.combo-box__trigger:hover`)"
+        );
+        assert!(
+            !source.contains("let hover_bg = colors.default.hover();"),
+            "the trigger hover must not fill a background \
+             (pinned `.combo-box__trigger` is `bg-transparent`)"
+        );
     }
 }

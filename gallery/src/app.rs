@@ -436,7 +436,7 @@ impl Render for Gallery {
                 toggle_light_dark(cx);
                 cx.notify();
             }))
-            .start_content(
+            .child(
                 gpui::svg()
                     .size(px(16.))
                     .path(if is_dark {

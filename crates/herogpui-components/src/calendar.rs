@@ -629,9 +629,12 @@ impl Calendar {
             };
         let is_today = date == frame.today;
 
-        // Uniform circular hit area centred in the slot.
+        // Uniform circular hit area centred in the slot. The debug selector
+        // lets the headless tests read the cell's laid-out bounds.
+        let indicator_key = format!("{key}-indicator");
         let mut circle = gpui::div()
-            .id(gpui::ElementId::Name(key.into()))
+            .id(gpui::ElementId::Name(key.clone().into()))
+            .debug_selector(move || key)
             .size(px(36.))
             .rounded_full()
             .flex()
@@ -645,6 +648,20 @@ impl Calendar {
             accent.color
         };
 
+        // `.calendar__cell[data-pressed]` fills with `bg-default` and scales
+        // to 0.95 -- every cell, today included.
+        let press_box = crate::anim::PressBox {
+            height: px(36.),
+            padding_x: None,
+            width: Some(px(36.)),
+            min_width: None,
+            text_size: px(14.),
+            line_height: px(20.),
+            gap: px(0.),
+            radius: px(18.),
+            shrink_x: true,
+            scale: crate::anim::PRESSED_SCALE_DEEP,
+        };
         if outside_month {
             circle = circle.text_color(colors.muted);
         } else if is_sel {
@@ -656,6 +673,17 @@ impl Calendar {
                     accent.foreground
                 })
                 .font_weight(gpui::FontWeight::SEMIBOLD);
+            if selectable {
+                // `.calendar__cell[data-pressed][data-selected]` fills
+                // `bg-accent-hover`, the one pressed recolour the pinned CSS
+                // nests under the scale.
+                let pressed_bg = if self.is_invalid {
+                    colors.danger.hover()
+                } else {
+                    accent.hover()
+                };
+                circle = crate::anim::pressed_with_background(circle, press_box, pressed_bg, cx);
+            }
         } else if disabled || unavailable {
             // v3 dims both states and reserves the line-through for disabled
             // in-month dates; unavailable dates remain focusable.
@@ -663,34 +691,31 @@ impl Calendar {
             if disabled {
                 circle = circle.line_through();
             }
+        } else if is_today {
+            // `.calendar__cell[data-today]` fills `bg-accent-soft` with
+            // `text-accent-soft-foreground`; its own hover (not selected)
+            // deepens the same soft fill rather than the generic `bg-default`.
+            circle = circle
+                .bg(accent.soft())
+                .text_color(accent.soft_foreground(colors.foreground));
+            if selectable {
+                let hover_bg = accent.soft_hover();
+                let pressed_bg = colors.default.color;
+                circle = circle.cursor_pointer().hover(move |s| s.bg(hover_bg));
+                // A chained `.active` would overwrite the pressed refinement
+                // and drop the 0.95 scale; the background must merge with the
+                // press geometry in one refinement.
+                circle = crate::anim::pressed_with_background(circle, press_box, pressed_bg, cx);
+            }
         } else {
             circle = circle.text_color(colors.foreground);
             if selectable {
-                let hover_bg = colors.default.soft_hover();
+                // `.calendar__cell:hover` (not selected) fills with `bg-default`,
+                // the full token -- same as the pressed fill.
+                let hover_bg = colors.default.color;
                 let pressed_bg = colors.default.color;
                 circle = circle.cursor_pointer().hover(move |s| s.bg(hover_bg));
-                // `.calendar__cell[data-pressed]` fills with `bg-default` and scales
-                // to 0.95.
-                circle = crate::anim::pressed(
-                    circle,
-                    crate::anim::PressBox {
-                        height: px(36.),
-                        padding_x: None,
-                        width: Some(px(36.)),
-                        min_width: None,
-                        text_size: px(14.),
-                        line_height: px(20.),
-                        gap: px(0.),
-                        radius: px(18.),
-                        shrink_x: true,
-                        scale: crate::anim::PRESSED_SCALE_DEEP,
-                    },
-                    cx,
-                )
-                .active(move |s| s.bg(pressed_bg));
-            }
-            if is_today {
-                circle = circle.border_1().border_color(marker);
+                circle = crate::anim::pressed_with_background(circle, press_box, pressed_bg, cx);
             }
         }
 
@@ -764,7 +789,14 @@ impl Calendar {
                 cell.child(
                     gpui::div()
                         .absolute()
-                        .bottom(px(2.))
+                        // The debug selector lets the headless tests read the
+                        // dot's laid-out bounds.
+                        .debug_selector(move || indicator_key)
+                        // `.calendar__cell-indicator` hangs at `bottom-1` --
+                        // 4px above the cell's lower edge, not the 2px a
+                        // first read of the 3px dot suggests -- centred by
+                        // the cell's flex alignment.
+                        .bottom(px(4.))
                         // `.calendar__cell-indicator` is `size-[3px]` with a
                         // `rounded-[2px]` corner -- smaller than any radius
                         // token, so the literal is v3's own.
@@ -894,11 +926,14 @@ impl Calendar {
                         .text_color(accent.foreground)
                         .font_weight(gpui::FontWeight::SEMIBOLD);
                 } else if !self.is_disabled {
-                    let hover_bg = colors.default.soft_hover();
+                    // `.calendar-year-picker__year-cell:hover` fills
+                    // `bg-default text-default-foreground`.
+                    let hover_bg = colors.default.color;
+                    let hover_fg = colors.default.foreground;
                     cell = cell
                         .text_color(colors.foreground)
                         .cursor_pointer()
-                        .hover(move |s| s.bg(hover_bg));
+                        .hover(move |s| s.bg(hover_bg).text_color(hover_fg));
                 }
 
                 if !self.is_disabled {
@@ -1179,9 +1214,27 @@ impl RenderOnce for Calendar {
                        focus: &gpui::FocusHandle,
                        disabled: bool| {
             let state = state_for_nav.clone();
-            let hover_bg = colors.default.soft_hover();
+            // `.calendar__nav-button:hover` fills with `bg-default`.
+            let hover_bg = colors.default.color;
+            // The pinned `[data-pressed]` is a bare `scale(0.95)` with no
+            // background change, so the hover fill must survive as its own
+            // refinement and the press stays the backgroundless helper.
+            let press = crate::anim::PressBox {
+                height: px(24.),
+                padding_x: None,
+                width: Some(px(24.)),
+                min_width: None,
+                text_size: px(14.),
+                line_height: px(20.),
+                gap: px(0.),
+                radius: crate::util::soft_radius(cx),
+                shrink_x: true,
+                scale: crate::anim::PRESSED_SCALE_DEEP,
+            };
+            let selector = key.clone();
             let button = gpui::div()
                 .id(gpui::ElementId::Name(key.into()))
+                .debug_selector(move || selector)
                 .when(!disabled, |b| b.track_focus(focus))
                 .flex()
                 .items_center()
@@ -1190,14 +1243,18 @@ impl RenderOnce for Calendar {
                 .size(px(24.))
                 .rounded(crate::util::soft_radius(cx))
                 .when(!disabled, |b| {
-                    b.cursor_pointer()
-                        .hover(move |s| s.bg(hover_bg))
-                        .on_click(move |_, _, cx| {
-                            state.update(cx, |s, cx| {
-                                s.set_anchor(target);
-                                cx.notify();
-                            });
-                        })
+                    crate::anim::pressed(
+                        b.cursor_pointer()
+                            .hover(move |s| s.bg(hover_bg))
+                            .on_click(move |_, _, cx| {
+                                state.update(cx, |s, cx| {
+                                    s.set_anchor(target);
+                                    cx.notify();
+                                });
+                            }),
+                        press,
+                        cx,
+                    )
                 })
                 .when(disabled, |b| b.opacity(layout.disabled_opacity));
             crate::util::ring_if_focused(button, focus, true, Vec::new(), window, cx).child(
@@ -1205,7 +1262,9 @@ impl RenderOnce for Calendar {
                         // `.calendar__nav-button-icon` is `size-4`.
                         .size(px(16.))
                         .path(icon_path)
-                        .text_color(colors.foreground),
+                        // `.calendar__nav-button` is `text-accent-soft-foreground`,
+                        // at rest and hovered alike.
+                        .text_color(colors.accent.soft_foreground(colors.foreground)),
             )
         };
 
@@ -1227,13 +1286,14 @@ impl RenderOnce for Calendar {
                     let own = year_picker_own.clone();
                     let opener = year_trigger_index.clone();
                     let open = year_picker_open;
-                    let hover_bg = colors.default.soft_hover();
                     let trigger = gpui::div()
                         .id(gpui::ElementId::Name(key.into()))
                         .when(!self.is_disabled, |trigger| trigger.track_focus(focus))
                         .flex()
                         .items_center()
-                        // `.calendar-year-picker__trigger` is `gap-1 rounded-lg`.
+                        // `.calendar-year-picker__trigger` is `gap-1 rounded-lg`
+                        // and hovers nothing: only focus and the open state
+                        // recolour it.
                         .gap(px(4.))
                         .px(px(6.))
                         .py(px(2.))
@@ -1241,7 +1301,6 @@ impl RenderOnce for Calendar {
                         .when(!self.is_disabled, |trigger| {
                             trigger
                                 .cursor_pointer()
-                                .hover(move |style| style.bg(hover_bg))
                                 .on_click(move |_, _, cx| {
                                     opener.update(cx, |value, _| *value = index);
                                     if let Some(held) = &own {
@@ -1274,13 +1333,14 @@ impl RenderOnce for Calendar {
                     let open = year_picker_open;
                     let own = year_picker_own.clone();
                     let opener = year_trigger_index.clone();
-                    let hover_bg = colors.default.soft_hover();
                     let trigger = gpui::div()
                         .id(gpui::ElementId::Name(key.into()))
                         .when(!self.is_disabled, |trigger| trigger.track_focus(focus))
                         .flex()
                         .items_center()
-                        // `.calendar-year-picker__trigger` is `gap-1 rounded-lg`.
+                        // `.calendar-year-picker__trigger` is `gap-1 rounded-lg`
+                        // and hovers nothing: only focus and the open state
+                        // recolour it.
                         .gap(px(4.))
                         .px(px(6.))
                         .py(px(2.))
@@ -1288,7 +1348,6 @@ impl RenderOnce for Calendar {
                         .when(!self.is_disabled, |trigger| {
                             trigger
                                 .cursor_pointer()
-                                .hover(move |style| style.bg(hover_bg))
                                 .on_click(move |_, window, cx| {
                                     opener.update(cx, |value, _| *value = index);
                                     // Uncontrolled: flip our own copy too, or
@@ -1777,6 +1836,130 @@ mod tests {
             "today {} vs UTC date {}",
             Date::today().format_iso(),
             utc_date.format_iso()
+        );
+    }
+
+    // The pinned `.calendar__cell:hover` (not selected) fills with
+    // `bg-default`, the full token -- the same fill as the pressed state.
+    // `soft_hover()` is a lighter, wrong wash, so the check is mechanical.
+    #[test]
+    fn the_day_cell_hovers_the_full_default() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden accessor.
+        let source = include_str!("calendar.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains(
+                "let hover_bg = colors.default.color;\n                let pressed_bg = colors.default.color;"
+            ),
+            "the day cell must hover the full `bg-default` \
+             (pinned `.calendar__cell:hover:not([data-selected])`)"
+        );
+    }
+
+    // The pinned `[data-today]` cell fills `bg-accent-soft` with
+    // `text-accent-soft-foreground` and hovers `bg-accent-soft-hover`; the old
+    // port invented an accent border instead.
+    #[test]
+    fn the_today_cell_uses_the_accent_soft_tokens() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden accessor.
+        let source = include_str!("calendar.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains(".bg(accent.soft())")
+                && source.contains(".text_color(accent.soft_foreground(colors.foreground))"),
+            "the today cell must fill `bg-accent-soft` with \
+             `text-accent-soft-foreground` (pinned `.calendar__cell[data-today]`)"
+        );
+        assert!(
+            source.contains("let hover_bg = accent.soft_hover();"),
+            "the today cell must hover `bg-accent-soft-hover` \
+             (pinned `.calendar__cell[data-today]:hover`)"
+        );
+        assert!(
+            !source.contains("circle.border_1()"),
+            "the today cell must not invent an accent border"
+        );
+    }
+
+    // gpui's `active` refinement overwrites the previous one, so chaining
+    // `.active` after `anim::pressed` would drop the 0.95 press scale. The
+    // pressed background must merge with the geometry in one refinement,
+    // which is what `pressed_with_background` exists for.
+    #[test]
+    fn the_day_cell_press_merges_background_with_the_scale() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden chaining.
+        let source = include_str!("calendar.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert_eq!(
+            source
+                .matches("crate::anim::pressed_with_background(")
+                .count(),
+            3,
+            "every pressable day branch must merge the pressed background \
+             with the press geometry in one refinement"
+        );
+        assert!(
+            !source.contains(".active("),
+            "a chained `.active` after `anim::pressed` replaces the pressed \
+             scale (gpui overwrites the active refinement)"
+        );
+    }
+
+    // The pinned `.calendar-year-picker__trigger` has no hover rule at all:
+    // only focus and the open state recolour it. A soft wash looks plausible
+    // on screen, so the check is mechanical.
+    #[test]
+    fn the_year_picker_trigger_hovers_nothing() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden accessor.
+        let source = include_str!("calendar.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            !source.contains("colors.default.soft_hover()"),
+            "the year-picker trigger must not invent a hover background"
+        );
+    }
+
+    // The pinned `.calendar__nav-button:active` is a bare `transform:
+    // scale(0.95)` with no background change -- the hover fill stays a separate
+    // refinement, so the nav button uses the backgroundless `anim::pressed`
+    // while the day cells keep their `pressed_with_background` merges.
+    #[test]
+    fn the_nav_button_presses_the_deep_scale_over_its_hover() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden chaining.
+        let source = include_str!("calendar.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert_eq!(
+            source.matches("crate::anim::pressed(").count(),
+            1,
+            "the nav button must carry the backgroundless press (the pinned \
+             `[data-pressed]` only scales), and the day cells keep \
+             `pressed_with_background`"
+        );
+        assert!(
+            source.contains("scale: crate::anim::PRESSED_SCALE_DEEP,"),
+            "the nav button must press to v3's 0.95 scale"
+        );
+        assert_eq!(
+            source.matches(".hover(move |s| s.bg(hover_bg))").count(),
+            3,
+            "the pressed refinement must not replace the nav button's \
+             `bg-default` hover fill (pinned `.calendar__nav-button:hover`); \
+             the two day-cell branches and the nav button share the spelling"
         );
     }
 }

@@ -775,32 +775,6 @@ fn autocomplete_disabled_clear_is_inert(cx: &mut TestAppContext) {
     );
 }
 
-#[gpui::test]
-fn autocomplete_read_only_clear_is_inert(cx: &mut TestAppContext) {
-    let selections = events();
-    let selected = selections.clone();
-    let state = search_state(cx);
-    let state_for_view = state;
-
-    let cx = open_host(cx, move || {
-        let selections = selections.clone();
-        let state = state_for_view.clone();
-        Autocomplete::new(state, keyed(&["Alpha"]))
-            .default_value(["Alpha"])
-            .is_read_only(true)
-            .on_selection_change_all(move |_, _, _| {
-                selections.borrow_mut().push("changed".into());
-            })
-            .into_any_element()
-    });
-
-    click(cx, 282., 18.);
-    assert!(
-        selected.borrow().is_empty(),
-        "a read-only Autocomplete must not expose an active clear button"
-    );
-}
-
 /// The clear drops the component's *owned* selection, proven through the
 /// toggle in multiple mode: with {Alpha, Beta} seeded, picking Gamma reports
 /// the three, and after the clear picks Alpha reports only {"Alpha"}. Were the
