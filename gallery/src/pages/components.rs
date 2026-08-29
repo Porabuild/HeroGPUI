@@ -8251,6 +8251,53 @@ impl Gallery {
     // -----------------------------------------------------------------------
 
     pub fn page_avatar(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        // v3 has no AvatarGroup: its Avatar Group example composes ordinary
+        // avatars with layout CSS — a `-space-x-2` overlap and a
+        // `ring-2 ring-background` ring on every member — and renders the
+        // overflow counter as a plain fallback avatar with `text-xs`.
+        fn member(el: impl IntoElement, ring: gpui::Hsla) -> gpui::Div {
+            gpui::div()
+                .border_2()
+                .border_color(ring)
+                .rounded_full()
+                .child(el)
+        }
+        let ring = cx.colors().background;
+        let overlap = |d: gpui::Div| d.ml(px(-8.)).into_any_element();
+        let names = [
+            "Ada Lovelace",
+            "Grace Hopper",
+            "Alan Turing",
+            "Katherine Johnson",
+            "Margaret Hamilton",
+        ];
+        // `-space-x-2`: only subsequent siblings get the -8px margin.
+        let mut counter_members: Vec<AnyElement> = names
+            .iter()
+            .take(3)
+            .enumerate()
+            .map(|(i, n)| {
+                let d = member(h::Avatar::new().name(*n), ring);
+                if i == 0 {
+                    d.into_any_element()
+                } else {
+                    overlap(d)
+                }
+            })
+            .collect();
+        counter_members.push(overlap(member(
+            gpui::div()
+                .flex()
+                .items_center()
+                .justify_center()
+                .size(px(40.))
+                .rounded_full()
+                .bg(cx.colors().surface_tertiary)
+                .text_color(cx.colors().foreground)
+                .text_size(px(12.))
+                .child(format!("+{}", names.len() - 3)),
+            ring,
+        )));
         component_doc_page!(
             "Avatar",
             crate::pages::Page::Avatar.description(),
@@ -8319,15 +8366,30 @@ impl Gallery {
                 ),
                 (
                     "Group",
-                    row(vec![h::AvatarGroup::new(vec![
-                        h::Avatar::new().name("Ada Lovelace"),
-                        h::Avatar::new().name("Grace Hopper"),
-                        h::Avatar::new().name("Alan Turing"),
-                        h::Avatar::new().name("Katherine Johnson"),
-                        h::Avatar::new().name("Margaret Hamilton"),
-                    ])
-                    .max(3)
-                    .into_any_element()]),
+                    row(vec![gpui::div()
+                        .flex()
+                        .flex_col()
+                        .items_start()
+                        .gap(px(24.))
+                        .child(
+                            // Basic group: the first four users overlap by 8px.
+                            gpui::div()
+                                .flex()
+                                .children(names.iter().take(4).enumerate().map(|(i, n)| {
+                                    let d = member(h::Avatar::new().name(*n), ring);
+                                    if i == 0 {
+                                        d.into_any_element()
+                                    } else {
+                                        overlap(d)
+                                    }
+                                }),),
+                        )
+                        .child(
+                            // Counter group: three members plus the "+N"
+                            // fallback avatar, as v3's second row does.
+                            gpui::div().flex().children(counter_members),
+                        )
+                        .into_any_element()]),
                 ),
             ],
             cx,

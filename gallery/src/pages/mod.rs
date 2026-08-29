@@ -486,7 +486,7 @@ impl Page {
             Page::Separator => "use herogpui::components::separator::Separator;",
             Page::Surface => "use herogpui::components::surface::Surface;",
             Page::Toolbar => "use herogpui::components::toolbar::Toolbar;",
-            Page::Avatar => "use herogpui::components::avatar::{Avatar, AvatarGroup};",
+            Page::Avatar => "use herogpui::components::avatar::Avatar;",
             Page::Accordion => "use herogpui::components::accordion::{Accordion, AccordionItem};",
             Page::Breadcrumbs => "use herogpui::components::breadcrumbs::{Breadcrumbs, Crumb};",
             Page::Disclosure => {

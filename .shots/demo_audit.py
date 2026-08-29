@@ -23,6 +23,18 @@ looked at since it was written.
 
 `WONT_DEMO_PROPS` records the ones that stay unshown, with a reason.
 
+Alias resolution mirrors `api_audit.main`'s precedence for one prop, most
+specific first: the part- or fold-scoped alias (`Comp.Part.prop`,
+`Comp.Heading.prop`) answers when the heading that documents the row has one --
+the fold-scoped alias is honored before `FOLD_STRUCTS` ownership gating, exactly
+as `api_audit.main` does -- then the component-scoped alias (`Comp.prop`), then
+the global. That order is what keeps a narrowed global working where its scope
+survives: the global `isLoading -> is_pending` was deleted because v3 renamed
+the prop to `isPending` everywhere but the `Table.LoadMore` sentinel row, and
+the part heading `props_for_state` reports is what scopes the mapping back. A
+wrong part never reaches the alias: its key is simply absent, and the raw
+spelling falls through to be checked against the implementation.
+
     python .shots/demo_audit.py            # the report
     python .shots/demo_audit.py Tabs       # one page, verbosely
     python .shots/demo_audit.py --fetch    # refresh cached preview sources
@@ -63,6 +75,57 @@ PREVIEW_CACHE = os.path.join(os.environ.get('TEMP', '/tmp'),
 
 def camel_to_snake(name):
     return re.sub(r'(?<!^)(?=[A-Z])', '_', name).lower().replace('__', '_')
+
+
+def resolve_alias(component, prop, parts, folds):
+    """The builder spelling `prop` resolves to for `component`.
+
+    The chain is `api_audit.main`'s, read for one prop, most specific first:
+    the part-scoped alias (`Comp.Part.prop`) when a part heading documents the
+    row, then the fold-scoped one (`Comp.Heading.prop`) -- honored whether or
+    not `FOLD_STRUCTS` scopes the heading, as `api_audit.main` honors it before
+    its ownership gate -- then the component-scoped alias (`Comp.prop`), then
+    the global. That order is what keeps a narrowed global working where its
+    scope survives: the global `isLoading -> is_pending` was deleted because v3
+    renamed the prop to `isPending` everywhere but the `Table.LoadMore`
+    sentinel row, and the part heading `props_for_state` reports is what scopes
+    the mapping back. A wrong part never reaches the alias: its key is simply
+    absent, and the resolution falls through to the component and global tiers
+    exactly as `api_audit.main` would. (The owned-structs check a scoped fold
+    applies to a global answer stays `api_audit.main`'s business: this resolver
+    returns a spelling, and the caller checks it against the whole component's
+    implementation set.)
+    """
+    alias = api_audit.ALIAS
+    part = next((pt for pt in parts if prop in parts[pt]), None)
+    fold = next((h for h in folds if prop in folds[h]), None)
+    part_key = '%s.%s.%s' % (component, part, prop) if part else None
+    fold_key = '%s.%s.%s' % (component, fold, prop) if fold else None
+    comp_key = '%s.%s' % (component, prop)
+    if part:
+        # A part row: the part's own alias first, then the component's, then
+        # the global -- `api_audit.main`'s `if part and part_key in ALIAS`
+        # branch, order preserved.
+        if part_key in alias:
+            return alias[part_key]
+        if comp_key in alias:
+            return alias[comp_key]
+        return alias.get(prop, prop)
+    if fold:
+        # The fold-scoped alias (`Comp.Heading.prop`) answers first, whether
+        # or not `FOLD_STRUCTS` scopes the heading -- `api_audit.main` honors
+        # it before its ownership gate. A scoped fold then answers through the
+        # component and global tiers; an unscoped fold (`### Render Props`,
+        # `### ToastQueue`) documents the component's own state, so the same
+        # tiers answer it -- `api_audit.main`'s no-entry branch.
+        if fold_key in alias:
+            return alias[fold_key]
+        if comp_key in alias:
+            return alias[comp_key]
+        return alias.get(prop, prop)
+    if comp_key in alias:
+        return alias[comp_key]
+    return alias.get(prop, prop)
 
 
 def v3_pages():
@@ -169,6 +232,120 @@ def check_jsx_parser():
         raise RuntimeError('JSX prop reader lost boolean shorthand attributes')
 
 
+def self_test():
+    """Known-positive and known-negative proof for the alias resolution.
+
+    The precedence proof is the real Dropdown conflict: `isSelected` is
+    documented on the `Dropdown.ItemIndicator` part and carries a
+    component-scoped alias too, so the part-scoped `indicator_content` must
+    win, and a wrong part must fall through to the component mapping rather
+    than borrow the part alias. The known-positive after that is the
+    regression this script had: narrowing `api_audit`'s global
+    `isLoading -> is_pending` to the part-scoped `Table.LoadMore.isLoading`
+    dropped Table's row out of the exercised tally, because the resolver only
+    read component-scoped and global keys. The known-negatives are the two
+    ways that fix could rot: a global alias creeping back, and a wrong part
+    reaching a part-scoped alias.
+    """
+    failures = []
+
+    def expect(condition, message):
+        if not condition:
+            failures.append(message)
+
+    def ports(component, prop, parts, folds, implemented):
+        ported = resolve_alias(component, prop, parts, folds)
+        names = {camel_to_snake(ported), camel_to_snake(prop)}
+        return bool(names & implemented)
+
+    # Part-scoped beats component-scoped: v3 documents `isSelected` on the
+    # `### Dropdown.ItemIndicator` part, `api_audit.ALIAS` answers it with the
+    # part-scoped `indicator_content`, and the component-scoped
+    # `Dropdown.isSelected -> item_content` also exists -- so this is the
+    # known conflict: the part tier must win.
+    expect(resolve_alias('Dropdown', 'isSelected',
+                         {'ItemIndicator': {'isSelected'}}, {})
+           == 'indicator_content',
+           'the part-scoped Dropdown.ItemIndicator.isSelected lost to the '
+           'component-scoped Dropdown.isSelected')
+    real_dropdown = api_audit.props_for_state('Dropdown')
+    expect(real_dropdown is not None and
+           resolve_alias('Dropdown', 'isSelected',
+                         real_dropdown[1], real_dropdown[2]) == 'indicator_content',
+           'the real Dropdown part tables did not resolve isSelected to '
+           'indicator_content')
+    # A wrong part cannot borrow the Indicator alias: without that part
+    # heading, the resolution falls through to the component-scoped mapping,
+    # never to the part-scoped one.
+    expect(resolve_alias('Dropdown', 'isSelected', {'Popover': {'isSelected'}}, {})
+           == 'item_content',
+           'a wrong Dropdown part borrowed the ItemIndicator alias')
+
+    # Part-scoped resolution works: the heading that documents the row is
+    # the context, whether handed in directly or read from the real bundle.
+    expect(resolve_alias('Table', 'isLoading', {'LoadMore': {'isLoading'}}, {})
+           == 'is_pending', 'part-scoped Table.LoadMore.isLoading did not resolve')
+    real = api_audit.props_for_state('Table')
+    expect(real is not None and
+           resolve_alias('Table', 'isLoading', real[1], real[2]) == 'is_pending',
+           'the real Table part tables did not resolve isLoading to is_pending')
+    expect(ports('Table', 'isLoading', {'LoadMore': {'isLoading'}}, {},
+                 {'is_pending'}), 'the resolved part alias did not port')
+
+    # An unscoped fold alias is honored before FOLD_STRUCTS gating, exactly as
+    # `api_audit.main` honors `Comp.Heading.prop` before its ownership check:
+    # v3 documents the render-prop rows under a bare `### Render Props`
+    # heading, which `FOLD_STRUCTS` deliberately does not scope, and
+    # `NumberField.Render Props.isDisabled -> content` answers it anyway. The
+    # rot this catches is re-gating the fold tier on `FOLD_STRUCTS`, which
+    # dropped these rows to the global tier.
+    expect(('NumberField', 'Render Props') not in api_audit.FOLD_STRUCTS
+           and api_audit.ALIAS.get('NumberField.Render Props.isDisabled')
+           == 'content',
+           'the unscoped NumberField render-prop alias fixture is missing')
+    expect(resolve_alias('NumberField', 'isDisabled', {},
+                         {'Render Props': {'isDisabled'}}) == 'content',
+           'an unscoped fold ignored its Comp.Heading.prop alias')
+    real_number = api_audit.props_for_state('NumberField')
+    expect(real_number is not None and
+           resolve_alias('NumberField', 'isDisabled', real_number[1],
+                         real_number[2]) == 'content',
+           'the real NumberField fold tables did not resolve isDisabled to '
+           'content')
+    expect(ports('NumberField', 'isDisabled', {}, {'Render Props': {'isDisabled'}},
+                 {'content'}), 'the resolved unscoped fold alias did not port')
+
+    # Component-scoped and global behavior is unchanged.
+    expect(resolve_alias('Toast', 'isLoading', {}, {}) == 'is_loading',
+           'component-scoped Toast.isLoading needs no part context')
+    expect(resolve_alias('Button', 'isPending', {}, {}) == 'is_pending',
+           'global isPending did not resolve')
+    expect(resolve_alias('Button', 'isDisabled', {}, {}) == 'is_disabled',
+           'global isDisabled did not resolve to the snake spelling')
+
+    # Known negatives: the narrowed global stays deleted, and a wrong part
+    # must not reach the part-scoped alias -- the raw spelling falls through
+    # and, matching nothing implemented, stays unexercised.
+    expect('isLoading' not in api_audit.ALIAS,
+           'the global isLoading alias is back')
+    expect(resolve_alias('Button', 'isLoading', {}, {}) == 'isLoading',
+           'a bare isLoading row resolved although the global alias is deleted')
+    expect(not ports('Table', 'isLoading', {'Body': {'isLoading'}}, {},
+                     {'is_pending'}),
+           'a wrong part still reached the Table.LoadMore.isLoading alias')
+
+    if failures:
+        print('self-test FAIL')
+        for failure in failures:
+            print('- %s' % failure)
+        return 1
+    print('self-test PASS: part-scoped Table.LoadMore.isLoading resolves through '
+          'its heading; the unscoped NumberField render-prop fold resolves '
+          'through its alias before FOLD_STRUCTS gating; component and global '
+          'aliases and the deleted global isLoading behave unchanged')
+    return 0
+
+
 def our_pages():
     """`{page_fn_suffix: rust source of every demo section}`."""
     out = {}
@@ -199,7 +376,15 @@ def main():
         if suffix not in ours:
             continue
         component = page.replace(' ', '')
-        documented = api_audit.props_for(component)
+        state = api_audit.props_for_state(component)
+        if state is None:
+            continue
+        root_doc, parts, folds = state
+        documented = set(root_doc)
+        for chunk in parts.values():
+            documented |= chunk
+        for chunk in folds.values():
+            documented |= chunk
         if not documented:
             continue
         implemented = set()
@@ -223,8 +408,7 @@ def main():
         for prop in sorted(used):
             if prop not in documented:
                 continue
-            ported = api_audit.ALIAS.get('%s.%s' % (component, prop),
-                                         api_audit.ALIAS.get(prop, prop))
+            ported = resolve_alias(component, prop, parts, folds)
             names = {camel_to_snake(ported), camel_to_snake(prop)}
             if names & ctor:
                 # A prop the constructor takes positionally cannot be shown by
@@ -259,4 +443,6 @@ def main():
 
 
 if __name__ == '__main__':
+    if '--self-test' in sys.argv[1:]:
+        sys.exit(self_test())
     main()

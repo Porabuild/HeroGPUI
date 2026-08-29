@@ -52,10 +52,9 @@ use std::time::Duration;
 use gpui::{prelude::*, px, TestAppContext, VisualTestContext};
 use harness::{click, events, open_host, press, Events};
 use herogpui_components::{
-    clear_toasts, dismiss_toast, pause_toasts, toast_store, Alert, Avatar, AvatarGroup,
-    AvatarVariant, Badge, BadgePlacement, BadgeVariant, Color, Meter, NumberFormat, ProgressBar,
-    ProgressCircle, Size, Skeleton, Spinner, SpinnerSize, Toast, ToastData, ToastPlacement,
-    ToastViewport,
+    clear_toasts, dismiss_toast, pause_toasts, toast_store, Alert, Avatar, AvatarVariant, Badge,
+    BadgePlacement, BadgeVariant, Color, Meter, NumberFormat, ProgressBar, ProgressCircle, Size,
+    Skeleton, Spinner, SpinnerSize, Toast, ToastData, ToastPlacement, ToastViewport,
 };
 use herogpui_theme::SkeletonAnimation;
 
@@ -1245,7 +1244,7 @@ fn badge_renders_every_variant_size_placement_and_dot(cx: &mut TestAppContext) {
 /// platform's asset source answers `Ok(None)` for every path — the port's
 /// docs note that a missing svg loads as None — so the src-bearing avatar
 /// below *always* fails to load, and the smoke is that it renders without
-/// panicking. The group with `max`/`total` renders the "+N" overflow slot.
+/// panicking.
 #[gpui::test]
 fn avatar_renders_every_variant_with_and_without_src(cx: &mut TestAppContext) {
     open_host(cx, || {
@@ -1269,13 +1268,6 @@ fn avatar_renders_every_variant_with_and_without_src(cx: &mut TestAppContext) {
             .name("Jane Doe")
             .size(Size::Sm)
             .src("fb-avatar-missing.png");
-        let group = AvatarGroup::new(vec![
-            Avatar::new().name("Jane Doe"),
-            Avatar::new().name("Kate Wilson"),
-            Avatar::new().name("Emily Chen"),
-        ])
-        .max(2)
-        .total(5);
         gpui::div()
             .flex()
             .flex_wrap()
@@ -1285,7 +1277,6 @@ fn avatar_renders_every_variant_with_and_without_src(cx: &mut TestAppContext) {
             .child(large)
             .child(with_src)
             .child(small_src)
-            .child(group)
             .into_any_element()
     });
 }

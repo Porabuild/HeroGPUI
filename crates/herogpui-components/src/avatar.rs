@@ -1,4 +1,4 @@
-//! Avatar & AvatarGroup — port of `@heroui/avatar`.
+//! Avatar — port of `@heroui/avatar`.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -61,9 +61,6 @@ pub struct Avatar {
     small: bool,
     color: Color,
     variant: AvatarVariant,
-    /// Set by [`AvatarGroup`], which rings each member so the stack reads as
-    /// separate avatars. v3 does this in the group's CSS, not with a prop.
-    is_bordered: bool,
 }
 
 impl Avatar {
@@ -77,7 +74,6 @@ impl Avatar {
             small: false,
             color: Color::Default,
             variant: AvatarVariant::Default,
-            is_bordered: false,
         }
     }
 
@@ -122,11 +118,6 @@ impl Avatar {
         // `.avatar--sm` is `rounded-2xl` where the other two are `rounded-3xl`:
         // at 32px a 24px radius would be all but a circle, so v3 steps it down.
         self.small = size == herogpui_core::Size::Sm;
-        self
-    }
-
-    fn with_border(mut self, v: bool) -> Self {
-        self.is_bordered = v;
         self
     }
 
@@ -188,10 +179,6 @@ impl RenderOnce for Avatar {
             .font_weight(gpui::FontWeight::MEDIUM)
             .overflow_hidden()
             .flex_shrink_0();
-
-        if self.is_bordered {
-            el = el.border_2().border_color(cx.colors().background);
-        }
 
         match self.src {
             Some(path) => {
@@ -291,78 +278,5 @@ impl RenderOnce for Avatar {
         }
 
         el
-    }
-}
-
-/// Stacked avatar group with overflow counter (`AvatarGroup`).
-#[derive(IntoElement)]
-pub struct AvatarGroup {
-    avatars: Vec<Avatar>,
-    max: usize,
-    total: Option<usize>,
-}
-
-impl AvatarGroup {
-    pub fn new(avatars: Vec<Avatar>) -> Self {
-        Self {
-            avatars,
-            max: 3,
-            total: None,
-        }
-    }
-
-    /// Maximum visible avatars before the "+N" chip.
-    pub fn max(mut self, max: usize) -> Self {
-        self.max = max.max(1);
-        self
-    }
-
-    /// Overrides the total count used in the "+N" chip.
-    pub fn total(mut self, total: usize) -> Self {
-        self.total = Some(total);
-        self
-    }
-}
-
-impl RenderOnce for AvatarGroup {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let count = self.avatars.len();
-        let visible: Vec<Avatar> = self.avatars.into_iter().take(self.max).collect();
-
-        gpui::div()
-            .flex()
-            .items_center()
-            .child(
-                gpui::div()
-                    .flex()
-                    .children(visible.into_iter().enumerate().map(|(i, a)| {
-                        gpui::div()
-                            .when(i > 0, |d| d.ml(px(-8.)))
-                            .rounded_full()
-                            .child(a.with_border(true))
-                    })),
-            )
-            .when(
-                count > self.max || self.total.is_some_and(|t| t > self.max),
-                |el| {
-                    let shown_total = self.total.unwrap_or(count);
-                    el.child(
-                        gpui::div()
-                            .ml(px(-8.))
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .w(px(40.))
-                            .h(px(40.))
-                            .rounded_full()
-                            .bg(cx.colors().default.soft())
-                            .text_color(cx.colors().muted)
-                            .text_size(px(12.))
-                            .border_2()
-                            .border_color(cx.colors().background)
-                            .child(format!("+{}", shown_total - self.max)),
-                    )
-                },
-            )
     }
 }

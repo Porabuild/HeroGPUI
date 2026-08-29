@@ -132,6 +132,13 @@ ALIAS = {
     # ComboBox documents the same scalar/array union. The plural callback is
     # the builder that proves the multiple-selection half of that contract.
     'ComboBox.onChange': 'on_selection_change_all',
+    # v3 spells the custom filter under two names: the ComboBox root table
+    # says `defaultFilter`, while `### Autocomplete.Filter` says `filter`
+    # outright (which resolves by snake and needs no alias). The alias is
+    # scoped to the one table that uses the other spelling; a global
+    # `defaultFilter -> filter` would also silently answer the name on any
+    # component that never documented it.
+    'ComboBox.defaultFilter': 'filter',
     # Slider's value/defaultValue are number | number[]; the plural builder
     # proves the multi-thumb form rather than only the scalar.
     'Slider.defaultValue': 'default_values',
@@ -168,9 +175,17 @@ ALIAS = {
     'isInvalid': 'is_invalid', 'isSelected': 'is_selected', 'isPending': 'is_pending',
     'isIconOnly': 'is_icon_only', 'isOpen': 'is_open', 'isIndeterminate': 'is_indeterminate',
     'isAttached': 'is_attached', 'isEnabled': 'is_enabled', 'isClearable': 'is_clearable',
-    'isDismissable': 'is_dismissible', 'isExternal': 'is_external', 'isStriped': 'is_striped',
-    'isBordered': 'is_bordered', 'isBlurred': 'is_blurred', 'isHoverable': 'is_hoverable',
-    'isPressable': 'is_pressable', 'isDestructive': 'is_destructive',
+    'isDismissable': 'is_dismissible',
+    # Deliberately absent: the v2 spellings `isExternal`, `isStriped`,
+    # `isBordered`, `isBlurred`, `isHoverable`, `isPressable` and
+    # `isDestructive` are documented nowhere in v3's prop tables -- they
+    # survive only in the bundle's migration guides, which `props_for_state`
+    # never reads. A global alias here would let a reintroduced v2 builder
+    # satisfy a row v3 never written; `dead_v2_aliases` (which `main` runs)
+    # fails loudly if one comes back, and `extra_audit.py`'s `BANNED_V2`
+    # enforces the builder side of the same deletion. `is_destructive` stays
+    # unbanned there because the port records it as the composition spelling
+    # of v3's `variant="danger"`, not as the removed v2 prop.
     'fullWidth': 'full_width', 'maxVisibleToasts': 'max_visible_toasts',
     'hideSeparator': 'hide_separator', 'hideSteppers': 'hide_steppers',
     'selectionMode': 'selection_mode', 'selectedKeys': 'selected_keys',
@@ -202,7 +217,7 @@ ALIAS = {
     # onto the controlled `selected_key`.
     'Tabs.defaultSelectedKey': 'default_selected_key',
     'renderEmptyState': 'empty_state', 'onInputChange': 'on_input_change',
-    'defaultFilter': 'filter', 'autoFocus': 'auto_focus',
+    'autoFocus': 'auto_focus',
     # `Dropdown.ItemIndicator`'s type is our `indicator` builder.
     'Dropdown.type': 'indicator',
     # v3 documents the plain attribute spellings alongside the is* ones.
@@ -212,7 +227,7 @@ ALIAS = {
     # with a custom image loader that observes the load.
     'Avatar.onError': 'on_error',
     'Avatar.delayMs': 'delay_ms',
-    'onLoadMore': 'on_load_more', 'isLoading': 'is_pending',
+    'onLoadMore': 'on_load_more',
     'sortDescriptor': 'sort_descriptor', 'allowsSorting': 'allows_sorting',
     'isRowHeader': 'is_row_header', 'showIndicator': 'show_indicator',
     'onAction': 'on_action', 'isKeyboardDismissDisabled': 'is_keyboard_dismiss_disabled',
@@ -289,13 +304,34 @@ ALIAS = {
     'Input.type': 'input_type',
     'InputGroup.type': 'input_type',
     'Typography.type': 'kind',
-    # v3's toast option is spelled `isLoading` and means a spinner; the global
-    # `isLoading` alias is the v2 rename to `isPending`, which is a different
-    # prop.
+    # `Table.LoadMore.isLoading` is the sentinel row's own flag, answered by
+    # `Table::is_pending` through the part's `PART_STRUCTS` owner. The old
+    # global `isLoading -> is_pending` was the v2 rename, which is a
+    # different prop: v3 spells Button's loading state `isPending`, so the
+    # mapping lives only on the one part that documents `isLoading`.
+    'Table.LoadMore.isLoading': 'is_pending',
+    # v3's toast option is spelled `isLoading` and means a spinner, not the
+    # v2 rename to `isPending`; the deleted global alias conflated the two,
+    # so Toast keeps its own scoped mapping.
     'Toast.isLoading': 'is_loading',
     # `actionProps` is `{children, onPress}` -- a label and a handler.
     'Toast.actionProps': 'action',
 }
+
+# The v2 spellings v3 documents nowhere -- they survive only in the bundle's
+# migration guides, which `props_for_state` never reads. `main` fails loudly
+# if any of them reappears in `ALIAS`: a mapping here would let a reintroduced
+# v2 builder satisfy a row v3 never wrote, and `extra_audit.py`'s `BANNED_V2`
+# enforces the builder side of the same deletion.
+DEAD_V2_ALIASES = ('isExternal', 'isStriped', 'isBordered', 'isBlurred',
+                   'isHoverable', 'isPressable', 'isDestructive')
+
+
+def dead_v2_aliases(aliases=None):
+    """The dead v2 spellings present in `aliases` (default `ALIAS`)."""
+    table = ALIAS if aliases is None else aliases
+    return [p for p in DEAD_V2_ALIASES if p in table]
+
 
 # Props with no meaningful gpui analogue at all.
 SKIP = {
@@ -925,11 +961,16 @@ def prop_rows_owned(text):
 
 
 def self_test():
-    """Known-positive and known-negative proof for the identifier class.
+    """Known-positive and known-negative proof for the reader and the aliases.
 
-    The known-negative is the pre-fix rule: `[a-zA-Z-]+` cannot read a row
-    whose identifier carries an underscore, so `UNSTABLE_portalContainer` was
-    a documented prop that never reached the comparison.
+    The identifier known-negative is the pre-fix rule: `[a-zA-Z-]+` cannot
+    read a row whose identifier carries an underscore, so
+    `UNSTABLE_portalContainer` was a documented prop that never reached the
+    comparison. The alias checks prove the dead v2 spellings and the global
+    `isLoading`/`defaultFilter` mappings stay deleted, so a reintroduced v2
+    prop or builder can only surface as a real gap: a stale alias injected
+    into a copy of `ALIAS` is caught by the same `dead_v2_aliases` guard
+    `main` runs.
     """
     failures = []
 
@@ -971,16 +1012,73 @@ def self_test():
     )
     expect(prop_rows(value_table) == set(), 'value table misread as prop rows')
 
+    # The dead v2 aliases are deleted. `resolves` mirrors main()'s
+    # alias-or-snake resolution: with the aliases gone, a documented v2
+    # spelling can only be satisfied by a builder that literally exists, so a
+    # reintroduction surfaces as a REAL GAPS row instead of laundering
+    # through a mapping to a builder v3 never described.
+    def resolves(prop, have):
+        rust = ALIAS.get(prop, re.sub(r'(?<!^)(?=[A-Z])', '_', prop).lower())
+        return rust in have or prop.lower() in have
+
+    dead = ('isExternal', 'isStriped', 'isBordered', 'isBlurred',
+            'isHoverable', 'isPressable', 'isDestructive')
+    for prop in dead:
+        expect(prop not in ALIAS, 'dead v2 alias %s is back in ALIAS' % prop)
+        expect(not resolves(prop, {'is_disabled'}),
+               '%s resolved without a matching builder' % prop)
+    striped_table = (
+        '| Prop | Type |\n| --- | --- |\n| `isStriped` | `boolean` |\n'
+    )
+    expect(prop_rows(striped_table) == {'isStriped'}, 'v2 prop row not extracted')
+
+    # The guard `main` runs on every pass, independently of `resolves` above:
+    # one stale alias injected into a copy must be caught by name, and the
+    # live table must pass clean.
+    stale = dict(ALIAS)
+    stale['isStriped'] = 'is_striped'
+    expect(dead_v2_aliases(stale) == ['isStriped'],
+           'the dead-alias guard missed an injected stale isStriped alias')
+    expect(dead_v2_aliases() == [],
+           'the dead-alias guard flagged a live alias entry')
+
+    # `isLoading` narrowed: a bare `isLoading` row must not reach `is_pending`
+    # any more -- only the part-scoped key does, and Toast keeps its spinner.
+    expect('isLoading' not in ALIAS, 'global isLoading alias still present')
+    expect(ALIAS.get('Table.LoadMore.isLoading') == 'is_pending',
+           'scoped Table.LoadMore.isLoading alias missing')
+    expect(ALIAS.get('Toast.isLoading') == 'is_loading',
+           'scoped Toast.isLoading alias missing')
+    expect(not resolves('isLoading', {'is_pending'}),
+           'bare isLoading still resolves onto the v2 rename is_pending')
+    expect(resolves('isLoading', {'is_loading'}),
+           'the scoped spinner reading no longer resolves where it is spelled')
+
+    # `defaultFilter` scoped: only the ComboBox root table uses that spelling;
+    # a bare `defaultFilter` row must not reach `filter` through a global.
+    expect('defaultFilter' not in ALIAS, 'global defaultFilter alias still present')
+    expect(ALIAS.get('ComboBox.defaultFilter') == 'filter',
+           'scoped ComboBox.defaultFilter alias missing')
+    expect(not resolves('defaultFilter', {'filter'}),
+           'bare defaultFilter still resolves onto filter')
+
     if failures:
         print('self-test FAIL')
         for failure in failures:
             print('- %s' % failure)
         return 1
-    print('self-test PASS: identifier extraction reads underscored prop names')
+    print('self-test PASS: identifier extraction reads underscored prop names; '
+          'dead v2 aliases and the global isLoading/defaultFilter mappings stay deleted')
     return 0
 
 
 def main():
+    dead = dead_v2_aliases()
+    if dead:
+        raise SystemExit(
+            'DEAD v2 ALIAS IN ALIAS: %s -- v3 documents none of these '
+            'spellings, so a mapping here would let a reintroduced v2 '
+            'builder satisfy a row v3 never wrote' % ', '.join(dead))
     gap_total = 0
     wont_total = 0
     # Per reason, because one blanket number says nothing about what it covers:
