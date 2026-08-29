@@ -188,9 +188,10 @@ fn virtual_picker_items() -> Vec<h::PickerItem> {
         .collect()
 }
 
-/// `languages()` as keyed items, for the Autocomplete demos: the slug is the
-/// stable key the selection and `disabledKeys` address, the display name the
-/// label the filtering and rendering use.
+/// `languages()` as keyed items, for the Autocomplete and ComboBox demos: the
+/// slug is the stable key the selection, `disabledKeys` and the form value
+/// address, the display name the label the filtering, input text and
+/// rendering use.
 fn language_items() -> Vec<h::PickerItem> {
     languages()
         .into_iter()
@@ -10828,9 +10829,10 @@ impl Gallery {
                                 .label("Language")
                                 // `useFilter({sensitivity: "base"}).contains`:
                                 // case and accents both ignored, so "cafe"
-                                // finds "Café".
-                                .filter(|query, item| {
-                                    h::Filter::new(h::Sensitivity::Base).contains(item, query)
+                                // finds "Café". The closure receives
+                                // `(item_label, input)`.
+                                .filter(|item, input| {
+                                    h::Filter::new(h::Sensitivity::Base).contains(item, input)
                                 })
                                 .into_any_element(),
                             h::Spinner::new("ac-async-spinner")
@@ -10930,7 +10932,7 @@ impl Gallery {
                              view. A thousand options, forty pixels each.",
                             cx,
                         ),
-                        h::ComboBox::new(self.demo_text("cb-virtual", "", cx), virtual_names())
+                        h::ComboBox::new(self.demo_text("cb-virtual", "", cx), virtual_picker_items())
                             .label("User")
                             .row_height(px(40.))
                             .into_any_element(),
@@ -10940,7 +10942,7 @@ impl Gallery {
                     "Full Width",
                     col(vec![h::ComboBox::new(
                         self.demo_text("cb-full", "", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .full_width(true)
@@ -10950,7 +10952,7 @@ impl Gallery {
                     "With Description",
                     col(vec![h::ComboBox::new(
                         self.demo_text("cb-desc", "", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .description("Pick from the list or type your own")
@@ -10960,7 +10962,7 @@ impl Gallery {
                     "Required",
                     col(vec![h::ComboBox::new(
                         self.demo_text("cb-required", "", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .is_required(true)
@@ -10970,7 +10972,7 @@ impl Gallery {
                     "Disabled",
                     col(vec![h::ComboBox::new(
                         self.demo_text("cb-disabled", "Rust", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .is_disabled(true)
@@ -10980,7 +10982,7 @@ impl Gallery {
                     "Read Only",
                     col(vec![h::ComboBox::new(
                         self.demo_text("cb-readonly", "Rust", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .is_read_only(true)
@@ -10991,7 +10993,7 @@ impl Gallery {
                     col(vec![h::Surface::new()
                         .padding(px(24.))
                         .child(
-                            h::ComboBox::new(self.demo_text("cb-surface", "", cx), languages())
+                            h::ComboBox::new(self.demo_text("cb-surface", "", cx), language_items())
                                 .label("Language")
                                 .variant(FieldVariant::Secondary),
                         )
@@ -11001,10 +11003,10 @@ impl Gallery {
                     "With Disabled Options",
                     col(vec![h::ComboBox::new(
                         self.demo_text("cb-disabled-opts", "", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
-                    .disabled_keys([SharedString::from("Go")])
+                    .disabled_keys([SharedString::from("go")])
                     .default_open(true)
                     .into_any_element()]),
                 ),
@@ -11013,25 +11015,28 @@ impl Gallery {
                     col(vec![h::ComboBox::new(
                         self.demo_text("cb-sections", "", cx),
                         vec![
-                            "Rust".into(),
-                            "Go".into(),
-                            "TypeScript".into(),
-                            "Python".into(),
+                            h::PickerItem::new("rust", "Rust"),
+                            h::PickerItem::new("go", "Go"),
+                            h::PickerItem::new("typescript", "TypeScript"),
+                            h::PickerItem::new("python", "Python"),
                         ],
                     )
                     .label("Language")
-                    .section_before("Rust", "Systems")
-                    .section_before("TypeScript", "Scripting")
+                    .section_before("rust", "Systems")
+                    .section_before("typescript", "Scripting")
                     .default_open(true)
                     .into_any_element()]),
                 ),
                 (
                     "Controlled",
                     col(vec![
-                        h::ComboBox::new(self.demo_text("cb-controlled", "", cx), languages())
+                        h::ComboBox::new(self.demo_text("cb-controlled", "", cx), language_items())
                             .label("Language")
-                            // `defaultSelectedKey`/`selectedKey` seed the pick;
-                            // `inputValue` writes the text back in.
+                            // `selectedKey` is the controlled selection key
+                            // (empty string is v3's `null`); the input shows
+                            // that key's label and `inputValue` holds the
+                            // typed text. The pick reports the key, which is
+                            // what the line below displays.
                             .selected_key(cb_picked.clone(), cx)
                             .input_value(cb_typed.clone(), cx)
                             .on_selection_change(cx.listener(
@@ -11054,7 +11059,7 @@ impl Gallery {
                 (
                     "Controlled Input Value",
                     col(vec![
-                        h::ComboBox::new(self.demo_text("cb-input", "", cx), languages())
+                        h::ComboBox::new(self.demo_text("cb-input", "", cx), language_items())
                             .label("Language")
                             .on_input_change(cx.listener(|this, text: &str, _, cx| {
                                 this.set_demo_text_value("cb-typed", text.to_owned());
@@ -11068,7 +11073,7 @@ impl Gallery {
                     "Controlled Selection",
                     col(vec![h::ComboBox::new(
                         self.demo_text("cb-ctl-sel", "", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Languages")
                     .selection_mode(SelectionMode::Multiple)
@@ -11083,7 +11088,7 @@ impl Gallery {
                     "Multiple Selection",
                     col(vec![h::ComboBox::new(
                         self.demo_text("cb-multi-sel", "", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Languages")
                     .selection_mode(SelectionMode::Multiple)
@@ -11094,7 +11099,7 @@ impl Gallery {
                     "Value Render Props",
                     col(vec![h::ComboBox::new(
                         self.demo_text("cb-value", "Rust", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .selected_keys(cb_value.iter().cloned())
@@ -11120,7 +11125,7 @@ impl Gallery {
                     "Default Selected Key",
                     col(vec![h::ComboBox::new(
                         self.demo_text("cb-default-key", "TypeScript", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .into_any_element()]),
@@ -11129,7 +11134,7 @@ impl Gallery {
                     "Allows Custom Value",
                     col(vec![h::ComboBox::new(
                         self.demo_text("cb-custom", "Zig", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .allows_custom_value(true)
@@ -11146,14 +11151,14 @@ impl Gallery {
                             cx,
                         ),
                         row(vec![
-                            h::ComboBox::new(self.demo_text("cb-async", "", cx), languages())
+                            h::ComboBox::new(self.demo_text("cb-async", "", cx), language_items())
                                 .label("Language")
                                 .allows_empty_collection(true)
                                 // v3 pairs the flag with async loading: type a
                                 // query nothing matches and the panel stays up
                                 // with "No matching options" instead of closing.
-                                .filter(|query, item| {
-                                    h::Filter::new(h::Sensitivity::Base).contains(item, query)
+                                .filter(|item, input| {
+                                    h::Filter::new(h::Sensitivity::Base).contains(item, input)
                                 })
                                 .into_any_element(),
                             h::Spinner::new("cb-async-spinner")
@@ -11166,7 +11171,7 @@ impl Gallery {
                     "Custom Indicator",
                     col(vec![h::ComboBox::new(
                         self.demo_text("cb-indicator", "", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Languages")
                     .selection_mode(SelectionMode::Multiple)
@@ -11187,10 +11192,10 @@ impl Gallery {
                              on the start of the name only.",
                             cx,
                         ),
-                        h::ComboBox::new(self.demo_text("cb-filter", "", cx), languages())
+                        h::ComboBox::new(self.demo_text("cb-filter", "", cx), language_items())
                             .label("Language")
-                            .filter(|query, item| {
-                                h::Filter::new(h::Sensitivity::Base).starts_with(item, query)
+                            .filter(|item, input| {
+                                h::Filter::new(h::Sensitivity::Base).starts_with(item, input)
                             })
                             .default_open(true)
                             .into_any_element(),
@@ -11201,14 +11206,14 @@ impl Gallery {
                     col(vec![
                         spec(
                             "Input (opens as you type)",
-                            h::ComboBox::new(self.demo_text("cb-mt-input", "", cx), languages())
+                            h::ComboBox::new(self.demo_text("cb-mt-input", "", cx), language_items())
                                 .label("Language")
                                 .menu_trigger(h::MenuTrigger::Input),
                             cx,
                         ),
                         spec(
                             "Manual (only the chevron opens it)",
-                            h::ComboBox::new(self.demo_text("cb-mt-manual", "", cx), languages())
+                            h::ComboBox::new(self.demo_text("cb-mt-manual", "", cx), language_items())
                                 .label("Language")
                                 .menu_trigger(h::MenuTrigger::Manual),
                             cx,
@@ -11219,23 +11224,57 @@ impl Gallery {
                     "Form Value",
                     col(vec![
                         para(
-                            "A ComboBox item *is* its text here -- the list is a `Vec<SharedString>` \
-                             -- so the key and the label are the same value and there is nothing \
-                             for v3's `formValue` to choose between. The field submits the text.",
+                            "Items are keyed `PickerItem`s: the selection is the item's key while \
+                             the input shows its label, and v3's `formValue` decides what a named \
+                             field submits. The default (`key`) submits the picked key -- save \
+                             with a pick and the submitted value is `language=rust`, not `Rust` \
+                             -- and `allowsCustomValue` forces the typed text.",
                             cx,
                         ),
                         {
-                            let state = self.demo_text("cb-form", "", cx);
-                            let field = h::ComboBox::new(state.clone(), languages())
-                                .label("Language")
-                                .name("language")
-                                .is_required(true);
+                            let combo = h::ComboBox::new(
+                                self.demo_text("cb-form", "", cx),
+                                language_items(),
+                            )
+                            .label("Language")
+                            .name("language")
+                            .is_required(true);
                             h::Form::new()
-                                .field(h::FormField::text(state).name("language").is_required(true))
-                                .child(field)
+                                .field(combo.form_field().expect("named combo field"))
+                                .on_submit(cx.listener(|this, data: &h::FormData, _, cx| {
+                                    this.set_demo_text_value(
+                                        "cb-form-submitted",
+                                        data.text("language").unwrap_or_default().to_string(),
+                                    );
+                                    cx.notify();
+                                }))
+                                .child(combo)
                                 .child(h::Button::new("cb-form-submit").label("Save"))
                                 .into_any_element()
                         },
+                        para(
+                            &if self.demo_text_value("cb-form-submitted").is_empty() {
+                                "Nothing submitted yet".to_owned()
+                            } else {
+                                format!(
+                                    "Submitted: {}",
+                                    self.demo_text_value("cb-form-submitted")
+                                )
+                            },
+                            cx,
+                        ),
+                        spec(
+                            "allowsCustomValue submits the text",
+                            h::ComboBox::new(
+                                self.demo_text("cb-form-custom", "", cx),
+                                language_items(),
+                            )
+                            .label("Language")
+                            .name("custom-language")
+                            .allows_custom_value(true)
+                            .form_value(h::ComboBoxFormValue::Text),
+                            cx,
+                        ),
                     ]),
                 ),
                 (
@@ -11243,7 +11282,7 @@ impl Gallery {
                     col(vec![
                         spec(
                             "Native (blocks the submit)",
-                            h::ComboBox::new(self.demo_text("cb-vb-native", "", cx), languages())
+                            h::ComboBox::new(self.demo_text("cb-vb-native", "", cx), language_items())
                                 .label("Language")
                                 .is_required(true)
                                 .validation_behavior(h::ValidationBehavior::Native),
@@ -11251,7 +11290,7 @@ impl Gallery {
                         ),
                         spec(
                             "Allow (shows the message, submits anyway)",
-                            h::ComboBox::new(self.demo_text("cb-vb-allow", "", cx), languages())
+                            h::ComboBox::new(self.demo_text("cb-vb-allow", "", cx), language_items())
                                 .label("Language")
                                 .is_required(true)
                                 .validation_behavior(h::ValidationBehavior::Allow),
@@ -11263,7 +11302,7 @@ impl Gallery {
                     "Custom Validation",
                     col(vec![h::ComboBox::new(
                         self.demo_text("cb-validate", "Zig", cx),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .allows_custom_value(true)
@@ -11277,7 +11316,7 @@ impl Gallery {
                     "Usage",
                     col(vec![h::ComboBox::new(
                         self.combo_state.clone(),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .placeholder("Pick or type")
@@ -11296,7 +11335,7 @@ impl Gallery {
                     "Custom values allowed",
                     col(vec![h::ComboBox::new(
                         self.combo_state.clone(),
-                        languages(),
+                        language_items(),
                     )
                     .label("Language")
                     .allows_custom_value(true)

@@ -19,9 +19,17 @@
 mod harness;
 
 use gpui::{prelude::*, Focusable, TestAppContext};
-use herogpui_components::{ComboBox, Input, InputState, MenuTrigger};
+use herogpui_components::{ComboBox, Input, InputState, MenuTrigger, PickerItem};
 
 use harness::{click, events, open_host, press};
+
+/// Items whose labels are unique, so the key can be the label itself.
+fn keyed(labels: &[&str]) -> Vec<PickerItem> {
+    labels
+        .iter()
+        .map(|l| PickerItem::new(l.to_string(), l.to_string()))
+        .collect()
+}
 
 /// An `InputState` entity, created before the host opens so the test can keep
 /// its own handle to it.
@@ -42,7 +50,7 @@ fn combo_box_typing_opens_the_list(cx: &mut TestAppContext) {
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        ComboBox::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+        ComboBox::new(state, keyed(&["Typst", "Rust", "Go"]))
             .menu_trigger(MenuTrigger::Input)
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
@@ -95,7 +103,7 @@ fn combo_box_default_trigger_opens_on_focus(cx: &mut TestAppContext) {
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        ComboBox::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+        ComboBox::new(state, keyed(&["Typst", "Rust", "Go"]))
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
@@ -134,13 +142,10 @@ fn combo_box_focus_open_shows_all_items_before_the_next_edit(cx: &mut TestAppCon
     let state_for_view = state;
     let cx = open_host(cx, move || {
         let changes = changes.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Typst".into(), "Rust".into(), "Go".into()],
-        )
-        .default_input_value("ru")
-        .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Typst", "Rust", "Go"]))
+            .default_input_value("ru")
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -160,14 +165,11 @@ fn combo_box_chevron_open_shows_all_items_for_an_input_trigger(cx: &mut TestAppC
     let state_for_view = state;
     let cx = open_host(cx, move || {
         let changes = changes.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Typst".into(), "Rust".into(), "Go".into()],
-        )
-        .default_input_value("ru")
-        .menu_trigger(MenuTrigger::Input)
-        .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Typst", "Rust", "Go"]))
+            .default_input_value("ru")
+            .menu_trigger(MenuTrigger::Input)
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .into_any_element()
     });
 
     click(cx, 298., 18.);
@@ -192,7 +194,7 @@ fn combo_box_manual_trigger_ignores_typing(cx: &mut TestAppContext) {
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        ComboBox::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+        ComboBox::new(state, keyed(&["Typst", "Rust", "Go"]))
             .menu_trigger(MenuTrigger::Manual)
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
@@ -243,7 +245,7 @@ fn combo_box_focus_trigger_reopens_after_a_later_edit(cx: &mut TestAppContext) {
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        ComboBox::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+        ComboBox::new(state, keyed(&["Typst", "Rust", "Go"]))
             .menu_trigger(MenuTrigger::Focus)
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
@@ -295,11 +297,8 @@ fn combo_box_escape_does_not_steal_a_later_pointer_focus(cx: &mut TestAppContext
             .flex()
             .flex_col()
             .child(
-                ComboBox::new(
-                    combo_for_view.clone(),
-                    vec!["Typst".into(), "Rust".into(), "Go".into()],
-                )
-                .into_any_element(),
+                ComboBox::new(combo_for_view.clone(), keyed(&["Typst", "Rust", "Go"]))
+                    .into_any_element(),
             )
             .child(Input::new(other_for_view.clone()).into_any_element())
             .into_any_element()
@@ -322,15 +321,12 @@ fn combo_box_manual_no_match_edit_closes_logical_open_state(cx: &mut TestAppCont
     let state_for_view = state;
     let cx = open_host(cx, move || {
         let opens = opens.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Typst".into(), "Rust".into(), "Go".into()],
-        )
-        .menu_trigger(MenuTrigger::Manual)
-        .on_open_change(move |open, _, _| {
-            opens.borrow_mut().push(format!("open:{open}"));
-        })
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Typst", "Rust", "Go"]))
+            .menu_trigger(MenuTrigger::Manual)
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
     });
 
     click(cx, 298., 18.);
@@ -351,16 +347,13 @@ fn combo_box_arrow_open_shows_all_items_for_an_input_trigger(cx: &mut TestAppCon
     let state_for_view = state;
     let cx = open_host(cx, move || {
         let opens = opens.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Typst".into(), "Rust".into(), "Go".into()],
-        )
-        .default_input_value("zz")
-        .menu_trigger(MenuTrigger::Input)
-        .on_open_change(move |open, _, _| {
-            opens.borrow_mut().push(format!("open:{open}"));
-        })
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Typst", "Rust", "Go"]))
+            .default_input_value("zz")
+            .menu_trigger(MenuTrigger::Input)
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -380,15 +373,12 @@ fn combo_box_read_only_refuses_focus_and_chevron_open(cx: &mut TestAppContext) {
     let state_for_view = state;
     let cx = open_host(cx, move || {
         let opens = opens.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Typst".into(), "Rust".into(), "Go".into()],
-        )
-        .is_read_only(true)
-        .on_open_change(move |open, _, _| {
-            opens.borrow_mut().push(format!("open:{open}"));
-        })
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Typst", "Rust", "Go"]))
+            .is_read_only(true)
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -407,16 +397,13 @@ fn combo_box_arrow_open_reports_to_a_controlled_owner(cx: &mut TestAppContext) {
     let state_for_view = state;
     let cx = open_host(cx, move || {
         let opens = opens.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Typst".into(), "Rust".into(), "Go".into()],
-        )
-        .is_open(false)
-        .menu_trigger(MenuTrigger::Manual)
-        .on_open_change(move |open, _, _| {
-            opens.borrow_mut().push(format!("open:{open}"));
-        })
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Typst", "Rust", "Go"]))
+            .is_open(false)
+            .menu_trigger(MenuTrigger::Manual)
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -448,7 +435,7 @@ fn combo_box_page_keys_ignore_a_closed_field(cx: &mut TestAppContext) {
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        ComboBox::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+        ComboBox::new(state, keyed(&["Typst", "Rust", "Go"]))
             .menu_trigger(MenuTrigger::Input)
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
@@ -522,8 +509,12 @@ fn combo_box_page_keys_ignore_a_closed_field(cx: &mut TestAppContext) {
 fn combo_box_page_keys_reach_enabled_ends_after_a_cursor_exists(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();
-    let options: Vec<gpui::SharedString> =
-        (0..20).map(|i| format!("Option {i:02}").into()).collect();
+    let options: Vec<PickerItem> = (0..20)
+        .map(|i| {
+            let label = format!("Option {i:02}");
+            PickerItem::new(label.clone(), label)
+        })
+        .collect();
     let state = combo_state(cx);
     let state_for_view = state;
 

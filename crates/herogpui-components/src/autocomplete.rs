@@ -43,6 +43,7 @@ use crate::{
     icons,
     input::{InputState, SearchField},
     picker_item::PickerItem,
+    selection::{normalize_selection, toggle_key},
     util,
 };
 
@@ -75,35 +76,6 @@ fn autocomplete_form_state(entity_id: u64) -> AutocompleteFormState {
 
 fn form_selection_value(selected: &[SharedString]) -> crate::form::FormValue {
     crate::form::FormValue::Keys(selected.to_vec())
-}
-
-/// Normalizes the selection to the shape of pinned react-stately 3.49.0's
-/// `selectedKeys`: a `Set`, which collapses duplicates to the first insertion
-/// and iterates in insertion order. A single-mode selection holds at most one
-/// key — the first the owner (or default) listed.
-fn normalize_selection(keys: Vec<SharedString>, multiple: bool) -> Vec<SharedString> {
-    let mut out: Vec<SharedString> = Vec::with_capacity(keys.len());
-    for key in keys {
-        if out.contains(&key) {
-            continue;
-        }
-        out.push(key);
-        if !multiple {
-            break;
-        }
-    }
-    out
-}
-
-/// Toggles `key` in the ordered selection: removing takes it out in place so
-/// the remaining keys keep their insertion order; adding appends — the
-/// mutation a JS `Set` performs.
-fn toggle_key(selection: &mut Vec<SharedString>, key: &SharedString) {
-    if let Some(at) = selection.iter().position(|k| k == key) {
-        selection.remove(at);
-    } else {
-        selection.push(key.clone());
-    }
 }
 
 fn sync_form_state(

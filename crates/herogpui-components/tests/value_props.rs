@@ -409,40 +409,37 @@ fn combo_box_value_content_hands_placeholder_then_pick(cx: &mut TestAppContext) 
     let cx = open_host(cx, move || {
         let record = record.clone();
         let changes = changes.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Typst".into(), "Rust".into(), "Go".into()],
-        )
-        .placeholder("Search")
-        .on_selection_change_all(move |keys, _, _| {
-            changes.borrow_mut().push(keys.len().to_string());
-        })
-        .value_content(move |v: util::SelectionValue<'_>| {
-            let items = v
-                .selected_items
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join(",");
-            let indices = v
-                .selected_indices
-                .iter()
-                .map(ToString::to_string)
-                .collect::<Vec<_>>()
-                .join(",");
-            record.borrow_mut().push(format!(
-                "{}|{}|{}|{}",
-                v.is_placeholder, items, indices, v.selected_text
-            ));
-            if v.is_placeholder {
-                v.default_children
-            } else {
-                gpui::div()
-                    .child(v.selected_text.to_owned())
-                    .into_any_element()
-            }
-        })
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Typst", "Rust", "Go"]))
+            .placeholder("Search")
+            .on_selection_change_all(move |keys, _, _| {
+                changes.borrow_mut().push(keys.len().to_string());
+            })
+            .value_content(move |v: util::SelectionValue<'_>| {
+                let items = v
+                    .selected_items
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let indices = v
+                    .selected_indices
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                record.borrow_mut().push(format!(
+                    "{}|{}|{}|{}",
+                    v.is_placeholder, items, indices, v.selected_text
+                ));
+                if v.is_placeholder {
+                    v.default_children
+                } else {
+                    gpui::div()
+                        .child(v.selected_text.to_owned())
+                        .into_any_element()
+                }
+            })
+            .into_any_element()
     });
 
     assert_eq!(
@@ -492,21 +489,18 @@ fn combo_box_controlled_value_content_waits_for_clear_owner(cx: &mut TestAppCont
     let cx = open_host(cx, move || {
         let record = record.clone();
         let changes = changes.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Typst".into(), "Rust".into(), "Go".into()],
-        )
-        .selected_keys(["Typst".into()])
-        .on_selection_change_all(move |keys, _, _| {
-            changes.borrow_mut().push(keys.len().to_string());
-        })
-        .value_content(move |v: util::SelectionValue<'_>| {
-            record
-                .borrow_mut()
-                .push(format!("{}|{}", v.is_placeholder, v.selected_text));
-            v.default_children
-        })
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Typst", "Rust", "Go"]))
+            .selected_keys(["Typst".into()])
+            .on_selection_change_all(move |keys, _, _| {
+                changes.borrow_mut().push(keys.len().to_string());
+            })
+            .value_content(move |v: util::SelectionValue<'_>| {
+                record
+                    .borrow_mut()
+                    .push(format!("{}|{}", v.is_placeholder, v.selected_text));
+                v.default_children
+            })
+            .into_any_element()
     });
 
     assert_eq!(last_string(&seen), "false|Typst");

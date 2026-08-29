@@ -976,8 +976,8 @@ pub struct FieldFocus {
 /// own examples do (`if (isPlaceholder) return defaultChildren`).
 pub struct SelectionValue<'a> {
     /// `selectedItems` — the chosen items' text. The order is the component's
-    /// selection order: Select and ComboBox walk the collection, while
-    /// Autocomplete follows its selection set's insertion order, the way
+    /// selection order: Select walks the collection, while ComboBox and
+    /// Autocomplete follow their selection set's insertion order, the way
     /// pinned react-stately 3.49.0's `Set` iterates.
     pub selected_items: &'a [gpui::SharedString],
     /// Where those items sit in the collection, for a caller keyed by index,
@@ -985,11 +985,11 @@ pub struct SelectionValue<'a> {
     pub selected_indices: &'a [usize],
     /// The chosen items' keys, in selection insertion order, when the
     /// component's collection is keyed and those keys are distinct from the
-    /// labels (`Autocomplete`). `Select` is index-keyed and `ComboBox` keys
-    /// by label, so neither carries a distinct key here. `selected_items`
-    /// and `selected_indices` only contain entries for keys that currently
-    /// resolve to collection items, so async-loaded or missing keys can make
-    /// their lengths differ from `selected_keys`.
+    /// labels (`Autocomplete`, `ComboBox`). `Select` is index-keyed and
+    /// carries no distinct key here. `selected_items` and `selected_indices`
+    /// only contain entries for keys that currently resolve to collection
+    /// items, so async-loaded or missing keys can make their lengths differ
+    /// from `selected_keys`.
     pub selected_keys: Option<&'a [gpui::SharedString]>,
     /// `selectedText` — the same items joined. Select approximates v3's en-US
     /// list formatter; the other two use plain comma-space in this port.

@@ -102,7 +102,7 @@ fn nested_combo_box_escape_closes_child_once_inside_parent(cx: &mut TestAppConte
                 parent_events.borrow_mut().push(format!("parent:{open}"));
             })
             .child(
-                ComboBox::new(state.clone(), vec!["Alpha".into(), "Beta".into()])
+                ComboBox::new(state.clone(), keyed(&["Alpha", "Beta"]))
                     .default_open(true)
                     .on_open_change(move |open, _, _| {
                         child_events.borrow_mut().push(format!("combo:{open}"));
@@ -203,7 +203,7 @@ fn combo_box_trigger_latch_is_one_mouse_down_without_parent_repaint(cx: &mut Tes
     let state = cx.new(|cx| InputState::new(cx));
     let cx = open_host(cx, move || {
         let opens = recorded.clone();
-        ComboBox::new(state.clone(), vec!["Alpha".into()])
+        ComboBox::new(state.clone(), keyed(&["Alpha"]))
             .is_open(true)
             .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
             .into_any_element()
@@ -273,7 +273,7 @@ fn no_match_combo_box_still_reports_an_outside_dismissal(cx: &mut TestAppContext
     cx.update(|cx| state.update(cx, |state, _| state.set_value("zz")));
     let cx = open_host(cx, move || {
         let opens = recorded.clone();
-        ComboBox::new(state.clone(), vec!["Alpha".into()])
+        ComboBox::new(state.clone(), keyed(&["Alpha"]))
             .is_open(true)
             .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
             .into_any_element()

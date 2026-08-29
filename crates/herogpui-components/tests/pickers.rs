@@ -39,11 +39,11 @@ mod harness;
 
 use std::{cell::RefCell, rc::Rc};
 
-use gpui::{prelude::*, px, TestAppContext};
+use gpui::{prelude::*, px, Context, Render, SharedString, TestAppContext, Window};
 use herogpui_components::{
     calendar::{CalendarState, Date, CALENDAR_WIDTH},
     Autocomplete, Button, ComboBox, DateConstraints, DatePicker, Dropdown, InputState, MenuItem,
-    PickerItem, SelectionMode,
+    MenuTrigger, PickerItem, SelectionMode,
 };
 
 use harness::{click, events, open_host, press};
@@ -877,30 +877,27 @@ fn combo_box_custom_enter_preserves_multiple_selection(cx: &mut TestAppContext) 
         let plural = plural_for_view.clone();
         let opens = opens_for_view.clone();
         let values = values_for_view.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .selection_mode(SelectionMode::Multiple)
-        .default_value(["Alpha", "Beta"])
-        .allows_custom_value(true)
-        .allows_empty_collection(true)
-        .on_change(move |item, _, _| singular.borrow_mut().push(item.to_string()))
-        .on_selection_change_all(move |items, _, _| {
-            plural.borrow_mut().push(
-                items
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(","),
-            );
-        })
-        .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
-        .value_content(move |value| {
-            values.borrow_mut().push(value.selected_text.to_owned());
-            value.default_children
-        })
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta", "Gamma"]))
+            .selection_mode(SelectionMode::Multiple)
+            .default_value(["Alpha", "Beta"])
+            .allows_custom_value(true)
+            .allows_empty_collection(true)
+            .on_change(move |item, _, _| singular.borrow_mut().push(item.to_string()))
+            .on_selection_change_all(move |items, _, _| {
+                plural.borrow_mut().push(
+                    items
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
+            .value_content(move |value| {
+                values.borrow_mut().push(value.selected_text.to_owned());
+                value.default_children
+            })
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -952,25 +949,22 @@ fn combo_box_multiple_enter_toggles_the_focused_item(cx: &mut TestAppContext) {
         let plural = plural_for_view.clone();
         let opens = opens_for_view.clone();
         let inputs = inputs_for_view.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .selection_mode(SelectionMode::Multiple)
-        .default_value(["Alpha", "Beta"])
-        .on_change(move |item, _, _| singular.borrow_mut().push(item.to_string()))
-        .on_selection_change_all(move |items, _, _| {
-            plural.borrow_mut().push(
-                items
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(","),
-            );
-        })
-        .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
-        .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta", "Gamma"]))
+            .selection_mode(SelectionMode::Multiple)
+            .default_value(["Alpha", "Beta"])
+            .on_change(move |item, _, _| singular.borrow_mut().push(item.to_string()))
+            .on_selection_change_all(move |items, _, _| {
+                plural.borrow_mut().push(
+                    items
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
+            .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -984,7 +978,9 @@ fn combo_box_multiple_enter_toggles_the_focused_item(cx: &mut TestAppContext) {
     );
     assert_eq!(
         plural.borrow().as_slice(),
-        ["Beta", "Alpha,Beta", "Alpha,Beta,Gamma"],
+        // The selection keeps insertion order, the way pinned react-stately
+        // 3.49.0's `Set` iterates: the re-added Alpha appends after Beta.
+        ["Beta", "Beta,Alpha", "Beta,Alpha,Gamma"],
         "the focused key must survive query reset by identity so Enter toggles the same item again"
     );
     assert_eq!(
@@ -1016,26 +1012,23 @@ fn combo_box_controlled_multiple_enter_waits_for_the_owner(cx: &mut TestAppConte
     let cx = open_host(cx, move || {
         let singular = singular_for_view.clone();
         let plural = plural_for_view.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .selection_mode(SelectionMode::Multiple)
-        .selected_keys(["Alpha".into(), "Beta".into()])
-        .on_change(move |item, _, _| singular.borrow_mut().push(item.to_string()))
-        .on_selection_change_all(move |items, window, _| {
-            plural.borrow_mut().push(
-                items
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(","),
-            );
-            // Re-render the unchanged controlled prop, as an owner declining
-            // the proposed selection would.
-            window.refresh();
-        })
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta", "Gamma"]))
+            .selection_mode(SelectionMode::Multiple)
+            .selected_keys(["Alpha".into(), "Beta".into()])
+            .on_change(move |item, _, _| singular.borrow_mut().push(item.to_string()))
+            .on_selection_change_all(move |items, window, _| {
+                plural.borrow_mut().push(
+                    items
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+                // Re-render the unchanged controlled prop, as an owner declining
+                // the proposed selection would.
+                window.refresh();
+            })
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -1070,25 +1063,22 @@ fn combo_box_multiple_pointer_resets_query_and_stays_open(cx: &mut TestAppContex
         let plural = plural_for_view.clone();
         let opens = opens_for_view.clone();
         let inputs = inputs_for_view.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .selection_mode(SelectionMode::Multiple)
-        .default_value(["Alpha", "Beta"])
-        .on_change(move |item, _, _| singular.borrow_mut().push(item.to_string()))
-        .on_selection_change_all(move |items, _, _| {
-            plural.borrow_mut().push(
-                items
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(","),
-            );
-        })
-        .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
-        .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta", "Gamma"]))
+            .selection_mode(SelectionMode::Multiple)
+            .default_value(["Alpha", "Beta"])
+            .on_change(move |item, _, _| singular.borrow_mut().push(item.to_string()))
+            .on_selection_change_all(move |items, _, _| {
+                plural.borrow_mut().push(
+                    items
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
+            .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -1138,17 +1128,9 @@ fn combo_box_multiple_focus_survives_a_capped_collection_reset(cx: &mut TestAppC
         let inputs = inputs_for_view.clone();
         ComboBox::new(
             state_for_view.clone(),
-            vec![
-                "Alpha".into(),
-                "Beta".into(),
-                "Gamma".into(),
-                "Delta".into(),
-                "Epsilon".into(),
-                "Zeta".into(),
-                "Eta".into(),
-                "Theta".into(),
-                "Needle".into(),
-            ],
+            keyed(&[
+                "Alpha", "Beta", "Gamma", "Delta", "Epsilon", "Zeta", "Eta", "Theta", "Needle",
+            ]),
         )
         .selection_mode(SelectionMode::Multiple)
         .max_items(2)
@@ -1201,23 +1183,20 @@ fn combo_box_multiple_external_query_drops_a_stale_focused_key(cx: &mut TestAppC
         let plural = plural_for_view.clone();
         let inputs = inputs_for_view.clone();
         let opens = opens_for_view.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .selection_mode(SelectionMode::Multiple)
-        .on_selection_change_all(move |items, _, _| {
-            plural.borrow_mut().push(
-                items
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(","),
-            );
-        })
-        .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
-        .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta", "Gamma"]))
+            .selection_mode(SelectionMode::Multiple)
+            .on_selection_change_all(move |items, _, _| {
+                plural.borrow_mut().push(
+                    items
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
+            .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -1260,15 +1239,12 @@ fn combo_box_single_enter_without_focus_restores_the_selected_label(cx: &mut Tes
         let selections = selections_for_view.clone();
         let inputs = inputs_for_view.clone();
         let opens = opens_for_view.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .default_value(["Beta"])
-        .on_change(move |item, _, _| selections.borrow_mut().push(item.to_string()))
-        .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
-        .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta", "Gamma"]))
+            .default_value(["Beta"])
+            .on_change(move |item, _, _| selections.borrow_mut().push(item.to_string()))
+            .on_input_change(move |value, _, _| inputs.borrow_mut().push(value.to_owned()))
+            .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -1299,22 +1275,19 @@ fn combo_box_multiple_show_all_commits_a_row_outside_the_query(cx: &mut TestAppC
     let cx = open_host(cx, move || {
         let plural = plural_for_view.clone();
         let opens = opens_for_view.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Alpha".into(), "Beta".into(), "Gamma".into()],
-        )
-        .selection_mode(SelectionMode::Multiple)
-        .on_selection_change_all(move |items, _, _| {
-            plural.borrow_mut().push(
-                items
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(","),
-            );
-        })
-        .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta", "Gamma"]))
+            .selection_mode(SelectionMode::Multiple)
+            .on_selection_change_all(move |items, _, _| {
+                plural.borrow_mut().push(
+                    items
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -1334,6 +1307,16 @@ fn combo_box_multiple_show_all_commits_a_row_outside_the_query(cx: &mut TestAppC
     );
 }
 
+/// Two items share the label "Same" but carry distinct keys, so they stay
+/// separate stops, rows, and selection members.
+fn duplicate_labels() -> Vec<PickerItem> {
+    vec![
+        PickerItem::new("same-1", "Same"),
+        PickerItem::new("same-2", "Same"),
+        PickerItem::new("other", "Other"),
+    ]
+}
+
 #[gpui::test]
 fn combo_box_duplicate_labels_keep_distinct_keyboard_stops(cx: &mut TestAppContext) {
     let plural = events();
@@ -1343,28 +1326,25 @@ fn combo_box_duplicate_labels_keep_distinct_keyboard_stops(cx: &mut TestAppConte
 
     let cx = open_host(cx, move || {
         let plural = plural_for_view.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Same".into(), "Same".into(), "Other".into()],
-        )
-        .selection_mode(SelectionMode::Multiple)
-        .on_selection_change_all(move |items, _, _| {
-            plural.borrow_mut().push(
-                items
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join(","),
-            );
-        })
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), duplicate_labels())
+            .selection_mode(SelectionMode::Multiple)
+            .on_selection_change_all(move |items, _, _| {
+                plural.borrow_mut().push(
+                    items
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
     press(cx, "down down down enter");
     assert_eq!(
         plural.borrow().as_slice(),
-        ["Other"],
+        ["other"],
         "the second equal label must remain a real stop before navigation reaches the third row"
     );
 }
@@ -1383,7 +1363,7 @@ fn combo_box_typing_filters_and_click_selects(cx: &mut TestAppContext) {
         let opens = opens.clone();
         let state = state_for_view.clone();
         // ComboBox is input-shaped: the query is typed into the field itself.
-        ComboBox::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+        ComboBox::new(state, keyed(&["Typst", "Rust", "Go"]))
             .placeholder("Search")
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
@@ -1563,5 +1543,516 @@ fn date_picker_opens_and_picks_a_day(cx: &mut TestAppContext) {
         [expected.format_iso()],
         "clicking the last cell of the first week must pick day {}",
         7 - lead
+    );
+}
+
+/// Picking the second of two same-label rows must report the row's *key* —
+/// the labels are identical, so only the key tells the picks apart — exactly
+/// once, and fill the input with the shared label.
+#[gpui::test]
+fn combo_box_duplicate_label_pick_reports_the_key_once(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let state_for_view = state.clone();
+    let state_for_assert = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        ComboBox::new(state_for_view.clone(), duplicate_labels())
+            .menu_trigger(MenuTrigger::Manual)
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .into_any_element()
+    });
+
+    click(cx, 298., 18.);
+    click(cx, 60., 100.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["same-2"],
+        "the second same-label row must report its own key, exactly once"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "Same",
+        "the input must show the row's label, not its key"
+    );
+}
+
+/// `disabledKeys` addresses one key: disabling the first same-label row must
+/// leave its sibling enabled, both for the pointer (no pick from the disabled
+/// row) and for the keyboard (the stops skip only that key).
+#[gpui::test]
+fn combo_box_disabling_one_key_leaves_its_label_sibling_enabled(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let state_for_view = state.clone();
+    let state_for_assert = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        ComboBox::new(state_for_view.clone(), duplicate_labels())
+            .menu_trigger(MenuTrigger::Manual)
+            .disabled_keys(["same-1".into()])
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .into_any_element()
+    });
+
+    click(cx, 298., 18.);
+    // The keyboard stops skip only that key: the first Down from the null
+    // cursor lands on the first enabled row — the sibling — and Enter picks
+    // it.
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["same-2"],
+        "the enabled sibling of a disabled same-label row must stay choosable"
+    );
+
+    // Reopen and click the disabled "same-1": its click must do nothing —
+    // no pick, no input change (the click blurs the field, as a browser
+    // mousedown on a non-focusable row does, so the panel closes behind it).
+    click(cx, 298., 18.);
+    click(cx, 60., 64.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["same-2"],
+        "clicking the disabled key's row must not pick anything"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "Same",
+        "the disabled row must not change the input"
+    );
+}
+
+/// The cursor rides the item's key, so it survives a caller-driven reorder of
+/// the collection — even between two items that share a label.
+#[gpui::test]
+fn combo_box_cursor_survives_a_reorder_by_key(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+    let items: Rc<RefCell<Vec<PickerItem>>> = Rc::new(RefCell::new(duplicate_labels()));
+    let items_for_view = items.clone();
+
+    let cx = open_host(cx, move || {
+        let items = items_for_view.borrow().clone();
+        let changes = changes.clone();
+        ComboBox::new(state_for_view.clone(), items)
+            .menu_trigger(MenuTrigger::Manual)
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .into_any_element()
+    });
+
+    click(cx, 298., 18.);
+    press(cx, "down down");
+
+    // The caller reorders the collection: the focused item moves from row 1
+    // to row 2, and the key must move with the item, not the row.
+    cx.update(|window, _cx| {
+        items.borrow_mut().reverse();
+        window.refresh();
+    });
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["same-2"],
+        "the cursor must follow the item's key through a reorder, not its row"
+    );
+}
+
+/// The virtual path shares the plain path's row builder, so duplicate labels
+/// stay distinct keyboard stops with `row_height` set too.
+#[gpui::test]
+fn combo_box_virtual_rows_stay_distinct_under_duplicate_labels(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        ComboBox::new(state_for_view.clone(), duplicate_labels())
+            .menu_trigger(MenuTrigger::Manual)
+            .row_height(px(36.))
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .into_any_element()
+    });
+
+    click(cx, 298., 18.);
+    press(cx, "down enter");
+    // The pick closed the list and cleared the cursor; the chevron reopens it
+    // and the second Down must reach the second same-label row as its own
+    // stop.
+    click(cx, 298., 18.);
+    press(cx, "down down enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["same-1", "same-2"],
+        "the two same-label virtual rows must be separate stops picking their own keys"
+    );
+}
+
+/// The selection keeps the owner's key order, the way pinned react-stately
+/// 3.49.0's `Set` iterates: `ComboBox.Value` reports `Gamma, Alpha` exactly as
+/// listed, not sorted.
+#[gpui::test]
+fn combo_box_multiple_keeps_the_owner_s_key_order(cx: &mut TestAppContext) {
+    let seen: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+    let record = seen.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+
+    let _cx = open_host(cx, move || {
+        let record = record.clone();
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta", "Gamma"]))
+            .selection_mode(SelectionMode::Multiple)
+            .default_value(["Gamma", "Alpha"])
+            .menu_trigger(MenuTrigger::Manual)
+            .value_content(move |value| {
+                record.borrow_mut().push(value.selected_text.to_owned());
+                value.default_children
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        seen.borrow().last().map(String::as_str),
+        Some("Gamma, Alpha"),
+        "the default selection must keep the owner's key order everywhere it is read"
+    );
+}
+
+/// A custom commit over an existing selection reports the pinned `null`
+/// selected key — the empty slice — exactly once, keeps the typed text, and
+/// stays silent on the single-key callback that cannot spell `null`.
+#[gpui::test]
+fn combo_box_custom_commit_over_a_selection_reports_the_null_key(cx: &mut TestAppContext) {
+    let slices = events();
+    let sliced = slices.clone();
+    let changes = events();
+    let recorded = changes.clone();
+    let state = search_state(cx);
+    let state_for_view = state.clone();
+    let state_for_assert = state;
+
+    let cx = open_host(cx, move || {
+        let slices = slices.clone();
+        let changes = changes.clone();
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta"]))
+            .default_value(["Alpha"])
+            .allows_custom_value(true)
+            .menu_trigger(MenuTrigger::Manual)
+            .on_selection_change_all(move |keys, _, _| {
+                slices.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("Zig");
+    press(cx, "enter");
+    assert_eq!(
+        sliced.borrow().as_slice(),
+        [""],
+        "committing a custom value over a selection must report the null key"
+    );
+    assert!(
+        recorded.borrow().is_empty(),
+        "the single-key callback cannot spell null and must stay silent"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "Zig",
+        "the typed text must survive the custom commit"
+    );
+}
+
+/// Enter on a field whose text still matches the selected item's label is not
+/// a custom commit: pinned `commitValue` re-runs `commitSelection` there, so
+/// the selection stands and the callbacks stay silent. Closed field.
+#[gpui::test]
+fn combo_box_enter_matching_the_selected_label_preserves_the_selection(cx: &mut TestAppContext) {
+    let slices = events();
+    let sliced = slices.clone();
+    let values = events();
+    let values_recorded = values.clone();
+    let state = search_state(cx);
+    let state_for_view = state.clone();
+    let state_for_assert = state;
+
+    let cx = open_host(cx, move || {
+        let slices = slices.clone();
+        let values = values.clone();
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta"]))
+            .default_value(["Alpha"])
+            .default_input_value("Alpha")
+            .allows_custom_value(true)
+            .menu_trigger(MenuTrigger::Manual)
+            .on_selection_change_all(move |keys, _, _| {
+                slices.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .value_content(move |v| {
+                values.borrow_mut().push(v.selected_text.to_owned());
+                v.default_children
+            })
+            .into_any_element()
+    });
+
+    // Focus the field first: Manual keeps the panel closed on the click, and
+    // the Enter below is the field's own keydown.
+    click(cx, 60., 18.);
+    press(cx, "enter");
+    assert!(
+        sliced.borrow().is_empty(),
+        "text matching the selected label must not commit the null key"
+    );
+    assert_eq!(
+        values_recorded.borrow().last().map(String::as_str),
+        Some("Alpha"),
+        "the selection must stand when the text still matches its label"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "Alpha",
+        "the matching text must survive the Enter"
+    );
+}
+
+/// The same re-affirmation on an open field with no cursor row: Enter closes
+/// the panel, keeps the selection and reports nothing.
+#[gpui::test]
+fn combo_box_enter_matching_the_selected_label_keeps_it_open_without_a_cursor(
+    cx: &mut TestAppContext,
+) {
+    let slices = events();
+    let sliced = slices.clone();
+    let opens = events();
+    let opened = opens.clone();
+    let values = events();
+    let values_recorded = values.clone();
+    let state = search_state(cx);
+    let state_for_view = state.clone();
+    let state_for_assert = state;
+
+    let cx = open_host(cx, move || {
+        let slices = slices.clone();
+        let opens = opens.clone();
+        let values = values.clone();
+        ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta"]))
+            .default_value(["Alpha"])
+            .default_input_value("Alpha")
+            .allows_custom_value(true)
+            .menu_trigger(MenuTrigger::Manual)
+            .default_open(true)
+            .on_selection_change_all(move |keys, _, _| {
+                slices.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
+            .value_content(move |v| {
+                values.borrow_mut().push(v.selected_text.to_owned());
+                v.default_children
+            })
+            .into_any_element()
+    });
+
+    // Focus the field: Manual trigger keeps the default-open panel up through
+    // the click, and the Enter below is the field's own keydown.
+    click(cx, 60., 18.);
+    press(cx, "enter");
+    assert!(
+        sliced.borrow().is_empty(),
+        "an open field without a cursor must not commit the null key when the \
+         text matches the selected label"
+    );
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:false"],
+        "the Enter must still close the open panel, exactly once"
+    );
+    assert_eq!(
+        values_recorded.borrow().last().map(String::as_str),
+        Some("Alpha"),
+        "the selection must stand"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "Alpha",
+        "the matching text must survive the Enter"
+    );
+}
+
+/// The `selected_key` owner view rebuilds the combo every frame with the key
+/// it currently holds — the shape of a controlled gallery owner.
+struct SelectedKeyOwner {
+    state: gpui::Entity<InputState>,
+    key: SharedString,
+    default_input: Option<SharedString>,
+    picks: Rc<RefCell<Vec<String>>>,
+}
+
+impl Render for SelectedKeyOwner {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
+        let key = self.key.clone();
+        let picks = self.picks.clone();
+        let mut combo = ComboBox::new(
+            self.state.clone(),
+            vec![
+                PickerItem::new("alpha", "Alpha"),
+                PickerItem::new("beta", "Beta"),
+            ],
+        )
+        .selected_key(key, cx)
+        .on_selection_change(move |item, _, _| picks.borrow_mut().push(item.to_string()));
+        if let Some(text) = self.default_input.clone() {
+            combo = combo.default_input_value(text);
+        }
+        combo.into_any_element()
+    }
+}
+
+/// `selected_key(key, cx)` writes the key's label into the input when the
+/// owner's key changes, never on the owner's other re-renders — so typing
+/// survives a rerender — and the empty string clears. The pick callback still
+/// reports the key of whatever row the user takes.
+#[gpui::test]
+fn combo_box_selected_key_syncs_the_label_only_when_the_key_changes(cx: &mut TestAppContext) {
+    let picks = events();
+    let picks_for_view = picks.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_assert = state.clone();
+    // The owner view replaces `open_host`'s anonymous host; the theme global
+    // still has to exist before the window draws.
+    cx.update(herogpui_theme::ThemeProvider::init);
+    let (_view, cx) = cx.add_window_view(|_, _| SelectedKeyOwner {
+        state: state.clone(),
+        key: "beta".into(),
+        default_input: None,
+        picks: picks_for_view.clone(),
+    });
+
+    // First frame: the controlled key "beta" writes its label into the input.
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "Beta",
+        "the controlled key's label must be the input's text"
+    );
+
+    // Typing, then an owner rerender with the same key: the text must not be
+    // overwritten by the label.
+    click(cx, 60., 18.);
+    press(cx, "ctrl-a");
+    press(cx, "backspace");
+    cx.simulate_input("Al");
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "Al",
+        "an owner rerender with an unchanged key must leave the typed text alone"
+    );
+
+    // An owner key change does move the label in.
+    cx.update(|_, cx| _view.update(cx, |owner, _| owner.key = "alpha".into()));
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "Alpha",
+        "the owner's key change must write the new key's label into the input"
+    );
+
+    // The empty string is v3's `null`: it clears the input.
+    cx.update(|_, cx| _view.update(cx, |owner, _| owner.key = "".into()));
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "",
+        "the null key must clear the input"
+    );
+
+    // Picking a row still reports the key, not the label.
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        picks.borrow().as_slice(),
+        ["alpha"],
+        "the pick must report the row's key"
+    );
+}
+
+/// Pinned `getDefaultInputValue` derives the first input text from the
+/// selected key only when no `defaultInputValue` was given: an explicit
+/// default must beat the controlled key's label on first render, and later
+/// owner key changes must still move their labels in.
+#[gpui::test]
+fn combo_box_default_input_value_wins_over_the_first_selected_key(cx: &mut TestAppContext) {
+    let picks = events();
+    let picks_for_view = picks;
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_assert = state.clone();
+    cx.update(herogpui_theme::ThemeProvider::init);
+    let (view, cx) = cx.add_window_view(|_, _| SelectedKeyOwner {
+        state: state.clone(),
+        key: "beta".into(),
+        default_input: Some("custom".into()),
+        picks: picks_for_view.clone(),
+    });
+
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "custom",
+        "the explicit default input must beat the controlled key's label on \
+         first render"
+    );
+
+    // A later owner key change still syncs the new key's label.
+    cx.update(|_, cx| view.update(cx, |owner, _| owner.key = "alpha".into()));
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "Alpha",
+        "a later owner key change must still write the new key's label"
+    );
+}
+
+/// The empty `selected_key` is v3's `null`; with an explicit
+/// `defaultInputValue` it must not clear the seeded text either.
+#[gpui::test]
+fn combo_box_default_input_value_wins_over_the_null_selected_key(cx: &mut TestAppContext) {
+    let picks = events();
+    let picks_for_view = picks;
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_assert = state.clone();
+    cx.update(herogpui_theme::ThemeProvider::init);
+    let (_view, cx) = cx.add_window_view(|_, _| SelectedKeyOwner {
+        state: state.clone(),
+        key: "".into(),
+        default_input: Some("custom".into()),
+        picks: picks_for_view.clone(),
+    });
+
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "custom",
+        "the null key must not clear the seeded default input on first render"
     );
 }

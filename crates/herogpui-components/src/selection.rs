@@ -12,6 +12,35 @@ pub(crate) fn reports_changes(mode: SelectionMode) -> bool {
     mode != SelectionMode::None
 }
 
+/// Normalizes a keyed selection to the shape of pinned react-stately 3.49.0's
+/// `selectedKeys`: a JS `Set`, which collapses duplicates to the first
+/// insertion and iterates in insertion order. A single-mode selection holds at
+/// most one key — the first the owner (or default) listed.
+pub(crate) fn normalize_selection(keys: Vec<SharedString>, multiple: bool) -> Vec<SharedString> {
+    let mut out: Vec<SharedString> = Vec::with_capacity(keys.len());
+    for key in keys {
+        if out.contains(&key) {
+            continue;
+        }
+        out.push(key);
+        if !multiple {
+            break;
+        }
+    }
+    out
+}
+
+/// Toggles `key` in an ordered selection: removing takes it out in place so
+/// the remaining keys keep their insertion order; adding appends — the
+/// mutation a JS `Set` performs.
+pub(crate) fn toggle_key(selection: &mut Vec<SharedString>, key: &SharedString) {
+    if let Some(at) = selection.iter().position(|k| k == key) {
+        selection.remove(at);
+    } else {
+        selection.push(key.clone());
+    }
+}
+
 /// The selection after activating `key`.
 ///
 /// `Single` collapses to just `key` (or clears it, unless
@@ -56,6 +85,30 @@ mod tests {
             .iter()
             .map(|s| SharedString::from(s.to_string()))
             .collect()
+    }
+
+    #[test]
+    fn normalize_keeps_first_insertion_order_and_collapses_duplicates() {
+        assert_eq!(
+            normalize_selection(keys(&["b", "a", "b", "c"]), true),
+            keys(&["b", "a", "c"]),
+            "duplicates collapse to their first insertion; the rest keep \
+             insertion order"
+        );
+        assert_eq!(
+            normalize_selection(keys(&["a", "b"]), false),
+            keys(&["a"]),
+            "single mode keeps only the first listed key"
+        );
+    }
+
+    #[test]
+    fn toggle_removes_in_place_and_appends() {
+        let mut selection = keys(&["a", "b", "c"]);
+        toggle_key(&mut selection, &SharedString::from("b"));
+        assert_eq!(selection, keys(&["a", "c"]));
+        toggle_key(&mut selection, &SharedString::from("d"));
+        assert_eq!(selection, keys(&["a", "c", "d"]));
     }
 
     #[test]

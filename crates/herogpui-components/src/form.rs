@@ -266,6 +266,13 @@ pub struct FormField {
     /// blocked-keystroke latch is keyed by — the same trick
     /// `Input`'s `defaultValue` seed uses.
     state_id: Option<gpui::EntityId>,
+    /// Whether a keyed selection with nothing chosen still submits one empty
+    /// value. Pinned React Aria Components 1.20.0's key-mode serialization
+    /// maps an empty `selectedKeys` to one hidden input with value `""`, so
+    /// the name appears in FormData either way; group-backed fields (a
+    /// checkbox group, a multiple `Select`) omit themselves instead, like the
+    /// HTML controls they stand in for.
+    empty_keys_submits_empty: bool,
 }
 
 impl FormField {
@@ -348,6 +355,7 @@ impl FormField {
                 read_only_state.read(cx).is_read_only()
             })),
             state_id: Some(state_id),
+            empty_keys_submits_empty: false,
         }
     }
 
@@ -364,6 +372,33 @@ impl FormField {
         Self {
             submits_on_enter_of: None,
             ..field
+        }
+    }
+
+    /// A live field whose rendered control is a single-line text input.
+    ///
+    /// The keyed control's own value, restore and focus live in the shared
+    /// [`LiveFormFieldState`] it syncs each frame. Everything else — the
+    /// implicit-Enter reader, the read-only mirror, the resolved validity
+    /// (`validate` included), `validationBehavior`, the routed server errors
+    /// and the latch identity — stays on the [`InputState`] the control
+    /// renders, because that state's mirrors are what the control's own
+    /// render writes; duplicating the readers onto the shared state would
+    /// give the form two answers that can drift apart.
+    pub(crate) fn live_text(
+        name: impl Into<SharedString>,
+        state: Rc<RefCell<LiveFormFieldState>>,
+        input: Entity<InputState>,
+    ) -> Self {
+        let live = Self::live(name, state);
+        let text = Self::text(input);
+        Self {
+            name: live.name,
+            read: live.read,
+            restore: live.restore,
+            focus: live.focus,
+            empty_keys_submits_empty: true,
+            ..text
         }
     }
 
@@ -460,6 +495,7 @@ impl FormField {
                 read_only_state.read(cx).input.read(cx).is_read_only()
             })),
             state_id: Some(state_id),
+            empty_keys_submits_empty: false,
         }
     }
 
@@ -532,6 +568,7 @@ impl FormField {
             // The OTP row has no read-only prop, so there is nothing to bar.
             read_only_of: None,
             state_id: Some(state_id),
+            empty_keys_submits_empty: false,
         }
     }
 
@@ -559,6 +596,7 @@ impl FormField {
             read_only_of: None,
             submits_on_enter_of: None,
             state_id: None,
+            empty_keys_submits_empty: false,
         }
     }
 
@@ -606,6 +644,7 @@ impl FormField {
             read_only_of: None,
             submits_on_enter_of: None,
             state_id: None,
+            empty_keys_submits_empty: false,
         }
     }
 
@@ -628,6 +667,7 @@ impl FormField {
             read_only_of: None,
             submits_on_enter_of: None,
             state_id: None,
+            empty_keys_submits_empty: false,
         }
     }
 
@@ -650,6 +690,7 @@ impl FormField {
             read_only_of: None,
             submits_on_enter_of: None,
             state_id: None,
+            empty_keys_submits_empty: false,
         }
     }
 
@@ -676,6 +717,7 @@ impl FormField {
             read_only_of: None,
             submits_on_enter_of: None,
             state_id: None,
+            empty_keys_submits_empty: false,
         }
     }
 
@@ -939,7 +981,16 @@ impl Form {
             if let Some(name) = field.field_name(cx) {
                 let value = (field.read)(cx);
                 // Unchecked checkbox inputs and checkbox groups with no
-                // selected inputs are absent from native FormData.
+                // selected inputs are absent from native FormData — but a
+                // keyed field carrying the pinned key-mode serialization
+                // still submits one empty value, the hidden `value=""`
+                // input RAC's `values.length === 0` branch renders.
+                let value = match (&value, field.empty_keys_submits_empty) {
+                    (FormValue::Keys(keys), true) if keys.is_empty() => {
+                        FormValue::Text(SharedString::from(""))
+                    }
+                    _ => value,
+                };
                 let omitted = match &value {
                     FormValue::Flag(false) => true,
                     FormValue::Keys(keys) => keys.is_empty(),

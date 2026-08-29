@@ -377,10 +377,6 @@ WONT_PORT = {
     # The `form` attribute names the HTML form a control submits to. A `Form` is
     # told its fields here (`Form::field`), so there is no id to point at.
     'form': 'no-html-forms',
-    # A ComboBox item *is* its text: the list is `Vec<SharedString>`, so an
-    # item's key and its label are the same value and there is nothing for
-    # `formValue` to choose between.
-    'ComboBox.formValue': 'keys-are-the-text',
     # There are no time zones in this port: `Time` is a wall clock, so there is
     # no abbreviation to hide.
     'hideTimeZone': 'no-time-zones',

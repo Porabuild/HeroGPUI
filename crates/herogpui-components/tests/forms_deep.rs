@@ -69,10 +69,10 @@ mod harness;
 
 use gpui::{prelude::*, px, Focusable, SharedString, TestAppContext};
 use herogpui_components::{
-    Button, ComboBox, Description, Fieldset, FieldsetActions, FieldsetGroup, FieldsetLegend, Form,
-    FormData, FormField, Input, InputOTP, InputState, NumberField, NumberState, OtpPattern,
-    OtpState, SearchField, Select, SelectionMode, Switch, TextArea, ValidationBehavior,
-    ValidationErrors,
+    Button, ComboBox, ComboBoxFormValue, Description, Fieldset, FieldsetActions, FieldsetGroup,
+    FieldsetLegend, Form, FormData, FormField, Input, InputOTP, InputState, NumberField,
+    NumberState, OtpPattern, OtpState, PickerItem, SearchField, Select, SelectionMode, Switch,
+    TextArea, ValidationBehavior, ValidationErrors,
 };
 
 use harness::{click, events, open_host, press};
@@ -135,6 +135,14 @@ fn run_handler(slot: &HandlerSlot, cx: &mut gpui::VisualTestContext) {
 // ---------------------------------------------------------------------------
 // Form
 // ---------------------------------------------------------------------------
+
+/// Items whose labels are unique, so the key can be the label itself.
+fn keyed(labels: &[&str]) -> Vec<PickerItem> {
+    labels
+        .iter()
+        .map(|l| PickerItem::new(l.to_string(), l.to_string()))
+        .collect()
+}
 
 #[gpui::test]
 fn disabled_text_and_number_fields_are_omitted_until_enabled(cx: &mut TestAppContext) {
@@ -2531,12 +2539,9 @@ fn form_combo_box_open_enter_selects_and_closed_enter_submits(cx: &mut TestAppCo
     let cx = open_host(cx, move || {
         let submitted = form_submits.clone();
         let picked = picks.clone();
-        let combo = ComboBox::new(
-            state_for_view.clone(),
-            vec!["Typst".into(), "Rust".into(), "Go".into()],
-        )
-        .name("tool")
-        .on_change(move |item, _, _| picked.borrow_mut().push(item.to_string()));
+        let combo = ComboBox::new(state_for_view.clone(), keyed(&["Typst", "Rust", "Go"]))
+            .name("tool")
+            .on_change(move |item, _, _| picked.borrow_mut().push(item.to_string()));
         // `ComboBox::form_field` carries the name, which the raw text state
         // alone does not.
         let combo_field = combo.form_field().expect("named combo field");
@@ -4208,5 +4213,438 @@ fn controlled_multiple_select_reset_reports_the_default_to_its_owner(cx: &mut Te
         recorded.borrow().as_slice(),
         ["0,1", "0", "submit:Alpha"],
         "controlled multiple reset must report the first-render selection so the owner can update"
+    );
+}
+
+/// The pinned `formValue` contract (React Aria Components 1.20.0 defaults it
+/// to `"key"`): a named ComboBox submits the picked item's *key*, while the
+/// input shows the item's label. Keys and labels differ here, so the
+/// submission tells them apart.
+#[gpui::test]
+fn form_combo_box_submits_the_selected_key_by_default(cx: &mut TestAppContext) {
+    let form_submits = events();
+    let submitted = form_submits.clone();
+    let state_for_view = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        let submitted = form_submits.clone();
+        let combo = ComboBox::new(
+            state_for_view.clone(),
+            vec![
+                PickerItem::new("rust-key", "Rust"),
+                PickerItem::new("go-key", "Go"),
+            ],
+        )
+        .name("lang");
+        let form = Form::new()
+            .field(combo.form_field().expect("named combo field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(record_data(data));
+            });
+        form.child(combo).into_any_element()
+    });
+
+    // The Focus trigger opens on the click; Down seats the cursor on the
+    // first row and Enter picks it, filling the input with the label "Rust".
+    click(cx, 60., 18.);
+    press(cx, "down");
+    press(cx, "enter");
+    assert!(
+        submitted.borrow().is_empty(),
+        "the pick itself must not submit"
+    );
+
+    // Closed, Enter bubbles into the implicit submission, which serializes
+    // the key, not the label the input shows.
+    press(cx, "enter");
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["lang=rust-key"],
+        "formValue defaults to the selected key"
+    );
+}
+
+/// `allowsCustomValue` forces `formValue="text"` in pinned React Aria
+/// Components 1.20.0: the named field submits the typed text, whatever keys
+/// the collection carries, and the custom commit leaves the key selection
+/// null.
+#[gpui::test]
+fn form_combo_box_submits_the_text_under_allows_custom_value(cx: &mut TestAppContext) {
+    let form_submits = events();
+    let submitted = form_submits.clone();
+    let slices = events();
+    let sliced = slices.clone();
+    let state_for_view = cx.new(|cx| InputState::new(cx));
+    let cx = open_host(cx, move || {
+        let submitted = form_submits.clone();
+        let slices = slices.clone();
+        let combo = ComboBox::new(
+            state_for_view.clone(),
+            vec![
+                PickerItem::new("rust-key", "Rust"),
+                PickerItem::new("go-key", "Go"),
+            ],
+        )
+        .name("lang")
+        .allows_custom_value(true)
+        .on_selection_change_all(move |keys, _, _| {
+            slices.borrow_mut().push(
+                keys.iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+        });
+        let form = Form::new()
+            .field(combo.form_field().expect("named combo field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submitted.borrow_mut().push(record_data(data));
+            });
+        form.child(combo).into_any_element()
+    });
+
+    // Typing an unmatched value closes the filtered list; Enter commits the
+    // custom value on the closed field and — pinned React Aria prevents the
+    // default only while the menu is open — bubbles into the implicit
+    // submission, which serializes the typed text.
+    click(cx, 60., 18.);
+    cx.simulate_input("Zig");
+    press(cx, "enter");
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["lang=Zig"],
+        "allowsCustomValue must switch the submission to the typed text"
+    );
+    assert!(
+        sliced.borrow().is_empty(),
+        "the custom commit must leave the key selection null with nothing to change"
+    );
+}
+
+/// `ComboBox::validate` resolves into the inner input's stored validity, which
+/// the field's `live_text` registration reads, so a native submit blocks on it
+/// and the failed field takes the focus — the focus handle the render
+/// publishes into the live form state.
+#[gpui::test]
+fn form_combo_box_validate_blocks_native_submit_and_focuses(cx: &mut TestAppContext) {
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let state_for_assert = state;
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let combo = ComboBox::new(state_for_view.clone(), keyed(&["Rust", "Go"]))
+            .name("lang")
+            .validate(|text| {
+                if text == "Zig" {
+                    Some("Zig is not on the list".into())
+                } else {
+                    None
+                }
+            });
+        let form = Form::new()
+            .field(combo.form_field().expect("named combo field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(combo).into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("Zig");
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        ["lang="],
+        "the validate failure must route the native submit to onInvalid; the \
+         key-mode form value of a selection-less field is the one empty value"
+    );
+    assert!(
+        submitted.borrow().is_empty(),
+        "a native submit must not pass while the field's validate rejects the text"
+    );
+    assert!(
+        cx.update(|window, cx| state_for_assert
+            .read(cx)
+            .focus_handle(cx)
+            .is_focused(window)),
+        "a blocked submit must focus the failed field"
+    );
+
+    // Clearing the rejected text clears the stored validity, and picking a
+    // row gives the submission its key.
+    press(cx, "ctrl-a");
+    press(cx, "backspace");
+    press(cx, "down");
+    press(cx, "enter");
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["lang=Rust"],
+        "with the validate failure gone and a row picked, the same form submits"
+    );
+}
+
+/// `validationBehavior: "allow"` shows the field's message without blocking:
+/// the same validate failure that blocked the native submit above must let
+/// this form through.
+#[gpui::test]
+fn form_combo_box_allow_validation_submits_anyway(cx: &mut TestAppContext) {
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state_for_view = cx.new(|cx| InputState::new(cx));
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let combo = ComboBox::new(state_for_view.clone(), keyed(&["Rust", "Go"]))
+            .name("lang")
+            .validate(|text| {
+                if text == "Zig" {
+                    Some("Zig is not on the list".into())
+                } else {
+                    None
+                }
+            })
+            .validation_behavior(ValidationBehavior::Allow);
+        let form = Form::new()
+            .field(combo.form_field().expect("named combo field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(combo).into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("Zig");
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["lang="],
+        "allow must submit past the failed validate; the key-mode form value \
+         of a selection-less field is the one empty value"
+    );
+    assert!(invalid.borrow().is_empty(), "allow must not run onInvalid");
+}
+
+/// The form's `validationErrors` record routes by name into the ComboBox's
+/// input state — the slot its error slot renders — and a routed message
+/// blocks a native submit; the user editing the field clears the messages,
+/// after which the same form submits.
+#[gpui::test]
+fn form_combo_box_server_errors_display_block_and_clear(cx: &mut TestAppContext) {
+    let submits = events();
+    let submitted = submits.clone();
+    let invalids = events();
+    let invalid = invalids.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let state_for_assert = state;
+    let record_for_view = std::rc::Rc::new(std::cell::RefCell::new(
+        ValidationErrors::new().set_many("lang", ["Not a language we ship"]),
+    ));
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let invalids = invalids.clone();
+        let record = record_for_view.borrow().clone();
+        let view_combo = ComboBox::new(state_for_view.clone(), keyed(&["Rust", "Go"])).name("lang");
+        let form = Form::new()
+            .validation_errors(record)
+            .field(view_combo.form_field().expect("named combo field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            })
+            .on_invalid(move |data: &FormData, _, _| {
+                invalids.borrow_mut().push(record_data(data));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(view_combo).into_any_element()
+    });
+
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        invalid.borrow().as_slice(),
+        ["lang="],
+        "the routed server message must block the native submit"
+    );
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert
+            .read(cx)
+            .routed_errors()
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()),
+        vec!["Not a language we ship".to_owned()],
+        "the routed message must land in the field's own error slot"
+    );
+
+    // Editing the field suppresses its routed messages; the submission the
+    // same record used to block now goes through.
+    click(cx, 60., 18.);
+    cx.simulate_input("R");
+    run_handler(&submit_slot, cx);
+    assert!(
+        cx.update(|_, cx| state_for_assert.read(cx).routed_errors().is_empty()),
+        "an edit to the field must clear its routed messages"
+    );
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["lang="],
+        "with the routed message cleared the same form must submit"
+    );
+}
+
+/// A reset restores the default selection and the label it resolves to, and
+/// reports the restored text through `onInputChange` — the way pinned
+/// react-stately's `resetInputValue` re-derives the text and fires the
+/// controlled input's change. A second reset with nothing to change stays
+/// silent.
+#[gpui::test]
+fn form_combo_box_reset_restores_the_default_label_and_reports_the_input_change(
+    cx: &mut TestAppContext,
+) {
+    let input_changes = events();
+    let input_recorder = input_changes.clone();
+    let state = cx.new(|cx| InputState::new(cx));
+    let state_for_view = state.clone();
+    let state_for_assert = state;
+    let reset_slot = handler_slot();
+    let slot_for_view = reset_slot.clone();
+    let cx = open_host(cx, move || {
+        let input_changes = input_recorder.clone();
+        let combo = ComboBox::new(state_for_view.clone(), keyed(&["Alpha", "Beta"]))
+            .name("lang")
+            .default_value(["Alpha"])
+            .on_input_change(move |text, _, _| {
+                input_changes.borrow_mut().push(text.to_owned());
+            });
+        let form = Form::new().field(combo.form_field().expect("named combo field"));
+        *slot_for_view.borrow_mut() = Some(form.reset_handler());
+        form.child(combo).into_any_element()
+    });
+
+    click(cx, 60., 18.);
+    cx.simulate_input("Zig");
+    run_handler(&reset_slot, cx);
+    assert_eq!(
+        cx.update(|_, cx| state_for_assert.read(cx).value().to_owned()),
+        "Alpha",
+        "the reset must restore the default selection's label"
+    );
+    assert_eq!(
+        input_changes.borrow().last().map(String::as_str),
+        Some("Alpha"),
+        "the restored text must be reported through onInputChange"
+    );
+
+    // A second reset restores the same value: nothing changed, so the input
+    // callback stays silent.
+    run_handler(&reset_slot, cx);
+    assert_eq!(
+        input_changes.borrow().last().map(String::as_str),
+        Some("Alpha"),
+        "a reset whose restore changes nothing must not re-report the text"
+    );
+}
+
+/// Pinned React Aria Components 1.20.0's key-mode serialization maps an empty
+/// `selectedKeys` — single or multiple — to one hidden input with value `""`,
+/// so a named ComboBox with nothing chosen still submits `name=""`. A
+/// group-backed field omits itself instead.
+#[gpui::test]
+fn form_combo_box_empty_selection_submits_one_empty_value(cx: &mut TestAppContext) {
+    let submits = events();
+    let submitted = submits.clone();
+    let single_for_view = cx.new(|cx| InputState::new(cx));
+    let multiple_for_view = cx.new(|cx| InputState::new(cx));
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let single = ComboBox::new(single_for_view.clone(), keyed(&["Rust", "Go"])).name("lang");
+        let multiple = ComboBox::new(multiple_for_view.clone(), keyed(&["Rust", "Go"]))
+            .name("langs")
+            .selection_mode(SelectionMode::Multiple);
+        let form = Form::new()
+            .field(single.form_field().expect("named single combo field"))
+            .field(multiple.form_field().expect("named multiple combo field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(format!(
+                    "{}|{:?}|{:?}",
+                    record_data(data),
+                    data.get_all("lang"),
+                    data.get_all("langs")
+                ));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(single).child(multiple).into_any_element()
+    });
+
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["lang=,langs=|[\"\"]|[\"\"]"],
+        "an empty selection must serialize one empty value per named field, \
+         in FormData.text and FormData.get_all alike"
+    );
+}
+
+/// `formValue="text"` without `allowsCustomValue`: the named field submits
+/// the input text — the picked row's label — instead of its key.
+#[gpui::test]
+fn form_combo_box_form_value_text_submits_the_label_without_custom_values(cx: &mut TestAppContext) {
+    let submits = events();
+    let submitted = submits.clone();
+    let state_for_view = cx.new(|cx| InputState::new(cx));
+    let submit_slot = handler_slot();
+    let slot_for_view = submit_slot.clone();
+    let cx = open_host(cx, move || {
+        let submits = submits.clone();
+        let combo = ComboBox::new(
+            state_for_view.clone(),
+            vec![
+                PickerItem::new("rust-key", "Rust"),
+                PickerItem::new("go-key", "Go"),
+            ],
+        )
+        .name("lang")
+        .form_value(ComboBoxFormValue::Text);
+        let form = Form::new()
+            .field(combo.form_field().expect("named combo field"))
+            .on_submit(move |data: &FormData, _, _| {
+                submits.borrow_mut().push(record_data(data));
+            });
+        *slot_for_view.borrow_mut() = Some(form.submit_handler());
+        form.child(combo).into_any_element()
+    });
+
+    // The Focus trigger opens on the click; Down seats the cursor on the
+    // first row and Enter picks it, filling the input with the label "Rust".
+    click(cx, 60., 18.);
+    press(cx, "down");
+    press(cx, "enter");
+    run_handler(&submit_slot, cx);
+    assert_eq!(
+        submitted.borrow().as_slice(),
+        ["lang=Rust"],
+        "formValue text must submit the picked label, not the key"
     );
 }

@@ -1004,20 +1004,20 @@ EVIDENCE = {
     ),
     ('ComboBox', 'custom-value-multiple'): (
         'combo_box.rs',
-        r'(?s)if allows_custom_value\s*&& key == "enter"'
+        r'(?s)multiple-mode.{0,80}?custom input independent from the selected items'
+        r'.*?if allows_custom_value\s*&& key == "enter"'
         r'.{0,800}?is_none_or\(.{0,500}?cursor_position\(&rows, focused\).{0,200}?\{'
-        r'(?:(?!on_selection_change_all).){0,3500}?if !multiple'
-        r'.{0,800}?key_selection_own.{0,1000}?if !multiple'
-        r'.{0,400}?on_selection_change.{0,400}?key_close\(window, cx\)',
+        r'.{0,600}?if !key_multiple && selected_label != state\.read\(cx\)\.value\(\)'
+        r'.{0,800}?key_selection_own.{0,800}?had_selection'
+        r'.{0,400}?on_selection_change_all.{0,800}?key_close\(window, cx\)',
     ),
     ('ComboBox', 'multiple-row-keys'): (
         'combo_box.rs',
-        r'(?s)\A(?=.*Move::Activate => \{)(?=.*if multiple \{)'
+        r'(?s)\A(?=.*Move::Activate => \{)(?=.*if key_multiple \{)'
         r'(?=.*set_value\(String::new\(\)\))'
         r'(?=.*held\.update)(?=.*hidden_query = Some\(String::new\(\)\))'
-        r'(?=.*selected_now\.clone\(\))(?=.*next\.remove\(&item\))'
-        r'(?=.*next\.insert\(item\.clone\(\)\))(?=.*key_selection_own)'
-        r'(?=.*on_selection_change_all)(?=.*on_input_change)',
+        r'(?=.*selected_now\.clone\(\))(?=.*toggle_key\(&mut next, &item_key\))'
+        r'(?=.*key_selection_own)(?=.*on_selection_change_all)(?=.*on_input_change)',
     ),
     ('ComboBox', 'multiple-row-pointer'): (
         'combo_box.rs',
@@ -1027,7 +1027,7 @@ EVIDENCE = {
         r'(?=.*on_click)(?=.*focus_handle\.focus\(window\))'
         r'(?=.*set_value\(String::new\(\)\))'
         r'(?=.*cursor\.update[^;]*Some\(next_cursor\.clone\(\)\))'
-        r'(?=.*next\.remove\(&value\))(?=.*next\.insert\(value\.clone\(\)\))'
+        r'(?=.*toggle_key\(&mut next, &value\))'
         r'(?=.*if let Some\(held\) = &own)(?=.*if let Some\(cb\) = &cb)'
         r'(?=.*if let Some\(cb\) = &input_change)',
     ),

@@ -2130,7 +2130,7 @@ fn combo_box_blur_restores_selected_text_closes_and_keeps_destination_focus(
         let opens = callbacks.clone();
         gpui::div()
             .child(
-                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                ComboBox::new(combo_for_view.clone(), keyed(&["Alpha", "Beta"]))
                     .default_value(["Alpha"])
                     .default_input_value("mismatch")
                     .default_open(true)
@@ -2178,7 +2178,7 @@ fn combo_box_custom_single_blur_keeps_text_and_clears_selection(cx: &mut TestApp
         let opens = opens.clone();
         gpui::div()
             .child(
-                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                ComboBox::new(combo_for_view.clone(), keyed(&["Alpha", "Beta"]))
                     .default_value(["Alpha"])
                     .default_input_value("Custom")
                     .default_open(true)
@@ -2229,7 +2229,7 @@ fn combo_box_custom_multiple_blur_preserves_query_and_selection(cx: &mut TestApp
         let opens = opens.clone();
         gpui::div()
             .child(
-                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                ComboBox::new(combo_for_view.clone(), keyed(&["Alpha", "Beta"]))
                     .selection_mode(SelectionMode::Multiple)
                     .default_value(["Alpha"])
                     .default_input_value("Custom")
@@ -2278,7 +2278,7 @@ fn combo_box_noncustom_multiple_blur_clears_only_the_query(cx: &mut TestAppConte
         let inputs = inputs.clone();
         gpui::div()
             .child(
-                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                ComboBox::new(combo_for_view.clone(), keyed(&["Alpha", "Beta"]))
                     .selection_mode(SelectionMode::Multiple)
                     .default_value(["Alpha"])
                     .default_input_value("query")
@@ -2321,7 +2321,7 @@ fn combo_box_click_away_commits_and_closes_exactly_once(cx: &mut TestAppContext)
             .flex_col()
             .gap(px(300.))
             .child(
-                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                ComboBox::new(combo_for_view.clone(), keyed(&["Alpha", "Beta"]))
                     .default_value(["Alpha"])
                     .default_input_value("mismatch")
                     .default_open(true)
@@ -2364,7 +2364,7 @@ fn controlled_combo_box_click_away_reports_one_close(cx: &mut TestAppContext) {
             .flex_col()
             .gap(px(300.))
             .child(
-                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                ComboBox::new(combo_for_view.clone(), keyed(&["Alpha", "Beta"]))
                     .selected_keys(["Alpha".into()])
                     .default_input_value("mismatch")
                     .is_open(true)
@@ -2402,7 +2402,7 @@ fn combo_box_tab_commits_the_highlight_then_moves_focus_on(cx: &mut TestAppConte
         let opens = opens.clone();
         gpui::div()
             .child(
-                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                ComboBox::new(combo_for_view.clone(), keyed(&["Alpha", "Beta"]))
                     .default_open(true)
                     .menu_trigger(MenuTrigger::Manual)
                     .on_change(move |value, _, _| selections.borrow_mut().push(value.to_string()))
@@ -2445,7 +2445,7 @@ fn combo_box_multiple_tab_adds_the_highlight_then_moves_focus_on(cx: &mut TestAp
         let opens = opens.clone();
         gpui::div()
             .child(
-                ComboBox::new(combo_for_view.clone(), vec!["Alpha".into(), "Beta".into()])
+                ComboBox::new(combo_for_view.clone(), keyed(&["Alpha", "Beta"]))
                     .selection_mode(SelectionMode::Multiple)
                     .default_open(true)
                     .menu_trigger(MenuTrigger::Manual)
@@ -2490,7 +2490,7 @@ fn combo_box_allows_empty_collection_keeps_the_list_up_with_the_empty_state(
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        ComboBox::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+        ComboBox::new(state, keyed(&["Typst", "Rust", "Go"]))
             .allows_empty_collection(true)
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {
@@ -2527,14 +2527,17 @@ fn combo_box_allows_empty_collection_keeps_the_list_up_with_the_empty_state(
 }
 
 /// v3 inherits React Aria for the ComboBox (its Accessibility section links
-/// the RAC docs and lists "Support for custom values"), and RAC commits a
-/// custom value: pressing Enter with an unmatched value selects the typed text
-/// and fires `onSelectionChange`, even though an empty filtered collection has
-/// already closed the list.
+/// the RAC docs and lists "Support for custom values"). Pinned react-stately
+/// 3.49.0's `commitCustomValue` keeps the typed text and sets the selected
+/// key to `null` — it does not select the text. With no selection to change,
+/// `onSelectionChange` fires nothing; the slice callback spells the `null`
+/// when one did.
 #[gpui::test]
 fn combo_box_allows_custom_value_enter_commits_the_text(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();
+    let slices = events();
+    let sliced = slices.clone();
     let opens = events();
     let opened = opens.clone();
     let state = search_state(cx);
@@ -2542,11 +2545,20 @@ fn combo_box_allows_custom_value_enter_commits_the_text(cx: &mut TestAppContext)
 
     let cx = open_host(cx, move || {
         let changes = changes.clone();
+        let slices = slices.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        ComboBox::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+        ComboBox::new(state, keyed(&["Typst", "Rust", "Go"]))
             .allows_custom_value(true)
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
+            .on_selection_change_all(move |keys, _, _| {
+                slices.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
             .on_open_change(move |open, _, _| {
                 opens.borrow_mut().push(format!("open:{open}"));
             })
@@ -2557,13 +2569,19 @@ fn combo_box_allows_custom_value_enter_commits_the_text(cx: &mut TestAppContext)
     cx.simulate_input("pl");
     assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
 
-    // The closed field still commits the custom value on Enter.
+    // The closed field still commits the custom value on Enter: the text
+    // stays, but no key is selected, so the single-key callback — which
+    // cannot spell `null` — and the slice callback both stay silent.
     press(cx, "enter");
-    assert_eq!(
-        recorded.borrow().as_slice(),
-        ["pl"],
-        "Enter with an unmatched value and allowsCustomValue must commit the \
-         text as the selection"
+    assert!(
+        recorded.borrow().is_empty(),
+        "a committed custom value carries a null selected key, so the \
+         single-key callback must not report the typed text: {:?}",
+        recorded.borrow().as_slice()
+    );
+    assert!(
+        sliced.borrow().is_empty(),
+        "with no selection to change, the null must not be reported"
     );
     assert_eq!(
         opened.borrow().as_slice(),
@@ -2580,15 +2598,12 @@ fn combo_box_empty_filtered_collection_closes_and_reports(cx: &mut TestAppContex
     let state_for_view = state;
     let cx = open_host(cx, move || {
         let opens = opens.clone();
-        ComboBox::new(
-            state_for_view.clone(),
-            vec!["Typst".into(), "Rust".into(), "Go".into()],
-        )
-        .menu_trigger(MenuTrigger::Input)
-        .on_open_change(move |open, _, _| {
-            opens.borrow_mut().push(format!("open:{open}"));
-        })
-        .into_any_element()
+        ComboBox::new(state_for_view.clone(), keyed(&["Typst", "Rust", "Go"]))
+            .menu_trigger(MenuTrigger::Input)
+            .on_open_change(move |open, _, _| {
+                opens.borrow_mut().push(format!("open:{open}"));
+            })
+            .into_any_element()
     });
 
     click(cx, 60., 18.);
@@ -2623,7 +2638,7 @@ fn combo_box_validate_runs_on_every_edit_and_leaves_the_field_interactive(cx: &m
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        ComboBox::new(state, vec!["Alpha".into(), "Beta".into(), "Gamma".into()])
+        ComboBox::new(state, keyed(&["Alpha", "Beta", "Gamma"]))
             .validate(move |value| {
                 seen.borrow_mut().push(value.to_owned());
                 if value.is_empty() {
@@ -2702,7 +2717,7 @@ fn combo_box_caret_stays_at_the_end_when_the_list_opens(cx: &mut TestAppContext)
         let changes = changes.clone();
         let opens = opens.clone();
         let state = state_for_view.clone();
-        ComboBox::new(state, vec!["Typst".into(), "Rust".into(), "Go".into()])
+        ComboBox::new(state, keyed(&["Typst", "Rust", "Go"]))
             .menu_trigger(MenuTrigger::Input)
             .on_change(move |item, _, _| changes.borrow_mut().push(item.to_string()))
             .on_open_change(move |open, _, _| {

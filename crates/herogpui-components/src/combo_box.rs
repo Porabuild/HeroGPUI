@@ -5,8 +5,35 @@
 //! [`Autocomplete`](crate::autocomplete::Autocomplete) the list can be opened
 //! without typing and `allowsCustomValue` decides whether input outside the
 //! collection is accepted.
+//!
+//! Pinned v3.2.4 / React Aria Components 1.20.0 keep a stable `Key` separate
+//! from each item's `textValue`: `selectedKey` / `defaultValue` /
+//! `disabledKeys`, the selection callbacks and the form value address items
+//! by key, while filtering and the visible text use the label. Items are
+//! therefore [`crate::PickerItem`]s; using a label as the key made duplicate
+//! labels alias each other's selection, disabled state and row identity.
+//! Pinned HeroUI's ComboBox composition adds only slots, trigger and popover
+//! chrome on the RAC primitive, so it overrides none of this.
+//!
+//! The input text is the query and the selected item's label, never the key:
+//! picking a row fills the field with that row's label, and the cursor and
+//! row identities ride the key so duplicate labels stay distinct. A committed
+//! custom value carries a null selected key — pinned react-stately 3.49.0's
+//! `commitCustomValue` sets the value to `null` and keeps the typed text —
+//! which the [`Self::on_selection_change_all`] slice reports as an empty
+//! selection, and only when a selection actually existed; the single-key
+//! [`Self::on_selection_change`] cannot spell `null` and stays silent there.
+//!
+//! `formValue` (pinned React Aria Components 1.20.0) defaults to `"key"`: a
+//! named field submits the selected key(s). `allowsCustomValue` forces
+//! `"text"`, submitting the typed text instead.
 
-use std::sync::Arc;
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    rc::{Rc, Weak},
+    sync::Arc,
+};
 
 use gpui::{
     div, prelude::*, px, App, Entity, InteractiveElement, IntoElement, RenderOnce, SharedString,
@@ -18,6 +45,8 @@ use herogpui_theme::ActiveTheme;
 use crate::{
     icons,
     input::{Input, InputState},
+    picker_item::PickerItem,
+    selection::{normalize_selection, toggle_key},
     util,
 };
 
@@ -36,8 +65,53 @@ pub enum MenuTrigger {
     Manual,
 }
 
+/// `formValue` — what a `name`d ComboBox submits.
+///
+/// Pinned React Aria Components 1.20.0 defaults to key and forces text when
+/// `allowsCustomValue` is set: an input that accepts values outside the
+/// collection always submits what was typed.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ComboBoxFormValue {
+    /// The selected item key(s). The pinned default.
+    #[default]
+    Key,
+    /// The typed input text.
+    Text,
+}
+
 type OnSelectionChange = Arc<dyn Fn(&SharedString, &mut Window, &mut App) + 'static>;
 type OnOpenChange = Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>;
+type ComboBoxFormState = Rc<RefCell<crate::form::LiveFormFieldState>>;
+
+thread_local! {
+    static COMBO_BOX_FORM_STATES: RefCell<HashMap<u64, Weak<RefCell<crate::form::LiveFormFieldState>>>> =
+        RefCell::new(HashMap::new());
+}
+
+fn combo_box_form_state(entity_id: u64) -> ComboBoxFormState {
+    COMBO_BOX_FORM_STATES.with(|states| {
+        let mut states = states.borrow_mut();
+        if let Some(state) = states.get(&entity_id).and_then(|state| state.upgrade()) {
+            return state;
+        }
+        let state = Rc::new(RefCell::new(crate::form::LiveFormFieldState {
+            value: crate::form::FormValue::Keys(Vec::new()),
+            is_invalid: false,
+            is_successful: true,
+            focus: None,
+            restore: None,
+        }));
+        states.insert(entity_id, Rc::downgrade(&state));
+        state
+    })
+}
+
+/// Whether the pinned `formValue` serialization submits the input text:
+/// `formValue="text"` explicitly, or `allowsCustomValue`, which pinned React
+/// Aria Components 1.20.0 turns into text regardless of the prop.
+fn form_submits_text(form_value: Option<ComboBoxFormValue>, allows_custom_value: bool) -> bool {
+    allows_custom_value || form_value == Some(ComboBoxFormValue::Text)
+}
 
 /// The one-shot that keeps `MenuTrigger::Focus` from reopening a panel the
 /// user dismissed while the field still has the focus.
@@ -52,36 +126,44 @@ struct FocusOpen {
     was_open: bool,
 }
 
+/// Which suggestion the keyboard is on, held as the item's *key* so the
+/// cursor stays on the same item when the query filters the list or the
+/// caller reorders the collection. `hidden_query` retains the cursor across a
+/// multiple-mode pick, which clears the query before the next frame can
+/// re-derive the row: while the query equals the retained value the cursor
+/// stays alive even when the capped or filtered list no longer renders its
+/// item.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct ComboCursor {
     key: SharedString,
-    occurrence: usize,
     hidden_query: Option<String>,
 }
 
-fn cursor_for(rows: &[SharedString], index: usize, hidden_query: Option<String>) -> ComboCursor {
-    let key = rows[index].clone();
-    let occurrence = rows[..index].iter().filter(|item| **item == key).count();
+fn cursor_for(rows: &[PickerItem], index: usize, hidden_query: Option<String>) -> ComboCursor {
     ComboCursor {
-        key,
-        occurrence,
+        key: rows[index].key().clone(),
         hidden_query,
     }
 }
 
-fn cursor_position(rows: &[SharedString], cursor: &ComboCursor) -> Option<usize> {
-    rows.iter()
-        .enumerate()
-        .filter(|(_, item)| **item == cursor.key)
-        .nth(cursor.occurrence)
-        .map(|(index, _)| index)
+fn cursor_position(rows: &[PickerItem], cursor: &ComboCursor) -> Option<usize> {
+    rows.iter().position(|item| item.key() == &cursor.key)
+}
+
+/// The label an item key resolves to, or `None` when the key has no item in
+/// the collection (still loading, or already removed).
+fn label_of_key<'a>(items: &'a [PickerItem], key: &SharedString) -> Option<&'a SharedString> {
+    items
+        .iter()
+        .find(|item| item.key() == key)
+        .map(|item| item.label())
 }
 
 /// HeroUI ComboBox (controlled open state).
 #[derive(IntoElement)]
 pub struct ComboBox {
     state: Entity<InputState>,
-    items: Vec<SharedString>,
+    items: Vec<PickerItem>,
     /// `isOpen` — `None` leaves the component holding the flag, seeded from
     /// `defaultOpen`.
     is_open: Option<bool>,
@@ -93,7 +175,8 @@ pub struct ComboBox {
     error_message: Option<SharedString>,
     variant: FieldVariant,
     menu_trigger: MenuTrigger,
-    /// `defaultFilter` — decides whether an item matches the query.
+    /// `defaultFilter` — decides whether an item matches the query. Receives
+    /// the item's label; the key never reaches it.
     filter: Option<Arc<dyn Fn(&str, &str) -> bool + 'static>>,
     allows_custom_value: bool,
     max_items: usize,
@@ -114,31 +197,43 @@ pub struct ComboBox {
     allows_empty_collection: bool,
     /// `name` — the name this field submits under.
     name: Option<SharedString>,
+    /// `formValue` — `None` is the pinned `"key"` default; `allowsCustomValue`
+    /// forces text whatever this says.
+    form_value: Option<ComboBoxFormValue>,
     /// `shouldFocusWrap` — whether the arrow keys wrap at the ends of the list.
     should_focus_wrap: bool,
-    /// `ListBox.Section` — a heading above the item with this label.
+    /// `ListBox.Section` — a heading above the item with this key.
     sections: Vec<(SharedString, SharedString)>,
     /// `ListBox.ItemIndicator` — draws the tick. The closure is handed whether
     /// the row is the selected one.
     indicator: Option<Box<dyn Fn(bool) -> gpui::AnyElement + 'static>>,
     disabled_keys: std::collections::HashSet<SharedString>,
     selection_mode: SelectionMode,
-    selected_keys: std::collections::BTreeSet<SharedString>,
+    /// The selection as ordered unique item keys — pinned react-stately
+    /// 3.49.0's `selectedKeys` is a JS `Set`, which iterates in insertion
+    /// order, so the callbacks, the form value and `ComboBox.Value` follow
+    /// the order the keys were picked (or the owner listed) in.
+    selected_keys: Vec<SharedString>,
     /// Whether the caller drives the selection. An unset `selected_keys` is not
     /// an empty controlled selection: without this flag every plain ComboBox
     /// would hand its own picks back to a set nobody owns, and
     /// `ComboBox.Value` would never see them.
     is_controlled: bool,
+    /// Whether `selected_key` owns the controlled single key. Only then does
+    /// the render sync the input text to the key's label — and only when the
+    /// key changes, never on the owner's other re-renders.
+    selected_key_sync: bool,
     /// `ComboBox.Value` — draws the chosen item under the field.
     value_content: Option<Box<dyn Fn(util::SelectionValue<'_>) -> gpui::AnyElement + 'static>>,
     /// `defaultValue` — set it to hand this component its own selection.
-    default_value: Option<std::collections::BTreeSet<SharedString>>,
+    default_value: Option<Vec<SharedString>>,
     /// `defaultInputValue` — seeds the text state on the first render only.
     default_input_value: Option<SharedString>,
     on_selection_change_all: Option<Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>>,
     on_input_change: Option<Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>>,
     on_selection_change: Option<OnSelectionChange>,
     on_open_change: Option<OnOpenChange>,
+    form_state: ComboBoxFormState,
 }
 
 impl ComboBox {
@@ -148,15 +243,15 @@ impl ComboBox {
         self
     }
 
-    /// The chosen item labels under `selectionMode="multiple"`.
-    /// `defaultValue` — the uncontrolled initial selection.
+    /// `defaultValue` — the uncontrolled initial selection, as item keys.
     ///
     /// Supplying it hands the component its own selection set, seeded once;
-    /// `selected_keys` is the controlled spelling.
+    /// [`Self::selected_keys`] is the controlled spelling. The listed order is
+    /// the selection's order, exactly as the owner listed it.
     /// `defaultInputValue` — the uncontrolled initial text.
     ///
-    /// Written into the state on the first render only; `input_value` is the
-    /// controlled spelling.
+    /// Written into the state on the first render only; [`Self::input_value`]
+    /// is the controlled spelling.
     pub fn default_input_value(mut self, text: impl Into<SharedString>) -> Self {
         self.default_input_value = Some(text.into());
         self
@@ -170,14 +265,19 @@ impl ComboBox {
         self
     }
 
+    /// `selectedKeys` — the controlled selection, as item keys. The listed
+    /// order is the owner's order and is preserved everywhere the selection
+    /// is read.
     pub fn selected_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.selected_keys = keys.into_iter().collect();
         self.is_controlled = true;
         self
     }
 
-    /// Reports the whole selection, including an empty single selection when
-    /// the input is cleared.
+    /// Reports the whole selection, including the empty single selection a
+    /// cleared input or a committed custom value stands for (pinned React
+    /// Stately reports `null` there). The empty slice fires only when a
+    /// selection actually existed to clear.
     pub fn on_selection_change_all(
         mut self,
         handler: impl Fn(&[SharedString], &mut Window, &mut App) + 'static,
@@ -186,9 +286,21 @@ impl ComboBox {
         self
     }
 
-    /// `selectedKey` — writes the chosen item through to the bound state.
-    pub fn selected_key(self, key: impl Into<String>, cx: &mut App) -> Self {
-        self.state.update(cx, |s, _| s.set_value(key));
+    /// `selectedKey` — the controlled single-selection key, or `null` spelled
+    /// as the empty string. The selection rides the key; the input text is
+    /// synced to the key's label only when that key actually changes, so an
+    /// owner that passes the same key every render never clobbers the text
+    /// being typed — pinned react-stately resets the input value when the
+    /// selected key changes and leaves the input alone otherwise.
+    pub fn selected_key(mut self, key: impl Into<String>, _cx: &mut App) -> Self {
+        let key = SharedString::from(key.into());
+        self.selected_keys = if key.is_empty() {
+            Vec::new()
+        } else {
+            vec![key]
+        };
+        self.is_controlled = true;
+        self.selected_key_sync = true;
         self
     }
 
@@ -197,7 +309,9 @@ impl ComboBox {
         self.input_value(value, cx)
     }
 
-    /// `disabledKeys` — items that render but cannot be chosen.
+    /// `disabledKeys` — keys of the items that render but cannot be chosen.
+    /// Disabled state is per key, so one of two same-label items can be
+    /// disabled alone.
     pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
         self.disabled_keys = keys.into_iter().collect();
         self
@@ -245,7 +359,7 @@ impl ComboBox {
         self
     }
 
-    /// `ListBox.Section` — a heading rendered above `item`.
+    /// `ListBox.Section` — a heading rendered above the item with this key.
     pub fn section_before(
         mut self,
         item: impl Into<SharedString>,
@@ -265,7 +379,7 @@ impl ComboBox {
     ///
     /// v3's `.combo-box__value` is an optional part (`text-sm
     /// text-field-foreground empty:hidden`), and the closure is handed the same
-    /// render props the component passes down: `selectedItem` reaches
+    /// render props the component passes down: `selectedItems` reaches
     /// `selected_items`, and `defaultChildren` is the row this port would draw.
     pub fn value_content(
         mut self,
@@ -281,15 +395,26 @@ impl ComboBox {
         self
     }
 
+    /// `formValue` — whether a `name`d field submits the selected key(s) or
+    /// the typed text. `allowsCustomValue` forces the text whatever this says,
+    /// as pinned React Aria Components 1.20.0 does.
+    pub fn form_value(mut self, form_value: ComboBoxFormValue) -> Self {
+        self.form_value = Some(form_value);
+        self
+    }
+
     /// The `Form` field this control submits, when it has a `name`.
     ///
-    /// v3 discovers a field through the DOM; gpui gives a child no way to reach
-    /// its ancestor, so the control hands the pair over instead.
+    /// v3 discovers a field through the DOM; gpui gives a child no way to
+    /// reach its ancestor, so the control hands the pair over instead. The
+    /// live value follows the pinned `formValue` serialization — the selected
+    /// key(s) by default, the typed text under `allowsCustomValue` — and the
+    /// input keeps the implicit-Enter submission of the text control it is.
+    /// A disabled control stays registered and is omitted from FormData.
     pub fn form_field(&self) -> Option<crate::form::FormField> {
         let name = self.name.clone()?;
         Some(
-            crate::form::FormField::text(self.state.clone())
-                .name(name)
+            crate::form::FormField::live_text(name, self.form_state.clone(), self.state.clone())
                 .is_required(self.is_required),
         )
     }
@@ -323,7 +448,8 @@ impl ComboBox {
         self.on_selection_change(handler)
     }
 
-    pub fn new(state: Entity<InputState>, items: Vec<SharedString>) -> Self {
+    pub fn new(state: Entity<InputState>, items: Vec<PickerItem>) -> Self {
+        let form_state = combo_box_form_state(state.entity_id().as_u64());
         Self {
             state,
             items,
@@ -350,13 +476,15 @@ impl ComboBox {
             validation_behavior: None,
             allows_empty_collection: false,
             name: None,
+            form_value: None,
             should_focus_wrap: false,
             sections: Vec::new(),
             indicator: None,
             disabled_keys: std::collections::HashSet::new(),
             selection_mode: SelectionMode::Single,
-            selected_keys: std::collections::BTreeSet::new(),
+            selected_keys: Vec::new(),
             is_controlled: false,
+            selected_key_sync: false,
             value_content: None,
             default_value: None,
             default_input_value: None,
@@ -364,6 +492,7 @@ impl ComboBox {
             on_input_change: None,
             on_selection_change: None,
             on_open_change: None,
+            form_state,
         }
     }
 
@@ -419,14 +548,16 @@ impl ComboBox {
     /// `defaultFilter` — replaces the default case-insensitive substring
     /// match.
     ///
-    /// Called as `filter(item_text, input)`, and owns the whole decision —
+    /// Called as `filter(item_label, input)`: v3 filters on the item's
+    /// `textValue`, never on its key, and owns the whole decision —
     /// including what an empty query means.
     pub fn filter(mut self, f: impl Fn(&str, &str) -> bool + 'static) -> Self {
         self.filter = Some(Arc::new(f));
         self
     }
 
-    /// `allowsCustomValue` — accept text that matches no item.
+    /// `allowsCustomValue` — accept text that matches no item. A committed
+    /// custom value keeps the typed text and carries a null selected key.
     pub fn allows_custom_value(mut self, v: bool) -> Self {
         self.allows_custom_value = v;
         self
@@ -457,6 +588,11 @@ impl ComboBox {
         self
     }
 
+    /// Pick-only single-key convenience callback.
+    ///
+    /// Use [`Self::on_selection_change_all`] for v3's complete
+    /// `onChange` domain, including multiple selection and the `null` a
+    /// cleared input or a committed custom value reports.
     pub fn on_selection_change(
         mut self,
         handler: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
@@ -496,6 +632,13 @@ impl RenderOnce for ComboBox {
 
         // `defaultValue` opts into the component holding its own selection;
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
+        // Both spellings normalize to the `Set` shape first: duplicates
+        // collapse to their first insertion, and single mode keeps one key.
+        // A controlled order is the owner's order — nothing is sorted.
+        let multiple = self.selection_mode == SelectionMode::Multiple;
+        self.selected_keys = normalize_selection(self.selected_keys.clone(), multiple);
+        let default_selection =
+            normalize_selection(self.default_value.clone().unwrap_or_default(), multiple);
         let (selection, selection_own) = util::controlled(
             window,
             cx,
@@ -503,7 +646,7 @@ impl RenderOnce for ComboBox {
                 format!("combobox-{}-selection", self.state.entity_id().as_u64()).into(),
             ),
             self.is_controlled.then(|| self.selected_keys.clone()),
-            self.default_value.clone().unwrap_or_default(),
+            default_selection.clone(),
         );
         self.selected_keys = selection;
 
@@ -555,8 +698,100 @@ impl RenderOnce for ComboBox {
         let raw_query = self.state.read(cx).value().to_owned();
         let query = raw_query.to_lowercase();
         let is_invalid = self.is_invalid || self.error_message.is_some();
-        let multiple = self.selection_mode == SelectionMode::Multiple;
         let focus_handle = self.state.read(cx).focus_handle.clone();
+
+        // The live form value follows the pinned `formValue` serialization:
+        // the selected key(s) by default, the typed text when
+        // `allowsCustomValue` forces text mode. Success and validity are the
+        // inner input's own mirrors (`live_text` reads them there), so only
+        // the value and the focus handle — the handle a blocked submit must
+        // reach — live in this shared state.
+        let form_text = form_submits_text(self.form_value, self.allows_custom_value);
+        {
+            let mut form = self.form_state.borrow_mut();
+            form.value = if form_text {
+                crate::form::FormValue::Text(SharedString::from(raw_query.clone()))
+            } else {
+                crate::form::FormValue::Keys(self.selected_keys.clone())
+            };
+            form.focus = Some(focus_handle.clone());
+        }
+
+        // `selected_key`'s controlled sync: the owner hands the same key to
+        // the builder every render, so the label may move into the input only
+        // when that key actually changes — writing it every frame would
+        // clobber the text being typed. The empty string is v3's `null` and
+        // clears the input; a key with no item resolves to no label.
+        if self.selected_key_sync {
+            let applied_key = window.use_keyed_state(
+                gpui::ElementId::Name(format!("combobox-{entity_id}-applied-key").into()),
+                cx,
+                |_, _| None::<SharedString>,
+            );
+            let owned_key = self.selected_keys.first().cloned().unwrap_or_default();
+            let first_apply = applied_key.read(cx).is_none();
+            if applied_key.read(cx).clone() != Some(owned_key.clone()) {
+                // Pinned `getDefaultInputValue` derives the text from the
+                // selected key only when no `defaultInputValue` was given, so
+                // the first application must leave the seeded default text in
+                // place; later key changes still move their labels in.
+                if !(first_apply && self.default_input_value.is_some()) {
+                    let label = label_of_key(&self.items, &owned_key)
+                        .cloned()
+                        .unwrap_or_default();
+                    self.state.update(cx, |state, cx| {
+                        state.set_value(label.to_string());
+                        cx.notify();
+                    });
+                }
+                applied_key.update(cx, |v, _| *v = Some(owned_key));
+            }
+        }
+
+        // A reset restores the default selection and the label it resolves
+        // to, the way pinned react-stately resets `selectedKey` and lets
+        // `resetInputValue` re-derive the text — reporting the restored text
+        // through `onInputChange` when it actually changed, as the pinned
+        // controlled input state does.
+        let restore_own = selection_own.clone();
+        let restore_state = self.form_state.clone();
+        let restore_input = self.state.clone();
+        let restore_items = self.items.clone();
+        let restore_default = default_selection;
+        let restore_input_change = self.on_input_change.clone();
+        let restore_all = self.on_selection_change_all.clone();
+        self.form_state.borrow_mut().restore = (restore_own.is_some() || restore_all.is_some())
+            .then(|| {
+                util::shared(move |window: &mut Window, cx: &mut App| {
+                    let default_text = restore_default
+                        .first()
+                        .and_then(|key| label_of_key(&restore_items, key))
+                        .cloned()
+                        .unwrap_or_default();
+                    restore_state.borrow_mut().value =
+                        crate::form::FormValue::Keys(restore_default.clone());
+                    let input_changed = restore_input.read(cx).value() != default_text.as_ref();
+                    restore_input.update(cx, |state, cx| {
+                        state.set_value(default_text.to_string());
+                        cx.notify();
+                    });
+                    if input_changed {
+                        if let Some(cb) = &restore_input_change {
+                            cb(&default_text, window, cx);
+                        }
+                    }
+                    if let Some(held) = &restore_own {
+                        let keys = restore_default.clone();
+                        held.update(cx, |v, cx| {
+                            *v = keys;
+                            cx.notify();
+                        });
+                    }
+                    if let Some(cb) = &restore_all {
+                        cb(&restore_default, window, cx);
+                    }
+                }) as Arc<dyn Fn(&mut Window, &mut App)>
+            });
 
         let show_all_items = window.use_keyed_state(
             gpui::ElementId::Name(format!("combobox-{entity_id}-show-all-items").into()),
@@ -577,16 +812,17 @@ impl RenderOnce for ComboBox {
 
         // Focus and manual-action opens show the full collection until the
         // next edit. A custom `defaultFilter` owns the filtering decision,
-        // including an empty query.
+        // including an empty query. Filtering reads the items' labels, never
+        // their keys.
         let custom = self.filter.clone();
-        let matches: Vec<SharedString> = match &custom {
+        let matches: Vec<PickerItem> = match &custom {
             _ if display_full_collection => {
                 self.items.iter().take(self.max_items).cloned().collect()
             }
             Some(f) => self
                 .items
                 .iter()
-                .filter(|item| f(item.as_ref(), &raw_query))
+                .filter(|item| f(item.label(), &raw_query))
                 .take(self.max_items)
                 .cloned()
                 .collect(),
@@ -594,7 +830,7 @@ impl RenderOnce for ComboBox {
             _ => self
                 .items
                 .iter()
-                .filter(|item| item.to_lowercase().contains(&query))
+                .filter(|item| item.label().to_lowercase().contains(&query))
                 .take(self.max_items)
                 .cloned()
                 .collect(),
@@ -666,7 +902,7 @@ impl RenderOnce for ComboBox {
         // the input is geometrically outside it even though both belong to the
         // same ComboBox. Capture the whole subtree for one dispatch: input
         // presses keep the list open, and the chevron or a row owns its click.
-        let inside_pressed = std::rc::Rc::new(std::cell::Cell::new(false));
+        let inside_pressed = Rc::new(std::cell::Cell::new(false));
         let mut trigger = div()
             .id(gpui::ElementId::Name(
                 format!("combobox-{entity_id}-trigger").into(),
@@ -785,11 +1021,11 @@ impl RenderOnce for ComboBox {
 
             let query = text.to_lowercase();
             let has_matches = match &filter_on_change {
-                Some(f) => items_on_change.iter().any(|item| f(item.as_ref(), text)),
+                Some(f) => items_on_change.iter().any(|item| f(item.label(), text)),
                 None if query.is_empty() => !items_on_change.is_empty(),
                 None => items_on_change
                     .iter()
-                    .any(|item| item.to_lowercase().contains(&query)),
+                    .any(|item| item.label().to_lowercase().contains(&query)),
             };
             let can_show = has_matches || allows_empty_collection;
             let is_open = open_own_on_change
@@ -842,7 +1078,7 @@ impl RenderOnce for ComboBox {
         let stale_cursor = cursor.read(cx).as_ref().is_some_and(|focused| {
             let visible = cursor_position(&matches, focused).is_some();
             let retained_hidden = focused.hidden_query.as_deref() == Some(raw_query.as_str())
-                && cursor_position(&self.items, focused).is_some();
+                && self.items.iter().any(|item| item.key() == &focused.key);
             self.disabled_keys.contains(&focused.key) || (!visible && !retained_hidden)
         });
         if stale_cursor {
@@ -874,18 +1110,22 @@ impl RenderOnce for ComboBox {
             let state = self.state.clone();
             let selection_own = selection_own.clone();
             let selected = self.selected_keys.clone();
+            let items = self.items.clone();
             let selection_change = self.on_selection_change_all.clone();
             let input_change = self.on_input_change.clone();
             let allows_custom = self.allows_custom_value;
             move |window: &mut Window, cx: &mut App| {
                 let current = state.read(cx).value().to_owned();
                 let selected_text = selected
-                    .iter()
-                    .next()
-                    .map(ToString::to_string)
+                    .first()
+                    .and_then(|key| label_of_key(&items, key))
+                    .cloned()
                     .unwrap_or_default();
 
                 if allows_custom {
+                    // Pinned react-stately's commit path: text that no longer
+                    // matches the selected item's label is a custom value,
+                    // which carries a null selected key.
                     if !multiple && current != selected_text && !selected.is_empty() {
                         if let Some(held) = &selection_own {
                             held.update(cx, |value, cx| {
@@ -903,7 +1143,7 @@ impl RenderOnce for ComboBox {
                 let committed = if multiple {
                     String::new()
                 } else {
-                    selected_text
+                    selected_text.to_string()
                 };
                 if current != committed {
                     state.update(cx, |state, cx| {
@@ -953,22 +1193,25 @@ impl RenderOnce for ComboBox {
 
         // `ComboBox.Value` — `.combo-box__value` is `text-sm
         // text-field-foreground empty:hidden`, so it shows only once something
-        // is chosen.
+        // is chosen. The selection is read in its own order — pinned
+        // react-stately 3.49.0's `selectedKeys` is a JS `Set`, which iterates
+        // in insertion order — and each key resolves to its item wherever that
+        // item now sits; a key with no item renders nothing.
         let mut value_content = None;
         if let Some(render) = self.value_content.take() {
-            let items: Vec<SharedString> = self
-                .items
-                .iter()
-                .filter(|it| self.selected_keys.contains(*it))
-                .cloned()
-                .collect();
-            let indices: Vec<usize> = self
-                .items
-                .iter()
-                .enumerate()
-                .filter(|(_, it)| self.selected_keys.contains(*it))
-                .map(|(i, _)| i)
-                .collect();
+            let mut items: Vec<SharedString> = Vec::new();
+            let mut indices: Vec<usize> = Vec::new();
+            for key in &self.selected_keys {
+                if let Some((index, item)) = self
+                    .items
+                    .iter()
+                    .enumerate()
+                    .find(|(_, it)| it.key() == key)
+                {
+                    items.push(item.label().clone());
+                    indices.push(index);
+                }
+            }
             let text = items
                 .iter()
                 .map(ToString::to_string)
@@ -982,7 +1225,7 @@ impl RenderOnce for ComboBox {
             value_content = Some(render(util::SelectionValue {
                 selected_items: &items,
                 selected_indices: &indices,
-                selected_keys: None,
+                selected_keys: Some(&self.selected_keys),
                 selected_text: &text,
                 is_placeholder: items.is_empty(),
                 default_children,
@@ -1004,7 +1247,7 @@ impl RenderOnce for ComboBox {
                 .filter(|i| {
                     key_rows
                         .get(*i)
-                        .is_some_and(|item| !self.disabled_keys.contains(item))
+                        .is_some_and(|item| !self.disabled_keys.contains(item.key()))
                 })
                 .collect();
             let held = cursor.clone();
@@ -1032,6 +1275,7 @@ impl RenderOnce for ComboBox {
             let key_selection_own = selection_own.clone();
             let key_close = close_open.clone();
             let key_blur = blur_scope.clone();
+            let key_multiple = multiple;
             root = root.on_key_down(move |event, window, cx| {
                 let key = event.keystroke.key.as_str();
                 let is_open = open_own_keys
@@ -1042,13 +1286,13 @@ impl RenderOnce for ComboBox {
                     let lowered = current_query.to_lowercase();
                     let display_full = current_query == key_query && *show_all_items.read(cx)
                         || (key_menu_trigger == MenuTrigger::Manual && !is_open);
-                    let current_matches: Vec<SharedString> = match &key_filter {
+                    let current_matches: Vec<PickerItem> = match &key_filter {
                         _ if display_full => {
                             key_items.iter().take(key_max_items).cloned().collect()
                         }
                         Some(filter) => key_items
                             .iter()
-                            .filter(|item| filter(item.as_ref(), &current_query))
+                            .filter(|item| filter(item.label(), &current_query))
                             .take(key_max_items)
                             .cloned()
                             .collect(),
@@ -1057,7 +1301,7 @@ impl RenderOnce for ComboBox {
                         }
                         None => key_items
                             .iter()
-                            .filter(|item| item.to_lowercase().contains(&lowered))
+                            .filter(|item| item.label().to_lowercase().contains(&lowered))
                             .take(key_max_items)
                             .cloned()
                             .collect(),
@@ -1071,7 +1315,7 @@ impl RenderOnce for ComboBox {
                     let visible = cursor_position(&current_rows, focused).is_some();
                     let retained_hidden = focused.hidden_query.as_deref()
                         == Some(current_query.as_str())
-                        && cursor_position(&key_items, focused).is_some();
+                        && key_items.iter().any(|item| item.key() == &focused.key);
                     key_disabled.contains(&focused.key) || (!visible && !retained_hidden)
                 });
                 if stale_cursor {
@@ -1080,10 +1324,16 @@ impl RenderOnce for ComboBox {
                 // `allowsCustomValue` is the promise behind the drawn hint
                 // "Press Enter to use this value". A no-match query has no
                 // cursor row at all (an empty stop list makes `resolve` report
-                // Ignore, so the Activate arm never runs). The existing
-                // single-value commit remains single-mode only; React Aria
-                // keeps multiple-mode custom input independent from the
-                // selected items.
+                // Ignore, so the Activate arm never runs). Pinned
+                // react-stately's `commitCustomValue` keeps the typed text and
+                // sets the value to null: the selection clears, and the slice
+                // callback reports it only when a selection actually existed.
+                // Text that still matches the selected item's label is not a
+                // custom value at all — pinned `commitValue` re-runs
+                // `commitSelection` there, so the selection stands and the
+                // callbacks stay silent. The existing single-value commit
+                // remains single-mode only; React Aria keeps multiple-mode
+                // custom input independent from the selected items.
                 if allows_custom_value
                     && key == "enter"
                     && !state.read(cx).value().is_empty()
@@ -1091,46 +1341,47 @@ impl RenderOnce for ComboBox {
                         stale_cursor || cursor_position(&rows, focused).is_none()
                     })
                 {
-                    let text = SharedString::from(state.read(cx).value().to_owned());
-                    state.update(cx, |st, cx| {
-                        st.set_value(text.to_string());
-                        cx.notify();
-                    });
-                    if !multiple {
-                        // Uncontrolled: record the pick in the selection too,
-                        // or `ComboBox.Value` would never see it.
+                    let selected_label = selected_now
+                        .first()
+                        .and_then(|item| label_of_key(&key_items, item))
+                        .cloned()
+                        .unwrap_or_default();
+                    if !key_multiple && selected_label != state.read(cx).value() {
+                        let had_selection = !selected_now.is_empty();
                         if let Some(held) = &key_selection_own {
-                            let mut next = std::collections::BTreeSet::new();
-                            next.insert(text.clone());
                             held.update(cx, |v, cx| {
-                                *v = next;
+                                v.clear();
                                 cx.notify();
                             });
                         }
-                    }
-                    held.update(cx, |v, _| *v = None);
-                    if !multiple {
-                        if let Some(cb) = &on_selection_change {
-                            cb(&text, window, cx);
+                        if had_selection {
+                            if let Some(cb) = &on_selection_change_all {
+                                cb(&[], window, cx);
+                            }
                         }
                     }
+                    held.update(cx, |v, _| *v = None);
                     key_close(window, cx);
-                    // The ComboBox acted on this Enter — it committed the
-                    // typed value, open list or not — so the keystroke is
-                    // the list's, and must not also submit an enclosing
-                    // form.
-                    cx.stop_propagation();
+                    // Pinned React Aria 3.51.0's `Enter` shortcut prevents
+                    // the default only while the menu is open
+                    // (`shouldPreventDefault = state.isOpen`): a commit on a
+                    // closed field — custom value or not — leaves Enter to
+                    // bubble into an enclosing form's implicit submission.
+                    if is_open {
+                        cx.stop_propagation();
+                    }
                     return;
                 }
                 if key == "enter" && (stale_cursor || held.read(cx).is_none()) {
-                    let reset_value = if multiple {
+                    let reset_value = if key_multiple {
                         String::new()
                     } else {
                         selected_now
-                            .iter()
-                            .next()
-                            .map(ToString::to_string)
+                            .first()
+                            .and_then(|item| label_of_key(&key_items, item))
+                            .cloned()
                             .unwrap_or_default()
+                            .to_string()
                     };
                     let input_changed = state.read(cx).value() != reset_value;
                     state.update(cx, |value, cx| {
@@ -1210,17 +1461,26 @@ impl RenderOnce for ComboBox {
                         }
                     }
                     crate::list_nav::Move::Activate => {
-                        let Some(item) = held.read(cx).as_ref().map(|focused| focused.key.clone())
+                        // The activation reads the held cursor's key, not the
+                        // rendered row: a cursor retained across a query reset
+                        // (the multiple-mode pick above) can sit on an item
+                        // the capped or filtered list no longer renders, and
+                        // Enter must still toggle it.
+                        let Some(item_key) =
+                            held.read(cx).as_ref().map(|focused| focused.key.clone())
                         else {
                             return;
                         };
+                        let item_label = label_of_key(&key_items, &item_key)
+                            .cloned()
+                            .unwrap_or_default();
                         // An Enter that picks a row is the list's, not an
                         // enclosing form's. A Tab mapped here keeps its
                         // native motion: only Enter is stopped.
                         if key == "enter" {
                             cx.stop_propagation();
                         }
-                        if multiple {
+                        if key_multiple {
                             let had_query = !state.read(cx).value().is_empty();
                             state.update(cx, |st, cx| {
                                 st.set_value(String::new());
@@ -1232,9 +1492,7 @@ impl RenderOnce for ComboBox {
                                 }
                             });
                             let mut next = selected_now.clone();
-                            if !next.remove(&item) {
-                                next.insert(item.clone());
-                            }
+                            toggle_key(&mut next, &item_key);
                             if let Some(held) = &key_selection_own {
                                 let next = next.clone();
                                 held.update(cx, |v, cx| {
@@ -1243,7 +1501,6 @@ impl RenderOnce for ComboBox {
                                 });
                             }
                             if let Some(cb) = &on_selection_change_all {
-                                let next: Vec<SharedString> = next.into_iter().collect();
                                 cb(&next, window, cx);
                             }
                             if had_query {
@@ -1253,17 +1510,16 @@ impl RenderOnce for ComboBox {
                             }
                             return;
                         }
-                        // Taking a suggestion fills the field and closes the
-                        // list, the way a click does.
+                        // Taking a suggestion fills the field with the row's
+                        // label and closes the list, the way a click does.
                         state.update(cx, |st, cx| {
-                            st.set_value(item.to_string());
+                            st.set_value(item_label.to_string());
                             cx.notify();
                         });
                         // Uncontrolled: record the pick in the selection too,
                         // or `ComboBox.Value` would never see it.
                         if let Some(held) = &key_selection_own {
-                            let mut next = std::collections::BTreeSet::new();
-                            next.insert(item.clone());
+                            let next = vec![item_key.clone()];
                             held.update(cx, |v, cx| {
                                 *v = next;
                                 cx.notify();
@@ -1274,7 +1530,7 @@ impl RenderOnce for ComboBox {
                             key_blur.consume(cx);
                         }
                         if let Some(cb) = &on_selection_change {
-                            cb(&item, window, cx);
+                            cb(&item_key, window, cx);
                         }
                         key_close(window, cx);
                     }
@@ -1385,8 +1641,8 @@ impl RenderOnce for ComboBox {
             let sections = self.sections.clone();
             let row_disabled_keys = self.disabled_keys.clone();
             let row_selected_keys = self.selected_keys.clone();
-            let indicator: Option<std::rc::Rc<dyn Fn(bool) -> gpui::AnyElement>> =
-                self.indicator.take().map(std::rc::Rc::from);
+            let indicator: Option<Rc<dyn Fn(bool) -> gpui::AnyElement>> =
+                self.indicator.take().map(Rc::from);
             let on_change_all = self.on_selection_change_all.clone();
             let row_input_change = self.on_input_change.clone();
             let on_change_one = self.on_selection_change.clone();
@@ -1396,10 +1652,6 @@ impl RenderOnce for ComboBox {
             let row_open_own = open_own.clone();
             let row_open_state = open_state;
             let row_close_open = close_open.clone();
-            let row_items = self.items.clone();
-            let row_filter = self.filter.clone();
-            let row_show_all_items = show_all_items;
-            let row_max_items = self.max_items;
             let row_muted = colors.muted;
             let row_hover_bg = colors.default.color;
             let row_focus = colors.focus;
@@ -1420,7 +1672,7 @@ impl RenderOnce for ComboBox {
                         .into_any_element()
                 };
                 // `ListBox.Section`'s `Header`, above the item it introduces.
-                if let Some((_, label)) = sections.iter().find(|(at, _)| at == item) {
+                if let Some((_, label)) = sections.iter().find(|(at, _)| at == item.key()) {
                     head.push(
                         div()
                             .px(px(8.))
@@ -1432,11 +1684,13 @@ impl RenderOnce for ComboBox {
                             .into_any_element(),
                     );
                 }
-                let item_disabled = row_disabled_keys.contains(item);
+                // The row's element id comes from the item's key, so two items
+                // that share a label never share an interactive row.
+                let item_disabled = row_disabled_keys.contains(item.key());
                 let hover_bg = row_hover_bg;
                 let mut row = div()
                         .id(gpui::ElementId::Name(
-                            format!("combobox-{entity_id}-item-{index}").into(),
+                            format!("combobox-{entity_id}-item-{}", item.key()).into(),
                         ))
                         // `.list-box-item`: `min-h-9 rounded-2xl px-2 py-1.5 gap-3`.
                         .min_h(util::FIELD_HEIGHT)
@@ -1448,7 +1702,7 @@ impl RenderOnce for ComboBox {
                         .items_center()
                         .justify_between()
                         .text_size(util::FIELD_TEXT)
-                        .child(item.to_string());
+                        .child(item.label().to_string());
 
                 if item_disabled {
                     row = row.opacity(row_disabled_opacity);
@@ -1464,7 +1718,7 @@ impl RenderOnce for ComboBox {
                 // `ListBox.ItemIndicator`: a caller-drawn tick replaces the
                 // check glyph, and is asked for on every row so it can draw the
                 // unselected state too.
-                let row_selected = row_selected_keys.contains(item);
+                let row_selected = row_selected_keys.contains(item.key());
                 match &indicator {
                     Some(render) => row = row.child(render(row_selected)),
                     None if multiple && row_selected => {
@@ -1488,7 +1742,7 @@ impl RenderOnce for ComboBox {
                         let cb = on_change_all.clone();
                         let own = selection_own.clone();
                         let current = row_selected_keys.clone();
-                        let value = item.clone();
+                        let value = item.key().clone();
                         let state = row_state.clone();
                         let cursor = row_cursor.clone();
                         let next_cursor = cursor_for(&rows, index, Some(String::new()));
@@ -1502,9 +1756,7 @@ impl RenderOnce for ComboBox {
                             });
                             cursor.update(cx, |v, _| *v = Some(next_cursor.clone()));
                             let mut next = current.clone();
-                            if !next.remove(&value) {
-                                next.insert(value.clone());
-                            }
+                            toggle_key(&mut next, &value);
                             // Uncontrolled: keep the new set, or picking an
                             // item would do nothing.
                             if let Some(held) = &own {
@@ -1515,7 +1767,6 @@ impl RenderOnce for ComboBox {
                                 });
                             }
                             if let Some(cb) = &cb {
-                                let next: Vec<SharedString> = next.into_iter().collect();
                                 cb(&next, window, cx);
                             }
                             if had_query {
@@ -1528,16 +1779,16 @@ impl RenderOnce for ComboBox {
                     return done(head, row.into_any_element());
                 }
 
-                let value = item.clone();
+                // Taking a suggestion fills the field with the row's label and
+                // closes the list, the way a click does; the selection rides
+                // the row's key.
+                let value = item.key().clone();
+                let label = item.label().clone();
                 let state = row_state.clone();
                 let on_selection_change = on_change_one.clone();
                 let own = selection_own.clone();
                 let open_own = row_open_own.clone();
                 let close_open = row_close_open.clone();
-                let items = row_items.clone();
-                let filter = row_filter.clone();
-                let show_all_items = row_show_all_items.clone();
-                let max_items = row_max_items;
                 row = row.on_click(move |_, window, cx| {
                     let is_open = open_own
                         .as_ref()
@@ -1545,42 +1796,14 @@ impl RenderOnce for ComboBox {
                     if !is_open {
                         return;
                     }
-                    let value = if !*show_all_items.read(cx) {
-                        let current = state.read(cx).value().to_owned();
-                        let query = current.to_lowercase();
-                        let filtered: Vec<SharedString> = match &filter {
-                            Some(f) => items
-                                .iter()
-                                .filter(|item| f(item.as_ref(), &current))
-                                .take(max_items)
-                                .cloned()
-                                .collect(),
-                            None if query.is_empty() => {
-                                items.iter().take(max_items).cloned().collect()
-                            }
-                            None => items
-                                .iter()
-                                .filter(|item| item.to_lowercase().contains(&query))
-                                .take(max_items)
-                                .cloned()
-                                .collect(),
-                        };
-                        let Some(value) = filtered.get(index).cloned() else {
-                            return;
-                        };
-                        value
-                    } else {
-                        value.clone()
-                    };
                     state.update(cx, |s, cx| {
-                        s.set_value(value.to_string());
+                        s.set_value(label.to_string());
                         cx.notify();
                     });
                     // Uncontrolled: record the pick in the selection too, or
                     // `ComboBox.Value` would never see it.
                     if let Some(held) = &own {
-                        let mut next = std::collections::BTreeSet::new();
-                        next.insert(value.clone());
+                        let next = vec![value.clone()];
                         held.update(cx, |v, cx| {
                             *v = next;
                             cx.notify();
