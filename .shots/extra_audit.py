@@ -129,6 +129,10 @@ EXTRA_OK = {
     'form_fields': 'no-context-propagation',
     'data': 'accessor',
     'on_navigate': 'composition',
+    # v3 spells the Breadcrumbs `separator` a `ReactNode`; a node cannot be
+    # rebuilt per crumb in a RenderOnce port, so the builder takes the closure
+    # that constructs it — the render-prop inversion the parity guide records.
+    'separator_render': 'reactnode-render-port',
     'on_row_click': 'composition',
     'on_selection_change_all': 'composition',
     # v3 spells the multi-thumb slider `value: number[]` / `onChange`; Rust has

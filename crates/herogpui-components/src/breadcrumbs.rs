@@ -1,8 +1,8 @@
 //! Breadcrumbs — port of `@heroui/breadcrumbs`.
 
 use gpui::{
-    prelude::*, px, App, ClickEvent, InteractiveElement, IntoElement, RenderOnce, SharedString,
-    Styled, Window,
+    prelude::*, px, App, ClickEvent, FontWeight, InteractiveElement, IntoElement, RenderOnce,
+    SharedString, Styled, Window,
 };
 use herogpui_theme::ActiveTheme;
 
@@ -41,11 +41,20 @@ impl Crumb {
 type OnNavigate =
     std::sync::Arc<dyn Fn(usize, &Crumb, &ClickEvent, &mut Window, &mut App) + 'static>;
 
+/// v3's `separator?: ReactNode`: custom content rebuilt for every non-last
+/// crumb, painted inside the 12px `breadcrumbs__separator` slot.
+type SeparatorRender = std::sync::Arc<dyn Fn(usize) -> gpui::AnyElement + 'static>;
+
 /// HeroUI Breadcrumbs.
 #[derive(IntoElement)]
 pub struct Breadcrumbs {
+    /// Instance identity for the keyed focus handles and link ids; without
+    /// it the fallback derives from the crumb labels, unique unless two
+    /// id-less instances hold identical labels.
+    id: Option<gpui::ElementId>,
     items: Vec<Crumb>,
     separator: BreadcrumbSeparator,
+    separator_render: Option<SeparatorRender>,
     is_disabled: bool,
     on_navigate: Option<OnNavigate>,
 }
@@ -58,15 +67,31 @@ impl Breadcrumbs {
 
     pub fn new(items: Vec<Crumb>) -> Self {
         Self {
+            id: None,
             items,
             separator: BreadcrumbSeparator::Chevron,
+            separator_render: None,
             is_disabled: false,
             on_navigate: None,
         }
     }
 
+    pub fn id(mut self, id: impl Into<gpui::ElementId>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+
     pub fn separator(mut self, s: BreadcrumbSeparator) -> Self {
         self.separator = s;
+        self
+    }
+
+    /// Custom separator content between crumbs (v3 `separator: ReactNode`).
+    /// The closure is called with each non-last crumb's index and must build a
+    /// fresh element per call; its output paints inside the 12px separator
+    /// slot and takes the slot's muted color. Overrides `separator`.
+    pub fn separator_render(mut self, f: impl Fn(usize) -> gpui::AnyElement + 'static) -> Self {
+        self.separator_render = Some(std::sync::Arc::new(f));
         self
     }
 
@@ -82,18 +107,31 @@ impl Breadcrumbs {
 
 impl RenderOnce for Breadcrumbs {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // The keyed focus handles must come first (`use_keyed_state` takes
+        // `cx` mutably), and they must be keyed by this instance: bare
+        // `crumb-{i}` literals made a second Breadcrumbs re-use the first
+        // one's tab stops.
+        let base = match self.id {
+            Some(id) => format!("{id:?}"),
+            None => format!(
+                "bc-{}",
+                self.items
+                    .iter()
+                    .map(|c| c.label.as_ref())
+                    .collect::<Vec<_>>()
+                    .join("-")
+            ),
+        };
         let colors = cx.colors();
         let text_size = px(14.);
         let muted = colors.muted;
         let disabled = self.is_disabled;
         let disabled_opacity = cx.layout().disabled_opacity;
-        let active_color = colors.foreground;
-        let sep_icon = match self.separator {
-            BreadcrumbSeparator::Slash => "/",
-            BreadcrumbSeparator::Dash => "-",
-            BreadcrumbSeparator::Chevron => "",
-        };
+        // `.breadcrumbs__link[data-current="true"]` is `text-link`: the current
+        // page takes the link token, not the foreground.
+        let current_color = colors.link;
         let separator = self.separator;
+        let separator_render = self.separator_render;
         let items = self.items.clone();
         let on_navigate = self.on_navigate;
         let item_count = items.len();
@@ -102,71 +140,136 @@ impl RenderOnce for Breadcrumbs {
             .into_iter()
             .enumerate()
             .map(|(i, crumb)| {
-                // `.breadcrumbs__item` is the row, `.breadcrumbs__link` the
-                // label inside it, and `.breadcrumbs__separator` the glyph
-                // after every item but the last.
+                // `.breadcrumbs__item` is `flex shrink-0 items-center
+                // justify-center gap-0.5 px-0.5`: a 2px gap between link and
+                // separator, 2px of horizontal padding, and content that never
+                // compresses when the bar outgrows its parent.
                 let is_last = i == item_count - 1;
-                let row = gpui::div().flex().items_center().gap(px(8.));
+                let row_base = base.clone();
+                let row = gpui::div()
+                    .flex()
+                    .flex_shrink_0()
+                    .items_center()
+                    .justify_center()
+                    .gap(px(2.))
+                    .px(px(2.))
+                    .debug_selector(move || format!("{row_base}-item-{i}"));
 
                 // v3's Accessibility section claims "Keyboard navigation
                 // support": every link crumb is a tab stop (React Aria link
                 // semantics) and gpui already activates a focused element's
                 // click listeners on Enter/Space, so no Enter handler of our
-                // own is bound. The last crumb — the current page, without
-                // `href` — stays inert, and a disabled crumb leaves the tab
-                // order like any other disabled control.
+                // own is bound. The last crumb — the current page, disabled
+                // upstream regardless of `href` — stays inert, and a disabled
+                // crumb leaves the tab order like any other disabled control.
                 let focus = (!is_last && !disabled).then(|| {
                     crate::util::tab_stop_handle(
-                        gpui::ElementId::Name(format!("crumb-{i}-focus").into()),
+                        gpui::ElementId::Name(format!("{base}-crumb-{i}-focus").into()),
                         window,
                         cx,
                     )
                 });
 
+                // Every upstream item renders a Link: one with an `href`
+                // navigates itself, one without is a span link that still
+                // presses. A crumb is a link — cursor, ring, tab stop — unless
+                // it is the current page or the whole bar is disabled; it
+                // navigates only when it carries an `href` or the builder set
+                // `on_navigate`.
+                let is_link = !is_last && !disabled;
+                let navigable = is_link && (on_navigate.is_some() || crumb.href.is_some());
+
                 let mut label_el = gpui::div()
-                    .id(gpui::ElementId::Name(format!("crumb-{i}").into()))
+                    .id(gpui::ElementId::Name(format!("{base}-crumb-{i}").into()))
                     .when_some(focus.as_ref(), |el, handle| el.track_focus(handle))
                     .text_size(text_size)
-                    .line_height(text_size * 1.3)
-                    .text_color(if is_last { active_color } else { muted })
-                    .when(!is_last && on_navigate.is_some() && !disabled, |el| {
-                        el.cursor_pointer()
-                            .hover(move |s| s.text_color(active_color))
-                    })
-                    .when(disabled, |el| el.opacity(disabled_opacity))
+                    // `.breadcrumbs__link` is `text-sm leading-5 font-medium`:
+                    // leading-5 is a fixed 20px line box, not a ratio of the
+                    // text size, and the weight is medium for every link.
+                    .line_height(px(20.))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(if is_last { current_color } else { muted })
+                    // `px-0.5` pads the link itself. Hover underline comes from
+                    // both `.breadcrumbs__link:hover` and the shared `.link`
+                    // class — plain CSS `:hover`, so it applies to every
+                    // enabled crumb including the inert span link.
+                    .px(px(2.))
+                    .when(is_link, |el| el.cursor_pointer())
+                    .when(is_link, |el| el.hover(|s| s.underline()))
+                    // `[data-current]` carries `opacity-100` so the current
+                    // page never takes the disabled fade.
+                    .when(disabled && !is_last, |el| el.opacity(disabled_opacity))
                     .child(crumb.label.to_string());
 
-                if !is_last && !disabled {
-                    if let (Some(on_nav), Some(href)) = (&on_navigate, crumb.href.clone()) {
-                        let crumb2 = crumb;
-                        let idx = i;
-                        let on_nav2 = on_nav.clone();
-                        label_el = label_el.on_click(move |ev, w, cx| {
-                            on_nav2(idx, &crumb2, ev, w, cx);
-                            cx.open_url(&href);
-                        });
-                    } else if let Some(on_nav) = &on_navigate {
-                        let crumb2 = crumb;
-                        let idx = i;
-                        let on_nav2 = on_nav.clone();
-                        label_el =
-                            label_el.on_click(move |ev, w, cx| on_nav2(idx, &crumb2, ev, w, cx));
-                    }
+                if navigable {
+                    let crumb2 = crumb;
+                    let idx = i;
+                    let on_nav = on_navigate.clone();
+                    let href = crumb2.href.clone();
+                    label_el = label_el.on_click(move |ev, w, cx| {
+                        if let Some(on_nav) = &on_nav {
+                            on_nav(idx, &crumb2, ev, w, cx);
+                        }
+                        if let Some(href) = &href {
+                            cx.open_url(href);
+                        }
+                    });
+                }
+                // v3.2.4's breadcrumbs CSS defines no focus rule of its own,
+                // but a keyboard-focused crumb is a focused Link, and the
+                // port's links draw the `:focus-visible` status ring when
+                // focused. Mouse focus leaves that ring off. Every link crumb
+                // draws it — including the span link without `href` or
+                // `on_navigate`.
+                if is_link {
+                    let focus = focus.as_ref().expect("a link crumb is a tab stop");
+                    label_el =
+                        crate::util::ring_if_focused(label_el, focus, true, Vec::new(), window, cx);
                 }
 
                 row.child(label_el)
                     .when(!is_last, |row| {
-                        row.child(if separator == BreadcrumbSeparator::Chevron {
+                        row.child(if let Some(render) = &separator_render {
+                            // A custom node paints inside v3's separator slot:
+                            // `.breadcrumbs__separator` is `size-3 text-muted`.
+                            let sep_base = base.clone();
+                            gpui::div()
+                                .id(gpui::ElementId::Name(
+                                    format!("{base}-separator-{i}").into(),
+                                ))
+                                .debug_selector(move || format!("{sep_base}-separator-{i}"))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .size(px(12.))
+                                .text_color(muted)
+                                .child(render(i))
+                                .into_any_element()
+                        } else if separator == BreadcrumbSeparator::Chevron {
                             gpui::svg()
                                 .size(px(12.))
                                 .path(icons::CHEVRON_RIGHT)
                                 .text_color(muted)
                                 .into_any_element()
                         } else {
+                            // The slash/dash glyphs paint in the same 12px
+                            // slot box the chevron icon and custom nodes use.
+                            let glyph = match separator {
+                                BreadcrumbSeparator::Slash => "/",
+                                _ => "-",
+                            };
                             gpui::div()
-                                .text_size(text_size)
+                                .id(gpui::ElementId::Name(
+                                    format!("{base}-separator-{i}").into(),
+                                ))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .size(px(12.))
+                                .text_size(px(12.))
+                                .line_height(px(12.))
                                 .text_color(muted)
-                                .child(sep_icon.to_owned())
+                                .child(glyph.to_owned())
                                 .into_any_element()
                         })
                     })
@@ -174,10 +277,7 @@ impl RenderOnce for Breadcrumbs {
             })
             .collect();
 
-        gpui::div()
-            .flex()
-            .items_center()
-            .flex_wrap()
-            .children(crumbs)
+        // `.breadcrumbs` is `flex items-center`: one line, no wrap.
+        gpui::div().flex().items_center().children(crumbs)
     }
 }

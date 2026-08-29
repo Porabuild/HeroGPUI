@@ -62,5 +62,8 @@ assets! {
     "herogpui/icons/tooltip_arrow.svg" => "herogpui/icons/tooltip_arrow.svg",
     "herogpui/icons/alert_triangle.svg" => "herogpui/icons/alert_triangle.svg",
     "herogpui/icons/info_circle.svg" => "herogpui/icons/info_circle.svg",
+    "herogpui/icons/check_circle.svg" => "herogpui/icons/check_circle.svg",
+    "herogpui/icons/circle_exclamation.svg" => "herogpui/icons/circle_exclamation.svg",
+    "herogpui/icons/warning_triangle.svg" => "herogpui/icons/warning_triangle.svg",
     "herogpui/sample.png" => "herogpui/sample.png",
 }

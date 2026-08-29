@@ -43,13 +43,20 @@
 
 mod harness;
 
-use std::{cell::RefCell, rc::Rc, time::Duration};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    time::Duration,
+};
 
-use gpui::{point, prelude::*, px, Modifiers, MouseButton, TestAppContext, VisualTestContext};
+use gpui::{
+    point, prelude::*, px, size, Modifiers, MouseButton, ScrollDelta, ScrollWheelEvent,
+    TestAppContext, VisualTestContext,
+};
 use harness::{click, events, open_host, press, tooltip_open_probe};
 use herogpui_components::{
-    dismiss_toast, toast_store, util, AlertDialog, Button, Drawer, DrawerPlacement, Modal, Popover,
-    Toast, Tooltip, TooltipTrigger,
+    dismiss_toast, toast_store, util, AlertDialog, AlertDialogSize, Button, Drawer,
+    DrawerPlacement, Modal, Popover, Toast, Tooltip, TooltipTrigger,
 };
 
 /// Pins the layout by enabling reduced motion **before** the first frame.
@@ -74,6 +81,18 @@ fn still() {
 /// frame and the ghost control answers.
 fn let_exit_finish(cx: &mut VisualTestContext) {
     cx.executor().advance_clock(Duration::from_millis(300));
+    cx.update(|window, _| window.refresh());
+}
+
+/// One simulated wheel event at window coordinates (`x`, `y`) scrolling `dy`
+/// pixels: **negative moves down** (later content into view). Followed by a
+/// redraw so the next event sees the scrolled frame.
+fn wheel(cx: &mut VisualTestContext, x: f32, y: f32, dy: f32) {
+    cx.simulate_event(ScrollWheelEvent {
+        position: point(px(x), px(y)),
+        delta: ScrollDelta::Pixels(point(px(0.), px(dy))),
+        ..Default::default()
+    });
     cx.update(|window, _| window.refresh());
 }
 
@@ -642,6 +661,429 @@ fn alert_dialog_actions_report(cx: &mut TestAppContext) {
         actions.borrow().as_slice(),
         ["cancel", "outside", "confirm", "outside"],
         "the closed dialog must no longer hold the focus"
+    );
+}
+
+#[gpui::test]
+fn alert_dialog_close_trigger_closes_even_when_not_dismissible(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let cancels = events();
+    let open = Rc::new(RefCell::new(true));
+    // The render closure owns this handle; the test function keeps `open`
+    // for the reopen below, so the clone is where the two split.
+    let open_flag = open.clone();
+    let recorded_in = rec.clone();
+    let cancels_in = cancels.clone();
+
+    let cx = open_host(cx, move || {
+        let recorded = recorded_in.clone();
+        let cancels = cancels_in.clone();
+        let open_flag = open_flag.clone();
+        let is_open = *open_flag.borrow();
+        // A default alert dialog is not dismissible and keeps Escape
+        // disabled, and v3 still composes `AlertDialog.CloseTrigger` in
+        // every one of those examples: the close slot is not the backdrop,
+        // so the built-in trigger must render and close regardless of
+        // `is_dismissible`. The cancel handler is registered on purpose: a
+        // v3 close slot is RAC's `state.close()`, never the cancel action.
+        AlertDialog::new("Delete everything?")
+            .id("ovl-alert-x")
+            .is_open(is_open)
+            .on_open_change(move |v, window, _| {
+                *open_flag.borrow_mut() = v;
+                recorded.borrow_mut().push(format!("open:{v}"));
+                window.refresh();
+            })
+            .on_cancel(move |_, _, _| cancels.borrow_mut().push("cancel".into()))
+            .into_any_element()
+    });
+
+    // The pinned defaults hold: Escape is inert...
+    press(cx, "escape");
+    assert!(
+        rec.borrow().is_empty(),
+        "escape must be inert by default on an alert dialog"
+    );
+    assert!(cancels.borrow().is_empty());
+
+    // ...and so is a press on the dimmed region around the panel...
+    click(cx, 100., 100.);
+    assert!(
+        rec.borrow().is_empty(),
+        "a non-dismissible alert dialog must ignore outside presses"
+    );
+    assert!(cancels.borrow().is_empty());
+
+    // ...but the close trigger is neither of those. The panel is the Md
+    // width at x [736..1184] and y [476..604]; the trigger is `absolute
+    // end-4 top-4`, a 24px button spanning [1144..1168] x [492..516], so
+    // its centre (1156, 504) clears the action row below it.
+    click(cx, 1156., 504.);
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false"],
+        "the close trigger must dismiss exactly once without is_dismissible"
+    );
+    // ...and it is a neutral close: the cancel action registered above must
+    // never hear about it.
+    assert!(
+        cancels.borrow().is_empty(),
+        "the close trigger must never report a cancel"
+    );
+
+    // Reopened: the trigger is the third stop in the dialog's own tab cycle
+    // (cancel, confirm, close), so three Tabs and Enter reach it — no mouse.
+    let_exit_finish(cx);
+    *open.borrow_mut() = true;
+    cx.update(|window, _| window.refresh());
+    press(cx, "tab tab tab");
+    press(cx, "enter");
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false", "open:false"],
+        "the keyboard path must activate the close trigger exactly once"
+    );
+    assert!(
+        cancels.borrow().is_empty(),
+        "the keyboard close path must never report a cancel either"
+    );
+}
+
+#[gpui::test]
+fn alert_dialog_footer_reports_the_close_then_fires_the_action(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let acts = events();
+    // The owner never closes this dialog, so there is no reopen flag — the
+    // render closure only reads `is_open`.
+    let open_flag = Rc::new(RefCell::new(true));
+    let pending = Rc::new(Cell::new(false));
+    // The render closure owns these handles; the test function keeps the
+    // originals for its assertions and for the pending flip below.
+    let rec_in = rec.clone();
+    let acts_in = acts.clone();
+    let pending_flag = pending.clone();
+
+    let cx = open_host(cx, move || {
+        let rec = rec_in.clone();
+        let acts = acts_in.clone();
+        let is_open = *open_flag.borrow();
+        // The owner records `onOpenChange(false)` but deliberately never
+        // flips `is_open`: the dialog is controlled, so the owner — not the
+        // button — decides the next render, and a reported close that the
+        // owner ignores leaves the dialog open.
+        AlertDialog::new("Delete everything?")
+            .id("ovl-alert-footer")
+            .is_open(is_open)
+            .is_pending(pending_flag.get())
+            .on_open_change(move |v, _, _| rec.borrow_mut().push(format!("open:{v}")))
+            .on_cancel({
+                let acts = acts.clone();
+                move |_, _, _| acts.borrow_mut().push("cancel".into())
+            })
+            .on_confirm(move |_, _, _| acts.borrow_mut().push("confirm".into()))
+            .into_any_element()
+    });
+
+    // Tab lands on Cancel. A v3 footer button is `slot="close"`: RAC chains
+    // the slot's `state.close()` — the owner's `onOpenChange(false)` —
+    // *before* a consumer `onPress`, so the exact order is close, then
+    // action, each exactly once.
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false"],
+        "cancel must report the close exactly once"
+    );
+    assert_eq!(
+        acts.borrow().as_slice(),
+        ["cancel"],
+        "cancel must fire its action exactly once"
+    );
+
+    // The owner ignored the close report, so the dialog is still open and
+    // holds the focus: the next Tab reaches Confirm.
+    //
+    // A pending confirm is inert end to end — it must not fire the action
+    // *and* must not report the close. The port composes both into one press
+    // handler and leaves it unwired while pending, so the inertness is
+    // repo-defined composition; upstream instead marks the pending button
+    // `aria-disabled` and drops its press event props. The record stays
+    // exactly where the Cancel press left it.
+    pending.set(true);
+    cx.update(|window, _| window.refresh());
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false"],
+        "a pending confirm must not report a close"
+    );
+    assert_eq!(
+        acts.borrow().as_slice(),
+        ["cancel"],
+        "a pending confirm must not fire its action"
+    );
+
+    // Once the pending flag drops the very same press fires, still in the
+    // pinned order — the owner's record now holds one close report per
+    // action press.
+    pending.set(false);
+    cx.update(|window, _| window.refresh());
+    press(cx, "enter");
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false", "open:false"],
+        "confirm must report the close exactly once, after cancel's own report"
+    );
+    assert_eq!(
+        acts.borrow().as_slice(),
+        ["cancel", "confirm"],
+        "confirm must fire its action exactly once"
+    );
+}
+
+#[gpui::test]
+fn alert_dialog_tab_is_trapped_and_pending_confirm_is_inert(cx: &mut TestAppContext) {
+    still();
+    let probe = events();
+    let actions = events();
+    let confirmed = events();
+    let open = Rc::new(RefCell::new(true));
+    let pending = Rc::new(Cell::new(false));
+    // The render closure owns these handles; the test function keeps the
+    // originals for its assertions and for the reopen / pending flips below.
+    let probe_in = probe.clone();
+    let actions_in = actions.clone();
+    let confirmed_in = confirmed.clone();
+    let open_flag = open.clone();
+    let pending_flag = pending.clone();
+
+    let cx = open_host(cx, move || {
+        let probe = probe_in.clone();
+        let actions = actions_in.clone();
+        let confirmed = confirmed_in.clone();
+        let open_flag = open_flag.clone();
+        let is_open = *open_flag.borrow();
+        // The probe sits OUTSIDE the dialog and is first in the tab order.
+        // An alert dialog is one tab cycle, so the trap must keep the focus
+        // on cancel / confirm / the close trigger.
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(320.))
+            .child(
+                Button::new("ovl-alert-trap-probe")
+                    .label("Outside")
+                    .on_press(move |_, _, _| probe.borrow_mut().push("outside".into())),
+            )
+            .child(
+                AlertDialog::new("Delete everything?")
+                    .id("ovl-alert-trap")
+                    .is_open(is_open)
+                    .is_pending(pending_flag.get())
+                    .confirm_label("Delete")
+                    .on_confirm(move |_, _, _| confirmed.borrow_mut().push("confirm".into()))
+                    .on_cancel(move |_, window, _| {
+                        actions.borrow_mut().push("cancel".into());
+                        *open_flag.borrow_mut() = false;
+                        window.refresh();
+                    }),
+            )
+            .into_any_element()
+    });
+
+    // Seven Tabs: more than the three stops in the window (probe, cancel,
+    // confirm — this dialog registers no `on_open_change`, so the built-in
+    // close trigger does not render), so an untrapped dialog would wrap onto
+    // the probe. Seven Tabs from the dialog handle land on cancel again, and
+    // Enter must activate it and only it.
+    press(cx, "tab tab tab tab tab tab tab");
+    press(cx, "enter");
+    assert_eq!(
+        actions.borrow().as_slice(),
+        ["cancel"],
+        "Tab must stay inside the dialog: Enter activates an inside control"
+    );
+    assert!(
+        probe.borrow().is_empty(),
+        "the outside probe must never be reached by Tab"
+    );
+
+    // The pending confirm stays in the tab cycle but must not fire: Enter on
+    // it records nothing until the pending flag drops, and then exactly once.
+    let_exit_finish(cx);
+    pending.set(true);
+    *open.borrow_mut() = true;
+    cx.update(|window, _| window.refresh());
+    press(cx, "tab tab");
+    press(cx, "enter");
+    assert!(
+        confirmed.borrow().is_empty(),
+        "a pending confirm must not fire its action"
+    );
+    pending.set(false);
+    cx.update(|window, _| window.refresh());
+    press(cx, "enter");
+    assert_eq!(
+        confirmed.borrow().as_slice(),
+        ["confirm"],
+        "the confirm action must fire exactly once once the pending flag drops"
+    );
+}
+
+#[gpui::test]
+fn alert_dialog_long_body_scrolls_within_a_small_window(cx: &mut TestAppContext) {
+    still();
+    let hits = events();
+    let probed = hits.clone();
+    let closes = events();
+    let recorded = closes.clone();
+    // The dialog never closes during this test, so the flag is read-only.
+    let open_flag = Rc::new(RefCell::new(true));
+
+    let cx = open_host(cx, move || {
+        let probed = hits.clone();
+        let recorded = closes.clone();
+        // The render closure runs once per frame, so every handle it hands to
+        // a builder starts as its own clone.
+        let open_flag = open_flag.clone();
+        let is_open = *open_flag.borrow();
+        // Twenty-four 36px probes plus their gaps tower over any window the
+        // harness can open, so the body's scroll budget is what decides what
+        // is reachable.
+        let mut body = gpui::div().flex().flex_col().gap(px(10.));
+        for i in 0..24 {
+            let label = format!("p{i}");
+            let click_label = label.clone();
+            let recorded_hit = probed.clone();
+            body = body.child(
+                gpui::div()
+                    .id(gpui::SharedString::from(format!("ovl-alert-probe-{i}")))
+                    .w_full()
+                    .h(px(36.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .cursor_pointer()
+                    .on_click(move |_, _, _| recorded_hit.borrow_mut().push(click_label.clone()))
+                    .child(label),
+            );
+        }
+        AlertDialog::new("Delete everything?")
+            .id("ovl-alert-scroll")
+            .is_open(is_open)
+            .description("This action cannot be undone.")
+            .child(body)
+            .on_open_change(move |v, window, _| {
+                *open_flag.borrow_mut() = v;
+                recorded.borrow_mut().push(format!("open:{v}"));
+                window.refresh();
+            })
+            .into_any_element()
+    });
+
+    // Shrink the window to 800x600. The container's `p-10` content box is
+    // then x [40..760] / y [40..560]; the Md dialog caps at its 448 width and
+    // at the 520px max height, so the panel spans x [176..624] and y
+    // [40..560], and the body's share of that (after the header, the footer
+    // and the panel's `p-6`) scrolls.
+    cx.simulate_resize(size(px(800.), px(600.)));
+    cx.update(|window, _| window.refresh());
+
+    // The body's first content is the description text; the first probe sits
+    // a text line and an 8px gap below it, at y ~= 148.
+    for y in [150., 205., 260., 315.] {
+        click(cx, 400., y);
+    }
+    assert!(
+        probed.borrow().contains(&"p0".to_owned()),
+        "the first probe must be reachable at rest; recorded: {:?}",
+        probed.borrow().as_slice()
+    );
+    assert!(
+        recorded.borrow().is_empty(),
+        "no press inside the panel may report a close"
+    );
+
+    // Scroll to the bottom and sweep the body's viewport. The deepest probe
+    // must report, and no sweep press may dismiss the dialog: deep content
+    // must be scrolled into view, not clipped past the panel's max height.
+    for _ in 0..6 {
+        wheel(cx, 400., 300., -1000.);
+    }
+    for y in [160., 215., 270., 325., 380., 435., 470.] {
+        click(cx, 400., y);
+    }
+    assert!(
+        probed.borrow().iter().any(|hit| hit == "p23"),
+        "the deepest probe must be reachable after scrolling; recorded: {:?}",
+        probed.borrow().as_slice()
+    );
+
+    // A press on the scrim below the capped panel reaches nothing at all.
+    let hits_before = probed.borrow().len();
+    click(cx, 400., 590.);
+    assert_eq!(
+        probed.borrow().len(),
+        hits_before,
+        "a press below the panel's cap must not reach any probe"
+    );
+    assert!(
+        recorded.borrow().is_empty(),
+        "a non-dismissible alert dialog must ignore the scrim press"
+    );
+}
+
+#[gpui::test]
+fn alert_dialog_cover_fills_the_container_in_a_small_window(cx: &mut TestAppContext) {
+    still();
+    let hits = events();
+    let probed = hits.clone();
+    let closes = events();
+    let recorded = closes.clone();
+
+    let cx = open_host(cx, move || {
+        let probed = hits.clone();
+        let recorded = closes.clone();
+        // Short content: only `--cover`'s `h-full min-h-full w-full` can make
+        // this dialog reach the container's edges, and the body's `flex-1` is
+        // what pins the footer to the panel's bottom.
+        AlertDialog::new("Delete everything?")
+            .id("ovl-alert-cover")
+            .is_open(true)
+            .size(AlertDialogSize::Cover)
+            .description("This action cannot be undone.")
+            .confirm_label("Delete")
+            .on_confirm(move |_, _, _| probed.borrow_mut().push("confirm".into()))
+            .on_open_change(move |v, window, _| {
+                recorded.borrow_mut().push(format!("open:{v}"));
+                window.refresh();
+            })
+            .into_any_element()
+    });
+
+    // 800x600: the container's `p-10` content box is x [40..760] / y
+    // [40..560]. A content-sized dialog would end near y 204, so a press on
+    // the confirm button at (710, 518) — inside the footer, bottom-anchored
+    // at y [500..536] and flush right at x = 760 - 24 = 736 — is only
+    // reachable when the panel fills the whole box.
+    cx.simulate_resize(size(px(800.), px(600.)));
+    cx.update(|window, _| window.refresh());
+    click(cx, 710., 518.);
+    assert_eq!(
+        probed.borrow().as_slice(),
+        ["confirm"],
+        "the footer must sit at the cover panel's bottom edge"
+    );
+    // The confirm is a `slot="close"` composition: it reports the close
+    // exactly once before the action callback the assert above already saw.
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["open:false"],
+        "the confirm press must report the close exactly once, never dismiss by itself"
     );
 }
 

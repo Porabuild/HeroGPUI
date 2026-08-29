@@ -395,15 +395,17 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
 
 ### Navigation
 - **Accordion** — `Accordion::new(items).expanded_keys(HashSet).variant(AccordionVariant::{Default,Surface}).hide_separator().on_toggle(&SharedString)`, `AccordionItem::new(key,title).subtitle().content(el)`
-- **Breadcrumbs** — `Breadcrumbs::new(vec![Crumb::new("Home").href("#")]).separator(BreadcrumbSeparator::{Slash,Chevron,Dash}).size()`
+- **Breadcrumbs** — `Breadcrumbs::new(vec![Crumb::new("Home").href("#")]).id().separator(BreadcrumbSeparator::{Slash,Chevron,Dash}).separator_render(|i| custom node).is_disabled(bool).on_navigate(|i, crumb, ev|)`; the last crumb is the current page — link-coloured, inert, no tab stop — even if it carries an `href`. Every link crumb is a tab stop and Enter/Space activates it.
 - **Disclosure / DisclosureGroup** — `Disclosure::new(title).is_expanded().on_expanded_change(bool)`, `DisclosureGroup::new().item(key,title,content).expanded_keys().on_toggle()`
 - **Link** — `Link::new(id).label().href().auto_focus().is_disabled().on_press()`. v3's `.link` is `font-semibold no-underline hover:underline`, with no prop to change it. Opening goes through the OS handler, so v3's `target` / `rel` / `download` have no meaning and are not offered.
 - **Pagination** — `Pagination::new(id, page, total).siblings(n).size().on_change(usize)`
 - **Tabs** — `Tabs::new(id, items, selected_key).variant(TabsVariant::{Primary,Secondary}).orientation().selected_key().default_selected_key().on_selection_change()`, `TabItem::new(key,label).content(el)`
 
 ### Overlays
-- **AlertDialog** — `AlertDialog::new(title).description().is_open().size(AlertDialogSize).backdrop().placement(ModalPlacement).status(Color).is_destructive().is_pending().confirm_label().cancel_label().on_confirm().on_cancel().on_open_change(bool)`
-  - `is_dismissible` and `is_keyboard_dismiss_disabled` default to v3's values (backdrop dismissal off, Escape off), so opting in is explicit. `status` renders the alert glyph in that role's colour and only when set.
+- **AlertDialog** — `AlertDialog::new(title).id().description().is_open().size(AlertDialogSize::{Xs,Sm,Md,Lg,Cover}).backdrop(Backdrop).placement(ModalPlacement).status(Color).is_dismissible(bool).is_keyboard_dismiss_disabled(bool).hide_close_button(bool).is_destructive().is_pending().confirm_label().cancel_label().on_confirm().on_cancel().on_open_change(bool)`
+  - every close path — confirm, cancel, the X, the backdrop and Escape — reports through `on_open_change(false)` first, then fires the consumer action; Escape and the backdrop are plain closes and never call `on_cancel`. The built-in confirm/cancel/X stand in for v3's `slot="close"` compositions, and a pending confirm strips the whole press chain: no close report, no action.
+  - `is_dismissible` and `is_keyboard_dismiss_disabled` default to v3's values (backdrop dismissal off, Escape off), so opting in is explicit. `status` renders the alert glyph in that role's colour and only when set; a pending confirm shows the spinner.
+  - placement is anchored like Modal's, but v3's ±4px enter slide for top/bottom/auto is not ported — the fade and the zoom are.
 - **Drawer** — `placement(DrawerPlacement)`, `size(px)`, `title`, `backdrop(Backdrop)`, `is_dismissible`, `is_keyboard_dismiss_disabled`, `hide_close_button`, `footer_child`, `on_close`, `on_open_change(bool)`
 - **Modal** — `is_open`, `title`, `size(ModalSize::{Xs,Sm,Md,Lg,Cover,Full})`, `backdrop(Backdrop)`, `placement(ModalPlacement::{Auto,Center,Top,Bottom})`, `scroll(ModalScroll::{Inside,Outside})`, `is_dismissible`, `hide_close_button`, `is_keyboard_dismiss_disabled`, `footer_child`, `on_close`, `on_open_change(bool)`
   - every dismissal path reports through **both** `on_close` and `on_open_change(false)`, so either callback alone is sufficient.

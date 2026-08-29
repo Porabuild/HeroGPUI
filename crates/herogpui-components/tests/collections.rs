@@ -32,9 +32,10 @@
 //!   (10px each side) around a 14px glyph, so 34px wide; the row gaps items by
 //!   4px. Prev spans x 0..34, then page *n*'s cell starts at 38+36(n-1), and the
 //!   next button starts at 146 (three cells later) and centres at 163; y = 16.
-//! - Breadcrumbs: each crumb row is a measured label, gap-8, and a 12px chevron,
-//!   so the second label starts at w_0 + 20; the label line is
-//!   `line_height(text_size * 1.3)` = 18.2px, so the centre y is 9.1.
+//! - Breadcrumbs: each crumb row is `px-0.5` (2px) around a `px-0.5` (2px)
+//!   measured label plus `gap-0.5` (2px) and a 12px separator slot, so the
+//!   second label starts at w_0 + 26 and a label centres 4px into its row; the
+//!   label line is `leading-5` = 20px, so the centre y is 10.
 //!
 //! Each instance gets its own element id; two components sharing an id share
 //! their keyed state, which AGENTS.md documents as a silent failure.
@@ -78,9 +79,10 @@ fn sorted_join(keys: &HashSet<gpui::SharedString>) -> String {
 /// The advance width of `text` shaped the way the components shape it: gpui's
 /// default `.SystemUIFont` stack at `size` px and `weight`.
 ///
-/// Tabs labels are `text_size(14)` + MEDIUM; breadcrumb labels are 14px at the
-/// default weight. Both are laid out by the window's own `WindowTextSystem`, so
-/// this measurement is the render's measurement.
+/// Tabs labels are `text_size(14)` + MEDIUM; breadcrumb labels are 14px at
+/// MEDIUM (`.breadcrumbs__link` is `font-medium`). Both are laid out by the
+/// window's own `WindowTextSystem`, so this measurement is the render's
+/// measurement.
 fn text_width(system: &gpui::WindowTextSystem, text: &str, size: f32, weight: FontWeight) -> f32 {
     let run = gpui::TextRun {
         len: text.len(),
@@ -582,22 +584,22 @@ fn breadcrumbs_item_press_reports(cx: &mut TestAppContext) {
         .into_any_element()
     });
 
-    // The labels are measured with the window's own text system, at the default
-    // weight the breadcrumbs set. The first label starts at the window origin
-    // and its line is 14*1.3 = 18.2px tall, so its centre is (w/2, 9.1). Each
-    // non-last crumb is followed by gap-8 + a 12px chevron, so the second label
-    // starts at w_build + 20 and centres at (w_build + 20 + w_deploy/2, 9.1).
+    // The labels are measured with the window's own text system at the link's
+    // MEDIUM weight. The first label starts 4px into its row (2px row padding
+    // + 2px link padding) on a 20px line, so its centre is (4 + w/2, 10). Each
+    // non-last row is 2px paddings + 2px gap + a 12px separator wider than its
+    // label, so the second label centres at (w_build + 26 + w_deploy/2, 10).
     let w_build =
-        cx.update(|window, _| text_width(window.text_system(), "Build", 14.0, FontWeight::NORMAL));
+        cx.update(|window, _| text_width(window.text_system(), "Build", 14.0, FontWeight::MEDIUM));
     let w_deploy =
-        cx.update(|window, _| text_width(window.text_system(), "Deploy", 14.0, FontWeight::NORMAL));
-    click(cx, w_build / 2., 9.1);
+        cx.update(|window, _| text_width(window.text_system(), "Deploy", 14.0, FontWeight::MEDIUM));
+    click(cx, 4. + w_build / 2., 10.);
     assert_eq!(
         navigated.borrow().as_slice(),
         ["0:Build"],
         "clicking the first crumb must report its index and label"
     );
-    click(cx, w_build + 20. + w_deploy / 2., 9.1);
+    click(cx, w_build + 26. + w_deploy / 2., 10.);
     assert_eq!(
         navigated.borrow().as_slice(),
         ["0:Build", "1:Deploy"],

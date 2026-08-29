@@ -68,6 +68,43 @@ impl AlertDialogSize {
 
 type OnAction = Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
+/// `.alert-dialog__icon--{status}`: the disc's background, the glyph colour
+/// and the glyph. `--default` uses the plain `bg-default text-foreground`
+/// pair with the info glyph, not a soft mix; the status roles use their soft
+/// background and `RoleColor::soft_foreground()`. Upstream's
+/// `--color-*-soft-foreground` tokens are role/foreground `color-mix`es, so
+/// the raw role colour the theme crate returns here is its audited
+/// semantic-token approximation. The glyphs follow upstream's icon map:
+/// info for `default` and `accent`, then success, warning and danger.
+fn icon_presentation(
+    status: Color,
+    colors: &herogpui_theme::ThemeColors,
+) -> (gpui::Hsla, gpui::Hsla, &'static str) {
+    match status {
+        Color::Default => (colors.default.color, colors.foreground, icons::INFO_CIRCLE),
+        Color::Accent => (
+            colors.accent.soft(),
+            colors.accent.soft_foreground(),
+            icons::INFO_CIRCLE,
+        ),
+        Color::Success => (
+            colors.success.soft(),
+            colors.success.soft_foreground(),
+            icons::CHECK_CIRCLE,
+        ),
+        Color::Warning => (
+            colors.warning.soft(),
+            colors.warning.soft_foreground(),
+            icons::WARNING_TRIANGLE,
+        ),
+        Color::Danger => (
+            colors.danger.soft(),
+            colors.danger.soft_foreground(),
+            icons::CIRCLE_EXCLAMATION,
+        ),
+    }
+}
+
 /// HeroUI AlertDialog (controlled).
 #[derive(IntoElement)]
 pub struct AlertDialog {
@@ -268,6 +305,15 @@ impl RenderOnce for AlertDialog {
         let colors = cx.colors();
         let layout = cx.layout();
 
+        // `.alert-dialog__container` is `p-4 sm:p-10`, so its content box —
+        // the box v3's `max-h-full` dialog resolves against — is the viewport
+        // less 80px. Absolute pixels because gpui resolves a percentage
+        // max height against the parent *content box*, which is exactly the
+        // budget this number names.
+        let panel_max_h = window.viewport_size().height - px(80.);
+        // The dialog's own `p-6` takes 48 of that before the body sees any.
+        let body_max_h = panel_max_h - px(48.);
+
         // `.alert-dialog__dialog` has no gap: the spacing between the header,
         // the body and the footer comes from v3's `+` rules (mt-2, mt-5), so
         // each part carries its own top margin instead.
@@ -277,6 +323,17 @@ impl RenderOnce for AlertDialog {
             .flex_col()
             .w_full()
             .when_some(self.size.max_width(), |e, w| e.max_w(w))
+            .max_h(panel_max_h)
+            // `.alert-dialog__dialog` is `overflow-clip`: a long body scrolls
+            // inside the body slot below instead of pushing the footer out of
+            // the container. gpui 0.2.2 has no `clip` overflow; `hidden` is
+            // its clip equivalent here.
+            .overflow_hidden()
+            // `--cover` is `h-full min-h-full w-full`: the panel fills the
+            // container's content box outright instead of hugging its content.
+            .when(self.size == AlertDialogSize::Cover, |e| {
+                e.h(panel_max_h).min_h(panel_max_h)
+            })
             .p(px(24.))
             .rounded(util::container_radius(cx))
             .bg(colors.overlay.background)
@@ -295,7 +352,7 @@ impl RenderOnce for AlertDialog {
                 // not a disc floating in the corner.
                 let mut header = div().flex().flex_col().gap(px(12.));
                 if let Some(status) = self.status {
-                    let role = cx.role(status);
+                    let (bg, fg, glyph) = icon_presentation(status, colors);
                     header = header.child(
                         div()
                             .flex()
@@ -304,13 +361,13 @@ impl RenderOnce for AlertDialog {
                             .flex_shrink_0()
                             .size(px(40.))
                             .rounded(util::control_radius(cx))
-                            .bg(role.soft())
+                            .bg(bg)
                             .child(
                                 gpui::svg()
                                     .size(px(20.))
-                                    .path(icons::ALERT_TRIANGLE)
+                                    .path(glyph)
                                     // svg() never inherits text colour.
-                                    .text_color(role.color),
+                                    .text_color(fg),
                             ),
                     );
                 }
@@ -323,28 +380,50 @@ impl RenderOnce for AlertDialog {
                 )
             });
 
-        // `.alert-dialog__body` is `text-sm leading-[1.43] text-muted`, `mt-2`
-        // after the header.
-        if let Some(description) = &self.description {
-            panel = panel.child(
-                div()
-                    .mt(px(8.))
-                    .text_size(px(14.))
-                    .line_height(px(20.))
-                    .text_color(colors.muted)
-                    .child(description.to_string()),
-            );
-        }
-
-        if !self.children.is_empty() {
-            panel = panel.child(
-                div()
-                    .mt(px(8.))
-                    .flex()
-                    .flex_col()
-                    .gap(px(8.))
-                    .children(self.children),
-            );
+        // `.alert-dialog__body` is one scrolling slot that holds the
+        // description and any composed children: `min-h-0 flex-1 scrollbar`,
+        // `text-sm leading-[1.43] text-muted`, `mt-2` after the header, and
+        // the `-m-[3px] my-0 p-[3px]` that lets the text run 3px under the
+        // browser's scrollbar. gpui reserves gutter space only through
+        // `scrollbar_width` and paints none on a plain div, so the
+        // compensation translates to the margins and padding alone. The
+        // budget is the panel cap minus the dialog's `p-6`; a scroll
+        // container in an auto-height flex column measures as zero (the
+        // modal learned this the hard way), so this is a *max* height and
+        // the header and the footer claim their own space first.
+        let has_description = self.description.is_some();
+        if has_description || !self.children.is_empty() {
+            let mut body = div()
+                .id("alert-dialog-body")
+                .mt(px(8.))
+                .mx(px(-3.))
+                .p(px(3.))
+                .min_h_0()
+                .max_h(body_max_h)
+                .overflow_y_scroll()
+                // v3 spells the body `flex-1`: inside a `--cover` dialog's
+                // fixed height it stretches and pins the footer to the bottom
+                // edge. In a content-sized panel that spelling measures the
+                // scroller as zero (the modal's lesson), so it only applies
+                // when the panel has a definite height.
+                .when(self.size == AlertDialogSize::Cover, |e| e.flex_1())
+                .text_size(px(14.))
+                .line_height(px(20.))
+                .text_color(colors.muted);
+            if let Some(description) = &self.description {
+                body = body.child(description.to_string());
+            }
+            if !self.children.is_empty() {
+                body = body.child(
+                    div()
+                        .when(has_description, |e| e.mt(px(8.)))
+                        .flex()
+                        .flex_col()
+                        .gap(px(8.))
+                        .children(self.children),
+                );
+            }
+            panel = panel.child(body);
         }
 
         // Cancel first, confirm last — the destructive action is furthest from
@@ -358,12 +437,45 @@ impl RenderOnce for AlertDialog {
             // `+ .alert-dialog__footer` is `mt-5`.
             .mt(px(20.));
 
+        // Both built-in footer buttons stand in for v3's `Button slot="close"`
+        // compositions. RAC chains the slot's own `onPress` — `state.close()`,
+        // the owner's `onOpenChange(false)` — *before* a consumer `onPress`,
+        // so the close is reported first and the action callback runs after.
+        // The dialog is controlled: the owner, not the button, decides the
+        // next render.
+        let cancel_action = match (self.on_open_change.clone(), self.on_cancel.clone()) {
+            (None, None) => None,
+            (open_change, action) => Some(util::shared(
+                move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
+                    if let Some(f) = &open_change {
+                        f(false, window, cx);
+                    }
+                    if let Some(f) = &action {
+                        f(ev, window, cx);
+                    }
+                },
+            )),
+        };
+        let confirm_action = match (self.on_open_change.clone(), self.on_confirm.clone()) {
+            (None, None) => None,
+            (open_change, action) => Some(util::shared(
+                move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
+                    if let Some(f) = &open_change {
+                        f(false, window, cx);
+                    }
+                    if let Some(f) = &action {
+                        f(ev, window, cx);
+                    }
+                },
+            )),
+        };
+
         let mut cancel = Button::new("alert-dialog-cancel")
             .label(self.cancel_label.clone())
             .variant(Variant::Tertiary)
             .size(Size::Md);
-        if let Some(on_cancel) = self.on_cancel.clone() {
-            cancel = cancel.on_press(move |ev, window, cx| on_cancel(ev, window, cx));
+        if let Some(action) = cancel_action {
+            cancel = cancel.on_press(move |ev, window, cx| action(ev, window, cx));
         }
 
         let mut confirm = Button::new("alert-dialog-confirm")
@@ -375,8 +487,8 @@ impl RenderOnce for AlertDialog {
             })
             .size(Size::Md)
             .is_pending(self.is_pending);
-        if let Some(on_confirm) = self.on_confirm.clone() {
-            confirm = confirm.on_press(move |ev, window, cx| on_confirm(ev, window, cx));
+        if let Some(action) = confirm_action {
+            confirm = confirm.on_press(move |ev, window, cx| action(ev, window, cx));
         }
 
         actions = actions.child(cancel).child(confirm);
@@ -388,28 +500,27 @@ impl RenderOnce for AlertDialog {
             Backdrop::Transparent => gpui::transparent_black(),
         };
 
-        // Dismissal reports through both callbacks, so a caller can use either.
-        let dismiss: Option<OnAction> = match (self.on_cancel.clone(), self.on_open_change.clone())
-        {
-            _ if !self.is_dismissible => None,
-            (None, None) => None,
-            (cancel, open_change) => Some(util::shared(
-                move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
-                    if let Some(f) = &cancel {
-                        f(ev, window, cx);
-                    }
-                    if let Some(f) = &open_change {
-                        f(false, window, cx);
-                    }
-                },
-            )),
-        };
+        // Every close slot reports through `onOpenChange(false)` alone — never
+        // through `onCancel`. v3's `slot="close"` buttons carry RAC's
+        // `state.close()` as the slot's own `onPress`, and a consumer handler
+        // chains *after* it: `AlertDialog.CloseTrigger` (the built-in X below),
+        // the `ModalOverlay`'s outside-press dismissal and its Escape dismissal
+        // are all plain closes with no action of their own. `isDismissable`
+        // only gates the scrim — the close trigger renders in every documented
+        // example, including the `isDismissable={false}` and
+        // `isKeyboardDismissDisabled` ones.
+        let close_action: Option<OnAction> =
+            self.on_open_change.clone().map(|open_change| -> OnAction {
+                util::shared(move |_ev: &ClickEvent, window: &mut Window, cx: &mut App| {
+                    open_change(false, window, cx);
+                })
+            });
 
-        // `.alert-dialog__close-trigger` is `absolute end-4 top-4`. Only a
-        // dismissible dialog gets one: v3's confirmation dialogs ask for a
-        // choice, and `isDismissible` is what says the choice can be skipped.
+        // `.alert-dialog__close-trigger` is `absolute end-4 top-4`. The
+        // built-in trigger stands in for the composed
+        // `AlertDialog.CloseTrigger`, so it follows the same rule above.
         if !self.hide_close_button {
-            if let Some(on_close) = dismiss.clone() {
+            if let Some(on_close) = close_action.clone() {
                 panel = panel.child(
                     div().absolute().top(px(16.)).right(px(16.)).child(
                         crate::close_button::CloseButton::new("alert-dialog-close")
@@ -424,10 +535,14 @@ impl RenderOnce for AlertDialog {
         // full-window backdrop would fire for a press on this panel too.
         // `on_mouse_down_out` reads the panel's own bounds instead, so it
         // only fires for a press on the dimmed region around the panel.
-        // `dismiss` is `None` unless `isDismissible` is set, which is the
-        // whole gate; the exit phase gets none — the dialog is already
-        // closing.
-        let panel = match (dismiss.clone(), exiting) {
+        // `is_dismissible` is the whole gate — the close slot above is not —
+        // and the exit phase gets none: the dialog is already closing.
+        let dismiss: Option<OnAction> = if self.is_dismissible {
+            close_action.clone()
+        } else {
+            None
+        };
+        let panel = match (dismiss, exiting) {
             (Some(on_dismiss), false) => util::dismiss_on_press_outside_with_token(
                 panel,
                 dismissal_token.clone(),
@@ -439,22 +554,12 @@ impl RenderOnce for AlertDialog {
             _ => panel,
         };
 
+        // Escape is the `ModalOverlay`'s own dismissal, so it is a plain
+        // close too: `onOpenChange(false)`, never `onCancel`.
         let keyboard_dismiss: Option<OnAction> = if self.is_keyboard_dismiss_disabled {
             None
         } else {
-            match (self.on_cancel.clone(), self.on_open_change.clone()) {
-                (None, None) => None,
-                (cancel, open_change) => Some(util::shared(
-                    move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
-                        if let Some(f) = &cancel {
-                            f(ev, window, cx);
-                        }
-                        if let Some(f) = &open_change {
-                            f(false, window, cx);
-                        }
-                    },
-                )),
-            }
+            close_action.clone()
         };
 
         // `.alert-dialog__backdrop`, whose variants are the `Backdrop` enum.
@@ -513,8 +618,9 @@ impl RenderOnce for AlertDialog {
         .child({
             let mut zoom =
                 crate::anim::ZoomBox::panel(px(24.), util::container_radius(cx)).padding_x(px(24.));
-            // The zoom scales a known box; `Cover` has no width of its own, so
-            // there is nothing to hand it.
+            // The zoom scales a known box; `Cover` has no width of its own and
+            // the `ZoomBox` carries no height, so there is nothing to hand it —
+            // its enter/exit zoom rides the padding, radius and fade alone.
             if let Some(w) = self.size.max_width() {
                 zoom = zoom.sized(w);
             }
@@ -544,5 +650,53 @@ impl RenderOnce for AlertDialog {
                 });
         }
         overlay.into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `Hsla` carries no `PartialEq`; compare channel-wise.
+    fn assert_same_color(a: gpui::Hsla, b: gpui::Hsla) {
+        assert!((a.h - b.h).abs() < 1e-4, "{a:?} != {b:?}");
+        assert!((a.s - b.s).abs() < 1e-4, "{a:?} != {b:?}");
+        assert!((a.l - b.l).abs() < 1e-4, "{a:?} != {b:?}");
+        assert!((a.a - b.a).abs() < 1e-4, "{a:?} != {b:?}");
+    }
+
+    #[test]
+    fn icon_presentation_maps_every_status() {
+        let colors = herogpui_theme::ThemeColors::light();
+        // One row per status, with upstream's icon map: `AlertDialog.Icon`
+        // picks info for `default` and `accent`, then the success, warning
+        // and danger glyphs.
+        let expected = [
+            (Color::Default, icons::INFO_CIRCLE),
+            (Color::Accent, icons::INFO_CIRCLE),
+            (Color::Success, icons::CHECK_CIRCLE),
+            (Color::Warning, icons::WARNING_TRIANGLE),
+            (Color::Danger, icons::CIRCLE_EXCLAMATION),
+        ];
+        for (status, glyph) in expected {
+            let (bg, fg, actual) = icon_presentation(status, &colors);
+            assert_eq!(actual, glyph, "{status:?} must use the upstream glyph");
+            let role = match status {
+                Color::Default => {
+                    // `.alert-dialog__icon--default` is `bg-default
+                    // text-foreground` with the info glyph — not
+                    // `--default-soft`, not a role colour.
+                    assert_same_color(bg, colors.default.color);
+                    assert_same_color(fg, colors.foreground);
+                    continue;
+                }
+                Color::Accent => &colors.accent,
+                Color::Success => &colors.success,
+                Color::Warning => &colors.warning,
+                Color::Danger => &colors.danger,
+            };
+            assert_same_color(bg, role.soft());
+            assert_same_color(fg, role.soft_foreground());
+        }
     }
 }

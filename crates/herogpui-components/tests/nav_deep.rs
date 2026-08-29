@@ -66,10 +66,14 @@
 //!   probe, so 52px. With both items open the probes sit at y 44..80 (centre
 //!   62) and y 132..168 (centre 150).
 //! - Breadcrumbs: crumb labels are *measured* with the window's own text
-//!   system (`Window::text_system().shape_line`), because a click target's x
-//!   depends on the label's advance width in the renderer's font. The label
-//!   line is `line_height(text_size * 1.3)` = 18.2px, so its centre y is 9.1;
-//!   every non-last crumb is followed by `gap-8` (8px) + a 12px chevron.
+//!   system (`Window::text_system().shape_line`) at the link's own weight —
+//!   `.breadcrumbs__link` is `font-medium`, so MEDIUM — because a click
+//!   target's x depends on the label's advance width in the renderer's font.
+//!   The label line is `leading-5` = 20px, so its centre y is 10. Each item
+//!   row is `px-0.5` (2px) around a `px-0.5` (2px) link plus `gap-0.5` (2px)
+//!   and a 12px separator slot, so a row is `w_label + 22` wide, a label
+//!   starts 4px into its row, and rows sit flush (the root has no gap and no
+//!   wrap).
 //! - Pagination: `size-md` cells are 32px squares at y 0..32 (centre y 16); a
 //!   nav button is `px-2.5` (10px each side) around a 14px glyph = 34px; the
 //!   row gaps items by `gap-1` (4px). Prev spans x 0..34 (centre 17), page
@@ -880,9 +884,10 @@ fn disclosure_group_duplicate_titles_keep_distinct_key_identity(cx: &mut TestApp
 // ---------------------------------------------------------------------------
 //
 // v3's API table documents no overflow/collapse prop (no `maxItems`-style
-// truncation anywhere on the page), so the port's always-visible, wrapping
-// row matches v3 rather than losing behaviour. The last-crumb rule is pinned
-// in `collections.rs`; here: a disabled breadcrumb answers no press, and the
+// truncation anywhere on the page), so the port's always-visible single row
+// matches v3: `.breadcrumbs` is `flex items-center` with no wrap, and each
+// `.breadcrumbs__item` is `shrink-0`. The last-crumb rule is pinned in
+// `collections.rs`; here: a disabled breadcrumb answers no press, and the
 // Accessibility section's "keyboard navigation support" claim is checked
 // against a port whose crumbs carry no focus handles at all.
 
@@ -907,18 +912,68 @@ fn breadcrumbs_disabled_answers_no_click(cx: &mut TestAppContext) {
     });
 
     // v3: `isDisabled` "disables all links". The labels are measured with the
-    // window's own text system; the first label centres at (w_build/2, 9.1)
-    // and the second starts at w_build + 20 (gap-8 + a 12px chevron). Neither
-    // may record.
+    // window's own text system at the link's MEDIUM weight; a label centres
+    // at (4 + w/2, 10) inside its row (2px row padding + 2px link padding on
+    // a 20px line) and the second row starts at w_build + 22 (2px paddings +
+    // 2px gap + 12px separator). Neither may record.
     let w_build =
-        cx.update(|window, _| text_width(window.text_system(), "Build", 14.0, FontWeight::NORMAL));
+        cx.update(|window, _| text_width(window.text_system(), "Build", 14.0, FontWeight::MEDIUM));
     let w_deploy =
-        cx.update(|window, _| text_width(window.text_system(), "Deploy", 14.0, FontWeight::NORMAL));
-    click(cx, w_build / 2., 9.1);
-    click(cx, w_build + 20. + w_deploy / 2., 9.1);
+        cx.update(|window, _| text_width(window.text_system(), "Deploy", 14.0, FontWeight::MEDIUM));
+    click(cx, 4. + w_build / 2., 10.);
+    click(cx, w_build + 26. + w_deploy / 2., 10.);
     assert!(
         recorded.borrow().is_empty(),
         "a disabled breadcrumb must not answer a press on any non-last crumb"
+    );
+}
+
+/// A disabled control "does not activate or enter the tab order"
+/// (`docs/agents/components.md`), and v3's `isDisabled` "disables all links" —
+/// so a disabled bar must contribute no crumb tab stops at all. The walk
+/// proves the absence directly: with a Button after the bar, the first Tab
+/// must land on the Button (no crumb stop may sit between the root and it),
+/// and Enter must activate only that Button.
+#[gpui::test]
+fn breadcrumbs_disabled_bar_contributes_no_tab_stops(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let for_button = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        let for_button = for_button.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(24.))
+            .child(
+                Breadcrumbs::new(vec![
+                    Crumb::new("Build").href("#/build"),
+                    Crumb::new("Deploy").href("#/deploy"),
+                    Crumb::new("Live"),
+                ])
+                .is_disabled(true)
+                .on_navigate(move |index, crumb, _, _, _| {
+                    recorded
+                        .borrow_mut()
+                        .push(format!("{index}:{}", crumb.label));
+                }),
+            )
+            .child(
+                Button::new("bc-after-disabled")
+                    .label("After")
+                    .on_press(move |_, _, _| for_button.borrow_mut().push("after".into())),
+            )
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["after"],
+        "the first Tab after a disabled bar must reach the control following \
+         it — no crumb, not even one carrying an `href`, may hold a tab stop"
     );
 }
 
@@ -961,6 +1016,451 @@ fn breadcrumbs_tab_reaches_each_link_and_enter_navigates(cx: &mut TestAppContext
         ["0:Build", "1:Deploy"],
         "Tab must reach each href crumb so that Enter navigates it, and the \
          last crumb, as the current page, must stay out of the walk"
+    );
+}
+
+/// Upstream renders a Link for *every* non-current crumb, including the span
+/// link with neither `href` nor `onAction` — so such a crumb must remain a
+/// keyboard-reachable link with the same focus-visible inputs as any other,
+/// while firing nothing at all: no navigation, no URL, no callback.
+#[gpui::test]
+fn breadcrumbs_plain_crumb_is_a_focusable_link_that_fires_nothing(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        // No `href`s and no `on_navigate`: every non-current crumb is a
+        // span link, so the walk must still reach it and Enter must still
+        // do nothing with it.
+        Breadcrumbs::new(vec![
+            Crumb::new("Build"),
+            Crumb::new("Deploy"),
+            Crumb::new("Live"),
+        ])
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    cx.update(|_, cx| {
+        assert!(
+            herogpui_components::util::focus_visible(cx),
+            "a plain span-link crumb must take keyboard focus like any other \
+             link"
+        );
+    });
+    press(cx, "enter");
+    assert!(
+        cx.opened_url().is_none(),
+        "a crumb with neither href nor on_navigate must fire nothing on \
+         activation"
+    );
+}
+
+/// RAC's collection gives every item its own key and hands `onAction` that
+/// `node.key`, so two Breadcrumbs instances in one window must never share
+/// tab stops or element states. The port used to derive both the focus
+/// handles and the link ids from bare `crumb-{i}` literals, which made the
+/// second instance re-use the first one's identity.
+#[gpui::test]
+fn breadcrumbs_instances_keep_distinct_tab_stops(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_a = recorded.clone();
+    let for_b = recorded.clone();
+    let cx = open_host(cx, move || {
+        let for_a = for_a.clone();
+        let for_b = for_b.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(24.))
+            .child(
+                Breadcrumbs::new(vec![
+                    Crumb::new("One"),
+                    Crumb::new("Two"),
+                    Crumb::new("Three"),
+                ])
+                .on_navigate(move |index, crumb, _, _, _| {
+                    for_a.borrow_mut().push(format!("a{index}:{}", crumb.label));
+                }),
+            )
+            .child(
+                Breadcrumbs::new(vec![
+                    Crumb::new("Four"),
+                    Crumb::new("Five"),
+                    Crumb::new("Six"),
+                ])
+                .on_navigate(move |index, crumb, _, _, _| {
+                    for_b.borrow_mut().push(format!("b{index}:{}", crumb.label));
+                }),
+            )
+            .into_any_element()
+    });
+
+    // The walk covers instance A's two links before instance B's; each Enter
+    // navigates exactly one link of exactly one instance.
+    for expected in ["a0:One", "a1:Two", "b0:Four", "b1:Five"] {
+        press(cx, "tab");
+        press(cx, "enter");
+        assert_eq!(
+            recorded.borrow().last().map(String::as_str),
+            Some(expected),
+            "each Breadcrumbs instance must own its own tab stops and links"
+        );
+    }
+    assert_eq!(
+        recorded.borrow().len(),
+        4,
+        "Enter must navigate one link per press, never both instances"
+    );
+}
+
+/// Upstream `Breadcrumbs.Item` renders a `Link`, and a Link that carries an
+/// `href` navigates itself — with no `onAction` configured at all. The port's
+/// transport for that navigation is `open_url`, so an `href` crumb must be
+/// pressable (and open its URL) even when the builder sets no callback.
+#[gpui::test]
+fn breadcrumbs_href_crumb_opens_its_url_without_a_callback(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        Breadcrumbs::new(vec![
+            Crumb::new("Build").href("#/build"),
+            Crumb::new("Deploy").href("#/deploy"),
+            Crumb::new("Live"),
+        ])
+        .into_any_element()
+    });
+
+    let w_build =
+        cx.update(|window, _| text_width(window.text_system(), "Build", 14.0, FontWeight::MEDIUM));
+    let w_deploy =
+        cx.update(|window, _| text_width(window.text_system(), "Deploy", 14.0, FontWeight::MEDIUM));
+    click(cx, 4. + w_build / 2., 10.);
+    assert_eq!(
+        cx.opened_url().as_deref(),
+        Some("#/build"),
+        "an href crumb must open its URL on press even without on_navigate"
+    );
+    click(cx, w_build + 26. + w_deploy / 2., 10.);
+    assert_eq!(
+        cx.opened_url().as_deref(),
+        Some("#/deploy"),
+        "each href crumb must open its own URL"
+    );
+}
+
+/// An href crumb with a configured callback does both: it reports the press
+/// through `on_navigate` (RAC's `onAction(node.key)`) *and* opens its URL —
+/// RAC's press on an anchor link fires `onPress` in addition to navigation.
+#[gpui::test]
+fn breadcrumbs_href_crumb_reports_and_opens(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Breadcrumbs::new(vec![
+            Crumb::new("Build").href("#/build"),
+            Crumb::new("Deploy").href("#/deploy"),
+            Crumb::new("Live"),
+        ])
+        .on_navigate(move |index, crumb, _, _, _| {
+            recorded
+                .borrow_mut()
+                .push(format!("{index}:{}", crumb.label));
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["0:Build"],
+        "Enter on the focused href crumb must report the navigation"
+    );
+    assert_eq!(
+        cx.opened_url().as_deref(),
+        Some("#/build"),
+        "the same press must also open the crumb's URL"
+    );
+}
+
+/// The current page is the *last* item positionally (RAC:
+/// `isCurrent = node.nextKey == null`), not "the first item without `href`".
+/// A last crumb that still carries an `href` is therefore inert: it is
+/// disabled upstream (`isDisabled: isDisabled || isCurrent`), stays out of
+/// the tab walk, and answers no press.
+#[gpui::test]
+fn breadcrumbs_last_crumb_is_current_even_with_an_href(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Breadcrumbs::new(vec![
+            Crumb::new("Build"),
+            Crumb::new("Deploy"),
+            Crumb::new("Live").href("#/live"),
+        ])
+        .on_navigate(move |index, crumb, _, _, _| {
+            recorded
+                .borrow_mut()
+                .push(format!("{index}:{}", crumb.label));
+        })
+        .into_any_element()
+    });
+
+    // Clicking the third (current, href-carrying) crumb must record nothing.
+    // The labels are measured at the link's MEDIUM weight: the third label
+    // starts 4px into the third row, and rows two and three each begin one
+    // `w + 22` row later (2px paddings + 2px gap + 12px separator).
+    let w_build =
+        cx.update(|window, _| text_width(window.text_system(), "Build", 14.0, FontWeight::MEDIUM));
+    let w_deploy =
+        cx.update(|window, _| text_width(window.text_system(), "Deploy", 14.0, FontWeight::MEDIUM));
+    let w_live =
+        cx.update(|window, _| text_width(window.text_system(), "Live", 14.0, FontWeight::MEDIUM));
+    click(cx, 4. + w_build / 2., 10.);
+    click(cx, w_build + 22. + w_deploy + 22. + 4. + w_live / 2., 10.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["0:Build"],
+        "the last crumb is the current page and must not navigate even with \
+         an href"
+    );
+    assert_ne!(
+        cx.opened_url().as_deref(),
+        Some("#/live"),
+        "the current page's href must not be opened"
+    );
+}
+
+/// v3's stylesheet, verbatim: `.breadcrumbs` is `flex items-center` (no wrap),
+/// `.breadcrumbs__item` is `flex shrink-0 items-center justify-center gap-0.5
+/// px-0.5`, and `.breadcrumbs__link` is `px-0.5 text-sm leading-5 font-medium`.
+/// With a 12px separator slot a row is therefore `w_label + 22` wide, labels
+/// start 4px into their rows, rows sit flush, and every row shares one line.
+#[gpui::test]
+fn breadcrumbs_row_geometry_matches_v3_metrics(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        Breadcrumbs::new(vec![
+            Crumb::new("Build").href("#/build"),
+            Crumb::new("Deploy").href("#/deploy"),
+            Crumb::new("Live"),
+        ])
+        .id("bc-geom")
+        .into_any_element()
+    });
+    flush_frame(cx);
+
+    let w_build =
+        cx.update(|window, _| text_width(window.text_system(), "Build", 14.0, FontWeight::MEDIUM));
+    let w_deploy =
+        cx.update(|window, _| text_width(window.text_system(), "Deploy", 14.0, FontWeight::MEDIUM));
+    let first = cx
+        .debug_bounds("Name(\"bc-geom\")-item-0")
+        .expect("the first item row must be laid out");
+    let second = cx
+        .debug_bounds("Name(\"bc-geom\")-item-1")
+        .expect("the second item row must be laid out");
+    let current = cx
+        .debug_bounds("Name(\"bc-geom\")-item-2")
+        .expect("the current item row must be laid out");
+
+    assert!(
+        (f32::from(first.size.width) - (w_build + 22.)).abs() < 1.,
+        "a row must be its 2px link padding around the label plus 2px gap, \
+         12px separator and 2px row paddings: {:?} vs {}",
+        first.size.width,
+        w_build + 22.
+    );
+    assert!(
+        (f32::from(second.size.width) - (w_deploy + 22.)).abs() < 1.,
+        "each row must scale with its own label"
+    );
+    assert!(
+        (f32::from(second.origin.x) - (f32::from(first.origin.x) + f32::from(first.size.width)))
+            .abs()
+            < 1.,
+        "the root must gap rows by nothing: the 2px item paddings are the \
+         whole spacing between labels"
+    );
+    assert_eq!(
+        second.origin.y, current.origin.y,
+        "the root must keep every row on one line: v3 does not wrap"
+    );
+}
+
+/// `flex_shrink_0` on `.breadcrumbs__item` and no `flex-wrap` on the root mean
+/// a narrow parent must never compress or fold the trail: rows keep their full
+/// `w_label + 22` width and overflow the parent instead.
+#[gpui::test]
+fn breadcrumbs_rows_do_not_shrink_or_wrap_in_a_narrow_parent(cx: &mut TestAppContext) {
+    let cx = open_host(cx, || {
+        gpui::div()
+            .w(px(80.))
+            .child(
+                Breadcrumbs::new(vec![
+                    Crumb::new("Build").href("#/build"),
+                    Crumb::new("Deploy").href("#/deploy"),
+                    Crumb::new("Live"),
+                ])
+                .id("bc-narrow"),
+            )
+            .into_any_element()
+    });
+    flush_frame(cx);
+
+    let w_build =
+        cx.update(|window, _| text_width(window.text_system(), "Build", 14.0, FontWeight::MEDIUM));
+    let w_deploy =
+        cx.update(|window, _| text_width(window.text_system(), "Deploy", 14.0, FontWeight::MEDIUM));
+    let first = cx
+        .debug_bounds("Name(\"bc-narrow\")-item-0")
+        .expect("the first row must be laid out");
+    let second = cx
+        .debug_bounds("Name(\"bc-narrow\")-item-1")
+        .expect("the second row must be laid out");
+
+    assert!(
+        (f32::from(first.size.width) - (w_build + 22.)).abs() < 1.,
+        "a row wider than its parent must keep its full width, not shrink: \
+         {:?} vs {}",
+        first.size.width,
+        w_build + 22.
+    );
+    assert!(
+        (f32::from(second.size.width) - (w_deploy + 22.)).abs() < 1.,
+        "no row may compress to fit the parent"
+    );
+    assert_eq!(
+        second.origin.y, first.origin.y,
+        "a narrow parent must not fold the trail onto a second line"
+    );
+}
+
+/// v3's `separator?: ReactNode` accepts any node; the port narrows it to a
+/// per-index render closure whose output paints inside the 12px, muted
+/// `breadcrumbs__separator` slot under a stable per-instance id. A narrower
+/// custom node must still leave the row `w_label + 22` wide (the slot fixes
+/// the geometry, not the content), the last crumb must get no separator, and
+/// the custom separator must not disturb the link presses.
+#[gpui::test]
+fn breadcrumbs_custom_separator_renders_per_item_in_the_slot(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let for_view = for_view.clone();
+        Breadcrumbs::new(vec![
+            Crumb::new("Build").href("#/build"),
+            Crumb::new("Deploy").href("#/deploy"),
+            Crumb::new("Live"),
+        ])
+        .id("bc-sep")
+        .separator_render(move |i| {
+            let for_view = for_view.clone();
+            gpui::div()
+                .id(gpui::ElementId::Name(format!("bc-sep-custom-{i}").into()))
+                .size(px(8.))
+                .bg(gpui::black())
+                .on_click(move |_, _, _| {
+                    for_view.borrow_mut().push(format!("separator-{i}"));
+                })
+                .into_any_element()
+        })
+        .into_any_element()
+    });
+    flush_frame(cx);
+
+    let w_build =
+        cx.update(|window, _| text_width(window.text_system(), "Build", 14.0, FontWeight::MEDIUM));
+    let first = cx
+        .debug_bounds("Name(\"bc-sep\")-item-0")
+        .expect("the first item row must be laid out");
+    let slot = cx
+        .debug_bounds("Name(\"bc-sep\")-separator-0")
+        .expect("the custom separator must paint in its slot");
+    let second_slot = cx.debug_bounds("Name(\"bc-sep\")-separator-1");
+
+    assert!(
+        (f32::from(slot.size.width) - 12.).abs() < 1.
+            && (f32::from(slot.size.height) - 12.).abs() < 1.,
+        "a custom separator must paint inside v3's 12px `size-3` slot: {:?}",
+        slot.size
+    );
+    assert!(
+        (f32::from(first.size.width) - (w_build + 22.)).abs() < 1.,
+        "the slot fixes a row's geometry regardless of the custom content"
+    );
+    assert!(
+        second_slot.is_some(),
+        "the second non-current crumb must get its own separator instance"
+    );
+    assert!(
+        cx.debug_bounds("Name(\"bc-sep\")-separator-2").is_none(),
+        "the current (last) crumb must get no separator"
+    );
+
+    click(cx, 4. + w_build / 2., 10.);
+    assert_eq!(
+        cx.opened_url().as_deref(),
+        Some("#/build"),
+        "a custom separator must not intercept the crumb's press"
+    );
+    // The first slot centres at w_build + 14: 2px row padding, the label's
+    // full `w + 4` link, the 2px gap, then half the 12px slot. The click must
+    // reach the custom node the closure built for index 0.
+    click(cx, w_build + 14., 10.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["separator-0"],
+        "the custom node the closure built for one index must be live and \
+         record its own press"
+    );
+}
+
+/// The port draws the `:focus-visible` status ring on a keyboard-focused crumb
+/// (the Link precedent — v3.2.4's breadcrumbs CSS defines no focus rule of its
+/// own). Its two paint inputs are `is_focused` and the focus-visible flag, so
+/// this proves both: a mouse press must leave the flag off, a keyboard focus
+/// must arm it, and the Tab that armed it must have landed on the crumb the
+/// following Enter navigates.
+#[gpui::test]
+fn breadcrumbs_focus_ring_inputs_track_the_input_modality(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Breadcrumbs::new(vec![
+            Crumb::new("Build").href("#/build"),
+            Crumb::new("Live"),
+        ])
+        .on_navigate(move |index, crumb, _, _, _| {
+            recorded
+                .borrow_mut()
+                .push(format!("{index}:{}", crumb.label));
+        })
+        .into_any_element()
+    });
+
+    let w_build =
+        cx.update(|window, _| text_width(window.text_system(), "Build", 14.0, FontWeight::MEDIUM));
+    click(cx, 4. + w_build / 2., 10.);
+    assert_eq!(recorded.borrow().as_slice(), ["0:Build"]);
+    cx.update(|_, cx| {
+        assert!(
+            !herogpui_components::util::focus_visible(cx),
+            "a mouse press must not arm the focus-visible ring"
+        );
+    });
+
+    press(cx, "tab");
+    cx.update(|_, cx| {
+        assert!(
+            herogpui_components::util::focus_visible(cx),
+            "keyboard focus must arm the ring the focused link draws"
+        );
+    });
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["0:Build", "0:Build"],
+        "the Tab that armed the ring must have focused the crumb Enter then \
+         navigates"
     );
 }
 

@@ -8499,6 +8499,7 @@ impl Gallery {
     }
 
     pub fn page_breadcrumbs(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
+        let last_nav = self.demo_text_value("bc-nav");
         let crumbs = || {
             vec![
                 h::Crumb::new("Home").href("#"),
@@ -8513,23 +8514,58 @@ impl Gallery {
             vec![
                 (
                     "Usage",
-                    col(vec![h::Breadcrumbs::new(crumbs()).into_any_element()]),
+                    col(vec![
+                        // `cx.listener` takes one event argument, and
+                        // `on_navigate` receives the index and the crumb
+                        // alongside the click, so the view state is reached
+                        // through the entity directly.
+                        h::Breadcrumbs::new(crumbs())
+                            .id("bc-usage")
+                            .on_navigate({
+                                let view = cx.entity().downgrade();
+                                move |idx: usize, crumb: &h::Crumb, _, _, cx: &mut gpui::App| {
+                                    let _ = view.update(cx, |this, cx| {
+                                        this.set_demo_text_value(
+                                            "bc-nav",
+                                            format!("{idx}: {}", crumb.label),
+                                        );
+                                        cx.notify();
+                                    });
+                                }
+                            })
+                            .into_any_element(),
+                        para(
+                            &format!(
+                                "The current page is \"Breadcrumbs\" -- inert, no tab stop. \
+                                 Last navigation: {}",
+                                if last_nav.is_empty() {
+                                    "none yet".to_owned()
+                                } else {
+                                    last_nav
+                                }
+                            ),
+                            cx,
+                        ),
+                    ]),
                 ),
                 (
                     "Navigation Levels",
                     col(vec![
                         h::Breadcrumbs::new(vec![h::Crumb::new("Home").href("#")])
+                            .id("bc-level-1")
                             .into_any_element(),
                         h::Breadcrumbs::new(vec![
                             h::Crumb::new("Home").href("#"),
                             h::Crumb::new("Library"),
                         ])
+                        .id("bc-level-2")
                         .into_any_element(),
                         h::Breadcrumbs::new(vec![
                             h::Crumb::new("Home").href("#"),
                             h::Crumb::new("Library").href("#"),
                             h::Crumb::new("Data"),
                         ])
+                        .id("bc-level-3")
                         .into_any_element(),
                     ]),
                 ),
@@ -8540,37 +8576,35 @@ impl Gallery {
                         h::Crumb::new("Archive").href("#"),
                         h::Crumb::new("2025"),
                     ])
+                    .id("bc-disabled")
                     .is_disabled(true)
                     .into_any_element()]),
                 ),
                 (
                     "Custom Separator",
-                    col([
-                        h::BreadcrumbSeparator::Chevron,
-                        h::BreadcrumbSeparator::Slash,
-                        h::BreadcrumbSeparator::Dash,
-                    ]
-                    .iter()
-                    .map(|sep| {
-                        h::Breadcrumbs::new(vec![
-                            h::Crumb::new("Home").href("#"),
-                            h::Crumb::new("Library").href("#"),
-                            h::Crumb::new("Data"),
-                        ])
-                        .separator(*sep)
-                    })
-                    .els()),
+                    col(vec![h::Breadcrumbs::new(crumbs())
+                        .id("bc-sep-custom")
+                        .separator_render(|_| {
+                            gpui::div()
+                                .text_size(px(12.))
+                                .child("→".to_owned())
+                                .into_any_element()
+                        })
+                        .into_any_element()]),
                 ),
                 (
                     "Separators",
                     col(vec![
                         h::Breadcrumbs::new(crumbs())
+                            .id("bc-sep-slash")
                             .separator(h::BreadcrumbSeparator::Slash)
                             .into_any_element(),
                         h::Breadcrumbs::new(crumbs())
+                            .id("bc-sep-chevron")
                             .separator(h::BreadcrumbSeparator::Chevron)
                             .into_any_element(),
                         h::Breadcrumbs::new(crumbs())
+                            .id("bc-sep-dash")
                             .separator(h::BreadcrumbSeparator::Dash)
                             .into_any_element(),
                     ]),
@@ -9094,7 +9128,7 @@ impl Gallery {
                             key,
                             label,
                             h::AlertDialog::new(format!("{label} status")).id(key)
-                                .description("The status colours the icon and the confirm action.")
+                                .description("The status colours the icon above the title.")
                                 .is_open(open)
                                 .status(status)
                                 .on_open_change(bool_cb(cx.listener(
@@ -9239,22 +9273,39 @@ impl Gallery {
                 ),
                 (
                     "Close Methods",
-                    col(vec![overlay_demo(
-                        "ad-close",
-                        "Open (destructive confirm)",
-                        h::AlertDialog::new("Delete for ever?").id("ad-close")
-                            .description("Confirm, cancel, Escape or the backdrop -- four ways out.")
-                            .is_open(self.demo_overlay("ad-close"))
-                            .is_destructive(true)
-                            .confirm_label("Delete")
-                            .cancel_label("Keep")
-                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
-                                this.set_demo_flag("ad-close", *v);
-                                cx.notify();
-                            })))
-                            .into_any_element(),
-                        cx,
-                    )]),
+                    col(vec![
+                        overlay_demo(
+                            "ad-close",
+                            "Open (destructive confirm)",
+                            h::AlertDialog::new("Delete for ever?").id("ad-close")
+                                .description("Confirm and cancel each report onOpenChange(false), then fire their action; the X only reports onOpenChange(false) and has no action of its own.")
+                                .is_open(self.demo_overlay("ad-close"))
+                                .is_destructive(true)
+                                .confirm_label("Delete")
+                                .cancel_label("Keep")
+                                .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("ad-close", *v);
+                                    cx.notify();
+                                })))
+                                .into_any_element(),
+                            cx,
+                        ),
+                        overlay_demo(
+                            "ad-pending",
+                            "Open (pending confirm)",
+                            h::AlertDialog::new("Deploying").id("ad-pending")
+                                .description("The confirm action is in flight: the button shows a spinner and swallows the press, so no close is reported and no action fires.")
+                                .is_open(self.demo_overlay("ad-pending"))
+                                .is_pending(true)
+                                .confirm_label("Deploy")
+                                .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                    this.set_demo_flag("ad-pending", *v);
+                                    cx.notify();
+                                })))
+                                .into_any_element(),
+                            cx,
+                        ),
+                    ]),
                 ),
                 (
                     "Custom Animations",

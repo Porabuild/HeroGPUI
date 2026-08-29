@@ -327,6 +327,11 @@ WONT_PORT = {
     # (`InputState::with_value`).
     'ComboBox.defaultSelectedKey': 'state-entity-seeds-it',
    
+    # A gpui overlay renders inline in the element tree -- there is no DOM and
+    # no portal to redirect it into. Documented on the Modal and AlertDialog
+    # backdrops.
+    'UNSTABLE_portalContainer': 'no-dom-portal',
+
     # `ListLayout`/`TableLayout` describe a virtualizer told its geometry in
     # advance. gpui has two: `uniform_list` takes one height and gives it to every
     # row (`rowHeight`), and `list` measures each row it builds -- which is what
@@ -875,14 +880,17 @@ def prop_rows(text):
         first = cells[0].strip().strip('`').lower()
         if first in PROP_HEADERS:
             found |= set(re.findall(
-                r'^\|\s*`([a-zA-Z-]+)`\s*\|', tbl.group('body'), re.M))
+                # Identifiers may carry underscores: `UNSTABLE_portalContainer`
+                # is a documented prop row, and the old `[a-zA-Z-]+` class read
+                # nothing from it at all.
+                r'^\|\s*`([a-zA-Z_][a-zA-Z0-9_-]*)`\s*\|', tbl.group('body'), re.M))
             continue
         # The `Component | Prop | ...` shape: per-row part ownership.
         if len(cells) > 1 and first == 'component':
             second = cells[1].strip().strip('`').lower()
             if second in PROP_HEADERS:
                 found |= set(re.findall(
-                    r'^\|\s*`[A-Za-z][A-Za-z0-9.]*`\s*\|\s*`([a-zA-Z-]+)`\s*\|',
+                    r'^\|\s*`[A-Za-z][A-Za-z0-9.]*`\s*\|\s*`([a-zA-Z_][a-zA-Z0-9_-]*)`\s*\|',
                     tbl.group('body'), re.M))
     return found
 
@@ -909,11 +917,67 @@ def prop_rows_owned(text):
         if second not in PROP_HEADERS:
             continue
         for m in re.finditer(
-                r'^\|\s*`([A-Za-z][A-Za-z0-9.]*)`\s*\|\s*`([a-zA-Z-]+)`\s*\|',
+                r'^\|\s*`([A-Za-z][A-Za-z0-9.]*)`\s*\|\s*`([a-zA-Z_][a-zA-Z0-9_-]*)`\s*\|',
                 tbl.group('body'), re.M):
             owner, prop = m.group(1), m.group(2)
             owned.setdefault(owner, set()).add(prop)
     return owned
+
+
+def self_test():
+    """Known-positive and known-negative proof for the identifier class.
+
+    The known-negative is the pre-fix rule: `[a-zA-Z-]+` cannot read a row
+    whose identifier carries an underscore, so `UNSTABLE_portalContainer` was
+    a documented prop that never reached the comparison.
+    """
+    failures = []
+
+    def expect(condition, message):
+        if not condition:
+            failures.append(message)
+
+    prop_table = (
+        '| Prop | Type | Default | Description |\n'
+        '| ------ | ---- | ------- | ----------- |\n'
+        '| `isDismissable` | `boolean` | `false` | Close on backdrop click |\n'
+        '| `UNSTABLE_portalContainer` | `HTMLElement` | - | Custom portal container |\n'
+    )
+    rows = prop_rows(prop_table)
+    expect('UNSTABLE_portalContainer' in rows, 'underscored identifier not extracted')
+    expect('isDismissable' in rows, 'camelCase row lost by the identifier fix')
+
+    legacy = set(re.findall(r'^\|\s*`([a-zA-Z-]+)`\s*\|', prop_table, re.M))
+    expect(
+        'UNSTABLE_portalContainer' not in legacy and 'isDismissable' in legacy,
+        'the legacy identifier class does not reproduce the known-negative',
+    )
+
+    owned_table = (
+        '| Component | Prop | Type |\n'
+        '| --- | --- | --- |\n'
+        '| `AlertDialog.Backdrop` | `UNSTABLE_portalContainer` | `HTMLElement` |\n'
+    )
+    owned = prop_rows_owned(owned_table)
+    expect(
+        owned.get('AlertDialog.Backdrop') == {'UNSTABLE_portalContainer'},
+        'per-owner shape missed the underscored prop: %r' % (owned,),
+    )
+
+    value_table = (
+        '| Modifier Keys | Special Keys |\n'
+        '| --- | --- |\n'
+        '| `ctrl` | `win` |\n'
+    )
+    expect(prop_rows(value_table) == set(), 'value table misread as prop rows')
+
+    if failures:
+        print('self-test FAIL')
+        for failure in failures:
+            print('- %s' % failure)
+        return 1
+    print('self-test PASS: identifier extraction reads underscored prop names')
+    return 0
 
 
 def main():
@@ -1074,4 +1138,6 @@ def main():
 
 
 if __name__ == '__main__':
+    if '--self-test' in sys.argv[1:]:
+        sys.exit(self_test())
     main()

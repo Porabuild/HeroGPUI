@@ -51,6 +51,13 @@ CLAIMS = [
     # "Full keyboard navigation support" with nothing in brackets still promises
     # the list's own keys.
     (r'Full keyboard navigation support(?!\s*\()', 'arrows'),
+    # Breadcrumbs is the one page whose keyboard prose is exactly this sentence,
+    # and its keyboard is the link's: Tab reaches every link crumb, Enter or
+    # Space activates the focused one, and the current page is not a stop.
+    (r'Keyboard navigation support', 'tab-nav'),
+    # Breadcrumbs: "Current page indication via aria-current" — the last crumb
+    # is the current page, rendered in the link token and inert.
+    (r'Current page indication', 'current-page'),
 ]
 
 # A component that documents `onPress` promises keyboard activation, because a
@@ -432,7 +439,27 @@ EVIDENCE = {
     ('Modal', 'tab-cycle'): ('modal.rs', r'trap_tab'),
     ('Drawer', 'tab-cycle'): ('drawer.rs', r'trap_tab'),
     ('AlertDialog', 'tab-cycle'): ('alert_dialog.rs', r'trap_tab'),
-    ('Breadcrumbs', 'arrows'): ('breadcrumbs.rs', r'on_click'),
+    # The Breadcrumbs keyboard is the link's, not a collection's: every link
+    # crumb is its own tab stop (`tab_stop_handle`, gated on the crumb being
+    # neither the current page nor disabled), Enter and Space activate the
+    # focused crumb through gpui's focused-click, and no second key handler
+    # is bound for it. The old 'arrows' row was bogus: Breadcrumbs promises
+    # no arrow keys, and on_click alone proves neither a tab stop nor the
+    # gate that keeps the current page out of the tab order.
+    ('Breadcrumbs', 'tab-nav'): (
+        'breadcrumbs.rs',
+        r'(?s)(?=\(!is_last && !disabled\)\.then\(\|\| \{.{0,120}?crate::util::tab_stop_handle)'
+        r'(?=.*\.on_click\()',
+    ),
+    # The current page is the last crumb: it renders in the link token, is
+    # never navigable (no tab stop, no press, even with an href), and the
+    # disabled fade never reaches it.
+    ('Breadcrumbs', 'current-page'): (
+        'breadcrumbs.rs',
+        r'(?s)(?=.*text_color\(if is_last \{ current_color \} else \{ muted \}\))'
+        r'(?=.*let is_link = !is_last && !disabled;)'
+        r'(?=.*let navigable = is_link && \(on_navigate\.is_some\(\) \|\| crumb\.href\.is_some\(\)\);)',
+    ),
     # `onPress` is a press, not a click: Enter and Space run the same handler.
     # gpui does that itself -- a *focused* element's click listeners fire with
     # `ClickEvent::Keyboard` -- so the evidence is the focus handle, which is
