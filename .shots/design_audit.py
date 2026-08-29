@@ -412,15 +412,29 @@ CHECKS = [
     ('card', '.card', 'gap', 'Card gap',
      SRC + 'card.rs',
      r'the card is the padded box[\s\S]{0,280}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('card', '.card', 'radius', 'Card root -> util::_radius',
+     SRC + 'card.rs',
+     r'the card is the padded box[\s\S]{0,400}?\.rounded\(crate::util::(\w+_radius)',
+     helper_px),
     ('card', '.card__content', 'gap', 'Card content gap',
      SRC + 'card.rs',
-     r'`\.card__content` is[\s\S]{0,280}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.card__content` is[\s\S]{0,360}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('card', '.card__title', 'text', 'Card title text',
      SRC + 'card.rs',
-     r'`\.card__header` is[\s\S]{0,200}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
-    ('card', '.card__description', 'text', 'Card body text',
+     r'`\.card__title` is `text-sm leading-6 font-medium text-foreground`'
+     r'[\s\S]{0,200}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('card', '.card__title', 'leading', 'Card title leading',
      SRC + 'card.rs',
-     r'`\.card__content` is[\s\S]{0,260}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`\.card__title` is `text-sm leading-6 font-medium text-foreground`'
+     r'[\s\S]{0,200}?\.line_height\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('card', '.card__description', 'text', 'Card description text',
+     SRC + 'card.rs',
+     r'`\.card__description` is `text-sm leading-5 text-muted`'
+     r'[\s\S]{0,200}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('card', '.card__description', 'leading', 'Card description leading',
+     SRC + 'card.rs',
+     r'`\.card__description` is `text-sm leading-5 text-muted`'
+     r'[\s\S]{0,200}?\.line_height\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('switch', '.switch__content', 'text', 'Switch content text',
      SRC + 'switch.rs',
      r'let mut el = gpui::div\(\)[\s\S]{0,120}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -1740,12 +1754,27 @@ def measure(body):
             '',
         )
     else:
-        radius = re.search(
-            r'border-radius:\s*calc\(var\(--radius\)\s*\*\s*([\d.]+)\)',
+        # The same cap, spelled with v3's named radius steps:
+        # `min(32px, var(--radius-3xl))`.
+        capped_radius_var = re.search(
+            r'border-radius:\s*min\(\s*([\d.]+)px\s*,\s*'
+            r'var\(--radius-([a-z0-9]+)\)\s*\)',
             body,
         )
-        if radius:
-            offer('radius', 8.0 * float(radius.group(1)), '')
+        step = RADIUS.get(capped_radius_var.group(2)) if capped_radius_var else None
+        if step is not None:
+            offer(
+                'radius',
+                min(float(capped_radius_var.group(1)), step),
+                '',
+            )
+        else:
+            radius = re.search(
+                r'border-radius:\s*calc\(var\(--radius\)\s*\*\s*([\d.]+)\)',
+                body,
+            )
+            if radius:
+                offer('radius', 8.0 * float(radius.group(1)), '')
 
     # A border width is sometimes a utility (`border-2`) and sometimes plain CSS
     # -- the colour-area thumb is `border: 3px solid white`, which no `@apply`
@@ -1758,7 +1787,7 @@ def measure(body):
                                    ('py-', 'py'), ('gap-', 'gap'), ('p-', 'p'),
                                    ('size-', 'size'), ('min-w-', 'min_w'),
                                    ('mt-', 'mt'), ('ms-', 'ms'), ('min-h-', 'min_h'),
-                                   ('ps-', 'ps')):
+                                   ('ps-', 'ps'), ('leading-', 'leading')):
                 if tok.startswith(prefix):
                     v = px(tok[len(prefix):])
                     if v is not None:
@@ -1950,6 +1979,21 @@ FILLS = [
      SRC + 'date_picker.rs', 'colors.overlay.background'),
     ('color-picker', '.color-picker__popover', 'bg-overlay',
      SRC + 'color_picker.rs', 'colors.overlay.background'),
+    # Card and Surface share v3's prominence ladder; each fill names its own
+    # semantic background, and `transparent` paints nothing (covered by the
+    # card/surface style contracts, not a fill).
+    ('card', '.card--default', 'bg-surface',
+     SRC + 'card.rs', 'colors.surface.background'),
+    ('card', '.card--secondary', 'bg-surface-secondary',
+     SRC + 'card.rs', 'colors.surface_secondary'),
+    ('card', '.card--tertiary', 'bg-surface-tertiary',
+     SRC + 'card.rs', 'colors.surface_tertiary'),
+    ('surface', '.surface--default', 'bg-surface',
+     SRC + 'surface.rs', 'colors.surface.background'),
+    ('surface', '.surface--secondary', 'bg-surface-secondary',
+     SRC + 'surface.rs', 'colors.surface_secondary'),
+    ('surface', '.surface--tertiary', 'bg-surface-tertiary',
+     SRC + 'surface.rs', 'colors.surface_tertiary'),
 ]
 
 
@@ -2155,6 +2199,89 @@ def check_toolbar_style_contract():
     return bad
 
 
+def check_card_style_contract():
+    """Non-numeric Card root and transparent-variant styling."""
+    css_path = os.path.join(CACHE, 'card.css')
+    src_path = SRC + 'card.rs'
+    if not os.path.exists(css_path):
+        print('card styling: no stylesheet')
+        return 1
+    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    src = io.open(src_path, encoding='utf-8', errors='replace').read()
+    root = rule_body(css, '.card') or ''
+    transparent = rule_body(css, '.card--transparent') or ''
+    render = src.split('impl RenderOnce for Card {', 1)
+    render = render[1].split('/// Card header section', 1)[0] if len(render) == 2 else ''
+    checks = [
+        # `.card` is `overflow-visible`; the port must not clip its parts.
+        ('root stays overflow visible',
+         'overflow-visible' in root and '.overflow_hidden' not in src),
+        # `card--transparent` is `border-none bg-transparent shadow-none`: the
+        # variant branch adds nothing and the shadow gate skips it.
+        ('transparent paints no fill',
+         'bg-transparent' in transparent
+         and 'CardVariant::Transparent => el,' in render),
+        ('transparent has no border',
+         'border-none' in transparent
+         and '.border(' not in src and '.border_1()' not in src),
+        ('transparent carries no shadow',
+         'shadow-none' in transparent
+         and render.count('self.variant != CardVariant::Transparent') == 1),
+        ('other variants read the surface shadow',
+         'shadow-surface' in root
+         and '.shadow(layout.surface_shadow.clone())' in render),
+    ]
+    print()
+    print('card non-numeric styling:')
+    for name, ok in checks:
+        print('%s %-32s %s' % (' ' if ok else '!', name, 'ok' if ok else 'missing'))
+    bad = sum(not ok for _, ok in checks)
+    print('CARD STYLE BAD : %d' % bad)
+    return bad
+
+
+def check_surface_style_contract():
+    """Non-numeric Surface root, zero defaults and transparent variant."""
+    css_path = os.path.join(CACHE, 'surface.css')
+    src_path = SRC + 'surface.rs'
+    if not os.path.exists(css_path):
+        print('surface styling: no stylesheet')
+        return 1
+    css = io.open(css_path, encoding='utf-8', errors='replace').read()
+    src = io.open(src_path, encoding='utf-8', errors='replace').read()
+    root = rule_body(css, '.surface') or ''
+    transparent = rule_body(css, '.surface--transparent') or ''
+    constructor = src.split('impl Surface {', 1)
+    constructor = (
+        constructor[1].split('impl Default for Surface', 1)[0]
+        if len(constructor) == 2 else ''
+    )
+    checks = [
+        # `.surface` is only `relative text-foreground`: no padding, gap,
+        # radius or border utility is declared on the root.
+        ('strict root (relative text-foreground)',
+         'relative' in root and 'text-foreground' in root
+         and not re.search(r'[gp]-\d|rounded|border', root)),
+        ('zero default padding', 'padding: px(0.)' in constructor),
+        ('zero default gap', 'gap: px(0.)' in constructor),
+        # `surface--transparent` is only `bg-transparent`; the old port drew a
+        # border and a radius here, and the docs examples' outline comes from
+        # their own className.
+        ('transparent paints nothing',
+         'bg-transparent' in transparent
+         and 'SurfaceVariant::Transparent => el' in src
+         and '.border(' not in src and '.border_1()' not in src
+         and '.rounded' not in src),
+    ]
+    print()
+    print('surface non-numeric styling:')
+    for name, ok in checks:
+        print('%s %-32s %s' % (' ' if ok else '!', name, 'ok' if ok else 'missing'))
+    bad = sum(not ok for _, ok in checks)
+    print('SURFACE STYLE BAD : %d' % bad)
+    return bad
+
+
 def check_color_picker_style_contract():
     """ColorPicker's asymmetric padding must survive its zoom refinement."""
     css = io.open(os.path.join(CACHE, 'color-picker.css'),
@@ -2321,9 +2448,11 @@ def main():
     tabs_bad = check_tabs_style_contract()
     color_picker_bad = check_color_picker_style_contract()
     toolbar_bad = check_toolbar_style_contract()
+    card_bad = check_card_style_contract()
+    surface_bad = check_surface_style_contract()
     return int(bool(
         mismatched or unreadable or wrong_fills or stale_fills or toggle_bad or pagination_bad
-        or tabs_bad or color_picker_bad or toolbar_bad
+        or tabs_bad or color_picker_bad or toolbar_bad or card_bad or surface_bad
     ))
 
 

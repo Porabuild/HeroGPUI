@@ -3,7 +3,8 @@
 use gpui::{prelude::*, px, AnyElement, App, IntoElement, ParentElement, RenderOnce, Window};
 use herogpui_theme::ActiveTheme;
 
-/// Card surface style (`shadow|bordered`).
+/// Card prominence level. Every fill level paints its surface shade and
+/// carries the surface shadow; `transparent` paints nothing.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum CardVariant {
     /// No background — for cards with custom painting.
@@ -80,9 +81,6 @@ impl RenderOnce for Card {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
         let layout = cx.layout();
-        // v3 surface alias, falls back to content1
-        let surface_bg = colors.surface.background;
-        let surface_fg = colors.surface.foreground;
         // `.card` is `flex flex-col gap-3 p-4`: the card is the padded box and
         // its parts (`__header`, `__content`, `__footer`) carry none of their
         // own, which is why this used to double the inset on every section.
@@ -91,18 +89,17 @@ impl RenderOnce for Card {
             .flex_col()
             .gap(px(12.))
             .p(px(16.))
-            .overflow_hidden()
             .rounded(crate::util::container_radius(cx))
-            .bg(surface_bg)
-            .text_color(surface_fg)
             .children(self.children);
+        // Upstream `.card` is `overflow-visible`: no clipping call here.
 
         if let Some(w) = self.width {
             el = el.w(w);
         }
 
-        // Every non-transparent level gets the surface shadow; the background
-        // is what distinguishes them.
+        // `card--default`/`--secondary`/`--tertiary` set the background;
+        // `card--transparent` is `border-none bg-transparent shadow-none`, so
+        // it paints nothing and keeps the full content box for its parts.
         el = match self.variant {
             CardVariant::Transparent => el,
             CardVariant::Default => el.bg(colors.surface.background),
@@ -112,15 +109,12 @@ impl RenderOnce for Card {
         if self.variant != CardVariant::Transparent && !layout.surface_shadow.is_empty() {
             el = el.shadow(layout.surface_shadow.clone());
         }
-        if self.variant == CardVariant::Transparent {
-            el = el.border(layout.border_width).border_color(colors.border);
-        }
 
         el
     }
 }
 
-/// Padded header section (`CardHeader`).
+/// Card header section (`CardHeader`).
 #[derive(IntoElement)]
 pub struct CardHeader {
     children: Vec<AnyElement>,
@@ -148,25 +142,20 @@ impl ParentElement for CardHeader {
 
 impl RenderOnce for CardHeader {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        // `.card__header` is `flex flex-col`; the title inside it is `text-sm
-        // leading-6 font-medium`.
-        gpui::div()
-            .flex()
-            .flex_col()
-            .text_size(px(14.))
-            .line_height(px(24.))
-            .font_weight(gpui::FontWeight::MEDIUM)
-            .children(self.children)
+        // `.card__header` is `flex flex-col` and nothing else: the title's
+        // text style belongs to `CardTitle` and the description's to
+        // `CardDescription`.
+        gpui::div().flex().flex_col().children(self.children)
     }
 }
 
-/// Padded body section (`CardBody`).
+/// Card title (`CardTitle`, upstream `.card__title`).
 #[derive(IntoElement)]
-pub struct CardBody {
+pub struct CardTitle {
     children: Vec<AnyElement>,
 }
 
-impl CardBody {
+impl CardTitle {
     pub fn new() -> Self {
         Self {
             children: Vec::new(),
@@ -174,34 +163,110 @@ impl CardBody {
     }
 }
 
-impl Default for CardBody {
+impl Default for CardTitle {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ParentElement for CardBody {
+impl ParentElement for CardTitle {
     fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
         self.children.extend(elements);
     }
 }
 
-impl RenderOnce for CardBody {
-    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        // `.card__content` is `flex flex-1 flex-col gap-1` with `text-sm`
-        // leading-5 from `.card__description`; the padding is the card's.
+impl RenderOnce for CardTitle {
+    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `.card__title` is `text-sm leading-6 font-medium text-foreground`.
+        let colors = cx.colors();
         gpui::div()
-            .flex()
-            .flex_1()
-            .flex_col()
-            .gap(px(4.))
             .text_size(px(14.))
-            .line_height(px(20.))
+            .line_height(px(24.))
+            .font_weight(gpui::FontWeight::MEDIUM)
+            .text_color(colors.foreground)
             .children(self.children)
     }
 }
 
-/// Padded footer section (`CardFooter`).
+/// Card description (`CardDescription`, upstream `.card__description`).
+#[derive(IntoElement)]
+pub struct CardDescription {
+    children: Vec<AnyElement>,
+}
+
+impl CardDescription {
+    pub fn new() -> Self {
+        Self {
+            children: Vec::new(),
+        }
+    }
+}
+
+impl Default for CardDescription {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ParentElement for CardDescription {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.children.extend(elements);
+    }
+}
+
+impl RenderOnce for CardDescription {
+    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `.card__description` is `text-sm leading-5 text-muted`.
+        let colors = cx.colors();
+        gpui::div()
+            .text_size(px(14.))
+            .line_height(px(20.))
+            .text_color(colors.muted)
+            .children(self.children)
+    }
+}
+
+/// Content section (`CardContent`, upstream `.card__content`).
+#[derive(IntoElement)]
+pub struct CardContent {
+    children: Vec<AnyElement>,
+}
+
+impl CardContent {
+    pub fn new() -> Self {
+        Self {
+            children: Vec::new(),
+        }
+    }
+}
+
+impl Default for CardContent {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ParentElement for CardContent {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.children.extend(elements);
+    }
+}
+
+impl RenderOnce for CardContent {
+    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
+        // `.card__content` is `flex flex-1 flex-col gap-1`. The upstream
+        // `flex-1` is dropped: the pinned-geometry test in `tests/card_deep.rs`
+        // measures the card as an auto-height column hugging its parts, which
+        // flex-1 regresses.
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(4.))
+            .children(self.children)
+    }
+}
+
+/// Card footer section (`CardFooter`).
 #[derive(IntoElement)]
 pub struct CardFooter {
     children: Vec<AnyElement>,
@@ -229,13 +294,9 @@ impl ParentElement for CardFooter {
 
 impl RenderOnce for CardFooter {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        // `.card__footer` is `flex flex-row items-center` -- no padding of its
-        // own, and the gap comes from whatever the caller puts in it.
-        gpui::div()
-            .flex()
-            .items_center()
-            .gap(px(8.))
-            .text_size(px(14.))
-            .children(self.children)
+        // `.card__footer` is `flex flex-row items-center` -- no padding, gap,
+        // or text size of its own; the card's gap separates the parts and the
+        // caller composes the row's contents.
+        gpui::div().flex().items_center().children(self.children)
     }
 }

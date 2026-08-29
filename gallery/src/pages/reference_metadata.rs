@@ -13859,6 +13859,401 @@ pub(crate) const BREADCRUMBS: ReferenceMetadata = ReferenceMetadata {
     styling: BREADCRUMBS_STYLING,
 };
 
+const CARD_REQUIRED_PARTS: &[&str] = &[
+    "Card",
+    "Card.Header",
+    "Card.Title",
+    "Card.Description",
+    "Card.Content",
+    "Card.Footer",
+];
+
+const CARD_API: &[ApiDoc] = &[
+    ApiDoc {
+        owner: "Card",
+        prop: "variant",
+        ty: "\"transparent\" | \"default\" | \"secondary\" | \"tertiary\"",
+        default: "\"default\"",
+        description: "Semantic variant indicating prominence level. Transparent paints nothing — no border, no background, no shadow, the full content box — while every other level fills and carries the surface shadow.",
+        rust_owner: "Card",
+        rust: "variant(CardVariant)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "Card",
+        prop: "className",
+        ty: "string",
+        default: "—",
+        description: "Additional CSS classes.",
+        rust_owner: "Card",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "Card",
+        prop: "children",
+        ty: "React.ReactNode",
+        default: "—",
+        description: "Card content; the parts compose through ParentElement::extend and the root wraps them in the padded column with the capped container radius.",
+        rust_owner: "Card",
+        rust: "ParentElement::extend",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "Card.Header",
+        prop: "className",
+        ty: "string",
+        default: "—",
+        description: "Additional CSS classes for the header.",
+        rust_owner: "CardHeader",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "Card.Header",
+        prop: "children",
+        ty: "React.ReactNode",
+        default: "—",
+        description: "Header content; a plain flex column, so Card.Title and Card.Description carry their own text styles.",
+        rust_owner: "CardHeader",
+        rust: "ParentElement::extend",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "Card.Title",
+        prop: "className",
+        ty: "string",
+        default: "—",
+        description: "Additional CSS classes for the title.",
+        rust_owner: "CardTitle",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "Card.Title",
+        prop: "children",
+        ty: "React.ReactNode",
+        default: "—",
+        description: "Title content (v3 renders an h3). The port draws the title typography on a plain div; GPUI has no heading semantics to render it as.",
+        rust_owner: "CardTitle",
+        rust: "ParentElement::extend",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "Card.Description",
+        prop: "className",
+        ty: "string",
+        default: "—",
+        description: "Additional CSS classes for the description.",
+        rust_owner: "CardDescription",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "Card.Description",
+        prop: "children",
+        ty: "React.ReactNode",
+        default: "—",
+        description: "Description content (v3 renders a p). The port draws the muted description typography on a plain div.",
+        rust_owner: "CardDescription",
+        rust: "ParentElement::extend",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "Card.Content",
+        prop: "className",
+        ty: "string",
+        default: "—",
+        description: "Additional CSS classes for the content.",
+        rust_owner: "CardContent",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "Card.Content",
+        prop: "children",
+        ty: "React.ReactNode",
+        default: "—",
+        description: "Main content; the port keeps the column and its four-pixel gap but drops the upstream flex-1: the pinned-geometry test in tests/card_deep.rs measures the card as an auto-height column hugging its parts, which flex-1 regresses.",
+        rust_owner: "CardContent",
+        rust: "ParentElement::extend",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "Card.Footer",
+        prop: "className",
+        ty: "string",
+        default: "—",
+        description: "Additional CSS classes for the footer.",
+        rust_owner: "CardFooter",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "Card.Footer",
+        prop: "children",
+        ty: "React.ReactNode",
+        default: "—",
+        description: "Footer content; a plain flex row with centered items — no padding, gap or text size of its own; the card's gap separates the parts.",
+        rust_owner: "CardFooter",
+        rust: "ParentElement::extend",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+const CARD_PARTS: &[PartDoc] = &[
+    PartDoc {
+        name: "Card",
+        slot: "card",
+        description: "Composition root and data-slot owner; the padded column at a 12px part gap with the capped container radius. `overflow-visible` upstream, so the port adds no clipping; the variant chooses the fill and whether the surface shadow applies.",
+        rust_owner: "Card",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "Card.Header",
+        slot: "card-header",
+        description: "Header section container; a plain flex column, with no text style of its own.",
+        rust_owner: "CardHeader",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "Card.Title",
+        slot: "card-title",
+        description: "Title part: 14px medium text on the foreground colour, 24px leading. v3 renders an h3; the port renders the same typography on a plain div.",
+        rust_owner: "CardTitle",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "Card.Description",
+        slot: "card-description",
+        description: "Muted description part: 14px text at 20px leading. v3 renders a p; the port renders the same typography on a plain div.",
+        rust_owner: "CardDescription",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "Card.Content",
+        slot: "card-content",
+        description: "Content column at a four-pixel gap. The upstream flex-1 is dropped: the pinned-geometry test in tests/card_deep.rs measures the card as an auto-height column hugging its parts, which flex-1 regresses.",
+        rust_owner: "CardContent",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "Card.Footer",
+        slot: "card-footer",
+        description: "Footer row with centered items; the card's gap separates it from the other parts and the caller composes the row's contents.",
+        rust_owner: "CardFooter",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+// `.card` declares no state utilities and the docs name no interactive states:
+// v3's Card is presentational, and an interactive card composes a Button.
+const CARD_STATES: &[StateDoc] = &[];
+
+const CARD_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: ".card",
+        value: "relative flex flex-col gap-3 overflow-visible p-4 shadow-surface; border-radius: min(32px, var(--radius-3xl))",
+        description: "Padded column root: 12px part gap, 16px padding, the capped container radius, no clipping, and the surface shadow carried by every non-transparent variant.",
+        rust: "flex + flex_col + gap(px(12.)) + p(px(16.)) + container_radius + surface_shadow",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".card__header",
+        value: "flex flex-col",
+        description: "The header stacks its parts and carries nothing else; the title's text style belongs to Card.Title and the description's to Card.Description.",
+        rust: "CardHeader flex + flex_col",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".card__title",
+        value: "text-sm leading-6 font-medium text-foreground",
+        description: "Title typography.",
+        rust: "CardTitle text_size(px(14.)) + line_height(px(24.)) + FontWeight::MEDIUM + colors.foreground",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".card__description",
+        value: "text-sm leading-5 text-muted",
+        description: "Muted description typography.",
+        rust: "CardDescription text_size(px(14.)) + line_height(px(20.)) + colors.muted",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".card__content",
+        value: "flex flex-1 flex-col gap-1",
+        description: "Content column at a four-pixel gap; the upstream flex-1 is dropped (tests/card_deep.rs pins the card as an auto-height column hugging its parts, which flex-1 regresses).",
+        rust: "CardContent flex + flex_col + gap(px(4.))",
+        status: ImplementationStatus::Partial,
+    },
+    StyleDoc {
+        class_or_token: ".card__footer",
+        value: "flex flex-row items-center",
+        description: "Footer row with centered items and no chrome of its own.",
+        rust: "CardFooter flex + items_center",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".card--transparent",
+        value: "border-none bg-transparent shadow-none",
+        description: "The transparent variant paints nothing: no border, no background, no shadow. GPUI's default div is already transparent, so the variant branch adds nothing and the shadow is gated on the variant.",
+        rust: "CardVariant::Transparent => el (no bg, no border, no shadow)",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".card--default",
+        value: "bg-surface",
+        description: "Standard card fill.",
+        rust: "CardVariant::Default => colors.surface.background",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".card--secondary",
+        value: "bg-surface-secondary",
+        description: "Medium-prominence fill.",
+        rust: "CardVariant::Secondary => colors.surface_secondary",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".card--tertiary",
+        value: "bg-surface-tertiary",
+        description: "Higher-prominence fill.",
+        rust: "CardVariant::Tertiary => colors.surface_tertiary",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+pub(crate) const CARD: ReferenceMetadata = ReferenceMetadata {
+    page: "Card",
+    import_line: "use herogpui::components::card::{Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle};",
+    source_module: "card",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(layout)/card.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/card/card.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/card.css",
+    required_parts: CARD_REQUIRED_PARTS,
+    api: CARD_API,
+    parts: CARD_PARTS,
+    states: CARD_STATES,
+    styling: CARD_STYLING,
+};
+
+const SURFACE_REQUIRED_PARTS: &[&str] = &[
+    // The root is the component's only declared part.
+    "Surface",
+];
+
+const SURFACE_API: &[ApiDoc] = &[
+    ApiDoc {
+        owner: "Surface",
+        prop: "variant",
+        ty: "\"transparent\" | \"default\" | \"secondary\" | \"tertiary\"",
+        default: "\"default\"",
+        description: "The visual variant of the surface. The strict root is only `relative text-foreground` plus each variant's fill and foreground pair — no padding, gap, radius or border of its own.",
+        rust_owner: "Surface",
+        rust: "variant(SurfaceVariant)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "Surface",
+        prop: "className",
+        ty: "string",
+        default: "—",
+        description: "Additional CSS classes.",
+        rust_owner: "Surface",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "Surface",
+        prop: "children",
+        ty: "ReactNode",
+        default: "—",
+        description: "Surface content, composed through ParentElement::extend. The port's `.padding`/`.gap` builders are repository conveniences standing in for the className skeleton every docs example adds (`flex flex-col gap-3 rounded-3xl p-6`) — not upstream props, and they default to zero because the component itself ships none.",
+        rust_owner: "Surface",
+        rust: "ParentElement::extend",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "SurfaceContext",
+        prop: "variant",
+        ty: "\"transparent\" | \"default\" | \"secondary\" | \"tertiary\" | undefined",
+        default: "—",
+        description: "Context that lets child components read the surrounding surface variant; GPUI has no ancestor context propagation, so nothing downstream reads the surface variant in this port.",
+        rust_owner: "Surface",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+];
+
+const SURFACE_PARTS: &[PartDoc] = &[
+    // v3's root owns data-slot="surface"; there are no separately exported
+    // child parts.
+    PartDoc {
+        name: "Surface",
+        slot: "surface",
+        description: "Strict component root: `relative` plus the variant's background and foreground pair. Zero default padding and gap, no radius and no border; the port's `.padding`/`.gap` builders are port conveniences, not v3 props.",
+        rust_owner: "Surface",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+// `.surface` declares no state utilities and the docs name no interactive states.
+const SURFACE_STATES: &[StateDoc] = &[];
+
+const SURFACE_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: ".surface",
+        value: "relative text-foreground",
+        description: "The strict component root: positioning and a foreground default only. The port adds a minimal flex column so its `.padding`/`.gap` conveniences work — layout the upstream stylesheet does not declare.",
+        rust: "flex + flex_col + gap(self.gap) + p(self.padding) + text_color(colors.foreground)",
+        status: ImplementationStatus::Partial,
+    },
+    StyleDoc {
+        class_or_token: ".surface--transparent",
+        value: "bg-transparent",
+        description: "The transparent variant paints nothing extra: GPUI's default div background is already transparent, and no outline is added — the v3 docs example draws its border through className.",
+        rust: "SurfaceVariant::Transparent => el (no bg, no border)",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".surface--default",
+        value: "bg-surface text-surface-foreground",
+        description: "Standard surface fill with its own foreground.",
+        rust: "SurfaceVariant::Default => colors.surface.background + colors.surface.foreground",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".surface--secondary",
+        value: "bg-surface-secondary text-surface-secondary-foreground",
+        description: "Medium-prominence fill with its own foreground.",
+        rust: "SurfaceVariant::Secondary => colors.surface_secondary + colors.surface_secondary_foreground()",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".surface--tertiary",
+        value: "bg-surface-tertiary text-surface-tertiary-foreground",
+        description: "Higher-prominence fill with its own foreground.",
+        rust: "SurfaceVariant::Tertiary => colors.surface_tertiary + colors.surface_tertiary_foreground()",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+pub(crate) const SURFACE: ReferenceMetadata = ReferenceMetadata {
+    page: "Surface",
+    import_line: "use herogpui::components::surface::Surface;",
+    source_module: "surface",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(layout)/surface.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/surface/surface.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/surface.css",
+    required_parts: SURFACE_REQUIRED_PARTS,
+    api: SURFACE_API,
+    parts: SURFACE_PARTS,
+    states: SURFACE_STATES,
+    styling: SURFACE_STYLING,
+};
+
 pub(crate) const ALL: &[ReferenceMetadata] = &[
     DROPDOWN,
     LIST_BOX,
@@ -13910,6 +14305,8 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     FORM,
     ALERT_DIALOG,
     BREADCRUMBS,
+    CARD,
+    SURFACE,
 ];
 
 pub(crate) fn for_import(import_line: &str) -> Option<&'static ReferenceMetadata> {

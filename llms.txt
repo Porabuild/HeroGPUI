@@ -136,7 +136,8 @@ button, toggle button, avatar), `soft_radius` (2xl, 16 — chip, menu and list
 rows, colour area), `small_radius` (xl, 12 — close button, tag, link, tooltip),
 `key_radius` (lg, 8 — `Kbd`), `hairline_radius` (sm, 4 — separator, skeleton),
 `field_radius` (12 — every form field) and `container_radius` (`min(32px, 3xl)` —
-cards, surfaces and every floating panel). `.shots/design_audit.py` diffs these
+cards, the table and every floating panel; Surface carries none, upstream
+`.surface` declares no radius). `.shots/design_audit.py` diffs these
 against the real stylesheets.
 
 **Control heights** are v3's desktop values, 32 / 36 / 40 for sm / md / lg. Its
@@ -158,7 +159,7 @@ v3 replaced v2's `variant` × `color` matrix with distinct enums:
 |---|---|---|
 | `Variant` | `Primary` `Secondary` `Tertiary` `Outline` `Ghost` `Danger` `DangerSoft` | Button, ButtonGroup (no `Outline`) |
 | `FieldVariant` | `Primary` `Secondary` | every form control |
-| `Prominence` | `Transparent` `Default` `Secondary` `Tertiary` | Surface, Card |
+| `Prominence` | `Transparent` `Default` `Secondary` `Tertiary` | none: Card and Surface define their own `CardVariant`/`SurfaceVariant` |
 | `Backdrop` | `Opaque` `Blur` `Transparent` | Modal, Drawer, AlertDialog |
 | `Color` | `Default` `Accent` `Success` `Warning` `Danger` | components with a color role |
 | `Size` | `Sm` `Md` `Lg` | most components |
@@ -385,9 +386,9 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
 - **Label / Description / ErrorMessage / FieldError / Fieldset** — the composition slots; `Label::new(t).is_required().is_disabled().is_invalid()`, `FieldError::new().message(t)`, `Fieldset` + `FieldsetLegend` / `FieldsetGroup` / `FieldsetActions`
 
 ### Layout
-- **Card** — `variant(CardVariant::{Transparent,Default,Secondary,Tertiary})`, `w`, `CardHeader/Body/Footer`. v3's Card is presentational: `isPressable`/`isHoverable`/`isBlurred` were v2, and an interactive card composes a `Button`.
+- **Card** — `variant(CardVariant::{Transparent,Default,Secondary,Tertiary})`, `w`, parts `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`. The card itself is the padded box (`gap-3 p-4` and the capped container radius) and its parts carry none of their own: the header is a plain column, the title is `text-sm` medium on the foreground, the description `text-sm` muted, the content a `gap-1` column — its upstream `flex-1` is dropped, because the pinned-geometry test in `tests/card_deep.rs` measures the card as an auto-height column hugging its parts, which flex-1 regresses — and the footer a centered row. `transparent` paints nothing: no border, background or shadow. v3's Card is presentational: `isPressable`/`isHoverable`/`isBlurred` were v2, and an interactive card composes a `Button`.
 - **Separator** — `orientation`, `variant(SeparatorVariant::{Default,Secondary,Tertiary})`, `mx`/`my`. The weight is `--border-width`; v3 has no per-instance override.
-- **Surface** — `variant(SurfaceVariant::{Transparent,Default,Secondary,Tertiary})`, `padding`, `gap`. `transparent` is the outlined variant, as it is on `Card`.
+- **Surface** — `variant(SurfaceVariant::{Transparent,Default,Secondary,Tertiary})`. The v3 component is a strict root — `relative text-foreground` plus each variant's background and foreground pair — with zero default padding and gap, and no radius or border; `transparent` is just a transparent background (the outlined look in the docs examples comes from their own `className`). `padding`/`gap` are port conveniences, not v3 props: they stand in for the `flex flex-col gap-3 rounded-3xl p-6` skeleton every docs example adds through `className`. v3 also publishes its variant through `SurfaceContext` so children can read it; GPUI has no ancestor context propagation, so nothing downstream reads the surrounding surface here.
 - **Toolbar** — `orientation`, `is_attached`, `gap`
 
 ### Media

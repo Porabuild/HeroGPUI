@@ -7858,8 +7858,12 @@ impl Gallery {
             h::Card::new()
                 .variant(variant)
                 .w(px(260.))
-                .child(h::CardHeader::new().child("Daily report"))
-                .child(h::CardBody::new().child("Sessions are up 12% week over week."))
+                .child(
+                    h::CardHeader::new()
+                        .child(h::CardTitle::new().child("Daily report"))
+                        .child(h::CardDescription::new().child("Traffic summary for the week")),
+                )
+                .child(h::CardContent::new().child("Sessions are up 12% week over week."))
                 .child(
                     h::CardFooter::new().child(
                         h::Button::new(el_id(format!("card-{variant:?}-cta")))
@@ -7878,8 +7882,14 @@ impl Gallery {
                     "Usage",
                     row(vec![h::Card::new()
                         .w(px(260.))
-                        .child(h::CardHeader::new().child("Daily report"))
-                        .child(h::CardBody::new().child("Sessions are up 12% week over week."))
+                        .child(
+                            h::CardHeader::new()
+                                .child(h::CardTitle::new().child("Daily report"))
+                                .child(
+                                    h::CardDescription::new().child("Traffic summary for the week"),
+                                ),
+                        )
+                        .child(h::CardContent::new().child("Sessions are up 12% week over week."))
                         .into_any_element()]),
                 ),
                 (
@@ -7891,7 +7901,7 @@ impl Gallery {
                     row(vec![h::Card::new()
                         .w(px(420.))
                         .child(
-                            h::CardBody::new().child(
+                            h::CardContent::new().child(
                                 gpui::div()
                                     .flex()
                                     .items_center()
@@ -7923,29 +7933,23 @@ impl Gallery {
                 (
                     "With Avatar",
                     row(vec![h::Card::new()
-                        .w(px(300.))
+                        .w(px(200.))
                         .child(
-                            h::CardHeader::new().child(
-                                gpui::div()
-                                    .flex()
-                                    .items_center()
-                                    .gap(px(10.))
-                                    .child(h::Avatar::new().name("Jane Doe").size(Size::Sm))
-                                    .child(
-                                        gpui::div()
-                                            .flex()
-                                            .flex_col()
-                                            .child(gpui::div().child("Jane Doe"))
-                                            .child(
-                                                gpui::div()
-                                                    .text_size(px(11.5))
-                                                    .text_color(cx.colors().muted)
-                                                    .child("Design lead"),
-                                            ),
-                                    ),
-                            ),
+                            gpui::div()
+                                .size(px(56.))
+                                .rounded(h::util::soft_radius(cx))
+                                .bg(cx.colors().default.color),
                         )
-                        .child(h::CardBody::new().child("Shipped the new date picker today."))
+                        .child(
+                            h::CardHeader::new()
+                                .child(h::CardTitle::new().child("Indie Hackers"))
+                                .child(h::CardDescription::new().child("148 members")),
+                        )
+                        .child(
+                            h::CardFooter::new()
+                                .child(h::Avatar::new().name("Martha").size(Size::Sm))
+                                .child("By Martha"),
+                        )
                         .into_any_element()]),
                 ),
                 (
@@ -7953,7 +7957,7 @@ impl Gallery {
                     row(vec![h::Card::new()
                         .w(px(280.))
                         .child(
-                            h::CardBody::new().child(
+                            h::CardContent::new().child(
                                 gpui::div()
                                     .h(px(140.))
                                     .w_full()
@@ -7968,9 +7972,9 @@ impl Gallery {
                     "With Form",
                     row(vec![h::Card::new()
                         .w(px(320.))
-                        .child(h::CardHeader::new().child("Sign in"))
+                        .child(h::CardHeader::new().child(h::CardTitle::new().child("Sign in")))
                         .child(
-                            h::CardBody::new().child(
+                            h::CardContent::new().child(
                                 gpui::div()
                                     .flex()
                                     .flex_col()
@@ -8073,6 +8077,13 @@ impl Gallery {
         let panel = |variant: h::SurfaceVariant| {
             h::Surface::new()
                 .variant(variant)
+                // The upstream examples dress their skeletons through
+                // className (`p-6`, `gap-3`, plus `rounded-3xl`/borders).
+                // className customization stays unavailable, so the demo's
+                // paddings/gaps only exercise the layout knobs this port's
+                // Surface builders expose.
+                .padding(px(24.))
+                .gap(px(12.))
                 .child(h::Typography::heading(6, "Surface content").into_any_element())
                 .child(
                     h::Typography::paragraph(
@@ -8107,6 +8118,12 @@ impl Gallery {
                 (
                     "With form components",
                     col(vec![h::Surface::new()
+                        // Same as the variants panel: upstream adds its
+                        // `p-6` + `gap-4` through className; these explicit
+                        // paddings/gaps exercise the port's own layout
+                        // knobs, and no radius/border is re-added here.
+                        .padding(px(24.))
+                        .gap(px(16.))
                         .child(
                             h::Input::new(self.input_name.clone())
                                 .placeholder("Secondary input")
@@ -11962,8 +11979,10 @@ impl Gallery {
                     "With Card",
                     col(vec![h::Card::new()
                         .w(px(320.))
-                        .child(h::CardHeader::new().child("Release notes"))
-                        .child(h::CardBody::new().child(
+                        .child(
+                            h::CardHeader::new().child(h::CardTitle::new().child("Release notes"))
+                        )
+                        .child(h::CardContent::new().child(
                             h::ScrollShadow::new("ss-card").max_h(px(140.)).children(
                                 (1..=12).map(|n| {
                                     gpui::div().py(px(6.)).child(format!("Change {n}"))

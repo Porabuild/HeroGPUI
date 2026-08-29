@@ -1,8 +1,15 @@
 //! Surface — port of `@heroui/surface`.
 //!
-//! A container that applies surface-level styling and publishes its variant to
-//! descendants. Mirrors the React API: `variant` of
-//! `transparent | default | secondary | tertiary`.
+//! A container that applies surface-level styling. Mirrors the React API:
+//! `variant` of `transparent | default | secondary | tertiary`. Upstream
+//! `.surface` is only `relative text-foreground` plus each variant's
+//! fill/foreground classes; the docs examples add their `flex flex-col gap-3
+//! rounded-3xl p-6` skeleton through `className`, so it is not a Surface
+//! default. This port keeps a minimal column skeleton with zero default
+//! padding and gap so the repository `padding`/`gap` builders work; they are
+//! conveniences, not upstream props. Upstream also publishes its variant
+//! through `SurfaceContext`; GPUI has no ancestor context propagation, so
+//! nothing here reads the surrounding surface.
 
 use gpui::{
     div, px, AnyElement, App, IntoElement, ParentElement, Pixels, RenderOnce, Styled, Window,
@@ -36,8 +43,8 @@ impl Surface {
     pub fn new() -> Self {
         Self {
             variant: SurfaceVariant::default(),
-            padding: px(24.),
-            gap: px(12.),
+            padding: px(0.),
+            gap: px(0.),
             children: Vec::new(),
         }
     }
@@ -47,11 +54,13 @@ impl Surface {
         self
     }
 
+    /// Repository convenience, not an upstream prop.
     pub fn padding(mut self, padding: impl Into<Pixels>) -> Self {
         self.padding = padding.into();
         self
     }
 
+    /// Repository convenience, not an upstream prop.
     pub fn gap(mut self, gap: impl Into<Pixels>) -> Self {
         self.gap = gap.into();
         self
@@ -78,15 +87,12 @@ impl RenderOnce for Surface {
             .flex_col()
             .gap(self.gap)
             .p(self.padding)
-            .rounded(crate::util::container_radius(cx))
             .text_color(colors.foreground);
 
         el = match self.variant {
-            // No fill, so the outline is what marks the surface out — the same
-            // treatment `Card`'s `transparent` variant gets.
-            SurfaceVariant::Transparent => el
-                .border(cx.layout().border_width)
-                .border_color(colors.border),
+            // `.surface--transparent` is only `bg-transparent`; GPUI's default
+            // div background is already transparent, so nothing extra to paint.
+            SurfaceVariant::Transparent => el,
             // Each fill brings its own foreground: `.surface--secondary` is
             // `bg-surface-secondary text-surface-secondary-foreground`, and the
             // text colour was going unset.

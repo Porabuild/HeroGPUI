@@ -70,8 +70,9 @@ pub fn field_radius(cx: &App) -> Pixels {
     layout.capped(layout.field_radius)
 }
 
-/// `min(32px, --radius-3xl)` — cards, surfaces, and every floating panel
-/// (modal, popover, toast, alert, dropdown).
+/// `min(32px, --radius-3xl)` — cards, the table, and every floating panel
+/// (modal, popover, toast, alert, dropdown). Surface is not on the list:
+/// upstream `.surface` declares no radius.
 pub fn container_radius(cx: &App) -> Pixels {
     let layout = cx.layout();
     layout.capped(layout.radius_3xl())

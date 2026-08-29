@@ -480,7 +480,9 @@ impl Page {
             Page::SearchField => "use herogpui::components::input::SearchField;",
             Page::TextArea => "use herogpui::components::textarea::TextArea;",
             Page::TextField => "use herogpui::components::input::TextField;",
-            Page::Card => "use herogpui::components::card::{Card, CardBody};",
+            Page::Card => {
+                "use herogpui::components::card::{Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle};"
+            }
             Page::Separator => "use herogpui::components::separator::Separator;",
             Page::Surface => "use herogpui::components::surface::Surface;",
             Page::Toolbar => "use herogpui::components::toolbar::Toolbar;",
