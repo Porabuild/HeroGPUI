@@ -59,7 +59,7 @@ struct PopoverPositioner {
     placement: PopoverPlacement,
     offset: Pixels,
     should_flip: bool,
-    show_arrow: bool,
+    has_arrow: bool,
     children: Vec<AnyElement>,
 }
 
@@ -70,41 +70,64 @@ struct PopoverResolved {
     side: PopoverSide,
 }
 
-struct PopoverArrow {
+/// The v3 `Popover.Arrow` part.
+///
+/// Upstream v3 draws no arrow unless the part is composed into the panel's
+/// children (`<Popover.Arrow />`). Without `.child(..)` the part renders v3's
+/// built-in 12px curved arrow, rotated for the resolved side. With children,
+/// upstream stamps the single composed element with
+/// `data-slot="popover-overlay-arrow"`, and the `.popover` placement CSS
+/// (`data-placement="bottom|left|right"`) rotates *that* element — so a custom
+/// child is rotated too, not just the built-in curve.
+///
+/// This port is Partial there, deliberately: GPUI 0.2.2 transforms only `svg()`
+/// elements (`with_transformation`), not arbitrary divs, and the resolved side
+/// is known only at prepaint while an `Svg`'s transformation can only be set at
+/// construction — so a caller-provided element (SVG included) takes the built-in
+/// arrow's resolved position but no rotation. The port renders the first
+/// composed child; additional children are ignored, where upstream composes
+/// exactly one element and falls back to the default curve otherwise.
+///
+/// The part reads its placement from the popover that composes it, which is
+/// discovered among the panel's direct children: a `PopoverArrow` nested inside
+/// another element is never resolved and paints nothing, like one rendered
+/// outside any popover.
+pub struct PopoverArrow {
     resolved: std::rc::Rc<std::cell::Cell<Option<PopoverResolved>>>,
     children: Vec<AnyElement>,
 }
 
-impl PopoverArrow {
-    fn new(
-        resolved: std::rc::Rc<std::cell::Cell<Option<PopoverResolved>>>,
-        color: gpui::Hsla,
-    ) -> Self {
-        let children = PopoverSide::ALL
-            .map(|side| {
-                gpui::div()
-                    .absolute()
-                    .size(px(12.))
-                    .debug_selector(|| "popover-arrow".to_owned())
-                    .child(
-                        gpui::svg()
-                            .size(px(12.))
-                            .path(crate::icons::TOOLTIP_ARROW)
-                            .text_color(color)
-                            .with_transformation(gpui::Transformation::rotate(gpui::radians(
-                                side.arrow_rotation(),
-                            ))),
-                    )
-                    .into_any_element()
-            })
-            .into_iter()
-            .collect();
-        Self { resolved, children }
+impl Default for PopoverArrow {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
+impl PopoverArrow {
+    pub fn new() -> Self {
+        Self {
+            resolved: std::rc::Rc::new(std::cell::Cell::new(None)),
+            children: Vec::new(),
+        }
+    }
+}
+
+impl ParentElement for PopoverArrow {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.children.extend(elements);
+    }
+}
+
+/// Layout state of a composed `Popover.Arrow`. Public only because the
+/// `Element` associated type leaks; nothing here is a public contract.
+pub struct PopoverArrowState {
+    leaves: Vec<AnyElement>,
+    layouts: Vec<LayoutId>,
+    custom: bool,
+}
+
 impl Element for PopoverArrow {
-    type RequestLayoutState = Vec<LayoutId>;
+    type RequestLayoutState = PopoverArrowState;
     type PrepaintState = Option<usize>;
 
     fn id(&self) -> Option<gpui::ElementId> {
@@ -122,10 +145,34 @@ impl Element for PopoverArrow {
         window: &mut Window,
         cx: &mut App,
     ) -> (LayoutId, Self::RequestLayoutState) {
-        let children = self
-            .children
+        let custom = !self.children.is_empty();
+        let mut leaves = if custom {
+            std::mem::take(&mut self.children)
+        } else {
+            let color = cx.colors().overlay.background;
+            PopoverSide::ALL
+                .map(|side| {
+                    gpui::div()
+                        .absolute()
+                        .size(px(12.))
+                        .debug_selector(|| "popover-arrow".to_owned())
+                        .child(
+                            gpui::svg()
+                                .size(px(12.))
+                                .path(crate::icons::TOOLTIP_ARROW)
+                                .text_color(color)
+                                .with_transformation(gpui::Transformation::rotate(gpui::radians(
+                                    side.arrow_rotation(),
+                                ))),
+                        )
+                        .into_any_element()
+                })
+                .into_iter()
+                .collect()
+        };
+        let layouts = leaves
             .iter_mut()
-            .map(|child| child.request_layout(window, cx))
+            .map(|leaf| leaf.request_layout(window, cx))
             .collect::<Vec<_>>();
         let layout = window.request_layout(
             Style {
@@ -133,10 +180,17 @@ impl Element for PopoverArrow {
                 display: Display::Flex,
                 ..Style::default()
             },
-            children.iter().copied(),
+            layouts.iter().copied(),
             cx,
         );
-        (layout, children)
+        (
+            layout,
+            PopoverArrowState {
+                leaves,
+                layouts,
+                custom,
+            },
+        )
     }
 
     fn prepaint(
@@ -144,19 +198,23 @@ impl Element for PopoverArrow {
         _: Option<&GlobalElementId>,
         _: Option<&InspectorElementId>,
         _: Bounds<Pixels>,
-        children: &mut Self::RequestLayoutState,
+        state: &mut Self::RequestLayoutState,
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
         let resolved = self.resolved.get()?;
-        let index = resolved.side.index();
-        let bounds = window.layout_bounds(children[index]);
+        let index = if state.custom {
+            0
+        } else {
+            resolved.side.index()
+        };
+        let bounds = window.layout_bounds(state.layouts[index]);
         let offset =
             PopoverPositioner::arrow_origin(resolved.side, resolved.trigger, resolved.panel)
                 - bounds.origin;
         let offset = point(offset.x.round(), offset.y.round());
         window.with_element_offset(offset, |window| {
-            self.children[index].prepaint(window, cx);
+            state.leaves[index].prepaint(window, cx);
         });
         Some(index)
     }
@@ -166,13 +224,13 @@ impl Element for PopoverArrow {
         _: Option<&GlobalElementId>,
         _: Option<&InspectorElementId>,
         _: Bounds<Pixels>,
-        _: &mut Self::RequestLayoutState,
+        state: &mut Self::RequestLayoutState,
         selected: &mut Self::PrepaintState,
         window: &mut Window,
         cx: &mut App,
     ) {
         if let Some(index) = *selected {
-            self.children[index].paint(window, cx);
+            state.leaves[index].paint(window, cx);
         }
     }
 }
@@ -266,7 +324,7 @@ impl PopoverPositioner {
         placement: PopoverPlacement,
         offset: Pixels,
         should_flip: bool,
-        show_arrow: bool,
+        has_arrow: bool,
     ) -> Self {
         Self {
             trigger,
@@ -274,7 +332,7 @@ impl PopoverPositioner {
             placement,
             offset,
             should_flip,
-            show_arrow,
+            has_arrow,
             children: Vec::new(),
         }
     }
@@ -313,7 +371,7 @@ impl PopoverPositioner {
             return preferred;
         }
         let opposite = preferred.opposite();
-        let arrow = if self.show_arrow { px(12.) } else { px(0.) };
+        let arrow = if self.has_arrow { px(12.) } else { px(0.) };
         let extent = match preferred {
             PopoverSide::Top | PopoverSide::Bottom => popup.height + self.offset,
             PopoverSide::Left | PopoverSide::Right => popup.width + self.offset,
@@ -340,7 +398,7 @@ impl PopoverPositioner {
     ) -> gpui::Point<Pixels> {
         use herogpui_core::PlacementAlign;
 
-        let gap = self.offset + if self.show_arrow { px(12.) } else { px(0.) };
+        let gap = self.offset + if self.has_arrow { px(12.) } else { px(0.) };
         let align = self.placement.align();
         let aligned_x = match align {
             PlacementAlign::Start => trigger.left(),
@@ -527,7 +585,6 @@ pub struct Popover {
     placement: PopoverPlacement,
     title: Option<SharedString>,
     show_close_button: bool,
-    show_arrow: bool,
     offset: Pixels,
     should_flip: bool,
     on_open_change: Option<OnOpenChange>,
@@ -546,7 +603,6 @@ impl Popover {
             should_flip: true,
             title: None,
             show_close_button: false,
-            show_arrow: false,
             on_open_change: None,
             children: Vec::new(),
         }
@@ -603,12 +659,6 @@ impl Popover {
         self
     }
 
-    /// Composes `Popover.Arrow` using v3's built-in 12px curved arrow.
-    pub fn show_arrow(mut self, v: bool) -> Self {
-        self.show_arrow = v;
-        self
-    }
-
     /// Toggle handler wired to the trigger click.
     pub fn on_open_change(mut self, f: impl Fn(bool, &mut Window, &mut App) + 'static) -> Self {
         self.on_open_change = Some(std::sync::Arc::new(f));
@@ -623,7 +673,7 @@ impl ParentElement for Popover {
 }
 
 impl RenderOnce for Popover {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // `controlled` takes `cx` mutably, so it precedes the theme tokens.
         let (is_open, open_own) = crate::util::controlled(
             window,
@@ -802,13 +852,17 @@ impl RenderOnce for Popover {
         if self.title.is_some() || self.show_close_button {
             panel = panel.child(header_row);
         }
-        panel = panel.children(self.children);
-        if self.show_arrow {
-            panel = panel.child(PopoverArrow::new(
-                resolved.clone(),
-                colors.overlay.background,
-            ));
+        // v3 composes the arrow as a part inside the panel's children. Hand
+        // every composed `Popover.Arrow` the resolved placement it needs to
+        // draw, and let the positioner reserve the arrow's 12px of gap.
+        let mut has_arrow = false;
+        for child in &mut self.children {
+            if let Some(arrow) = child.downcast_mut::<PopoverArrow>() {
+                arrow.resolved = resolved.clone();
+                has_arrow = true;
+            }
         }
+        panel = panel.children(self.children);
 
         // The panel owns the dialog scope. Its handle is not a tab stop, but
         // the close affordance and child controls are, and Tab wraps among
@@ -864,7 +918,7 @@ impl RenderOnce for Popover {
             self.placement,
             self.offset,
             self.should_flip,
-            self.show_arrow,
+            has_arrow,
         )
         .child(panel);
         root = root.child(positioner);

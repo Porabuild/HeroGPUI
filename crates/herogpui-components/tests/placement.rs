@@ -38,7 +38,7 @@ use gpui::{
 use harness::{click, events, open_host, press, Events};
 use herogpui_components::{
     Button, Drawer, DrawerPlacement, Modal, ModalPlacement, ModalScroll, ModalSize, Placement,
-    Popover,
+    Popover, PopoverArrow,
 };
 
 /// Pins the layout by enabling reduced motion **before** the first frame.
@@ -642,8 +642,8 @@ fn popover_should_flip_moves_an_overflowing_bottom_panel_above(cx: &mut TestAppC
                     .default_open(true)
                     .placement(Placement::Bottom)
                     .should_flip(true)
-                    .show_arrow(true)
                     .show_close_button(false)
+                    .child(PopoverArrow::new())
                     .child(
                         gpui::div()
                             .id("pl-pop-flip-probe")
@@ -715,6 +715,161 @@ fn popover_should_flip_false_keeps_the_requested_overflowing_side(cx: &mut TestA
     assert!(
         f32::from(bounds.origin.y) >= 1060.,
         "shouldFlip=false must preserve the requested bottom orientation; got {bounds:?}"
+    );
+}
+
+/// v3's `Popover.Arrow` is a composed part, not a root prop: a popover whose
+/// children contain no arrow part draws no arrow.
+///
+/// Geometry: the trigger is 100x36 at (0,0) and `Bottom` keeps the 8px offset.
+/// With no arrow part composed the positioner reserves no arrow gap, so the
+/// 68px panel spans y=44..112 and its probe y=60..96. `popover-arrow` is the
+/// debug selector the built-in arrow leaf carries.
+#[gpui::test]
+fn popover_without_the_arrow_part_renders_no_arrow(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, || {
+        Popover::new(gpui::div().w(px(100.)).h(px(36.)).child("Trigger"))
+            .id("pl-pop-no-arrow")
+            .default_open(true)
+            .placement(Placement::Bottom)
+            .show_close_button(false)
+            .child(
+                gpui::div()
+                    .id("pl-pop-no-arrow-probe")
+                    .debug_selector(|| "pl-pop-no-arrow-probe".to_owned())
+                    .w(px(40.))
+                    .h(px(36.)),
+            )
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    assert!(
+        cx.debug_bounds("pl-pop-no-arrow-probe").is_some(),
+        "the open panel must render"
+    );
+    assert!(
+        cx.debug_bounds("popover-arrow").is_none(),
+        "omitting the Popover.Arrow part must render no arrow"
+    );
+}
+
+/// A composed `Popover.Arrow` takes the built-in arrow's resolved position.
+///
+/// With `Bottom` and the trigger 100x36 at (0,0), the arrow leaf lands at
+/// (44, 44): 6px left of the trigger centre and 12px above the panel top
+/// (56) minus the arrow's own 12px. The same coordinates the built-in leaf
+/// is proven at by the flip test above.
+#[gpui::test]
+fn popover_arrow_part_renders_custom_arrow_content(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, || {
+        Popover::new(gpui::div().w(px(100.)).h(px(36.)).child("Trigger"))
+            .id("pl-pop-custom-arrow")
+            .default_open(true)
+            .placement(Placement::Bottom)
+            .show_close_button(false)
+            .child(
+                PopoverArrow::new().child(
+                    gpui::div()
+                        .id("pl-pop-custom-arrow-tip")
+                        .debug_selector(|| "pl-pop-custom-arrow-tip".to_owned())
+                        .w(px(12.))
+                        .h(px(12.)),
+                ),
+            )
+            .child(
+                gpui::div()
+                    .id("pl-pop-custom-arrow-probe")
+                    .w(px(40.))
+                    .h(px(36.)),
+            )
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    let tip = cx
+        .debug_bounds("pl-pop-custom-arrow-tip")
+        .expect("a composed Popover.Arrow with custom content must render");
+    assert_eq!(
+        (tip.origin.x, tip.origin.y),
+        (px(44.), px(44.)),
+        "the custom arrow element must take the resolved arrow position; got {tip:?}"
+    );
+}
+
+/// A `Popover.Arrow` nested inside another panel child is never resolved and
+/// paints nothing: the popover hands the placement only to arrow parts that
+/// are direct children, so a wrapped one must not silently draw an arrow at
+/// some arbitrary spot.
+#[gpui::test]
+fn popover_arrow_nested_in_another_child_renders_no_arrow(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, || {
+        Popover::new(gpui::div().w(px(100.)).h(px(36.)).child("Trigger"))
+            .id("pl-pop-nested-arrow")
+            .default_open(true)
+            .placement(Placement::Bottom)
+            .show_close_button(false)
+            .child(
+                gpui::div()
+                    .debug_selector(|| "pl-pop-nested-arrow-wrap".to_owned())
+                    .child(PopoverArrow::new()),
+            )
+            .child(
+                gpui::div()
+                    .id("pl-pop-nested-arrow-probe")
+                    .debug_selector(|| "pl-pop-nested-arrow-probe".to_owned())
+                    .w(px(40.))
+                    .h(px(36.)),
+            )
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    assert!(
+        cx.debug_bounds("pl-pop-nested-arrow-wrap").is_some(),
+        "the wrapper and the open panel must render"
+    );
+    assert!(
+        cx.debug_bounds("pl-pop-nested-arrow-probe").is_some(),
+        "the open panel must render"
+    );
+    assert!(
+        cx.debug_bounds("popover-arrow").is_none(),
+        "a Popover.Arrow that is not a direct child of Popover must render no arrow"
+    );
+}
+
+/// A `Popover.Arrow` rendered outside any popover has no placement to read and
+/// paints nothing. The marker proves the frame actually rendered, so the
+/// arrow's absence is evidence and not an empty scene.
+#[gpui::test]
+fn popover_arrow_outside_a_popover_renders_nothing(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                gpui::div()
+                    .debug_selector(|| "pl-pop-outside-marker".to_owned())
+                    .w(px(40.))
+                    .h(px(36.)),
+            )
+            .child(PopoverArrow::new())
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    assert!(
+        cx.debug_bounds("pl-pop-outside-marker").is_some(),
+        "the host frame must render"
+    );
+    assert!(
+        cx.debug_bounds("popover-arrow").is_none(),
+        "a Popover.Arrow outside a popover must paint nothing"
     );
 }
 

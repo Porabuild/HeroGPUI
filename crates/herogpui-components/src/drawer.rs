@@ -43,6 +43,39 @@ struct DragState {
     active: bool,
 }
 
+/// `Drawer.CloseTrigger` — the drawer's close slot, `absolute end-4 top-4`.
+///
+/// v3 spells visibility by composing or omitting the part: a composed
+/// [`DrawerCloseTrigger`] renders in the slot and an omitted one leaves it
+/// bare panel padding — there is no `hideCloseButton` and no automatic
+/// stand-in. The part is v3's wired `CloseButton` (`slot="close"`), always
+/// wired to the drawer's dismissal paths ([`Drawer::on_close`] plus
+/// [`Drawer::on_open_change`], the same report Escape, the drag release and
+/// the backdrop make) and closing regardless of `is_dismissible`, like v3's
+/// composed trigger. Custom `children` only replace the button's glyph — the
+/// press still runs the drawer's close action. With neither dismissal
+/// callback on the drawer — or composed outside a [`Drawer`] — the part
+/// draws nothing.
+pub struct DrawerCloseTrigger {
+    on_dismiss: Option<OnClose>,
+    /// This trigger's index within its dialog; see
+    /// [`crate::modal::CloseTriggerPart::wire`].
+    slot: usize,
+    children: Vec<AnyElement>,
+}
+
+impl DrawerCloseTrigger {
+    pub fn new() -> Self {
+        Self {
+            on_dismiss: None,
+            slot: 0,
+            children: Vec::new(),
+        }
+    }
+}
+
+crate::modal::close_trigger_part!(DrawerCloseTrigger, "drawer-close");
+
 /// HeroUI Drawer (controlled).
 #[derive(IntoElement)]
 pub struct Drawer {
@@ -54,7 +87,6 @@ pub struct Drawer {
     backdrop: Backdrop,
     is_keyboard_dismiss_disabled: bool,
     on_open_change: Option<OnOpenChange>,
-    hide_close_button: bool,
     title: Option<SharedString>,
     body: Vec<AnyElement>,
     footer: Vec<(AnyElement, bool)>,
@@ -82,7 +114,6 @@ impl Drawer {
             backdrop: Backdrop::Opaque,
             is_keyboard_dismiss_disabled: false,
             on_open_change: None,
-            hide_close_button: false,
             title: None,
             body: Vec::new(),
             footer: Vec::new(),
@@ -124,11 +155,6 @@ impl Drawer {
         self
     }
 
-    pub fn hide_close_button(mut self, v: bool) -> Self {
-        self.hide_close_button = v;
-        self
-    }
-
     pub fn title(mut self, t: impl Into<SharedString>) -> Self {
         self.title = Some(t.into());
         self
@@ -162,7 +188,7 @@ impl ParentElement for Drawer {
 }
 
 impl RenderOnce for Drawer {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // v3 keeps a closing panel on screen for its `slide-out-to-*` run.
         let (phase, dismissal_token) = crate::util::overlay_scope_with_exit(
             window,
@@ -226,6 +252,35 @@ impl RenderOnce for Drawer {
         // The panel's outside-press dismissal; the drag release moves the
         // shared `dismiss` below, so this clone is where the two split.
         let press_out_dismiss = dismiss.clone();
+
+        // v3 composes the close trigger as a child part. Pull every composed
+        // `DrawerCloseTrigger` out of the body children and the footer row —
+        // so neither slot swallows it — and hand each the drawer's dismissal
+        // paths to wire the default `CloseButton` with, regardless of
+        // `is_dismissible`.
+        let mut footer_els: Vec<AnyElement> = std::mem::take(&mut self.footer)
+            .into_iter()
+            .map(|(child, _)| child)
+            .collect();
+        let mut close_triggers = crate::modal::take_close_triggers::<DrawerCloseTrigger>(
+            &mut self.body,
+            dismiss.clone(),
+            0,
+        );
+        close_triggers.extend(crate::modal::take_close_triggers::<DrawerCloseTrigger>(
+            &mut footer_els,
+            dismiss.clone(),
+            close_triggers.len(),
+        ));
+        // The composed triggers are out of the row; the interactivity mark is
+        // recomputed for what remains.
+        self.footer = footer_els
+            .into_iter()
+            .map(|mut child| {
+                let interactive = child.downcast_mut::<gpui::Stateful<gpui::Div>>().is_some();
+                (child, interactive)
+            })
+            .collect();
 
         // `.drawer__header` is `flex flex-col gap-3` with no padding of its
         // own: the dialog's `p-6` is the inset, and the close trigger is
@@ -404,16 +459,17 @@ impl RenderOnce for Drawer {
             panel = panel.child(footer.child(footer_content));
         }
 
-        // `.drawer__close-trigger` is `absolute end-4 top-4`.
-        if !self.hide_close_button && self.is_dismissible {
-            if let Some(on_close) = dismiss.clone() {
-                panel = panel.child(
-                    gpui::div().absolute().top(px(16.)).right(px(16.)).child(
-                        crate::close_button::CloseButton::new("drawer-close")
-                            .on_press(move |ev, window, cx| on_close(ev, window, cx)),
-                    ),
-                );
-            }
+        // `.drawer__close-trigger` is `absolute end-4 top-4`. v3 renders a
+        // close affordance only where the caller composes the part; an
+        // omitted trigger leaves the spot bare panel padding.
+        for trigger in close_triggers {
+            panel = panel.child(
+                gpui::div()
+                    .absolute()
+                    .top(px(16.))
+                    .right(px(16.))
+                    .child(trigger),
+            );
         }
 
         // anchor to the requested edge, pulled out by however far the drag has

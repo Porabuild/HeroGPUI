@@ -270,6 +270,10 @@ PROSE_ELSEWHERE = {
     ('Modal', 'hover'): 'close_button.rs',
     ('Drawer', 'hover'): 'close_button.rs',
     ('AlertDialog', 'active'): 'button.rs',
+    # Modal's page scopes Active to the close button alone -- its panel and
+    # trigger hold no press of their own, so the evidence is the close
+    # button's `.active`.
+    ('Modal', 'active'): 'close_button.rs',
     # The drawer's own sheet presses `.drawer__trigger` (built by the caller);
     # inside the component the only pressed thing is the composed close
     # button, which is where the evidence lives.
@@ -344,7 +348,74 @@ def statuses(path):
     return sorted(set(re.findall(r'status-[a-z-]+', text)))
 
 
+def self_test():
+    """Known-positive and known-negative proof for the Modal press mapping.
+
+    Modal's prose scopes its Active state to the close button, and
+    `close_button.rs` draws the press through `.active`. The shared `active`
+    pattern is deliberately loose -- the bare word matches -- so a dishonest
+    remap to any module that merely mentions "active" would satisfy the
+    prose pass. The positives pin the mapping to `close_button.rs` and to
+    the concrete `.active(` call. The negative is the regression this test
+    is for: before the mapping existed, the prose pass read `modal.rs`,
+    which matches nothing, so removing the mapping (or the close button's
+    `.active`) must resurface as a loud MISSING, never a silent pass.
+    """
+    failures = []
+
+    def expect(condition, message):
+        if not condition:
+            failures.append(message)
+
+    def module_source(module):
+        path = SRC + module
+        return (io.open(path, encoding='utf-8', errors='replace').read()
+                if os.path.exists(path) else '')
+
+    def mapped_source(page, state, elsewhere):
+        module = elsewhere.get((page, state)) or module_for(page)
+        return module_source(module)
+
+    pattern = (PROSE_EVIDENCE_OVERRIDE.get(('Modal', 'active'))
+               or PROSE_EVIDENCE.get('active'))
+    expect(pattern is not None, 'no PROSE_EVIDENCE for the active state')
+
+    # Known positive: the mapping points at the close button, and the close
+    # button really draws its press through `.active`.
+    expect(PROSE_ELSEWHERE.get(('Modal', 'active')) == 'close_button.rs',
+           "Modal's active state is not mapped to close_button.rs")
+    close_button = module_source('close_button.rs')
+    expect(bool(re.search(r'\.active\(', close_button)),
+           'close_button.rs no longer draws its press through `.active`')
+    if pattern:
+        expect(bool(re.search(pattern, close_button)),
+               'close_button.rs no longer matches the active evidence pattern')
+
+    # Known negative: without the mapping the prose pass falls back to
+    # modal.rs, which matches nothing -- so deleting the mapping cannot pass
+    # silently.
+    without_modal = {k: v for k, v in PROSE_ELSEWHERE.items()
+                     if k != ('Modal', 'active')}
+    if pattern:
+        expect(not re.search(pattern, mapped_source('Modal', 'active',
+                                                    without_modal)),
+               'modal.rs now matches the active pattern on its own; the '
+               'mapping is no longer load-bearing and this test guards '
+               'nothing')
+
+    if failures:
+        print('self-test FAIL')
+        for failure in failures:
+            print('- %s' % failure)
+        return 1
+    print('self-test PASS: Modal active resolves to close_button.rs and its '
+          '`.active` press; without the mapping modal.rs matches nothing')
+    return 0
+
+
 def main():
+    if '--self-test' in sys.argv[1:]:
+        return self_test()
     if not os.path.exists(BUNDLE):
         print('no docs bundle at %s' % BUNDLE)
         return 1

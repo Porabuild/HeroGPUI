@@ -55,8 +55,9 @@ use gpui::{
 };
 use harness::{click, events, open_host, press, tooltip_open_probe};
 use herogpui_components::{
-    dismiss_toast, toast_store, util, AlertDialog, AlertDialogSize, Button, Drawer,
-    DrawerPlacement, Modal, Popover, Toast, Tooltip, TooltipTrigger,
+    dismiss_toast, toast_store, util, AlertDialog, AlertDialogCloseTrigger, AlertDialogSize,
+    Button, Drawer, DrawerPlacement, Modal, ModalCloseTrigger, Popover, Toast, Tooltip,
+    TooltipTrigger, Variant,
 };
 
 /// Pins the layout by enabling reduced motion **before** the first frame.
@@ -122,7 +123,7 @@ fn slow_drag(cx: &mut VisualTestContext, from: (f32, f32), to: (f32, f32)) {
 // - The Md modal panel spans the window centre (960, 540) plus half of
 //   `max-w-md` (448 / 2 = 224): x [736..1184]. With no title and a single
 //   36px button body it is p(24) + 36 = 84px tall: y [498..582].
-// - The built-in close trigger sits `absolute end-4 top-4`: centre x is
+// - The composed close trigger sits `absolute end-4 top-4`: centre x is
 //   1184 - 16 - 12 = 1156, but the stretched inside button still covers
 //   x [760..1160], so the press clears it at x = 1164 (still inside the
 //   24px button at [1144..1168]).
@@ -325,8 +326,12 @@ fn modal_non_dismissible_ignores_backdrop_presses(cx: &mut TestAppContext) {
     );
 }
 
+/// A composed `ModalCloseTrigger` without children is v3's bare
+/// `<Modal.CloseTrigger />`: the standard `CloseButton` in the
+/// `absolute end-4 top-4` slot, wired to the modal's dismissal paths. The
+/// pointer press and the keyboard activation must each dismiss exactly once.
 #[gpui::test]
-fn modal_close_button_reports(cx: &mut TestAppContext) {
+fn modal_default_close_trigger_reports_the_close(cx: &mut TestAppContext) {
     still();
     let rec = events();
     let recorded = rec.clone();
@@ -344,6 +349,7 @@ fn modal_close_button_reports(cx: &mut TestAppContext) {
         Modal::new()
             .id("ovl-modal-x")
             .is_open(is_open)
+            .child(ModalCloseTrigger::new())
             .child(
                 Button::new("ovl-modal-x-inside")
                     .label("Inside")
@@ -398,6 +404,336 @@ fn modal_close_button_reports(cx: &mut TestAppContext) {
     assert!(
         pressed.borrow().is_empty(),
         "Enter must have activated the close button, not the inside one"
+    );
+}
+
+/// A `ModalCloseTrigger` with custom children still renders v3's wired
+/// `CloseButton` — the children only replace its glyph — so pressing the
+/// composed content reports the modal's own dismissal through
+/// `on_open_change(false)`, exactly like the bare part does.
+#[gpui::test]
+fn modal_custom_close_trigger_children_replace_only_the_glyph(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let recorded = rec.clone();
+    let open_flag = Rc::new(RefCell::new(true));
+
+    let cx = open_host(cx, move || {
+        let recorded = rec.clone();
+        let open_flag = open_flag.clone();
+        let is_open = *open_flag.borrow();
+        Modal::new()
+            .id("ovl-modal-custom-x")
+            .is_open(is_open)
+            .child(
+                ModalCloseTrigger::new().child(
+                    gpui::div()
+                        .size(px(12.))
+                        .rounded(px(6.))
+                        .bg(gpui::rgb(0xff3366)),
+                ),
+            )
+            .on_open_change(move |v, window, _| {
+                *open_flag.borrow_mut() = v;
+                recorded.borrow_mut().push(format!("open:{v}"));
+                window.refresh();
+            })
+            .into_any_element()
+    });
+
+    // The panel is bare (no title, body or footer), so it is the 448px dialog
+    // inset by `p-6`: x [736..1184], y [516..564]. The slot is `absolute
+    // end-4 top-4`, a 24px trigger at x [1144..1168], y [532..556]. The
+    // press answers with the modal's own close report: the custom children
+    // replaced the button's glyph, not its wiring.
+    click(cx, 1156., 544.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["open:false"],
+        "the composed custom content must still report the modal's close"
+    );
+
+    // Keyboard path: the trigger is the dialog's first tab stop, and Enter
+    // must report the same close exactly once more.
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["open:false", "open:false"],
+        "the composed trigger must be reachable and activatable by keyboard"
+    );
+}
+
+/// With no dismissal callback to wire, a composed `ModalCloseTrigger` renders
+/// nothing at all — not even its custom children: v3's part is the dialog's
+/// wired close button, and without the close there is nothing to draw.
+#[gpui::test]
+fn modal_callback_less_close_trigger_renders_nothing(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let probed = rec.clone();
+    let inside = events();
+    let pressed = inside.clone();
+
+    let cx = open_host(cx, move || {
+        let probed = rec.clone();
+        let pressed = inside.clone();
+        // No `on_open_change` and no `on_close`: the trigger has nothing to
+        // wire, so it must draw nothing — the probe child would answer if it
+        // were rendered bare in the slot.
+        Modal::new()
+            .id("ovl-modal-bare-x")
+            .is_open(true)
+            .child(
+                ModalCloseTrigger::new().child(
+                    gpui::div()
+                        .id("ovl-modal-bare-x-slot")
+                        .size(px(24.))
+                        .on_click(move |_, _, _| probed.borrow_mut().push("slot".into())),
+                ),
+            )
+            .child(
+                Button::new("ovl-modal-bare-x-inside")
+                    .label("Inside")
+                    .on_press(move |_, _, _| pressed.borrow_mut().push("inside".into())),
+            )
+            .into_any_element()
+    });
+
+    // The panel is up: the inside button answers.
+    click(cx, 960., 540.);
+    assert_eq!(pressed.borrow().as_slice(), ["inside"]);
+
+    // The slot press records nothing: with no callback there is no wired
+    // `CloseButton` and no composed stand-in in the `absolute end-4 top-4`
+    // spot.
+    click(cx, 1164., 526.);
+    assert!(
+        probed.borrow().is_empty(),
+        "a callback-less close trigger must render nothing: {:?}",
+        probed.borrow()
+    );
+}
+
+/// A `ModalCloseTrigger` composed through `footer_child` is not swallowed by
+/// the footer row: it is pulled into the same `absolute end-4 top-4` slot and
+/// wired like a part composed among the body children.
+#[gpui::test]
+fn modal_footer_child_close_trigger_is_pulled_into_the_slot(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let recorded = rec.clone();
+    let inside = events();
+    let pressed = inside.clone();
+    let open_flag = Rc::new(RefCell::new(true));
+
+    let cx = open_host(cx, move || {
+        let recorded = rec.clone();
+        let pressed = inside.clone();
+        let open_flag = open_flag.clone();
+        let is_open = *open_flag.borrow();
+        Modal::new()
+            .id("ovl-modal-footer-x")
+            .is_open(is_open)
+            .child(
+                Button::new("ovl-modal-footer-x-inside")
+                    .label("Inside")
+                    .on_press(move |_, _, _| pressed.borrow_mut().push("inside".into())),
+            )
+            .footer_child(ModalCloseTrigger::new())
+            .on_open_change(move |v, window, _| {
+                *open_flag.borrow_mut() = v;
+                recorded.borrow_mut().push(format!("open:{v}"));
+                window.refresh();
+            })
+            .into_any_element()
+    });
+
+    // The panel is up: the inside button answers.
+    click(cx, 960., 540.);
+    assert_eq!(pressed.borrow().as_slice(), ["inside"]);
+
+    // The trigger was the only footer child, so the footer row retires with
+    // it and the panel keeps the body geometry: the slot sits at
+    // x [1144..1168], y [514..538], and its press closes the modal.
+    click(cx, 1164., 526.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["open:false"],
+        "a footer-composed close trigger must render in the slot, wired"
+    );
+}
+
+/// Two composed `ModalCloseTrigger`s — one among the body children, one
+/// through `footer_child` — must be two independent closers. Both spell the
+/// shared `close_trigger_part!` macro, whose button id is suffixed with the
+/// trigger's slot index: the anonymous wrappers around the triggers push
+/// nothing onto gpui's element-id path, so a constant id would key both
+/// CloseButtons' tab-stop state at the same path and collapse the dialog's
+/// three stops into two.
+#[gpui::test]
+fn modal_two_composed_close_triggers_keep_their_own_tab_stops(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let recorded_in = rec.clone();
+    let inside = events();
+    let pressed_in = inside.clone();
+    // The owner records the close reports but deliberately never flips
+    // `is_open`: the dialog stays open and keeps the focus, so both triggers
+    // can be driven without reopening between them.
+    let open_flag = Rc::new(RefCell::new(true));
+
+    let cx = open_host(cx, move || {
+        let recorded = recorded_in.clone();
+        let pressed = pressed_in.clone();
+        let is_open = *open_flag.borrow();
+        Modal::new()
+            .id("ovl-modal-2x")
+            .is_open(is_open)
+            .child(
+                Button::new("ovl-modal-2x-inside")
+                    .label("Inside")
+                    .on_press(move |_, _, _| pressed.borrow_mut().push("inside".into())),
+            )
+            .child(ModalCloseTrigger::new())
+            .footer_child(ModalCloseTrigger::new())
+            .on_open_change(move |v, _, _| recorded.borrow_mut().push(format!("open:{v}")))
+            .into_any_element()
+    });
+
+    // From the dialog's own focus: Tab lands on the inside button, the second
+    // Tab on the body trigger, and Enter must report the close exactly once.
+    press(cx, "tab tab");
+    press(cx, "enter");
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false"],
+        "the body trigger must be its own wired stop"
+    );
+    assert!(
+        inside.borrow().is_empty(),
+        "the first Enter must have activated a trigger, not the inside button"
+    );
+
+    // The third Tab reaches the footer trigger: a second, distinct stop that
+    // reports the same close exactly once more.
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false", "open:false"],
+        "the footer trigger must answer independently of the body one"
+    );
+    assert!(inside.borrow().is_empty());
+
+    // One more Tab wraps the trap back onto the inside button — proof that
+    // the dialog really cycles three stops, not two.
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false", "open:false"],
+        "the cycle must have exhausted both triggers"
+    );
+    assert_eq!(
+        inside.borrow().as_slice(),
+        ["inside"],
+        "the third stop must be the inside button again"
+    );
+}
+
+/// An omitted `ModalCloseTrigger` leaves the `absolute end-4 top-4` spot as
+/// bare panel padding — v3 has no `hideCloseButton` and no automatic
+/// stand-in — so a press there records nothing, while the keyboard dismissal
+/// stays intact.
+#[gpui::test]
+fn modal_omitted_close_trigger_keeps_escape_dismissal(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let recorded = rec.clone();
+    let open_flag = Rc::new(RefCell::new(true));
+
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        let is_open = *open_flag.borrow();
+        Modal::new()
+            .id("ovl-modal-no-x")
+            .is_open(is_open)
+            .on_open_change({
+                let open_flag = open_flag.clone();
+                move |v, window, _| {
+                    *open_flag.borrow_mut() = v;
+                    recorded.borrow_mut().push(format!("open:{v}"));
+                    window.refresh();
+                }
+            })
+            .into_any_element()
+    });
+
+    // Same geometry as the composed test above: a press where the close
+    // trigger would sit lands inside the panel on its own padding, so the
+    // outside-press dismissal must not fire either.
+    click(cx, 1156., 544.);
+    assert!(
+        rec.borrow().is_empty(),
+        "an omitted close trigger must leave its spot inert: {:?}",
+        rec.borrow()
+    );
+
+    press(cx, "escape");
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false"],
+        "escape must still dismiss a modal without a close trigger"
+    );
+}
+
+/// `is_dismissible` gates the backdrop (and Escape, separately), never the
+/// composed close part: a non-dismissible modal that composes the default
+/// `ModalCloseTrigger` must still close from it — v3's Non-Dismissable
+/// example composes the trigger and its close slot is not the backdrop.
+#[gpui::test]
+fn modal_non_dismissible_still_closes_from_a_composed_close_trigger(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let recorded = rec.clone();
+    let open_flag = Rc::new(RefCell::new(true));
+
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        let is_open = *open_flag.borrow();
+        Modal::new()
+            .id("ovl-modal-nd-x")
+            .is_open(is_open)
+            .is_dismissible(false)
+            .child(ModalCloseTrigger::new())
+            .on_open_change({
+                let open_flag = open_flag.clone();
+                move |v, window, _| {
+                    *open_flag.borrow_mut() = v;
+                    recorded.borrow_mut().push(format!("open:{v}"));
+                    window.refresh();
+                }
+            })
+            .into_any_element()
+    });
+
+    // The backdrop press is still off the table for a non-dismissible modal.
+    click(cx, 100., 100.);
+    assert!(
+        rec.borrow().is_empty(),
+        "a non-dismissible backdrop press must not dismiss the modal"
+    );
+
+    // The panel is bare (no title, body or footer), so it is the 448px dialog
+    // inset by `p-6`: x [736..1184], y [516..564]. The slot is `absolute
+    // end-4 top-4`, a 24px trigger at x [1144..1168], y [532..556], and its
+    // press must close the modal exactly once.
+    click(cx, 1156., 544.);
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false"],
+        "the composed close trigger must close a non-dismissible modal"
     );
 }
 
@@ -664,8 +1000,15 @@ fn alert_dialog_actions_report(cx: &mut TestAppContext) {
     );
 }
 
+/// The composed default `AlertDialogCloseTrigger` closes even when the
+/// dialog is not dismissible and Escape is disabled. A default alert dialog
+/// is not dismissible and keeps Escape disabled, and v3 still composes
+/// `AlertDialog.CloseTrigger` in every one of those examples: the close slot
+/// is not the backdrop, so the part must render and close regardless of
+/// `is_dismissible`. The cancel handler is registered on purpose: a v3 close
+/// slot is RAC's `state.close()`, never the cancel action.
 #[gpui::test]
-fn alert_dialog_close_trigger_closes_even_when_not_dismissible(cx: &mut TestAppContext) {
+fn alert_dialog_default_close_trigger_closes_even_when_not_dismissible(cx: &mut TestAppContext) {
     still();
     let rec = events();
     let cancels = events();
@@ -681,15 +1024,10 @@ fn alert_dialog_close_trigger_closes_even_when_not_dismissible(cx: &mut TestAppC
         let cancels = cancels_in.clone();
         let open_flag = open_flag.clone();
         let is_open = *open_flag.borrow();
-        // A default alert dialog is not dismissible and keeps Escape
-        // disabled, and v3 still composes `AlertDialog.CloseTrigger` in
-        // every one of those examples: the close slot is not the backdrop,
-        // so the built-in trigger must render and close regardless of
-        // `is_dismissible`. The cancel handler is registered on purpose: a
-        // v3 close slot is RAC's `state.close()`, never the cancel action.
         AlertDialog::new("Delete everything?")
             .id("ovl-alert-x")
             .is_open(is_open)
+            .child(AlertDialogCloseTrigger::new())
             .on_open_change(move |v, window, _| {
                 *open_flag.borrow_mut() = v;
                 recorded.borrow_mut().push(format!("open:{v}"));
@@ -750,6 +1088,313 @@ fn alert_dialog_close_trigger_closes_even_when_not_dismissible(cx: &mut TestAppC
     );
 }
 
+/// An omitted `AlertDialogCloseTrigger` leaves the `absolute end-4 top-4`
+/// spot as bare panel padding — no automatic stand-in — while Escape, whose
+/// default is disabled here, still dismisses once enabled.
+#[gpui::test]
+fn alert_dialog_omitted_close_trigger_keeps_escape_dismissal(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let recorded = rec.clone();
+    let open_flag = Rc::new(RefCell::new(true));
+
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        let open_flag = open_flag.clone();
+        let is_open = *open_flag.borrow();
+        AlertDialog::new("Delete everything?")
+            .id("ovl-alert-no-x")
+            .is_open(is_open)
+            .is_keyboard_dismiss_disabled(false)
+            .on_open_change(move |v, window, _| {
+                *open_flag.borrow_mut() = v;
+                recorded.borrow_mut().push(format!("open:{v}"));
+                window.refresh();
+            })
+            .into_any_element()
+    });
+
+    // No trigger: the press lands on the panel's own padding, which is inside
+    // the panel, so nothing records (the panel's outside-press dismissal only
+    // fires outside it — and this dialog is not dismissible anyway).
+    click(cx, 1156., 504.);
+    assert!(
+        rec.borrow().is_empty(),
+        "an omitted close trigger must leave its spot inert: {:?}",
+        rec.borrow()
+    );
+
+    // Escape is its own dismissal path, wired independently of the part.
+    press(cx, "escape");
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false"],
+        "escape must still dismiss an alert dialog without a close trigger"
+    );
+}
+
+/// An `AlertDialogCloseTrigger` with custom children still renders v3's wired
+/// `CloseButton` — the children only replace its glyph — so pressing the
+/// composed content reports `on_open_change(false)`, and `on_cancel` never
+/// hears about it: a close slot is a close, never a cancel.
+#[gpui::test]
+fn alert_dialog_custom_close_trigger_children_replace_only_the_glyph(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let cancels = events();
+    let open_flag = Rc::new(RefCell::new(true));
+    let recorded_in = rec.clone();
+    let cancels_in = cancels.clone();
+
+    let cx = open_host(cx, move || {
+        let recorded = recorded_in.clone();
+        let cancels = cancels_in.clone();
+        let open_flag = open_flag.clone();
+        let is_open = *open_flag.borrow();
+        AlertDialog::new("Delete everything?")
+            .id("ovl-alert-custom-x")
+            .is_open(is_open)
+            .child(
+                AlertDialogCloseTrigger::new().child(
+                    gpui::div()
+                        .size(px(12.))
+                        .rounded(px(6.))
+                        .bg(gpui::rgb(0xff3366)),
+                ),
+            )
+            .on_open_change(move |v, window, _| {
+                *open_flag.borrow_mut() = v;
+                recorded.borrow_mut().push(format!("open:{v}"));
+                window.refresh();
+            })
+            .on_cancel(move |_, _, _| cancels.borrow_mut().push("cancel".into()))
+            .into_any_element()
+    });
+
+    // The panel is the Md width at x [736..1184] and y [476..604]; the
+    // trigger is `absolute end-4 top-4`, a 24px button spanning
+    // [1144..1168] x [492..516], so its centre (1156, 504) clears the action
+    // row below it. The press reports the dialog's own close: the custom
+    // children replaced the button's glyph, not its wiring.
+    click(cx, 1156., 504.);
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false"],
+        "the composed custom content must still report the dialog's close"
+    );
+    assert!(
+        cancels.borrow().is_empty(),
+        "the close trigger must never report a cancel"
+    );
+
+    // Escape is disabled by default and stays disabled; the trigger is the
+    // dialog's third tab stop (cancel, confirm, it), and Enter reports the
+    // close exactly once more.
+    press(cx, "tab tab tab");
+    press(cx, "enter");
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false", "open:false"],
+        "the composed trigger must be reachable and activatable by keyboard"
+    );
+    assert!(
+        cancels.borrow().is_empty(),
+        "the keyboard close path must never report a cancel either"
+    );
+}
+
+/// With no `on_open_change`, a composed `AlertDialogCloseTrigger` renders
+/// nothing at all — not even its custom children — while the dialog's own
+/// body stays interactive.
+#[gpui::test]
+fn alert_dialog_callback_less_close_trigger_renders_nothing(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let probed = rec.clone();
+    let body = events();
+    let body_probed = body.clone();
+
+    let cx = open_host(cx, move || {
+        let probed = rec.clone();
+        let body_probed = body.clone();
+        // No `on_open_change`: the trigger has no close to wire and must draw
+        // nothing — the probe child would answer if it were rendered bare in
+        // the slot.
+        AlertDialog::new("Delete everything?")
+            .id("ovl-alert-bare-x")
+            .is_open(true)
+            .child(
+                AlertDialogCloseTrigger::new().child(
+                    gpui::div()
+                        .id("ovl-alert-bare-x-slot")
+                        .size(px(24.))
+                        .on_click(move |_, _, _| probed.borrow_mut().push("slot".into())),
+                ),
+            )
+            .child(
+                gpui::div()
+                    .id("ovl-alert-bare-x-body")
+                    .w_full()
+                    .h(px(36.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .cursor_pointer()
+                    .on_click(move |_, _, _| body_probed.borrow_mut().push("body".into()))
+                    .child("body"),
+            )
+            .into_any_element()
+    });
+
+    // The 36px body probe grows the panel to 172px tall: y [454..626], with
+    // the probe at y [510..546] and the slot at y [470..494].
+    click(cx, 960., 528.);
+    assert_eq!(body_probed.borrow().as_slice(), ["body"]);
+
+    // The slot press records nothing.
+    click(cx, 1156., 482.);
+    assert!(
+        probed.borrow().is_empty(),
+        "a callback-less close trigger must render nothing: {:?}",
+        probed.borrow()
+    );
+}
+
+/// An `AlertDialogCloseTrigger` composed through `footer_child` is not
+/// swallowed by the footer row: it is pulled into the `absolute end-4 top-4`
+/// slot and wired, the composed footer keeps the rest of the row, and the
+/// built-in pair stays retired.
+#[gpui::test]
+fn alert_dialog_footer_child_close_trigger_is_pulled_into_the_slot(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let acts = events();
+    let cancels = events();
+    let recorded_in = rec.clone();
+    let acts_in = acts.clone();
+    let cancels_in = cancels.clone();
+    // The owner never closes this dialog, so the keyboard and the pointer
+    // both keep driving it.
+    let open_flag = Rc::new(RefCell::new(true));
+
+    let cx = open_host(cx, move || {
+        let recorded = recorded_in.clone();
+        let acts = acts_in.clone();
+        let cancels = cancels_in.clone();
+        let is_open = *open_flag.borrow();
+        AlertDialog::new("Delete everything?")
+            .id("ovl-alert-footer-x")
+            .is_open(is_open)
+            .on_open_change(move |v, _, _| recorded.borrow_mut().push(format!("open:{v}")))
+            .on_cancel(move |_, _, _| cancels.borrow_mut().push("cancel".into()))
+            .footer_child(
+                Button::new("ovl-alert-footer-x-keep")
+                    .label("Keep")
+                    .variant(Variant::Tertiary)
+                    .on_press(move |_, _, _| acts.borrow_mut().push("keep".into())),
+            )
+            .footer_child(AlertDialogCloseTrigger::new())
+            .into_any_element()
+    });
+
+    // The composed footer retires the built-in pair: the first tab stop is
+    // the Keep button, and its press fires the caller's action alone.
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        acts.borrow().as_slice(),
+        ["keep"],
+        "the composed footer must own the action row"
+    );
+    assert!(
+        rec.borrow().is_empty(),
+        "a caller-wired footer action must not report the dialog's own close: {:?}",
+        rec.borrow()
+    );
+    assert!(cancels.borrow().is_empty());
+
+    // The next stop is the pulled trigger, and Enter reports the close
+    // through `on_open_change` — never through `on_cancel`.
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false"],
+        "the footer-composed close trigger must be wired in the close slot"
+    );
+    assert!(
+        cancels.borrow().is_empty(),
+        "the close trigger must never report a cancel"
+    );
+
+    // The pointer answers at the slot too: the trigger is `absolute end-4
+    // top-4` at [1144..1168] x [492..516], centre (1156, 504).
+    click(cx, 1156., 504.);
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false", "open:false"],
+        "the pulled trigger must answer the pointer in the slot as well"
+    );
+}
+
+/// A composed footer that held *only* a close trigger retires the built-in
+/// pair — and, with the trigger pulled into the close slot, leaves the row
+/// with nothing to render. The empty `mt-5` row must be skipped: it would
+/// draw nothing but a phantom 20px gap. The panel is title-only, so it is
+/// p(24) + 24px title + p(24) = 72px tall and spans y [504..576]; with the
+/// phantom row it is 92px and spans y [494..586]. The dialog is dismissible,
+/// so a press at (960, 580) — inside the phantom band, clear of the close
+/// slot — distinguishes the two: outside the fixed panel it dismisses, inside
+/// the phantom it lands on the panel's own padding and records nothing.
+#[gpui::test]
+fn alert_dialog_footer_only_close_trigger_skips_the_actions_row(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let recorded = rec.clone();
+    let open = Rc::new(RefCell::new(true));
+    let open_flag = open.clone();
+
+    let cx = open_host(cx, move || {
+        let recorded = recorded.clone();
+        let open_flag = open_flag.clone();
+        let is_open = *open_flag.borrow();
+        AlertDialog::new("Delete everything?")
+            .id("ovl-alert-foot-x")
+            .is_open(is_open)
+            .is_dismissible(true)
+            .footer_child(AlertDialogCloseTrigger::new())
+            .on_open_change(move |v, window, _| {
+                *open_flag.borrow_mut() = v;
+                recorded.borrow_mut().push(format!("open:{v}"));
+                window.refresh();
+            })
+            .into_any_element()
+    });
+
+    // The press lands where the phantom row's gap would be: on the scrim once
+    // the empty row is skipped, on the panel's own padding while it is drawn.
+    click(cx, 960., 580.);
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false"],
+        "a footer that held only a close trigger must leave no phantom row: \
+         the press 4px below the 72px panel must dismiss"
+    );
+
+    // Reopened, the trigger still closes the dialog: the built-in pair stays
+    // retired and the composed trigger keeps the slot. Panel top 504 puts the
+    // `absolute end-4 top-4` 24px button at y [520..544], centre (1156, 532).
+    let_exit_finish(cx);
+    *open.borrow_mut() = true;
+    cx.update(|window, _| window.refresh());
+    click(cx, 1156., 532.);
+    assert_eq!(
+        rec.borrow().as_slice(),
+        ["open:false", "open:false"],
+        "the footer-only trigger must still render in the slot, wired"
+    );
+}
+
 #[gpui::test]
 fn alert_dialog_footer_reports_the_close_then_fires_the_action(cx: &mut TestAppContext) {
     still();
@@ -758,12 +1403,8 @@ fn alert_dialog_footer_reports_the_close_then_fires_the_action(cx: &mut TestAppC
     // The owner never closes this dialog, so there is no reopen flag — the
     // render closure only reads `is_open`.
     let open_flag = Rc::new(RefCell::new(true));
-    let pending = Rc::new(Cell::new(false));
-    // The render closure owns these handles; the test function keeps the
-    // originals for its assertions and for the pending flip below.
     let rec_in = rec.clone();
     let acts_in = acts.clone();
-    let pending_flag = pending.clone();
 
     let cx = open_host(cx, move || {
         let rec = rec_in.clone();
@@ -776,7 +1417,6 @@ fn alert_dialog_footer_reports_the_close_then_fires_the_action(cx: &mut TestAppC
         AlertDialog::new("Delete everything?")
             .id("ovl-alert-footer")
             .is_open(is_open)
-            .is_pending(pending_flag.get())
             .on_open_change(move |v, _, _| rec.borrow_mut().push(format!("open:{v}")))
             .on_cancel({
                 let acts = acts.clone();
@@ -804,34 +1444,9 @@ fn alert_dialog_footer_reports_the_close_then_fires_the_action(cx: &mut TestAppC
     );
 
     // The owner ignored the close report, so the dialog is still open and
-    // holds the focus: the next Tab reaches Confirm.
-    //
-    // A pending confirm is inert end to end — it must not fire the action
-    // *and* must not report the close. The port composes both into one press
-    // handler and leaves it unwired while pending, so the inertness is
-    // repo-defined composition; upstream instead marks the pending button
-    // `aria-disabled` and drops its press event props. The record stays
-    // exactly where the Cancel press left it.
-    pending.set(true);
-    cx.update(|window, _| window.refresh());
+    // holds the focus: the next Tab reaches Confirm, which reports the same
+    // close-then-action order, each exactly once.
     press(cx, "tab");
-    press(cx, "enter");
-    assert_eq!(
-        rec.borrow().as_slice(),
-        ["open:false"],
-        "a pending confirm must not report a close"
-    );
-    assert_eq!(
-        acts.borrow().as_slice(),
-        ["cancel"],
-        "a pending confirm must not fire its action"
-    );
-
-    // Once the pending flag drops the very same press fires, still in the
-    // pinned order — the owner's record now holds one close report per
-    // action press.
-    pending.set(false);
-    cx.update(|window, _| window.refresh());
     press(cx, "enter");
     assert_eq!(
         rec.borrow().as_slice(),
@@ -846,25 +1461,19 @@ fn alert_dialog_footer_reports_the_close_then_fires_the_action(cx: &mut TestAppC
 }
 
 #[gpui::test]
-fn alert_dialog_tab_is_trapped_and_pending_confirm_is_inert(cx: &mut TestAppContext) {
+fn alert_dialog_tab_is_trapped(cx: &mut TestAppContext) {
     still();
     let probe = events();
     let actions = events();
-    let confirmed = events();
-    let open = Rc::new(RefCell::new(true));
-    let pending = Rc::new(Cell::new(false));
     // The render closure owns these handles; the test function keeps the
-    // originals for its assertions and for the reopen / pending flips below.
+    // originals for the reopen below.
     let probe_in = probe.clone();
     let actions_in = actions.clone();
-    let confirmed_in = confirmed.clone();
-    let open_flag = open.clone();
-    let pending_flag = pending.clone();
+    let open_flag = Rc::new(RefCell::new(true));
 
     let cx = open_host(cx, move || {
         let probe = probe_in.clone();
         let actions = actions_in.clone();
-        let confirmed = confirmed_in.clone();
         let open_flag = open_flag.clone();
         let is_open = *open_flag.borrow();
         // The probe sits OUTSIDE the dialog and is first in the tab order.
@@ -883,9 +1492,7 @@ fn alert_dialog_tab_is_trapped_and_pending_confirm_is_inert(cx: &mut TestAppCont
                 AlertDialog::new("Delete everything?")
                     .id("ovl-alert-trap")
                     .is_open(is_open)
-                    .is_pending(pending_flag.get())
                     .confirm_label("Delete")
-                    .on_confirm(move |_, _, _| confirmed.borrow_mut().push("confirm".into()))
                     .on_cancel(move |_, window, _| {
                         actions.borrow_mut().push("cancel".into());
                         *open_flag.borrow_mut() = false;
@@ -896,10 +1503,10 @@ fn alert_dialog_tab_is_trapped_and_pending_confirm_is_inert(cx: &mut TestAppCont
     });
 
     // Seven Tabs: more than the three stops in the window (probe, cancel,
-    // confirm — this dialog registers no `on_open_change`, so the built-in
-    // close trigger does not render), so an untrapped dialog would wrap onto
-    // the probe. Seven Tabs from the dialog handle land on cancel again, and
-    // Enter must activate it and only it.
+    // confirm — this dialog composes no close trigger and registers no
+    // `on_open_change`, so the close slot stays empty), so an untrapped
+    // dialog would wrap onto the probe. Seven Tabs from the dialog handle
+    // land on cancel again, and Enter must activate it and only it.
     press(cx, "tab tab tab tab tab tab tab");
     press(cx, "enter");
     assert_eq!(
@@ -911,26 +1518,122 @@ fn alert_dialog_tab_is_trapped_and_pending_confirm_is_inert(cx: &mut TestAppCont
         probe.borrow().is_empty(),
         "the outside probe must never be reached by Tab"
     );
+}
 
-    // The pending confirm stays in the tab cycle but must not fire: Enter on
-    // it records nothing until the pending flag drops, and then exactly once.
+/// v3's AlertDialog has no built-in footer: `AlertDialogFooter` is composed,
+/// and the confirm button is an ordinary `Button` — which is where danger and
+/// pending belong (`variant="danger"`, `is_pending` on the composed button),
+/// not root props on the dialog. Composing any footer child must retire the
+/// built-in pair entirely.
+#[gpui::test]
+fn alert_dialog_composed_footer_owns_danger_and_pending_confirm(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let acts = events();
+    let builtins = events();
+    let open = Rc::new(RefCell::new(true));
+    let pending = Rc::new(Cell::new(false));
+    // The render closure owns these handles; the test function keeps the
+    // originals for the reopen and pending flips below.
+    let rec_in = rec.clone();
+    let acts_in = acts.clone();
+    let builtins_in = builtins.clone();
+    let open_flag = open.clone();
+    let pending_flag = pending.clone();
+
+    let cx = open_host(cx, move || {
+        let rec = rec_in.clone();
+        let acts = acts_in.clone();
+        let builtins = builtins_in.clone();
+        let open_flag = open_flag.clone();
+        let is_open = *open_flag.borrow();
+        // The built-in pair's handlers are registered on purpose: a composed
+        // footer must retire that pair, so neither may ever fire. The composed
+        // buttons own their wiring — the caller closes the dialog from its own
+        // handler, exactly as a v3 consumer composes `slot="close"` buttons.
+        AlertDialog::new("Delete everything?")
+            .id("ovl-alert-own")
+            .is_open(is_open)
+            .on_open_change(move |v, _, _| rec.borrow_mut().push(format!("open:{v}")))
+            .on_cancel({
+                let builtins = builtins.clone();
+                move |_, _, _| builtins.borrow_mut().push("builtin-cancel".into())
+            })
+            .on_confirm(move |_, _, _| builtins.borrow_mut().push("builtin-confirm".into()))
+            .footer_child(
+                Button::new("ovl-alert-own-keep")
+                    .label("Keep")
+                    .variant(Variant::Tertiary)
+                    .on_press({
+                        let acts = acts.clone();
+                        move |_, window, _| {
+                            acts.borrow_mut().push("keep".into());
+                            *open_flag.borrow_mut() = false;
+                            window.refresh();
+                        }
+                    }),
+            )
+            .footer_child(
+                Button::new("ovl-alert-own-delete")
+                    .label("Delete")
+                    .variant(Variant::Danger)
+                    .is_pending(pending_flag.get())
+                    .on_press(move |_, _, _| acts.borrow_mut().push("deleted".into())),
+            )
+            .into_any_element()
+    });
+
+    // Tab lands on Keep. The composed press fires the caller's handler and
+    // the caller closes the dialog; neither the dialog's `on_open_change` nor
+    // the retired built-in pair records anything.
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(
+        acts.borrow().as_slice(),
+        ["keep"],
+        "the composed cancel button must fire its own action"
+    );
+    assert!(
+        rec.borrow().is_empty(),
+        "a caller-wired close must not report through the dialog's own record: {:?}",
+        rec.borrow()
+    );
+    assert!(
+        builtins.borrow().is_empty(),
+        "a composed footer must retire the built-in pair: {:?}",
+        builtins.borrow()
+    );
+
+    // Reopened with the confirm pending: Delete keeps its tab stop but must
+    // not fire — the pending button swallows the press.
     let_exit_finish(cx);
     pending.set(true);
     *open.borrow_mut() = true;
     cx.update(|window, _| window.refresh());
     press(cx, "tab tab");
     press(cx, "enter");
-    assert!(
-        confirmed.borrow().is_empty(),
-        "a pending confirm must not fire its action"
+    assert_eq!(
+        acts.borrow().as_slice(),
+        ["keep"],
+        "a pending composed confirm must not fire its action"
     );
+    assert!(
+        builtins.borrow().is_empty(),
+        "the pending press must not reach the built-in pair either"
+    );
+
+    // Once the flag drops the very same press fires, exactly once.
     pending.set(false);
     cx.update(|window, _| window.refresh());
     press(cx, "enter");
     assert_eq!(
-        confirmed.borrow().as_slice(),
-        ["confirm"],
-        "the confirm action must fire exactly once once the pending flag drops"
+        acts.borrow().as_slice(),
+        ["keep", "deleted"],
+        "the composed confirm must fire exactly once once pending drops"
+    );
+    assert!(
+        builtins.borrow().is_empty(),
+        "the retired built-in confirm must never fire"
     );
 }
 

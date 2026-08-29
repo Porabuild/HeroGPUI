@@ -39,10 +39,11 @@ import api_audit as A  # noqa: E402  (reuses its parsing, tables and bundle)
 # doc-commented v2 example, or a `"pub struct Divider"` test fixture string is
 # not a reintroduction, and private identifiers are not public API.
 #
-# `is_destructive` is deliberately not banned: the port records it as the
-# composition spelling of v3's `variant="danger"` (EXTRA_OK below), so it is a
-# live spelling of a documented v3 variant, not the removed v2 prop. Its dead
-# `isDestructive` alias is gone from `api_audit.py`'s `ALIAS` either way.
+# `is_destructive` and `hide_close_button` are banned like every other removed
+# v2 spelling: the port spells a danger confirm with v3's `variant="danger"`
+# on the composed footer `Button`, and close-trigger visibility by composing
+# or omitting the `CloseTrigger` part, so neither name is a live spelling of
+# anything v3 documents.
 BANNED_V2 = {
     # Components and composition parts v3 dropped; the v3 spelling follows.
     'AvatarGroup': 'v2 component (v3 composes Avatar children)',
@@ -67,6 +68,8 @@ BANNED_V2 = {
     'is_blurred': 'removed v2 prop (v3: Tailwind backdrop-blur)',
     'is_hoverable': 'removed v2 prop (v3: Tailwind hover classes)',
     'is_pressable': 'removed v2 prop (v3: button/link inside Card)',
+    'is_destructive': 'removed v2 prop (v3: variant="danger" on the composed footer Button)',
+    'hide_close_button': 'removed v2 prop (v3: compose or omit the CloseTrigger part)',
 }
 
 # Declaration shapes, anchored on `pub`. The `fn` pattern reads the Rust
@@ -305,9 +308,7 @@ EXTRA_OK = {
     'start_content': 'composition',
     'end_content': 'composition',
     'footer_child': 'composition',
-    'hide_close_button': 'composition',
     'show_close_button': 'composition',
-    'show_arrow': 'composition',
     'show_value': 'composition',
     'show_value_label': 'composition',
     'show_label': 'composition',
@@ -315,14 +316,13 @@ EXTRA_OK = {
     'show_seconds': 'composition',
     'hide_steppers': 'composition',
     'closable': 'composition',
-    'is_closable': 'composition',
     'cancel_label': 'composition',
     'confirm_label': 'composition',
     'on_cancel': 'composition',
     'on_confirm': 'composition',
-    'is_destructive': 'composition',
-    # `Modal.Close` / `Drawer.Close` are v3 parts with their own press handler;
-    # here the part is built in and this is its handler.
+    # Dismissal-report callback: the composed CloseTrigger part and the other
+    # close paths (Escape, backdrop) report through it, alongside
+    # `on_open_change`.
     'on_close': 'composition',
     # `Input.ClearButton` is a v3 part of `InputGroup`; this renders it.
     'is_clearable': 'composition',
@@ -778,8 +778,8 @@ def self_test():
 
     expect('AvatarGroup' in BANNED_V2 and 'Divider' in BANNED_V2,
            'the minimum component bans are missing')
-    expect('is_destructive' not in BANNED_V2,
-           'is_destructive banned despite its recorded v3 danger-variant reason')
+    expect('is_destructive' in BANNED_V2 and 'hide_close_button' in BANNED_V2,
+           'the removed v2 prop bans are missing')
     expect('isDestructive' not in A.ALIAS and 'isExternal' not in A.ALIAS,
            'dead v2 aliases are back in api_audit.ALIAS')
     expect('isLoading' not in A.ALIAS

@@ -8190,7 +8190,7 @@ const DRAWER_API: &[ApiDoc] = &[
         prop: "isDismissable",
         ty: "boolean",
         default: "true",
-        description: "Close on backdrop click; the port gates outside-press and drag dismissal on it, and also withholds its close trigger when false, where v3 keeps the close button working.",
+        description: "Close on backdrop click; the port gates outside-press and drag dismissal on it. The composed close trigger is not the backdrop: like v3 it renders and closes regardless of this flag.",
         rust_owner: "Drawer",
         rust: "is_dismissible(bool)",
         status: ImplementationStatus::Partial,
@@ -8400,10 +8400,10 @@ const DRAWER_API: &[ApiDoc] = &[
         prop: "children",
         ty: "ReactNode",
         default: "—",
-        description: "Custom close button; the port always draws the built-in CloseButton, and the builder only chooses whether it exists.",
-        rust_owner: "Drawer",
-        rust: "hide_close_button(false)",
-        status: ImplementationStatus::Partial,
+        description: "The drawer composes this part as a child: without children it draws the built-in CloseButton wired to the drawer's dismissal paths, and custom children replace the CloseButton's glyph while the press stays automatically wired to close — the port hands the composed part v3's slot=\"close\" chaining.",
+        rust_owner: "DrawerCloseTrigger",
+        rust: "new() + ParentElement children",
+        status: ImplementationStatus::Implemented,
     },
     ApiDoc {
         owner: "Drawer.CloseTrigger",
@@ -8491,9 +8491,9 @@ const DRAWER_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Drawer.CloseTrigger",
         slot: "drawer-close-trigger",
-        description: "Built-in CloseButton pinned to the top end; hide_close_button removes it and custom children are not composable.",
-        rust_owner: "Drawer",
-        status: ImplementationStatus::Partial,
+        description: "Composed part pinned 16px from the top end: the default content is the built-in CloseButton wired to the drawer's dismissal paths regardless of is_dismissible, and custom children replace the glyph while staying wired to close. With no dismissal callback to wire the part draws nothing.",
+        rust_owner: "DrawerCloseTrigger",
+        status: ImplementationStatus::Implemented,
     },
 ];
 
@@ -8708,7 +8708,7 @@ const DRAWER_STYLING: &[StyleDoc] = &[
 
 pub(crate) const DRAWER: ReferenceMetadata = ReferenceMetadata {
     page: "Drawer",
-    import_line: "use herogpui::components::drawer::{Drawer, DrawerPlacement};",
+    import_line: "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerPlacement};",
     source_module: "drawer",
     version: "3.2.4",
     docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(overlays)/drawer.mdx",
@@ -8791,7 +8791,7 @@ const MODAL_API: &[ApiDoc] = &[
         prop: "isDismissable",
         ty: "boolean",
         default: "true",
-        description: "Close on backdrop click; the port gates outside-press dismissal on it, and also withholds its close trigger when false, where v3 keeps the close button working.",
+        description: "Close on backdrop click; the port gates outside-press dismissal on it. The composed close trigger is not the backdrop: like v3 it renders and closes regardless of this flag.",
         rust_owner: "Modal",
         rust: "is_dismissible(bool)",
         status: ImplementationStatus::Partial,
@@ -8891,7 +8891,7 @@ const MODAL_API: &[ApiDoc] = &[
         prop: "children",
         ty: "ReactNode | ({close}) => ReactNode",
         default: "—",
-        description: "Content or render function; the port feeds the body through ParentElement::extend, the title through title and the footer through footer_child, and the close argument is the built-in CloseButton rather than a render value.",
+        description: "Content or render function; the port feeds the body through ParentElement::extend, the title through title and the footer through footer_child, and the close argument is not a render value — the close affordance is the composed ModalCloseTrigger part.",
         rust_owner: "Modal",
         rust: "title + footer_child + extend body",
         status: ImplementationStatus::Partial,
@@ -9011,10 +9011,10 @@ const MODAL_API: &[ApiDoc] = &[
         prop: "children",
         ty: "ReactNode",
         default: "—",
-        description: "Custom close button; the port can only draw its built-in CloseButton, gated by hide_close_button, is_dismissible and whether a dismissal callback exists.",
-        rust_owner: "Modal",
-        rust: "hide_close_button(false)",
-        status: ImplementationStatus::Partial,
+        description: "The modal composes this part as a child: without children it draws the built-in CloseButton wired to the modal's dismissal paths, and custom children replace the CloseButton's glyph while the press stays automatically wired to close — the port hands the composed part v3's slot=\"close\" chaining.",
+        rust_owner: "ModalCloseTrigger",
+        rust: "new() + ParentElement children",
+        status: ImplementationStatus::Implemented,
     },
     ApiDoc {
         owner: "Modal.CloseTrigger",
@@ -9102,9 +9102,9 @@ const MODAL_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Modal.CloseTrigger",
         slot: "modal-close-trigger",
-        description: "Built-in CloseButton pinned to the top end; hide_close_button and is_dismissible decide whether it exists, and custom children are not composable.",
-        rust_owner: "Modal",
-        status: ImplementationStatus::Partial,
+        description: "Composed part pinned 16px from the top end: the default content is the built-in CloseButton wired to the modal's dismissal paths regardless of is_dismissible, and custom children replace the glyph while staying wired to close. With no dismissal callback to wire the part draws nothing.",
+        rust_owner: "ModalCloseTrigger",
+        status: ImplementationStatus::Implemented,
     },
 ];
 
@@ -9368,7 +9368,7 @@ const MODAL_STYLING: &[StyleDoc] = &[
 
 pub(crate) const MODAL: ReferenceMetadata = ReferenceMetadata {
     page: "Modal",
-    import_line: "use herogpui::components::modal::{Modal, ModalSize};",
+    import_line: "use herogpui::components::modal::{Modal, ModalCloseTrigger, ModalSize};",
     source_module: "modal",
     version: "3.2.4",
     docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(overlays)/modal.mdx",
@@ -11162,16 +11162,16 @@ const POPOVER_API: &[ApiDoc] = &[
     ApiDoc { owner: "Popover.Dialog", prop: "className", ty: "string", default: "—", description: "Additional dialog classes.", rust_owner: "Popover", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Popover.Trigger", prop: "children", ty: "React.ReactNode", default: "—", description: "Caller-provided trigger content is the positional constructor argument.", rust_owner: "Popover", rust: "new(trigger)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "Popover.Trigger", prop: "className", ty: "string", default: "—", description: "Additional trigger classes.", rust_owner: "Popover", rust: "—", status: ImplementationStatus::Unavailable },
-    ApiDoc { owner: "Popover.Arrow", prop: "children", ty: "React.ReactNode", default: "—", description: "The built-in 12px arrow is available; caller-provided arrow elements are not.", rust_owner: "Popover", rust: "show_arrow(bool)", status: ImplementationStatus::Partial },
-    ApiDoc { owner: "Popover.Arrow", prop: "className", ty: "string", default: "—", description: "Additional arrow classes.", rust_owner: "Popover", rust: "—", status: ImplementationStatus::Unavailable },
-    ApiDoc { owner: "Popover.Arrow", prop: "render", ty: "DOMRenderFunction<OverlayArrowRenderProps>", default: "—", description: "Arrow DOM replacement is not available.", rust_owner: "Popover", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Popover.Arrow", prop: "children", ty: "React.ReactNode", default: "—", description: "The built-in 12px curve renders by default and a custom element composes through ParentElement at the resolved arrow position. Upstream stamps the single child with data-slot=popover-overlay-arrow so the .popover placement CSS rotates it too; GPUI 0.2.2 transforms only svg elements, so a custom child takes the position without the rotation.", rust_owner: "PopoverArrow", rust: "new() + ParentElement children", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Popover.Arrow", prop: "className", ty: "string", default: "—", description: "Additional arrow classes.", rust_owner: "PopoverArrow", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "Popover.Arrow", prop: "render", ty: "DOMRenderFunction<OverlayArrowRenderProps>", default: "—", description: "Arrow DOM replacement is not available.", rust_owner: "PopoverArrow", rust: "—", status: ImplementationStatus::Unavailable },
 ];
 
 const POPOVER_PARTS: &[PartDoc] = &[
     PartDoc { name: "Popover", slot: "popover-root", description: "Controlled or uncontrolled owner of open state, focus scope and dismissal lifecycle.", rust_owner: "Popover", status: ImplementationStatus::Implemented },
     PartDoc { name: "Popover.Trigger", slot: "popover-trigger", description: "Interactive wrapper around the positional trigger child; not separately replaceable or styled.", rust_owner: "Popover", status: ImplementationStatus::Partial },
     PartDoc { name: "Popover.Content", slot: "popover", description: "Placement-aware surface with true orientation flipping and pinned motion; GPUI 0.2.2 cannot nest deferred portal draws, so the panel remains in its ancestor clipping context.", rust_owner: "Popover", status: ImplementationStatus::Partial },
-    PartDoc { name: "Popover.Arrow", slot: "popover-overlay-arrow", description: "Built-in 12px curved arrow centred on the trigger and rotated for the resolved side; custom arrow content is unavailable.", rust_owner: "Popover", status: ImplementationStatus::Partial },
+    PartDoc { name: "Popover.Arrow", slot: "popover-overlay-arrow", description: "Composed part drawing the built-in 12px curved arrow centred on the trigger and rotated for the resolved side, or a caller-supplied child element at the resolved position. Upstream rotates the single custom child through its data-slot placement CSS; GPUI 0.2.2's svg-only transformation cannot reproduce that for an arbitrary element.", rust_owner: "PopoverArrow", status: ImplementationStatus::Partial },
     PartDoc { name: "Popover.Dialog", slot: "popover-dialog", description: "Dialog focus scope and 16px content inset are built into the monolithic panel.", rust_owner: "Popover", status: ImplementationStatus::Partial },
     PartDoc { name: "Popover.Heading", slot: "title", description: "The title builder draws the medium-weight heading, but Heading is not an independently composable part.", rust_owner: "Popover", status: ImplementationStatus::Partial },
 ];
@@ -11189,14 +11189,14 @@ const POPOVER_STYLING: &[StyleDoc] = &[
     StyleDoc { class_or_token: ".popover__heading", value: "font-medium", description: "Heading uses the pinned 500 weight.", rust: "FontWeight::MEDIUM", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".popover[data-entering=true]", value: "150ms ease-smooth fade-in-0 zoom-in-90 + placement slide 4px", description: "Duration, curve, fade and zoom match; transform origin and placement slide are absent.", rust: "Motion::POPOVER_IN + entering_zoom", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".popover[data-exiting=true]", value: "100ms ease-smooth zoom-out-95 fade-out", description: "Exit duration, curve, fade and zoom match.", rust: "Motion::LIST_OUT + exiting", status: ImplementationStatus::Implemented },
-    StyleDoc { class_or_token: ".popover [data-slot=popover-overlay-arrow]", value: "12px; fill overlay; placement rotation", description: "Size, built-in curve, fill, cross-axis alignment and flip-aware rotation match.", rust: "TOOLTIP_ARROW size(px(12.)) + PopoverSide::arrow_rotation + arrow_origin", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".popover [data-slot=popover-overlay-arrow]", value: "12px; fill overlay; placement rotation", description: "Size, built-in curve, fill and flip-aware rotation match. Upstream applies the same placement rotation to a custom child through its data-slot selector, which GPUI 0.2.2 cannot do for an arbitrary div element; the port places a custom child unrotated.", rust: "PopoverArrow svg child + PopoverSide::arrow_rotation + arrow_origin", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: ".popover__trigger", value: "inline-block; 150ms colour/background/shadow transitions; interactive cursor; focus/disabled statuses", description: "The wrapper is interactive and the child owns focus/disabled visuals, but inline-block and these transitions are not reproduced.", rust: "relative flex wrapper + cursor_pointer", status: ImplementationStatus::Partial },
     StyleDoc { class_or_token: "reduced motion", value: "motion-reduce: animation none", description: "The panel renders immediately without geometric animation.", rust: "HEROGPUI_REDUCE_MOTION + animation helpers", status: ImplementationStatus::Implemented },
 ];
 
 pub(crate) const POPOVER: ReferenceMetadata = ReferenceMetadata {
     page: "Popover",
-    import_line: "use herogpui::components::popover::{Popover, PopoverPlacement};",
+    import_line: "use herogpui::components::popover::{Popover, PopoverArrow, PopoverPlacement};",
     source_module: "popover",
     version: "3.2.4",
     docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(overlays)/popover.mdx",
@@ -13098,7 +13098,7 @@ const ALERT_DIALOG_API: &[ApiDoc] = &[
         prop: "onOpenChange",
         ty: "(isOpen: boolean) => void",
         default: "—",
-        description: "Open state change handler; fires with false on every dismissal path — confirm, cancel, the X, the backdrop and Escape — and never through onCancel.",
+        description: "Open state change handler; fires with false on every close path — the composed X, the backdrop, Escape and the built-in confirm/cancel stand-in — and never through onCancel. A composed footer's Buttons own their own close wiring.",
         rust_owner: "AlertDialog",
         rust: "on_open_change(callback)",
         status: ImplementationStatus::Implemented,
@@ -13158,7 +13158,7 @@ const ALERT_DIALOG_API: &[ApiDoc] = &[
         prop: "children",
         ty: "ReactNode | ({close}) => ReactNode",
         default: "—",
-        description: "Content or render function; the port builds the panel from title, description, body children and its own footer, and the close argument is the built-in neutral X rather than a render value.",
+        description: "Content or render function; the port builds the panel from title, description, body children and the footer, and the close argument is not a render value — the close affordance is the composed AlertDialogCloseTrigger part.",
         rust_owner: "AlertDialog",
         rust: "new(title) + description + extend body",
         status: ImplementationStatus::Partial,
@@ -13278,10 +13278,10 @@ const ALERT_DIALOG_API: &[ApiDoc] = &[
         prop: "children",
         ty: "ReactNode",
         default: "—",
-        description: "Footer content (typically action buttons); the port's footer is the built-in confirm/cancel pair standing in for v3's slot=\"close\" compositions, not a composable row.",
+        description: "Footer content (typically action buttons); the port's built-in confirm/cancel pair stands in for v3's slot=\"close\" compositions and retires whole the moment the caller composes footer children — a composed footer Button owns its own danger and pending spellings and its own close wiring.",
         rust_owner: "AlertDialog",
-        rust: "confirm_label + cancel_label",
-        status: ImplementationStatus::Partial,
+        rust: "footer_child(Button) or the confirm_label/cancel_label pair",
+        status: ImplementationStatus::Implemented,
     },
     ApiDoc {
         owner: "AlertDialog.Footer",
@@ -13328,10 +13328,10 @@ const ALERT_DIALOG_API: &[ApiDoc] = &[
         prop: "children",
         ty: "ReactNode",
         default: "—",
-        description: "Custom close button; the port can only draw its built-in neutral CloseButton — the consumer-composed analogue of v3's slot=\"close\" trigger — gated by hide_close_button and by having a dismissal callback to report to.",
-        rust_owner: "AlertDialog",
-        rust: "hide_close_button(false)",
-        status: ImplementationStatus::Partial,
+        description: "The dialog composes this part as a child: without children it draws the built-in neutral CloseButton wired to onOpenChange(false) alone — never on_cancel — and custom children replace the CloseButton's glyph while the press stays automatically wired to close the same way.",
+        rust_owner: "AlertDialogCloseTrigger",
+        rust: "new() + ParentElement children",
+        status: ImplementationStatus::Implemented,
     },
     ApiDoc {
         owner: "AlertDialog.CloseTrigger",
@@ -13405,9 +13405,9 @@ const ALERT_DIALOG_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "AlertDialog.Footer",
         slot: "alert-dialog-footer",
-        description: "End-aligned action row drawn by the port itself: cancel first, confirm last, each standing in for a v3 slot=\"close\" button.",
+        description: "End-aligned action row: the built-in cancel/confirm pair stands in for v3's slot=\"close\" buttons and retires whole the moment the caller composes footer children, which own their own danger and pending spellings.",
         rust_owner: "AlertDialog",
-        status: ImplementationStatus::Partial,
+        status: ImplementationStatus::Implemented,
     },
     PartDoc {
         name: "AlertDialog.Icon",
@@ -13419,9 +13419,9 @@ const ALERT_DIALOG_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "AlertDialog.CloseTrigger",
         slot: "alert-dialog-close-trigger",
-        description: "Neutral CloseButton pinned 16px from the top end; hide_close_button and the presence of a dismissal callback decide whether it exists.",
-        rust_owner: "AlertDialog",
-        status: ImplementationStatus::Partial,
+        description: "Composed part pinned 16px from the top end: the default content is the built-in neutral CloseButton wired to onOpenChange(false) alone regardless of is_dismissible, and custom children replace the glyph while staying wired to close the same way. With no on_open_change to wire the part draws nothing.",
+        rust_owner: "AlertDialogCloseTrigger",
+        status: ImplementationStatus::Implemented,
     },
 ];
 
@@ -13831,7 +13831,7 @@ const BREADCRUMBS_STYLING: &[StyleDoc] = &[
 
 pub(crate) const ALERT_DIALOG: ReferenceMetadata = ReferenceMetadata {
     page: "AlertDialog",
-    import_line: "use herogpui::components::alert_dialog::AlertDialog;",
+    import_line: "use herogpui::components::alert_dialog::{AlertDialog, AlertDialogCloseTrigger};",
     source_module: "alert_dialog",
     version: "3.2.4",
     docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(overlays)/alert-dialog.mdx",

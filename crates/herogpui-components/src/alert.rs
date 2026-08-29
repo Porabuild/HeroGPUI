@@ -1,24 +1,24 @@
 //! Alert — port of `@heroui/alert`.
 
 use gpui::{
-    prelude::*, px, AnyElement, App, ClickEvent, IntoElement, ParentElement, RenderOnce,
-    SharedString, Styled, Window,
+    px, AnyElement, App, IntoElement, ParentElement, RenderOnce, SharedString, Styled, Window,
 };
 use herogpui_core::Color;
 use herogpui_theme::ActiveTheme;
 
 use crate::icons;
 
-type OnClose = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
-
 /// HeroUI Alert.
+///
+/// v3.2.4's API table carries only `status`/`className`/`children`: the
+/// migration guide explicitly removes `isClosable`, `onClose` and
+/// `closeButtonProps`, so a close affordance is composed by the caller as an
+/// ordinary child (a `CloseButton`) instead of being built in.
 #[derive(IntoElement)]
 pub struct Alert {
     title: SharedString,
     description: Option<SharedString>,
     color: Color,
-    is_closable: bool,
-    on_close: Option<OnClose>,
     /// Composed children — v3's "Additional content like buttons, close
     /// button, etc.", appended after the content column.
     children: Vec<AnyElement>,
@@ -27,7 +27,6 @@ pub struct Alert {
 impl Alert {
     /// `status` — the v3 name for `color`; the values are the same
     /// semantic roles.
-    /// `status` — the alert's visual status.
     pub fn status(mut self, status: Color) -> Self {
         self.color = status;
         self
@@ -38,8 +37,6 @@ impl Alert {
             title: title.into(),
             description: None,
             color: Color::Accent,
-            is_closable: false,
-            on_close: None,
             children: Vec::new(),
         }
     }
@@ -48,21 +45,11 @@ impl Alert {
         self.description = Some(d.into());
         self
     }
-
-    /// Shows a close button (`isClosable`).
-    pub fn is_closable(mut self, f: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static) -> Self {
-        self.is_closable = true;
-        self.on_close = Some(Box::new(f));
-        self
-    }
 }
 
 impl ParentElement for Alert {
     fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
-        // The children are the alert's end content: v3 composes `<Button>`
-        // and `<CloseButton>` as ordinary children after `Alert.Content`, and
-        // the migration guide's "With Action Button (End Content)" example is
-        // exactly that (EXTRA_OK's `composition` classification).
+        // End content; see the struct doc for the v3 composition rationale.
         self.children.extend(elements);
     }
 }
@@ -135,21 +122,7 @@ impl RenderOnce for Alert {
         }
         alert = alert.child(text_col);
 
-        if self.is_closable {
-            if let Some(on_close) = self.on_close {
-                alert = alert.child(
-                    gpui::div()
-                        .id("alert-close")
-                        .cursor_pointer()
-                        .flex_shrink_0()
-                        .child(gpui::svg().size(px(14.)).path(icons::CLOSE).text_color(fg))
-                        .on_click(move |ev, w, cx| on_close(ev, w, cx)),
-                );
-            }
-        }
-
-        // Composed children go last, the way an end-content `<Button>` or
-        // `<CloseButton>` follows `<Alert.Content>` in v3.
+        // Composed children go last; see the struct doc.
         alert = alert.children(self.children);
 
         alert

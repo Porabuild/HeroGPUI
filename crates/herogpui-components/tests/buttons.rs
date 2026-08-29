@@ -29,9 +29,10 @@
 //!   two, and y = 10 sits inside the ~19px line box whatever the machine's
 //!   font metrics come to (the line is `line_height(14 * 1.3)` plus a 1px
 //!   bottom padding, per the same derivation Breadcrumbs uses).
-//! - A closable Alert is `w_full px-4 py-3`: its 14px close glyph hugs the
-//!   content's right edge (1920-16) and starts at the top padding (12px), so
-//!   its centre is (1920 - 16 - 7, 12 + 7) = (1897, 19).
+//! - An Alert is `w_full px-4 py-3` and takes end content only as composed
+//!   children (v3 removed `isClosable`): a CloseButton child hugs the
+//!   content's right edge (1920-16-24..1920-16) and starts at the top padding
+//!   (12px), so its centre is (1920 - 16 - 12, 12 + 12) = (1892, 24).
 //! - Chip is `px-2 py-0.5` around its content, so a CloseButton composed into
 //!   its `start_content` slot starts at x = 8 (the leading padding) and its
 //!   24px box is vertically centred in the 28px-tall chip: centre (20, 14).
@@ -809,34 +810,78 @@ fn chip_close_reports_and_plain_chip_has_nothing_to_press(cx: &mut TestAppContex
 // Alert
 // ---------------------------------------------------------------------------
 
+/// v3's migration guide removes `isClosable`/`onClose`: Alert takes end
+/// content only as composed children, and the close affordance is an ordinary
+/// `CloseButton` child. The composed one must be both pointer-reachable — a
+/// click on it records a press while a click on the alert body records
+/// nothing — and keyboard-reachable: one Tab from the host root lands on it,
+/// and Space activates it. A sibling alert with no composed close affordance
+/// must be dead air at the spot where the removed built-in glyph used to sit.
 #[gpui::test]
-fn alert_close_reports(cx: &mut TestAppContext) {
-    let closes = events();
-    let recorded = closes.clone();
+fn alert_composed_close_button_reports_and_alert_has_no_built_in_close(cx: &mut TestAppContext) {
+    let presses = events();
+    let recorded = presses.clone();
     let cx = open_host(cx, move || {
-        let closes = closes.clone();
-        Alert::new("Saved")
-            .is_closable(move |_, _, _| closes.borrow_mut().push("close".into()))
+        let presses = presses.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(8.))
+            .child(
+                Alert::new("Saved")
+                    .description("Your changes are live.")
+                    .child(
+                        CloseButton::new("alert-composed-x")
+                            .on_press(move |_, _, _| presses.borrow_mut().push("close".into())),
+                    ),
+            )
+            .child(Alert::new("No close here"))
             .into_any_element()
     });
 
-    // The alert is `w_full px-4 py-3`; its close glyph is the 14px svg in the
-    // rightmost content position: right edge 1920-16, centre x 1920-16-7,
-    // and it starts at the 12px top padding, so centre y = 12+7.
-    click(cx, 1897., 19.);
+    // The first alert is `w_full px-4 py-3`: its composed 24px CloseButton
+    // hugs the content's right edge (x 1880..1904) and starts at the 12px top
+    // padding, so its centre is (1892, 24). The text column's title and
+    // description are two 20px lines plus the 2px gap (42px), so the alert
+    // spans y 0..66 and the plain sibling starts at y 74; its would-be glyph
+    // spot from the removed built-in close is (1897, 74 + 19) = (1897, 93).
+
+    // Keyboard first, while the focus still sits on the host root: one Tab
+    // reaches the composed CloseButton — the only stop inside either alert —
+    // and Space activates it through the very click listener the pointer uses.
+    press(cx, "tab");
+    flush_frame(cx);
+    press(cx, "space");
     assert_eq!(
         recorded.borrow().as_slice(),
         ["close"],
-        "the alert's close affordance must report the dismissal"
+        "a CloseButton composed into an Alert must be reachable and activatable by keyboard"
+    );
+
+    // Pointer next: a click on the composed CloseButton reports the dismissal.
+    click(cx, 1892., 24.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["close", "close"],
+        "a CloseButton composed into an Alert must report its press"
     );
 
     // A press on the alert body must not dismiss: it has no handler of its
-    // own, and the close button sits 1380px away.
-    click(cx, 500., 19.);
+    // own, and the composed close button sits over 1300px away.
+    click(cx, 500., 24.);
     assert_eq!(
         recorded.borrow().as_slice(),
-        ["close"],
+        ["close", "close"],
         "the alert body must not report a close"
+    );
+
+    // The sibling alert composes nothing, so where Alert's removed built-in
+    // close glyph used to answer there must be nothing to press.
+    click(cx, 1897., 93.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["close", "close"],
+        "an alert with no composed close affordance must have nothing at the removed built-in close position"
     );
 }
 

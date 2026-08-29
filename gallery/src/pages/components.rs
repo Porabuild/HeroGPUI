@@ -5152,26 +5152,35 @@ impl Gallery {
                 ),
                 (
                     "Closable",
-                    col(if self.alert_visible {
-                        vec![h::Alert::new("Saved")
-                            .description("Your changes are live.")
-                            .status(Color::Success)
-                            .is_closable(cx.listener(|this, _, _, cx| {
-                                this.alert_visible = false;
-                                cx.notify();
-                            }))
-                            .into_any_element()]
-                    } else {
-                        vec![h::Button::new("alert-restore")
-                            .label("Bring it back")
-                            .variant(Variant::Tertiary)
-                            .size(Size::Sm)
-                            .on_press(cx.listener(|this, _, _, cx| {
-                                this.alert_visible = true;
-                                cx.notify();
-                            }))
-                            .into_any_element()]
-                    }),
+                    col(vec![
+                        para(
+                            "v3 removed `isClosable`/`onClose`; a close affordance is an ordinary \
+                             child, the way the pinned example composes a `CloseButton`.",
+                            cx,
+                        ),
+                        if self.alert_visible {
+                            h::Alert::new("Saved")
+                                .description("Your changes are live.")
+                                .status(Color::Success)
+                                .child(h::CloseButton::new("alert-closable-close").on_press(
+                                    cx.listener(|this, _, _, cx| {
+                                        this.alert_visible = false;
+                                        cx.notify();
+                                    }),
+                                ))
+                                .into_any_element()
+                        } else {
+                            h::Button::new("alert-restore")
+                                .label("Bring it back")
+                                .variant(Variant::Tertiary)
+                                .size(Size::Sm)
+                                .on_press(cx.listener(|this, _, _, cx| {
+                                    this.alert_visible = true;
+                                    cx.notify();
+                                }))
+                                .into_any_element()
+                        },
+                    ]),
                 ),
             ],
             cx,
@@ -9179,6 +9188,7 @@ impl Gallery {
                                 .description("Every size shares one panel style.")
                                 .is_open(open)
                                 .size(size)
+                                .child(h::AlertDialogCloseTrigger::new())
                                 .on_open_change(bool_cb(cx.listener(
                                     move |this, v: &bool, _, cx| {
                                         this.set_demo_flag(key, *v);
@@ -9210,6 +9220,7 @@ impl Gallery {
                                 .description("The status colours the icon above the title.")
                                 .is_open(open)
                                 .status(status)
+                                .child(h::AlertDialogCloseTrigger::new())
                                 .on_open_change(bool_cb(cx.listener(
                                     move |this, v: &bool, _, cx| {
                                         this.set_demo_flag(key, *v);
@@ -9240,6 +9251,7 @@ impl Gallery {
                                 .description("The panel keeps its own size.")
                                 .is_open(open)
                                 .placement(placement)
+                                .child(h::AlertDialogCloseTrigger::new())
                                 .on_open_change(bool_cb(cx.listener(
                                     move |this, v: &bool, _, cx| {
                                         this.set_demo_flag(key, *v);
@@ -9270,6 +9282,7 @@ impl Gallery {
                                     .description("The scrim behind the panel.")
                                     .is_open(open)
                                     .backdrop(*backdrop)
+                                    .child(h::AlertDialogCloseTrigger::new())
                                     .on_open_change(bool_cb(cx.listener(
                                         move |this, v: &bool, _, cx| {
                                             this.set_demo_flag(key, *v);
@@ -9290,6 +9303,7 @@ impl Gallery {
                         h::AlertDialog::new("Controlled").id("ad-controlled")
                             .description("The flag lives with the caller; closing reports through onOpenChange.")
                             .is_open(self.demo_overlay("ad-controlled"))
+                            .child(h::AlertDialogCloseTrigger::new())
                             .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                 this.set_demo_flag("ad-controlled", *v);
                                 cx.notify();
@@ -9307,6 +9321,7 @@ impl Gallery {
                             .description("The status picks the icon, so a warning dialog shows the warning glyph.")
                             .is_open(self.demo_overlay("ad-icon"))
                             .status(Color::Warning)
+                            .child(h::AlertDialogCloseTrigger::new())
                             .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                 this.set_demo_flag("ad-icon", *v);
                                 cx.notify();
@@ -9324,6 +9339,7 @@ impl Gallery {
                             .description("The page behind the panel is blurred.")
                             .is_open(self.demo_overlay("ad-custom-bd"))
                             .backdrop(herogpui_core::Backdrop::Blur)
+                            .child(h::AlertDialogCloseTrigger::new())
                             .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                 this.set_demo_flag("ad-custom-bd", *v);
                                 cx.notify();
@@ -9338,10 +9354,11 @@ impl Gallery {
                         "ad-dismiss",
                         "Open a non-dismissable dialog",
                         h::AlertDialog::new("Confirm first").id("ad-dismiss")
-                            .description("The backdrop and Escape are both inert; answer with an action.")
+                            .description("The backdrop and Escape are both inert; the composed X and the actions still close.")
                             .is_open(self.demo_overlay("ad-dismiss"))
                             .is_dismissible(false)
                             .is_keyboard_dismiss_disabled(true)
+                            .child(h::AlertDialogCloseTrigger::new())
                             .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                 this.set_demo_flag("ad-dismiss", *v);
                                 cx.notify();
@@ -9357,11 +9374,26 @@ impl Gallery {
                             "ad-close",
                             "Open (destructive confirm)",
                             h::AlertDialog::new("Delete for ever?").id("ad-close")
-                                .description("Confirm and cancel each report onOpenChange(false), then fire their action; the X only reports onOpenChange(false) and has no action of its own.")
+                                .description("A composed footer retires the built-in pair: the danger confirm and the cancel are ordinary Buttons the caller wires to close, the way v3 spells slot=\"close\". The X is not composed here, so the corner slot is bare.")
                                 .is_open(self.demo_overlay("ad-close"))
-                                .is_destructive(true)
-                                .confirm_label("Delete")
-                                .cancel_label("Keep")
+                                .footer_child(
+                                    h::Button::new("ad-close-cancel")
+                                        .label("Keep")
+                                        .variant(Variant::Tertiary)
+                                        .on_press(cx.listener(|this, _, _, cx| {
+                                            this.set_demo_flag("ad-close", false);
+                                            cx.notify();
+                                        })),
+                                )
+                                .footer_child(
+                                    h::Button::new("ad-close-confirm")
+                                        .label("Delete")
+                                        .variant(Variant::Danger)
+                                        .on_press(cx.listener(|this, _, _, cx| {
+                                            this.set_demo_flag("ad-close", false);
+                                            cx.notify();
+                                        })),
+                                )
                                 .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                     this.set_demo_flag("ad-close", *v);
                                     cx.notify();
@@ -9373,10 +9405,22 @@ impl Gallery {
                             "ad-pending",
                             "Open (pending confirm)",
                             h::AlertDialog::new("Deploying").id("ad-pending")
-                                .description("The confirm action is in flight: the button shows a spinner and swallows the press, so no close is reported and no action fires.")
+                                .description("A composed footer Button carries the pending state: it shows a spinner and swallows the press while the action is in flight, so no close is reported; only the cancel closes.")
                                 .is_open(self.demo_overlay("ad-pending"))
-                                .is_pending(true)
-                                .confirm_label("Deploy")
+                                .footer_child(
+                                    h::Button::new("ad-pending-cancel")
+                                        .label("Cancel")
+                                        .variant(Variant::Tertiary)
+                                        .on_press(cx.listener(|this, _, _, cx| {
+                                            this.set_demo_flag("ad-pending", false);
+                                            cx.notify();
+                                        })),
+                                )
+                                .footer_child(
+                                    h::Button::new("ad-pending-confirm")
+                                        .label("Deploy")
+                                        .is_pending(true),
+                                )
                                 .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                     this.set_demo_flag("ad-pending", *v);
                                     cx.notify();
@@ -9394,6 +9438,7 @@ impl Gallery {
                         h::AlertDialog::new("Animated").id("ad-anim")
                             .description("The panel shrinks in from 105% over 250ms and leaves at 95% over 100ms.")
                             .is_open(self.demo_overlay("ad-anim"))
+                            .child(h::AlertDialogCloseTrigger::new())
                             .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                 this.set_demo_flag("ad-anim", *v);
                                 cx.notify();
@@ -9427,9 +9472,27 @@ impl Gallery {
                         )
                         .child(
                             h::AlertDialog::new("Delete this account?").id("ad-custom")
-                                .description("Any element can open an alert dialog.")
+                                .description("Any element can open an alert dialog; a composed CloseTrigger draws the corner X and a composed footer owns the danger confirm.")
                                 .is_open(self.demo_overlay("ad-custom"))
-                                .is_destructive(true)
+                                .child(h::AlertDialogCloseTrigger::new())
+                                .footer_child(
+                                    h::Button::new("ad-custom-cancel")
+                                        .label("Cancel")
+                                        .variant(Variant::Tertiary)
+                                        .on_press(cx.listener(|this, _, _, cx| {
+                                            this.set_demo_flag("ad-custom", false);
+                                            cx.notify();
+                                        })),
+                                )
+                                .footer_child(
+                                    h::Button::new("ad-custom-confirm")
+                                        .label("Delete account")
+                                        .variant(Variant::Danger)
+                                        .on_press(cx.listener(|this, _, _, cx| {
+                                            this.set_demo_flag("ad-custom", false);
+                                            cx.notify();
+                                        })),
+                                )
                                 .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                     this.set_demo_flag("ad-custom", *v);
                                     cx.notify();
@@ -9462,16 +9525,29 @@ impl Gallery {
                                  This action cannot be undone.",
                             )
                             .is_open(is_open)
-                            .is_destructive(true)
-                            .confirm_label("Delete")
-                            .on_cancel(cx.listener(|this, _, _, cx| {
-                                this.alert_dialog_open = false;
+                            .child(h::AlertDialogCloseTrigger::new())
+                            .footer_child(
+                                h::Button::new("ad-usage-cancel")
+                                    .label("Cancel")
+                                    .variant(Variant::Tertiary)
+                                    .on_press(cx.listener(|this, _, _, cx| {
+                                        this.alert_dialog_open = false;
+                                        cx.notify();
+                                    })),
+                            )
+                            .footer_child(
+                                h::Button::new("ad-usage-confirm")
+                                    .label("Delete")
+                                    .variant(Variant::Danger)
+                                    .on_press(cx.listener(|this, _, _, cx| {
+                                        this.alert_dialog_open = false;
+                                        cx.notify();
+                                    })),
+                            )
+                            .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
+                                this.alert_dialog_open = *v;
                                 cx.notify();
-                            }))
-                            .on_confirm(cx.listener(|this, _, _, cx| {
-                                this.alert_dialog_open = false;
-                                cx.notify();
-                            })),
+                            }))),
                     )
                     .into_any_element()]),
             )],
@@ -9506,6 +9582,7 @@ impl Gallery {
                                 .placement(placement)
                                 .title(format!("From the {label}"))
                                 .is_dismissible(true)
+                                .child(h::DrawerCloseTrigger::new())
                                 .child(gpui::div().child("The panel slides in along its edge."))
                                 .on_open_change(bool_cb(cx.listener(
                                     move |this, v: &bool, _, cx| {
@@ -9557,6 +9634,7 @@ impl Gallery {
                             .is_open(self.demo_overlay("dr-scroll"))
                             .title("Release notes")
                             .is_dismissible(true)
+                            .child(h::DrawerCloseTrigger::new())
                             .child(gpui::div().flex().flex_col().gap(px(8.)).children(
                                 (1..=20).map(|n| {
                                     gpui::div().child(format!("Change {n} of twenty."))
@@ -9592,6 +9670,7 @@ impl Gallery {
                                 .is_open(self.demo_overlay("dr-controlled"))
                                 .title("Controlled")
                                 .is_dismissible(true)
+                                .child(h::DrawerCloseTrigger::new())
                                 .child(gpui::div().child("Closing reports through onOpenChange."))
                                 .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                     this.set_demo_flag("dr-controlled", *v);
@@ -9612,6 +9691,7 @@ impl Gallery {
                             .is_open(self.demo_overlay("dr-form"))
                             .title("New issue")
                             .is_dismissible(true)
+                            .child(h::DrawerCloseTrigger::new())
                             .child(
                                 gpui::div()
                                     .flex()
@@ -9652,6 +9732,7 @@ impl Gallery {
                             .placement(h::DrawerPlacement::Left)
                             .title("Menu")
                             .is_dismissible(true)
+                            .child(h::DrawerCloseTrigger::new())
                             .child(h::ListBox::new(
                                 "dr-nav-list",
                                 vec![
@@ -9690,6 +9771,7 @@ impl Gallery {
                                     .backdrop(*backdrop)
                                     .title(format!("Backdrop: {}", backdrop.label()))
                                     .is_dismissible(true)
+                                    .child(h::DrawerCloseTrigger::new())
                                     .child(gpui::div().child("The scrim behind the panel."))
                                     .on_open_change(bool_cb(cx.listener(
                                         move |this, v: &bool, _, cx| {
@@ -9724,6 +9806,7 @@ impl Gallery {
                                 .is_open(is_open)
                                 .title("Settings")
                                 .placement(h::DrawerPlacement::Right)
+                                .child(h::DrawerCloseTrigger::new())
                                 .child(gpui::div().child("Panel content goes here."))
                                 .footer_child(h::Button::new("dr-done").label("Done").on_press(
                                     cx.listener(|this, _, _, cx| {
@@ -9779,6 +9862,7 @@ impl Gallery {
                                 .size(size)
                                 .title(format!("Size: {label}"))
                                 .is_dismissible(true)
+                                .child(h::ModalCloseTrigger::new())
                                 .child(gpui::div().child("Every size shares one panel style."))
                                 .on_open_change(bool_cb(cx.listener(
                                     move |this, v: &bool, _, cx| {
@@ -9812,6 +9896,7 @@ impl Gallery {
                                 .placement(placement)
                                 .title(format!("Placement: {label}"))
                                 .is_dismissible(true)
+                                .child(h::ModalCloseTrigger::new())
                                 .child(gpui::div().child("The panel keeps its own size."))
                                 .on_open_change(bool_cb(cx.listener(
                                     move |this, v: &bool, _, cx| {
@@ -9843,6 +9928,7 @@ impl Gallery {
                                 .scroll(scroll)
                                 .title(format!("Scroll: {label}"))
                                 .is_dismissible(true)
+                                .child(h::ModalCloseTrigger::new())
                                 .child(gpui::div().flex().flex_col().gap(px(8.)).children(
                                     (1..=12).map(|n| {
                                         gpui::div().child(format!("Paragraph {n} of twelve."))
@@ -9878,6 +9964,7 @@ impl Gallery {
                                 .is_open(md_controlled)
                                 .title("Controlled")
                                 .is_dismissible(true)
+                                .child(h::ModalCloseTrigger::new())
                                 .child(gpui::div().child("Closing reports through onOpenChange."))
                                 .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                     this.set_demo_flag("md-controlled", *v);
@@ -9898,6 +9985,7 @@ impl Gallery {
                             .is_open(md_form)
                             .title("Invite a teammate")
                             .is_dismissible(true)
+                            .child(h::ModalCloseTrigger::new())
                             .child(
                                 gpui::div()
                                     .flex()
@@ -9954,6 +10042,7 @@ impl Gallery {
                                 .is_open(md_custom)
                                 .title("Jane Doe")
                                 .is_dismissible(true)
+                                .child(h::ModalCloseTrigger::new())
                                 .child(gpui::div().child("Any element can open a modal."))
                                 .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                     this.set_demo_flag("md-custom", *v);
@@ -9982,6 +10071,7 @@ impl Gallery {
                                     .backdrop(*backdrop)
                                     .title(format!("Backdrop: {}", backdrop.label()))
                                     .is_dismissible(true)
+                                    .child(h::ModalCloseTrigger::new())
                                     .child(gpui::div().child("The scrim behind the panel."))
                                     .on_open_change(bool_cb(cx.listener(
                                         move |this, v: &bool, _, cx| {
@@ -10013,6 +10103,7 @@ impl Gallery {
                                 .backdrop(h::Backdrop::Blur)
                                 .title("Blurred")
                                 .is_dismissible(true)
+                                .child(h::ModalCloseTrigger::new())
                                 .child(gpui::div().child("The page behind is blurred."))
                                 .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                     this.set_demo_flag("md-bd-custom", *v);
@@ -10040,8 +10131,9 @@ impl Gallery {
                                 .title("Confirm first")
                                 .is_dismissible(false)
                                 .is_keyboard_dismiss_disabled(true)
+                                .child(h::ModalCloseTrigger::new())
                                 .child(gpui::div().child(
-                                    "The backdrop and Escape are both inert; use the button.",
+                                    "The backdrop and Escape are both inert; the composed X and the button still close.",
                                 ))
                                 .footer_child(
                                     h::Button::new("md-no-dismiss-ok").label("Got it").on_press(
@@ -10064,20 +10156,25 @@ impl Gallery {
                     "Close Methods",
                     col(vec![
                         para(
-                            "Three ways out: the close button, a footer action, and the \
-                             backdrop. `hideCloseButton` removes the first.",
+                            "v3 spells the close affordance by composition: the `Close Methods` \
+                             example closes through footer buttons and composes no \
+                             `Modal.CloseTrigger`, so the corner slot stays bare. Every other \
+                             example composes `<Modal.CloseTrigger />` for the built-in X.",
                             cx,
                         ),
                         overlay_demo(
                             "md-close",
-                            "Open (no close button)",
+                            "Open (no close trigger)",
                             h::Modal::new()
                                 .id("md-close")
                                 .is_open(md_close)
                                 .title("Close me")
-                                .hide_close_button(true)
                                 .is_dismissible(true)
-                                .child(gpui::div().child("The corner button is gone."))
+                                .child(
+                                    gpui::div().child(
+                                        "The corner slot is bare; the footer button closes."
+                                    )
+                                )
                                 .footer_child(
                                     h::Button::new("md-close-ok").label("Close").on_press(
                                         cx.listener(|this, _, _, cx| {
@@ -10114,6 +10211,7 @@ impl Gallery {
                                 .is_open(md_anim)
                                 .title("Animated")
                                 .is_dismissible(true)
+                                .child(h::ModalCloseTrigger::new())
                                 .child(gpui::div().child("Close and reopen to see it again."))
                                 .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                     this.set_demo_flag("md-anim", *v);
@@ -10149,6 +10247,7 @@ impl Gallery {
                                 .icon(h::icons::MAIL)
                                 .title("Create account")
                                 .is_dismissible(true)
+                                .child(h::ModalCloseTrigger::new())
                                 .child(gpui::div().child("Sign up to get started with HeroGPUI."))
                                 .footer_child(
                                     h::Button::new("md-cancel")
@@ -10189,16 +10288,20 @@ impl Gallery {
                     "With Arrow",
                     col(vec![
                         para(
-                            "`Popover.Arrow` uses v3's built-in 12px curve, follows the resolved \
-                             side when the panel flips, and preserves the configured offset from \
-                             its trigger.",
+                            "`PopoverArrow::new()` composes v3's `Popover.Arrow` part: the built-in \
+                             12px curve follows the resolved side when the panel flips and preserves \
+                             the configured offset. A custom child element takes the resolved \
+                             position but no rotation: upstream rotates it through its \
+                             `data-slot` placement CSS, which GPUI 0.2.2 cannot reproduce on an \
+                             arbitrary element (only `svg()` transforms at construction).",
                             cx,
                         ),
                         gpui::div()
                             .relative()
                             .flex()
-                            .flex_col()
+                            .flex_wrap()
                             .items_start()
+                            .gap(px(24.))
                             .min_h(px(160.))
                             .pl(px(48.))
                             .child(
@@ -10209,10 +10312,30 @@ impl Gallery {
                                 )
                                 .id("po-arrow")
                                 .default_open(self.overlays_open)
-                                .show_arrow(true)
                                 .offset(px(12.))
                                 .title("Anchored")
-                                .child(gpui::div().child("Twelve pixels clear of the trigger.")),
+                                .child(gpui::div().child("Twelve pixels clear of the trigger."))
+                                .child(h::PopoverArrow::new()),
+                            )
+                            .child(
+                                h::Popover::new(
+                                    h::Button::new("po-arrow-custom-trigger")
+                                        .label("Custom arrow")
+                                        .variant(Variant::Secondary),
+                                )
+                                .id("po-arrow-custom")
+                                .default_open(self.overlays_open)
+                                .offset(px(12.))
+                                .title("Custom arrow")
+                                .child(gpui::div().child("A caller-drawn element, not the curve."))
+                                .child(
+                                    h::PopoverArrow::new().child(
+                                        gpui::svg()
+                                            .size(px(12.))
+                                            .path(h::icons::TOOLTIP_ARROW)
+                                            .text_color(cx.colors().accent.foreground),
+                                    ),
+                                ),
                             )
                             .into_any_element(),
                     ]),

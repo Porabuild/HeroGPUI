@@ -118,15 +118,18 @@ PART_EVIDENCE = {
     # A ComboBox *is* an input group: the field plus the chevron trigger.
     ('ComboBox', 'InputGroup'): r'Input::new',
     ('DateField', 'InputContainer'): r'segment',
-    # v3 lets a caller place its own dismissing control; this port draws the
-    # built-in close button, which is the same element with no slot to fill.
-    ('Drawer', 'CloseTrigger'): r'CloseButton',
-    ('Modal', 'CloseTrigger'): r'CloseButton',
+    # The close-trigger part composes through the shared `close_trigger_part!`
+    # macro and is extracted with `take_close_triggers::<..>`; those are the
+    # call sites the three dialog modules spell (their `CloseButton` mentions
+    # live in the macro, so the button name alone would match prose only).
+    ('AlertDialog', 'CloseTrigger'): r'close_trigger_part!|take_close_triggers::<',
+    ('Drawer', 'CloseTrigger'): r'close_trigger_part!|take_close_triggers::<',
+    ('Modal', 'CloseTrigger'): r'close_trigger_part!|take_close_triggers::<',
     ('Drawer', 'Content'): r'body|children',
     ('Drawer', 'Heading'): r'title',
     ('Dropdown', 'Section'): r'SectionLabel',
     ('Popover', 'Dialog'): r'panel',
-    ('Popover', 'Arrow'): r'show_arrow|arrow_rotation',
+    ('Popover', 'Arrow'): r'PopoverArrow|arrow_rotation',
     ('Slider', 'Output'): r'value_label|output',
     ('Table', 'Collection'): r'rows|virtual_rows',
     ('Table', 'ColumnResizer'): r'allows_resizing',

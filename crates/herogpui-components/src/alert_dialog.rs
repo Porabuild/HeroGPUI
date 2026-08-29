@@ -2,7 +2,8 @@
 //!
 //! A modal for critical confirmations. Unlike [`Modal`](crate::modal::Modal) it
 //! is not dismissible by clicking the backdrop, it always announces a title and
-//! description, and it renders a confirm/cancel action pair.
+//! description, and it renders a confirm/cancel action pair unless the caller
+//! composes their own `AlertDialog.Footer` children.
 
 use std::sync::Arc;
 
@@ -68,6 +69,39 @@ impl AlertDialogSize {
 
 type OnAction = Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 
+/// `AlertDialog.CloseTrigger` — the dialog's close slot, `absolute end-4
+/// top-4`.
+///
+/// v3 spells visibility by composing or omitting the part: a composed
+/// [`AlertDialogCloseTrigger`] renders in the slot and an omitted one leaves
+/// it bare panel padding — there is no `hideCloseButton` and no automatic
+/// stand-in. The part is v3's wired `CloseButton` (`slot="close"`), always
+/// wired to `onOpenChange(false)` alone — never to [`AlertDialog::on_cancel`]
+/// — and closing regardless of `is_dismissible` or
+/// `is_keyboard_dismiss_disabled`, like v3's composed trigger. Custom
+/// `children` only replace the button's glyph — the press still runs the
+/// dialog's close action. Without an `on_open_change` — or composed outside
+/// an [`AlertDialog`] — the part draws nothing.
+pub struct AlertDialogCloseTrigger {
+    on_dismiss: Option<OnAction>,
+    /// This trigger's index within its dialog; see
+    /// [`crate::modal::CloseTriggerPart::wire`].
+    slot: usize,
+    children: Vec<AnyElement>,
+}
+
+impl AlertDialogCloseTrigger {
+    pub fn new() -> Self {
+        Self {
+            on_dismiss: None,
+            slot: 0,
+            children: Vec::new(),
+        }
+    }
+}
+
+crate::modal::close_trigger_part!(AlertDialogCloseTrigger, "alert-dialog-close");
+
 /// `.alert-dialog__icon--{status}`: the disc's background, the glyph colour
 /// and the glyph. `--default` uses the plain `bg-default text-foreground`
 /// pair with the info glyph, not a soft mix; the status roles use their soft
@@ -120,15 +154,14 @@ pub struct AlertDialog {
     /// dialog that does not compose one.
     status: Option<Color>,
     is_dismissible: bool,
-    hide_close_button: bool,
     is_keyboard_dismiss_disabled: bool,
     on_open_change: Option<OnOpenChange>,
     confirm_label: SharedString,
     cancel_label: SharedString,
-    /// Renders the confirm button as destructive.
-    is_destructive: bool,
-    /// Disables the confirm button while an action is in flight.
-    is_pending: bool,
+    /// Composed `AlertDialog.Footer` children. Any composed child retires the
+    /// built-in cancel/confirm pair: v3's footer is caller-composed, which is
+    /// where a danger or pending confirm is spelled.
+    footer: Vec<AnyElement>,
     children: Vec<AnyElement>,
     on_confirm: Option<OnAction>,
     on_cancel: Option<OnAction>,
@@ -159,14 +192,12 @@ impl AlertDialog {
             // v3 defaults an alert dialog to non-dismissible: the user has to
             // pick one of the two actions.
             is_dismissible: false,
-            hide_close_button: false,
             // v3 defaults this to true for an alert dialog.
             is_keyboard_dismiss_disabled: true,
             on_open_change: None,
             confirm_label: "Confirm".into(),
             cancel_label: "Cancel".into(),
-            is_destructive: false,
-            is_pending: false,
+            footer: Vec::new(),
             children: Vec::new(),
             on_confirm: None,
             on_cancel: None,
@@ -207,14 +238,10 @@ impl AlertDialog {
         self
     }
 
-    /// `isDismissable` — allows dismissal by clicking the backdrop.
-    /// `AlertDialog.CloseTrigger` is composed in v3; this renders the built-in
-    /// one unless it is turned off.
-    pub fn hide_close_button(mut self, v: bool) -> Self {
-        self.hide_close_button = v;
-        self
-    }
-
+    /// `isDismissable` — allows dismissal by clicking the backdrop. The close
+    /// slot is not the backdrop: like v3's composed `AlertDialog.CloseTrigger`,
+    /// the composed part renders and closes regardless of this flag, reporting
+    /// through [`AlertDialog::on_open_change`] alone.
     pub fn is_dismissible(mut self, v: bool) -> Self {
         self.is_dismissible = v;
         self
@@ -241,16 +268,23 @@ impl AlertDialog {
         self
     }
 
-    pub fn is_destructive(mut self, v: bool) -> Self {
-        self.is_destructive = v;
+    /// Composes `AlertDialog.Footer` — the caller-owned action row.
+    ///
+    /// v3 has no built-in confirm/cancel pair: the footer buttons are
+    /// composed, which is where a danger or pending confirm is spelled
+    /// (`variant="danger"`, `is_pending` on the composed `Button`). Any
+    /// composed child retires the built-in pair and owns its own close
+    /// reporting; repeated calls append in order.
+    pub fn footer_child(mut self, el: impl IntoElement) -> Self {
+        self.footer.push(el.into_any_element());
         self
     }
 
-    pub fn is_pending(mut self, v: bool) -> Self {
-        self.is_pending = v;
-        self
-    }
-
+    /// The confirm action on the built-in footer pair. The pair renders only
+    /// when the caller composes no footer children: a composed
+    /// `AlertDialog.Footer` retires it whole and owns its own close
+    /// reporting, so `on_confirm` does nothing there — see
+    /// [`AlertDialog::footer_child`].
     pub fn on_confirm(
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
@@ -259,6 +293,10 @@ impl AlertDialog {
         self
     }
 
+    /// The cancel action on the built-in footer pair. The pair renders only
+    /// when the caller composes no footer children, and a close trigger is
+    /// never a cancel: `on_cancel` fires from the built-in cancel button
+    /// alone — see [`AlertDialog::footer_child`].
     pub fn on_cancel(
         mut self,
         handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
@@ -275,7 +313,7 @@ impl ParentElement for AlertDialog {
 }
 
 impl RenderOnce for AlertDialog {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // v3 keeps a closing panel on screen for its `[data-exiting]` run.
         let (phase, dismissal_token) = util::overlay_scope(
             window,
@@ -304,6 +342,38 @@ impl RenderOnce for AlertDialog {
 
         let colors = cx.colors();
         let layout = cx.layout();
+
+        // Every close slot reports through `onOpenChange(false)` alone — never
+        // through `onCancel`. v3's `slot="close"` buttons carry RAC's
+        // `state.close()` as the slot's own `onPress`, and a consumer handler
+        // chains *after* it: `AlertDialog.CloseTrigger` (the composed part in
+        // the close slot), the `ModalOverlay`'s outside-press dismissal and
+        // its Escape dismissal are all plain closes with no action of their
+        // own. `isDismissable` only gates the scrim.
+        let close_action: Option<OnAction> =
+            self.on_open_change.clone().map(|open_change| -> OnAction {
+                util::shared(move |_ev: &ClickEvent, window: &mut Window, cx: &mut App| {
+                    open_change(false, window, cx);
+                })
+            });
+
+        // v3 composes the close trigger as a child part. Pull every composed
+        // `AlertDialogCloseTrigger` out of the dialog's children and the
+        // footer row — so neither slot swallows it — and hand each the close
+        // path above to wire the default `CloseButton` with.
+        let composed_footer = !self.footer.is_empty();
+        let mut close_triggers = crate::modal::take_close_triggers::<AlertDialogCloseTrigger>(
+            &mut self.children,
+            close_action.clone(),
+            0,
+        );
+        close_triggers.extend(
+            crate::modal::take_close_triggers::<AlertDialogCloseTrigger>(
+                &mut self.footer,
+                close_action.clone(),
+                close_triggers.len(),
+            ),
+        );
 
         // `.alert-dialog__container` is `p-4 sm:p-10`, so its content box —
         // the box v3's `max-h-full` dialog resolves against — is the viewport
@@ -427,7 +497,11 @@ impl RenderOnce for AlertDialog {
         }
 
         // Cancel first, confirm last — the destructive action is furthest from
-        // the reading position.
+        // the reading position. `composed_footer` was measured before the
+        // trigger pull: a footer that held only a close trigger still retires
+        // the built-in pair, but the pull also leaves nothing to render in
+        // the row, and an empty `mt-5` row draws nothing but a phantom 20px
+        // gap — so the row is spelled only when it has content.
         let mut actions = div()
             .flex()
             .flex_row()
@@ -436,63 +510,63 @@ impl RenderOnce for AlertDialog {
             .gap(px(8.))
             // `+ .alert-dialog__footer` is `mt-5`.
             .mt(px(20.));
+        if !composed_footer {
+            // The built-in footer pair stands in for v3's composed
+            // `Button slot="close"` compositions, and is retired whole the
+            // moment the caller composes their own footer. RAC chains the
+            // slot's own `onPress` — `state.close()`, the owner's
+            // `onOpenChange(false)` — *before* a consumer `onPress`, so the
+            // close is reported first and the action callback runs after.
+            // The dialog is controlled: the owner, not the button, decides
+            // the next render.
+            let cancel_action = match (self.on_open_change.clone(), self.on_cancel.clone()) {
+                (None, None) => None,
+                (open_change, action) => Some(util::shared(
+                    move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
+                        if let Some(f) = &open_change {
+                            f(false, window, cx);
+                        }
+                        if let Some(f) = &action {
+                            f(ev, window, cx);
+                        }
+                    },
+                )),
+            };
+            let confirm_action = match (self.on_open_change.clone(), self.on_confirm.clone()) {
+                (None, None) => None,
+                (open_change, action) => Some(util::shared(
+                    move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
+                        if let Some(f) = &open_change {
+                            f(false, window, cx);
+                        }
+                        if let Some(f) = &action {
+                            f(ev, window, cx);
+                        }
+                    },
+                )),
+            };
 
-        // Both built-in footer buttons stand in for v3's `Button slot="close"`
-        // compositions. RAC chains the slot's own `onPress` — `state.close()`,
-        // the owner's `onOpenChange(false)` — *before* a consumer `onPress`,
-        // so the close is reported first and the action callback runs after.
-        // The dialog is controlled: the owner, not the button, decides the
-        // next render.
-        let cancel_action = match (self.on_open_change.clone(), self.on_cancel.clone()) {
-            (None, None) => None,
-            (open_change, action) => Some(util::shared(
-                move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
-                    if let Some(f) = &open_change {
-                        f(false, window, cx);
-                    }
-                    if let Some(f) = &action {
-                        f(ev, window, cx);
-                    }
-                },
-            )),
-        };
-        let confirm_action = match (self.on_open_change.clone(), self.on_confirm.clone()) {
-            (None, None) => None,
-            (open_change, action) => Some(util::shared(
-                move |ev: &ClickEvent, window: &mut Window, cx: &mut App| {
-                    if let Some(f) = &open_change {
-                        f(false, window, cx);
-                    }
-                    if let Some(f) = &action {
-                        f(ev, window, cx);
-                    }
-                },
-            )),
-        };
+            let mut cancel = Button::new("alert-dialog-cancel")
+                .label(self.cancel_label.clone())
+                .variant(Variant::Tertiary)
+                .size(Size::Md);
+            if let Some(action) = cancel_action {
+                cancel = cancel.on_press(move |ev, window, cx| action(ev, window, cx));
+            }
 
-        let mut cancel = Button::new("alert-dialog-cancel")
-            .label(self.cancel_label.clone())
-            .variant(Variant::Tertiary)
-            .size(Size::Md);
-        if let Some(action) = cancel_action {
-            cancel = cancel.on_press(move |ev, window, cx| action(ev, window, cx));
+            let mut confirm = Button::new("alert-dialog-confirm")
+                .label(self.confirm_label.clone())
+                .variant(Variant::Primary)
+                .size(Size::Md);
+            if let Some(action) = confirm_action {
+                confirm = confirm.on_press(move |ev, window, cx| action(ev, window, cx));
+            }
+
+            actions = actions.child(cancel).child(confirm);
+            panel = panel.child(actions);
+        } else if !self.footer.is_empty() {
+            panel = panel.child(actions.children(self.footer));
         }
-
-        let mut confirm = Button::new("alert-dialog-confirm")
-            .label(self.confirm_label.clone())
-            .variant(if self.is_destructive {
-                Variant::Danger
-            } else {
-                Variant::Primary
-            })
-            .size(Size::Md)
-            .is_pending(self.is_pending);
-        if let Some(action) = confirm_action {
-            confirm = confirm.on_press(move |ev, window, cx| action(ev, window, cx));
-        }
-
-        actions = actions.child(cancel).child(confirm);
-        panel = panel.child(actions);
 
         let backdrop_bg = match self.backdrop {
             Backdrop::Opaque => colors.backdrop,
@@ -500,34 +574,11 @@ impl RenderOnce for AlertDialog {
             Backdrop::Transparent => gpui::transparent_black(),
         };
 
-        // Every close slot reports through `onOpenChange(false)` alone — never
-        // through `onCancel`. v3's `slot="close"` buttons carry RAC's
-        // `state.close()` as the slot's own `onPress`, and a consumer handler
-        // chains *after* it: `AlertDialog.CloseTrigger` (the built-in X below),
-        // the `ModalOverlay`'s outside-press dismissal and its Escape dismissal
-        // are all plain closes with no action of their own. `isDismissable`
-        // only gates the scrim — the close trigger renders in every documented
-        // example, including the `isDismissable={false}` and
-        // `isKeyboardDismissDisabled` ones.
-        let close_action: Option<OnAction> =
-            self.on_open_change.clone().map(|open_change| -> OnAction {
-                util::shared(move |_ev: &ClickEvent, window: &mut Window, cx: &mut App| {
-                    open_change(false, window, cx);
-                })
-            });
-
-        // `.alert-dialog__close-trigger` is `absolute end-4 top-4`. The
-        // built-in trigger stands in for the composed
-        // `AlertDialog.CloseTrigger`, so it follows the same rule above.
-        if !self.hide_close_button {
-            if let Some(on_close) = close_action.clone() {
-                panel = panel.child(
-                    div().absolute().top(px(16.)).right(px(16.)).child(
-                        crate::close_button::CloseButton::new("alert-dialog-close")
-                            .on_press(move |ev, window, cx| on_close(ev, window, cx)),
-                    ),
-                );
-            }
+        // `.alert-dialog__close-trigger` is `absolute end-4 top-4`. v3 renders
+        // a close affordance only where the caller composes the part; an
+        // omitted trigger leaves the spot bare panel padding.
+        for trigger in close_triggers {
+            panel = panel.child(div().absolute().top(px(16.)).right(px(16.)).child(trigger));
         }
 
         // Backdrop dismissal lives on the **panel**, exactly as in the modal

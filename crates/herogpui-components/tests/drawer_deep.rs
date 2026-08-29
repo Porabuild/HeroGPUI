@@ -157,8 +157,7 @@ fn body_scroll_reaches_last_row_without_dismissal_and_body_drag_is_excluded(
         let mut drawer = Drawer::new()
             .id("drawer-scroll-body")
             .is_open(open_for_view.get())
-            .placement(DrawerPlacement::Right)
-            .hide_close_button(true);
+            .placement(DrawerPlacement::Right);
         for index in 0..40 {
             let label = format!("row-{index}");
             let recorded = rows_for_view.clone();
@@ -214,8 +213,7 @@ fn titleless_right_drawer_dismisses_once_from_visible_handle(cx: &mut TestAppCon
             Drawer::new()
                 .id("drawer-handle-drag")
                 .is_open(open_for_view.get())
-                .placement(DrawerPlacement::Right)
-                .hide_close_button(true),
+                .placement(DrawerPlacement::Right),
             open_for_view.clone(),
             for_view.clone(),
         )
@@ -241,7 +239,6 @@ fn right_drawer_dismisses_once_from_header(cx: &mut TestAppContext) {
                 .id("drawer-header-drag")
                 .is_open(open_for_view.get())
                 .placement(DrawerPlacement::Right)
-                .hide_close_button(true)
                 .title("Header"),
             open_for_view.clone(),
             for_view.clone(),
@@ -266,7 +263,6 @@ fn right_drawer_dismisses_once_from_footer(cx: &mut TestAppContext) {
                 .id("drawer-footer-drag")
                 .is_open(open_for_view.get())
                 .placement(DrawerPlacement::Right)
-                .hide_close_button(true)
                 .footer_child(gpui::div().w(px(80.)).h(px(40.))),
             open_for_view.clone(),
             for_view.clone(),
@@ -295,7 +291,6 @@ fn footer_button_does_not_start_drag_and_still_activates(cx: &mut TestAppContext
                 .id("drawer-footer-button")
                 .is_open(open_for_view.get())
                 .placement(DrawerPlacement::Right)
-                .hide_close_button(true)
                 .footer_child(
                     gpui::div().w(px(160.)).child(
                         Button::new("drawer-footer-action")
@@ -345,7 +340,6 @@ fn unfocusable_footer_click_does_not_start_drag_and_still_activates(cx: &mut Tes
                 .id("drawer-footer-unfocusable-click")
                 .is_open(open_for_view.get())
                 .placement(DrawerPlacement::Right)
-                .hide_close_button(true)
                 .footer_child(
                     gpui::div()
                         .id("drawer-footer-clickable-div")
@@ -383,7 +377,6 @@ fn noninteractive_full_width_footer_child_remains_draggable(cx: &mut TestAppCont
                 .id("drawer-footer-full-width")
                 .is_open(open_for_view.get())
                 .placement(DrawerPlacement::Right)
-                .hide_close_button(true)
                 .footer_child(gpui::div().w_full().h(px(40.))),
             open_for_view.clone(),
             recorded_for_view.clone(),
@@ -408,7 +401,6 @@ fn top_drawer_drag_reaches_past_window_edge(cx: &mut TestAppContext) {
                 .id("drawer-top-global-drag")
                 .is_open(open_for_view.get())
                 .placement(DrawerPlacement::Top)
-                .hide_close_button(true)
                 .title("Top"),
             open_for_view.clone(),
             recorded_for_view.clone(),
@@ -433,7 +425,6 @@ fn top_drawer_handle_and_footer_can_start_global_drag(cx: &mut TestAppContext) {
                 .id("drawer-top-surfaces")
                 .is_open(open_for_view.get())
                 .placement(DrawerPlacement::Top)
-                .hide_close_button(true)
                 .title("Top")
                 .footer_child(gpui::div().w(px(80.)).h(px(40.))),
             open_for_view.clone(),
@@ -464,8 +455,7 @@ fn drawer_drag_needs_eight_pixels_but_fast_flick_can_dismiss(cx: &mut TestAppCon
             Drawer::new()
                 .id("drawer-drag-activation")
                 .is_open(open_for_view.get())
-                .placement(DrawerPlacement::Right)
-                .hide_close_button(true),
+                .placement(DrawerPlacement::Right),
             open_for_view.clone(),
             recorded_for_view.clone(),
         )
@@ -531,7 +521,6 @@ fn keyboard_dismiss_disabled_blocks_escape_but_not_handle_drag(cx: &mut TestAppC
                 .id("drawer-keyboard-disabled")
                 .is_open(open_for_view.get())
                 .placement(DrawerPlacement::Right)
-                .hide_close_button(true)
                 .is_keyboard_dismiss_disabled(true),
             open_for_view.clone(),
             for_view.clone(),
@@ -568,7 +557,6 @@ fn tab_remains_trapped_inside_drawer(cx: &mut TestAppContext) {
                     .id("drawer-tab-trap")
                     .is_open(true)
                     .placement(DrawerPlacement::Right)
-                    .hide_close_button(true)
                     .child(
                         Button::new("drawer-tab-inside-first")
                             .label("First")

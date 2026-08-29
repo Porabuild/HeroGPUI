@@ -183,9 +183,9 @@ ALIAS = {
     # never reads. A global alias here would let a reintroduced v2 builder
     # satisfy a row v3 never written; `dead_v2_aliases` (which `main` runs)
     # fails loudly if one comes back, and `extra_audit.py`'s `BANNED_V2`
-    # enforces the builder side of the same deletion. `is_destructive` stays
-    # unbanned there because the port records it as the composition spelling
-    # of v3's `variant="danger"`, not as the removed v2 prop.
+    # enforces the builder side of the same deletion (`is_destructive`
+    # included now that the port spells a danger confirm with v3's
+    # `variant="danger"` on the composed footer `Button`).
     'fullWidth': 'full_width', 'maxVisibleToasts': 'max_visible_toasts',
     'hideSeparator': 'hide_separator', 'hideSteppers': 'hide_steppers',
     'selectionMode': 'selection_mode', 'selectedKeys': 'selected_keys',
@@ -573,6 +573,7 @@ PART_STRUCTS = {
     'Accordion.Item': ['AccordionItem'],
     'Accordion.Trigger': ['AccordionItem'],
     'AlertDialog.Backdrop': ['AlertDialog'],
+    'AlertDialog.CloseTrigger': ['AlertDialogCloseTrigger'],
     'AlertDialog.Container': ['AlertDialog'],
     'AlertDialog.Dialog': ['AlertDialog'],
     'AlertDialog.Icon': ['AlertDialog'],
@@ -600,6 +601,7 @@ PART_STRUCTS = {
     'DateField.Input': ['DateField'],
     'DateField.Segment': ['DateField'],
     'Drawer.Backdrop': ['Drawer'],
+    'Drawer.CloseTrigger': ['DrawerCloseTrigger'],
     'Drawer.Content': ['Drawer'],
     'Drawer.Dialog': ['Drawer'],
     'Dropdown.Item': ['MenuItem'],
@@ -611,11 +613,13 @@ PART_STRUCTS = {
     'Kbd.Abbr': ['Kbd'],
     'ListBox.Item': ['ListBoxItem'],
     'Modal.Backdrop': ['Modal'],
+    'Modal.CloseTrigger': ['ModalCloseTrigger'],
     'Modal.Container': ['Modal'],
     'Modal.Dialog': ['Modal'],
     'Pagination.Link': [],
     'Pagination.Previous / Pagination.Next': [],
     'Popover.Content': ['Popover'],
+    'Popover.Arrow': ['PopoverArrow'],
     'RangeCalendar.Cell': ['RangeCalendar'],
     # The RangeCalendar halves of the same year-picker parts: drawn by the
     # monolithic root, whose builders can only be the parts' props.

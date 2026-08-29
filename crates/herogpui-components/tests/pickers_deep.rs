@@ -12,8 +12,8 @@
 //! `placement.rs` already drives. There is nothing in the port to test for a
 //! Drawer size either (`drawer.rs` has `id`, `is_open`, `placement`, … and no
 //! size), so this file pins the Drawer props that have never been driven
-//! instead: the close button, `on_close`, `isKeyboardDismissDisabled`,
-//! `hideCloseButton`, `isDismissible` and the footer slot.
+//! instead: the close trigger, `on_close`, `isKeyboardDismissDisabled`,
+//! `isDismissible` and the footer slot.
 //!
 //! What is deliberately NOT duplicated here:
 //!
@@ -73,8 +73,8 @@ use gpui::{
 };
 use harness::{click, events, open_host, press, Events};
 use herogpui_components::{
-    Autocomplete, ComboBox, Drawer, DrawerPlacement, Form, FormData, Input, InputState,
-    MenuTrigger, PickerItem, Select, SelectionMode,
+    Autocomplete, ComboBox, Drawer, DrawerCloseTrigger, DrawerPlacement, Form, FormData, Input,
+    InputState, MenuTrigger, PickerItem, Select, SelectionMode,
 };
 
 /// An `InputState` entity for the search-field-backed controls, created before
@@ -3122,9 +3122,10 @@ fn select_tab_to_the_next_control_closes_and_keeps_the_focus_moving(cx: &mut Tes
 // so the footer stays at the bottom; its 40x36 probe centres at (1876, 1038).
 
 /// Every dismissal path reports through `on_close` *and* `onOpenChange`, and
-/// the close button is a path of its own. The pointer press on the close
-/// trigger and the Escape key each fire both callbacks exactly once; after the
-/// exit the sheet is gone, so the probe spot records nothing.
+/// the composed default `DrawerCloseTrigger` is a path of its own. The
+/// pointer press on the close trigger and the Escape key each fire both
+/// callbacks exactly once; after the exit the sheet is gone, so the probe
+/// spot records nothing.
 #[gpui::test]
 fn drawer_close_button_reports_on_close_and_open_change(cx: &mut TestAppContext) {
     still();
@@ -3147,6 +3148,7 @@ fn drawer_close_button_reports_on_close_and_open_change(cx: &mut TestAppContext)
             .is_open(is_open)
             .placement(DrawerPlacement::Right)
             .title("Drag me shut")
+            .child(DrawerCloseTrigger::new())
             .child(probe("pd-drawer-close-probe", "hit", hits))
             .on_close(move |_, _, _| closes.borrow_mut().push("close".to_owned()))
             .on_open_change({
@@ -3196,9 +3198,9 @@ fn drawer_close_button_reports_on_close_and_open_change(cx: &mut TestAppContext)
     );
 }
 
-/// `isKeyboardDismissDisabled` silences Escape but nothing else: the close
-/// button still dismisses, so the keyboard-disabled drawer is not a stuck
-/// one.
+/// `isKeyboardDismissDisabled` silences Escape but nothing else: the
+/// composed default `DrawerCloseTrigger` still dismisses, so the
+/// keyboard-disabled drawer is not a stuck one.
 #[gpui::test]
 fn drawer_keyboard_dismiss_disabled_silences_escape_but_not_the_button(cx: &mut TestAppContext) {
     still();
@@ -3215,6 +3217,7 @@ fn drawer_keyboard_dismiss_disabled_silences_escape_but_not_the_button(cx: &mut 
             .is_open(is_open)
             .placement(DrawerPlacement::Right)
             .title("Drag me shut")
+            .child(DrawerCloseTrigger::new())
             .is_keyboard_dismiss_disabled(true)
             .on_open_change({
                 let open_flag = open_flag.clone();
@@ -3241,11 +3244,12 @@ fn drawer_keyboard_dismiss_disabled_silences_escape_but_not_the_button(cx: &mut 
     );
 }
 
-/// `hideCloseButton` removes the affordance — the spot where it would sit is
-/// bare panel padding, so a press there records nothing — while the keyboard
-/// dismissal stays intact.
+/// An omitted `DrawerCloseTrigger` leaves the `absolute end-4 top-4` spot as
+/// bare panel padding — v3 has no `hideCloseButton` and no automatic
+/// stand-in — so a press there records nothing, while the keyboard dismissal
+/// stays intact.
 #[gpui::test]
-fn drawer_hide_close_button_keeps_escape_dismissal(cx: &mut TestAppContext) {
+fn drawer_omitted_close_trigger_keeps_escape_dismissal(cx: &mut TestAppContext) {
     still();
     let opens = events();
     let opened = opens.clone();
@@ -3256,11 +3260,10 @@ fn drawer_hide_close_button_keeps_escape_dismissal(cx: &mut TestAppContext) {
         let opens = opens.clone();
         let is_open = *open_flag.borrow();
         Drawer::new()
-            .id("pd-drawer-hide-close")
+            .id("pd-drawer-no-close")
             .is_open(is_open)
             .placement(DrawerPlacement::Right)
             .title("Drag me shut")
-            .hide_close_button(true)
             .on_open_change({
                 let open_flag = open_flag.clone();
                 move |v, window, _| {
@@ -3272,20 +3275,225 @@ fn drawer_hide_close_button_keeps_escape_dismissal(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    // No button: the press lands on the panel's own padding, which is inside
+    // No trigger: the press lands on the panel's own padding, which is inside
     // the panel, so nothing records (the panel's outside-press dismissal only
     // fires outside it).
     click(cx, 1892., 28.);
     assert!(
         opened.borrow().is_empty(),
-        "with hideCloseButton the close-trigger spot must be inert"
+        "an omitted close trigger must leave its spot inert"
     );
 
     press(cx, "escape");
     assert_eq!(
         opened.borrow().as_slice(),
         ["open:false"],
-        "escape must still dismiss a drawer without a close button"
+        "escape must still dismiss a drawer without a close trigger"
+    );
+}
+
+/// A `DrawerCloseTrigger` with custom children still renders v3's wired
+/// `CloseButton` — the children only replace its glyph — so pressing the
+/// composed content reports the drawer's own `on_open_change(false)`, exactly
+/// like the bare part.
+#[gpui::test]
+fn drawer_custom_close_trigger_children_replace_only_the_glyph(cx: &mut TestAppContext) {
+    still();
+    let opens = events();
+    let opened = opens.clone();
+    let open = Rc::new(RefCell::new(true));
+    let open_flag = open;
+
+    let cx = open_host(cx, move || {
+        let opened = opens.clone();
+        let is_open = *open_flag.borrow();
+        // The owner records the close but deliberately never flips `is_open`,
+        // so the drawer stays up for the keyboard half below.
+        Drawer::new()
+            .id("pd-drawer-custom-x")
+            .is_open(is_open)
+            .placement(DrawerPlacement::Right)
+            .title("Drag me shut")
+            .child(
+                DrawerCloseTrigger::new().child(
+                    gpui::div()
+                        .size(px(12.))
+                        .rounded(px(6.))
+                        .bg(gpui::rgb(0xff3366)),
+                ),
+            )
+            .on_open_change(move |v, _, _| {
+                opened.borrow_mut().push(format!("open:{v}"));
+            })
+            .into_any_element()
+    });
+
+    // The close trigger is `absolute end-4 top-4`, a 24px button centred at
+    // (1892, 28). The press reports the drawer's own close: the custom
+    // children replaced the button's glyph, not its wiring.
+    click(cx, 1892., 28.);
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:false"],
+        "the composed custom content must still report the drawer's close"
+    );
+
+    // Escape is a separate dismissal path and reports through the same
+    // drawer-owned callbacks.
+    press(cx, "escape");
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:false", "open:false"],
+        "escape must still dismiss a drawer with a custom close trigger"
+    );
+}
+
+/// With no dismissal callback to wire, a composed `DrawerCloseTrigger`
+/// renders nothing at all — not even its custom children — while the
+/// drawer's own body stays interactive.
+#[gpui::test]
+fn drawer_callback_less_close_trigger_renders_nothing(cx: &mut TestAppContext) {
+    still();
+    let rec = events();
+    let probed = rec.clone();
+    let body = events();
+    let body_probed = body.clone();
+
+    let cx = open_host(cx, move || {
+        let probed = rec.clone();
+        let body_probed = body.clone();
+        // No `on_close` and no `on_open_change`: the trigger has nothing to
+        // wire and must draw nothing — the probe child would answer if it
+        // were rendered bare in the slot.
+        Drawer::new()
+            .id("pd-drawer-bare-x")
+            .is_open(true)
+            .placement(DrawerPlacement::Right)
+            .title("Drag me shut")
+            .child(
+                DrawerCloseTrigger::new().child(
+                    gpui::div()
+                        .id("pd-drawer-bare-x-slot")
+                        .size(px(24.))
+                        .on_click(move |_, _, _| probed.borrow_mut().push("slot".into())),
+                ),
+            )
+            .child(probe("pd-drawer-bare-x-body", "body", body_probed))
+            .into_any_element()
+    });
+
+    // The drawer is up and its body answers: the 40x36 probe centres at
+    // (1580, 86).
+    click(cx, 1580., 86.);
+    assert_eq!(body_probed.borrow().as_slice(), ["body"]);
+
+    // The slot press records nothing: the slot is `absolute end-4 top-4`, a
+    // 24px box centred at (1892, 28).
+    click(cx, 1892., 28.);
+    assert!(
+        probed.borrow().is_empty(),
+        "a callback-less close trigger must render nothing: {:?}",
+        probed.borrow()
+    );
+}
+
+/// A `DrawerCloseTrigger` composed through `footer_child` is not swallowed by
+/// the footer row: it is pulled into the `absolute end-4 top-4` slot and
+/// wired like a part composed among the body children.
+#[gpui::test]
+fn drawer_footer_child_close_trigger_is_pulled_into_the_slot(cx: &mut TestAppContext) {
+    still();
+    let opens = events();
+    let opened = opens.clone();
+    let body = events();
+    let body_probed = body.clone();
+    let open = Rc::new(RefCell::new(true));
+    let open_flag = open;
+
+    let cx = open_host(cx, move || {
+        let opened = opens.clone();
+        let body_probed = body.clone();
+        let is_open = *open_flag.borrow();
+        Drawer::new()
+            .id("pd-drawer-footer-x")
+            .is_open(is_open)
+            .placement(DrawerPlacement::Right)
+            .title("Drag me shut")
+            .child(probe("pd-drawer-footer-x-body", "body", body_probed))
+            .footer_child(DrawerCloseTrigger::new())
+            .on_open_change({
+                let open_flag = open_flag.clone();
+                move |v, window, _| {
+                    *open_flag.borrow_mut() = v;
+                    opened.borrow_mut().push(format!("open:{v}"));
+                    window.refresh();
+                }
+            })
+            .into_any_element()
+    });
+
+    // The drawer is up and its body answers.
+    click(cx, 1580., 86.);
+    assert_eq!(body_probed.borrow().as_slice(), ["body"]);
+
+    // The trigger was the only footer child, so the footer row retires with
+    // it; the slot press at (1892, 28) closes the drawer exactly once.
+    click(cx, 1892., 28.);
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:false"],
+        "a footer-composed close trigger must render in the slot, wired"
+    );
+}
+
+/// `isDismissible = false` gates the outside press and the drag, never the
+/// composed close part: a non-dismissible drawer that composes the default
+/// `DrawerCloseTrigger` must still close from it, while the scrim press
+/// reports nothing.
+#[gpui::test]
+fn drawer_not_dismissible_still_closes_from_a_composed_close_trigger(cx: &mut TestAppContext) {
+    still();
+    let opens = events();
+    let opened = opens.clone();
+    let open = Rc::new(RefCell::new(true));
+    let open_flag = open;
+
+    let cx = open_host(cx, move || {
+        let opened = opens.clone();
+        let is_open = *open_flag.borrow();
+        Drawer::new()
+            .id("pd-drawer-nd-x")
+            .is_open(is_open)
+            .placement(DrawerPlacement::Right)
+            .title("Drag me shut")
+            .child(DrawerCloseTrigger::new())
+            .is_dismissible(false)
+            .on_open_change({
+                let open_flag = open_flag.clone();
+                move |v, window, _| {
+                    *open_flag.borrow_mut() = v;
+                    opened.borrow_mut().push(format!("open:{v}"));
+                    window.refresh();
+                }
+            })
+            .into_any_element()
+    });
+
+    // The scrim press stays off the table for a non-dismissible drawer...
+    click(cx, 100., 100.);
+    assert!(
+        opened.borrow().is_empty(),
+        "a non-dismissible scrim press must not dismiss the drawer"
+    );
+
+    // ...but the composed close trigger is not the scrim. The trigger is
+    // `absolute end-4 top-4`, a 24px button centred at (1892, 28), and its
+    // press must close the drawer exactly once.
+    click(cx, 1892., 28.);
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:false"],
+        "the composed close trigger must close a non-dismissible drawer"
     );
 }
 

@@ -712,10 +712,9 @@ fn toast_new_uses_the_default_variant(cx: &mut TestAppContext) {
 // ---------------------------------------------------------------------------
 
 /// Every documented `status` renders without panicking — one host, five
-/// non-closable alerts. `alert.rs` hardcodes its close button's id
-/// (`"alert-close"`), so the closable variant must never share a window with
-/// a sibling; none of these is closable, which is exactly what lets them all
-/// sit on one page.
+/// alerts. Alert has no built-in close affordance (v3 removed `isClosable`),
+/// and none of these composes one, so nothing inside them is interactive and
+/// they can all share a window.
 #[gpui::test]
 fn alert_every_status_renders_without_panicking(cx: &mut TestAppContext) {
     let cx = open_host(cx, || {
@@ -739,11 +738,12 @@ fn alert_every_status_renders_without_panicking(cx: &mut TestAppContext) {
     click(cx, 100., 125.);
 }
 
-/// The closable Alert's close button answers at (1897, 19) — `buttons.rs`
-/// drives that. The non-closable half is the missing claim: with no
-/// `isClosable` there is no affordance, so the same coordinate must be dead
-/// air. A probe element below the alert proves the probe machinery works, so
-/// "nothing recorded" means the alert really consumed the press.
+/// A CloseButton composed into an Alert answers at (1892, 24) — `buttons.rs`
+/// drives that. The no-affordance half is the missing claim: with no
+/// `isClosable` prop Alert provides no built-in close behavior, so the old
+/// built-in glyph coordinate must be dead air. A probe element below the
+/// alert proves the probe machinery works, so "nothing recorded" means the
+/// alert really consumed the press.
 #[gpui::test]
 fn alert_without_close_has_nothing_to_press_at_the_close_spot(cx: &mut TestAppContext) {
     let recorded = events();
