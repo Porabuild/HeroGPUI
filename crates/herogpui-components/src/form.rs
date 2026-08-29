@@ -8,7 +8,7 @@
 //! collected submission, reset, and an invalid path that runs instead of submit.
 //!
 //! Submission has two doors that share one implementation
-//! ([`Form::run_submission`]): the caller-wired submit button
+//! (`Form::run_submission`): the caller-wired submit button
 //! (`Form::submit_handler`, standing in for `<button type="submit">`) and the
 //! native form's implicit submission — Enter pressed in a focused field that
 //! semantically participates, which the form root's key handler answers. Only
@@ -1152,7 +1152,7 @@ impl Form {
     /// default, hides the routed server errors, then fires `onReset`.
     ///
     /// Hiding is a clear, not a rewind: each field keeps its delivery receipt
-    /// (see [`SetServerErrors`]), so a re-render passing a *clone* keeps the
+    /// (see `SetServerErrors`), so a re-render passing a *clone* keeps the
     /// messages hidden, and only a genuinely new record re-arms.
     #[allow(clippy::arc_with_non_send_sync)] // see `util::shared`
     pub fn reset_handler(&self) -> Arc<dyn Fn(&mut Window, &mut App) + 'static> {

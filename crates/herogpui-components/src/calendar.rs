@@ -174,7 +174,7 @@ pub fn month_name(month: u32) -> &'static str {
     MONTH_NAMES[(month.clamp(1, 12) - 1) as usize]
 }
 
-/// Public wrapper over [`first_weekday`].
+/// Public wrapper over `first_weekday`.
 pub fn first_weekday_pub(year: i32, month: u32) -> usize {
     first_weekday(year, month)
 }

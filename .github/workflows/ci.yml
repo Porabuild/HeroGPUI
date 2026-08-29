@@ -54,6 +54,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang pkg-config libvulkan-dev libwayland-dev libxkbcommon-dev libx11-dev libxcb1-dev libx11-xcb-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libfontconfig-dev libfreetype-dev
       - run: cargo test --workspace --locked
+      - name: Rustdoc
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps --locked
+
+  rust-linux-arm:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang pkg-config libvulkan-dev libwayland-dev libxkbcommon-dev libx11-dev libxcb1-dev libx11-xcb-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libfontconfig-dev libfreetype-dev
+      - run: cargo test --workspace --locked
+
+  rust-macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+      - run: cargo test --workspace --locked
 
   npm-launcher:
     runs-on: ubuntu-24.04

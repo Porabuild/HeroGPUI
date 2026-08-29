@@ -25,7 +25,7 @@ pub struct Alert {
 }
 
 impl Alert {
-    /// `status` — the v3 name for [`Alert::color`]; the values are the same
+    /// `status` — the v3 name for `color`; the values are the same
     /// semantic roles.
     /// `status` — the alert's visual status.
     pub fn status(mut self, status: Color) -> Self {

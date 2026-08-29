@@ -1,6 +1,7 @@
 //! Drawer — port of `@heroui/drawer`.
 //!
-//! Edge-anchored overlay panel. Render from your root view like [`Modal`].
+//! Edge-anchored overlay panel. Render from your root view like
+//! [`Modal`](crate::modal::Modal).
 
 use gpui::{
     prelude::*, px, AnyElement, App, Bounds, ClickEvent, IntoElement, ParentElement, RenderOnce,

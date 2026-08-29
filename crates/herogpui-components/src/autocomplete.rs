@@ -9,7 +9,8 @@
 //! the [`crate::combo_box::ComboBox`], which is a separate component with its
 //! own stylesheet.
 //!
-//! This port had it the other way round -- an [`Input`] with a suggestion panel
+//! This port had it the other way round -- an
+//! [`Input`](crate::input::Input) with a suggestion panel
 //! -- which drew none of that sheet and left the trigger nothing to show the
 //! selection in. The trigger draws the selection now, and the popover searches.
 //!

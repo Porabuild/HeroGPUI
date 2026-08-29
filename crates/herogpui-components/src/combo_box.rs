@@ -20,9 +20,9 @@
 //! row identities ride the key so duplicate labels stay distinct. A committed
 //! custom value carries a null selected key — pinned react-stately 3.49.0's
 //! `commitCustomValue` sets the value to `null` and keeps the typed text —
-//! which the [`Self::on_selection_change_all`] slice reports as an empty
+//! which the [`ComboBox::on_selection_change_all`] slice reports as an empty
 //! selection, and only when a selection actually existed; the single-key
-//! [`Self::on_selection_change`] cannot spell `null` and stays silent there.
+//! [`ComboBox::on_selection_change`] cannot spell `null` and stays silent there.
 //!
 //! `formValue` (pinned React Aria Components 1.20.0) defaults to `"key"`: a
 //! named field submits the selected key(s). `allowsCustomValue` forces

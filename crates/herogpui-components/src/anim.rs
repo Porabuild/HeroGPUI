@@ -364,7 +364,7 @@ fn pressed_with_optional_background(
 /// `[data-exiting]` duration. Every overlay in v3 leaves in `duration-100`.
 pub const EXITING_MS: u64 = 100;
 
-/// Everything an entering overlay grows from [`ZOOM_FROM`] to full size.
+/// Everything an entering overlay grows from `ZOOM_FROM` to full size.
 ///
 /// Every field is optional because the overlays differ in what they know about
 /// themselves: a `Modal` has a width, a `Popover` only its padding, type and
@@ -486,7 +486,7 @@ where
 
 /// v3's `[data-exiting]`: `animate-out zoom-out-95 fade-out duration-150`.
 ///
-/// The mirror of [`entering_zoom`] — the panel shrinks to [`ZOOM_TO`] and fades
+/// The mirror of [`entering_zoom`] — the panel shrinks to `ZOOM_TO` and fades
 /// as it leaves. It only has anything to animate because the component keeps
 /// rendering for [`EXITING_MS`] after `isOpen` goes false; see
 /// [`crate::util::overlay_phase`].
