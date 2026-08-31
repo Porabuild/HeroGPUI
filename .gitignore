@@ -56,3 +56,5 @@ desktop.ini
 # Vercel CLI project link (created by 'vercel link' when deploying the
 # website from the repository root; the project itself is defined in web/).
 .vercel/
+.vercel
+.env*
