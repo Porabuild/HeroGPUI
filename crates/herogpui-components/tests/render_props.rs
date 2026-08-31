@@ -290,6 +290,7 @@ fn list_box_item_content_tracks_selection_and_cursor(cx: &mut TestAppContext) {
                         ListBoxItem::new("beta", "Beta"),
                     ],
                 )
+                .selection_mode(SelectionMode::Single)
                 .selected_keys(selected_now)
                 .item_content(move |key, state| {
                     record_interactive(&record, key, state);
@@ -398,6 +399,7 @@ fn list_box_item_content_pointer_selection_is_inert(cx: &mut TestAppContext) {
                 ListBoxItem::new("beta", "Beta"),
             ],
         )
+        .selection_mode(SelectionMode::Single)
         .selected_keys(selected_now)
         .item_content(move |key, state| {
             record_interactive(&record, key, state);
@@ -443,6 +445,7 @@ fn list_box_item_content_sees_the_press(cx: &mut TestAppContext) {
                 ListBoxItem::new("beta", "Beta"),
             ],
         )
+        .selection_mode(SelectionMode::Single)
         .item_content(move |key, state| {
             record_interactive(&record, key, state);
             gpui::div().w(px(40.)).h(px(20.)).into_any_element()

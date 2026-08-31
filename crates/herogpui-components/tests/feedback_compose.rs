@@ -96,7 +96,7 @@ fn avatar_src_failure_fires_on_error_once(cx: &mut TestAppContext) {
     let recorded = errors.clone();
     let cx = open_host(cx, move || {
         let errors = errors.clone();
-        Avatar::new()
+        Avatar::new("src-failure")
             .name("Jane Doe")
             // No scheme and a slash: gpui classifies this as an embedded
             // resource, and the test platform has no asset source, so the
@@ -144,7 +144,7 @@ fn avatar_delay_ms_holds_the_fallback_until_the_window_elapses(cx: &mut TestAppC
     let recorded = errors.clone();
     let cx = open_host(cx, move || {
         let errors = errors.clone();
-        Avatar::new()
+        Avatar::new("delay")
             .name("NA")
             .src("images/avatar-broken.png")
             .delay_ms(600)

@@ -427,6 +427,16 @@ fn normalize_hue(hue: f32) -> f32 {
 
 type OnColorChange = Arc<dyn Fn(PickerColor, &mut Window, &mut App) + 'static>;
 
+fn color_swatch_indicator_color(swatch: PickerColor) -> Hsla {
+    let (r, g, b) = swatch.to_rgb();
+    let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    if luminance > 0.5 {
+        gpui::black()
+    } else {
+        gpui::white()
+    }
+}
+
 /// `ColorField`'s `onChange`, which reports `None` when the text is not a
 /// colour -- v3 types it `(color: Color | null) => void`.
 type OnColorFieldChange = Arc<dyn Fn(Option<PickerColor>, &mut Window, &mut App) + 'static>;
@@ -3392,11 +3402,7 @@ impl RenderOnce for ColorSwatchPicker {
                                 gpui::svg()
                                     .size(px(f32::from(item_edge) / 3.))
                                     .path(crate::icons::CHECK)
-                                    .text_color(if swatch.brightness > 0.7 {
-                                        gpui::black()
-                                    } else {
-                                        gpui::white()
-                                    }),
+                                    .text_color(color_swatch_indicator_color(*swatch)),
                             ),
                     );
                 }
@@ -4085,5 +4091,17 @@ mod tests {
         let c = PickerColor::from_hex("#204060").unwrap();
         let next = c.with_channel(ColorChannel::Green, 128.0);
         assert!((next.channel(ColorChannel::Green) - 128.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn dark_saturated_blue_uses_a_white_selected_indicator() {
+        let blue = PickerColor::from_hex("#0000FF").unwrap();
+        assert_eq!(color_swatch_indicator_color(blue), gpui::white());
+    }
+
+    #[test]
+    fn mid_gray_uses_a_black_selected_indicator() {
+        let gray = PickerColor::from_hex("#808080").unwrap();
+        assert_eq!(color_swatch_indicator_color(gray), gpui::black());
     }
 }

@@ -662,21 +662,103 @@ impl RenderOnce for Slider {
             .inset_0(),
         );
 
+        // v3's track keeps transparent 12px borders along the slider axis
+        // (`border-x-[0.75rem]` horizontal, `border-y-[0.75rem]` vertical —
+        // half the 24px inner thumb), so the full border box is the pointer
+        // range while the fill and the thumb percentages resolve against the
+        // content box that border leaves. The end borders turn accent when
+        // the fill reaches that end (`data-fill-start`/`data-fill-end`).
+        let axis_inset = px(12.);
+        let fill_start = fill_reaches_start(thumbs.len(), fill_from, fill_to);
+        let fill_end = fill_reaches_end(fill_to);
+        let track_radius = crate::util::small_radius(cx);
+        track = track
+            .when(fill_start && !vertical, |t| {
+                t.child(
+                    gpui::div()
+                        .absolute()
+                        .left(px(0.))
+                        .top(px(0.))
+                        .bottom(px(0.))
+                        .w(axis_inset)
+                        .bg(sem.color)
+                        .rounded_tl(track_radius)
+                        .rounded_bl(track_radius),
+                )
+            })
+            .when(fill_start && vertical, |t| {
+                t.child(
+                    gpui::div()
+                        .absolute()
+                        .bottom(px(0.))
+                        .left(px(0.))
+                        .right(px(0.))
+                        .h(axis_inset)
+                        .bg(sem.color)
+                        .rounded_bl(track_radius)
+                        .rounded_br(track_radius),
+                )
+            })
+            .when(fill_end && !vertical, |t| {
+                t.child(
+                    gpui::div()
+                        .absolute()
+                        .right(px(0.))
+                        .top(px(0.))
+                        .bottom(px(0.))
+                        .w(axis_inset)
+                        .bg(sem.color)
+                        .rounded_tr(track_radius)
+                        .rounded_br(track_radius),
+                )
+            })
+            .when(fill_end && vertical, |t| {
+                t.child(
+                    gpui::div()
+                        .absolute()
+                        .top(px(0.))
+                        .left(px(0.))
+                        .right(px(0.))
+                        .h(axis_inset)
+                        .bg(sem.color)
+                        .rounded_tl(track_radius)
+                        .rounded_tr(track_radius),
+                )
+            });
+
+        // The box the fill and thumbs position against: the track inset by
+        // 12px per axis edge, which is where the transparent border leaves
+        // its background — the same containing block the browser gives v3's
+        // percentage-positioned fill and thumb.
+        let mut content = gpui::div().absolute();
+        content = if vertical {
+            content
+                .top(axis_inset)
+                .bottom(axis_inset)
+                .left(px(0.))
+                .right(px(0.))
+        } else {
+            content
+                .left(axis_inset)
+                .right(axis_inset)
+                .top(px(0.))
+                .bottom(px(0.))
+        };
+
         // `.slider__fill` is `pointer-events-none absolute bg-accent`.
         let fill_span = (fill_to - fill_from).max(0.0);
-        track = track.child(
+        content = content.child(
             gpui::div()
                 .absolute()
-                .rounded(crate::util::small_radius(cx))
                 .bg(sem.color)
                 .when(vertical, |f| {
                     f.bottom(gpui::relative(fill_from))
-                        .w(track_cross)
+                        .w_full()
                         .h(gpui::relative(fill_span))
                 })
                 .when(!vertical, |f| {
                     f.left(gpui::relative(fill_from))
-                        .h(track_cross)
+                        .h_full()
                         .w(gpui::relative(fill_span))
                 }),
         );
@@ -746,8 +828,9 @@ impl RenderOnce for Slider {
                     cx,
                 );
             }
-            track = track.child(thumb_el);
+            content = content.child(thumb_el);
         }
+        track = track.child(content);
 
         // v3 drives a slider from the keyboard: the arrows step it, Home and End
         // jump to the ends, and Page Up/Down move by a tenth of the range --
@@ -1225,6 +1308,25 @@ fn round_to_step_precision(value: f32, step: f32) -> f32 {
     (value * scale).round() / scale
 }
 
+/// `data-fill-start`: whether the fill's low end sits at the range's start,
+/// which paints the track's start border accent. A single thumb fills from
+/// the low end as soon as its value is above min; a range fills from its
+/// outermost thumbs, so it starts at the very beginning only when one of
+/// them rests on min.
+fn fill_reaches_start(thumb_count: usize, fill_from: f32, fill_to: f32) -> bool {
+    if thumb_count > 1 {
+        fill_from == 0.0
+    } else {
+        fill_to > 0.0
+    }
+}
+
+/// `data-fill-end`: whether the fill's high end sits at the range's end,
+/// which paints the track's end border accent.
+fn fill_reaches_end(fill_to: f32) -> bool {
+    fill_to >= 1.0
+}
+
 /// Where the pointer sits along the slider's own axis, as a 0..1 fraction of
 /// the track.
 ///
@@ -1252,12 +1354,29 @@ fn axis_fraction(pos: gpui::Point<gpui::Pixels>, bounds: Bounds<f32>, vertical: 
 
 #[cfg(test)]
 mod tests {
-    use super::{default_output, format_value_labels};
+    use super::{default_output, fill_reaches_end, fill_reaches_start, format_value_labels};
 
     #[test]
     fn range_output_formats_every_thumb_and_joins_the_labels() {
         let format = herogpui_core::NumberFormat::currency("USD");
         let labels = format_value_labels(&[20., 80.], Some(&format));
         assert_eq!(default_output(&labels), "$20.00 \u{2013} $80.00");
+    }
+
+    // The `data-fill-start` / `data-fill-end` rules of v3.2.4's SliderTrack:
+    // a single thumb's fill grows from the low end (`fillWidth > 0`), and
+    // either form ends when its fill reaches 100%.
+    #[test]
+    fn fill_start_follows_single_and_range_track_rules() {
+        assert!(!fill_reaches_start(1, 0.0, 0.0));
+        assert!(fill_reaches_start(1, 0.0, 0.25));
+        assert!(!fill_reaches_start(2, 0.25, 0.75));
+        assert!(fill_reaches_start(2, 0.0, 0.75));
+    }
+
+    #[test]
+    fn fill_end_requires_the_full_range() {
+        assert!(!fill_reaches_end(0.99));
+        assert!(fill_reaches_end(1.0));
     }
 }

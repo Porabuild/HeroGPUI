@@ -111,6 +111,10 @@ impl RenderOnce for CloseButton {
 
         let mut el = div()
             .id(self.id.clone())
+            .debug_selector({
+                let id = self.id.clone();
+                move || format!("{id:?}")
+            })
             .flex()
             .items_center()
             .justify_center()
@@ -124,10 +128,26 @@ impl RenderOnce for CloseButton {
         if self.is_disabled {
             el = el.opacity(layout.disabled_opacity);
         } else {
-            el = el
-                .cursor_pointer()
-                .hover(move |s| s.bg(hover_bg))
-                .active(|s| s.opacity(0.7));
+            el = el.cursor_pointer().hover(move |s| s.bg(hover_bg));
+            // `.close-button--default:active, &[data-pressed="true"]` is
+            // `transform: scale(0.93)`. gpui 0.2.2 has no div-level scale, so
+            // the press shrinks the 24px box about its centre and the leftover
+            // becomes margin — the same geometry `anim::pressed` uses.
+            // `.active` is an instant style swap, matching
+            // `motion-reduce:transition-none` while preserving the transform.
+            const PRESS_SCALE: f32 = 0.93;
+            let inset = px(f32::from(box_size) * (1.0 - PRESS_SCALE) / 2.0);
+            let pressed = px(f32::from(box_size) * PRESS_SCALE);
+            let radius = px(f32::from(crate::util::small_radius(cx)) * PRESS_SCALE);
+            el = el.active(move |s| {
+                s.h(pressed)
+                    .w(pressed)
+                    .mt(inset)
+                    .mb(inset)
+                    .ml(inset)
+                    .mr(inset)
+                    .rounded(radius)
+            });
         }
 
         el = match (self.content.clone(), self.icon) {
@@ -151,7 +171,18 @@ impl RenderOnce for CloseButton {
             (None, Some(icon)) => el.child(icon),
             (None, None) => el.child(
                 gpui::svg()
+                    .debug_selector({
+                        let id = self.id.clone();
+                        move || format!("{id:?}-icon")
+                    })
                     .size(icon_size)
+                    .flex_shrink_0()
+                    // `.close-button svg` is `-mx-0.5 my-0.5` (2px at the 16px
+                    // root). Symmetric margins on a centred 16px child in the
+                    // 16px `p-1` content box cancel, but they are representable
+                    // on `svg()` through Styled and belong on the default glyph.
+                    .mx(px(-2.))
+                    .my(px(2.))
                     .path(icons::CLOSE)
                     .text_color(colors.muted),
             ),

@@ -106,6 +106,7 @@ impl ThemeBuilder {
 
     pub fn foreground(mut self, c: Hsla) -> Self {
         self.theme.colors.foreground = c;
+        self.theme.colors.scrollbar = herogpui_core::with_alpha(c, 0.15);
         self
     }
 
@@ -239,7 +240,49 @@ impl ThemeBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use herogpui_core::{mix_oklab, oklch};
+    use herogpui_core::{mix_oklab, oklch, with_alpha};
+
+    #[test]
+    fn overriding_foreground_recomputes_scrollbar_without_changing_other_tokens() {
+        let base = Theme::light();
+        let foreground = oklch(0.30, 0.05, 120.0);
+        let background = oklch(0.90, 0.01, 286.0);
+        let unchanged = (
+            base.colors.muted,
+            base.colors.border,
+            base.colors.separator,
+            base.colors.focus,
+            base.layout.radius,
+            base.layout.disabled_opacity,
+        );
+        let theme = Theme::builder("brand", base)
+            .background(background)
+            .foreground(foreground)
+            .build();
+
+        assert_eq!(
+            (
+                theme.colors.scrollbar,
+                theme.colors.background,
+                theme.colors.muted,
+                theme.colors.border,
+                theme.colors.separator,
+                theme.colors.focus,
+                theme.layout.radius,
+                theme.layout.disabled_opacity,
+            ),
+            (
+                with_alpha(foreground, 0.15),
+                background,
+                unchanged.0,
+                unchanged.1,
+                unchanged.2,
+                unchanged.3,
+                unchanged.4,
+                unchanged.5,
+            )
+        );
+    }
 
     #[test]
     fn overriding_a_role_keeps_its_soft_semantics() {

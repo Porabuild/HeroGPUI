@@ -443,6 +443,7 @@ fn list_box_instances_keep_separate_keyed_selection(cx: &mut TestAppContext) {
                     "contract-list-instance-one",
                     vec![ListBoxItem::new("alpha", "Alpha")],
                 )
+                .selection_mode(SelectionMode::Single)
                 .on_selection_change(move |keys, window, _| {
                     first
                         .borrow_mut()
@@ -455,6 +456,7 @@ fn list_box_instances_keep_separate_keyed_selection(cx: &mut TestAppContext) {
                     "contract-list-instance-two",
                     vec![ListBoxItem::new("alpha", "Alpha")],
                 )
+                .selection_mode(SelectionMode::Single)
                 .on_selection_change(move |keys, _, _| {
                     second
                         .borrow_mut()
@@ -1327,6 +1329,36 @@ fn tag_group_remove_button_does_not_toggle_selection(cx: &mut TestAppContext) {
         recorded.borrow().as_slice(),
         ["remove:beta"],
         "the nested remove action must not also select Beta"
+    );
+}
+
+#[gpui::test]
+fn tag_group_remove_button_activates_with_enter_and_space(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let removed = for_view.clone();
+        TagGroup::new(
+            "contract-tags-remove-keyboard",
+            vec![Tag::new("alpha", "Alpha")],
+        )
+        .on_remove(move |keys, _, _| {
+            removed
+                .borrow_mut()
+                .push(format!("remove:{}", sorted_join(keys)));
+        })
+        .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    press(cx, "tab");
+    press(cx, "space");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["remove:alpha", "remove:alpha"],
+        "the focused remove button must activate on Enter and Space"
     );
 }
 

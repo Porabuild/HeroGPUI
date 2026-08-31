@@ -39,6 +39,7 @@ pub mod kbd;
 pub mod link;
 pub mod list_box;
 pub mod list_nav;
+mod matches;
 pub mod meter;
 pub mod modal;
 pub mod number_field;

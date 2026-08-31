@@ -4,6 +4,13 @@
 //! These are the composition-friendly slots that HeroUI v3 field components
 //! assemble internally, exposed here so applications can build custom fields
 //! with the same typography and states.
+//!
+//! `FieldsetRoot` in v3.2.4 also accepts the native `disabled` attribute and
+//! forwards it to descendants through React Aria contexts. GPUI has no
+//! ancestor context propagation and no DOM attribute graph, so this port
+//! deliberately ships no disabled state on [`Fieldset`]: a field composed
+//! inside one keeps every interaction
+//! (`text_fields::fieldset_disabled_disables_its_children` proves it).
 
 use gpui::{
     div, px, AnyElement, App, InteractiveElement, IntoElement, ParentElement, Pixels, RenderOnce,
@@ -243,6 +250,11 @@ impl RenderOnce for Fieldset {
             .flex()
             .flex_col()
             .gap(self.gap)
+            // `.fieldset` also carries `shrink grow basis-0` so it fills a flex
+            // parent like any other section.
+            .flex_shrink()
+            .flex_grow()
+            .flex_basis(px(0.))
             .text_color(cx.colors().foreground)
             .children(self.children)
     }
@@ -265,7 +277,8 @@ impl RenderOnce for FieldsetLegend {
         div()
             .text_size(px(16.))
             .line_height(px(24.))
-            .font_weight(gpui::FontWeight::SEMIBOLD)
+            // `.fieldset__legend` is `text-base font-medium`, not semibold.
+            .font_weight(gpui::FontWeight::MEDIUM)
             .text_color(cx.colors().foreground)
             .child(self.text.to_string())
     }
@@ -356,6 +369,8 @@ impl RenderOnce for FieldsetActions {
             .flex()
             .flex_row()
             .items_center()
+            // `.fieldset__actions` is `gap-2 pt-1`.
+            .pt(px(4.))
             .gap(self.gap)
             .children(self.children)
     }

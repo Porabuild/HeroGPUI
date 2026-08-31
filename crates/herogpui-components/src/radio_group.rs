@@ -378,8 +378,11 @@ impl RenderOnce for RadioGroup {
         // done by flipping a handle's `tab_stop`, since that is fixed where the
         // handle is made. `use_keyed_state` takes `cx` mutably, so it precedes
         // the theme.
+        // Every per-option id is prefixed with this one rendering of the group
+        // id; formatting `{id:?}` per option per frame was O(n) allocations.
+        let id_prefix = element_id_name(&self.id);
         let group_focus = crate::util::tab_stop_handle(
-            gpui::ElementId::Name(format!("{}-focus", element_id_name(&self.id)).into()),
+            gpui::ElementId::Name(format!("{id_prefix}-focus").into()),
             window,
             cx,
         );
@@ -399,9 +402,13 @@ impl RenderOnce for RadioGroup {
         // by Tab, on the first *enabled* option. With every option disabled
         // `stops` is empty, no row tracks the handle, and the group leaves the
         // tab order exactly as the group-wide `is_disabled` does.
-        let stops: Vec<usize> = (0..self.options.len())
-            .filter(|i| !self.options[*i].is_disabled)
-            .collect();
+        // `Arc` because every enabled option's key handler captures the whole
+        // list: a plain clone per option was O(n^2) per frame.
+        let stops: std::sync::Arc<Vec<usize>> = std::sync::Arc::new(
+            (0..self.options.len())
+                .filter(|i| !self.options[*i].is_disabled)
+                .collect(),
+        );
         let initial_focus_index = selected
             .filter(|i| stops.contains(i))
             .or_else(|| stops.first().copied())
@@ -412,7 +419,7 @@ impl RenderOnce for RadioGroup {
         // from `selected`, keyed by the component id so two groups cannot
         // share it.
         let cursor = window.use_keyed_state(
-            gpui::ElementId::Name(format!("{}-cursor", element_id_name(&self.id)).into()),
+            gpui::ElementId::Name(format!("{id_prefix}-cursor").into()),
             cx,
             move |_, _| initial_focus_index,
         );
@@ -428,9 +435,7 @@ impl RenderOnce for RadioGroup {
         let interaction: Vec<crate::util::Interaction> = (0..self.options.len())
             .map(|i| {
                 crate::util::interaction(
-                    gpui::ElementId::Name(
-                        format!("{}-opt-{i}-interaction", element_id_name(&self.id)).into(),
-                    ),
+                    gpui::ElementId::Name(format!("{id_prefix}-opt-{i}-interaction").into()),
                     window,
                     cx,
                 )
@@ -465,11 +470,12 @@ impl RenderOnce for RadioGroup {
             && !layout.field_shadow.is_empty())
         .then(|| layout.field_shadow.clone());
 
-        let option_values = self
-            .options
-            .iter()
-            .map(|option| option.value.clone())
-            .collect::<Vec<_>>();
+        let option_values: std::sync::Arc<Vec<SharedString>> = std::sync::Arc::new(
+            self.options
+                .iter()
+                .map(|option| option.value.clone())
+                .collect(),
+        );
         for (i, option) in self.options.into_iter().enumerate() {
             let label = option.label;
             let value = option.value;
@@ -503,7 +509,7 @@ impl RenderOnce for RadioGroup {
             // 6px `bg-accent-foreground` dot (`scale: 0.4286` of 16px).
             let mut circle_el = gpui::div()
                 .id(gpui::ElementId::Name(
-                    format!("{}-opt-{i}-control", element_id_name(&self.id)).into(),
+                    format!("{id_prefix}-opt-{i}-control").into(),
                 ))
                 .flex()
                 .items_center()
@@ -575,9 +581,7 @@ impl RenderOnce for RadioGroup {
             };
 
             let mut row = gpui::div()
-                .id(gpui::ElementId::Name(
-                    format!("{}-opt-{i}", element_id_name(&self.id)).into(),
-                ))
+                .id(gpui::ElementId::Name(format!("{id_prefix}-opt-{i}").into()))
                 .when(!row_disabled && i == cursor_index, |r| {
                     r.track_focus(&group_focus)
                 })
@@ -592,7 +596,7 @@ impl RenderOnce for RadioGroup {
                 .child(circle_el)
                 .child(match &self.option_content {
                     Some(render) => render(&label, option_state),
-                    None => label.to_string().into_any_element(),
+                    None => label.into_any_element(),
                 });
             if !row_disabled && !self.is_read_only {
                 if let Some(slot) = interaction.get(i) {
@@ -731,4 +735,48 @@ impl RenderOnce for RadioGroup {
 
 fn element_id_name(id: &gpui::ElementId) -> String {
     format!("{id:?}").trim_matches('"').to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Render wraps the walk list and the value list in `Arc` so every enabled
+    /// option's key handler clones the pointer, not the Vec.
+    #[test]
+    fn option_key_handlers_share_walk_and_value_lists() {
+        let source = include_str!("radio_group.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("let stops: std::sync::Arc<Vec<usize>> = std::sync::Arc::new("),
+            "the walk list must be one Arc shared by every enabled option"
+        );
+        assert!(
+            source.contains(
+                "let option_values: std::sync::Arc<Vec<SharedString>> = std::sync::Arc::new("
+            ),
+            "the value list must be one Arc shared by every enabled option"
+        );
+        assert!(
+            source.contains("let key_stops = stops.clone();"),
+            "each enabled option must clone the shared walk list"
+        );
+        assert!(
+            source.contains("let key_values = option_values.clone();"),
+            "each enabled option must clone the shared value list"
+        );
+
+        // The clones above are `Arc::clone`: two handles to one allocation.
+        let stops: std::sync::Arc<Vec<usize>> = std::sync::Arc::new(vec![0, 1, 2]);
+        let values: std::sync::Arc<Vec<SharedString>> =
+            std::sync::Arc::new(vec![SharedString::from("v0")]);
+        let walk = std::sync::Arc::clone(&stops);
+        let list = std::sync::Arc::clone(&values);
+        assert!(
+            std::sync::Arc::ptr_eq(&walk, &stops) && std::sync::Arc::ptr_eq(&list, &values),
+            "Arc clones of the walk and value lists must share pointer identity"
+        );
+    }
 }

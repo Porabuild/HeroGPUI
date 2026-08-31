@@ -714,6 +714,65 @@ fn radio_group_home_and_end_are_unconsumed_no_ops(cx: &mut TestAppContext) {
     );
 }
 
+/// Arrow navigation over a large option list with a disabled entry in the
+/// middle. Shared walk/value-list ownership is proven in `radio_group.rs`;
+/// this test pins that the walk still skips the disabled option in both
+/// directions and reports the values it lands on.
+#[gpui::test]
+fn radio_group_arrows_walk_many_options_and_skip_disabled(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let options: Vec<RadioOption> = (0..40)
+            .map(|i| {
+                let option = RadioOption::new(format!("Option {i}")).value(format!("v{i}"));
+                if i == 20 {
+                    option.is_disabled(true)
+                } else {
+                    option
+                }
+            })
+            .collect();
+        RadioGroup::new("many-radios", options)
+            .default_value("v0")
+            .on_change(move |value, _, _| changes.borrow_mut().push(value.to_string()))
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    // Walk down from the selected stop at index 0 to index 19.
+    for _ in 0..19 {
+        press(cx, "down");
+    }
+    flush_frame(cx);
+    assert_eq!(
+        recorded.borrow().last().map(String::as_str),
+        Some("v19"),
+        "nineteen downs from index 0 must land on index 19"
+    );
+
+    // The step that would land on the disabled index 20 must skip it.
+    press(cx, "down");
+    assert_eq!(
+        recorded.borrow().last().map(String::as_str),
+        Some("v21"),
+        "a disabled option must not become the roving stop"
+    );
+    assert!(
+        !recorded.borrow().iter().any(|value| value == "v20"),
+        "a disabled option must never report a selection"
+    );
+
+    // And back up across the same gap.
+    press(cx, "up");
+    assert_eq!(
+        recorded.borrow().last().map(String::as_str),
+        Some("v19"),
+        "up must skip the disabled option in the other direction"
+    );
+}
+
 #[gpui::test]
 fn radio_group_read_only_pointer_moves_focus_without_selection(cx: &mut TestAppContext) {
     let read_only = Rc::new(RefCell::new(true));

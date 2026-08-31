@@ -18,6 +18,9 @@ pub struct InputState {
     /// Selection anchor in char indices; `None` when the caret is collapsed.
     anchor: Option<usize>,
     pub(crate) focus_handle: FocusHandle,
+    /// Clear-button handle. Created without `tab_stop`, matching pinned
+    /// `useSearchField` `excludeFromTabOrder: true`. Never a `tab_stop_handle`.
+    pub(crate) clear_focus_handle: FocusHandle,
     /// `name` — what this field submits under, written in by the component's
     /// `name` builder. The state carries it because gpui gives a child no way
     /// to reach its `Form`; `FormField::text` reads it back out.
@@ -67,6 +70,8 @@ impl InputState {
             anchor: None,
             // A field is a tab stop: the handle carries that, not the element.
             focus_handle: cx.focus_handle().tab_stop(true),
+            // Plain handle: Tab never seats on the clear button.
+            clear_focus_handle: cx.focus_handle(),
             name: None,
             validation_behavior: crate::form::ValidationBehavior::Native,
             validity: crate::validation::Validity::default(),
@@ -180,6 +185,11 @@ impl InputState {
 
     pub fn is_empty(&self) -> bool {
         self.value.is_empty()
+    }
+
+    /// The clear affordance's focus handle. It is not a tab stop.
+    pub fn clear_focus_handle(&self) -> FocusHandle {
+        self.clear_focus_handle.clone()
     }
 
     /// Normalized `(start, end)` char range of the active selection.
@@ -1563,6 +1573,7 @@ impl RenderOnce for Input {
         field = field.child(row);
         // isClearable — show X when has value and not disabled/readonly
         if self.is_clearable && !is_empty && !self.is_disabled && !self.is_read_only {
+            let clear_focus_handle = self.state.read(cx).clear_focus_handle.clone();
             let clear_content = match self.clear_content {
                 Some(content) => content,
                 None => gpui::svg()
@@ -1582,56 +1593,100 @@ impl RenderOnce for Input {
             // `.close-button:hover` fills `bg-default-hover` -- not a
             // hand-mixed wash.
             let clear_hover_bg = colors.default.hover();
-            field = field.child(
-                gpui::div()
-                    .id(gpui::ElementId::Name(
-                        format!("input-clear-{}", self.state.entity_id().as_u64()).into(),
-                    ))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    // (`rounded-xl p-1 text-muted`), sized
-                    // down by the search field's own rule: `size-5` with a
-                    // `size-3` glyph.
-                    .size(px(20.))
-                    .p(px(4.))
-                    .rounded(crate::util::small_radius(cx))
-                    .cursor_pointer()
-                    .text_color(colors.muted)
-                    .hover(move |s| s.bg(clear_hover_bg))
-                    .active(|s| s.opacity(0.7))
-                    .on_click(move |_, window, cx| {
-                        clear_state.update(cx, |s, cx| {
-                            s.value.clear();
-                            s.cursor = 0;
-                            s.anchor = None;
-                            // The clear affordance is a user modification:
-                            // it suppresses the routed server errors too.
-                            s.clear_routed_errors();
-                            cx.notify();
-                        });
-                        // The emptied value is the mirror's too, before any
-                        // callback can observe the field: a synchronous
-                        // submit inside `on_change` must not be blocked by
-                        // the routed error this click just answered.
-                        refresh_stored_validity(
-                            &clear_state,
-                            edit_is_invalid,
-                            &clear_validation_errors,
-                            clear_validate.as_ref(),
-                            clear_error_message.clone(),
-                            &clear_native,
-                            cx,
-                        );
-                        if let Some(cb) = &clear_on_change {
-                            cb("", window, cx);
-                        }
-                        if let Some(cb) = &on_clear {
-                            cb(window, cx);
-                        }
-                    })
-                    .child(clear_content),
+            let clear_box = px(20.);
+            let clear_radius = crate::util::small_radius(cx);
+            let clear_selector = format!("input-clear-{}", self.state.entity_id().as_u64());
+            let input_focus_after_clear = focus_handle.clone();
+            let input_focus_handle = focus_handle;
+            let mut clear = gpui::div()
+                .id(gpui::ElementId::Name(
+                    clear_selector.clone().into(),
+                ))
+                .debug_selector(move || clear_selector)
+                .flex()
+                .items_center()
+                .justify_center()
+                .size(clear_box)
+                .p(px(4.))
+                .rounded(clear_radius)
+                .cursor_pointer()
+                .text_color(colors.muted)
+                .hover(move |s| s.bg(clear_hover_bg))
+                .active({
+                    // GPUI 0.2.2 has no div transform; use the same centred
+                    // geometry as CloseButton's scale(0.93). The active style
+                    // is an instant swap, including under reduced motion.
+                    const PRESS_SCALE: f32 = 0.93;
+                    let inset = px(f32::from(clear_box) * (1.0 - PRESS_SCALE) / 2.0);
+                    let pressed = px(f32::from(clear_box) * PRESS_SCALE);
+                    let radius = px(f32::from(clear_radius) * PRESS_SCALE);
+                    move |s| {
+                        s.h(pressed)
+                            .w(pressed)
+                            .mt(inset)
+                            .mb(inset)
+                            .ml(inset)
+                            .mr(inset)
+                            .rounded(radius)
+                    }
+                })
+                // Pinned `useSearchField` `excludeFromTabOrder: true` (the
+                // InputState-owned handle is not a tab stop) and
+                // `preventFocusOnPress: true`. Pointer presses keep focus on
+                // the input. Keys on the button must not bubble into the
+                // field except Tab, which still walks to the next stop.
+                .track_focus(&clear_focus_handle)
+                .on_key_down(|event, _, cx| {
+                    if event.keystroke.key != "tab" {
+                        cx.stop_propagation();
+                    }
+                })
+                .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                    cx.stop_propagation();
+                    window.focus(&input_focus_handle);
+                    window.prevent_default();
+                })
+                .on_click(move |_, window, cx| {
+                    window.focus(&input_focus_after_clear);
+                    clear_state.update(cx, |s, cx| {
+                        s.value.clear();
+                        s.cursor = 0;
+                        s.anchor = None;
+                        // The clear affordance is a user modification:
+                        // it suppresses the routed server errors too.
+                        s.clear_routed_errors();
+                        cx.notify();
+                    });
+                    // The emptied value is the mirror's too, before any
+                    // callback can observe the field: a synchronous
+                    // submit inside `on_change` must not be blocked by
+                    // the routed error this click just answered.
+                    refresh_stored_validity(
+                        &clear_state,
+                        edit_is_invalid,
+                        &clear_validation_errors,
+                        clear_validate.as_ref(),
+                        clear_error_message.clone(),
+                        &clear_native,
+                        cx,
+                    );
+                    if let Some(cb) = &clear_on_change {
+                        cb("", window, cx);
+                    }
+                    if let Some(cb) = &on_clear {
+                        cb(window, cx);
+                    }
+                })
+                .child(clear_content);
+            clear = crate::util::ring_if_focused(
+                clear,
+                &clear_focus_handle,
+                true,
+                Vec::new(),
+                window,
+                cx,
             );
+            field = field.child(clear);
         }
         field = field.children(self.end_content);
 

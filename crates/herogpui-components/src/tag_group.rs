@@ -414,6 +414,22 @@ impl RenderOnce for TagGroup {
                 slot.update(cx, |state, _| *state = (false, false));
             }
         }
+        let remove_focus_handles = if self.on_remove.is_some() {
+            self.tags
+                .iter()
+                .map(|tag| {
+                    crate::util::tab_stop_handle(
+                        ElementId::Name(
+                            format!("{:?}-tag-{:?}-remove-focus", self.id, tag.key).into(),
+                        ),
+                        window,
+                        cx,
+                    )
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
         let ring_visible = crate::util::focus_visible(cx);
         let colors = cx.colors();
         let layout = cx.layout();
@@ -572,11 +588,20 @@ impl RenderOnce for TagGroup {
                     );
                 if !disabled {
                     let hover_bg = colors.default.hover();
+                    let remove_focus = &remove_focus_handles[index];
                     let focus_for_remove = group_focus.clone();
                     let cursor_for_remove = cursor.clone();
                     close = close
+                        .track_focus(remove_focus)
                         .cursor_pointer()
                         .hover(move |s| s.bg(hover_bg))
+                        // React Aria's grid-list stops row key handling while
+                        // a child button owns the focus, except for Tab.
+                        .on_key_down(|event, _, cx| {
+                            if event.keystroke.key != "tab" {
+                                cx.stop_propagation();
+                            }
+                        })
                         // The press belongs to the button. Stopping it here
                         // keeps the tag body's mouse-down -- which seats the
                         // group's focus and cursor -- out of a remove press.
@@ -602,6 +627,14 @@ impl RenderOnce for TagGroup {
                                 cx.notify();
                             });
                         });
+                    close = crate::util::ring_if_focused(
+                        close,
+                        remove_focus,
+                        true,
+                        Vec::new(),
+                        window,
+                        cx,
+                    );
                 }
                 chip = chip.child(close);
             }

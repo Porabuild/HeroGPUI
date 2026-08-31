@@ -45,6 +45,7 @@ use herogpui_theme::ActiveTheme;
 use crate::{
     icons,
     input::{Input, InputState},
+    matches::{empty_matches, MatchesCache},
     picker_item::PickerItem,
     selection::{normalize_selection, toggle_key},
     util,
@@ -157,6 +158,41 @@ fn label_of_key<'a>(items: &'a [PickerItem], key: &SharedString) -> Option<&'a S
         .iter()
         .find(|item| item.key() == key)
         .map(|item| item.label())
+}
+
+/// The rows the panel shows for `query`: the full collection under the
+/// full-collection flag (which owns the frame, so no filter runs), otherwise
+/// the custom `defaultFilter`'s decision — including what an empty query
+/// means — or the default case-insensitive substring match. Filtering reads
+/// the items' labels, never their keys.
+fn compute_matches(
+    items: &[PickerItem],
+    query: &str,
+    max_items: usize,
+    full: bool,
+    filter: Option<&Arc<dyn Fn(&str, &str) -> bool + 'static>>,
+) -> Vec<PickerItem> {
+    if full {
+        return items.iter().take(max_items).cloned().collect();
+    }
+    if let Some(filter) = filter {
+        return items
+            .iter()
+            .filter(|item| filter(item.label(), query))
+            .take(max_items)
+            .cloned()
+            .collect();
+    }
+    if query.is_empty() {
+        return items.iter().take(max_items).cloned().collect();
+    }
+    let lowered = query.to_lowercase();
+    items
+        .iter()
+        .filter(|item| item.label().to_lowercase().contains(&lowered))
+        .take(max_items)
+        .cloned()
+        .collect()
 }
 
 /// HeroUI ComboBox (controlled open state).
@@ -612,6 +648,10 @@ impl ComboBox {
 
 impl RenderOnce for ComboBox {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // One shared collection for the frame: the `'static` panel and event
+        // closures clone the `Rc`, never the rows.
+        let items: Rc<[PickerItem]> = self.items.into();
+
         // `defaultInputValue` seeds the text once, before anything reads it.
         if let Some(text) = self.default_input_value.clone() {
             let state = self.state.clone();
@@ -696,7 +736,6 @@ impl RenderOnce for ComboBox {
             }
         });
         let raw_query = self.state.read(cx).value().to_owned();
-        let query = raw_query.to_lowercase();
         let is_invalid = self.is_invalid || self.error_message.is_some();
         let focus_handle = self.state.read(cx).focus_handle.clone();
 
@@ -736,7 +775,7 @@ impl RenderOnce for ComboBox {
                 // the first application must leave the seeded default text in
                 // place; later key changes still move their labels in.
                 if !(first_apply && self.default_input_value.is_some()) {
-                    let label = label_of_key(&self.items, &owned_key)
+                    let label = label_of_key(&items, &owned_key)
                         .cloned()
                         .unwrap_or_default();
                     self.state.update(cx, |state, cx| {
@@ -756,7 +795,7 @@ impl RenderOnce for ComboBox {
         let restore_own = selection_own.clone();
         let restore_state = self.form_state.clone();
         let restore_input = self.state.clone();
-        let restore_items = self.items.clone();
+        let restore_items = items.clone();
         let restore_default = default_selection;
         let restore_input_change = self.on_input_change.clone();
         let restore_all = self.on_selection_change_all.clone();
@@ -810,30 +849,65 @@ impl RenderOnce for ComboBox {
         let display_full_collection =
             *show_all_items.read(cx) || (self.menu_trigger == MenuTrigger::Manual && !open_state);
 
-        // Focus and manual-action opens show the full collection until the
-        // next edit. A custom `defaultFilter` owns the filtering decision,
-        // including an empty query. Filtering reads the items' labels, never
-        // their keys.
-        let custom = self.filter.clone();
-        let matches: Vec<PickerItem> = match &custom {
-            _ if display_full_collection => {
-                self.items.iter().take(self.max_items).cloned().collect()
+        // Which suggestion the keyboard is on. Input edits clear it, matching
+        // React Stately's focused-key reset before the filtered list changes.
+        // Created ahead of the matches: the idle gate below reads it.
+        let cursor = window.use_keyed_state(
+            gpui::ElementId::Name(format!("combobox-{entity_id}-cursor").into()),
+            cx,
+            |_, _| None::<ComboCursor>,
+        );
+
+        // Closed and idle frames draw no rows, so they skip the match work
+        // entirely; a consuming filtered frame shares one cached list until
+        // the query, collection or cap changes. Full-collection and
+        // empty-query frames copy their capped prefix directly: no per-row
+        // matching runs for them, so the cache's element-by-element key
+        // comparison would cost more than the work it saves. A custom
+        // `defaultFilter` owns the whole filtering decision, including an
+        // empty query, and its configuration cannot join a cache key — its
+        // results are never cached and it only runs while the matches are
+        // consumed.
+        let matches_cache = window.use_keyed_state(
+            gpui::ElementId::Name(format!("combobox-{entity_id}-matches").into()),
+            cx,
+            |_, _| MatchesCache::default(),
+        );
+        let consume_matches = overlay_active
+            || cursor.read(cx).is_some()
+            || (self.allows_custom_value && !raw_query.is_empty());
+        let matches: Rc<[PickerItem]> = if !consume_matches {
+            empty_matches()
+        } else {
+            let filter = self.filter.clone();
+            match &filter {
+                Some(f) => Rc::from(compute_matches(
+                    &items,
+                    &raw_query,
+                    self.max_items,
+                    display_full_collection,
+                    Some(f),
+                )),
+                None if display_full_collection => Rc::from(compute_matches(
+                    &items,
+                    &raw_query,
+                    self.max_items,
+                    true,
+                    None,
+                )),
+                None if raw_query.is_empty() => Rc::from(compute_matches(
+                    &items,
+                    &raw_query,
+                    self.max_items,
+                    false,
+                    None,
+                )),
+                None => matches_cache.update(cx, |cache, _| {
+                    cache.get(items.clone(), raw_query.as_str(), self.max_items, |items| {
+                        compute_matches(items, &raw_query, self.max_items, false, None)
+                    })
+                }),
             }
-            Some(f) => self
-                .items
-                .iter()
-                .filter(|item| f(item.label(), &raw_query))
-                .take(self.max_items)
-                .cloned()
-                .collect(),
-            _ if query.is_empty() => self.items.iter().take(self.max_items).cloned().collect(),
-            _ => self
-                .items
-                .iter()
-                .filter(|item| item.label().to_lowercase().contains(&query))
-                .take(self.max_items)
-                .cloned()
-                .collect(),
         };
 
         // `MenuTrigger::Focus` opens the list when the field takes focus. The
@@ -868,7 +942,7 @@ impl RenderOnce for ComboBox {
                 // A fresh focus session: the field taking focus is the
                 // gesture, when there is something to show -- the panel's own
                 // gate of a non-empty result or an allowed empty state.
-                let can_show = !self.items.is_empty() || self.allows_empty_collection;
+                let can_show = !items.is_empty() || self.allows_empty_collection;
                 if can_show {
                     show_all_items.update(cx, |v, _| *v = true);
                     // Opening from focus writes both halves, the way the
@@ -968,13 +1042,6 @@ impl RenderOnce for ComboBox {
             }
         }
 
-        // Which suggestion the keyboard is on. Input edits clear it, matching
-        // React Stately's focused-key reset before the filtered list changes.
-        let cursor = window.use_keyed_state(
-            gpui::ElementId::Name(format!("combobox-{entity_id}-cursor").into()),
-            cx,
-            |_, _| None::<ComboCursor>,
-        );
         let cursor_on_change = cursor.clone();
         let validate = self.validate.clone();
         let mut input = Input::new(self.state.clone())
@@ -996,7 +1063,7 @@ impl RenderOnce for ComboBox {
         let open_change_cb = self.on_open_change.clone();
         let focus_open_on_change = focus_open.clone();
         let show_all_items_on_change = show_all_items.clone();
-        let items_on_change = self.items.clone();
+        let items_on_change = items.clone();
         let filter_on_change = self.filter.clone();
         let menu_trigger_on_change = self.menu_trigger;
         let allows_empty_collection = self.allows_empty_collection;
@@ -1029,13 +1096,15 @@ impl RenderOnce for ComboBox {
                 }
             }
 
-            let query = text.to_lowercase();
             let has_matches = match &filter_on_change {
                 Some(f) => items_on_change.iter().any(|item| f(item.label(), text)),
-                None if query.is_empty() => !items_on_change.is_empty(),
-                None => items_on_change
-                    .iter()
-                    .any(|item| item.label().to_lowercase().contains(&query)),
+                None if text.is_empty() => !items_on_change.is_empty(),
+                None => {
+                    let query = text.to_lowercase();
+                    items_on_change
+                        .iter()
+                        .any(|item| item.label().to_lowercase().contains(&query))
+                }
             };
             let can_show = has_matches || allows_empty_collection;
             let is_open = open_own_on_change
@@ -1088,7 +1157,7 @@ impl RenderOnce for ComboBox {
         let stale_cursor = cursor.read(cx).as_ref().is_some_and(|focused| {
             let visible = cursor_position(&matches, focused).is_some();
             let retained_hidden = focused.hidden_query.as_deref() == Some(raw_query.as_str())
-                && self.items.iter().any(|item| item.key() == &focused.key);
+                && items.iter().any(|item| item.key() == &focused.key);
             self.disabled_keys.contains(&focused.key) || (!visible && !retained_hidden)
         });
         if stale_cursor {
@@ -1120,7 +1189,7 @@ impl RenderOnce for ComboBox {
             let state = self.state.clone();
             let selection_own = selection_own.clone();
             let selected = self.selected_keys.clone();
-            let items = self.items.clone();
+            let items = items.clone();
             let selection_change = self.on_selection_change_all.clone();
             let input_change = self.on_input_change.clone();
             let allows_custom = self.allows_custom_value;
@@ -1209,20 +1278,17 @@ impl RenderOnce for ComboBox {
         // item now sits; a key with no item renders nothing.
         let mut value_content = None;
         if let Some(render) = self.value_content.take() {
-            let mut items: Vec<SharedString> = Vec::new();
+            let mut labels: Vec<SharedString> = Vec::new();
             let mut indices: Vec<usize> = Vec::new();
             for key in &self.selected_keys {
-                if let Some((index, item)) = self
-                    .items
-                    .iter()
-                    .enumerate()
-                    .find(|(_, it)| it.key() == key)
+                if let Some((index, item)) =
+                    items.iter().enumerate().find(|(_, it)| it.key() == key)
                 {
-                    items.push(item.label().clone());
+                    labels.push(item.label().clone());
                     indices.push(index);
                 }
             }
-            let text = items
+            let text = labels
                 .iter()
                 .map(ToString::to_string)
                 .collect::<Vec<_>>()
@@ -1233,11 +1299,11 @@ impl RenderOnce for ComboBox {
                 .child(text.clone())
                 .into_any_element();
             value_content = Some(render(util::SelectionValue {
-                selected_items: &items,
+                selected_items: &labels,
                 selected_indices: &indices,
                 selected_keys: Some(&self.selected_keys),
                 selected_text: &text,
-                is_placeholder: items.is_empty(),
+                is_placeholder: labels.is_empty(),
                 default_children,
             }));
         }
@@ -1248,11 +1314,17 @@ impl RenderOnce for ComboBox {
         // Up, down, Home, End and Enter walk the suggestions; the inner input
         // keeps left and right for the caret.
         if !self.is_disabled && !self.is_read_only {
-            let key_rows = if open_state || (self.allows_custom_value && !raw_query.is_empty()) {
-                matches.clone()
-            } else {
-                self.items.iter().take(self.max_items).cloned().collect()
-            };
+            let key_rows: Rc<[PickerItem]> =
+                if open_state || (self.allows_custom_value && !raw_query.is_empty()) {
+                    Rc::clone(&matches)
+                } else {
+                    items
+                        .iter()
+                        .take(self.max_items)
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .into()
+                };
             let stops: Vec<usize> = (0..key_rows.len())
                 .filter(|i| {
                     key_rows
@@ -1275,7 +1347,8 @@ impl RenderOnce for ComboBox {
             let on_input_change = self.on_input_change.clone();
             let selected_now = self.selected_keys.clone();
             let key_query = raw_query.clone();
-            let key_items = self.items.clone();
+            let key_display_full = display_full_collection;
+            let key_items = items.clone();
             let key_filter = self.filter.clone();
             let key_max_items = self.max_items;
             let key_disabled = self.disabled_keys.clone();
@@ -1293,34 +1366,30 @@ impl RenderOnce for ComboBox {
                     .map_or(was_open, |held| *held.read(cx));
                 let stale_cursor = held.read(cx).as_ref().is_some_and(|focused| {
                     let current_query = state.read(cx).value().to_owned();
-                    let lowered = current_query.to_lowercase();
-                    let display_full = current_query == key_query && *show_all_items.read(cx)
+                    let display_full = (current_query == key_query && *show_all_items.read(cx))
                         || (key_menu_trigger == MenuTrigger::Manual && !is_open);
-                    let current_matches: Vec<PickerItem> = match &key_filter {
-                        _ if display_full => {
-                            key_items.iter().take(key_max_items).cloned().collect()
-                        }
-                        Some(filter) => key_items
-                            .iter()
-                            .filter(|item| filter(item.label(), &current_query))
-                            .take(key_max_items)
-                            .cloned()
-                            .collect(),
-                        None if lowered.is_empty() => {
-                            key_items.iter().take(key_max_items).cloned().collect()
-                        }
-                        None => key_items
-                            .iter()
-                            .filter(|item| item.label().to_lowercase().contains(&lowered))
-                            .take(key_max_items)
-                            .cloned()
-                            .collect(),
-                    };
-                    let current_rows =
-                        if is_open || (allows_custom_value && !current_query.is_empty()) {
-                            current_matches
+                    let current_rows: Rc<[PickerItem]> =
+                        if !(is_open || (allows_custom_value && !current_query.is_empty())) {
+                            key_items
+                                .iter()
+                                .take(key_max_items)
+                                .cloned()
+                                .collect::<Vec<_>>()
+                                .into()
+                        } else if current_query == key_query
+                            && is_open == was_open
+                            && display_full == key_display_full
+                        {
+                            Rc::clone(&rows)
                         } else {
-                            key_items.iter().take(key_max_items).cloned().collect()
+                            compute_matches(
+                                &key_items,
+                                &current_query,
+                                key_max_items,
+                                display_full,
+                                key_filter.as_ref(),
+                            )
+                            .into()
                         };
                     let visible = cursor_position(&current_rows, focused).is_some();
                     let retained_hidden = focused.hidden_query.as_deref()

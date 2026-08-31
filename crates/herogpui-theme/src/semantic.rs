@@ -204,7 +204,7 @@ pub struct ThemeColors {
     pub foreground: Hsla,
     /// `--muted` — de-emphasised body text and icons.
     pub muted: Hsla,
-    /// `--scrollbar`
+    /// `--scrollbar: var(--scrollbar-thumb)`
     pub scrollbar: Hsla,
 
     // -- containers ---------------------------------------------------------
@@ -329,7 +329,7 @@ impl ThemeColors {
             background: oklch(0.9702, 0.0, 0.0),
             foreground,
             muted,
-            scrollbar: oklch(0.871, 0.006, 286.286),
+            scrollbar: with_alpha(foreground, 0.15),
 
             surface: SurfaceColor {
                 background: white(),
@@ -391,7 +391,7 @@ impl ThemeColors {
             background: oklch(0.12, 0.005, 285.823),
             foreground,
             muted,
-            scrollbar: oklch(0.705, 0.015, 286.067),
+            scrollbar: with_alpha(foreground, 0.15),
 
             surface: SurfaceColor {
                 background: oklch(0.2103, 0.0059, 285.89),
@@ -454,6 +454,18 @@ mod tests {
         let c = ThemeColors::light();
         assert!((c.accent.soft().a - 0.15).abs() < 1e-4);
         assert!((c.accent.soft_hover().a - 0.20).abs() < 1e-4);
+    }
+
+    #[test]
+    fn light_scrollbar_thumb_is_fifteen_percent_foreground() {
+        let c = ThemeColors::light();
+        assert_eq!(c.scrollbar, with_alpha(c.foreground, 0.15));
+    }
+
+    #[test]
+    fn dark_scrollbar_thumb_is_fifteen_percent_foreground() {
+        let c = ThemeColors::dark();
+        assert_eq!(c.scrollbar, with_alpha(c.foreground, 0.15));
     }
 
     #[test]

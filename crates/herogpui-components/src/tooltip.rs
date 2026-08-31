@@ -401,104 +401,6 @@ impl RenderOnce for Tooltip {
             TooltipTrigger::Focus => focus_open,
         };
 
-        let colors = cx.colors();
-        let layout = cx.layout();
-        // v3 pushes the tip further out when the arrow needs room.
-        let offset = self
-            .offset
-            .unwrap_or(if self.show_arrow { px(7.) } else { px(3.) });
-        // CSS gives an absolutely positioned tooltip max-content width capped
-        // at 320px. GPUI otherwise resolves normal wrapping to min-content,
-        // making even "With an arrow" one word wide, so shape the single line
-        // and pin the same max-content result explicitly.
-        let content = self.content.to_string();
-        let run = gpui::TextRun {
-            len: content.len(),
-            font: window.text_style().font(),
-            color: gpui::black(),
-            background_color: None,
-            underline: None,
-            strikethrough: None,
-        };
-        let line = window
-            .text_system()
-            .shape_line(content.clone().into(), px(12.), &[run], None);
-        let hairline_width = if layout.overlay_hairline.is_some() {
-            layout.border_width * 2.
-        } else {
-            px(0.)
-        };
-        let intrinsic_width = line.width + px(16.) + hairline_width;
-        let tooltip_width = if intrinsic_width < px(320.) {
-            intrinsic_width
-        } else {
-            px(320.)
-        };
-
-        let mut tip = gpui::div()
-            .absolute()
-            // `.tooltip` is `p-2` all round, not a wider-than-tall pill.
-            .p(px(8.))
-            .w(tooltip_width)
-            .rounded(util::small_radius(cx))
-            .bg(colors.overlay.background)
-            .text_color(colors.overlay.foreground)
-            .text_size(px(12.))
-            .line_height(px(16.))
-            .when_some(layout.overlay_hairline, |el, hairline| {
-                el.border(layout.border_width).border_color(hairline)
-            })
-            .shadow(layout.overlay_shadow.clone())
-            .child(content);
-
-        tip = match self.placement {
-            TooltipPlacement::Top => tip.bottom_full().mb(offset),
-            TooltipPlacement::Bottom => tip.top_full().mt(offset),
-            TooltipPlacement::Left => tip.right_full().mr(offset),
-            TooltipPlacement::Right => tip.left_full().ml(offset),
-        };
-
-        if self.show_arrow {
-            let mut arrow = gpui::div().absolute().child(
-                gpui::svg()
-                    .size(px(12.))
-                    .path(icons::TOOLTIP_ARROW)
-                    // svg() never inherits text colour; the arrow has to be
-                    // tinted to match the tip body explicitly.
-                    .text_color(colors.overlay.background)
-                    .with_transformation(gpui::Transformation::rotate(gpui::radians(
-                        self.placement.arrow_rotation(),
-                    ))),
-            );
-            arrow = match self.placement {
-                TooltipPlacement::Top => arrow
-                    .top_full()
-                    .left(px(0.))
-                    .right(px(0.))
-                    .flex()
-                    .justify_center(),
-                TooltipPlacement::Bottom => arrow
-                    .bottom_full()
-                    .left(px(0.))
-                    .right(px(0.))
-                    .flex()
-                    .justify_center(),
-                TooltipPlacement::Left => arrow
-                    .left_full()
-                    .top(px(0.))
-                    .bottom(px(0.))
-                    .flex()
-                    .items_center(),
-                TooltipPlacement::Right => arrow
-                    .right_full()
-                    .top(px(0.))
-                    .bottom(px(0.))
-                    .flex()
-                    .items_center(),
-            };
-            tip = tip.child(arrow);
-        }
-
         let hover_state = state.clone();
         let dismiss_current = current_tooltip.clone();
         let dismiss_tooltip = util::shared(move |cx: &mut App| {
@@ -621,7 +523,109 @@ impl RenderOnce for Tooltip {
         // A tooltip leaves the way every other overlay does: `overlay_scope`
         // keeps it for its exit run, which is what `[data-exiting]` needs to
         // have something to play and gives Escape a stack position.
+        //
+        // The tip — and the max-content line shaping it is sized from — is
+        // only built while it is visible: `shape_line` is the most expensive
+        // call in this render, and a closed tooltip has no surface to size.
         if phase != util::OverlayPhase::Closed {
+            let colors = cx.colors();
+            let layout = cx.layout();
+            // v3 pushes the tip further out when the arrow needs room.
+            let offset = self
+                .offset
+                .unwrap_or(if self.show_arrow { px(7.) } else { px(3.) });
+            // CSS gives an absolutely positioned tooltip max-content width capped
+            // at 320px. GPUI otherwise resolves normal wrapping to min-content,
+            // making even "With an arrow" one word wide, so shape the single line
+            // and pin the same max-content result explicitly.
+            let content = self.content.clone();
+            let run = gpui::TextRun {
+                len: content.len(),
+                font: window.text_style().font(),
+                color: gpui::black(),
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            };
+            let line = window
+                .text_system()
+                .shape_line(content.clone(), px(12.), &[run], None);
+            let hairline_width = if layout.overlay_hairline.is_some() {
+                layout.border_width * 2.
+            } else {
+                px(0.)
+            };
+            let intrinsic_width = line.width + px(16.) + hairline_width;
+            let tooltip_width = if intrinsic_width < px(320.) {
+                intrinsic_width
+            } else {
+                px(320.)
+            };
+
+            let mut tip = gpui::div()
+                .absolute()
+                // `.tooltip` is `p-2` all round, not a wider-than-tall pill.
+                .p(px(8.))
+                .w(tooltip_width)
+                .rounded(util::small_radius(cx))
+                .bg(colors.overlay.background)
+                .text_color(colors.overlay.foreground)
+                .text_size(px(12.))
+                .line_height(px(16.))
+                .when_some(layout.overlay_hairline, |el, hairline| {
+                    el.border(layout.border_width).border_color(hairline)
+                })
+                .shadow(layout.overlay_shadow.clone())
+                .child(content);
+
+            tip = match self.placement {
+                TooltipPlacement::Top => tip.bottom_full().mb(offset),
+                TooltipPlacement::Bottom => tip.top_full().mt(offset),
+                TooltipPlacement::Left => tip.right_full().mr(offset),
+                TooltipPlacement::Right => tip.left_full().ml(offset),
+            };
+
+            if self.show_arrow {
+                let mut arrow = gpui::div().absolute().child(
+                    gpui::svg()
+                        .size(px(12.))
+                        .path(icons::TOOLTIP_ARROW)
+                        // svg() never inherits text colour; the arrow has to be
+                        // tinted to match the tip body explicitly.
+                        .text_color(colors.overlay.background)
+                        .with_transformation(gpui::Transformation::rotate(gpui::radians(
+                            self.placement.arrow_rotation(),
+                        ))),
+                );
+                arrow = match self.placement {
+                    TooltipPlacement::Top => arrow
+                        .top_full()
+                        .left(px(0.))
+                        .right(px(0.))
+                        .flex()
+                        .justify_center(),
+                    TooltipPlacement::Bottom => arrow
+                        .bottom_full()
+                        .left(px(0.))
+                        .right(px(0.))
+                        .flex()
+                        .justify_center(),
+                    TooltipPlacement::Left => arrow
+                        .left_full()
+                        .top(px(0.))
+                        .bottom(px(0.))
+                        .flex()
+                        .items_center(),
+                    TooltipPlacement::Right => arrow
+                        .right_full()
+                        .top(px(0.))
+                        .bottom(px(0.))
+                        .flex()
+                        .items_center(),
+                };
+                tip = tip.child(arrow);
+            }
+
             // `absolute` does not lift the tip above later siblings in the page,
             // so it has to paint last.
             let zoom = anim::ZoomBox::panel(px(8.), util::small_radius(cx)).padding_x(px(8.));

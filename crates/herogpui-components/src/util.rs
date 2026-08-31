@@ -1114,6 +1114,13 @@ where
     let key_down = slot.clone();
     let key_up = slot.clone();
     let outside_up = slot.clone();
+    // This listener is deliberately unconditional, not armed while the slot is
+    // pressed: `Window::on_mouse_event` is `debug_assert_paint`-only, so a
+    // press-armed registration could not exist until the frame *after* the
+    // mouse down, and a release dispatched before that frame completes -- a
+    // fast click, or a press dragged outside -- would be missed and leave the
+    // slot stuck pressed. gpui 0.2.2 has no pointer capture; the per-frame
+    // re-registration is what makes any outside release observable at all.
     let release = gpui::canvas(
         |bounds, _, _| bounds,
         move |_, _, window, _| {

@@ -58,8 +58,8 @@ use gpui::{
 use harness::{click, events, open_host, press, Events};
 use herogpui_components::{
     pause_toasts, toast_store, ListBox, ListBoxItem, ScrollShadow, ScrollShadowVisibility,
-    SortDescriptor, SortDirection, Table, TableColumn, TableRow, Toast, ToastPlacement,
-    ToastViewport, VirtualTreeMetadata,
+    SelectionMode, SortDescriptor, SortDirection, Table, TableColumn, TableRow, Toast,
+    ToastPlacement, ToastViewport, VirtualTreeMetadata,
 };
 
 /// Pins the toast card layout by enabling reduced motion **before** the first
@@ -649,6 +649,169 @@ fn virtual_table_rows_click_and_sort(cx: &mut TestAppContext) {
         sorts.borrow().as_slice(),
         ["Name:asc", "Name:desc"],
         "the virtual table's sortable header must toggle like a plain one"
+    );
+}
+
+/// The virtual projection — every collection key plus the rows visible under
+/// `expanded_keys` — is cached against the collection's identity, its count and
+/// the expanded set. An unchanged frame must not re-run `key_for_row` (a fresh
+/// build every frame is exactly the cost the cache exists to avoid), and each
+/// of those three inputs changing must re-run it.
+#[gpui::test]
+fn virtual_table_projection_skips_key_calls_on_unchanged_frames(cx: &mut TestAppContext) {
+    let key_calls = Rc::new(Cell::new(0usize));
+    let count = Rc::new(Cell::new(400usize));
+    let identity = Rc::new(RefCell::new(String::from("cache-a")));
+    let expanded = Rc::new(RefCell::new(Vec::<SharedString>::new()));
+    let cx = open_host(cx, {
+        let key_calls = key_calls.clone();
+        let count = count.clone();
+        let identity = identity.clone();
+        let expanded = expanded.clone();
+        move || {
+            let key_calls = key_calls.clone();
+            Table::new(vec![])
+                    .id("vt-projection-cache")
+                    .column(TableColumn::new("Name").default_width(px(240.)))
+                    .tree_column(0)
+                    .expanded_keys(expanded.borrow().clone())
+                    .virtual_rows(
+                        count.get(),
+                        identity.borrow().clone(),
+                        move |i| {
+                            key_calls.set(key_calls.get() + 1);
+                            SharedString::from(format!("row-{i}"))
+                        },
+                        |i| {
+                            TableRow::new(vec![gpui::div()
+                                .child(format!("Row {i}"))
+                                .into_any_element()])
+                        },
+                    )
+                    // Ten-item groups: a group head is visible collapsed, and
+                    // expanding it brings its nine children into the
+                    // projection, so the expansion invalidation below is a
+                    // real change of the visible set, not just the fingerprint.
+                    .virtual_tree_metadata(|i| VirtualTreeMetadata {
+                        depth: usize::from(i % 10 != 0),
+                        parent_key: (i % 10 != 0)
+                            .then(|| SharedString::from(format!("row-{}", i - i % 10))),
+                        has_children: i % 10 == 0,
+                    })
+                    .row_height(px(40.))
+                    .max_h(px(400.))
+                    .into_any_element()
+        }
+    });
+
+    let after_first = key_calls.get();
+    assert!(
+        after_first >= 400,
+        "the first frame must project a key for every row in the collection"
+    );
+
+    for _ in 0..3 {
+        flush_frame(cx);
+    }
+    assert_eq!(
+        key_calls.get(),
+        after_first,
+        "unchanged frames must reuse the cached projection"
+    );
+
+    expanded.borrow_mut().push(SharedString::from("row-0"));
+    flush_frame(cx);
+    let after_expansion = key_calls.get();
+    assert!(
+        after_expansion > after_first,
+        "a changed expanded set must invalidate the projection"
+    );
+    for _ in 0..2 {
+        flush_frame(cx);
+    }
+    assert_eq!(key_calls.get(), after_expansion);
+
+    count.set(401);
+    flush_frame(cx);
+    let after_count = key_calls.get();
+    assert!(
+        after_count > after_expansion,
+        "a changed collection count must invalidate the projection"
+    );
+    for _ in 0..2 {
+        flush_frame(cx);
+    }
+    assert_eq!(key_calls.get(), after_count);
+
+    *identity.borrow_mut() = String::from("cache-b");
+    flush_frame(cx);
+    let after_identity = key_calls.get();
+    assert!(
+        after_identity > after_count,
+        "a changed collection identity must invalidate the projection"
+    );
+    for _ in 0..2 {
+        flush_frame(cx);
+    }
+    assert_eq!(key_calls.get(), after_identity);
+}
+
+/// The full selectable set is cached with its disabled-key input. Changing
+/// `disabled_keys` must refresh that filtered set without rebuilding the
+/// collection projection, so Mod+A never reports a newly disabled row.
+#[gpui::test]
+fn virtual_table_mod_a_refreshes_cached_disabled_keys(cx: &mut TestAppContext) {
+    let disabled = Rc::new(Cell::new(false));
+    let recorded = events();
+    let disabled_for_view = disabled.clone();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let disabled = disabled_for_view.clone();
+        let recorded = for_view.clone();
+        Table::new(vec![])
+            .id("vt-selectable-cache")
+            .columns(vec![TableColumn::new("Name").default_width(px(160.))])
+            .selection_mode(SelectionMode::Multiple)
+            .disabled_keys(disabled.get().then(|| SharedString::from("key-1")))
+            .virtual_rows(
+                3,
+                "virtual-selectable-cache",
+                |i| format!("key-{i}").into(),
+                |i| {
+                    TableRow::new(vec![gpui::div()
+                        .child(format!("Row {i}"))
+                        .into_any_element()])
+                },
+            )
+            .row_height(px(40.))
+            .max_h(px(120.))
+            .on_selection_change(move |keys, _, _| {
+                recorded.borrow_mut().push(
+                    keys.iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
+            })
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    press(cx, "tab");
+    disabled.set(true);
+    flush_frame(cx);
+    press(
+        cx,
+        if cfg!(target_os = "macos") {
+            "cmd-a"
+        } else {
+            "ctrl-a"
+        },
+    );
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["key-0,key-2"],
+        "Mod+A must use the disabled-key-filtered virtual collection after an update"
     );
 }
 

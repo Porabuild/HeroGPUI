@@ -28,11 +28,20 @@ use std::rc::Rc;
 
 use gpui::{
     canvas, point, prelude::*, px, AnyElement, ElementId, Modifiers, MouseButton, SharedString,
-    TestAppContext,
+    TestAppContext, VisualTestContext,
 };
 use herogpui_components::{Button, Dropdown, Menu, MenuItem, SelectionMode};
 
 use harness::{click, events, open_host, press};
+
+/// Forces `times` full host re-renders with no input event between them,
+/// standing in for the repaints an open menu plays through while mounted.
+fn redraw_frames(cx: &mut VisualTestContext, times: usize) {
+    for _ in 0..times {
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+    }
+}
 
 /// Moves the test clock past the Dropdown's 100ms exit phase, so a
 /// closed-proof click cannot land on the exiting panel.
@@ -1158,4 +1167,162 @@ fn dropdown_page_keys_page_the_open_submenu_without_disturbing_the_parent(cx: &m
         ["email"],
         "PageDown in the submenu must reach the child's last enabled row"
     );
+}
+
+/// A shared dropdown+submenu host for the union-contract tests below: the
+/// keyboard path opens the parent and its child, so no row coordinate is
+/// needed to open either panel. The parent panel is 220px wide starting at
+/// x=0, so the child panel hangs from x≈224.
+fn union_host<'a>(
+    cx: &'a mut TestAppContext,
+    dropdown_id: &'static str,
+) -> (&'a mut VisualTestContext, harness::Events, harness::Events) {
+    let actions = events();
+    let fired = actions.clone();
+    let opens = events();
+    let opened = opens.clone();
+
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        let opens = opens.clone();
+        Dropdown::uncontrolled(
+            "dd-union-trigger",
+            Button::new("dd-union-trigger").label("Share"),
+            vec![MenuItem::new("share", "Share").submenu(vec![
+                MenuItem::new("sms", "SMS"),
+                MenuItem::new("mail", "Mail"),
+            ])],
+        )
+        .id(dropdown_id)
+        .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string()))
+        .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}")))
+        .into_any_element()
+    });
+    (cx, fired, opened)
+}
+
+/// Opens parent + child by keyboard and leaves them on screen.
+fn open_union(cx: &mut VisualTestContext) {
+    click(cx, 40., 18.);
+    press(cx, "down");
+    press(cx, "right");
+}
+
+/// After idle repaints with the composite still mounted, a press on the child
+/// row still reaches it and dismisses exactly once. An unchanged location
+/// would still hit even a stale copy of the union; the moved-composite test
+/// owns that the union tracks the live panels.
+#[gpui::test]
+fn child_row_stays_pressable_across_repeated_frames(cx: &mut TestAppContext) {
+    let (cx, fired, opened) = union_host(cx, "dd-union-frames");
+    open_union(cx);
+    redraw_frames(cx, 4);
+
+    // The child panel's first row: past the parent panel's 220px width and
+    // its 4px gap, in the child's own padding box.
+    click(cx, 280., 72.);
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["sms"],
+        "after repeated frames the child row must still answer its press"
+    );
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "the pick must dismiss the menu exactly once"
+    );
+}
+
+/// Once the child has closed the union is no longer consulted -- the panel
+/// falls back to its unconditional token dismissal -- so the spot the child
+/// occupied must simply dismiss the menu like any other blank page.
+#[gpui::test]
+fn panel_union_drops_bounds_that_left_the_composite(cx: &mut TestAppContext) {
+    let (cx, _fired, opened) = union_host(cx, "dd-union-closed");
+    open_union(cx);
+    redraw_frames(cx, 2);
+
+    press(cx, "left");
+    redraw_frames(cx, 3);
+
+    click(cx, 280., 72.);
+    assert_eq!(
+        opened.borrow().as_slice(),
+        ["open:true", "open:false"],
+        "the press where the submenu used to be must dismiss the menu"
+    );
+}
+
+/// While the child is open the union is the only thing standing between an
+/// outside press and the row underneath, so the union must hold exactly the
+/// moving composite: shift the whole dropdown down between frames and the
+/// pre-move child bounds must not answer a press where they used to cover,
+/// while the moved child's own rows must.
+#[gpui::test]
+fn panel_union_tracks_a_moved_composite_between_frames(cx: &mut TestAppContext) {
+    let shift: Rc<Cell<f32>> = Rc::new(Cell::new(0.));
+    let actions = events();
+    let fired = actions.clone();
+    let opens = events();
+    let opened = opens.clone();
+
+    let content_shift = shift.clone();
+    let cx = open_host(cx, move || {
+        let actions = actions.clone();
+        let opens = opens.clone();
+        gpui::div()
+            .mt(px(content_shift.get()))
+            .child(
+                Dropdown::uncontrolled(
+                    "dd-union-move-trigger",
+                    Button::new("dd-union-move-trigger").label("Share"),
+                    vec![MenuItem::new("share", "Share").submenu(vec![
+                        MenuItem::new("sms", "SMS"),
+                        MenuItem::new("mail", "Mail"),
+                    ])],
+                )
+                .id("dd-union-move")
+                .on_action(move |key, _, _| actions.borrow_mut().push(key.to_string()))
+                .on_open_change(move |open, _, _| opens.borrow_mut().push(format!("open:{open}"))),
+            )
+            .into_any_element()
+    });
+
+    click(cx, 40., 18.);
+    press(cx, "down");
+    press(cx, "right");
+
+    shift.set(80.);
+    redraw_frames(cx, 3);
+
+    // The child panel's old first-row spot is now blank page above the moved
+    // composite; a union still holding the pre-move bounds would decline this
+    // press and keep the menu open. A stale child hit target would fire the
+    // row instead of dismissing.
+    click(cx, 280., 72.);
+    assert!(
+        fired.borrow().is_empty(),
+        "the press at the pre-move child location must not fire a row"
+    );
+    assert_eq!(
+        last(&opened),
+        "open:false",
+        "the press at the pre-move child location must dismiss the menu"
+    );
+
+    // Reopened from the moved trigger, the child's rows must answer 80px
+    // lower.
+    let_exit_finish(cx);
+    click(cx, 40., 98.);
+    assert_eq!(last(&opened), "open:true", "the moved trigger must reopen");
+    press(cx, "down");
+    press(cx, "right");
+    redraw_frames(cx, 1);
+    click(cx, 280., 152.);
+    assert_eq!(
+        fired.borrow().as_slice(),
+        ["sms"],
+        "the moved child's first row must be inside the union"
+    );
+    assert_eq!(last(&opened), "open:false", "the pick must dismiss");
 }

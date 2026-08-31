@@ -46,7 +46,10 @@
 
 mod harness;
 
-use gpui::{prelude::*, px, Focusable, TestAppContext, VisualTestContext};
+use gpui::{
+    point, prelude::*, px, Bounds, Focusable, Modifiers, MouseButton, Pixels, TestAppContext,
+    VisualTestContext,
+};
 use herogpui_components::{
     Button, ColorField, Date, DateField, FieldGroup, Fieldset, FieldsetLegend, Input, InputAddon,
     InputGroup, InputOTP, InputState, OtpPattern, OtpState, PickerColor, SearchField, TextArea,
@@ -58,6 +61,29 @@ use harness::{click, events, open_host, press};
 /// One forced redraw, so `debug_bounds` sees the latest laid-out frame.
 fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
+}
+
+const SEARCH_CLEAR_BOX: f32 = 20.;
+const SEARCH_CLEAR_PRESS_SCALE: f32 = 0.93;
+
+fn clear_probe(entity_id: u64) -> &'static str {
+    Box::leak(format!("input-clear-{entity_id}").into_boxed_str())
+}
+
+fn clear_bounds(cx: &mut VisualTestContext, entity_id: u64) -> Bounds<Pixels> {
+    cx.debug_bounds(clear_probe(entity_id))
+        .unwrap_or_else(|| panic!("the SearchField clear button {entity_id} must paint"))
+}
+
+fn bounds_centre(bounds: Bounds<Pixels>) -> gpui::Point<Pixels> {
+    point(
+        bounds.origin.x + bounds.size.width / 2.,
+        bounds.origin.y + bounds.size.height / 2.,
+    )
+}
+
+fn near(value: Pixels, expected: f32) -> bool {
+    (f32::from(value) - expected).abs() < 0.5
 }
 
 // ---------------------------------------------------------------------------
@@ -258,6 +284,147 @@ fn text_area_max_length_rejects_a_newline_without_change(cx: &mut TestAppContext
 // ---------------------------------------------------------------------------
 
 #[gpui::test]
+fn search_field_clear_button_press_scales_centered_to_pinned_value(cx: &mut TestAppContext) {
+    let clears = events();
+    let state = cx.new(|cx| InputState::with_value(cx, "rust"));
+    let state_for_view = state.clone();
+    let entity_id = state.entity_id().as_u64();
+    let recorded_for_view = clears.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded_for_view.clone();
+        SearchField::new(state_for_view.clone())
+            .on_clear(move |_, _| recorded.borrow_mut().push("clear".to_owned()))
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    let at_rest = clear_bounds(cx, entity_id);
+    assert!(
+        near(at_rest.size.width, SEARCH_CLEAR_BOX) && near(at_rest.size.height, SEARCH_CLEAR_BOX),
+        "the resting SearchField clear slot must be a 20px square, got {at_rest:?}"
+    );
+
+    let at = bounds_centre(at_rest);
+    cx.simulate_mouse_move(at, None, Modifiers::none());
+    flush_frame(cx);
+    cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+
+    let pressed = clear_bounds(cx, entity_id);
+    let scaled = SEARCH_CLEAR_BOX * SEARCH_CLEAR_PRESS_SCALE;
+    let inset = (SEARCH_CLEAR_BOX - scaled) / 2.;
+    assert!(
+        near(pressed.size.width, scaled) && near(pressed.size.height, scaled),
+        "a pressed SearchField clear button must scale to 0.93 ({scaled}px), got {pressed:?}"
+    );
+    assert!(
+        near(pressed.origin.x, f32::from(at_rest.origin.x) + inset)
+            && near(pressed.origin.y, f32::from(at_rest.origin.y) + inset),
+        "the clear scale must stay centered in its original slot, got {pressed:?}"
+    );
+
+    cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+    assert_eq!(
+        clears.borrow().as_slice(),
+        ["clear"],
+        "the completed pressed clear must still activate"
+    );
+}
+
+#[gpui::test]
+fn search_field_clear_button_press_scale_is_instant_with_reduced_motion(cx: &mut TestAppContext) {
+    harness::still();
+    let state = cx.new(|cx| InputState::with_value(cx, "rust"));
+    let state_for_view = state.clone();
+    let entity_id = state.entity_id().as_u64();
+    let cx = open_host(cx, move || {
+        SearchField::new(state_for_view.clone()).into_any_element()
+    });
+
+    flush_frame(cx);
+    let at_rest = clear_bounds(cx, entity_id);
+    let at = bounds_centre(at_rest);
+    cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+
+    let pressed = clear_bounds(cx, entity_id);
+    let scaled = SEARCH_CLEAR_BOX * SEARCH_CLEAR_PRESS_SCALE;
+    let inset = (SEARCH_CLEAR_BOX - scaled) / 2.;
+    assert!(
+        near(pressed.size.width, scaled) && near(pressed.size.height, scaled),
+        "reduced motion must apply the clear scale immediately ({scaled}px), got {pressed:?}"
+    );
+    assert!(
+        near(pressed.origin.x, f32::from(at_rest.origin.x) + inset)
+            && near(pressed.origin.y, f32::from(at_rest.origin.y) + inset),
+        "reduced-motion clear scale must stay centered, got {pressed:?}"
+    );
+
+    cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
+    flush_frame(cx);
+}
+
+#[gpui::test]
+fn search_field_clear_button_is_inert_when_disabled_read_only_or_empty(cx: &mut TestAppContext) {
+    let clears = events();
+    let disabled = cx.new(|cx| InputState::with_value(cx, "disabled"));
+    let read_only = cx.new(|cx| InputState::with_value(cx, "read-only"));
+    let empty = cx.new(|cx| InputState::new(cx));
+    let disabled_id = disabled.entity_id().as_u64();
+    let read_only_id = read_only.entity_id().as_u64();
+    let empty_id = empty.entity_id().as_u64();
+    let clears_for_view = clears.clone();
+    let cx = open_host(cx, move || {
+        let disabled_clears = clears_for_view.clone();
+        let read_only_clears = clears_for_view.clone();
+        let empty_clears = clears_for_view.clone();
+        gpui::div()
+            .flex()
+            .flex_col()
+            .gap(px(4.))
+            .child(
+                SearchField::new(disabled.clone())
+                    .is_disabled(true)
+                    .on_clear(move |_, _| disabled_clears.borrow_mut().push("disabled".to_owned())),
+            )
+            .child(
+                SearchField::new(read_only.clone())
+                    .is_read_only(true)
+                    .on_clear(move |_, _| {
+                        read_only_clears.borrow_mut().push("read-only".to_owned());
+                    }),
+            )
+            .child(
+                SearchField::new(empty.clone())
+                    .on_clear(move |_, _| empty_clears.borrow_mut().push("empty".to_owned())),
+            )
+            .into_any_element()
+    });
+
+    flush_frame(cx);
+    for entity_id in [disabled_id, read_only_id, empty_id] {
+        assert!(
+            cx.debug_bounds(clear_probe(entity_id)).is_none(),
+            "disabled, read-only, and empty SearchFields must not paint a clear button"
+        );
+    }
+
+    for y in [18., 58., 98.] {
+        let at = point(px(298.), px(y));
+        cx.simulate_mouse_move(at, None, Modifiers::none());
+        cx.simulate_mouse_down(at, MouseButton::Left, Modifiers::none());
+        flush_frame(cx);
+        cx.simulate_mouse_up(at, MouseButton::Left, Modifiers::none());
+        flush_frame(cx);
+    }
+    assert!(
+        clears.borrow().is_empty(),
+        "disabled, read-only, and invisible clear controls must never activate"
+    );
+}
+
+#[gpui::test]
 fn search_field_clear_and_submit(cx: &mut TestAppContext) {
     let changes = events();
     let recorded = changes.clone();
@@ -305,8 +472,19 @@ fn search_field_clear_and_submit(cx: &mut TestAppContext) {
     let empty = cx.update(|_, cx| state.read(cx).value().to_owned());
     assert_eq!(empty, "", "clearing must empty the InputState");
 
-    // The field keeps the focus through the clear click (the button has no
-    // handle of its own), so typing continues and Enter submits the value.
+    let field_focus = cx.update(|_, cx| state.read(cx).focus_handle(cx));
+    assert!(
+        cx.update(|window, cx| {
+            window
+                .focused(cx)
+                .is_some_and(|focused| focused == field_focus)
+        }),
+        "pinned `preventFocusOnPress: true`: a pointer clear must restore \
+         field focus"
+    );
+
+    // The field keeps the focus through the clear click, so typing continues
+    // and Enter submits the value.
     cx.simulate_input("abc");
     press(cx, "enter");
     assert_eq!(
@@ -317,6 +495,110 @@ fn search_field_clear_and_submit(cx: &mut TestAppContext) {
     );
     let after = cx.update(|_, cx| state.read(cx).value().to_owned());
     assert_eq!(after, "abc", "the InputState must hold the typed value");
+}
+
+/// The pinned `useSearchField` hands the clear button `excludeFromTabOrder:
+/// true` and `preventFocusOnPress: true`. The InputState-owned handle is not
+/// a tab stop: Tab seats the input and wraps past the button. Enter/Space
+/// activate only the *painted* button, via that same handle — a keyed probe
+/// lives on a different element-id path and cannot prove this.
+#[gpui::test]
+fn search_field_clear_button_is_excluded_from_tab_order(cx: &mut TestAppContext) {
+    let changes = events();
+    let recorded = changes.clone();
+    let clears = events();
+    let cleared = clears.clone();
+    let state = cx.new(|cx| InputState::with_value(cx, "rust"));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let clears = clears.clone();
+        SearchField::new(state_for_view.clone())
+            .on_change(move |text, _, _| changes.borrow_mut().push(text.to_owned()))
+            .on_clear(move |_, _| clears.borrow_mut().push("clear".to_owned()))
+            .into_any_element()
+    });
+    let field_focus = cx.update(|_, cx| state.read(cx).focus_handle(cx));
+    let clear_handle = cx.update(|_, cx| state.read(cx).clear_focus_handle());
+
+    // Tab seats the input. The clear button is not the next stop, so the next
+    // Tab wraps straight back to the field without ever focusing the button.
+    press(cx, "tab");
+    assert!(
+        cx.update(|window, cx| {
+            window
+                .focused(cx)
+                .is_some_and(|focused| focused == field_focus)
+        }),
+        "Tab must seat the input"
+    );
+    for _ in 0..2 {
+        press(cx, "tab");
+        assert!(
+            cx.update(|window, cx| {
+                window
+                    .focused(cx)
+                    .is_some_and(|focused| focused == field_focus)
+            }),
+            "the clear button must stay out of the tab order (pinned \
+             `excludeFromTabOrder: true`); Tab must wrap back to the field"
+        );
+    }
+
+    // The InputState-owned handle is the one `track_focus` paints on the
+    // button. Focusing it, then flushing so paint sees `is_focused`, is the
+    // real GPUI Enter/Space click path.
+    cx.update(|window, _| window.focus(&clear_handle));
+    flush_frame(cx);
+    assert!(
+        cx.update(|window, _| clear_handle.is_focused(window)),
+        "window.focus on the InputState handle must seat the painted clear \
+         button"
+    );
+    press(cx, "enter");
+    assert!(
+        cx.update(|window, cx| {
+            window
+                .focused(cx)
+                .is_some_and(|focused| focused == field_focus)
+        }),
+        "clear activation must return focus to the input"
+    );
+
+    state.update(cx, |state, cx| {
+        state.set_value("rust");
+        cx.notify();
+    });
+    flush_frame(cx);
+    cx.update(|window, _| window.focus(&clear_handle));
+    flush_frame(cx);
+    assert!(
+        cx.update(|window, _| clear_handle.is_focused(window)),
+        "window.focus on the InputState handle must seat the painted clear \
+         button"
+    );
+    press(cx, "space");
+    assert!(
+        cx.update(|window, cx| {
+            window
+                .focused(cx)
+                .is_some_and(|focused| focused == field_focus)
+        }),
+        "clear activation must return focus to the input"
+    );
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["", ""],
+        "keyboard activation must report the clear through on_change"
+    );
+    assert_eq!(
+        cleared.borrow().as_slice(),
+        ["clear", "clear"],
+        "Enter and Space on the focused clear button must report on_clear"
+    );
+    let value = cx.update(|_, cx| state.read(cx).value().to_owned());
+    assert_eq!(value, "", "keyboard activation must empty the InputState");
 }
 
 #[gpui::test]

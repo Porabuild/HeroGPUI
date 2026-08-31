@@ -689,6 +689,16 @@ impl Table {
         self
     }
 
+    /// Virtual rows for a collection of `count` items.
+    ///
+    /// `identity` names the collection: it must stay stable for one collection
+    /// and change when the caller replaces it. The key and row closures are
+    /// treated as stable for that identity — their output is cached between
+    /// frames and replayed whenever count, identity, tree mode and the
+    /// expanded set are unchanged. If `key` (or [`Table::virtual_tree_metadata`]'s
+    /// `metadata`) would return different output for the same indices without
+    /// the collection being replaced, the caller must change `identity` so the
+    /// cached projection is rebuilt.
     pub fn virtual_rows(
         mut self,
         count: usize,
@@ -719,7 +729,10 @@ impl Table {
     ///
     /// `count` remains the size of the underlying collection. The projection
     /// identifies each item's parent, depth and expandability; controlled
-    /// `expanded_keys` then decides which source indices are visible.
+    /// `expanded_keys` then decides which source indices are visible. The
+    /// metadata closure is treated as stable for the [`Table::virtual_rows`]
+    /// collection identity: if its output changes for the same indices, the
+    /// caller must change that identity so the cached projection is rebuilt.
     pub fn virtual_tree_metadata(
         mut self,
         metadata: impl Fn(usize) -> VirtualTreeMetadata + 'static,
@@ -887,6 +900,40 @@ impl Table {
     }
 }
 
+/// A virtual table's projected keys and visible rows, cached between frames.
+///
+/// The projection depends only on what [`Table::virtual_rows`] already names —
+/// the collection's identity and count — plus the expanded set and whether
+/// tree metadata is projected. Any frame where none of those changed reuses
+/// the cached projection instead of calling the key and tree closures again;
+/// the closures are free to return different values only when the caller
+/// replaces the collection, which is what `identity` is for.
+#[derive(Default)]
+struct VirtualProjection {
+    count: usize,
+    identity: SharedString,
+    expanded: std::sync::Arc<std::collections::HashSet<SharedString>>,
+    tree: bool,
+    full_keys: std::sync::Arc<Vec<SharedString>>,
+    /// Behind an `Arc` because the list builders hold it across the frame.
+    visible: std::sync::Arc<Vec<(usize, SharedString, VirtualTreeMetadata)>>,
+    selectable_collection_keys: Option<std::sync::Arc<Vec<SharedString>>>,
+    selectable_disabled_keys: Option<std::sync::Arc<Vec<SharedString>>>,
+}
+
+fn filtered_selectable_keys(
+    full_keys: &[SharedString],
+    disabled_keys: &[SharedString],
+) -> std::sync::Arc<Vec<SharedString>> {
+    std::sync::Arc::new(
+        full_keys
+            .iter()
+            .filter(|key| !disabled_keys.contains(key))
+            .cloned()
+            .collect(),
+    )
+}
+
 impl RenderOnce for Table {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         // Column widths a resize handle has moved, and the drag in progress.
@@ -950,44 +997,121 @@ impl RenderOnce for Table {
             Vec::new(),
         );
         self.selected_keys = selected_keys;
-        let virtual_projection = self
+        let needs_selectable_keys = self.selection_mode == SelectionMode::Multiple;
+        let virtual_projection: Option<std::sync::Arc<VirtualProjection>> = self
             .virtual_rows
             .as_ref()
-            .map(|(count, _, key_for_row, _)| {
-                let mut full_keys = Vec::with_capacity(*count);
-                let mut visible = Vec::with_capacity(*count);
-                if let Some(project) = &self.virtual_tree_metadata {
-                    let mut visible_by_key = std::collections::HashMap::with_capacity(*count);
-                    for source_index in 0..*count {
-                        let key = key_for_row(source_index);
-                        let metadata = project(source_index);
-                        let is_visible = metadata.parent_key.as_ref().is_none_or(|parent| {
-                            visible_by_key.get(parent).copied().unwrap_or(false)
-                                && self.expanded_keys.contains(parent)
-                        });
-                        visible_by_key.insert(key.clone(), is_visible);
-                        full_keys.push(key.clone());
-                        if is_visible {
-                            visible.push((source_index, key, metadata));
+            .map(|(count, identity, key_for_row, _)| {
+                let cache = window.use_keyed_state(
+                    gpui::ElementId::Name(format!("{}-virtual-projection", self.id).into()),
+                    cx,
+                    |_, _| None::<std::sync::Arc<VirtualProjection>>,
+                );
+                let cached = cache.read(cx).clone();
+                let tree = self.virtual_tree_metadata.is_some();
+                match cached {
+                    Some(cached)
+                        if cached.count == *count
+                            && cached.identity == *identity
+                            && cached.tree == tree
+                            && (!tree
+                                || (cached.expanded.len() == self.expanded_keys.len()
+                                    && self
+                                        .expanded_keys
+                                        .iter()
+                                        .all(|key| cached.expanded.contains(key)))) =>
+                    {
+                        if !needs_selectable_keys
+                            || cached
+                                .selectable_disabled_keys
+                                .as_ref()
+                                .is_some_and(|disabled| {
+                                    disabled.as_slice() == self.disabled_keys.as_slice()
+                                })
+                        {
+                            cached
+                        } else {
+                            let projection = std::sync::Arc::new(VirtualProjection {
+                                count: cached.count,
+                                identity: cached.identity.clone(),
+                                expanded: std::sync::Arc::clone(&cached.expanded),
+                                tree: cached.tree,
+                                full_keys: std::sync::Arc::clone(&cached.full_keys),
+                                visible: std::sync::Arc::clone(&cached.visible),
+                                selectable_collection_keys: Some(filtered_selectable_keys(
+                                    cached.full_keys.as_slice(),
+                                    &self.disabled_keys,
+                                )),
+                                selectable_disabled_keys: Some(std::sync::Arc::new(
+                                    self.disabled_keys.clone(),
+                                )),
+                            });
+                            cache.update(cx, |slot, _| {
+                                *slot = Some(std::sync::Arc::clone(&projection));
+                            });
+                            projection
                         }
                     }
-                } else {
-                    for source_index in 0..*count {
-                        let key = key_for_row(source_index);
-                        full_keys.push(key.clone());
-                        visible.push((source_index, key, VirtualTreeMetadata::default()));
+                    _ => {
+                        let mut full_keys = Vec::with_capacity(*count);
+                        let mut visible = Vec::with_capacity(*count);
+                        if let Some(project) = &self.virtual_tree_metadata {
+                            let mut visible_by_key =
+                                std::collections::HashMap::with_capacity(*count);
+                            for source_index in 0..*count {
+                                let key = key_for_row(source_index);
+                                let metadata = project(source_index);
+                                let is_visible =
+                                    metadata.parent_key.as_ref().is_none_or(|parent| {
+                                        visible_by_key.get(parent).copied().unwrap_or(false)
+                                            && self.expanded_keys.contains(parent)
+                                    });
+                                visible_by_key.insert(key.clone(), is_visible);
+                                full_keys.push(key.clone());
+                                if is_visible {
+                                    visible.push((source_index, key, metadata));
+                                }
+                            }
+                        } else {
+                            for source_index in 0..*count {
+                                let key = key_for_row(source_index);
+                                full_keys.push(key.clone());
+                                visible.push((source_index, key, VirtualTreeMetadata::default()));
+                            }
+                        }
+                        let full_keys = std::sync::Arc::new(full_keys);
+                        let selectable_collection_keys = needs_selectable_keys.then(|| {
+                            filtered_selectable_keys(full_keys.as_slice(), &self.disabled_keys)
+                        });
+                        let selectable_disabled_keys = needs_selectable_keys
+                            .then(|| std::sync::Arc::new(self.disabled_keys.clone()));
+                        let projection = std::sync::Arc::new(VirtualProjection {
+                            count: *count,
+                            identity: identity.clone(),
+                            expanded: if tree {
+                                std::sync::Arc::new(self.expanded_keys.iter().cloned().collect())
+                            } else {
+                                std::sync::Arc::default()
+                            },
+                            tree,
+                            full_keys,
+                            visible: std::sync::Arc::new(visible),
+                            selectable_collection_keys,
+                            selectable_disabled_keys,
+                        });
+                        cache.update(cx, |slot, _| {
+                            *slot = Some(std::sync::Arc::clone(&projection));
+                        });
+                        projection
                     }
                 }
-                (full_keys, visible)
             });
-        let virtual_keys = virtual_projection
-            .as_ref()
-            .map(|(full_keys, _)| full_keys.clone());
         let virtual_visible_count = virtual_projection
             .as_ref()
-            .map_or(0, |(_, visible)| visible.len());
-        let virtual_visible_keys = virtual_projection.as_ref().map(|(_, visible)| {
-            visible
+            .map_or(0, |projection| projection.visible.len());
+        let virtual_visible_keys = virtual_projection.as_ref().map(|projection| {
+            projection
+                .visible
                 .iter()
                 .map(|(_, key, _)| key.clone())
                 .collect::<Vec<_>>()
@@ -1158,18 +1282,31 @@ impl RenderOnce for Table {
         let muted = colors.muted;
         let secondary = self.variant == TableVariant::Secondary;
         let selectable = self.selection_mode != SelectionMode::None;
-        let full_collection_keys = virtual_keys.unwrap_or_else(|| self.row_keys());
-        let selectable_collection_keys: Vec<SharedString> = full_collection_keys
-            .iter()
-            .filter(|key| !self.disabled_keys.contains(key))
-            .cloned()
-            .collect();
+        // Only multiple selection consumes the full enabled-key set. The
+        // virtual projection shares it between frames; None and Single do not
+        // materialize a collection that no consumer reads.
+        let non_virtual_keys = virtual_projection.is_none().then(|| self.row_keys());
+        let selectable_collection_keys: Option<std::sync::Arc<Vec<SharedString>>> =
+            needs_selectable_keys.then(|| match virtual_projection.as_ref() {
+                Some(projection) => projection
+                    .selectable_collection_keys
+                    .as_ref()
+                    .expect("multiple virtual Tables cache selectable keys")
+                    .clone(),
+                None => filtered_selectable_keys(
+                    non_virtual_keys
+                        .as_ref()
+                        .expect("multiple non-virtual Tables have row keys")
+                        .as_slice(),
+                    &self.disabled_keys,
+                ),
+            });
         let load_more_collection = match &self.virtual_rows {
             Some((count, identity, _, _)) => LoadMoreCollection::Virtual {
                 count: *count,
                 identity: identity.clone(),
             },
-            None => LoadMoreCollection::Rows(full_collection_keys),
+            None => LoadMoreCollection::Rows(non_virtual_keys.unwrap_or_default()),
         };
 
         let mut wrapper = gpui::div()
@@ -1214,7 +1351,7 @@ impl RenderOnce for Table {
         let mut header = gpui::div()
             .flex()
             .border_b_1()
-            .border_color(colors.separator)
+            .border_color(colors.separator.alpha(0.5))
             .when(!secondary, |h| h.bg(colors.surface_secondary));
 
         if selectable {
@@ -1229,8 +1366,12 @@ impl RenderOnce for Table {
             if self.selection_mode == SelectionMode::Multiple {
                 // The `Mod+A` keydown handler reads the same set, so it gets a
                 // clone rather than the variable itself.
-                let all = selectable_collection_keys.clone();
-                let (all_selected, indeterminate) = select_all_flags(&all, &self.selected_keys);
+                let all = selectable_collection_keys
+                    .as_ref()
+                    .expect("multiple Tables have selectable keys")
+                    .clone();
+                let (all_selected, indeterminate) =
+                    select_all_flags(all.as_slice(), &self.selected_keys);
                 let mut box_el = Checkbox::new(gpui::ElementId::Name(
                     format!("{}-select-all", self.id).into(),
                 ))
@@ -1245,7 +1386,7 @@ impl RenderOnce for Table {
                         let next: Vec<SharedString> = if all_selected {
                             Vec::new()
                         } else {
-                            all.clone()
+                            all.as_slice().to_vec()
                         };
                         if let Some(held) = &selection_own {
                             held.update(cx, |value, cx| {
@@ -1293,13 +1434,13 @@ impl RenderOnce for Table {
                 .px(px(16.))
                 .py(px(10.))
                 .text_size(px(12.))
-                .font_weight(gpui::FontWeight::SEMIBOLD)
+                .font_weight(gpui::FontWeight::MEDIUM)
                 .text_color(if sorted.is_some() {
                     colors.foreground
                 } else {
                     colors.muted
                 })
-                .child(column.label.to_uppercase());
+                .child(column.label.clone());
 
             if let Some(descriptor) = sorted {
                 if self.show_indicator {
@@ -1598,8 +1739,9 @@ impl RenderOnce for Table {
                     .map(|(_, _, has_children, _, parent)| (*has_children, parent.clone()))
                     .collect()
             },
-            |(_, visible)| {
-                visible
+            |projection| {
+                projection
+                    .visible
                     .iter()
                     .map(|(_, _, metadata)| (metadata.has_children, metadata.parent_key.clone()))
                     .collect()
@@ -1620,8 +1762,9 @@ impl RenderOnce for Table {
             },
             |_| Vec::new(),
         );
-        let virtual_typeahead_indices = virtual_projection.as_ref().map(|(_, visible)| {
-            visible
+        let virtual_typeahead_indices = virtual_projection.as_ref().map(|projection| {
+            projection
+                .visible
                 .iter()
                 .map(|(source_index, _, _)| *source_index)
                 .collect::<Vec<_>>()
@@ -1654,7 +1797,12 @@ impl RenderOnce for Table {
         // keeps its cells flush, rather than reserving a chevron's width.
         let tree_column_has_children = virtual_projection.as_ref().map_or_else(
             || flat.iter().any(|(_, _, has, _, _)| *has),
-            |(_, visible)| visible.iter().any(|(_, _, metadata)| metadata.has_children),
+            |projection| {
+                projection
+                    .visible
+                    .iter()
+                    .any(|(_, _, metadata)| metadata.has_children)
+            },
         );
         let expanded_keys = std::rc::Rc::new(std::mem::take(&mut self.expanded_keys));
 
@@ -1836,16 +1984,21 @@ impl RenderOnce for Table {
                         }
                         && mode == SelectionMode::Multiple
                     {
+                        let selectable_collection_keys = selectable_collection_keys
+                            .as_ref()
+                            .expect("multiple Tables have selectable keys");
+                        let selectable_collection_keys = selectable_collection_keys.clone();
+                        let selectable_collection_keys = selectable_collection_keys.as_slice();
                         let (all_selected, _) =
-                            select_all_flags(&selectable_collection_keys, &selected_now);
+                            select_all_flags(selectable_collection_keys, &selected_now);
                         let materializes_all =
-                            same_selection(&selectable_collection_keys, &selected_now);
+                            same_selection(selectable_collection_keys, &selected_now);
                         let already_all = all_selected
                             || (selection_range_for_keys.read(cx).is_all && materializes_all);
                         // Pinned React Stately's `selectAll` is idempotent once
                         // the whole selectable collection is already selected.
                         if !already_all {
-                            let next = selectable_collection_keys.clone();
+                            let next = selectable_collection_keys.to_vec();
                             if let Some(held) = &selection_own_for_keys {
                                 held.update(cx, |value, cx| {
                                     *value = next.clone();
@@ -2096,7 +2249,10 @@ impl RenderOnce for Table {
                                     let next_selection = extend_selection_range(
                                         &selected_now,
                                         &keys,
-                                        &selectable_collection_keys,
+                                        selectable_collection_keys
+                                            .as_ref()
+                                            .expect("multiple Tables have selectable keys")
+                                            .as_slice(),
                                         &range,
                                         target,
                                     );
@@ -2169,7 +2325,10 @@ impl RenderOnce for Table {
                                             extend_selection_range(
                                                 &selected_now,
                                                 &keys,
-                                                &selectable_collection_keys,
+                                                selectable_collection_keys
+                                                    .as_ref()
+                                                    .expect("multiple Tables have selectable keys")
+                                                    .as_slice(),
                                                 &range,
                                                 key,
                                             )
@@ -2239,7 +2398,7 @@ impl RenderOnce for Table {
         };
         let virtual_projection = std::rc::Rc::new(
             virtual_projection
-                .map(|(_, visible)| visible)
+                .map(|projection| std::sync::Arc::clone(&projection.visible))
                 .unwrap_or_default(),
         );
 
@@ -2524,7 +2683,8 @@ impl RowCtx {
     /// from.
     #[allow(clippy::too_many_arguments)]
     /// One `.table__row`: `relative h-full` with a `border-separator/50`
-    /// bottom edge, and `.table__cell`s inside it.
+    /// bottom edge except on the final visible row, and `.table__cell`s inside
+    /// it.
     fn row(
         &self,
         i: usize,
@@ -2551,9 +2711,10 @@ impl RowCtx {
             // is true of both virtual paths, so it is not conditional on the
             // fixed height any more -- `gpui::list`'s rows have none.
             .w_full()
-            .when_some(fixed_h, |e, h| e.h(h))
-            .border_b_1()
-            .border_color(colors.separator);
+            .when_some(fixed_h, |e, h| e.h(h));
+        if i + 1 < self.row_keys.len() {
+            row = row.border_b_1().border_color(colors.separator.alpha(0.5));
+        }
 
         if self.selectable {
             let mut cell = gpui::div()
@@ -3084,6 +3245,70 @@ mod tests {
         assert!(
             !source.contains("accent.soft()"),
             "the selected row must not paint a role soft wash"
+        );
+    }
+
+    #[test]
+    fn table_header_uses_medium_weight() {
+        let source = include_str!("table.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains(
+                ".text_size(px(12.))\n                .font_weight(gpui::FontWeight::MEDIUM)\n                .text_color"
+            ),
+            "table column headers must use the pinned `font-medium` weight"
+        );
+    }
+
+    #[test]
+    fn table_header_preserves_caller_label_case() {
+        let source = include_str!("table.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains(".child(column.label.clone());"),
+            "table column headers must render the caller's label without uppercasing it"
+        );
+    }
+
+    #[test]
+    fn table_header_and_rows_use_half_alpha_separator() {
+        let source = include_str!("table.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.match_indices("colors.separator.alpha(0.5)").count() >= 2,
+            "the header and row separators must use the separator token at 50% alpha"
+        );
+    }
+
+    #[test]
+    fn table_last_row_omits_the_bottom_separator() {
+        let source = include_str!("table.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("if i + 1 < self.row_keys.len() {")
+                && source
+                    .contains("row = row.border_b_1().border_color(colors.separator.alpha(0.5));"),
+            "the final visible Table row must not receive a bottom separator"
+        );
+    }
+
+    #[test]
+    fn virtual_selectable_keys_are_not_materialized_on_every_render() {
+        let source = include_str!("table.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            !source.contains("let selectable_collection_keys: Vec<SharedString> ="),
+            "virtual Table must not allocate a selectable-key Vec for every render"
         );
     }
 }

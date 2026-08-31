@@ -1942,6 +1942,48 @@ fn tooltip_keyboard_focus_hides_on_escape_without_losing_focus(cx: &mut TestAppC
     );
 }
 
+/// A tooltip that is never hovered or focused must stay closed across idle
+/// frames while its trigger subtree stays mounted, and must still open from
+/// trigger focus afterwards. This guards the behavior the closed-tooltip tip
+/// build skip relies on; it does not itself observe the skip or its
+/// `shape_line` measurement.
+#[gpui::test]
+fn tooltip_that_stays_closed_skips_the_tip_build(cx: &mut TestAppContext) {
+    still();
+    let open_seen = events();
+    let probe_seen = open_seen.clone();
+
+    let cx = open_host(cx, move || {
+        let probe = probe_seen.clone();
+        gpui::div()
+            .child(tooltip_open_probe("perf-tt", probe, true))
+            .child(
+                Tooltip::new("Dormant tip")
+                    .id("perf-tt")
+                    .trigger(TooltipTrigger::Focus)
+                    .child(Button::new("perf-tt-trigger").label("Focus me")),
+            )
+            .into_any_element()
+    });
+
+    for _ in 0..3 {
+        cx.update(|window, _| window.refresh());
+    }
+    assert_eq!(
+        open_seen.borrow().last().map(String::as_str),
+        Some("open:false"),
+        "a never-hovered, never-focused tooltip must stay closed across frames"
+    );
+
+    press(cx, "tab");
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        open_seen.borrow().last().map(String::as_str),
+        Some("open:true"),
+        "the dormant tip must still open from trigger focus after closed frames"
+    );
+}
+
 #[gpui::test]
 fn toast_queue_adds_and_dismisses(cx: &mut TestAppContext) {
     let (a, b) = cx.update(|cx| {

@@ -43,7 +43,7 @@
 mod harness;
 
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use gpui::{prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, TestAppContext};
@@ -125,6 +125,7 @@ fn list_box_click_selects_and_arrows_move(cx: &mut TestAppContext) {
                 ListBoxItem::new("gamma", "Gamma"),
             ],
         )
+        .selection_mode(SelectionMode::Single)
         .on_selection_change(move |keys, _, _| events.borrow_mut().push(sorted_join(keys)))
         .into_any_element()
     });
@@ -219,6 +220,7 @@ fn list_box_typeahead_moves_the_cursor(cx: &mut TestAppContext) {
                 ListBoxItem::new("go", "Go"),
             ],
         )
+        .selection_mode(SelectionMode::Single)
         .on_selection_change(move |keys, _, _| events.borrow_mut().push(sorted_join(keys)))
         .into_any_element()
     });
@@ -254,6 +256,7 @@ fn list_box_disabled_key_cannot_be_chosen(cx: &mut TestAppContext) {
                 ListBoxItem::new("gamma", "Gamma"),
             ],
         )
+        .selection_mode(SelectionMode::Single)
         .disabled_keys(["beta".into()])
         .on_selection_change(move |keys, _, _| events.borrow_mut().push(sorted_join(keys)))
         .into_any_element()
@@ -278,6 +281,101 @@ fn list_box_disabled_key_cannot_be_chosen(cx: &mut TestAppContext) {
         ["alpha", "gamma"],
         "the arrows must skip a disabledKeys row: Enter after two Downs \
          chooses Gamma, never Beta"
+    );
+}
+
+/// A plain ListBox is nonselecting. Pinned `useListState`
+/// (`useMultipleSelectionState`) defaults `selectionMode` to `none` and
+/// HeroUI's v3 ListBox wrapper forwards props to React Aria untouched, so
+/// clicks and activation keys must neither report a selection nor seat one —
+/// which is also what withholds the item indicator (`isSelected` drives both).
+/// The same list with an explicit `single` mode still selects.
+#[gpui::test]
+fn list_box_plain_default_does_not_select(cx: &mut TestAppContext) {
+    let recorded = events();
+    let recorded_for_view = recorded.clone();
+    // Per-row `isSelected` snapshots for the plain and explicit-single lists.
+    let plain_selected: Rc<RefCell<HashMap<String, bool>>> = Rc::new(RefCell::new(HashMap::new()));
+    let single_selected: Rc<RefCell<HashMap<String, bool>>> = Rc::new(RefCell::new(HashMap::new()));
+    let plain_for_view = plain_selected.clone();
+    let single_for_view = single_selected.clone();
+    let cx = open_host(cx, move || {
+        let recorded = recorded_for_view.clone();
+        let plain_for_view = plain_for_view.clone();
+        let single_for_view = single_for_view.clone();
+        let items = || {
+            vec![
+                ListBoxItem::new("alpha", "Alpha"),
+                ListBoxItem::new("beta", "Beta"),
+                ListBoxItem::new("gamma", "Gamma"),
+            ]
+        };
+        // The plain list occupies y 0..124 (three 36px rows in `p-1` with
+        // `mt-1` gaps); the explicit-single list starts at 124, so its first
+        // row centres at 124 + `list_row_centre(0)`.
+        gpui::div()
+            .flex()
+            .flex_col()
+            .child(
+                ListBox::new("lb-plain-default", items())
+                    .item_content(move |key, state| {
+                        plain_for_view
+                            .borrow_mut()
+                            .insert(key.to_string(), state.is_selected);
+                        gpui::div().w(px(40.)).h(px(20.)).into_any_element()
+                    })
+                    .on_selection_change({
+                        let recorded = recorded.clone();
+                        move |keys, _, _| recorded.borrow_mut().push(sorted_join(keys))
+                    })
+                    .into_any_element(),
+            )
+            .child(
+                ListBox::new("lb-explicit-single", items())
+                    .selection_mode(SelectionMode::Single)
+                    .item_content(move |key, state| {
+                        single_for_view
+                            .borrow_mut()
+                            .insert(key.to_string(), state.is_selected);
+                        gpui::div().w(px(40.)).h(px(20.)).into_any_element()
+                    })
+                    .on_selection_change(move |keys, _, _| {
+                        recorded.borrow_mut().push(sorted_join(keys));
+                    })
+                    .into_any_element(),
+            )
+            .into_any_element()
+    });
+
+    // Click, Enter and Space against the plain list must leave it inert.
+    click(cx, 60., list_row_centre(0));
+    press(cx, "enter");
+    press(cx, "space");
+    cx.update(|window, _| window.refresh());
+    assert!(
+        recorded.borrow().is_empty(),
+        "a plain ListBox must never report a selection"
+    );
+    assert!(
+        plain_selected.borrow().values().all(|selected| !selected),
+        "no plain ListBox row may ever see isSelected"
+    );
+
+    // The same list with an explicit single mode still selects on click.
+    click(cx, 60., 124. + list_row_centre(0));
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["alpha"],
+        "an explicit single mode must still select the clicked row"
+    );
+    assert!(
+        single_selected.borrow()["alpha"],
+        "the explicitly single list must seat the pick in the row state"
+    );
+    assert!(
+        !single_selected.borrow()["beta"] && !single_selected.borrow()["gamma"],
+        "the pick must not spill onto the unpicked rows"
     );
 }
 

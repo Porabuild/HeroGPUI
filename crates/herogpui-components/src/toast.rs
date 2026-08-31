@@ -673,6 +673,12 @@ impl RenderOnce for ToastCardEl {
                 sem.soft_foreground(colors.foreground)
             }
         };
+        let indicator_color = match self.t.color {
+            Color::Default | Color::Accent => colors.overlay.foreground,
+            Color::Success | Color::Warning | Color::Danger => {
+                sem.soft_foreground(colors.foreground)
+            }
+        };
 
         let mut card = gpui::div()
             .w(self.width)
@@ -684,24 +690,22 @@ impl RenderOnce for ToastCardEl {
             .rounded(crate::util::container_radius(cx))
             .bg(colors.surface.background)
             .text_color(colors.overlay.foreground)
-            .border(cx.layout().border_width)
-            .border_color(colors.border)
             .when(!cx.layout().overlay_shadow.is_empty(), |c| {
                 c.shadow(cx.layout().overlay_shadow.clone())
             })
             .overflow_hidden();
 
         // `.toast__indicator` — `flex shrink-0 items-center justify-center p-1`
-        // at `size-4`, in the variant's soft foreground. v3 draws a glyph here;
-        // this port used to draw a coloured bar, which is not in the stylesheet
-        // at all.
+        // at `size-4`. v3 uses the overlay foreground for default/accent and a
+        // status role's soft foreground for success/warning/danger.
         if self.t.is_loading {
             card = card.child(
                 gpui::div().flex().flex_shrink_0().p(px(4.)).child(
                     crate::spinner::Spinner::new(gpui::ElementId::Name(
                         format!("toast-spinner-{}", self.t.id).into(),
                     ))
-                    .size(herogpui_core::Size::Sm),
+                    .size(herogpui_core::Size::Sm)
+                    .current_color(indicator_color),
                 ),
             );
         } else if let Some(icon) = self.t.indicator.clone().or_else(|| {
@@ -724,14 +728,14 @@ impl RenderOnce for ToastCardEl {
                         gpui::svg()
                             .size(px(16.))
                             .path(icon)
-                            .text_color(sem.soft_foreground(colors.foreground)),
+                            .text_color(indicator_color),
                     ),
             );
         }
 
         // `.toast__content` -- the title and description column, beside the
         // indicator and inside the card.
-        let mut text_col = gpui::div().flex().flex_col().gap(px(2.)).flex_1().min_w_0();
+        let mut text_col = gpui::div().flex().flex_col().flex_1().min_w_0();
         text_col = text_col.child(
             gpui::div()
                 // `.toast__title` is `text-sm leading-5 font-medium`.
@@ -843,11 +847,10 @@ impl RenderOnce for ToastCardEl {
 /// `.toast--<variant> .toast__indicator`.
 fn default_indicator(color: Color) -> Option<&'static str> {
     match color {
-        Color::Accent => Some(icons::INFO_CIRCLE),
-        Color::Success => Some(icons::CHECK),
-        Color::Warning => Some(icons::ALERT_TRIANGLE),
-        Color::Danger => Some(icons::CLOSE_CIRCLE),
-        Color::Default => None,
+        Color::Default | Color::Accent => Some(icons::INFO_CIRCLE),
+        Color::Success => Some(icons::CHECK_CIRCLE),
+        Color::Warning => Some(icons::WARNING_TRIANGLE),
+        Color::Danger => Some(icons::CIRCLE_EXCLAMATION),
     }
 }
 
@@ -855,9 +858,112 @@ fn default_indicator(color: Color) -> Option<&'static str> {
 mod tests {
     use super::*;
 
+    fn implementation_source() -> &'static str {
+        include_str!("toast.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present")
+    }
+
+    #[test]
+    fn default_uses_info_indicator() {
+        assert_eq!(default_indicator(Color::Default), Some(icons::INFO_CIRCLE));
+    }
+
     #[test]
     fn accent_uses_the_pinned_info_indicator() {
         assert_eq!(default_indicator(Color::Accent), Some(icons::INFO_CIRCLE));
+    }
+
+    #[test]
+    fn success_uses_check_circle_indicator() {
+        assert_eq!(default_indicator(Color::Success), Some(icons::CHECK_CIRCLE));
+    }
+
+    #[test]
+    fn warning_uses_warning_triangle_indicator() {
+        assert_eq!(
+            default_indicator(Color::Warning),
+            Some(icons::WARNING_TRIANGLE)
+        );
+    }
+
+    #[test]
+    fn danger_uses_circle_exclamation_indicator() {
+        assert_eq!(
+            default_indicator(Color::Danger),
+            Some(icons::CIRCLE_EXCLAMATION)
+        );
+    }
+
+    #[test]
+    fn neutral_indicators_use_the_overlay_foreground_token() {
+        let indicator = implementation_source()
+            .split("let indicator_color = match self.t.color")
+            .nth(1)
+            .expect("the indicator color implementation is present")
+            .split("let mut card =")
+            .next()
+            .expect("the card implementation follows the indicator color");
+        assert!(
+            indicator.contains("Color::Default | Color::Accent => colors.overlay.foreground"),
+            "default and accent indicators must use `text-overlay-foreground`"
+        );
+    }
+
+    #[test]
+    fn semantic_indicators_use_their_soft_foreground_tokens() {
+        let indicator = implementation_source()
+            .split("let indicator_color = match self.t.color")
+            .nth(1)
+            .expect("the indicator color implementation is present")
+            .split("let mut card =")
+            .next()
+            .expect("the card implementation follows the indicator color");
+        assert!(
+            indicator.contains("Color::Success | Color::Warning | Color::Danger =>"),
+            "status indicators must branch separately from neutral indicators"
+        );
+    }
+
+    #[test]
+    fn loading_indicator_inherits_the_status_indicator_color() {
+        let loading = implementation_source()
+            .split("if self.t.is_loading {")
+            .nth(1)
+            .expect("the loading indicator implementation is present")
+            .split("} else if let Some(icon)")
+            .next()
+            .expect("the custom indicator implementation follows loading");
+        assert!(
+            loading.contains(".current_color(indicator_color)"),
+            "the loading spinner must inherit the toast indicator color"
+        );
+    }
+
+    #[test]
+    fn toast_card_does_not_add_a_border() {
+        let card = implementation_source()
+            .split("let mut card =")
+            .nth(1)
+            .expect("the card implementation is present")
+            .split("// `.toast__indicator`")
+            .next()
+            .expect("the indicator implementation follows the card");
+        assert!(!card.contains(".border(cx.layout().border_width)"));
+        assert!(!card.contains(".border_color(colors.border)"));
+    }
+
+    #[test]
+    fn toast_content_does_not_add_an_extra_gap() {
+        let content = implementation_source()
+            .split("let mut text_col =")
+            .nth(1)
+            .expect("the content implementation is present")
+            .split("// `.toast__action`")
+            .next()
+            .expect("the action implementation follows the content");
+        assert!(!content.contains(".gap(px(2.))"));
     }
 
     // The pinned `.toast__close-button:hover` fills with `bg-default`, the
@@ -867,10 +973,7 @@ mod tests {
     fn the_close_button_hovers_the_full_default() {
         // Scan the implementation only; this test's own text names the
         // forbidden accessor.
-        let source = include_str!("toast.rs")
-            .split("#[cfg(test)]")
-            .next()
-            .expect("the implementation section is always present");
+        let source = implementation_source();
         assert!(
             source.contains("let hover_bg = colors.default.color;"),
             "the toast close button must hover `bg-default` \

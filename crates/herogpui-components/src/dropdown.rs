@@ -530,6 +530,15 @@ impl RenderOnce for Menu {
             .panel_bounds
             .clone()
             .unwrap_or_else(|| std::rc::Rc::new(std::cell::RefCell::new(Vec::new())));
+        // The union Vec's lifetime is one frame by construction: the top-level
+        // menu allocates it here, in its own render, and gpui re-renders every
+        // frame the panel is mounted. Both canvases below push once per frame
+        // and the outside-press listener captured in this same render reads it,
+        // so the union is always exactly this frame's composite panels -- no
+        // stale bounds can outlive the frame that drew them. Never hoist this
+        // Rc into keyed state: a Vec that survived frames would accumulate
+        // every panel position it ever had and swallow outside presses near
+        // old panel locations.
 
         let colors = cx.colors();
         let dropdown_composition = self.dropdown_composition;

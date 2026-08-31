@@ -123,6 +123,37 @@ fn link_render_prop_receives_active_page_and_keeps_it_pressable(cx: &mut TestApp
     );
 }
 
+/// With a large `total`, the bar still shows the windowed cells and those
+/// cells still answer presses. Bounded handle allocation is proven by the
+/// `visible_pages` unit tests in `pagination.rs`; this test pins geometry.
+#[gpui::test]
+fn large_total_window_cells_stay_pressable(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        Pagination::new("perf-pg-window", 1, 2000)
+            .on_change(move |page, _, _| recorded.borrow_mut().push(page.to_string()))
+            .into_any_element()
+    });
+
+    // Window for page 1 of 2000: 1, 2, ellipsis, 2000 at centres 54, 90, 126,
+    // 162 on y 16 — the same 32px cells and 4px gaps as the five-page bar.
+    click(cx, 90., 16.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["2"],
+        "a shown cell of a large collection must still report its page"
+    );
+
+    click(cx, 162., 16.);
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["2", "2000"],
+        "the trailing page past the ellipsis must answer its press"
+    );
+}
+
 #[gpui::test]
 fn custom_navigation_icons_own_the_previous_and_next_slots(cx: &mut TestAppContext) {
     let recorded = events();

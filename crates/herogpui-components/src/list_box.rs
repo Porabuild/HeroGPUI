@@ -1,6 +1,7 @@
 //! ListBox — port of `@heroui/list-box` (v3).
 //!
-//! A selectable list of options. Mirrors the React API: `selectionMode`,
+//! A list of options, nonselecting by default: the pinned `useListState`
+//! defaults `selectionMode` to `none`. Mirrors the React API: `selectionMode`,
 //! `selectedKeys`, `disabledKeys`, `onSelectionChange`, `onAction`, and the
 //! `default | danger` item variant. Sections are expressed with
 //! [`ListBoxItem::section`] headers and [`ListBoxItem::separator`].
@@ -239,7 +240,11 @@ impl ListBox {
         Self {
             id: id.into(),
             items,
-            selection_mode: SelectionMode::Single,
+            // Pinned `useListState` (`useMultipleSelectionState`) defaults
+            // `selectionMode` to `none`; HeroUI's v3 ListBox wrapper forwards
+            // props to React Aria untouched, so a plain list is nonselecting.
+            // Enable single or multiple selection with `selection_mode`.
+            selection_mode: SelectionMode::None,
             selected_keys: HashSet::new(),
             default_selected_keys: HashSet::new(),
             is_controlled: false,
@@ -272,7 +277,8 @@ impl ListBox {
         self
     }
 
-    /// Convenience for `selectionMode="single"`.
+    /// Controlled single-key convenience. Does not change the selection mode:
+    /// pair with `selection_mode(SelectionMode::Single)` for interactive picks.
     pub fn selected_key(mut self, key: impl Into<SharedString>) -> Self {
         self.selected_keys = HashSet::from([key.into()]);
         self.is_controlled = true;

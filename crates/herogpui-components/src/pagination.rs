@@ -114,13 +114,23 @@ impl RenderOnce for Pagination {
         // first: `use_keyed_state` takes `cx` mutably and the theme is borrowed
         // for the rest of the render.
         let base_id = format!("{:?}", self.id);
-        let page_focus: Vec<gpui::FocusHandle> = (0..=self.total)
-            .map(|n| {
-                crate::util::tab_stop_handle(
-                    gpui::ElementId::Name(format!("{base_id}-page-{n}-focus").into()),
-                    window,
-                    cx,
-                )
+        let pages = visible_pages(self.page, self.total);
+        // Only the page cells that are actually rendered need a tab stop.
+        // Minting a keyed handle for every page in `0..=total` on every frame
+        // grew with the collection even though `visible_pages` shows at most
+        // a handful of them.
+        let page_focus: Vec<(usize, gpui::FocusHandle)> = pages
+            .iter()
+            .filter_map(|page| match page {
+                PageRef::Num(n) => Some((
+                    *n,
+                    crate::util::tab_stop_handle(
+                        gpui::ElementId::Name(format!("{base_id}-page-{n}-focus").into()),
+                        window,
+                        cx,
+                    ),
+                )),
+                PageRef::Ellipsis => None,
             })
             .collect();
         let prev_focus = crate::util::tab_stop_handle(
@@ -137,10 +147,9 @@ impl RenderOnce for Pagination {
 
         let colors = cx.colors();
         let layout = cx.layout();
-        let base = format!("{:?}", self.id);
+        let base = base_id;
 
         let self_on_change: Option<OnChange> = self.on_change.clone();
-        let pages = visible_pages(self.page, self.total);
 
         // v3 sizes the items; the nav buttons and page cells share it.
         let cell = match self.size {
@@ -228,7 +237,11 @@ impl RenderOnce for Pagination {
                     let mut btn = gpui::div()
                         .id(gpui::ElementId::Name(format!("{base}-page-{n}").into()))
                         .when_some(
-                            page_focus.get(n).filter(|_| !link_disabled),
+                            page_focus
+                                .iter()
+                                .find(|(p, _)| *p == n)
+                                .map(|(_, handle)| handle)
+                                .filter(|_| !link_disabled),
                             |b, handle| b.track_focus(handle),
                         )
                         .flex()
@@ -294,7 +307,10 @@ impl RenderOnce for Pagination {
                     // `.pagination__item:focus-visible` is `status-focused`.
                     let btn = crate::util::with_focus_ring(
                         btn,
-                        ring_visible && page_focus.get(n).is_some_and(|h| h.is_focused(window)),
+                        ring_visible
+                            && page_focus
+                                .iter()
+                                .any(|(p, handle)| *p == n && handle.is_focused(window)),
                         true,
                         Vec::new(),
                         cx,
@@ -481,4 +497,48 @@ fn visible_pages(page: usize, total: usize) -> Vec<PageRef> {
     }
     out.push(PageRef::Num(total));
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `visible_pages` is the window `page_focus` is minted from. The bound is
+    /// `2 * siblings + 5` with `siblings` fixed at 1, so a large `total` still
+    /// produces a handful of slots — the allocation the render used to spend
+    /// per page in `0..=total`.
+    #[test]
+    fn visible_page_window_is_bounded_for_a_large_total() {
+        let cap = 7;
+        for total in [8, 50, 2000, 10_000] {
+            for page in [1, total / 2, total] {
+                let pages = visible_pages(page.max(1), total);
+                assert!(
+                    pages.len() <= cap,
+                    "page {page} of {total} showed {} slots, cap {cap}",
+                    pages.len()
+                );
+            }
+        }
+        assert!(
+            visible_pages(1, 5).len() <= cap,
+            "a collection that fits in the window is still within the cap"
+        );
+    }
+
+    #[test]
+    fn page_focus_is_minted_from_the_visible_window() {
+        let source = include_str!("pagination.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("let page_focus: Vec<(usize, gpui::FocusHandle)> = pages"),
+            "page-cell focus handles must be minted from visible_pages"
+        );
+        assert!(
+            !source.contains("(0..=self.total)"),
+            "minting a handle per page in 0..=total grew with the collection"
+        );
+    }
 }

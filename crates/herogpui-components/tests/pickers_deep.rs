@@ -1675,6 +1675,216 @@ fn autocomplete_filter_matches_labels_not_keys(cx: &mut TestAppContext) {
     );
 }
 
+/// A closed idle frame draws no rows and must not call the filter at all;
+/// opening, a query edit and a collection edit each re-run it for what
+/// changed; the same query over the same collection runs it again on every
+/// consuming frame, because an uncacheable closure is never assumed stable.
+#[gpui::test]
+fn autocomplete_filter_runs_only_while_the_panel_consumes_matches(cx: &mut TestAppContext) {
+    let count = Rc::new(Cell::new(0));
+    let count_for_view = count.clone();
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let seen_for_view = seen.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+    // The collection lives behind a cell so the test can replace it between
+    // frames, the way a caller rebuilding its builder each frame would.
+    let collection = Rc::new(RefCell::new(keyed(&["Alpha", "Beta"])));
+    let collection_for_view = collection.clone();
+
+    let cx = open_host(cx, move || {
+        let count = count_for_view.clone();
+        let seen = seen_for_view.clone();
+        let collection = collection_for_view.clone();
+        let state = state_for_view.clone();
+        Autocomplete::new(state, collection.borrow().clone())
+            .filter(move |label, query| {
+                count.set(count.get() + 1);
+                seen.borrow_mut().push(format!("{query}·{label}"));
+                label.to_lowercase().contains(&query.to_lowercase())
+            })
+            .into_any_element()
+    });
+
+    for _ in 0..3 {
+        flush_frame(cx);
+    }
+    assert_eq!(
+        count.get(),
+        0,
+        "a closed idle frame must not call the filter"
+    );
+
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    let opened = count.get();
+    assert!(
+        opened >= 2,
+        "the open frame must filter the whole collection"
+    );
+    assert!(
+        seen.borrow()
+            .iter()
+            .take(2)
+            .all(|call| call.starts_with('·')),
+        "the open frame filters the unfiltered collection: {:?}",
+        seen.borrow()
+    );
+
+    // The custom closure's configuration cannot join a cache key, so the
+    // unchanged open frame re-runs it rather than assuming it stable.
+    flush_frame(cx);
+    assert!(
+        count.get() > opened,
+        "an unchanged open frame re-runs the uncacheable custom filter"
+    );
+
+    // A query change re-runs the filter for the new query.
+    cx.simulate_input("al");
+    flush_frame(cx);
+    assert!(
+        seen.borrow().iter().any(|call| call == "al·Alpha"),
+        "the query edit must re-run the filter with the new query: {:?}",
+        seen.borrow()
+    );
+
+    // A collection change re-runs the filter even though the query is
+    // unchanged, and the new item is the one it reaches.
+    collection
+        .borrow_mut()
+        .push(PickerItem::new("Gamma", "Gamma"));
+    flush_frame(cx);
+    assert!(
+        seen.borrow().iter().any(|call| call == "al·Gamma"),
+        "a collection change must re-run the filter over the new items: {:?}",
+        seen.borrow()
+    );
+}
+
+/// The ComboBox gates the same work, and skips one frame more: the
+/// Focus-trigger open consumes nothing on its own frame (the panel has not
+/// mounted yet) and the settled frame shows the full collection, which owns
+/// the frame exactly as the pinned component skips `defaultFilter` while
+/// showing everything. The full collection's rows are proven at runtime —
+/// both rows are picked while the filter call count stays zero. The first
+/// filter calls come from the first edit.
+#[gpui::test]
+fn combo_box_filter_skips_idle_frames_and_the_full_collection(cx: &mut TestAppContext) {
+    let count = Rc::new(Cell::new(0));
+    let count_for_view = count.clone();
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let seen_for_view = seen.clone();
+    let picks = events();
+    let picked = picks.clone();
+    let state = search_state(cx);
+    let state_for_view = state;
+    let collection = Rc::new(RefCell::new(keyed(&["Alpha", "Beta"])));
+    let collection_for_view = collection.clone();
+
+    let cx = open_host(cx, move || {
+        let count = count_for_view.clone();
+        let seen = seen_for_view.clone();
+        let picks = picks.clone();
+        let collection = collection_for_view.clone();
+        let state = state_for_view.clone();
+        ComboBox::new(state, collection.borrow().clone())
+            .on_change(move |item, _, _| picks.borrow_mut().push(item.to_string()))
+            .filter(move |label, query| {
+                count.set(count.get() + 1);
+                seen.borrow_mut().push(format!("{query}·{label}"));
+                label.to_lowercase().contains(&query.to_lowercase())
+            })
+            .into_any_element()
+    });
+
+    for _ in 0..3 {
+        flush_frame(cx);
+    }
+    assert_eq!(
+        count.get(),
+        0,
+        "a closed idle frame must not call the filter"
+    );
+
+    // Focusing the field opens the panel (the Focus trigger): the opening
+    // frame is gated off and the settled frame shows the full collection, so
+    // no filter call happens anywhere in the open.
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    assert_eq!(
+        count.get(),
+        0,
+        "the open and its settled full-collection frame must not call the filter"
+    );
+
+    // The full collection must actually be on screen while the filter is
+    // skipped: interact with both rows, not just the last keyboard stop.
+    // ComboBox row *i* centres at y = 64+36i.
+    click(cx, 60., 64.);
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Alpha"],
+        "the first full-collection row must be pickable"
+    );
+    assert_eq!(
+        count.get(),
+        0,
+        "picking the first full-collection row must never call the filter"
+    );
+
+    // The pick closed the panel. The chevron (x = 298) reopens the full
+    // collection without depending on the Focus one-shot.
+    flush_frame(cx);
+    click(cx, 298., 18.);
+    flush_frame(cx);
+    assert_eq!(
+        count.get(),
+        0,
+        "reopening the full collection must never call the filter"
+    );
+    click(cx, 60., 100.);
+    assert_eq!(
+        picked.borrow().as_slice(),
+        ["Alpha", "Beta"],
+        "the second full-collection row must be pickable after reopen"
+    );
+    assert_eq!(
+        count.get(),
+        0,
+        "picking both full-collection rows must never call the filter"
+    );
+
+    // Pointer picks move focus onto the row; put it back on the field before
+    // the query phase. The second pick left "Beta" in the field.
+    flush_frame(cx);
+    click(cx, 60., 18.);
+    press(cx, "backspace backspace backspace backspace");
+
+    // Editing switches the panel to filtered rows, which the filter runs for,
+    // once per consuming frame and once per edit scan.
+    cx.simulate_input("al");
+    flush_frame(cx);
+    let queried = count.get();
+    assert!(
+        seen.borrow().iter().any(|call| call == "al·Alpha"),
+        "the query edit must re-run the filter with the new query: {:?}",
+        seen.borrow()
+    );
+
+    // Replacing the collection re-runs the filter over the new items even
+    // though the query is unchanged.
+    collection
+        .borrow_mut()
+        .push(PickerItem::new("Gamma", "Gamma"));
+    flush_frame(cx);
+    assert!(count.get() > queried);
+    assert!(
+        seen.borrow().iter().any(|call| call == "al·Gamma"),
+        "a collection change must re-run the filter over the new items: {:?}",
+        seen.borrow()
+    );
+}
+
 fn form_entry(data: &FormData, name: &str) -> String {
     data.get(name)
         .map_or_else(|| "omitted".to_owned(), |value| value.as_text().to_string())

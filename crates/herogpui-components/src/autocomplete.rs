@@ -43,6 +43,7 @@ use herogpui_theme::ActiveTheme;
 use crate::{
     icons,
     input::{InputState, SearchField},
+    matches::{empty_matches, MatchesCache},
     picker_item::PickerItem,
     selection::{normalize_selection, toggle_key},
     util,
@@ -77,6 +78,36 @@ fn autocomplete_form_state(entity_id: u64) -> AutocompleteFormState {
 
 fn form_selection_value(selected: &[SharedString]) -> crate::form::FormValue {
     crate::form::FormValue::Keys(selected.to_vec())
+}
+
+/// The rows the popover's list shows for `query`: the custom filter's own
+/// decision — including what an empty query means — or the default
+/// case-insensitive substring match. Filtering reads the items' labels, never
+/// their keys.
+fn compute_matches(
+    items: &[PickerItem],
+    query: &str,
+    max_items: usize,
+    filter: Option<&std::sync::Arc<dyn Fn(&str, &str) -> bool + 'static>>,
+) -> Vec<PickerItem> {
+    if let Some(filter) = filter {
+        return items
+            .iter()
+            .filter(|item| filter(item.label(), query))
+            .take(max_items)
+            .cloned()
+            .collect();
+    }
+    if query.is_empty() {
+        return items.iter().take(max_items).cloned().collect();
+    }
+    let lowered = query.to_lowercase();
+    items
+        .iter()
+        .filter(|it| it.label().to_lowercase().contains(&lowered))
+        .take(max_items)
+        .cloned()
+        .collect()
 }
 
 fn sync_form_state(
@@ -502,6 +533,9 @@ fn el_name(s: String) -> gpui::ElementId {
 
 impl RenderOnce for Autocomplete {
     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // One shared collection for the frame: the `'static` panel and event
+        // closures clone the `Rc`, never the rows.
+        let items: Rc<[PickerItem]> = self.items.into();
         let base = format!("autocomplete-{}", self.state.entity_id().as_u64());
         // `Autocomplete.Filter.inputValue` is controlled state. Keep the bound
         // search field on the owner's value while still reporting proposed
@@ -656,24 +690,39 @@ impl RenderOnce for Autocomplete {
             Some(v) => v.clone(),
             None => self.state.read(cx).value().to_owned(),
         };
-        let query = raw_query.to_lowercase();
 
         // The list starts unfiltered: v3's popover shows the whole collection
-        // until something is typed into the search field. Filtering reads the
-        // items' labels, never their keys.
-        let custom = self.filter.clone();
-        let matches: Vec<PickerItem> = self
-            .items
-            .iter()
-            .filter(|it| match &custom {
-                // A custom filter owns the whole decision, including what an
-                // empty query means.
-                Some(f) => f(it.label(), &raw_query),
-                None => query.is_empty() || it.label().to_lowercase().contains(&query),
-            })
-            .take(self.max_items)
-            .cloned()
-            .collect();
+        // until something is typed into the search field. Closed and idle
+        // frames draw no rows, so they skip the match work entirely; a
+        // consuming frame with a typed query shares one cached list until the
+        // query, the collection or the cap changes. An empty query copies the
+        // capped prefix directly: no per-row matching runs for it, so the
+        // cache's element-by-element key comparison would cost more than the
+        // work it saves. A custom filter owns the whole decision, including
+        // what an empty query means, and its configuration cannot join a
+        // cache key — its results are never cached and it only runs while the
+        // matches are consumed.
+        let matches_cache =
+            window.use_keyed_state(el_name(format!("{base}-matches")), cx, |_, _| {
+                MatchesCache::default()
+            });
+        let consume_matches = overlay_active || query_edit.read(cx).is_some();
+        let matches: Rc<[PickerItem]> = if !consume_matches {
+            empty_matches()
+        } else {
+            let filter = self.filter.clone();
+            match &filter {
+                Some(f) => Rc::from(compute_matches(&items, &raw_query, self.max_items, Some(f))),
+                None if raw_query.is_empty() => {
+                    Rc::from(compute_matches(&items, &raw_query, self.max_items, None))
+                }
+                None => matches_cache.update(cx, |cache, _| {
+                    cache.get(items.clone(), raw_query.as_str(), self.max_items, |items| {
+                        compute_matches(items, &raw_query, self.max_items, None)
+                    })
+                }),
+            }
+        };
         // The stored cursor is the focused item's key; the row it lands on is
         // wherever that key sits in the filtered collection now.
         let cursor_at = cursor
@@ -763,7 +812,7 @@ impl RenderOnce for Autocomplete {
         // `allowsEmptyCollection` lets the autocomplete function with no
         // items. This is the *unfiltered* collection: a query that prunes an
         // open popover to zero never reaches this gate.
-        let toggle_allowed = self.allows_empty_collection || !self.items.is_empty();
+        let toggle_allowed = self.allows_empty_collection || !items.is_empty();
 
         // --- the trigger ----------------------------------------------------
         // Whether the pointer went down on the trigger (or on the clear
@@ -837,12 +886,7 @@ impl RenderOnce for Autocomplete {
         let mut selected_items: Vec<SharedString> = Vec::new();
         let mut selected_indices: Vec<usize> = Vec::new();
         for key in &self.selected_keys {
-            if let Some((index, item)) = self
-                .items
-                .iter()
-                .enumerate()
-                .find(|(_, it)| it.key() == key)
-            {
+            if let Some((index, item)) = items.iter().enumerate().find(|(_, it)| it.key() == key) {
                 selected_items.push(item.label().clone());
                 selected_indices.push(index);
             }

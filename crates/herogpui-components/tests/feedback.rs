@@ -1449,23 +1449,23 @@ fn badge_anchor_keeps_its_width_in_an_overflowing_row(cx: &mut TestAppContext) {
 #[gpui::test]
 fn avatar_renders_every_variant_with_and_without_src(cx: &mut TestAppContext) {
     open_host(cx, || {
-        let fallback = Avatar::new().name("Jane Doe");
-        let soft = Avatar::new()
+        let fallback = Avatar::new("fallback").name("Jane Doe");
+        let soft = Avatar::new("soft")
             .name("Jane Doe")
             .variant(AvatarVariant::Soft)
             .color(Color::Accent);
-        let large = Avatar::new()
+        let large = Avatar::new("large")
             .name("Jane Doe")
             .size(Size::Lg)
             .color(Color::Success);
         // A src that cannot load anywhere (the platform has no asset source);
         // v3 would fall back to initials, this port's static choice keeps the
         // broken box.
-        let with_src = Avatar::new()
+        let with_src = Avatar::new("with-src")
             .name("Jane Doe")
             .src("fb-avatar-missing.png")
             .color(Color::Warning);
-        let small_src = Avatar::new()
+        let small_src = Avatar::new("small-src")
             .name("Jane Doe")
             .size(Size::Sm)
             .src("fb-avatar-missing.png");

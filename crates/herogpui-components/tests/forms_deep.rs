@@ -47,8 +47,9 @@
 //!   (`field.rs`); `Description` is 16px, `FieldGroup` gaps by 16.
 //!   Legend(24) + gap(24) + 36px input → the input's centre is (60, 66);
 //!   a Group of one input ends at y 84, so `Fieldset.Actions` under it sits
-//!   at y 108 and its button centre is (30, 126). With a `Description`
-//!   inserted, the group starts at y 88 and its input centre is (60, 106).
+//!   at y 108 and its `pt-1` (field.rs) puts the button centre at (30, 130).
+//!   With a `Description` inserted, the group starts at y 88 and its input
+//!   centre is (60, 106).
 //!
 //! Every interactive element carries a distinct id and every field its own
 //! state entity, so no two components share keyed state on one page
@@ -3424,13 +3425,13 @@ fn fieldset_parts_compose_and_controls_stay_interactive(cx: &mut TestAppContext)
 
     // Legend 24px, gap 24, Description 16px, gap 24 → the group starts at
     // y 88: input y 88..124 (centre 60, 106), switch y 140..160 (track 40x20,
-    // centre 20, 150), group height 72 → Actions y 184, md button 184..220
-    // (centre 30, 202). All derived from field.rs's gaps and the component
-    // heights above.
+    // centre 20, 150), group height 72 → Actions y 184, md button 188..224
+    // (centre 30, 206 — the 4px pt-1 sits above it). All derived from
+    // field.rs's gaps and the component heights above.
     click(cx, 60., 106.);
     cx.simulate_input("ada");
     click(cx, 20., 150.);
-    click(cx, 30., 202.);
+    click(cx, 30., 206.);
     assert_eq!(
         recorded.borrow().as_slice(),
         ["a", "ad", "ada"],
@@ -3549,11 +3550,11 @@ fn fieldset_actions_submit_drives_the_forms_submit(cx: &mut TestAppContext) {
     });
 
     // Legend 0..24, gap 24 → group y 48: input 48..84 (centre 60, 66);
-    // group ends at y 84, gap 24 → Actions y 108: md button 108..144
-    // (centre 30, 126).
+    // group ends at y 84, gap 24 → Actions y 108: md button 112..148
+    // (centre 30, 130 — the 4px pt-1 sits above it).
     click(cx, 60., 66.);
     cx.simulate_input("5th Ave");
-    click(cx, 30., 126.);
+    click(cx, 30., 130.);
     assert_eq!(
         submitted.borrow().as_slice(),
         ["street=5th Ave"],
@@ -3605,7 +3606,7 @@ fn fieldset_actions_reset_drives_the_forms_reset(cx: &mut TestAppContext) {
 
     click(cx, 60., 66.);
     cx.simulate_input("5th Ave");
-    click(cx, 30., 126.);
+    click(cx, 30., 130.);
     assert_eq!(
         recorded_resets.borrow().as_slice(),
         ["v=Main St"],
