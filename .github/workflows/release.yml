@@ -24,10 +24,8 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]
           cargo_version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)"
-          npm_version="$(node -p "require('./npm/package.json').version")"
           test "$GITHUB_REF_NAME" = "v$version"
           test "$version" = "$cargo_version"
-          test "$version" = "$npm_version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
   test:
@@ -93,7 +91,6 @@ jobs:
           pattern: gallery-*
           path: dist
           merge-multiple: true
-      - run: node npm/scripts/generate-release-manifest.js dist "${{ needs.plan.outputs.version }}" npm/release-manifest.json
       - uses: actions/attest@v4
         with:
           subject-path: dist/*
@@ -102,7 +99,6 @@ jobs:
           name: release-bundle
           path: |
             dist/*
-            npm/release-manifest.json
           if-no-files-found: error
 
   github-release:
@@ -149,38 +145,3 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ env.BOOTSTRAP_CRATES_IO_TOKEN }}
         run: cargo publish --workspace --locked
-
-  npm:
-    needs: [plan, github-release, crates-io]
-    runs-on: ubuntu-24.04
-    environment: release
-    permissions:
-      contents: read
-      id-token: write
-    env:
-      BOOTSTRAP_NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-    defaults:
-      run:
-        working-directory: npm
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v6
-        with:
-          name: release-bundle
-          path: release
-      - run: cp ../release/npm/release-manifest.json release-manifest.json
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-          registry-url: https://registry.npmjs.org
-          package-manager-cache: false
-      - run: npm ci
-      - run: npm test
-      - name: Publish with trusted publishing
-        if: env.BOOTSTRAP_NPM_TOKEN == ''
-        run: npm publish --access public
-      - name: Bootstrap the first npm release
-        if: env.BOOTSTRAP_NPM_TOKEN != ''
-        env:
-          NODE_AUTH_TOKEN: ${{ env.BOOTSTRAP_NPM_TOKEN }}
-        run: npm publish --access public --provenance

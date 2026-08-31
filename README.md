@@ -166,14 +166,12 @@ cargo build                     # builds library + gallery
 cargo run -p herogpui-gallery   # open the component gallery
 cargo install herogpui-gallery  # install the gallery CLI from crates.io
 herogpui-gallery                # launch the installed CLI
-npx herogpui                    # launch a published native gallery binary
 ```
 
 ### Using HeroGPUI in your app
 
-The Rust library will be distributed through crates.io. The npm package is only an
-optional launcher for the native gallery; it does not contain the component
-library. Until the first `v0.1.0` release, clone this repository and use
+The Rust library will be distributed through crates.io. Until the first
+`v0.1.0` release, clone this repository and use
 `herogpui = { path = "../HeroGPUI/crates/herogpui" }`.
 
 ```bash

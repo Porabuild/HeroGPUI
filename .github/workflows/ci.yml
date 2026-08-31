@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [master, main, v3-parity]
+    branches: [master]
 
 permissions:
   contents: read
@@ -74,18 +74,3 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - run: cargo test --workspace --locked
-
-  npm-launcher:
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: npm
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-          package-manager-cache: false
-      - run: npm ci
-      - run: npm test
-      - run: npm pack --dry-run
