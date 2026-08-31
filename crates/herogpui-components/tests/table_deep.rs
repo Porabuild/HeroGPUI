@@ -15,6 +15,14 @@ fn flush_frame(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
 }
 
+fn press_mod_a(cx: &mut VisualTestContext) {
+    if cfg!(target_os = "macos") {
+        press(cx, "cmd-a");
+    } else {
+        press(cx, "ctrl-a");
+    }
+}
+
 /// v3's tree-table example controls `expandedKeys` through
 /// `onExpandedChange`. The first data row starts after the ~37px header; its
 /// chevron is 18px square after the tree cell's 16px left padding, so (29, 58)
@@ -719,11 +727,11 @@ fn table_shift_arrows_extend_and_reverse_from_selection_anchor(cx: &mut TestAppC
     flush_frame(cx);
     press(cx, "down shift-enter");
     flush_frame(cx);
-    press(cx, "ctrl-a");
+    press_mod_a(cx);
     flush_frame(cx);
     press(cx, "shift-up");
     flush_frame(cx);
-    press(cx, "ctrl-a");
+    press_mod_a(cx);
     flush_frame(cx);
     press(cx, "shift-down");
     assert_eq!(
@@ -1060,9 +1068,10 @@ fn table_mod_a_is_idempotent_when_every_row_is_disabled(cx: &mut TestAppContext)
             .into_any_element()
     });
 
-    press(cx, "tab ctrl-a");
+    press(cx, "tab");
+    press_mod_a(cx);
     flush_frame(cx);
-    press(cx, "ctrl-a");
+    press_mod_a(cx);
     assert_eq!(
         recorded.borrow().as_slice(),
         [""],
@@ -1138,11 +1147,12 @@ fn table_controlled_replacement_clears_a_stale_mod_a_latch(cx: &mut TestAppConte
             .into_any_element()
     });
 
-    press(cx, "tab ctrl-a");
+    press(cx, "tab");
+    press_mod_a(cx);
     flush_frame(cx);
     *held.borrow_mut() = vec![SharedString::from("alpha")];
     flush_frame(cx);
-    press(cx, "ctrl-a");
+    press_mod_a(cx);
     assert_eq!(
         recorded.borrow().as_slice(),
         ["alpha,beta", "alpha,beta"],
