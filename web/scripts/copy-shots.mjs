@@ -33,7 +33,10 @@ export function run() {
   }
 
   const files = readdirSync(SRC)
-    .filter((f) => f.endsWith(".png"))
+    // The capture scripts prefix their scratch files with `~` (`~tmp.png`
+    // and friends); the root .gitignore excludes them from .shots, and the
+    // catalog never references them.
+    .filter((f) => f.endsWith(".png") && !f.startsWith("~"))
     .sort();
   let bytes = 0;
   for (const file of files) {
