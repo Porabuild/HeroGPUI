@@ -52,3 +52,7 @@ desktop.ini
 # is working in, and Claude Code keeps its own settings there. Neither is part
 # of the port, and both are recreated on demand.
 /.factory
+
+# Vercel CLI project link (created by 'vercel link' when deploying the
+# website from the repository root; the project itself is defined in web/).
+.vercel/

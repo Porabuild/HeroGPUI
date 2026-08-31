@@ -42,13 +42,14 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Populated at deploy time, not tracked:
-# - public/shots/ — copied from ../.shots by scripts/copy-shots.mjs
-# - public/gallery/ — the wasm artifact, rebuilt per DEPLOYMENT.md section 6
-/public/shots/
-/public/gallery/
+# public/shots/ and public/gallery/ are tracked on purpose: they are the
+# site's visible content (native screenshots) and its live WebAssembly
+# gallery artifact. Remote builds run `next build` alone — no Rust
+# toolchain, no capture rig — so both must ship in the tree.
 
 # Session scratch: capture-polish workspace and research notes (distilled
 # into HANDOFF.md / ARCHITECTURE.md instead).
 .polish-tmp/
 .research/
+.vercel
+.env*
