@@ -1,0 +1,707 @@
+@import "@heroui/styles";
+
+@source "../../node_modules/.pnpm/@heroui+react@*/node_modules/@heroui/react/dist";
+@source "../../node_modules/.pnpm/@heroui+styles@*/node_modules/@heroui/styles/dist";
+
+/*
+ * Porabuild palette conversion: sRGB hex -> linear sRGB -> Oklab -> OKLCH.
+ * For each channel c, linear(c) = c / 12.92 when c <= .04045, otherwise
+ * ((c + .055) / 1.055)^2.4. I then used the standard Oklab sRGB matrix,
+ * cube-rooted LMS, and C = sqrt(a^2 + b^2), h = atan2(b, a):
+ *
+ * #070709 -> oklch(0.129693 0.005049 285.67)  night
+ * #0e0e14 -> oklch(0.166733 0.012495 284.97)  tile
+ * #14141c -> oklch(0.195111 0.016025 284.82)  tile-2
+ * #eaf0fb -> oklch(0.953804 0.016130 262.75)  moon
+ * #9ba6be -> oklch(0.724415 0.037041 265.89)  dim
+ * #8b7bff -> oklch(0.660852 0.188995 285.52)  accent
+ * #b6acff -> oklch(0.783881 0.117028 288.92)  accent-soft
+ * #5ee6e0 -> oklch(0.849178 0.118007 191.11)  ice
+ */
+@layer base {
+  :root {
+    --pb-night: oklch(0.129693 0.005049 285.67);
+    --pb-tile: oklch(0.166733 0.012495 284.97);
+    --pb-tile-2: oklch(0.195111 0.016025 284.82);
+    --pb-moon: oklch(0.953804 0.01613 262.75);
+    --pb-dim: oklch(0.724415 0.037041 265.89);
+    --pb-accent: oklch(0.660852 0.188995 285.52);
+    --pb-accent-soft: oklch(0.783881 0.117028 288.92);
+    --pb-ice: oklch(0.849178 0.118007 191.11);
+    --pb-line: color-mix(in srgb, var(--pb-moon) 8%, transparent);
+    --pb-line-strong: color-mix(in srgb, var(--pb-moon) 14%, transparent);
+    --pb-accent-glow: color-mix(in srgb, var(--pb-accent) 65%, transparent);
+  }
+
+  :root,
+  .light,
+  .default,
+  [data-theme="light"],
+  [data-theme="default"] {
+    color-scheme: light;
+
+    /* Light mode inverts the brand's night/moon pair and keeps its hues. */
+    --background: var(--pb-moon);
+    --foreground: var(--pb-night);
+    --surface: color-mix(in oklab, var(--pb-moon) 88%, var(--white) 12%);
+    --surface-foreground: var(--foreground);
+    --surface-secondary: color-mix(in oklab, var(--pb-moon) 78%, var(--pb-dim) 22%);
+    --surface-secondary-foreground: var(--foreground);
+    --surface-tertiary: color-mix(in oklab, var(--pb-moon) 66%, var(--pb-dim) 34%);
+    --surface-tertiary-foreground: var(--foreground);
+    --overlay: var(--surface);
+    --overlay-foreground: var(--foreground);
+    /* The raw dim value is intentionally darkened in light mode: raw #9ba6be
+       is too light against moon for normal-size muted copy. */
+    --muted: oklch(0.5 0.037041 265.89);
+    /* Line numbers are text and must clear WCAG AA. Muted alone measures
+       4.50:1 here, so the gutter mixes toward the foreground to darken it
+       while staying visibly quieter than the code beside it. */
+    --code-gutter: color-mix(in oklab, var(--muted) 62%, var(--foreground) 38%);
+    --default: color-mix(in oklab, var(--pb-moon) 84%, var(--pb-dim) 16%);
+    --default-foreground: var(--foreground);
+    --accent: var(--pb-accent);
+    --accent-foreground: var(--pb-night);
+    --field-background: var(--surface);
+    --field-foreground: var(--foreground);
+    --field-placeholder: var(--muted);
+    --segment: var(--surface);
+    --segment-foreground: var(--foreground);
+    --border: color-mix(in srgb, var(--pb-night) 14%, transparent);
+    --separator: color-mix(in srgb, var(--pb-night) 8%, transparent);
+    --focus: var(--accent);
+    --link: var(--accent-text);
+    --accent-text: color-mix(in oklab, var(--pb-accent) 70%, var(--pb-night) 30%);
+    --backdrop: color-mix(in srgb, var(--black) 50%, transparent);
+  }
+
+  .dark,
+  [data-theme="dark"] {
+    color-scheme: dark;
+
+    --background: var(--pb-night);
+    --foreground: var(--pb-moon);
+    --surface: var(--pb-tile);
+    --surface-foreground: var(--foreground);
+    --surface-secondary: var(--pb-tile-2);
+    --surface-secondary-foreground: var(--foreground);
+    --surface-tertiary: color-mix(in oklab, var(--pb-tile-2) 80%, var(--pb-moon) 20%);
+    --surface-tertiary-foreground: var(--foreground);
+    --overlay: var(--pb-tile-2);
+    --overlay-foreground: var(--foreground);
+    --muted: var(--pb-dim);
+    /* Dark muted already measures 7.49:1 against the code surface. Mixing it
+       toward a near-white foreground here made the gutter exactly as bright
+       as the code, which defeats the point of a gutter, so it stays muted. */
+    --code-gutter: var(--muted);
+    --default: color-mix(in oklab, var(--pb-tile-2) 92%, var(--pb-moon) 8%);
+    --default-foreground: var(--foreground);
+    --accent: var(--pb-accent);
+    --accent-foreground: var(--pb-night);
+    --field-background: var(--surface);
+    --field-foreground: var(--foreground);
+    --field-placeholder: var(--muted);
+    --segment: var(--surface-secondary);
+    --segment-foreground: var(--foreground);
+    --border: var(--pb-line-strong);
+    --separator: var(--pb-line);
+    --focus: var(--accent);
+    --link: var(--accent);
+    --accent-text: var(--pb-accent);
+    --backdrop: color-mix(in srgb, var(--black) 60%, transparent);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Site shell additions (app shell & design system).                   */
+/* Everything below is opt-in via the classes it defines; the HeroUI   */
+/* import above stays the single source of tokens and components.      */
+/* ------------------------------------------------------------------ */
+
+@theme inline {
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --color-brand-ice: var(--pb-ice);
+}
+
+@layer base {
+  html,
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--background);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  /* Anchored headings should not hide under the sticky navbar. */
+  [data-docs-article] :is(h2, h3, h4)[id] {
+    scroll-margin-top: 5.5rem;
+  }
+
+  /* Typography for the rendered article. In the base layer so page-level
+     utilities (text-lg, …) and HeroUI components still override. */
+  [data-docs-article] h2 {
+    margin-top: 2.5rem;
+    font-size: 1.5rem;
+    line-height: 2rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--foreground);
+  }
+
+  [data-docs-article] h3 {
+    margin-top: 2rem;
+    font-size: 1.1875rem;
+    line-height: 1.6;
+    font-weight: 600;
+    color: var(--foreground);
+  }
+
+  [data-docs-article] p {
+    margin-top: 1rem;
+    line-height: 1.75;
+    color: var(--foreground);
+  }
+
+  [data-docs-article] ul,
+  [data-docs-article] ol {
+    margin-top: 1rem;
+    padding-inline-start: 1.5rem;
+    line-height: 1.75;
+  }
+
+  [data-docs-article] ul {
+    list-style-type: disc;
+  }
+
+  [data-docs-article] ol {
+    list-style-type: decimal;
+  }
+
+  [data-docs-article] li + li {
+    margin-top: 0.375rem;
+  }
+
+  [data-docs-article] :not(pre) > code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: var(--surface-secondary);
+    border: 1px solid var(--separator);
+    border-radius: 0.375rem;
+    padding: 0.125rem 0.375rem;
+    /* Long tokens (e.g. builder chains) must not push the page wide on
+       mobile; `anywhere` also shrinks the token's min-content contribution. */
+    overflow-wrap: anywhere;
+  }
+
+  /* Shiki emits light-theme colors inline. The dark pair is emitted as CSS
+     variables on the same nodes; apply them when the document is dark. */
+  .dark .shiki,
+  .dark .shiki span {
+    color: var(--shiki-dark) !important;
+    font-style: var(--shiki-dark-font-style) !important;
+    font-weight: var(--shiki-dark-font-weight) !important;
+    text-decoration: var(--shiki-dark-text-decoration) !important;
+  }
+
+  .shiki {
+    margin: 0;
+    /* The wrapper owns the background so the panel and theme stay in sync. */
+    background-color: transparent !important;
+  }
+
+  .shiki code {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.7;
+  }
+}
+
+::selection {
+  color: var(--accent-foreground);
+  background: var(--pb-accent-soft);
+}
+
+/* Bordered, padded, centered demo stage. A quiet tint of the page surface
+   carries the component; the dot grid is faint enough to read as texture
+   rather than the "this area is transparent" checkerboard it replaced. */
+.docs-stage {
+  --stage-dot: color-mix(in oklab, var(--muted) 18%, transparent);
+  background-color: var(--surface-secondary);
+  background-image: radial-gradient(var(--stage-dot) 1px, transparent 1.5px);
+  background-size: 16px 16px;
+  background-position: center;
+}
+
+/* Narrow, readable measure for prose blocks. */
+.docs-measure {
+  max-width: 72ch;
+}
+
+/* ------------------------------------------------------------------ */
+/* Reference tables.                                                   */
+/* ------------------------------------------------------------------ */
+
+/* The docs column is a size container so a data block can measure the space
+   the prose measure is leaving on the table. Container query units are the
+   only way to read that width from a descendant nested inside the article. */
+[data-docs-main] {
+  --docs-main-inline-padding: 1rem;
+  container-type: inline-size;
+}
+
+@media (min-width: 640px) {
+  [data-docs-main] {
+    --docs-main-inline-padding: 2rem;
+  }
+}
+
+/* Break out of `.docs-measure` to the edges of the docs main column. The
+   container query measures the main's content box, so add back its horizontal
+   padding; the matching negative margin keeps prose at its comfortable
+   measure. Scoped to the docs column so the class is inert elsewhere. */
+[data-docs-main] .docs-bleed {
+  width: calc(100cqi + var(--docs-main-inline-padding) + var(--docs-main-inline-padding));
+  margin-inline: calc(50% - 50cqi - var(--docs-main-inline-padding));
+}
+
+/* A reference row is up to five columns of code inside a docs column that is
+   often under 700px wide, so it carries HeroUI's table look at a tighter
+   horizontal rhythm. Vertical padding is left alone — the rows still breathe,
+   and the 4px reclaimed on each side of each column is what lets the props
+   table fit its column instead of scrolling. */
+.docs-reference-table :is(.table__cell, .table__column) {
+  padding-inline: 0.75rem;
+}
+
+/* Reference cells hold code tokens, not prose. `break-all` used to split them
+   between any two characters, which rendered `false` as "fals / e"; with
+   normal word breaking a token stays whole and sets the column's minimum
+   width, and a union type breaks at the spaces around its `|` separators.
+   Unlayered so it wins over the Tailwind utility on the cell itself. */
+.docs-reference-table :is(.table__cell, .table__column) code {
+  word-break: normal;
+  overflow-wrap: break-word;
+  hyphens: none;
+}
+
+@media (min-width: 640px) {
+  /* Column proportions. Every reference table ends with the same pair —
+     a description, then the Rust equivalent — so both are addressable from the
+     end whether the table has three columns (styling tokens), four (parts,
+     states) or five (props). Fixed layout gives the description room for its
+     sentence while keeping the code columns predictable. */
+  .docs-reference-table .table__content {
+    table-layout: fixed;
+  }
+
+  .docs-reference-table .table__column:nth-last-child(2) {
+    width: 42%;
+  }
+
+  .docs-reference-table .table__column:last-child {
+    width: 18%;
+  }
+
+  /* Props is the only five-column shape: keep Prop and Type compact, reserve
+     enough width for a literal such as `false`, then give Description the room. */
+  .docs-reference-table .table__column:nth-child(1):nth-last-child(5),
+  .docs-reference-table .table__column:nth-child(2):nth-last-child(4) {
+    width: 14%;
+  }
+
+  .docs-reference-table .table__column:nth-child(3):nth-last-child(3) {
+    width: 12%;
+  }
+
+  /* The Rust-equivalent cell is a flex column. Let its code item shrink so a
+     long builder name can use the existing word-break opportunities instead of
+     widening the table past its scroll container. */
+  .docs-reference-table .table__cell > div > code {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Porabuild brand layer.                                             */
+/* ------------------------------------------------------------------ */
+
+html,
+body {
+  color: var(--foreground);
+}
+
+/* Keep the primary violet exact for controls, while small text can use a
+   contrast-safe tint when the inverted light theme needs it. */
+.text-accent,
+.hover\:text-accent:hover,
+.group:hover .group-hover\:text-accent {
+  color: var(--accent-text);
+}
+
+[data-docs-article] :is(h1, h2, h3, h4),
+.landing-hero :is(h1, h2, h3, h4),
+.landing-section-heading h2,
+.landing-final-cta h2 {
+  font-family: var(--font-sans);
+}
+
+[data-docs-article] h1 {
+  font-weight: 650;
+  letter-spacing: -0.05em;
+  line-height: 1.05;
+}
+
+[data-docs-article] h2 {
+  font-weight: 620;
+  letter-spacing: -0.045em;
+  line-height: 1.15;
+}
+
+[data-docs-article] h3 {
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.3;
+}
+
+.docs-page-header {
+  padding-top: 0.25rem;
+}
+
+.docs-page-header::before {
+  content: "";
+  display: block;
+  width: 28px;
+  height: 1px;
+  margin-bottom: 1rem;
+  background: var(--accent);
+}
+
+.docs-page-header h1 {
+  font-weight: 650;
+  letter-spacing: -0.05em;
+}
+
+.docs-sidebar-label,
+.docs-toc-label {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.docs-toc-label {
+  text-transform: uppercase;
+}
+
+.docs-callout {
+  border-color: var(--separator);
+}
+
+.docs-status-chip {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.docs-static-table .table__column {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.site-brand-dot,
+.shot-window-dot {
+  display: inline-block;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0.7rem var(--pb-accent-glow);
+}
+
+.site-brand-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+}
+
+.site-wordmark {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  font-weight: 620;
+  letter-spacing: -0.045em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.site-wordmark .text-accent {
+  color: var(--accent-text);
+}
+
+.site-header nav,
+.site-version-chip,
+.site-footer,
+.landing-hero-meta .text-muted,
+.landing-proof-strip dt,
+.landing-features li > span:first-child,
+.landing-for-agents .font-mono,
+.catalog-category-nav a,
+.shot-window-caption,
+.window-bar {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.site-header nav,
+.site-version-chip {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+}
+
+.site-version-chip {
+  letter-spacing: 0.04em;
+}
+
+.site-footer {
+  font-size: 0.6875rem;
+}
+
+.site-footer-brand {
+  font-family: var(--font-sans);
+  letter-spacing: -0.045em;
+}
+
+.site-footer-copy {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem !important;
+  letter-spacing: 0.02em;
+  line-height: 1.7;
+}
+
+.site-footer-nav {
+  text-transform: uppercase;
+}
+
+.landing-hero {
+  background:
+    radial-gradient(
+      circle at 80% 18%,
+      color-mix(in srgb, var(--accent) 11%, transparent),
+      transparent 34rem
+    ),
+    var(--background);
+}
+
+.landing-hero h1 {
+  font-size: clamp(2.6rem, 6vw, 4.75rem);
+  font-weight: 650;
+  letter-spacing: -0.052em;
+  line-height: 1;
+}
+
+.landing-hero h1 .text-accent {
+  color: var(--accent-text);
+}
+
+.landing-hero-meta .text-muted {
+  font-size: 0.6875rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.landing-section-heading > p:first-child {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--accent-text);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.landing-section-heading > p:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 28px;
+  height: 1px;
+  background: var(--accent);
+}
+
+.landing-section-heading.text-center > p:first-child {
+  margin-inline: auto;
+}
+
+.landing-section-heading h2,
+.landing-final-cta h2 {
+  font-weight: 620;
+  letter-spacing: -0.048em;
+  line-height: 1.08;
+}
+
+.landing-proof-strip dd {
+  font-weight: 620;
+  letter-spacing: -0.045em;
+}
+
+.landing-proof-strip dt {
+  font-size: 0.625rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.landing-features li,
+.landing-for-agents li,
+.landing-atlas li,
+.landing-proof-strip .landing-stat {
+  border-color: var(--separator);
+}
+
+.landing-features li > span:first-child {
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+}
+
+.landing-features h3 {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.landing-for-agents .font-mono {
+  font-size: 0.6875rem;
+  letter-spacing: 0.07em;
+}
+
+.catalog-card {
+  box-shadow: none;
+}
+
+.catalog-card:hover {
+  box-shadow: 0 18px 48px color-mix(in srgb, var(--pb-night) 12%, transparent);
+}
+
+.catalog-category-nav a {
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.window-bar {
+  position: relative;
+  z-index: 1;
+  height: 2.25rem;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding-inline: 0.75rem;
+  color: var(--muted);
+  border-bottom: 1px solid var(--separator);
+  background: var(--surface-secondary);
+  font-size: 0.625rem;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.window-bar > div {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.window-bar > div span {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--separator-secondary);
+}
+
+.window-bar > span:nth-child(2) {
+  justify-self: center;
+}
+
+.shot-window-status {
+  justify-self: end;
+  color: var(--accent-text);
+}
+
+.shot-window-frame {
+  box-shadow: 0 24px 72px color-mix(in srgb, var(--pb-night) 24%, transparent);
+}
+
+.shot-window-image {
+  height: calc(100% - 2.25rem);
+}
+
+.shot-window-placeholder span {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shot-window-caption {
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.shot-window-dot {
+  box-shadow: 0 0 0.55rem var(--pb-accent-glow);
+}
+
+@media (max-width: 639px) {
+  .site-footer-copy {
+    max-width: 40ch;
+  }
+
+  .landing-section-heading h2,
+  .landing-final-cta h2 {
+    letter-spacing: -0.045em;
+  }
+}
+
+/* Line numbers are text and must clear WCAG AA like any other text. The old
+   treatment was `text-muted` at 60% opacity, measuring 2.28:1 against
+   `--surface-secondary` in light mode — a clear fail.
+
+   The correction is per-theme rather than one formula, because the two themes
+   fail differently. In light mode muted is too pale, so the gutter mixes
+   toward the foreground to darken it. In dark mode muted already measures
+   7.49:1 and needs no help; mixing it toward a near-white foreground there
+   pushed the gutter to exactly the brightness of the code beside it, which
+   defeats the point of a gutter. So dark simply uses muted. */
+.code-gutter {
+  /* The line-number spans sit inside `.shiki`, so the dual-theme rule above
+     (`.dark .shiki span { color: var(--shiki-dark) !important }`) repaints
+     them at the code's own brightness in dark mode. `!important` cannot win
+     that fight: for important declarations the cascade inverts layer order,
+     so a layered `!important` outranks an unlayered one.
+
+     Rather than escalating, feed Shiki the value it is going to use. Setting
+     `--shiki-dark` on the gutter makes Shiki's own rule paint the gutter
+     colour, and light mode reads the plain `color` below. */
+  --shiki-dark: var(--code-gutter);
+
+  color: var(--code-gutter);
+}
+
+/* Same reasoning at 10px, where the margin matters more: these column headers
+   measured 4.50:1 on `--surface-secondary` in light mode, passing with nothing
+   to spare. Dark mode is already comfortable and is left alone. */
+:root .docs-static-table .table__column,
+[data-theme="default"] .docs-static-table .table__column {
+  color: color-mix(in oklab, var(--muted) 70%, var(--foreground) 30%);
+}

@@ -1,0 +1,1781 @@
+{
+  "generatedAt": "2026-08-30",
+  "version": "0.1.0",
+  "released": false,
+  "commitCount": 288,
+  "days": [
+    {
+      "date": "2026-08-29",
+      "commits": [
+        {
+          "sha": "39eafe3",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete Badge Chip and soft token v3 contracts",
+          "kind": "parity"
+        },
+        {
+          "sha": "8dd1f71",
+          "author": "Serhii Vecherenko",
+          "subject": "Test every release before publishing",
+          "kind": "infra"
+        },
+        {
+          "sha": "780a358",
+          "author": "Serhii Vecherenko",
+          "subject": "Replace v2 feedback and overlay APIs with v3 parts",
+          "kind": "parity"
+        },
+        {
+          "sha": "b8b9b7d",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete Kbd Typography and FieldGroup v3 contracts",
+          "kind": "parity"
+        },
+        {
+          "sha": "d828789",
+          "author": "Serhii Vecherenko",
+          "subject": "Remove the v2 AvatarGroup API",
+          "kind": "parity"
+        }
+      ]
+    },
+    {
+      "date": "2026-08-28",
+      "commits": [
+        {
+          "sha": "2b80504",
+          "author": "Serhii Vecherenko",
+          "subject": "Align Card and Surface with v3 contracts",
+          "kind": "parity"
+        },
+        {
+          "sha": "744db35",
+          "author": "Serhii Vecherenko",
+          "subject": "Test every release surface in CI",
+          "kind": "infra"
+        },
+        {
+          "sha": "e2c78cd",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete AlertDialog and Breadcrumbs v3 contracts",
+          "kind": "parity"
+        },
+        {
+          "sha": "d62f88f",
+          "author": "Serhii Vecherenko",
+          "subject": "Validate every reference metadata row",
+          "kind": "parity"
+        },
+        {
+          "sha": "709d9c1",
+          "author": "Serhii Vecherenko",
+          "subject": "Give ComboBox stable item keys",
+          "kind": "feature"
+        },
+        {
+          "sha": "cf7605c",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Autocomplete stable item keys",
+          "kind": "feature"
+        },
+        {
+          "sha": "83932a1",
+          "author": "Serhii Vecherenko",
+          "subject": "Use the local civil date for today",
+          "kind": "feature"
+        },
+        {
+          "sha": "836244a",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete Select's multiple collection contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "9259cdd",
+          "author": "Serhii Vecherenko",
+          "subject": "Page popup collections through v3",
+          "kind": "feature"
+        },
+        {
+          "sha": "0be83a3",
+          "author": "Serhii Vecherenko",
+          "subject": "Page Select through its enabled ends",
+          "kind": "feature"
+        },
+        {
+          "sha": "eeb120d",
+          "author": "Serhii Vecherenko",
+          "subject": "Harden cross-platform release gates",
+          "kind": "infra"
+        },
+        {
+          "sha": "e9e7dfb",
+          "author": "Serhii Vecherenko",
+          "subject": "Match collection Home and End shortcuts to v3",
+          "kind": "parity"
+        },
+        {
+          "sha": "309037f",
+          "author": "Serhii Vecherenko",
+          "subject": "Make TagGroup range chords platform-correct",
+          "kind": "feature"
+        },
+        {
+          "sha": "9d270fc",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete ListBox's range selection contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "8c9656b",
+          "author": "Serhii Vecherenko",
+          "subject": "Make theme changes repaint every window",
+          "kind": "feature"
+        },
+        {
+          "sha": "b34cca2",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete TagGroup's range selection contract",
+          "kind": "parity"
+        }
+      ]
+    },
+    {
+      "date": "2026-08-27",
+      "commits": [
+        {
+          "sha": "efde1d2",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete Form's server validation contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "9e2360b",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete Form's pinned submission contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "f82287f",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete Toolbar's pinned focus contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "d727b58",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete InputGroup's pinned field contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "0f88fae",
+          "author": "Serhii Vecherenko",
+          "subject": "Repair ColorSwatchPicker design audit readers",
+          "kind": "fix"
+        },
+        {
+          "sha": "54fb23f",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete ButtonGroup's pinned context contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "0a3f0fd",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete Toast's pinned queue contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "5180e58",
+          "author": "Serhii Vecherenko",
+          "subject": "Match ToastQueue clear lifecycle semantics",
+          "kind": "parity"
+        },
+        {
+          "sha": "b6d5d84",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete ColorSwatchPicker's v3 item contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "ed4554f",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete ColorSlider's v3 thumb contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "ebea02c",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete ColorArea's v3 thumb contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "224a321",
+          "author": "Serhii Vecherenko",
+          "subject": "Expose ColorField's complete v3 field state",
+          "kind": "feature"
+        },
+        {
+          "sha": "8ca82b6",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete ColorPicker's compound v3 contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "c884459",
+          "author": "Serhii Vecherenko",
+          "subject": "Document TagGroup's full v3 contract",
+          "kind": "docs"
+        },
+        {
+          "sha": "9103d1d",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete TagGroup's inherited selection contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "dd0d662",
+          "author": "Serhii Vecherenko",
+          "subject": "Document ListBox's full v3 contract",
+          "kind": "docs"
+        },
+        {
+          "sha": "20f0792",
+          "author": "Serhii Vecherenko",
+          "subject": "Honor ListBox's inherited nonempty selection",
+          "kind": "feature"
+        },
+        {
+          "sha": "b41cf7d",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete DateRangePicker's inherited v3 contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "4366eb1",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete DatePicker's inherited v3 contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "58456a9",
+          "author": "Serhii Vecherenko",
+          "subject": "Expose TextField's complete v3 render state",
+          "kind": "feature"
+        },
+        {
+          "sha": "5ded2cf",
+          "author": "Serhii Vecherenko",
+          "subject": "Make SearchField clear content composable",
+          "kind": "feature"
+        },
+        {
+          "sha": "5d0ec64",
+          "author": "Serhii Vecherenko",
+          "subject": "Expose SearchField's complete v3 render state",
+          "kind": "feature"
+        },
+        {
+          "sha": "28d4e55",
+          "author": "Serhii Vecherenko",
+          "subject": "Document TextArea's full v3 contract",
+          "kind": "docs"
+        },
+        {
+          "sha": "b1a2c7c",
+          "author": "Serhii Vecherenko",
+          "subject": "Stop rejected Input edits from reporting changes",
+          "kind": "fix"
+        },
+        {
+          "sha": "f11a4f8",
+          "author": "Serhii Vecherenko",
+          "subject": "Render Popover Arrow on its resolved side",
+          "kind": "feature"
+        },
+        {
+          "sha": "e091945",
+          "author": "Serhii Vecherenko",
+          "subject": "Make Popover flip to fit like v3",
+          "kind": "feature"
+        },
+        {
+          "sha": "7e721e4",
+          "author": "Serhii Vecherenko",
+          "subject": "Make Accordion items own their v3 state",
+          "kind": "feature"
+        },
+        {
+          "sha": "b1de37a",
+          "author": "Serhii Vecherenko",
+          "subject": "Publish the gallery as a Cargo CLI",
+          "kind": "infra"
+        },
+        {
+          "sha": "feb307c",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete NumberField v3 contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "96c3662",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete Autocomplete v3 contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "6898c73",
+          "author": "Serhii Vecherenko",
+          "subject": "Document TimeField v3 parity",
+          "kind": "docs"
+        },
+        {
+          "sha": "a7184ae",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete TimeField render state",
+          "kind": "parity"
+        },
+        {
+          "sha": "20075e8",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete DateField render state",
+          "kind": "parity"
+        },
+        {
+          "sha": "c8085d2",
+          "author": "Serhii Vecherenko",
+          "subject": "Document DateField v3 parity",
+          "kind": "docs"
+        },
+        {
+          "sha": "93a7eff",
+          "author": "Serhii Vecherenko",
+          "subject": "Remove unsupported DateField steppers",
+          "kind": "parity"
+        },
+        {
+          "sha": "4f76aaa",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Button its detailed v3 contract",
+          "kind": "feature"
+        },
+        {
+          "sha": "49e4ca6",
+          "author": "Serhii Vecherenko",
+          "subject": "Install HeroUI calendar bounds",
+          "kind": "feature"
+        },
+        {
+          "sha": "d8793a6",
+          "author": "Serhii Vecherenko",
+          "subject": "Align long calendar ranges like v3",
+          "kind": "parity"
+        },
+        {
+          "sha": "0186cde",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete RangeCalendar change events",
+          "kind": "parity"
+        },
+        {
+          "sha": "baa1806",
+          "author": "Serhii Vecherenko",
+          "subject": "Make calendar focus fully controlled",
+          "kind": "feature"
+        },
+        {
+          "sha": "18c6626",
+          "author": "Serhii Vecherenko",
+          "subject": "Exclude gallery from crates.io workspace publish",
+          "kind": "infra"
+        },
+        {
+          "sha": "54ccbe3",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete Select multiple selection ownership",
+          "kind": "parity"
+        },
+        {
+          "sha": "67e3a07",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete Disclosure state ownership",
+          "kind": "parity"
+        },
+        {
+          "sha": "052fb2d",
+          "author": "Serhii Vecherenko",
+          "subject": "Prepare HeroGPUI for public distribution",
+          "kind": "infra"
+        },
+        {
+          "sha": "bab9cb1",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete TimeField form lifecycle",
+          "kind": "parity"
+        },
+        {
+          "sha": "dad4a5b",
+          "author": "Serhii Vecherenko",
+          "subject": "Make color form registrations live",
+          "kind": "feature"
+        },
+        {
+          "sha": "e4b0e81",
+          "author": "Serhii Vecherenko",
+          "subject": "Make Autocomplete form registration live",
+          "kind": "feature"
+        },
+        {
+          "sha": "88e6aa6",
+          "author": "Serhii Vecherenko",
+          "subject": "Make Select form registration live",
+          "kind": "feature"
+        },
+        {
+          "sha": "3d34f27",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Table a detailed v3 reference",
+          "kind": "feature"
+        },
+        {
+          "sha": "0d348a0",
+          "author": "Serhii Vecherenko",
+          "subject": "Extend ListBox selections with Shift arrows",
+          "kind": "feature"
+        },
+        {
+          "sha": "28b18fd",
+          "author": "Serhii Vecherenko",
+          "subject": "Keep Toast timers independent of visual limits",
+          "kind": "feature"
+        }
+      ]
+    },
+    {
+      "date": "2026-08-26",
+      "commits": [
+        {
+          "sha": "70e8143",
+          "author": "Serhii Vecherenko",
+          "subject": "Start Toast clocks only when visible",
+          "kind": "feature"
+        },
+        {
+          "sha": "da654f2",
+          "author": "Serhii Vecherenko",
+          "subject": "Move the workspace to Rust 2024",
+          "kind": "feature"
+        },
+        {
+          "sha": "079a9b7",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete Select's pinned surface states",
+          "kind": "parity"
+        },
+        {
+          "sha": "eadc60e",
+          "author": "Serhii Vecherenko",
+          "subject": "Keep overflow toasts queued",
+          "kind": "feature"
+        },
+        {
+          "sha": "f813433",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Select a detailed v3 reference",
+          "kind": "feature"
+        },
+        {
+          "sha": "1b2cba5",
+          "author": "Serhii Vecherenko",
+          "subject": "Page ListBox through its visible rows",
+          "kind": "feature"
+        },
+        {
+          "sha": "7faf809",
+          "author": "Serhii Vecherenko",
+          "subject": "Commit ComboBox values when focus leaves",
+          "kind": "feature"
+        },
+        {
+          "sha": "591fb86",
+          "author": "Serhii Vecherenko",
+          "subject": "Close picker popovers when focus leaves",
+          "kind": "feature"
+        },
+        {
+          "sha": "a80454b",
+          "author": "Serhii Vecherenko",
+          "subject": "Keep disabled fields out of native submissions",
+          "kind": "feature"
+        },
+        {
+          "sha": "1c0d6cd",
+          "author": "Serhii Vecherenko",
+          "subject": "Make v3 design coverage complete",
+          "kind": "feature"
+        },
+        {
+          "sha": "5adfb0f",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Tooltip its global v3 sequence",
+          "kind": "feature"
+        },
+        {
+          "sha": "c239e0e",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Tooltip its pinned trigger and surface contract",
+          "kind": "feature"
+        },
+        {
+          "sha": "ff01611",
+          "author": "Serhii Vecherenko",
+          "subject": "Finish Modal full-size layout parity",
+          "kind": "feature"
+        },
+        {
+          "sha": "670cb4f",
+          "author": "Serhii Vecherenko",
+          "subject": "Add detailed Modal v3 reference metadata",
+          "kind": "feature"
+        },
+        {
+          "sha": "d33c823",
+          "author": "Serhii Vecherenko",
+          "subject": "Let open Tooltips capture Escape globally",
+          "kind": "feature"
+        },
+        {
+          "sha": "44a5abc",
+          "author": "Serhii Vecherenko",
+          "subject": "Route one-thumb Slider arrays through array state",
+          "kind": "feature"
+        },
+        {
+          "sha": "af5086b",
+          "author": "Serhii Vecherenko",
+          "subject": "Keep outside Modals reachable across placements",
+          "kind": "feature"
+        },
+        {
+          "sha": "22e49cf",
+          "author": "Serhii Vecherenko",
+          "subject": "Extend Table selections with Shift navigation",
+          "kind": "feature"
+        },
+        {
+          "sha": "9c6980c",
+          "author": "Serhii Vecherenko",
+          "subject": "Resolve Select value slots through their collection",
+          "kind": "feature"
+        },
+        {
+          "sha": "7fa44d6",
+          "author": "Serhii Vecherenko",
+          "subject": "Hand Checkbox root content its live field state",
+          "kind": "feature"
+        },
+        {
+          "sha": "9029f1a",
+          "author": "Serhii Vecherenko",
+          "subject": "Make vertical Tabs overflow along its axis",
+          "kind": "feature"
+        },
+        {
+          "sha": "8b7f7b3",
+          "author": "Serhii Vecherenko",
+          "subject": "Page plain Table bodies through enabled rows",
+          "kind": "feature"
+        },
+        {
+          "sha": "20e9dd1",
+          "author": "Serhii Vecherenko",
+          "subject": "Match Select's pinned default value text",
+          "kind": "parity"
+        },
+        {
+          "sha": "9a7e73a",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Checkbox indicator its full field state",
+          "kind": "feature"
+        },
+        {
+          "sha": "2b3243c",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Table pinned row typeahead",
+          "kind": "feature"
+        },
+        {
+          "sha": "64bc590",
+          "author": "Serhii Vecherenko",
+          "subject": "Select Tabs on pointer press start",
+          "kind": "feature"
+        },
+        {
+          "sha": "bdb09cd",
+          "author": "Serhii Vecherenko",
+          "subject": "Make ToggleButtonGroup own its edge arrows",
+          "kind": "feature"
+        },
+        {
+          "sha": "d983883",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Button its full pending render state",
+          "kind": "feature"
+        },
+        {
+          "sha": "6cd40fb",
+          "author": "Serhii Vecherenko",
+          "subject": "Bring ProgressBar onto its v3 contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "72db6ae",
+          "author": "Serhii Vecherenko",
+          "subject": "Bring ProgressCircle onto its v3 contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "394490a",
+          "author": "Serhii Vecherenko",
+          "subject": "Make disabled CloseButton state truly inert",
+          "kind": "feature"
+        },
+        {
+          "sha": "0ce3dd8",
+          "author": "Serhii Vecherenko",
+          "subject": "Recover Tabs focus across panel replacement",
+          "kind": "fix"
+        },
+        {
+          "sha": "24f7395",
+          "author": "Serhii Vecherenko",
+          "subject": "Put selected Tabs panels in the tab order",
+          "kind": "feature"
+        },
+        {
+          "sha": "aef7fd6",
+          "author": "Serhii Vecherenko",
+          "subject": "Require Rust 1.98 across the workspace",
+          "kind": "infra"
+        },
+        {
+          "sha": "f5b575d",
+          "author": "Serhii Vecherenko",
+          "subject": "Page variable-height tables by measured rows",
+          "kind": "feature"
+        },
+        {
+          "sha": "d94bff7",
+          "author": "Serhii Vecherenko",
+          "subject": "Format default Slider output like v3",
+          "kind": "feature"
+        },
+        {
+          "sha": "3ed191f",
+          "author": "Serhii Vecherenko",
+          "subject": "Keep indeterminate progress values unmeasured",
+          "kind": "feature"
+        },
+        {
+          "sha": "17f4b71",
+          "author": "Serhii Vecherenko",
+          "subject": "Page virtual tables by their viewport",
+          "kind": "feature"
+        },
+        {
+          "sha": "264e736",
+          "author": "Serhii Vecherenko",
+          "subject": "Clear ComboBox value state with its input",
+          "kind": "feature"
+        },
+        {
+          "sha": "2b0ad9e",
+          "author": "Serhii Vecherenko",
+          "subject": "Give collection render props keyboard press state",
+          "kind": "feature"
+        },
+        {
+          "sha": "1c85ab3",
+          "author": "Serhii Vecherenko",
+          "subject": "Build HeroGPUI with Rust 1.98",
+          "kind": "feature"
+        },
+        {
+          "sha": "48ee9eb",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete render-prop state and Slider output parity",
+          "kind": "parity"
+        }
+      ]
+    },
+    {
+      "date": "2026-08-25",
+      "commits": [
+        {
+          "sha": "0755a04",
+          "author": "Serhii Vecherenko",
+          "subject": "Align ComboBox multiple pointer behavior",
+          "kind": "parity"
+        },
+        {
+          "sha": "d4ec997",
+          "author": "Serhii Vecherenko",
+          "subject": "Align ComboBox multiple keyboard behavior",
+          "kind": "parity"
+        },
+        {
+          "sha": "f9ea6fe",
+          "author": "Serhii Vecherenko",
+          "subject": "Make TagGroup removal set-valued",
+          "kind": "feature"
+        },
+        {
+          "sha": "e4fb595",
+          "author": "Serhii Vecherenko",
+          "subject": "Add TagGroup's inherited Escape clearing",
+          "kind": "feature"
+        },
+        {
+          "sha": "15b0878",
+          "author": "Serhii Vecherenko",
+          "subject": "Add TagGroup's inherited select-all shortcut",
+          "kind": "feature"
+        },
+        {
+          "sha": "efc1e73",
+          "author": "Serhii Vecherenko",
+          "subject": "Trigger virtual Table loading near its end",
+          "kind": "feature"
+        },
+        {
+          "sha": "5c81775",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Radio root its v3 field state",
+          "kind": "feature"
+        },
+        {
+          "sha": "fcb4eaa",
+          "author": "Serhii Vecherenko",
+          "subject": "Add ListBox's inherited Escape clearing",
+          "kind": "feature"
+        },
+        {
+          "sha": "ed3d1ed",
+          "author": "Serhii Vecherenko",
+          "subject": "Use public IDs for ToggleButton selection",
+          "kind": "feature"
+        },
+        {
+          "sha": "a1f74ea",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Separator a pinned v3 reference",
+          "kind": "feature"
+        },
+        {
+          "sha": "4eb8d32",
+          "author": "Serhii Vecherenko",
+          "subject": "Add ListBox's inherited select-all shortcut",
+          "kind": "feature"
+        },
+        {
+          "sha": "94367f3",
+          "author": "Serhii Vecherenko",
+          "subject": "Anchor Table resizing to measured column widths",
+          "kind": "feature"
+        },
+        {
+          "sha": "b5cc802",
+          "author": "Serhii Vecherenko",
+          "subject": "Make Table column resizers keyboard operable",
+          "kind": "feature"
+        },
+        {
+          "sha": "2a29279",
+          "author": "Serhii Vecherenko",
+          "subject": "Report repaired Tabs default selection",
+          "kind": "feature"
+        },
+        {
+          "sha": "8935bba",
+          "author": "Serhii Vecherenko",
+          "subject": "Make Autocomplete clearing unconditional",
+          "kind": "feature"
+        },
+        {
+          "sha": "9312a5e",
+          "author": "Serhii Vecherenko",
+          "subject": "Clamp Table column resizing to v3 bounds",
+          "kind": "feature"
+        },
+        {
+          "sha": "334a8ed",
+          "author": "Serhii Vecherenko",
+          "subject": "Focus Autocomplete's first typed match",
+          "kind": "feature"
+        },
+        {
+          "sha": "328fb71",
+          "author": "Serhii Vecherenko",
+          "subject": "Fix Autocomplete's empty collection lifecycle",
+          "kind": "fix"
+        },
+        {
+          "sha": "23d8074",
+          "author": "Serhii Vecherenko",
+          "subject": "Add Table's inherited select-all shortcut",
+          "kind": "feature"
+        },
+        {
+          "sha": "5eee441",
+          "author": "Serhii Vecherenko",
+          "subject": "Make button separators explicit composition",
+          "kind": "feature"
+        },
+        {
+          "sha": "93c28a3",
+          "author": "Serhii Vecherenko",
+          "subject": "Make toggle separators explicit composition",
+          "kind": "feature"
+        },
+        {
+          "sha": "c0b9018",
+          "author": "Serhii Vecherenko",
+          "subject": "Document ComboBox's pinned v3 contract",
+          "kind": "docs"
+        },
+        {
+          "sha": "e9b5a91",
+          "author": "Serhii Vecherenko",
+          "subject": "Restore ComboBox's pinned open lifecycle",
+          "kind": "fix"
+        },
+        {
+          "sha": "b42be27",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Drawer its full pinned v3 contract",
+          "kind": "feature"
+        },
+        {
+          "sha": "5f553f9",
+          "author": "Serhii Vecherenko",
+          "subject": "Restore pinned menu and OTP focus behavior",
+          "kind": "fix"
+        },
+        {
+          "sha": "45ecdd0",
+          "author": "Serhii Vecherenko",
+          "subject": "Drive inherited keyboard and render contracts",
+          "kind": "feature"
+        },
+        {
+          "sha": "44b2af2",
+          "author": "Serhii Vecherenko",
+          "subject": "Make RangeCalendar unavailability anchor-aware",
+          "kind": "feature"
+        },
+        {
+          "sha": "d2d08ec",
+          "author": "Serhii Vecherenko",
+          "subject": "Document RangeCalendar's pinned v3 contract",
+          "kind": "docs"
+        },
+        {
+          "sha": "2063003",
+          "author": "Serhii Vecherenko",
+          "subject": "Complete RangeCalendar's keyboard range lifecycle",
+          "kind": "parity"
+        },
+        {
+          "sha": "835cb1d",
+          "author": "Serhii Vecherenko",
+          "subject": "Give RangeCalendar cells their full adjacent-month state",
+          "kind": "feature"
+        },
+        {
+          "sha": "7c67aed",
+          "author": "Serhii Vecherenko",
+          "subject": "Document Calendar's pinned v3 contract",
+          "kind": "docs"
+        },
+        {
+          "sha": "c5daaaf",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Calendar cells their full adjacent-month state",
+          "kind": "feature"
+        },
+        {
+          "sha": "153eeb0",
+          "author": "Serhii Vecherenko",
+          "subject": "Give calendars their pinned section bounds",
+          "kind": "feature"
+        }
+      ]
+    },
+    {
+      "date": "2026-08-24",
+      "commits": [
+        {
+          "sha": "86546bd",
+          "author": "Serhii Vecherenko",
+          "subject": "Page calendars by their visible section",
+          "kind": "feature"
+        },
+        {
+          "sha": "4a875bf",
+          "author": "Serhii Vecherenko",
+          "subject": "Forward Dropdown render state through its composition",
+          "kind": "feature"
+        },
+        {
+          "sha": "acec137",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Tabs its pinned v3 reference contract",
+          "kind": "feature"
+        },
+        {
+          "sha": "36c3c1c",
+          "author": "Serhii Vecherenko",
+          "subject": "Animate Tabs through their pinned v3 states",
+          "kind": "feature"
+        },
+        {
+          "sha": "d47206e",
+          "author": "Serhii Vecherenko",
+          "subject": "Bring Tabs interaction and layout onto v3",
+          "kind": "parity"
+        },
+        {
+          "sha": "af23ddb",
+          "author": "Serhii Vecherenko",
+          "subject": "Carry Table tree metadata through virtual rows",
+          "kind": "feature"
+        },
+        {
+          "sha": "b6623f6",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Table tree rows their pinned keyboard contract",
+          "kind": "feature"
+        },
+        {
+          "sha": "ee0535a",
+          "author": "Serhii Vecherenko",
+          "subject": "Fix the Pagination render-slot regression lint",
+          "kind": "fix"
+        },
+        {
+          "sha": "d81aacc",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Pagination its compound v3 value slots",
+          "kind": "feature"
+        },
+        {
+          "sha": "7ae49a9",
+          "author": "Serhii Vecherenko",
+          "subject": "Bring Pagination links onto their pinned v3 contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "e27c7b8",
+          "author": "Serhii Vecherenko",
+          "subject": "Give InputOTP its pinned paste and reference contract",
+          "kind": "feature"
+        },
+        {
+          "sha": "f7b18e4",
+          "author": "Serhii Vecherenko",
+          "subject": "Drive Table virtualization and inherited keyboard contracts",
+          "kind": "feature"
+        },
+        {
+          "sha": "ce1d947",
+          "author": "Serhii Vecherenko",
+          "subject": "Bring ToggleButton onto its pinned v3 contract",
+          "kind": "parity"
+        },
+        {
+          "sha": "0f8192c",
+          "author": "Serhii Vecherenko",
+          "subject": "Let controlled Tabs rove focus independently",
+          "kind": "feature"
+        },
+        {
+          "sha": "71ac3e2",
+          "author": "Serhii Vecherenko",
+          "subject": "Drive Table sort indicators and Switch pressed evidence",
+          "kind": "feature"
+        },
+        {
+          "sha": "bbccf05",
+          "author": "Serhii Vecherenko",
+          "subject": "Animate the Switch track through its v3 states",
+          "kind": "feature"
+        },
+        {
+          "sha": "576135e",
+          "author": "Serhii Vecherenko",
+          "subject": "Make Switch carry its full v3 field state",
+          "kind": "feature"
+        },
+        {
+          "sha": "1e1ea5b",
+          "author": "Serhii Vecherenko",
+          "subject": "Make Radio a real compound form control",
+          "kind": "feature"
+        },
+        {
+          "sha": "45247bd",
+          "author": "Serhii Vecherenko",
+          "subject": "Give Checkbox the field anatomy v3 documents",
+          "kind": "feature"
+        },
+        {
+          "sha": "079f5a6",
+          "author": "Serhii Vecherenko",
+          "subject": "Draw the Slider HeroUI actually specifies",
+          "kind": "feature"
+        },
+        {
+          "sha": "a587d05",
+          "author": "Serhii Vecherenko",
+          "subject": "Document Slider against the compound v3 contract",
+          "kind": "docs"
+        },
+        {
+          "sha": "c9478c1",
+          "author": "Serhii Vecherenko",
+          "subject": "Make the parity readers follow the code that does the work",
+          "kind": "feature"
+        },
+        {
+          "sha": "473fcde",
+          "author": "Serhii Vecherenko",
+          "subject": "Make overlays and form controls live past one frame",
+          "kind": "feature"
+        },
+        {
+          "sha": "60494ca",
+          "author": "Serhii Vecherenko",
+          "subject": "Drive five more component families past the audits",
+          "kind": "feature"
+        },
+        {
+          "sha": "a083537",
+          "author": "Serhii Vecherenko",
+          "subject": "Address a folded heading's rows to the fold, not to the root",
+          "kind": "feature"
+        },
+        {
+          "sha": "f194a45",
+          "author": "Serhii Vecherenko",
+          "subject": "Let a companion answer its own rows, not its parent's",
+          "kind": "feature"
+        },
+        {
+          "sha": "3a96f74",
+          "author": "Serhii Vecherenko",
+          "subject": "Say what the press tests now prove, not what they used to",
+          "kind": "feature"
+        },
+        {
+          "sha": "978fddf",
+          "author": "Serhii Vecherenko",
+          "subject": "Make the year picker a real keyboard surface",
+          "kind": "feature"
+        },
+        {
+          "sha": "3bf8969",
+          "author": "Serhii Vecherenko",
+          "subject": "Close six audit holes that all reported zero instead of failing",
+          "kind": "feature"
+        },
+        {
+          "sha": "82bf6b0",
+          "author": "Serhii Vecherenko",
+          "subject": "Drive four more families, and fix the seventeen defects they found",
+          "kind": "feature"
+        },
+        {
+          "sha": "3115a85",
+          "author": "Serhii Vecherenko",
+          "subject": "Make the demo audit read every exercised prop",
+          "kind": "feature"
+        },
+        {
+          "sha": "e3d4813",
+          "author": "Serhii Vecherenko",
+          "subject": "Keep uncontrolled tabs stable across theme changes",
+          "kind": "feature"
+        },
+        {
+          "sha": "6f1f85b",
+          "author": "Serhii Vecherenko",
+          "subject": "Keep disabled tabs out of the roving selection",
+          "kind": "feature"
+        },
+        {
+          "sha": "5d6c143",
+          "author": "Serhii Vecherenko",
+          "subject": "Keep calendar behaviour tests inside the lint gate",
+          "kind": "feature"
+        },
+        {
+          "sha": "4f3683f",
+          "author": "Serhii Vecherenko",
+          "subject": "Keep calendar navigation inside its valid state",
+          "kind": "feature"
+        },
+        {
+          "sha": "9fbdcb4",
+          "author": "Serhii Vecherenko",
+          "subject": "Keep TagGroup arrows on its horizontal axis",
+          "kind": "feature"
+        },
+        {
+          "sha": "cf5198c",
+          "author": "Serhii Vecherenko",
+          "subject": "Trigger Table loading from its viewport sentinel",
+          "kind": "feature"
+        },
+        {
+          "sha": "001df6b",
+          "author": "Serhii Vecherenko",
+          "subject": "Keep controlled ScrollShadow visibility silent",
+          "kind": "feature"
+        },
+        {
+          "sha": "6a701db",
+          "author": "Serhii Vecherenko",
+          "subject": "Report Calendar multiple selection without narrowing its value",
+          "kind": "feature"
+        },
+        {
+          "sha": "9379446",
+          "author": "Serhii Vecherenko",
+          "subject": "Drive controlled tabs and horizontal scroll shadows",
+          "kind": "feature"
+        },
+        {
+          "sha": "a7ae5e9",
+          "author": "Serhii Vecherenko",
+          "subject": "Stop action-only collections from reporting selection",
+          "kind": "fix"
+        },
+        {
+          "sha": "a7a1622",
+          "author": "Serhii Vecherenko",
+          "subject": "Constrain RangeCalendar selections across unavailable dates",
+          "kind": "feature"
+        },
+        {
+          "sha": "1241434",
+          "author": "Serhii Vecherenko",
+          "subject": "Drive collection edges and fix two action paths",
+          "kind": "feature"
+        },
+        {
+          "sha": "2b00b54",
+          "author": "Serhii Vecherenko",
+          "subject": "Keep an executor's skill cache out of the repo",
+          "kind": "feature"
+        },
+        {
+          "sha": "be90012",
+          "author": "Serhii Vecherenko",
+          "subject": "Fix the last eight defects: render-prop state, value slots, table and tabs",
+          "kind": "fix"
+        },
+        {
+          "sha": "02132db",
+          "author": "Serhii Vecherenko",
+          "subject": "Fix the overlay and slider defects, and close the audit hole that hid one",
+          "kind": "fix"
+        },
+        {
+          "sha": "af866d4",
+          "author": "Serhii Vecherenko",
+          "subject": "Drive the render props, the value slots, the table keyboard and the placements",
+          "kind": "feature"
+        },
+        {
+          "sha": "6d86fb4",
+          "author": "Serhii Vecherenko",
+          "subject": "AGENTS.md: what driving the rest of the library found",
+          "kind": "docs"
+        },
+        {
+          "sha": "8f2c00d",
+          "author": "Serhii Vecherenko",
+          "subject": "Fix three more defects and close two divergences; 116 behaviour tests, none ignored",
+          "kind": "fix"
+        }
+      ]
+    },
+    {
+      "date": "2026-08-23",
+      "commits": [
+        {
+          "sha": "dd84a04",
+          "author": "Serhii Vecherenko",
+          "subject": "Drive 39 more components: buttons, text fields, calendars, virtual lists",
+          "kind": "feature"
+        },
+        {
+          "sha": "5239527",
+          "author": "Serhii Vecherenko",
+          "subject": "Fix all five defects the behaviour suite found; 194 tests, none ignored",
+          "kind": "fix"
+        },
+        {
+          "sha": "abb1a91",
+          "author": "Serhii Vecherenko",
+          "subject": "Drive fields, collections, overlays, table and the drag controls: 39 more tests",
+          "kind": "feature"
+        },
+        {
+          "sha": "8c2b10c",
+          "author": "Serhii Vecherenko",
+          "subject": "Close the menu, open the list: three behaviours the tests caught",
+          "kind": "feature"
+        },
+        {
+          "sha": "6e801e6",
+          "author": "Serhii Vecherenko",
+          "subject": "Drive the three pickers: ten behaviour tests, and three defects they found",
+          "kind": "feature"
+        },
+        {
+          "sha": "3c7ba72",
+          "author": "Serhii Vecherenko",
+          "subject": "Add a gpui interaction-test harness: three components driven, not drawn",
+          "kind": "feature"
+        },
+        {
+          "sha": "f164312",
+          "author": "Serhii Vecherenko",
+          "subject": "Autocomplete: v3's own one-line description, without the spaces a heredoc left",
+          "kind": "feature"
+        },
+        {
+          "sha": "808d29a",
+          "author": "Serhii Vecherenko",
+          "subject": "date_picker: repair a doc comment a shell escape had eaten",
+          "kind": "docs"
+        },
+        {
+          "sha": "d6be6cc",
+          "author": "Serhii Vecherenko",
+          "subject": "AGENTS.md: fix the control characters that heredoc note wrote into itself",
+          "kind": "docs"
+        },
+        {
+          "sha": "15831ed",
+          "author": "Serhii Vecherenko",
+          "subject": "anatomy_audit: also check v3's 151 documented composition parts",
+          "kind": "feature"
+        },
+        {
+          "sha": "28db438",
+          "author": "Serhii Vecherenko",
+          "subject": "Add anatomy_audit: what v3 nests inside what, and whether this port composes it",
+          "kind": "feature"
+        },
+        {
+          "sha": "dd1dc94",
+          "author": "Serhii Vecherenko",
+          "subject": "Rebuild the Autocomplete as v3 builds it: a trigger, and a search in the popover",
+          "kind": "feature"
+        },
+        {
+          "sha": "b86f417",
+          "author": "Serhii Vecherenko",
+          "subject": "Hand focus state to field render props; report scroll-shadow visibility",
+          "kind": "feature"
+        },
+        {
+          "sha": "fc31877",
+          "author": "Serhii Vecherenko",
+          "subject": "Invert v3's render props instead of calling them undrawable",
+          "kind": "feature"
+        },
+        {
+          "sha": "1fe0540",
+          "author": "Serhii Vecherenko",
+          "subject": "Virtualize rows that are not all one height",
+          "kind": "feature"
+        },
+        {
+          "sha": "66848c6",
+          "author": "Serhii Vecherenko",
+          "subject": "Account for every part v3 draws: part_audit reaches zero",
+          "kind": "parity"
+        },
+        {
+          "sha": "438deee",
+          "author": "Serhii Vecherenko",
+          "subject": "Make an overflowing tab list scroll, with v3s two chevrons",
+          "kind": "feature"
+        },
+        {
+          "sha": "2c1a1c6",
+          "author": "Serhii Vecherenko",
+          "subject": "Read v3 the other way round: every part its stylesheets declare",
+          "kind": "parity"
+        },
+        {
+          "sha": "ebf84d0",
+          "author": "Serhii Vecherenko",
+          "subject": "A Disclosure is not a one-item Accordion",
+          "kind": "feature"
+        },
+        {
+          "sha": "af069ec",
+          "author": "Serhii Vecherenko",
+          "subject": "Port Tooltip.trigger, and fix the key driver that hid it",
+          "kind": "parity"
+        },
+        {
+          "sha": "c68cccb",
+          "author": "Serhii Vecherenko",
+          "subject": "Build the four v3 parts the coverage report was excusing",
+          "kind": "feature"
+        },
+        {
+          "sha": "d631467",
+          "author": "Serhii Vecherenko",
+          "subject": "Compare the demos with v3 example by example, not name by name",
+          "kind": "parity"
+        },
+        {
+          "sha": "1f56d1c",
+          "author": "Serhii Vecherenko",
+          "subject": "Fix the modal body, and demo the three parts v3 composes",
+          "kind": "fix"
+        },
+        {
+          "sha": "26e8def",
+          "author": "Serhii Vecherenko",
+          "subject": "Close the geometry audit coverage gap: 385 metrics, 0 unchecked",
+          "kind": "feature"
+        },
+        {
+          "sha": "f3a1ab8",
+          "author": "Serhii Vecherenko",
+          "subject": "Take the geometry audit past the utilities it could not read",
+          "kind": "parity"
+        },
+        {
+          "sha": "2d0884e",
+          "author": "Serhii Vecherenko",
+          "subject": "One-process verification loop, geometry fixes, per-example source",
+          "kind": "feature"
+        },
+        {
+          "sha": "65877c9",
+          "author": "Serhii Vecherenko",
+          "subject": "Take the geometry audit to 250 metrics",
+          "kind": "parity"
+        },
+        {
+          "sha": "06da901",
+          "author": "Serhii Vecherenko",
+          "subject": "Give the card, the switch and the dropdown menu v3's geometry",
+          "kind": "feature"
+        },
+        {
+          "sha": "83d7aac",
+          "author": "Serhii Vecherenko",
+          "subject": "Take the geometry audit to 197 metrics, and fix the field height",
+          "kind": "parity"
+        },
+        {
+          "sha": "4c302df",
+          "author": "Serhii Vecherenko",
+          "subject": "Measure the geometry against v3's sheets, and fix what it found",
+          "kind": "parity"
+        },
+        {
+          "sha": "fbcba00",
+          "author": "Serhii Vecherenko",
+          "subject": "Trap Tab inside the dialogs, and drive the app without stealing the focus",
+          "kind": "feature"
+        },
+        {
+          "sha": "f921d17",
+          "author": "Serhii Vecherenko",
+          "subject": "Move the focus into a date picker's calendar when it opens",
+          "kind": "feature"
+        },
+        {
+          "sha": "feda833",
+          "author": "Serhii Vecherenko",
+          "subject": "Move the calendar grid with its keyboard cursor, and page by year",
+          "kind": "feature"
+        },
+        {
+          "sha": "22156e6",
+          "author": "Serhii Vecherenko",
+          "subject": "Let the lists scroll, and keep the focused row in view",
+          "kind": "feature"
+        },
+        {
+          "sha": "1fa1193",
+          "author": "Serhii Vecherenko",
+          "subject": "Hand the focus back when an overlay closes",
+          "kind": "feature"
+        },
+        {
+          "sha": "7b66fc8",
+          "author": "Serhii Vecherenko",
+          "subject": "Sort a table from the keyboard, and ring its cells the way v3 does",
+          "kind": "feature"
+        },
+        {
+          "sha": "bae6dd7",
+          "author": "Serhii Vecherenko",
+          "subject": "Select a word on double click, everything on triple",
+          "kind": "feature"
+        },
+        {
+          "sha": "a32a823",
+          "author": "Serhii Vecherenko",
+          "subject": "Put the caret where the pointer clicks, and select by dragging",
+          "kind": "feature"
+        },
+        {
+          "sha": "15d86e2",
+          "author": "Serhii Vecherenko",
+          "subject": "Give the text fields the keyboard a text field has",
+          "kind": "feature"
+        },
+        {
+          "sha": "fb2694e",
+          "author": "Serhii Vecherenko",
+          "subject": "Step a number field from the keyboard, and show a tooltip on focus",
+          "kind": "feature"
+        },
+        {
+          "sha": "08dae69",
+          "author": "Serhii Vecherenko",
+          "subject": "Check for shared keyed state, and write down the dismissal rules",
+          "kind": "feature"
+        },
+        {
+          "sha": "c7adde6",
+          "author": "Serhii Vecherenko",
+          "subject": "Dismiss every floating panel on Escape and on a press outside it",
+          "kind": "feature"
+        },
+        {
+          "sha": "8df724d",
+          "author": "Serhii Vecherenko",
+          "subject": "Audit for demos that cannot change, and fix the ten that could not",
+          "kind": "parity"
+        },
+        {
+          "sha": "9a79075",
+          "author": "Serhii Vecherenko",
+          "subject": "Give the collection primitives their ARIA keyboards",
+          "kind": "feature"
+        },
+        {
+          "sha": "3c5696c",
+          "author": "Serhii Vecherenko",
+          "subject": "RangeCalendar answers the keyboard, and disabled controls leave the tab order",
+          "kind": "feature"
+        },
+        {
+          "sha": "db2f0fd",
+          "author": "Serhii Vecherenko",
+          "subject": "Make the controls tab-reachable, and let gpui do the pressing",
+          "kind": "feature"
+        },
+        {
+          "sha": "50490e5",
+          "author": "Serhii Vecherenko",
+          "subject": "A floating panel has no border, and the overlay shadow had drifted",
+          "kind": "feature"
+        },
+        {
+          "sha": "0f632f2",
+          "author": "Serhii Vecherenko",
+          "subject": "Four token values were wrong, one of them on purpose",
+          "kind": "feature"
+        },
+        {
+          "sha": "717b1a0",
+          "author": "Serhii Vecherenko",
+          "subject": "Audit the theme variables; four were unreachable",
+          "kind": "parity"
+        },
+        {
+          "sha": "55a9ff9",
+          "author": "Serhii Vecherenko",
+          "subject": "Press, hover and the states the prose lists",
+          "kind": "feature"
+        },
+        {
+          "sha": "6d6ea76",
+          "author": "Serhii Vecherenko",
+          "subject": "Measure state styling, then ring every control v3 rings",
+          "kind": "parity"
+        },
+        {
+          "sha": "6dcf612",
+          "author": "Serhii Vecherenko",
+          "subject": "Focus rings: the mechanism, and the first dozen controls",
+          "kind": "feature"
+        },
+        {
+          "sha": "00166c7",
+          "author": "Serhii Vecherenko",
+          "subject": "Measure the behaviour, then implement what was missing",
+          "kind": "parity"
+        },
+        {
+          "sha": "f96e61a",
+          "author": "Serhii Vecherenko",
+          "subject": "DateField: granularity, and the hour cycle that comes with it",
+          "kind": "feature"
+        },
+        {
+          "sha": "75f00d5",
+          "author": "Serhii Vecherenko",
+          "subject": "Virtualize the three pickers' popover lists",
+          "kind": "feature"
+        },
+        {
+          "sha": "65d4d69",
+          "author": "Serhii Vecherenko",
+          "subject": "useFilter, ListBox.ItemIndicator, Select.Value, and a reason per omission",
+          "kind": "feature"
+        },
+        {
+          "sha": "83ce29e",
+          "author": "Serhii Vecherenko",
+          "subject": "Toast: the indicator, the action, the loading spinner and onClose",
+          "kind": "feature"
+        },
+        {
+          "sha": "ba50d79",
+          "author": "Serhii Vecherenko",
+          "subject": "Virtualize the list and the table, and stop the audit reading half a page",
+          "kind": "feature"
+        },
+        {
+          "sha": "54d9eb1",
+          "author": "Serhii Vecherenko",
+          "subject": "Table: allowsResizing, and the harness gesture that proves it",
+          "kind": "feature"
+        },
+        {
+          "sha": "e09bc7f",
+          "author": "Serhii Vecherenko",
+          "subject": "Table: v3's expandable rows, and a table layout that holds its columns",
+          "kind": "feature"
+        },
+        {
+          "sha": "e905e89",
+          "author": "Serhii Vecherenko",
+          "subject": "Select, ComboBox and Autocomplete answer the list keys too",
+          "kind": "feature"
+        },
+        {
+          "sha": "04fd6f9",
+          "author": "Serhii Vecherenko",
+          "subject": "ListBox: v3's chrome, and the keyboard React Aria gives a list",
+          "kind": "feature"
+        },
+        {
+          "sha": "e2b024c",
+          "author": "Serhii Vecherenko",
+          "subject": "Accordion: v3's shape, and the AGENTS.md notes for the example audit",
+          "kind": "feature"
+        },
+        {
+          "sha": "1f1157b",
+          "author": "Serhii Vecherenko",
+          "subject": "Every documented example is now on its page",
+          "kind": "feature"
+        },
+        {
+          "sha": "c85fc25",
+          "author": "Serhii Vecherenko",
+          "subject": "Calendar and RangeCalendar pages: every documented example",
+          "kind": "feature"
+        },
+        {
+          "sha": "0ed76e7",
+          "author": "Serhii Vecherenko",
+          "subject": "ComboBox page: every documented example",
+          "kind": "feature"
+        },
+        {
+          "sha": "b7fda7d",
+          "author": "Serhii Vecherenko",
+          "subject": "Autocomplete page, and the ListBox slots it and ComboBox needed",
+          "kind": "feature"
+        },
+        {
+          "sha": "3ec71c3",
+          "author": "Serhii Vecherenko",
+          "subject": "Widen the prop-table read; it was hiding twelve props",
+          "kind": "feature"
+        },
+        {
+          "sha": "850288a",
+          "author": "Serhii Vecherenko",
+          "subject": "Tooltip, Popover and Toast pages: every documented example",
+          "kind": "feature"
+        },
+        {
+          "sha": "8af98d6",
+          "author": "Serhii Vecherenko",
+          "subject": "Modal, AlertDialog and Drawer pages: every documented example",
+          "kind": "feature"
+        },
+        {
+          "sha": "e44939d",
+          "author": "Serhii Vecherenko",
+          "subject": "Dropdown page: submenus, item descriptions and long-press",
+          "kind": "feature"
+        },
+        {
+          "sha": "1b21f01",
+          "author": "Serhii Vecherenko",
+          "subject": "ListBox and TagGroup pages: every documented example",
+          "kind": "feature"
+        },
+        {
+          "sha": "cf25726",
+          "author": "Serhii Vecherenko",
+          "subject": "Select page: every documented example",
+          "kind": "feature"
+        },
+        {
+          "sha": "5997666",
+          "author": "Serhii Vecherenko",
+          "subject": "InputGroup and InputOTP pages: every documented example",
+          "kind": "feature"
+        },
+        {
+          "sha": "cbf17a3",
+          "author": "Serhii Vecherenko",
+          "subject": "ToggleButtonGroup: v3's attached shape, and its remaining examples",
+          "kind": "feature"
+        },
+        {
+          "sha": "acaa696",
+          "author": "Serhii Vecherenko",
+          "subject": "Checkbox, CheckboxGroup and RadioGroup pages",
+          "kind": "feature"
+        },
+        {
+          "sha": "b2393a4",
+          "author": "Serhii Vecherenko",
+          "subject": "Field parts, Link, Breadcrumbs, Pagination and the layout pages",
+          "kind": "feature"
+        },
+        {
+          "sha": "dbf5c8d",
+          "author": "Serhii Vecherenko",
+          "subject": "The Colors category: every documented example on all six pages",
+          "kind": "feature"
+        },
+        {
+          "sha": "47cd83b",
+          "author": "Serhii Vecherenko",
+          "subject": "DateField and TimeField pages: every documented example",
+          "kind": "feature"
+        },
+        {
+          "sha": "122660d",
+          "author": "Serhii Vecherenko",
+          "subject": "Field pages: SearchField, Input, TextField, TextArea, NumberField",
+          "kind": "feature"
+        },
+        {
+          "sha": "f6f6ab6",
+          "author": "Serhii Vecherenko",
+          "subject": "Data-display and feedback pages: every documented example",
+          "kind": "feature"
+        },
+        {
+          "sha": "f0e3afa",
+          "author": "Serhii Vecherenko",
+          "subject": "Add the Buttons-category examples, the two missing guides, and per-demo state",
+          "kind": "feature"
+        },
+        {
+          "sha": "4029f51",
+          "author": "Serhii Vecherenko",
+          "subject": "Panels, field chrome and calendar geometry; audit example coverage",
+          "kind": "feature"
+        },
+        {
+          "sha": "03bd669",
+          "author": "Serhii Vecherenko",
+          "subject": "Fix controls that measured right and rendered wrong; add fill checks",
+          "kind": "fix"
+        },
+        {
+          "sha": "8f75db9",
+          "author": "Serhii Vecherenko",
+          "subject": "Match v3's per-overlay motion, read from its stylesheets",
+          "kind": "parity"
+        },
+        {
+          "sha": "7517d9f",
+          "author": "Serhii Vecherenko",
+          "subject": "Verify design against the React repo, and fix what it found",
+          "kind": "feature"
+        },
+        {
+          "sha": "bf4ddd6",
+          "author": "Serhii Vecherenko",
+          "subject": "Exit animations, a real multi-line TextArea and a segmented DateField",
+          "kind": "feature"
+        }
+      ]
+    },
+    {
+      "date": "2026-08-22",
+      "commits": [
+        {
+          "sha": "f68f87f",
+          "author": "Serhii Vecherenko",
+          "subject": "Close 66 of the 99 recorded omissions",
+          "kind": "feature"
+        },
+        {
+          "sha": "b8d1aa7",
+          "author": "Serhii Vecherenko",
+          "subject": "Zoom the overlay entry, add formatOptions and a real form model",
+          "kind": "feature"
+        },
+        {
+          "sha": "08438a8",
+          "author": "Serhii Vecherenko",
+          "subject": "Remove the v2 props v3 deleted, and audit in both directions",
+          "kind": "parity"
+        },
+        {
+          "sha": "f80698b",
+          "author": "Serhii Vecherenko",
+          "subject": "Port HeroUI v3: components, tokens, gallery, and a measured parity harness",
+          "kind": "parity"
+        }
+      ]
+    },
+    {
+      "date": "2026-08-21",
+      "commits": [
+        {
+          "sha": "f68219c",
+          "author": "Serhii Vecherenko",
+          "subject": "Add initial README",
+          "kind": "docs"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+# NOTICE
+
+## HeroGPUI
+
+HeroGPUI is Copyright 2026 HeroGPUI contributors, licensed under the Apache
+License, Version 2.0. This product is a Rust/GPUI port derived from HeroUI v3.
+HeroUI is Copyright 2025 NextUI Inc. and is licensed under the Apache License,
+Version 2.0. HeroGPUI includes modified and translated implementations of
+HeroUI component behavior, design tokens, styles, and documentation structure.
+The repository root `NOTICE` carries the canonical statement.
