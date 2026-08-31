@@ -223,10 +223,6 @@ ALIAS = {
     # v3 documents the plain attribute spellings alongside the is* ones.
     'disabled': 'is_disabled', 'readOnly': 'is_read_only', 'required': 'is_required',
     'inputValue': 'input_value', 'shouldFlip': 'should_flip',
-    # Avatar.Image's error callback and Avatar.Fallback's show-delay, ported
-    # with a custom image loader that observes the load.
-    'Avatar.onError': 'on_error',
-    'Avatar.delayMs': 'delay_ms',
     'onLoadMore': 'on_load_more',
     'sortDescriptor': 'sort_descriptor', 'allowsSorting': 'allows_sorting',
     'isRowHeader': 'is_row_header', 'showIndicator': 'show_indicator',
@@ -482,13 +478,6 @@ WONT_PORT = {
     # Browser image-loading attributes with no gpui analogue.
     'Avatar.crossOrigin': 'no-browser-image-attrs',
     'Avatar.loading': 'no-browser-image-attrs',
-    # The success half of the image-events pair. The custom loader this port
-    # uses can observe a successful load, but the port wires only the failure
-    # side (`on_error`) and the fallback -- the parts v3's own examples drive
-    # (`delayMs` on a deliberately broken URL); the failure reason was
-    # recorded as `no-image-load-events` for `delayMs` before either half
-    # existed.
-    'Avatar.onLoad': 'no-image-load-events',
 }
 
 # Which module(s) implement each documented component.

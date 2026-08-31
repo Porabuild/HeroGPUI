@@ -5,6 +5,7 @@ An excuse recorded once and never revisited is how a gap hides. This prints, for
 each excluded prop, the components that document it and the doc row, so each
 reason can be checked against what the prop actually is.
 """
+import contextlib
 import io
 import os
 import re
@@ -24,6 +25,7 @@ FILES = eval(re.search(r'^FILES = \{.*?^\}', audit, re.M | re.S).group(0)[8:])
 WONT = eval(re.search(r'^WONT_PORT = \{.*?^\}', audit, re.M | re.S).group(0)[12:])
 
 only = set(sys.argv[1:])
+PROP_IDENTIFIER = r'[a-zA-Z_][a-zA-Z0-9_-]*'
 
 # prop -> {component: description}
 where = {}
@@ -41,7 +43,9 @@ for comp in FILES:
              for m in re.finditer(r'^[ \t]*### (.+?)[ \t]*$', owners[0], re.M)]
     for i, (at, heading) in enumerate(heads):
         chunk = owners[0][at:heads[i + 1][0]] if i + 1 < len(heads) else owners[0][at:]
-        for row in re.finditer(r'^\|\s*`([a-zA-Z-]+)`\s*\|([^\n]*)$', chunk, re.M):
+        for row in re.finditer(
+                r'^\|\s*`(%s)`\s*\|([^\n]*)$' % PROP_IDENTIFIER,
+                chunk, re.M):
             prop, desc = row.group(1), re.sub(r'\s+', ' ', row.group(2)).strip()
             # Skip the translated duplicates.
             if re.search(r'[一-鿿]', desc):
@@ -76,7 +80,8 @@ for comp in FILES:
             if second not in A.PROP_HEADERS:
                 continue
             for row in re.finditer(
-                    r'^\|\s*`([A-Za-z][A-Za-z0-9.]*)`\s*\|\s*`([a-zA-Z-]+)`\s*\|([^\n]*)$',
+                    r'^\|\s*`([A-Za-z][A-Za-z0-9.]*)`\s*\|\s*`(%s)`\s*\|([^\n]*)$'
+                    % PROP_IDENTIFIER,
                     tbl.group('body'), re.M):
                 prop = row.group(2)
                 desc = re.sub(r'\s+', ' ', row.group(3)).strip()
@@ -85,6 +90,61 @@ for comp in FILES:
                     continue
                 where.setdefault(prop, {}).setdefault(
                     row.group(1).split('.')[0], (heading, desc))
+
+
+def print_entry(key, comps):
+    print('  %s' % key)
+    for comp, (heading, desc) in sorted(comps.items()):
+        print('      %-22s %-26s %s' % (comp, heading, desc[:110]))
+    if not comps:
+        print('      (no matching doc row -- stale entry?)')
+
+
+def self_test():
+    """Known-positive and known-negative proof for omission-row matching.
+
+    The live positive is the omission that exposed this reader hole. An
+    unrelated key must remain absent so the stale-entry report cannot be
+    replaced with a broad or silent match.
+    """
+    failures = []
+
+    def expect(condition, message):
+        if not condition:
+            failures.append(message)
+
+    portal = where.get('UNSTABLE_portalContainer', {})
+    expect(set(portal) == {'AlertDialog', 'Modal'},
+           'documented UNSTABLE_portalContainer row did not resolve for both '
+           'backdrops: %r' % (portal,))
+    expect(portal.get('AlertDialog', (None,))[0] == 'AlertDialog.Backdrop',
+           'AlertDialog portal row resolved under the wrong heading: %r'
+           % (portal.get('AlertDialog'),))
+    expect(portal.get('Modal', (None,))[0] == 'Modal.Backdrop',
+           'Modal portal row resolved under the wrong heading: %r'
+           % (portal.get('Modal'),))
+
+    stale = 'UNSTABLE_unknownPortalContainer'
+    stale_output = io.StringIO()
+    with contextlib.redirect_stdout(stale_output):
+        print_entry(stale, where.get(stale, {}))
+    expect(stale not in where and
+           '(no matching doc row -- stale entry?)' in stale_output.getvalue(),
+           'unknown omission key no longer produces the stale-entry report')
+
+    if failures:
+        print('self-test FAIL')
+        for failure in failures:
+            print('- %s' % failure)
+        return 1
+    print('self-test PASS: documented UNSTABLE_portalContainer resolves for '
+          'AlertDialog and Modal; unknown omission keys still print the '
+          'stale-entry marker')
+    return 0
+
+
+if __name__ == '__main__' and '--self-test' in sys.argv[1:]:
+    sys.exit(self_test())
 
 by_reason = {}
 for key, reason in WONT.items():
@@ -129,8 +189,4 @@ for reason in sorted(by_reason):
             print('  %s  (implemented by %s; this entry covers the others)'
                   % (key, ', '.join(sorted(live))))
         comps = {c: v for c, v in comps.items() if c not in live}
-        print('  %s' % key)
-        for comp, (heading, desc) in sorted(comps.items()):
-            print('      %-22s %-26s %s' % (comp, heading, desc[:110]))
-        if not comps:
-            print('      (no matching doc row -- stale entry?)')
+        print_entry(key, comps)

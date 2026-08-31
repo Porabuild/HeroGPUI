@@ -506,8 +506,14 @@ EXTRA_OK_SCOPED = {
     'Pagination.summary': 'composition',
     'Pagination.previous_icon': 'composition',
     'Pagination.next_icon': 'composition',
-    # v3's Avatar composes `<Avatar.Fallback>JD</Avatar.Fallback>`.
+    # v3's Avatar composes `<Avatar.Fallback>JD</Avatar.Fallback>`; `fallback`
+    # is its children form and `fallback_color` is `Avatar.Fallback.color`.
     'Avatar.name': 'composition',
+    'Avatar.fallback': 'composition',
+    'Avatar.fallback_color': 'composition',
+    # The initials helper behind the default `Avatar.Fallback`; v3 derives
+    # initials inside its Radix avatar, with no prop to call.
+    'Avatar.initials': 'composition',
     # v3 composes these as typed child parts -- `<InputGroup.Prefix>`,
     # `<InputGroup.Input>`, `<DateField.Suffix>`. gpui has no JSX, so a named
     # slot is a builder. `InputGroup.input` takes an `Input` rather than an

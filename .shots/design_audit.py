@@ -246,8 +246,7 @@ CHECKS = [
      SRC + 'accordion.rs',
      r'px\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('alert', '.alert__indicator', 'p', 'Alert indicator padding',
-     SRC + 'alert.rs',
-     r'`\.alert__indicator` is a `p-1` box[\s\S]{0,160}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     SRC + 'alert.rs', 'alert_indicator_padding', None),
     ('textfield', '.textfield', 'gap', 'textfield field column gap',
      SRC + 'input.rs',
      r'let mut el = gpui::div\(\)\.flex\(\)\.flex_col\(\)\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -433,7 +432,7 @@ CHECKS = [
      r'let \(cell_w, cell_h, text, slot_gap\) = \(px\(38\.\), px\(40\.\), px\(14\.\), px\((\d+(?:\.\d*)?)\.\)', None),
     ('search-field', '.search-field__clear-button', 'size', 'Clear button box',
      SRC + 'input.rs',
-     r'input-clear-[\s\S]{0,560}?\.size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'let clear_box = px\((\d+(?:\.\d*)?)\.\)', None),
     ('range-calendar', '.range-calendar', 'w', 'RangeCalendar width',
      SRC + 'range_calendar.rs',
      r'crate::calendar::(CALENDAR_WIDTH)', lambda _: 252.0),
@@ -589,7 +588,9 @@ CHECKS = [
     ('avatar', '.avatar--sm', 'radius', 'Avatar Sm -> util::_radius', SRC + 'avatar.rs',
      r'if self\.small [\s\S]{0,40}?crate::util::(\w+_radius)', helper_px),
     ('avatar', '.avatar__fallback', 'text', 'Avatar fallback text', SRC + 'avatar.rs',
-     r'`\.avatar__fallback` is `text-sm`[\s\S]{0,80}?let font = px\((\d+(?:\.\d*)?)\.\)', None),
+     'avatar_fallback_text_sm', None),
+    ('avatar', '.avatar--lg .avatar__fallback', 'text', 'Avatar Lg fallback text',
+     SRC + 'avatar.rs', 'avatar_fallback_text_lg', None),
     ('alert', '.alert__description', 'text', 'Alert description text', SRC + 'alert.rs',
      r'`\.alert__description` is `text-sm`\.[\s\S]{0,40}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('accordion', '.accordion__indicator', 'size', 'Accordion indicator', SRC + 'accordion.rs',
@@ -1077,6 +1078,8 @@ CHECKS = [
      '\\.px\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
     ('alert', '.alert', 'py', 'Alert padding_y', SRC + 'alert.rs',
      '\\.py\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
+    ('alert', '.alert', 'radius', 'Alert -> util::_radius', SRC + 'alert.rs',
+     '\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
     ('link', '.link', 'radius', 'Link -> util::_radius', SRC + 'link.rs',
      '\\.rounded\\(crate::util::(\\w+_radius)\\(cx\\)\\)', helper_px),
     ('badge', '.badge', 'min_w', 'Badge min width Md', SRC + 'badge.rs',
@@ -1085,6 +1088,10 @@ CHECKS = [
      '\\n            \\.px\\(px\\((\\d+(?:\\.\\d*)?)\\)\\)', None),
     ('fieldset', '.fieldset', 'gap', 'Fieldset gap', SRC + 'field.rs',
      '\\n            gap: px\\((\\d+(?:\\.\\d*)?)\\),', None),
+    ('fieldset', '.fieldset__field_group', 'gap', 'Fieldset group gap', SRC + 'field.rs',
+     r'impl FieldGroup \{[\s\S]{0,160}?gap: px\((\d+(?:\.\d*)?)\.\)', None),
+    ('fieldset', '.fieldset__actions', 'pt', 'Fieldset actions pt', SRC + 'field.rs',
+     r'`\.fieldset__actions` is `gap-2 pt-1`[\s\S]{0,120}?\.pt\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('checkbox', '.checkbox__control', 'size', 'Checkbox control', SRC + 'checkbox.rs',
      'let \\(box_px, icon_px, text\\) = \\(px\\((\\d+(?:\\.\\d*)?)\\)', None),
     ('checkbox', '.checkbox__control', 'radius', 'Checkbox -> util::_radius', SRC + 'checkbox.rs',
@@ -1360,6 +1367,15 @@ CHECKS = [
     ('slider', '.slider[data-orientation="vertical"] .slider__thumb::after', 'h',
      'Slider vertical inner thumb height', SRC + 'slider.rs',
      r'inner\.w\(px\(16\. \* scale\)\)\.h\(px\((\d+(?:\.\d*)?)\. \* scale\)\)', None),
+    # The 12px axis borders are why the fill and thumb percentages resolve
+    # against an inset content box: `border-x-[0.75rem]` / `border-y-[0.75rem]`
+    # is half the 24px inner thumb, and both orientations share one constant.
+    ('slider', '.slider[data-orientation="horizontal"] .slider__track', 'border_x',
+     'Slider horizontal track start/end border inset', SRC + 'slider.rs',
+     'slider_axis_inset_horizontal', None),
+    ('slider', '.slider[data-orientation="vertical"] .slider__track', 'border_y',
+     'Slider vertical track top/bottom border inset', SRC + 'slider.rs',
+     'slider_axis_inset_vertical', None),
     ('switch', '.switch', 'gap', 'Switch content/description gap', SRC + 'switch.rs',
      r'Description and FieldError are direct siblings of Switch\.Content\.[\s\S]{0,300}?'
      r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -1701,6 +1717,8 @@ NESTED_SELECTOR_CHAINS = {
         '.progress-circle--lg', '.progress-circle__track'),
     ('progress-circle', '.progress-circle__track-circle'): (
         '.progress-circle', '.progress-circle__track-circle'),
+    ('avatar', '.avatar--lg .avatar__fallback'): (
+        '.avatar--lg', '.avatar__fallback'),
     ('tabs', '.tabs__list[data-orientation="vertical"]'): (
         '.tabs__list', '&[data-orientation="vertical"]'),
     ('tabs', '.tabs__list[data-orientation="vertical"] .tabs__tab'): (
@@ -1822,6 +1840,162 @@ def resolve_width(expr):
     return None
 
 
+def _blank_comments(chunk):
+    """Replace comment text with spaces while preserving source positions."""
+    return ''.join(ch if ch in '\r\n' else ' ' for ch in chunk)
+
+
+def _quoted_end(source, index):
+    """Return the end of a quoted string, or None when it is unterminated."""
+    quote = source[index]
+    cursor = index + 1
+    while cursor < len(source):
+        if source[cursor] == '\\':
+            cursor += 2
+        elif source[cursor] == quote:
+            return cursor + 1
+        else:
+            cursor += 1
+    return None
+
+
+def _raw_string_end(source, index):
+    """Return the end of a Rust raw string beginning at `index`, if any."""
+    if source.startswith('br', index):
+        raw = index + 1
+    elif source.startswith('r', index):
+        raw = index
+    else:
+        return None
+    if index and (source[index - 1].isalnum() or source[index - 1] == '_'):
+        return None
+    cursor = raw + 1
+    while cursor < len(source) and source[cursor] == '#':
+        cursor += 1
+    if cursor >= len(source) or source[cursor] != '"':
+        return None
+    close = '"' + '#' * (cursor - raw - 1)
+    end = source.find(close, cursor + 1)
+    return end + len(close) if end >= 0 else None
+
+
+def _char_literal_end(source, index):
+    match = re.match(r"'(?:\\.|[^\\'])'", source[index:])
+    return index + match.end() if match else None
+
+
+def _literal_end(source, index):
+    return _quoted_end(source, index) if source[index] == '"' \
+        else _char_literal_end(source, index)
+
+
+def mask_literals(source):
+    """Return same-length source with normal and raw literals blanked."""
+    out = list(source)
+    cursor = 0
+    n = len(source)
+    while cursor < n:
+        raw_end = _raw_string_end(source, cursor)
+        if raw_end is not None:
+            out[cursor:raw_end] = _blank_comments(source[cursor:raw_end])
+            cursor = raw_end
+            continue
+        if source[cursor] == '"':
+            end = _quoted_end(source, cursor)
+            if end is None:
+                raise ValueError('unterminated string literal')
+            out[cursor:end] = _blank_comments(source[cursor:end])
+            cursor = end
+            continue
+        char_end = _char_literal_end(source, cursor) if source[cursor] == "'" else None
+        if char_end is not None:
+            out[cursor:char_end] = _blank_comments(source[cursor:char_end])
+            cursor = char_end
+            continue
+        cursor += 1
+    return ''.join(out)
+
+
+def mask_comments(source):
+    """Return same-length source with Rust/CSS comments structurally blanked.
+
+    Rust block comments nest. Quoted and raw string contents are skipped so a
+    comment marker in a literal cannot hide a real declaration after it.
+    """
+    out = list(source)
+    cursor = 0
+    n = len(source)
+    while cursor < n:
+        raw_end = _raw_string_end(source, cursor)
+        if raw_end is not None:
+            cursor = raw_end
+            continue
+        if source[cursor] == '"':
+            end = _quoted_end(source, cursor)
+            if end is None:
+                raise ValueError('unterminated string literal')
+            cursor = end
+            continue
+        char_end = _char_literal_end(source, cursor) if source[cursor] == "'" else None
+        if char_end is not None:
+            cursor = char_end
+            continue
+        if source.startswith('//', cursor):
+            end = source.find('\n', cursor)
+            end = n if end < 0 else end
+            out[cursor:end] = _blank_comments(source[cursor:end])
+            cursor = end
+            continue
+        if source.startswith('/*', cursor):
+            depth = 1
+            end = cursor + 2
+            while end < n and depth:
+                if source.startswith('/*', end):
+                    depth += 1
+                    end += 2
+                elif source.startswith('*/', end):
+                    depth -= 1
+                    end += 2
+                else:
+                    end += 1
+            if depth:
+                raise ValueError('unterminated block comment')
+            out[cursor:end] = _blank_comments(source[cursor:end])
+            cursor = end
+            continue
+        cursor += 1
+    return ''.join(out)
+
+
+def _balanced_delimiter_end(source, opening, opening_char, closing_char, limit=None):
+    """Return the index after the delimiter matching `opening`, or None."""
+    limit = len(source) if limit is None else min(limit, len(source))
+    depth = 1
+    cursor = opening + 1
+    while cursor < limit:
+        raw_end = _raw_string_end(source, cursor)
+        if raw_end is not None:
+            cursor = raw_end
+            continue
+        if source[cursor] in '"\'':
+            end = _literal_end(source, cursor)
+            if end is not None:
+                cursor = end
+                continue
+        if source[cursor] == opening_char:
+            depth += 1
+        elif source[cursor] == closing_char:
+            depth -= 1
+            if depth == 0:
+                return cursor + 1
+        cursor += 1
+    return None
+
+
+def _balanced_block_end(source, opening, limit=None):
+    return _balanced_delimiter_end(source, opening, '{', '}', limit)
+
+
 def rule_body(css, selector):
     """The body of exactly one rule, e.g. `.button` or `.button--lg`.
 
@@ -1832,26 +2006,45 @@ def rule_body(css, selector):
     description's size.
     """
     body = rule_block(css, selector)
-    if body is None:
-        return None
-    nested = body.find('{')
-    return body[:nested] if nested >= 0 else body
+    return _direct_css_body(body) if body is not None else None
+
+
+def _direct_css_body(body):
+    """Keep declarations in a rule while removing nested child blocks."""
+    parts = []
+    segment = 0
+    cursor = 0
+    while cursor < len(body):
+        raw_end = _raw_string_end(body, cursor)
+        if raw_end is not None:
+            cursor = raw_end
+            continue
+        if body[cursor] in '"\'':
+            end = _literal_end(body, cursor)
+            if end is not None:
+                cursor = end
+                continue
+        if body[cursor] == '{':
+            child_end = _balanced_block_end(body, cursor)
+            if child_end is None:
+                return None
+            parts.append(body[segment:cursor])
+            cursor = child_end
+            segment = cursor
+            continue
+        cursor += 1
+    parts.append(body[segment:])
+    return ''.join(parts)
 
 
 def rule_block(css, selector):
     """Return one balanced CSS rule body, including nested rules."""
+    css = mask_comments(css)
     match = re.search(r'^' + re.escape(selector) + r'\s*\{', css, re.M)
     if not match:
         return None
-    depth = 1
-    index = match.end()
-    while index < len(css) and depth:
-        if css[index] == '{':
-            depth += 1
-        elif css[index] == '}':
-            depth -= 1
-        index += 1
-    return css[match.end() : index - 1] if depth == 0 else None
+    end = _balanced_block_end(css, match.end() - 1)
+    return css[match.end():end - 1] if end is not None else None
 
 
 def nested_rule_body(css, parent, selector):
@@ -1863,15 +2056,8 @@ def nested_rule_body(css, parent, selector):
     if not match:
         return None
     start = match.end()
-    depth = 1
-    index = start
-    while index < len(parent_body) and depth:
-        if parent_body[index] == '{':
-            depth += 1
-        elif parent_body[index] == '}':
-            depth -= 1
-        index += 1
-    return parent_body[start : index - 1] if depth == 0 else None
+    end = _balanced_block_end(parent_body, match.end() - 1)
+    return parent_body[start:end - 1] if end is not None else None
 
 
 def nested_rule_chain(css, selectors):
@@ -1887,18 +2073,110 @@ def nested_rule_chain(css, selectors):
             return None
         match = matches[-1] if use_last else matches[0]
         start = match.end()
-        depth = 1
-        index = start
-        while index < len(body) and depth:
-            if body[index] == '{':
-                depth += 1
-            elif body[index] == '}':
-                depth -= 1
-            index += 1
-        if depth:
+        end = _balanced_block_end(body, match.end() - 1)
+        if end is None:
             return None
-        body = body[start:index - 1]
+        body = body[start:end - 1]
     return body
+
+
+def _split_css_selectors(header):
+    """Split a CSS selector list without splitting commas in functions."""
+    selectors = []
+    start = 0
+    parens = brackets = 0
+    quote = None
+    escaped = False
+    for index, char in enumerate(header):
+        if quote:
+            if escaped:
+                escaped = False
+            elif char == '\\':
+                escaped = True
+            elif char == quote:
+                quote = None
+            continue
+        if char in '\"\'':
+            quote = char
+        elif char == '(':
+            parens += 1
+        elif char == ')':
+            parens = max(0, parens - 1)
+        elif char == '[':
+            brackets += 1
+        elif char == ']':
+            brackets = max(0, brackets - 1)
+        elif char == ',' and not parens and not brackets:
+            selectors.append(header[start:index])
+            start = index + 1
+    selectors.append(header[start:])
+    return [re.sub(r'\s+', ' ', selector).strip()
+            for selector in selectors if selector.strip()]
+
+
+def _combine_css_selectors(parents, children):
+    if not parents:
+        return children
+    combined = []
+    for parent in parents:
+        for child in children:
+            combined.append(child.replace('&', parent)
+                           if '&' in child else parent + ' ' + child)
+    return combined
+
+
+def coverage_rule_bodies(css, roots_only=False):
+    """Return each nested CSS rule as `(effective selector, direct body)`.
+
+    A parent body contributes only declarations before/after child rules, so a
+    nested reset cannot overwrite a parent metric. Effective selectors are
+    expanded through `&` and descendant nesting; each physical rule is visited
+    once. `roots_only` retains the direct stylesheet-rule inventory used by the
+    summary coverage denominator.
+    """
+    css = mask_comments(css)
+    rules = []
+
+    def direct_body(opening, closing):
+        return _direct_css_body(css[opening + 1:closing])
+
+    def visit(start, closing, parents):
+        statement = start
+        cursor = start
+        while cursor < closing:
+            raw_end = _raw_string_end(css, cursor)
+            if raw_end is not None:
+                cursor = raw_end
+                continue
+            if css[cursor] in '"\'':
+                end = _literal_end(css, cursor)
+                if end is not None:
+                    cursor = end
+                    continue
+            if css[cursor] == ';':
+                statement = cursor + 1
+            elif css[cursor] == '{':
+                child_end = _balanced_block_end(css, cursor, closing)
+                if child_end is None:
+                    return
+                header = css[statement:cursor].strip()
+                if header.startswith('@'):
+                    child_parents = parents
+                else:
+                    children = _split_css_selectors(header)
+                    child_parents = _combine_css_selectors(parents, children)
+                    body = direct_body(cursor, child_end - 1)
+                    if body is not None and (not roots_only or not parents):
+                        emitted = child_parents[-1:] if roots_only else child_parents
+                        rules.extend((selector, body) for selector in emitted)
+                visit(cursor + 1, child_end - 1, child_parents)
+                cursor = child_end
+                statement = cursor
+                continue
+            cursor += 1
+
+    visit(0, len(css), [])
+    return rules
 
 
 def utilities(body):
@@ -2017,7 +2295,8 @@ def measure(body, inherited_leading=None):
                                    ('py-', 'py'), ('gap-', 'gap'), ('p-', 'p'),
                                    ('size-', 'size'), ('min-w-', 'min_w'),
                                    ('mt-', 'mt'), ('ms-', 'ms'), ('min-h-', 'min_h'),
-                                   ('ps-', 'ps'), ('leading-', 'leading')):
+                                   ('ps-', 'ps'), ('leading-', 'leading'),
+                                   ('pt-', 'pt'), ('space-y-', 'gap')):
                 if tok.startswith(prefix):
                     v = px(tok[len(prefix):])
                     if v is not None:
@@ -2043,6 +2322,10 @@ def measure(body, inherited_leading=None):
                     v = resolve_width(m.group(1))
                     if v is not None:
                         offer('border', v, bp)
+            m = re.fullmatch(r'border-([xy])-\[(\d+(?:\.\d*)?)(rem|px)\]', tok)
+            if m:
+                offer('border_' + m.group(1),
+                      float(m.group(2)) * (16.0 if m.group(3) == 'rem' else 1.0), bp)
             if tok.startswith('rounded-') and tok[8:] in RADIUS:
                 offer('radius', RADIUS[tok[8:]], bp)
             # Tailwind's logical corners spell a two-corner radius
@@ -2131,6 +2414,16 @@ def measure(body, inherited_leading=None):
 
 
 def our_value(path, pattern, transform):
+    if pattern == 'alert_indicator_padding':
+        return alert_indicator_padding(path)
+    if pattern == 'avatar_fallback_text_sm':
+        return avatar_fallback_text(path, False)
+    if pattern == 'avatar_fallback_text_lg':
+        return avatar_fallback_text(path, True)
+    if pattern == 'slider_axis_inset_horizontal':
+        return slider_axis_inset(path, False)
+    if pattern == 'slider_axis_inset_vertical':
+        return slider_axis_inset(path, True)
     try:
         src = io.open(path, encoding='utf-8').read()
     except OSError:
@@ -2146,20 +2439,14 @@ def our_value(path, pattern, transform):
 
 def rust_blocks_after(source, marker):
     """Yield balanced Rust blocks whose opening statement contains marker."""
+    source = mask_literals(mask_comments(source))
     for match in re.finditer(re.escape(marker), source):
         opening = source.find('{', match.end())
         if opening < 0:
             continue
-        depth = 1
-        index = opening + 1
-        while index < len(source) and depth:
-            if source[index] == '{':
-                depth += 1
-            elif source[index] == '}':
-                depth -= 1
-            index += 1
-        if depth == 0:
-            yield source[opening + 1:index - 1]
+        end = _balanced_block_end(source, opening)
+        if end is not None:
+            yield source[opening + 1:end - 1]
 
 
 def contextual_our_value(path, selector):
@@ -2179,6 +2466,188 @@ def contextual_our_value(path, selector):
         if match:
             return float(match.group(1))
     return None
+
+
+def _brace_depth_at(source, start, index):
+    depth = 0
+    cursor = start
+    while cursor < index:
+        if source[cursor] == '{':
+            depth += 1
+        elif source[cursor] == '}':
+            depth -= 1
+        cursor += 1
+    return depth
+
+
+def slider_axis_inset_from(source, vertical):
+    """Read the inset only from the matching Slider content branch."""
+    source = mask_literals(mask_comments(source))
+    branch = re.search(r'\bcontent\s*=\s*if\s+vertical\s*\{', source)
+    if not branch:
+        return None
+    function = None
+    for match in re.finditer(r'\bfn\s+[A-Za-z_][A-Za-z0-9_]*[^\{]*\{', source):
+        opening = match.end() - 1
+        end = _balanced_block_end(source, opening)
+        if end is not None and opening < branch.start() < end:
+            if function is None or opening > function[0]:
+                function = (opening, end)
+    if function is None:
+        return None
+    declaration = None
+    function_start, function_end = function
+    branch_depth = _brace_depth_at(source, function_start + 1, branch.start())
+    for match in re.finditer(
+            r'\blet\s+axis_inset\s*=\s*px\((\d+(?:\.\d*)?)\.\)\s*;',
+            source[function_start + 1:branch.start()]):
+        absolute = function_start + 1 + match.start()
+        if _brace_depth_at(source, function_start + 1, absolute) == branch_depth:
+            declaration = match
+    if declaration is None:
+        return None
+    vertical_open = source.find('{', branch.start())
+    vertical_end = _balanced_block_end(source, vertical_open)
+    if vertical_end is None:
+        return None
+    else_match = re.match(r'\s*else\s*\{', source[vertical_end:])
+    if not else_match:
+        return None
+    else_open = vertical_end + else_match.end() - 1
+    else_end = _balanced_block_end(source, else_open, function_end)
+    if else_end is None:
+        return None
+    body = source[vertical_open + 1:vertical_end - 1] if vertical else \
+        source[else_open + 1:else_end - 1]
+    required = ('top', 'bottom') if vertical else ('left', 'right')
+    if not all(re.search(r'\.' + name + r'\(\s*axis_inset\s*\)', body)
+               for name in required):
+        return None
+    return float(declaration.group(1))
+
+
+def slider_axis_inset(path, vertical):
+    """File adapter: read a Slider orientation's content-box inset."""
+    try:
+        source = io.open(path, encoding='utf-8').read()
+    except OSError:
+        return None
+    return slider_axis_inset_from(source, vertical)
+
+
+def skip_ws_and_comments(source, index):
+    """Advance past whitespace and Rust comments."""
+    while index < len(source):
+        if source[index].isspace():
+            index += 1
+            continue
+        if source.startswith('//', index):
+            end = source.find('\n', index)
+            index = len(source) if end < 0 else end + 1
+            continue
+        if source.startswith('/*', index):
+            end = source.find('*/', index + 2)
+            if end < 0:
+                return len(source)
+            index = end + 2
+            continue
+        break
+    return index
+
+
+def builder_chain_methods(source, index):
+    """Yield chain-level `.name(args)` calls starting after `div()`."""
+    ident = re.compile(r'\.([A-Za-z_][A-Za-z0-9_]*)\(')
+    while True:
+        index = skip_ws_and_comments(source, index)
+        match = ident.match(source, index)
+        if not match:
+            return
+        args_start = match.end()
+        end = _balanced_delimiter_end(source, args_start - 1, '(', ')')
+        if end is None:
+            return
+        yield match.group(1), source[args_start:end - 1]
+        index = end
+
+
+def indicator_padding_from(source):
+    """Read Alert indicator padding from its owning builder chain."""
+    source = mask_comments(source)
+    candidate_source = mask_literals(source)
+    padding_args = re.compile(r'\A\s*px\((\d+(?:\.\d*)?)\.\)\s*\Z')
+    selector_args = re.compile(
+        r'\A\s*\|\|\s*"alert-indicator"\s*\.to_owned\(\)\s*\Z')
+    for opening in re.finditer(r'(?<![A-Za-z0-9_])(?:gpui::)?div\(\)',
+                               candidate_source):
+        padding = None
+        owns_indicator = False
+        for name, args in builder_chain_methods(source, opening.end()):
+            if name == 'debug_selector' and selector_args.fullmatch(args):
+                owns_indicator = True
+            if name == 'p':
+                match = padding_args.fullmatch(args)
+                if match:
+                    padding = float(match.group(1))
+        if owns_indicator:
+            return padding
+    return None
+
+
+def alert_indicator_padding(path):
+    """File adapter: read the indicator padding out of alert.rs."""
+    try:
+        source = io.open(path, encoding='utf-8').read()
+    except OSError:
+        return None
+    return indicator_padding_from(source)
+
+
+def strip_cfg_test(source):
+    """Remove balanced `#[cfg(test)]` modules without truncating production."""
+    source = mask_comments(source)
+    searchable = mask_literals(source)
+    while True:
+        match = re.search(r'(?m)^[ \t]*#\[cfg\(test\)\]', searchable)
+        if not match:
+            return source
+        opening = searchable.find('{', match.end())
+        end = _balanced_block_end(source, opening) if opening >= 0 else None
+        if end is None:
+            raise ValueError('unterminated cfg(test) block')
+        source = source[:match.start()] + source[end:]
+        searchable = searchable[:match.start()] + searchable[end:]
+
+
+_AVATAR_FONT_ASSIGN = re.compile(
+    r'(?<![A-Za-z0-9_])let\s+font\s*=\s*if\s+self\.large\s*'
+    r'\{\s*px\((\d+(?:\.\d*)?)\.\)\s*\}\s*'
+    r'else\s*\{\s*px\((\d+(?:\.\d*)?)\.\)\s*\}')
+
+
+def avatar_fallback_text_from(source, large):
+    """Read Avatar fallback text from the production RenderOnce binding."""
+    source = mask_literals(strip_cfg_test(source))
+    match = re.search(r'\bimpl\s+RenderOnce\s+for\s+Avatar\b[^\{]*\{', source)
+    if not match:
+        return None
+    end = _balanced_block_end(source, match.end() - 1)
+    if end is None:
+        return None
+    body = source[match.end():end - 1]
+    match = _AVATAR_FONT_ASSIGN.search(body)
+    if not match:
+        return None
+    return float(match.group(1 if large else 2))
+
+
+def avatar_fallback_text(path, large):
+    """File adapter: read Avatar fallback text size out of avatar.rs."""
+    try:
+        source = io.open(path, encoding='utf-8').read()
+    except OSError:
+        return None
+    return avatar_fallback_text_from(source, large)
 
 
 # Every check above is a number, and a control can match all of them and still
@@ -2687,16 +3156,25 @@ def coverage():
     resets = 0
     for name in sorted(os.listdir(CACHE)):
         if not name.endswith('.css') or name in ('variables.css', 'utilities.css',
-                                                 'shared_theme.css'):
+                                                  'shared_theme.css'):
             continue
         comp = name[:-4]
         css = io.open(os.path.join(CACHE, name), encoding='utf-8', errors='replace').read()
-        for m in re.finditer(r'^\.([a-z0-9_-]+(?:__[a-z0-9-]+)?(?:--[a-z0-9-]+)?)\s*\{',
-                             css, re.M):
-            selector = '.' + m.group(1)
-            body = rule_body(css, selector)
-            if body is None:
+        # The denominator is the same direct class-rule inventory used by the
+        # original audit. The structural reader supplies those root bodies,
+        # while nested parts are covered by their explicit CHECKS rows; keeping
+        # the scopes separate prevents every internal descendant from becoming
+        # a new, unowned coverage claim.
+        simple_selector = re.compile(
+            r'^\.[a-z0-9_-]+(?:__[a-z0-9-]+)?(?:--[a-z0-9-]+)?$')
+        root_rules = coverage_rule_bodies(css, roots_only=True)
+        first_bodies = {}
+        for selector, body in root_rules:
+            first_bodies.setdefault(selector, body)
+        for selector, _body in root_rules:
+            if not simple_selector.fullmatch(selector):
                 continue
+            body = first_bodies[selector]
             for metric, value in sorted(measure(body).items()):
                 if value == 0.0 and (comp, selector, metric) not in checked:
                     resets += 1
@@ -2732,7 +3210,235 @@ def coverage():
     print('UNCHECKED           : %d  (--all lists them)' % len(todo))
 
 
+def self_test():
+    """Exercise the structural readers with positive and red fixtures."""
+    failures = []
+
+    def expect(condition, message):
+        if not condition:
+            failures.append(message)
+
+    def indicator(source):
+        return 'alert = alert.child(\n' + source + ');\n'
+
+    drifted = indicator(
+        '    // `.alert__indicator` is a `p-1` box\n'
+        '    gpui::div().flex().items_center().justify_center()\n'
+        '        .flex_shrink_0().p(px(4.))\n'
+        '        .debug_selector(|| "alert-indicator".to_owned())\n'
+        '        .child(indicator_glyph),\n'
+    )
+    pre_fix = re.compile(
+        r'`\.alert__indicator` is a `p-1` box[\s\S]{0,160}?'
+        r'\.p\(px\((\d+(?:\.\d*)?)\.\)\)')
+    expect(pre_fix.search(drifted) is not None,
+           'the drifted fixture must reproduce the old window match')
+    expect(indicator_padding_from(drifted) == 4.0,
+           'a moved padding call must remain readable')
+
+    selector_first = indicator(
+        '    gpui::div().debug_selector(|| "alert-indicator".to_owned())\n'
+        '        .p(px(4.)).child(indicator_glyph),\n')
+    unprefixed = indicator(
+        '    div().p(px(4.))\n'
+        '        .debug_selector(|| "alert-indicator".to_owned())\n'
+        '        .child(indicator_glyph),\n')
+    missing = indicator(
+        '    gpui::div()\n'
+        '        .debug_selector(|| "alert-indicator".to_owned())\n'
+        '        .child(indicator_glyph),\n')
+    commented = indicator(
+        '    // gpui::div().p(px(4.))\n'
+        '    gpui::div()\n'
+        '        .debug_selector(|| "alert-indicator".to_owned())\n'
+        '        .child(indicator_glyph),\n')
+    block_commented = indicator(
+        '    /* outer comment\n'
+        '       /* nested comment */\n'
+        '       gpui::div().p(px(4.))\n'
+        '           .debug_selector(|| "alert-indicator".to_owned())\n'
+        '    */\n'
+        '    gpui::div()\n'
+        '        .debug_selector(|| "alert-indicator".to_owned())\n'
+        '        .child(indicator_glyph),\n')
+    nested = indicator(
+        '    gpui::div()\n'
+        '        .debug_selector(|| "alert-indicator".to_owned())\n'
+        '        .child(gpui::div().p(px(8.))),\n')
+    parent = indicator(
+        '    gpui::div().p(px(8.))\n'
+        '        .child(gpui::div()\n'
+        '            .debug_selector(|| "alert-indicator".to_owned())\n'
+        '            .child(indicator_glyph)),\n')
+    marker_in_parent = indicator(
+        '    gpui::div()\n'
+        '        .debug_selector(|| { "alert-indicator".to_owned() })\n'
+        '        .p(px(8.)).child(indicator_glyph),\n')
+    other_chain = (
+        'let other = gpui::div().p(px(8.));\n' +
+        indicator(
+            '    gpui::div()\n'
+            '        .debug_selector(|| "alert-indicator".to_owned())\n'
+            '        .child(indicator_glyph),\n'))
+    literal_indicator = (
+        'let docs = r#"gpui::div().p(px(9.))'
+        '.debug_selector(|| "alert-indicator".to_owned())"#;\n')
+    for name, fixture, expected in (
+            ('selector first', selector_first, 4.0),
+            ('unprefixed div', unprefixed, 4.0),
+            ('drifted', drifted, 4.0)):
+        expect(indicator_padding_from(fixture) == expected,
+               '%s indicator chain must be readable' % name)
+    for name, fixture in (
+            ('missing', missing), ('commented', commented),
+            ('block comment', block_commented), ('nested', nested),
+            ('parent', parent), ('marker in parent closure', marker_in_parent),
+            ('other chain', other_chain), ('literal', literal_indicator)):
+        expect(indicator_padding_from(fixture) is None,
+               '%s indicator fixture must stay unreadable' % name)
+    contextual_block = (
+        '/* if dropdown_composition {\n'
+        '       panel = panel.p(px(99.));\n'
+        '   } */\n')
+    expect(list(rust_blocks_after(contextual_block, 'if dropdown_composition')) == [],
+           'a block-commented contextual builder must stay unreadable')
+
+    nested_css = (
+        '.slider {\n'
+        '  @apply p-1;\n'
+        '  &[data-orientation="horizontal"] {\n'
+        '    .slider__track {\n'
+        '      @apply border-x-[0.75rem] border-x-transparent;\n'
+        '      .nested { @apply p-0; }\n'
+        '    }\n'
+        '  }\n'
+        '}\n')
+    rules = coverage_rule_bodies(nested_css)
+    track = [measure(body) for selector, body in rules
+             if selector == '.slider[data-orientation="horizontal"] .slider__track']
+    parent_metrics = [measure(body) for selector, body in rules
+                      if selector == '.slider']
+    expect(measure(rule_body(nested_css, '.slider') or '').get('border_x') is None,
+           'rule_body must isolate direct parent declarations')
+    expect(len(track) == 1 and track[0].get('border_x') == 12.0,
+           'nested slider border must be counted exactly once')
+    expect(len(parent_metrics) == 1 and parent_metrics[0].get('p') == SPACING,
+           'nested reset must not leak into the parent rule')
+
+    axis_source = (
+        'fn render() {\n'
+        '    let axis_inset = px(12.);\n'
+        '    content = if vertical {\n'
+        '        content.top(axis_inset).bottom(axis_inset)\n'
+        '    } else {\n'
+        '        content.left(axis_inset).right(axis_inset)\n'
+        '    };\n'
+        '}\n')
+    old_axis = re.compile(r'let axis_inset = px\((\d+(?:\.\d*)?)\.\)')
+    expect(old_axis.search(axis_source.replace('.left(axis_inset)', '')) is not None,
+           'the old global axis match must reproduce its false positive')
+    expect(slider_axis_inset_from(axis_source, False) == 12.0,
+           'horizontal axis consumption must be readable')
+    expect(slider_axis_inset_from(axis_source, True) == 12.0,
+           'vertical axis consumption must be readable')
+    for use in ('.left(axis_inset)', '.right(axis_inset)'):
+        expect(slider_axis_inset_from(axis_source.replace(use, ''), False) is None,
+               'removing %s must fail the horizontal axis row' % use)
+    for use in ('.top(axis_inset)', '.bottom(axis_inset)'):
+        expect(slider_axis_inset_from(axis_source.replace(use, ''), True) is None,
+               'removing %s must fail the vertical axis row' % use)
+    cross_scope_axis = (
+        'fn other() { let axis_inset = px(99.); }\n' +
+        'fn render() {\n'
+        '    content = if vertical { content.top(axis_inset).bottom(axis_inset) }'
+        ' else { content.left(axis_inset).right(axis_inset) };\n'
+        '}\n')
+    expect(slider_axis_inset_from(cross_scope_axis, False) is None and
+           slider_axis_inset_from(cross_scope_axis, True) is None,
+           'an axis declaration from another function must not satisfy a row')
+
+    source_with_literals = (
+        'let normal = "// /* fake */";\n'
+        'let raw = br#"// /* fake */"#;\n'
+        '// real line comment\n'
+        '/* outer /* nested */ real block */\n'
+        'let value = 1;\n')
+    comments_masked = mask_comments(source_with_literals)
+    literals_masked = mask_literals(comments_masked)
+    expect(len(comments_masked) == len(source_with_literals) and
+           len(literals_masked) == len(source_with_literals),
+           'comment and literal masks must preserve source length')
+    expect('"// /* fake */"' in comments_masked and
+           'br#"// /* fake */"#' in comments_masked,
+           'comment masking must leave normal and raw literal contents alone')
+    expect('let value = 1;' in comments_masked and
+           'real line comment' not in comments_masked and
+           'real block' not in comments_masked,
+           'line and nested block comments must be blanked')
+    expect('fake' not in literals_masked,
+           'normal and byte raw literals must be blanked by the literal mask')
+
+    production = (
+        'impl RenderOnce for Avatar {\n'
+        '    fn render() {\n'
+        '        let font = if self.large { px(16.) } else { px(14.) };\n'
+        '    }\n'
+        '}\n')
+    cfg_first = (
+        '#[cfg(test)]\n'
+        'mod tests {\n'
+        '    let font = if self.large { px(98.) } else { px(97.) };\n'
+        '}\n' + production)
+    cfg_only = '#[cfg(test)]\nmod tests { let font = if self.large { px(98.) } else { px(97.) }; }\n'
+    commented_font = (
+        'impl RenderOnce for Avatar {\n'
+        '    fn render() {\n'
+        '        // let font = if self.large { px(98.) } else { px(97.) };\n'
+        '    }\n}\n')
+    block_commented_font = (
+        'impl RenderOnce for Avatar {\n'
+        '    fn render() {\n'
+        '        /* outer /* nested */ let font = if self.large { px(98.) } else { px(97.) }; */\n'
+        '    }\n}\n')
+    parent_font = (
+        'impl RenderOnce for Avatar {\n'
+        '    fn render() {\n'
+        '        let other = if self.large { px(98.) } else { px(97.) };\n'
+        '    }\n}\n')
+    literal_font = (
+        'impl RenderOnce for Avatar {\n'
+        '    fn render() {\n'
+        '        let docs = r#"let font = if self.large { px(98.) } else { px(97.) };"#;\n'
+        '    }\n}\n')
+    expect(avatar_fallback_text_from(production, False) == TEXT['sm'] and
+           avatar_fallback_text_from(production, True) == TEXT['base'],
+           'production Avatar font assignment must be readable')
+    expect(avatar_fallback_text_from(cfg_first, False) == TEXT['sm'],
+           'production after cfg(test) must remain readable')
+    expect(avatar_fallback_text_from(cfg_only, False) is None,
+           'cfg(test)-only assignment must stay unreadable')
+    for name, fixture in (
+            ('commented', commented_font), ('block comment', block_commented_font),
+            ('other binding', parent_font), ('literal', literal_font)):
+        expect(avatar_fallback_text_from(fixture, False) is None,
+               '%s Avatar assignment must stay unreadable' % name)
+
+    if failures:
+        for failure in failures:
+            print('! self-test: ' + failure)
+        return 1
+    print('self-test PASS: nested CSS coverage stays isolated; horizontal and '
+          'vertical slider insets read their branches; the Alert indicator '
+          'padding reads from its owning builder chain and stays unreadable '
+          'when the call is missing, commented, nested, or in another chain; '
+          'Avatar fallback text reads the production let font assignment and '
+          'ignores cfg(test), comments, parent, and nested matches')
+    return 0
+
+
 def main():
+    if '--self-test' in sys.argv[1:]:
+        return self_test()
     if '--fetch' in sys.argv:
         fetch()
         return
