@@ -201,7 +201,6 @@ impl Gallery {
                              what keep that mapping honest.",
                             cx,
                         ),
-                        code_block(STYLING_CLASSES, cx),
                     ]),
                 ),
             ],
@@ -400,11 +399,12 @@ impl Gallery {
                              and this port removed them too: the numbered 50–900 colour scales, \
                              `content1`–`content4`, the per-component `radius` prop, `color` on \
                              anything that is not a status, `size` on a form field, `isBordered`, \
-                             `isBlurred`, `isStriped`. When one reappears, `extra_audit.py` is what \
-                             catches it.",
+                             `isBlurred`, `isStriped`. Where a v3 name does survive the removal it \
+                             maps straight to snake_case — `isPending` reads as `is_pending` — and \
+                             nothing else is renamed to fit. When one reappears, `extra_audit.py` \
+                             is what catches it.",
                             cx,
                         ),
-                        code_block(DP_V2, cx),
                     ]),
                 ),
             ],
@@ -413,34 +413,24 @@ impl Gallery {
     }
 }
 
-const STYLING_VARIANTS: &str = r#"// v3
-<Button variant="secondary" size="lg">Edit</Button>
-
-// HeroGPUI — same prop names, checked at compile time
+const STYLING_VARIANTS: &str = r#"// Same prop names, checked at compile time.
 Button::new("edit")
     .label("Edit")
     .variant(Variant::Secondary)
     .size(Size::Lg)"#;
 
-const STYLING_STATES: &str = r#"// v3: a selector per state
-<Button className="data-[hovered]:bg-accent-hover" />
-
-// HeroGPUI: the state itself
-div()
+const STYLING_STATES: &str = r#"div()
     .id("row")
     .bg(colors.surface.background)
     .hover(move |s| s.bg(colors.default.soft()))
 
-// Components already do this internally: `anim::hover_fade` is the
-// `transition-colors` equivalent, and a press is `anim::pressed`."#;
+// Components do this internally: `anim::hover_fade` fades the resting
+// surface, and a press is `anim::pressed`."#;
 
-const STYLING_RENDER: &str = r#"// v3
-<Slider>{({ index }) => <Slider.Thumb key={index} />}</Slider>
-
-// HeroGPUI — the closure is handed the value the component computed
-Slider::new("volume")
-    .thumb(|index, _window, _cx| {
-        div().child(format!("thumb {index}")).into_any_element()
+const STYLING_RENDER: &str = r#"// The closure is handed the value the component computed.
+Slider::new("volume", 50.)
+    .thumb(|index, value| {
+        div().child(format!("thumb {index}: {value}")).into_any_element()
     })"#;
 
 const STYLING_WRAPPER: &str = r#"/// A save button, everywhere the same.
@@ -454,29 +444,13 @@ fn save_button(id: impl Into<ElementId>) -> Button {
 // Still a `Button`, so the caller keeps every other prop.
 save_button("save").is_pending(saving).full_width()"#;
 
-const STYLING_CLASSES: &str = r#"// v3 class            -> HeroGPUI
-// .button              -> components::button::Button
-// .button--secondary   -> Button::variant(Variant::Secondary)
-// .button--lg          -> Button::size(Size::Lg)
-// .card__header        -> Card::header(..)
-// .input--secondary    -> Input::variant(FieldVariant::Secondary)
-// --field-radius       -> util::field_radius(cx)
-// --ease-out-fluid     -> anim::Curve::OutFluid"#;
-
 const DP_SEMANTIC: &str = r#"// Hierarchy, not appearance.
 Button::new("save").label("Save")                              // primary
 Button::new("edit").label("Edit").variant(Variant::Secondary)
 Button::new("cancel").label("Cancel").variant(Variant::Tertiary)
 Button::new("del").label("Delete").variant(Variant::Danger)"#;
 
-const DP_COMPOSITION: &str = r#"// v3
-<InputGroup>
-  <InputGroup.Prefix>$</InputGroup.Prefix>
-  <InputGroup.Input placeholder="0.00" />
-  <InputGroup.Suffix>USD</InputGroup.Suffix>
-</InputGroup>
-
-// HeroGPUI — the same parts, as slots. `input` takes an `Input`, not an
+const DP_COMPOSITION: &str = r#"// The same parts, as slots. `input` takes an `Input`, not an
 // element, so the group can strip the field's own chrome.
 InputGroup::new()
     .prefix(InputAddon::new("$"))
@@ -495,10 +469,12 @@ Button::new("go").label("Submitting").is_pending(true)"#;
 const DP_PREDICTABLE: &str = r#"// The same three props, on three different components.
 Button::new("b").size(Size::Lg).is_disabled(true)
 Chip::new().size(Size::Lg).child(ChipLabel::new().child("c"))
-Avatar::new().size(SizeXl::Lg)
+Avatar::new("a").size(Size::Lg)
 
 // And one callback shape everywhere.
-.on_change(|value: &str, _window, _cx| { /* ... */ })"#;
+Switch::new("predictable")
+    .size(Size::Lg)
+    .on_change(|value: bool, _window, _cx| { /* feed value back */ })"#;
 
 const DP_TYPES: &str = r#"// A variant is an enum, so this does not compile:
 //     Button::new("b").variant(Variant::Solid)
@@ -532,11 +508,68 @@ let violet = Theme::builder("violet", Theme::light())
 // `accent.hover()` and `accent.soft()` are the same color-mix
 // expressions v3 uses, so they move with it."#;
 
-const DP_V2: &str = r#"// Gone in v3, and gone here:
-//   content1..content4   -> surface / surface_secondary / surface_tertiary / overlay
-//   default-50..900      -> RoleColor::hover() / soft() / soft_hover()
-//   radius="lg"          -> theme radius tokens
-//   color on a Button    -> variant
-//   size on an Input     -> util::FIELD_HEIGHT (v3 gives fields one height)
-//   isLoading            -> is_pending
-//   Divider / Progress   -> Separator / ProgressBar"#;
+#[cfg(test)]
+pub(super) fn doc_code_blocks() -> Vec<(&'static str, &'static str)> {
+    vec![
+        ("Styling/variants", STYLING_VARIANTS),
+        ("Styling/states", STYLING_STATES),
+        ("Styling/render", STYLING_RENDER),
+        ("Styling/wrapper", STYLING_WRAPPER),
+        ("Design Principles/semantic", DP_SEMANTIC),
+        ("Design Principles/composition", DP_COMPOSITION),
+        ("Design Principles/disclosure", DP_DISCLOSURE),
+        ("Design Principles/predictable", DP_PREDICTABLE),
+        ("Design Principles/types", DP_TYPES),
+        ("Design Principles/separation", DP_SEPARATION),
+        ("Design Principles/custom", DP_CUSTOM),
+    ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The render-prop teaching snippet must match `Slider::new(id, value)`
+    /// and the `thumb(|index, value| el)` closure shape the component crate
+    /// actually exposes — no stale no-arg constructor or `window`/`cx`
+    /// parameters.
+    #[test]
+    fn render_prop_example_matches_slider_api() {
+        assert!(
+            STYLING_RENDER.contains("Slider::new(\"volume\", 50.)"),
+            "Slider example lost its initial value: {STYLING_RENDER}"
+        );
+        assert!(
+            STYLING_RENDER.contains(".thumb(|index, value|"),
+            "thumb closure shape changed: {STYLING_RENDER}"
+        );
+        assert!(!STYLING_RENDER.contains("Slider::new(\"volume\")"));
+        assert!(!STYLING_RENDER.contains("_window"));
+        assert!(!STYLING_RENDER.contains("_cx"));
+    }
+
+    /// Avatar takes a constructor id and the shared `Size` enum; the
+    /// predictability example must keep teaching that exact shape.
+    #[test]
+    fn predictable_example_uses_avatar_id_and_core_size() {
+        assert!(
+            DP_PREDICTABLE.contains("Avatar::new(\"a\").size(Size::Lg)"),
+            "Avatar example shape changed: {DP_PREDICTABLE}"
+        );
+        assert!(!DP_PREDICTABLE.contains("Avatar::new()"));
+        assert!(!DP_PREDICTABLE.contains("SizeXl"));
+    }
+
+    #[test]
+    fn predictable_example_attaches_change_to_a_real_control() {
+        assert!(
+            DP_PREDICTABLE.contains(
+                "Switch::new(\"predictable\")\n    .size(Size::Lg)\n    .on_change(|value: bool, _window, _cx|"
+            ),
+            "callback must be attached to a component with the real on_change API: {DP_PREDICTABLE}"
+        );
+        assert!(!DP_PREDICTABLE.contains(
+            "Avatar::new(\"a\").size(Size::Lg)\n\n// And one callback shape everywhere.\n.on_change("
+        ));
+    }
+}

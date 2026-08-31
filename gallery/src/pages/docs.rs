@@ -7,45 +7,7 @@ use herogpui_theme::ActiveTheme;
 use crate::app::Gallery;
 use crate::pages::{code_block, doc_page, example_frame, para};
 
-impl Gallery {
-    pub fn page_introduction(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
-        let colors = cx.colors();
-        let _ = colors;
-        doc_page(
-            "Introduction",
-            "HeroGPUI is a beautiful, fast and modern cross-platform UI library for Rust. \
-             It is a faithful port of the HeroUI (formerly NextUI) design system to GPUI — \
-             Zed's GPU-accelerated UI framework — matching its component API, theming tokens \
-             and capabilities.",
-            "",
-            vec![
-                (
-                    "Design Principles",
-                    gpui::div()
-                        .flex()
-                        .flex_col()
-                        .gap(px(8.))
-                        .child(para("Beautiful — every component follows the HeroUI design language: soft radii, semantic colors and subtle shadows.", cx))
-                        .child(para("Fast — components are plain data rendered through GPUI's immediate-mode pipeline on the GPU; no DOM, no layout thrash.", cx))
-                        .child(para("Modern — a builder API that feels like React props: Button::new(\"save\").variant(Variant::Primary).on_press(...)", cx))
-                        .child(para("Cross-platform — one codebase for Windows, macOS and Linux.", cx))
-                        .into_any_element(),
-                ),
-                (
-                    "Highlights",
-                    gpui::div().flex().flex_col().gap(px(10.)).children(vec![
-                        feature_row("71 v3 components", "Every component documented at heroui.com/docs/react/components — all themed.", cx),
-                        feature_row("v3 OKLCH tokens", "Semantic roles (default/accent/success/warning/danger) with derived hover and soft variants, light & dark.", cx),
-                        feature_row("Gallery & docs", "This app doubles as living documentation with runnable examples.", cx),
-                    ]).into_any_element(),
-                ),
-            ],
-            cx,
-        )
-    }
-
-    pub fn page_installation(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
-        let main_rs = r#"use gpui::{prelude::*, px, size, App, Application,
+const INSTALL_MAIN_RS: &str = r#"use gpui::{prelude::*, px, size, App, Application,
     Bounds, Render, Window, WindowBounds, WindowOptions};
 use herogpui::prelude::*;
 
@@ -85,12 +47,59 @@ fn main() {
     });
 }"#;
 
+const THEMING_TOKENS: &str = r#"fn my_view(cx: &App) -> impl IntoElement {
+    let primary = cx.role(Color::Accent);
+    div().bg(primary.color).text_color(primary.foreground)
+}"#;
+
+const DARK_MODE_SWITCH: &str = r#"herogpui::theme::use_theme("dark", cx);
+// or
+herogpui::theme::set_theme(my_custom_dark_theme, cx);"#;
+
+impl Gallery {
+    pub fn page_introduction(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
+        let colors = cx.colors();
+        let _ = colors;
+        doc_page(
+            "Introduction",
+            "HeroGPUI is a beautiful, fast and modern cross-platform UI library for Rust. \
+             It is a faithful port of the HeroUI (formerly NextUI) design system to GPUI — \
+             Zed's GPU-accelerated UI framework — matching its component API, theming tokens \
+             and capabilities.",
+            "",
+            vec![
+                (
+                    "Design Principles",
+                    gpui::div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(8.))
+                        .child(para("Beautiful — every component follows the HeroUI design language: soft radii, semantic colors and subtle shadows.", cx))
+                        .child(para("Fast — components are plain data rendered through GPUI's immediate-mode pipeline on the GPU; no DOM, no layout thrash.", cx))
+                        .child(para("Modern — a builder API that feels like React props: Button::new(\"save\").variant(Variant::Primary).on_press(...)", cx))
+                        .child(para("Cross-platform — one codebase for Windows, macOS and Linux.", cx))
+                        .into_any_element(),
+                ),
+                (
+                    "Highlights",
+                    gpui::div().flex().flex_col().gap(px(10.)).children(vec![
+                        feature_row("71 v3 components", "Every component documented at heroui.com/docs/react/components — all themed.", cx),
+                        feature_row("v3 OKLCH tokens", "Semantic roles (default/accent/success/warning/danger) with derived hover and soft variants, light & dark.", cx),
+                        feature_row("Gallery & docs", "This app doubles as living documentation with runnable examples.", cx),
+                    ]).into_any_element(),
+                ),
+            ],
+            cx,
+        )
+    }
+
+    pub fn page_installation(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
         doc_page(
             "Installation",
             "After the first registry release, add HeroGPUI, register its embedded assets and theme provider, then render your first component.",
             "cargo add herogpui # available with v0.1.0",
             vec![
-                ("Setup GPUI", code_block(main_rs, cx)),
+                ("Setup GPUI", code_block(INSTALL_MAIN_RS, cx)),
                 (
                     "Application root",
                     para(
@@ -156,10 +165,7 @@ fn main() {
                 ("Semantic palette (active appearance)", palette.into_any_element()),
                 (
                     "Reading tokens anywhere",
-                    code_block(
-                        "fn my_view(cx: &App) -> impl IntoElement {\n    let primary = cx.role(Color::Accent);\n    div().bg(primary.color).text_color(primary.foreground)\n}",
-                        cx,
-                    ),
+                    code_block(THEMING_TOKENS, cx),
                 ),
             ],
             cx,
@@ -186,10 +192,7 @@ fn main() {
                 ),
                 (
                     "Programmatic switch",
-                    code_block(
-                        "herogpui::theme::use_theme(\"dark\", cx);\n// or\nherogpui::theme::set_theme(my_custom_dark_theme, cx);",
-                        cx,
-                    ),
+                    code_block(DARK_MODE_SWITCH, cx),
                 ),
             ],
             cx,
@@ -280,3 +283,25 @@ fn feature_row(title: &str, desc: &str, cx: &App) -> gpui::AnyElement {
 // keep FONT_FAMILY referenced for docs readers
 #[allow(unused_imports)]
 use crate::app::FONT_FAMILY as _FONT;
+
+#[cfg(test)]
+pub(super) fn doc_code_blocks() -> Vec<(&'static str, &'static str)> {
+    vec![
+        ("Installation/main.rs", INSTALL_MAIN_RS),
+        (
+            "Installation/import",
+            "cargo add herogpui # available with v0.1.0",
+        ),
+        (
+            "Theming/import",
+            "use herogpui::theme::{ThemeProvider, ActiveTheme};",
+        ),
+        ("Theming/tokens", THEMING_TOKENS),
+        (
+            "Dark Mode/import",
+            "herogpui::theme::toggle_light_dark(cx);",
+        ),
+        ("Dark Mode/switch", DARK_MODE_SWITCH),
+        ("Customization/theme", CUSTOM_THEME_SNIPPET),
+    ]
+}

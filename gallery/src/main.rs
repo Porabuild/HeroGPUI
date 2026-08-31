@@ -4,6 +4,7 @@
 mod app;
 mod assets;
 mod control;
+mod highlight;
 mod pages;
 
 use gpui::{

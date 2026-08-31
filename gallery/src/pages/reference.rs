@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::OnceLock;
 
 use gpui::{prelude::*, px, AnyElement, App};
 use herogpui_theme::ActiveTheme;
@@ -20,6 +21,13 @@ pub fn panels(
     examples: &[(&str, AnyElement, &str)],
     cx: &App,
 ) -> Vec<(&'static str, AnyElement)> {
+    if !REFERENCE_PANEL_HEADINGS
+        .iter()
+        .any(|heading| crate::control::section_wanted(heading, cx))
+    {
+        return Vec::new();
+    }
+
     if let Some(metadata) = reference_metadata::for_import(import_line) {
         return metadata_panels(metadata, cx);
     }
@@ -76,11 +84,62 @@ struct DetailRow {
     cells: [String; 4],
 }
 
-fn metadata_panels(
+const REFERENCE_PANEL_HEADINGS: &[&str] = &[
+    "Styling Reference",
+    "API Reference",
+    "Element Composition & Callbacks",
+    "Parts & Slots",
+    "States",
+];
+
+struct DisplayMetadata {
+    api: Vec<DetailRow>,
+    parts: Vec<DetailRow>,
+    states: Vec<DetailRow>,
+    styling: Vec<DetailRow>,
+    contract: DetailRow,
+}
+
+static DISPLAY_METADATA: OnceLock<Vec<DisplayMetadata>> = OnceLock::new();
+
+fn display_metadata() -> &'static [DisplayMetadata] {
+    DISPLAY_METADATA.get_or_init(|| {
+        reference_metadata::ALL
+            .iter()
+            .map(|metadata| {
+                let source_count = metadata_source_count(metadata);
+                DisplayMetadata {
+                    api: metadata.api.iter().map(api_display_row).collect(),
+                    parts: metadata.parts.iter().map(part_display_row).collect(),
+                    states: metadata.states.iter().map(state_display_row).collect(),
+                    styling: metadata.styling.iter().map(style_display_row).collect(),
+                    contract: contract_display_row(metadata, source_count),
+                }
+            })
+            .collect()
+    })
+}
+
+fn cached_display_metadata(metadata: &reference_metadata::ReferenceMetadata) -> &DisplayMetadata {
+    let index = display_cache_index(reference_metadata::ALL, metadata)
+        .expect("registered reference metadata has a display cache entry");
+    &display_metadata()[index]
+}
+
+/// Cache slots follow `ALL` order. Identity is `(page, import_line)`, the
+/// same key `for_route` uses — a title-only lookup would collapse two
+/// entries that share a page name. `const ALL` is copied at each use site,
+/// so pointer equality cannot be the key.
+fn display_cache_index(
+    all: &[reference_metadata::ReferenceMetadata],
     metadata: &reference_metadata::ReferenceMetadata,
-    cx: &App,
-) -> Vec<(&'static str, AnyElement)> {
-    let source_count = [
+) -> Option<usize> {
+    all.iter()
+        .position(|entry| entry.page == metadata.page && entry.import_line == metadata.import_line)
+}
+
+fn metadata_source_count(metadata: &reference_metadata::ReferenceMetadata) -> usize {
+    [
         metadata.docs_source,
         metadata.api_source,
         metadata.style_source,
@@ -88,60 +147,39 @@ fn metadata_panels(
     .iter()
     .flat_map(|source| source.split(" + "))
     .filter(|source| !source.is_empty())
-    .count();
-    let part_suffix = if metadata.required_parts.len() == 1 {
-        "part"
-    } else {
-        "parts"
-    };
-    let contract = format!(
-        "{} · HeroUI v{} · source module {} · {} official source links checked in · {} required compound {}",
-        metadata.page,
-        metadata.version,
-        metadata.source_module,
-        source_count,
-        metadata.required_parts.len(),
-        part_suffix
-    );
+    .count()
+}
+
+fn metadata_panels(
+    metadata: &reference_metadata::ReferenceMetadata,
+    cx: &App,
+) -> Vec<(&'static str, AnyElement)> {
+    let display = cached_display_metadata(metadata);
 
     vec![
         (
             "API Reference",
             detail_table(
                 [
-                    "Part / prop",
-                    "Type",
-                    "Rust implementation",
-                    "Default / description",
+                    "Rust owner / prop",
+                    "Value type (translated)",
+                    "Builder / status",
+                    "Default / behavior",
                 ],
-                metadata.api.iter().map(|entry| DetailRow {
-                    cells: [
-                        format!("{}::{}", entry.owner, entry.prop),
-                        entry.ty.to_owned(),
-                        format!(
-                            "{}::{} · {}",
-                            entry.rust_owner,
-                            entry.rust,
-                            entry.status.label()
-                        ),
-                        format!("Default: {} — {}", entry.default, entry.description),
-                    ],
-                }),
+                display.api.iter(),
                 cx,
             ),
         ),
         (
             "Parts & Slots",
             detail_table(
-                ["Part", "Slot", "Rust owner / status", "Description"],
-                metadata.parts.iter().map(|entry| DetailRow {
-                    cells: [
-                        entry.name.to_owned(),
-                        entry.slot.to_owned(),
-                        format!("{} · {}", entry.rust_owner, entry.status.label()),
-                        entry.description.to_owned(),
-                    ],
-                }),
+                [
+                    "Rust owner / part",
+                    "v3 slot (translated)",
+                    "Status",
+                    "Description",
+                ],
+                display.parts.iter(),
                 cx,
             ),
         ),
@@ -151,15 +189,13 @@ fn metadata_panels(
                 empty_panel("v3 documents no interactive states for this component.", cx)
             } else {
                 detail_table(
-                    ["State", "v3 selector", "Rust implementation", "Description"],
-                    metadata.states.iter().map(|entry| DetailRow {
-                        cells: [
-                            entry.state.to_owned(),
-                            entry.selector.to_owned(),
-                            format!("{} · {}", entry.rust, entry.status.label()),
-                            entry.description.to_owned(),
-                        ],
-                    }),
+                    [
+                        "State",
+                        "v3 evidence (translated)",
+                        "Rust implementation",
+                        "Description",
+                    ],
+                    display.states.iter(),
                     cx,
                 )
             },
@@ -168,34 +204,1194 @@ fn metadata_panels(
             "Styling Reference",
             detail_table(
                 [
-                    "CSS class / token",
-                    "v3 value",
+                    "v3 styling target (pinned)",
                     "Rust implementation",
-                    "Description",
+                    "Status",
+                    "Behavior",
                 ],
-                metadata
+                display
                     .styling
                     .iter()
-                    .map(|entry| DetailRow {
-                        cells: [
-                            entry.class_or_token.to_owned(),
-                            entry.value.to_owned(),
-                            format!("{} · {}", entry.rust, entry.status.label()),
-                            entry.description.to_owned(),
-                        ],
-                    })
-                    .chain(std::iter::once(DetailRow {
-                        cells: [
-                            "Contract".to_owned(),
-                            format!("HeroUI v{}", metadata.version),
-                            format!("{source_count} source links"),
-                            contract,
-                        ],
-                    })),
+                    .chain(std::iter::once(&display.contract)),
                 cx,
             ),
         ),
     ]
+}
+
+// ---------------------------------------------------------------------------
+// Display translation
+//
+// The checked-in metadata deliberately mirrors the pinned HeroUI v3.2.4
+// contract, including the React/TypeScript spellings the audits verify. These
+// helpers are the only place that metadata reaches a user, and they translate
+// it at render time: Rust owners and builders are the actionable names,
+// web-only rows are marked as not callable from GPUI, and React/JSX/DOM/CSS
+// jargon is reworded into the pinned upstream evidence it stands for.
+// `forbidden_display_token` and the display tests keep each other honest.
+// ---------------------------------------------------------------------------
+
+fn display_status(status: reference_metadata::ImplementationStatus) -> String {
+    match status {
+        reference_metadata::ImplementationStatus::Unavailable => {
+            "Web-only — not callable from GPUI".to_owned()
+        }
+        other => other.label().to_owned(),
+    }
+}
+
+fn api_display_row(entry: &reference_metadata::ApiDoc) -> DetailRow {
+    let unavailable = entry.status == reference_metadata::ImplementationStatus::Unavailable;
+    DetailRow {
+        cells: [
+            format!("{}::{}", entry.rust_owner, rust_prop_name(entry.prop)),
+            rust_value_type(entry.ty),
+            if unavailable {
+                display_status(entry.status)
+            } else {
+                format!(
+                    "{} · {}",
+                    scrub_phrases(entry.rust),
+                    display_status(entry.status)
+                )
+            },
+            format!(
+                "Default: {} — {}",
+                scrub_prose(entry.default),
+                scrub_prose(entry.description)
+            ),
+        ],
+    }
+}
+
+fn part_display_row(entry: &reference_metadata::PartDoc) -> DetailRow {
+    DetailRow {
+        cells: [
+            format!("{} · {}", entry.rust_owner, class_words(entry.name)),
+            class_words(entry.slot),
+            display_status(entry.status),
+            scrub_prose(entry.description),
+        ],
+    }
+}
+
+fn rust_prop_name(prop: &str) -> String {
+    prop.split(" / ")
+        .map(|prop| match prop {
+            "className" => "style_class".to_owned(),
+            "htmlFor" => "label_for".to_owned(),
+            _ => rust_identifier(prop),
+        })
+        .collect::<Vec<_>>()
+        .join(" / ")
+}
+
+fn rust_identifier(name: &str) -> String {
+    let mut out = String::new();
+    for ch in name.chars() {
+        if ch == '-' || ch == ' ' {
+            if !out.ends_with('_') {
+                out.push('_');
+            }
+        } else if ch.is_ascii_uppercase() {
+            if !out.is_empty() && !out.ends_with('_') {
+                out.push('_');
+            }
+            out.push(ch.to_ascii_lowercase());
+        } else {
+            out.push(ch);
+        }
+    }
+    out.trim_end_matches('_').to_owned()
+}
+
+fn state_display_row(entry: &reference_metadata::StateDoc) -> DetailRow {
+    DetailRow {
+        cells: [
+            entry.state.to_owned(),
+            scrub_prose(entry.selector),
+            format!(
+                "{} · {}",
+                scrub_phrases(entry.rust),
+                display_status(entry.status)
+            ),
+            scrub_prose(entry.description),
+        ],
+    }
+}
+
+fn style_display_row(entry: &reference_metadata::StyleDoc) -> DetailRow {
+    DetailRow {
+        cells: [
+            format!(
+                "{} — {}",
+                scrub_prose(entry.class_or_token),
+                scrub_prose(entry.value)
+            ),
+            scrub_phrases(entry.rust),
+            display_status(entry.status),
+            scrub_prose(entry.description),
+        ],
+    }
+}
+
+fn contract_display_row(
+    metadata: &reference_metadata::ReferenceMetadata,
+    source_count: usize,
+) -> DetailRow {
+    let part_suffix = if metadata.required_parts.len() == 1 {
+        "part"
+    } else {
+        "parts"
+    };
+    DetailRow {
+        cells: [
+            "Pinned contract".to_owned(),
+            format!("HeroUI v{}", metadata.version),
+            format!("{source_count} pinned source links"),
+            format!(
+                "{} · source module {} · {} required compound {} · pinned upstream: {}",
+                metadata.page,
+                metadata.source_module,
+                metadata.required_parts.len(),
+                part_suffix,
+                [
+                    metadata.docs_source,
+                    metadata.api_source,
+                    metadata.style_source,
+                ]
+                .join(" · "),
+            ),
+        ],
+    }
+}
+
+const TYPE_PHRASES: &[(&str, &str)] = &[
+    ("FormEvent<HTMLFormElement>", "form submit event"),
+    ("ChangeEvent<HTMLInputElement>", "change event"),
+    ("ChangeEvent<HTMLTextAreaElement>", "change event"),
+    ("SyntheticEvent<HTMLImageElement>", "web image event"),
+    ("HTMLAttributes", "upstream attributes (not portable)"),
+    ("HTMLFormElement", "form"),
+    ("HTMLInputElement", "field"),
+    ("HTMLTextAreaElement", "field"),
+    ("HTMLButtonElement", "button"),
+    ("HTMLDivElement", "element"),
+    ("HTMLLegendElement", "legend"),
+    ("HTMLFieldSetElement", "fieldset"),
+    ("HTMLImageElement", "image"),
+    ("HTMLElement", "element"),
+    ("RefObject", "element reference (not portable)"),
+    ("ValidityState", "web validity state"),
+    ("DOMRenderFunction", "render closure"),
+    ("RenderFunction", "render closure"),
+    ("ReactNode", "AnyElement"),
+    ("CSSProperties", "upstream style object (not portable)"),
+    ("Iterable<Key>", "iterable of keys"),
+    ("Iterable<T>", "iterable of T"),
+    ("boolean", "bool"),
+];
+
+fn rust_value_type(ty: &str) -> String {
+    let mut out = ty.replace("keyof React.JSX.IntrinsicElements, ", "");
+    out = out.replace("React.", "");
+    for (from, to) in TYPE_PHRASES {
+        out = if *from == "RenderFunction" {
+            replace_glued(&out, from, to)
+        } else {
+            out.replace(from, to)
+        };
+    }
+    scrub_prose(&rust_closures(&out))
+}
+
+/// Replace `from` with `to`, inserting a space when the match is glued to a
+/// preceding identifier (`CheckboxFieldRenderFunction` → `CheckboxField
+/// render closure`).
+fn replace_glued(text: &str, from: &str, to: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(pos) = rest.find(from) {
+        out.push_str(&rest[..pos]);
+        if !out.is_empty()
+            && out
+                .chars()
+                .next_back()
+                .is_some_and(|ch| ch.is_ascii_alphanumeric())
+            && to
+                .chars()
+                .next()
+                .is_some_and(|ch| ch.is_ascii_alphanumeric())
+        {
+            out.push(' ');
+        }
+        out.push_str(to);
+        rest = &rest[pos + from.len()..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Rewrites `(params) => return` arrow shapes as `Fn(params) -> return`.
+fn rust_closures(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(arrow) = rest.find("=>") {
+        let before = &rest[..arrow];
+        let Some(open) = before.rfind('(') else {
+            out.push_str(&rest[..arrow + 2]);
+            rest = &rest[arrow + 2..];
+            continue;
+        };
+        let after = &rest[arrow + 2..];
+        let close = after.find(')').unwrap_or(after.len());
+        out.push_str(&before[..open]);
+        let params = before[open + 1..].trim();
+        let params = params.strip_suffix(')').unwrap_or(params);
+        out.push_str("Fn(");
+        out.push_str(params);
+        out.push_str(") -> ");
+        out.push_str(after[..close].trim());
+        rest = &after[close..];
+    }
+    out.push_str(rest);
+    out.replace("void", "()")
+}
+
+const SCRUB_PHRASES: &[(&str, &str)] = &[
+    // Pinned upstream framework names.
+    ("the React Aria", "the pinned upstream"),
+    ("the pinned React Aria", "the pinned upstream"),
+    ("The pinned React Aria", "The pinned upstream"),
+    (
+        "Pinned React Aria Components 1.20.0",
+        "The pinned upstream 1.20.0",
+    ),
+    (
+        "pinned React Aria Components 1.20.0",
+        "the pinned upstream 1.20.0",
+    ),
+    ("React Aria Components 1.20.0", "the pinned upstream 1.20.0"),
+    ("React Aria/Stately", "the pinned upstream"),
+    ("pinned React Aria's", "the pinned upstream's"),
+    ("React Aria's", "the pinned upstream's"),
+    ("Pinned React Aria", "The pinned upstream"),
+    ("pinned React Aria", "the pinned upstream"),
+    ("React Aria", "the pinned upstream"),
+    ("pinned React Stately", "the pinned upstream"),
+    ("React Stately", "the pinned upstream"),
+    ("React collection nodes", "upstream collection items"),
+    ("a React element", "an upstream element"),
+    ("React element", "upstream element"),
+    ("React prop", "upstream prop"),
+    ("React", "upstream"),
+    // DOM element, attribute, and render substitution.
+    ("DOM element substitution", "upstream element substitution"),
+    ("DOM render seam", "upstream render seam"),
+    ("DOM render override", "upstream render override"),
+    ("DOM render function", "upstream render closure"),
+    (
+        "DOM root substitution",
+        "upstream root-element substitution",
+    ),
+    ("DOM props", "upstream props"),
+    ("DOM attributes", "upstream attributes"),
+    ("DOM classes", "upstream style classes"),
+    ("DOM semantics", "web semantics"),
+    ("DOM isolation", "web isolation"),
+    ("DOM portal", "web portal"),
+    ("DOM form boundary", "web form boundary"),
+    ("DOM form element", "web form element"),
+    ("DOM form owner", "web form owner"),
+    ("DOM id attribute", "web id attribute"),
+    ("DOM id graph", "web id graph"),
+    ("caller DOM id", "caller element id"),
+    ("DOM id", "web element id"),
+    ("DOM nodes", "web elements"),
+    ("DOM part", "web part"),
+    ("DOM pointer-events", "web hit testing"),
+    ("browser DOM root", "browser root element"),
+    ("browser DOM", "the browser's element graph"),
+    ("DOM element", "upstream element"),
+    ("DOM", "web"),
+    ("HTML", "web"),
+    // Pointer and class instructions.
+    ("pointer-events: none", "non-interactive"),
+    ("pointer-events-none", "non-interactive"),
+    ("no pointer-events", "no hit-testing control"),
+    ("pointer-events", "hit testing"),
+    ("className skeleton", "style-class skeleton"),
+    ("through className", "through a style class"),
+    ("className work", "style-class work"),
+    ("className is unavailable", "style classes are unavailable"),
+    ("className", "style class"),
+    // Upstream data flags.
+    ("v3's [data-current] rule", "v3's current-page marker rule"),
+    ("[data-default-icon=true]", "the default-icon flag"),
+    ("[data-current]", "the upstream current-page marker"),
+    (
+        "data-slot=popover-overlay-arrow",
+        "the upstream arrow slot flag",
+    ),
+    ("data-slot", "the upstream slot flag"),
+    ("data-direction", "the upstream direction flag"),
+    ("data-default-icon", "the default-icon flag"),
+    // Raw tokens that leak into prose.
+    ("px-1", "a 4px horizontal inset"),
+    ("shrink-0", "a fixed size"),
+    (" .active", " active"),
+    ("bg-field-hover", "the hover field fill"),
+    ("--field-border-hover", "the hover field border token"),
+    ("--default-hover", "the default hover token"),
+    ("status-disabled", "the disabled status flag"),
+    ("opacity-100", "full opacity"),
+    ("opacity-0", "zero opacity"),
+    (
+        "preventDefault() to customize that focus",
+        "the web-only cancelable-event mechanism to customize that focus",
+    ),
+    ("the FormData", "the submitted name/value record"),
+    ("FormData", "a submitted name/value record"),
+    ("PressEvent", "press event"),
+    ("SyntheticEvent", "web event"),
+    ("FormEvent", "form submit event"),
+    ("ChangeEvent", "change event"),
+    ("MouseEvent", "mouse event"),
+    (
+        "--tooltip-close-delay",
+        "the pinned tooltip close-delay token",
+    ),
+    ("--tooltip-delay", "the pinned tooltip delay token"),
+];
+
+fn scrub_prose(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    loop {
+        match rest.find('`') {
+            Some(open) => {
+                out.push_str(&scrub_plain(&rest[..open]));
+                match rest[open + 1..].find('`') {
+                    Some(close) => {
+                        let span = &rest[open + 1..open + 1 + close];
+                        out.push_str(&scrub_backticked(span));
+                        rest = &rest[open + close + 2..];
+                    }
+                    None => {
+                        out.push('`');
+                        rest = &rest[open + 1..];
+                    }
+                }
+            }
+            None => {
+                out.push_str(&scrub_plain(rest));
+                break;
+            }
+        }
+    }
+    tidy(&mut out);
+    out.trim().to_owned()
+}
+
+fn scrub_backticked(span: &str) -> String {
+    if is_markup_tag_span(span) {
+        return "upstream element".to_owned();
+    }
+    if span.contains("::")
+        || (span.contains('(')
+            && span.ends_with(')')
+            && !span.contains(':')
+            && !span.contains('=')
+            && !span.contains("var(")
+            && !span.starts_with("--"))
+        || (!span.contains('-') && !span.contains('.') && span.contains('_'))
+    {
+        return format!("`{span}`");
+    }
+    if matches!(span, "body-sm" | "sm" | "md" | "lg" | "xs" | "xl") {
+        return format!("`{span}`");
+    }
+    if span.ends_with(".rs") {
+        return "the checked-in reference reader".to_owned();
+    }
+    if span.ends_with(".tsx") || span.ends_with(".css") {
+        return "the pinned upstream source".to_owned();
+    }
+    if span.starts_with('.') || span.contains("__") {
+        return class_words(span);
+    }
+    if span.starts_with("is") && span.chars().nth(2).is_some_and(|ch| ch.is_uppercase()) {
+        return class_words(span);
+    }
+    if span.contains(':')
+        || span.contains('[')
+        || span.contains(']')
+        || span.contains('{')
+        || span.contains('}')
+        || span.contains('=')
+        || span.starts_with("--")
+        || span.contains("var(")
+        || span.contains('.')
+        || span.contains('-')
+    {
+        return "(upstream CSS)".to_owned();
+    }
+    let scrubbed = scrub_plain(span);
+    if forbidden_display_token(&scrubbed).is_some() {
+        "(pinned upstream evidence)".to_owned()
+    } else {
+        scrubbed
+    }
+}
+
+/// Exact-phrase scrubbing only; safe for Rust evidence strings like
+/// `gap(px(16.))`, which the structural passes would reword.
+fn scrub_phrases(text: &str) -> String {
+    let mut out = text.to_owned();
+    for (from, to) in SCRUB_PHRASES {
+        if from.chars().all(|ch| ch.is_ascii_alphanumeric()) {
+            out = replace_word(&out, from, to);
+        } else {
+            out = out.replace(from, to);
+        }
+    }
+    let mut out = out.replace("RenderProps", " render props");
+    tidy(&mut out);
+    out
+}
+
+/// Collapses doubled spaces and doubled articles left by replacements;
+/// some doubles only appear once text segments are assembled.
+fn tidy(text: &mut String) {
+    while text.contains("  ") {
+        *text = text.replace("  ", " ");
+    }
+    while text.contains("the the") {
+        *text = text.replace("the the", "the");
+    }
+    while text.contains("The the") {
+        *text = text.replace("The the", "The");
+    }
+    let fixed = fix_articles(text);
+    *text = fixed;
+}
+
+/// Repairs `a`/`an` agreement after replacements ("a React Aria" →
+/// "a the pinned upstream") and drops the now-redundant article in front of
+/// replacements that embed their own ("an href" → "an the link URL").
+/// Lowercase followers only, so Rust identifiers are never touched.
+fn fix_articles(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let mut i = 0;
+    while i < chars.len() {
+        let at_word_start = i == 0 || !chars[i - 1].is_ascii_alphanumeric();
+        let (article, capitalized) = if at_word_start && chars[i..].starts_with(&['a', 'n']) {
+            ("an", false)
+        } else if at_word_start && chars[i..].starts_with(&['a', ' ']) {
+            ("a", false)
+        } else if at_word_start && chars[i..].starts_with(&['A', 'n']) {
+            ("an", true)
+        } else if at_word_start && chars[i..].starts_with(&['A', ' ']) {
+            ("a", true)
+        } else {
+            out.push(chars[i]);
+            i += 1;
+            continue;
+        };
+        let mut cursor = i + article.len();
+        if chars.get(cursor) != Some(&' ') {
+            out.push(chars[i]);
+            i += 1;
+            continue;
+        }
+        cursor += 1;
+        let follower: String = chars[cursor..]
+            .iter()
+            .take_while(|ch| ch.is_ascii_lowercase())
+            .collect();
+        if follower == "the" || follower == "a" || follower == "an" {
+            // The follower carries its own article; drop ours.
+            if follower == "the" && capitalized {
+                out.push('T');
+            }
+            i = cursor;
+            continue;
+        }
+        if !follower.is_empty() {
+            let wants_an = wants_an_article(&follower);
+            let is_an = article == "an";
+            if wants_an != is_an {
+                if capitalized {
+                    out.push_str(if wants_an { "An " } else { "A " });
+                } else if wants_an {
+                    out.push_str("an ");
+                } else {
+                    out.push_str("a ");
+                }
+                i = cursor;
+                continue;
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
+/// "an" goes before vowel sounds; u-words pronounced "yu" ("a uniform")
+/// are the exception.
+fn wants_an_article(word: &str) -> bool {
+    const YU_WORDS: &[&str] = &[
+        "uniform", "unit", "user", "unique", "usual", "union", "utility", "use",
+    ];
+    match word.as_bytes().first() {
+        Some(b'a' | b'e' | b'i' | b'o') => true,
+        Some(b'u') => !YU_WORDS.iter().any(|yu| word.starts_with(yu)),
+        _ => false,
+    }
+}
+
+fn scrub_plain(text: &str) -> String {
+    let out = scrub_phrases(text);
+    let out = scrub_markup(&scrub_prose_href(&out));
+    let mut out = scrub_bracket_flags(&out);
+    out = scrub_class_tokens(&out);
+    out = scrub_pseudo_selectors(&out);
+    out = scrub_css_vars(&out);
+    let mut out = scrub_utility_tokens(&out);
+    tidy(&mut out);
+    out
+}
+
+fn scrub_markup(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(open) = rest.find('<') {
+        let Some(close_offset) = rest[open..].find('>') else {
+            out.push_str(rest);
+            return out;
+        };
+        let close = open + close_offset;
+        if is_markup_tag_at(rest, open, close) {
+            out.push_str(&rest[..open]);
+            out.push_str("upstream element");
+            rest = &rest[close + 1..];
+        } else {
+            out.push_str(&rest[..open + 1]);
+            rest = &rest[open + 1..];
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+fn is_markup_tag_span(span: &str) -> bool {
+    span.starts_with('<') && span.ends_with('>') && is_markup_tag(&span[1..span.len() - 1])
+}
+
+fn is_markup_tag(tag: &str) -> bool {
+    let tag = tag.trim();
+    let tag = tag.strip_prefix('/').unwrap_or(tag).trim_start();
+    let name_end =
+        tag.find(|ch: char| !(ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.' | '-')));
+    let (name, _rest) = name_end.map_or((tag, ""), |end| tag.split_at(end));
+    if name.is_empty() {
+        return false;
+    }
+    let component = name.len() > 1 && name.starts_with(char::is_uppercase);
+    let html = matches!(
+        name,
+        "a" | "abbr"
+            | "button"
+            | "code"
+            | "div"
+            | "fieldset"
+            | "form"
+            | "h1"
+            | "h2"
+            | "h3"
+            | "h4"
+            | "h5"
+            | "h6"
+            | "img"
+            | "input"
+            | "label"
+            | "p"
+            | "span"
+    );
+    component || html
+}
+
+fn contains_markup_tag(text: &str) -> bool {
+    let mut rest = text;
+    while let Some(open) = rest.find('<') {
+        let Some(close_offset) = rest[open..].find('>') else {
+            return false;
+        };
+        let close = open + close_offset;
+        if is_markup_tag_at(rest, open, close) {
+            return true;
+        }
+        rest = &rest[open + 1..];
+    }
+    false
+}
+
+fn is_markup_tag_at(text: &str, open: usize, close: usize) -> bool {
+    text[..open]
+        .chars()
+        .next_back()
+        .is_none_or(|ch| !ch.is_ascii_alphanumeric() && ch != '_' && ch != ':')
+        && is_markup_tag(&text[open + 1..close])
+}
+
+/// Prose-only rewording of `href`; Rust builder evidence such as
+/// `href(url)` is handled by `scrub_phrases` and must keep the call name.
+/// A `href` followed by `(` or preceded by `.` is a builder call, not prose.
+fn scrub_prose_href(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let at_word_start = i == 0 || !chars[i - 1].is_ascii_alphanumeric();
+        if at_word_start && chars[i..].starts_with(&['h', 'r', 'e', 'f']) {
+            let after = i + 4;
+            let boundary = chars
+                .get(after)
+                .is_none_or(|ch| !ch.is_ascii_alphanumeric());
+            let preceded_by_dot = i > 0 && chars[i - 1] == '.';
+            let is_call = chars.get(after).is_some_and(|ch| *ch == '(' || *ch == '!');
+            if boundary && !preceded_by_dot && !is_call {
+                out.push_str("the link URL");
+                i = after;
+                continue;
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
+/// Word-boundary replace so `DOM` does not hit inside longer identifiers.
+fn replace_word(text: &str, from: &str, to: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(pos) = rest.find(from) {
+        let after = pos + from.len();
+        let before_ok = pos == 0
+            || !rest[..pos]
+                .chars()
+                .next_back()
+                .is_some_and(|ch| ch.is_ascii_alphanumeric());
+        let after_ok = after == rest.len()
+            || !rest[after..]
+                .chars()
+                .next()
+                .is_some_and(|ch| ch.is_ascii_alphanumeric());
+        if before_ok && after_ok {
+            out.push_str(&rest[..pos]);
+            out.push_str(to);
+        } else {
+            out.push_str(&rest[..after]);
+        }
+        rest = &rest[after..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// `[data-x="y"]` and `[aria-x]` attribute spellings become words.
+fn scrub_bracket_flags(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(open) = rest.find('[') {
+        let Some(close) = rest[open..].find(']') else {
+            break;
+        };
+        out.push_str(&rest[..open]);
+        if out
+            .chars()
+            .next_back()
+            .is_some_and(|ch| ch.is_ascii_alphanumeric())
+        {
+            out.push(' ');
+        }
+        out.push_str(&flag_words(rest[open + 1..open + close].trim()));
+        rest = &rest[open + close + 1..];
+    }
+    out.push_str(rest);
+    out
+}
+
+fn flag_words(inner: &str) -> String {
+    let (name, value) = match inner.split_once('=') {
+        Some((name, value)) => (
+            name,
+            Some(value.trim().trim_matches('"').trim_matches('\'')),
+        ),
+        None => (inner, None),
+    };
+    let name = name
+        .strip_prefix("data-")
+        .or_else(|| name.strip_prefix("aria-"))
+        .unwrap_or(name);
+    let mut words = class_words(name);
+    if let Some(value) = value {
+        if !value.is_empty() && value != "true" {
+            words.push(' ');
+            words.push_str(&class_words(value));
+        }
+    }
+    words
+}
+
+/// Leading-dot CSS class tokens become their component words.
+fn scrub_class_tokens(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '.'
+            && !chars[..i]
+                .last()
+                .is_some_and(|ch| ch.is_ascii_alphanumeric() || *ch == ')')
+            && chars.get(i + 1).is_some_and(|ch| ch.is_ascii_lowercase())
+        {
+            let mut j = i + 1;
+            while j < chars.len()
+                && (chars[j].is_ascii_alphanumeric() || matches!(chars[j], '_' | '-'))
+            {
+                j += 1;
+            }
+            if chars.get(j) == Some(&'(') {
+                // `.px(` style Rust method calls are not class tokens.
+                out.push('.');
+                i += 1;
+                continue;
+            }
+            let token: String = chars[i + 1..j].iter().collect();
+            out.push_str(&class_words(&token));
+            i = j;
+            continue;
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
+fn scrub_pseudo_selectors(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == ':' {
+            let mut run_end = i;
+            while chars.get(run_end) == Some(&':') {
+                run_end += 1;
+            }
+            let mut j = run_end;
+            while j < chars.len() && (chars[j].is_ascii_lowercase() || chars[j] == '-') {
+                j += 1;
+            }
+            if j > run_end {
+                let name: String = chars[run_end..j].iter().collect();
+                match pseudo_words(&name) {
+                    Some(words) => out.push_str(&words),
+                    // Unknown name: keep the original spelling so Rust paths
+                    // like `ParentElement::extend` survive display untouched.
+                    None => out.extend(chars[i..j].iter()),
+                }
+                i = j;
+                continue;
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
+fn pseudo_words(name: &str) -> Option<String> {
+    let words = match name {
+        "hover" => " hover",
+        "active" => " pressed",
+        "focus-visible" => " keyboard focus",
+        "focus-within" => " focus within",
+        "focus" => " focus",
+        "disabled" => " disabled",
+        "empty" => " empty",
+        "first-child" => " first member",
+        "last-child" => " last member",
+        "checked" => " selected",
+        "indeterminate" => " indeterminate",
+        "read-only" => " read-only",
+        "required" => " required",
+        "invalid" => " invalid",
+        "not" => " not",
+        "has" => " has",
+        "is" => " is",
+        "where" => " where",
+        "placeholder-shown" => " placeholder shown",
+        "before" => " before",
+        "after" => " after",
+        "placeholder" => " placeholder",
+        "autofill" => " autofill",
+        _ => return None,
+    };
+    Some(words.to_owned())
+}
+
+fn scrub_css_vars(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '-'
+            && chars.get(i + 1) == Some(&'-')
+            && chars.get(i + 2).is_some_and(|ch| ch.is_ascii_lowercase())
+        {
+            let mut j = i + 2;
+            while j < chars.len() && (chars[j].is_ascii_alphanumeric() || chars[j] == '-') {
+                j += 1;
+            }
+            let name: String = chars[i + 2..j].iter().collect();
+            out.push_str("the upstream token ");
+            out.push_str(&class_words(&name));
+            i = j;
+            continue;
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
+const UTILITY_PREFIXES: &[&str] = &[
+    "bg",
+    "text",
+    "border",
+    "px",
+    "py",
+    "p",
+    "m",
+    "mx",
+    "my",
+    "ms",
+    "me",
+    "mt",
+    "mb",
+    "ps",
+    "pe",
+    "pt",
+    "pb",
+    "pl",
+    "pr",
+    "gap",
+    "h",
+    "w",
+    "size",
+    "min",
+    "max",
+    "rounded",
+    "opacity",
+    "shadow",
+    "items",
+    "justify",
+    "font",
+    "leading",
+    "tracking",
+    "inset",
+    "translate",
+    "rotate",
+    "scale",
+    "duration",
+    "transition",
+    "animate",
+    "delay",
+    "ease",
+    "overflow",
+    "whitespace",
+    "wrap",
+    "flex",
+    "grid",
+    "place",
+    "self",
+    "order",
+    "basis",
+    "grow",
+    "shrink",
+    "aspect",
+    "ring",
+    "outline",
+    "divide",
+    "space",
+    "underline",
+    "decoration",
+    "select",
+    "cursor",
+    "caret",
+    "accent",
+    "resize",
+    "appearance",
+    "will",
+    "contain",
+    "isolation",
+    "touch",
+    "scroll",
+    "snap",
+    "fill",
+    "stroke",
+    "data",
+    "after",
+    "before",
+    "peer",
+    "group",
+    "motion",
+    "supports",
+    "dark",
+    "print",
+    "sm",
+    "md",
+    "lg",
+    "xl",
+];
+
+/// Leftover Tailwind-style utility tokens become a pinned-evidence note.
+fn scrub_utility_tokens(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::new();
+    let mut i = 0;
+    while i < chars.len() {
+        let word_start = i == 0 || !chars[i - 1].is_ascii_alphanumeric() && chars[i - 1] != '-';
+        let negative =
+            chars[i] == '-' && chars.get(i + 1).is_some_and(|ch| ch.is_ascii_lowercase());
+        if word_start && (chars[i].is_ascii_lowercase() || negative) {
+            // `sm:mt-0`, `hover:bg-accent`, `dark:sm:p-2`, `-mx-0.5` — optional
+            // leading minus, variant prefixes, then the utility. A Rust path
+            // uses `::` and is left alone.
+            let mut j = if negative { i + 1 } else { i };
+            let mut saw_variant = false;
+            loop {
+                let mut k = j;
+                while k < chars.len()
+                    && (chars[k].is_ascii_lowercase()
+                        || chars[k].is_ascii_digit()
+                        || chars[k] == '-')
+                {
+                    k += 1;
+                }
+                if k > j
+                    && chars.get(k) == Some(&':')
+                    && chars.get(k + 1) != Some(&':')
+                    && chars.get(k + 1).is_some_and(|ch| ch.is_ascii_lowercase())
+                {
+                    saw_variant = true;
+                    j = k + 1;
+                    continue;
+                }
+                break;
+            }
+            let mut end = j;
+            while end < chars.len()
+                && (chars[end].is_ascii_alphanumeric()
+                    || chars[end] == '-'
+                    || chars[end] == '%'
+                    || (chars[end] == '.'
+                        && chars.get(end + 1).is_some_and(|ch| ch.is_ascii_digit()))
+                    || (chars[end] == '/'
+                        && chars.get(end + 1).is_some_and(|ch| ch.is_ascii_digit())))
+            {
+                end += 1;
+            }
+            let token: String = chars[j..end].iter().collect();
+            if utility_token(&token)
+                || (saw_variant
+                    && !token.is_empty()
+                    && token.chars().all(|ch| {
+                        ch.is_ascii_lowercase()
+                            || ch.is_ascii_digit()
+                            || matches!(ch, '-' | '/' | '.' | '%')
+                    }))
+            {
+                out.push_str("(upstream CSS)");
+                i = end;
+                continue;
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
+fn utility_token(token: &str) -> bool {
+    let mut segments = token.split('-');
+    let Some(first) = segments.next() else {
+        return false;
+    };
+    if !UTILITY_PREFIXES.contains(&first) {
+        return false;
+    }
+    let mut rest: Vec<&str> = Vec::new();
+    for segment in segments {
+        if segment.is_empty()
+            || !segment
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '/' | '%'))
+        {
+            return false;
+        }
+        rest.push(segment);
+    }
+    if rest.is_empty() {
+        return false;
+    }
+    // Prose compounds like "size-specific" are not utilities; real utilities
+    // carry a numeric step or a known value word.
+    rest.iter().any(|segment| {
+        segment.chars().any(|ch| ch.is_ascii_digit())
+            || matches!(
+                *segment,
+                "sm" | "md"
+                    | "lg"
+                    | "xl"
+                    | "xs"
+                    | "full"
+                    | "fit"
+                    | "auto"
+                    | "none"
+                    | "center"
+                    | "start"
+                    | "end"
+                    | "between"
+                    | "around"
+                    | "evenly"
+                    | "baseline"
+                    | "nowrap"
+                    | "wrap"
+                    | "clip"
+                    | "hidden"
+                    | "visible"
+                    | "current"
+                    | "stretch"
+                    | "default"
+                    | "accent"
+                    | "success"
+                    | "warning"
+                    | "danger"
+                    | "muted"
+                    | "foreground"
+                    | "background"
+                    | "field"
+                    | "overlay"
+                    | "placeholder"
+                    | "break"
+                    | "word"
+                    | "ellipsis"
+            )
+    })
+}
+
+/// Splits BEM, kebab, and camel spellings into component words.
+fn class_words(token: &str) -> String {
+    let cleaned: String = token
+        .chars()
+        .map(|ch| if ch.is_alphanumeric() { ch } else { ' ' })
+        .collect();
+    let mut words: Vec<String> = Vec::new();
+    for word in cleaned.split_whitespace() {
+        let mut current = String::new();
+        let mut previous_lower = false;
+        for ch in word.chars() {
+            if ch.is_uppercase() && previous_lower {
+                words.push(current.clone());
+                current.clear();
+            }
+            current.extend(ch.to_lowercase());
+            previous_lower = ch.is_lowercase() || ch.is_ascii_digit();
+        }
+        if !current.is_empty() {
+            words.push(current);
+        }
+    }
+    words.join(" ")
+}
+
+fn forbidden_display_token(text: &str) -> Option<&'static str> {
+    if contains_markup_tag(text) {
+        return Some("JSX/HTML tag");
+    }
+    const TOKENS: &[&str] = &[
+        "React",
+        "JSX",
+        "DOM",
+        "RenderFunction",
+        "RenderProps",
+        "CSSProperties",
+        "className",
+        "HTML",
+        "pointer-events",
+    ];
+    for token in TOKENS {
+        if text.contains(token) {
+            return Some(token);
+        }
+    }
+    let chars: Vec<char> = text.chars().collect();
+    let ident_end = |start: usize| -> usize {
+        let mut end = start;
+        while end < chars.len() && (chars[end].is_ascii_alphanumeric() || chars[end] == '_') {
+            end += 1;
+        }
+        end
+    };
+    for (i, ch) in chars.iter().enumerate() {
+        match ch {
+            '.' => {
+                let boundary =
+                    i == 0 || (!chars[i - 1].is_ascii_alphanumeric() && chars[i - 1] != ')');
+                if boundary
+                    && chars.get(i + 1).is_some_and(|ch| ch.is_ascii_lowercase())
+                    // `.px(` style Rust method calls are not class tokens.
+                    && chars.get(ident_end(i + 1)) != Some(&'(')
+                {
+                    return Some("CSS class token");
+                }
+            }
+            ':' => {
+                let path = i > 0 && chars[i - 1] == ':' || chars.get(i + 1) == Some(&':');
+                if !path && chars.get(i + 1).is_some_and(|ch| ch.is_ascii_lowercase()) {
+                    return Some("pseudo selector or CSS declaration");
+                }
+            }
+            '-' if chars.get(i + 1) == Some(&'-')
+                && chars.get(i + 2).is_some_and(|ch| ch.is_ascii_lowercase()) =>
+            {
+                return Some("CSS custom property");
+            }
+            _ => {}
+        }
+    }
+    let mut start = 0;
+    while start < chars.len() {
+        if chars[start].is_ascii_alphanumeric() {
+            let mut end = start;
+            while end < chars.len() && (chars[end].is_ascii_alphanumeric() || chars[end] == '-') {
+                end += 1;
+            }
+            let token: String = chars[start..end].iter().collect();
+            if utility_token(&token) {
+                return Some("utility class token");
+            }
+            start = end;
+        } else {
+            start += 1;
+        }
+    }
+    None
 }
 
 fn referenced_types<'a>(
@@ -601,9 +1797,9 @@ fn method_table(methods: &[ApiMethod], cx: &App) -> AnyElement {
         .into_any_element()
 }
 
-fn detail_table(
+fn detail_table<'a>(
     headers: [&'static str; 4],
-    rows: impl Iterator<Item = DetailRow>,
+    rows: impl IntoIterator<Item = &'a DetailRow>,
     cx: &App,
 ) -> AnyElement {
     let colors = cx.colors();
@@ -629,7 +1825,7 @@ fn detail_table(
         .border_color(colors.border)
         .overflow_hidden()
         .child(header)
-        .children(rows.map(|row| {
+        .children(rows.into_iter().map(|row| {
             gpui::div()
                 .flex()
                 .w_full()
@@ -2892,6 +4088,655 @@ impl Widget {
                 .filter(|method| method.name == "child")
                 .count(),
             1
+        );
+    }
+
+    #[test]
+    fn alert_metadata_tracks_status_pinning_and_no_close_seam() {
+        let metadata =
+            reference_metadata::for_route("Alert", "use herogpui::components::alert::Alert;")
+                .expect("Alert route is registered");
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        assert_eq!(
+            metadata.states.len(),
+            0,
+            "the alert has no interactive states"
+        );
+
+        let status = metadata
+            .api
+            .iter()
+            .find(|row| row.owner == "Alert" && row.prop == "status")
+            .expect("status row");
+        assert_eq!(
+            status.status,
+            reference_metadata::ImplementationStatus::Implemented
+        );
+        assert!(
+            status.default.contains("\"default\""),
+            "the pinned status default is \"default\""
+        );
+        assert!(
+            metadata
+                .api
+                .iter()
+                .all(|row| !row.description.contains("isClosable") || row.prop == "children"),
+            "no row may reintroduce a closable API"
+        );
+    }
+
+    #[test]
+    fn link_metadata_tracks_render_state_and_dom_only_props() {
+        let metadata =
+            reference_metadata::for_route("Link", "use herogpui::components::link::Link;")
+                .expect("Link route is registered");
+        let row = |prop: &str, owner: &str| {
+            metadata
+                .api
+                .iter()
+                .find(|row| row.owner == owner && row.prop == prop)
+                .unwrap_or_else(|| panic!("{owner}.{prop} row"))
+        };
+        assert_eq!(
+            row("render", "Link").status,
+            reference_metadata::ImplementationStatus::Partial
+        );
+        assert!(
+            row("render", "Link").description.contains("isFocusVisible"),
+            "the render closure is handed the interactive state"
+        );
+        for dom_only in ["target", "rel", "download"] {
+            assert_eq!(
+                row(dom_only, "Link").status,
+                reference_metadata::ImplementationStatus::Unavailable,
+                "{dom_only} has no meaning without a browser navigation"
+            );
+        }
+        assert_eq!(
+            row("isDisabled", "Link").status,
+            reference_metadata::ImplementationStatus::Implemented
+        );
+        assert_eq!(
+            metadata
+                .states
+                .iter()
+                .filter(
+                    |state| state.status == reference_metadata::ImplementationStatus::Implemented
+                )
+                .count(),
+            4,
+            "hover, press, focus-visible and disabled are all wired"
+        );
+    }
+
+    /// v3's childless `<Link.Icon />` renders a built-in arrow under
+    /// `data-default-icon="true"` (with its `ms-1 pb-1.5` spacing); the port's
+    /// `icon(element)` is the custom-children path only. That omission is
+    /// honest metadata, and this test keeps it from being edited away.
+    #[test]
+    fn link_metadata_records_the_childless_builtin_arrow_omission() {
+        let metadata =
+            reference_metadata::for_route("Link", "use herogpui::components::link::Link;")
+                .expect("Link route is registered");
+        let children = metadata
+            .api
+            .iter()
+            .find(|row| row.owner == "Link.Icon" && row.prop == "children")
+            .expect("Link.Icon children row");
+        assert_eq!(
+            children.status,
+            reference_metadata::ImplementationStatus::Partial,
+            "the custom-children path exists, so the row is not Unavailable"
+        );
+        assert_eq!(children.rust, "icon(element)");
+        for marker in ["built-in arrow", "data-default-icon", "icon(element)"] {
+            assert!(
+                children.description.contains(marker),
+                "the Link.Icon children row must keep recording that the \
+                 childless built-in arrow has no port path (missing: {marker})"
+            );
+        }
+        let part = metadata
+            .parts
+            .iter()
+            .find(|part| part.name == "Link.Icon")
+            .expect("Link.Icon part row");
+        assert_eq!(
+            part.status,
+            reference_metadata::ImplementationStatus::Partial
+        );
+        assert!(
+            part.description.contains("data-default-icon")
+                && part.description.contains("ms-1 pb-1.5"),
+            "the Link.Icon part row must keep the default-icon spacing scoped \
+             to the childless built-in arrow"
+        );
+    }
+
+    #[test]
+    fn avatar_metadata_tracks_load_events_and_fallback_color() {
+        let metadata =
+            reference_metadata::for_route("Avatar", "use herogpui::components::avatar::Avatar;")
+                .expect("Avatar route is registered");
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        assert_eq!(
+            metadata.states.len(),
+            0,
+            "the avatar has no interactive states"
+        );
+
+        let row = |prop: &str, owner: &str| {
+            metadata
+                .api
+                .iter()
+                .find(|row| row.owner == owner && row.prop == prop)
+                .unwrap_or_else(|| panic!("{owner}.{prop} row"))
+        };
+        let on_load = row("onLoad", "Avatar.Image");
+        assert_ne!(
+            on_load.status,
+            reference_metadata::ImplementationStatus::Unavailable,
+            "on_load is implemented; recording it as omitted would be a false green"
+        );
+        assert_eq!(on_load.rust, "on_load(handler)");
+        assert_eq!(row("delayMs", "Avatar.Fallback").rust, "delay_ms(u64)");
+        let fallback_color = row("color", "Avatar.Fallback");
+        assert_eq!(fallback_color.rust, "fallback_color(Color)");
+        assert!(
+            fallback_color.description.contains("not an alias"),
+            "Avatar.Fallback.color is its own prop, distinct from the parent color"
+        );
+    }
+
+    #[test]
+    fn fieldset_metadata_tracks_parts_and_disabled_limitation() {
+        let metadata = reference_metadata::for_route(
+            "Fieldset",
+            "use herogpui::components::field::{Fieldset, FieldGroup, FieldsetLegend, FieldsetActions};",
+        )
+        .expect("Fieldset route is registered");
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        assert_eq!(
+            metadata.states.len(),
+            0,
+            "the fieldset is a static layout container"
+        );
+        let native = metadata
+            .api
+            .iter()
+            .find(|row| row.owner == "Fieldset" && row.prop == "nativeProps")
+            .expect("nativeProps row");
+        assert_eq!(
+            native.status,
+            reference_metadata::ImplementationStatus::Unavailable
+        );
+        assert!(
+            native.description.contains("no disabled state"),
+            "the disabled forwarding limitation is recorded, not hidden"
+        );
+        let actions = metadata
+            .parts
+            .iter()
+            .find(|part| part.name == "Fieldset.Actions")
+            .expect("actions part");
+        assert!(actions.description.contains("pt-1"));
+    }
+
+    #[test]
+    fn field_slots_metadata_covers_all_four_slots_and_label_states() {
+        let metadata = reference_metadata::for_route(
+            "FieldSlots",
+            "use herogpui::components::field::{Description, ErrorMessage, FieldError, Label};",
+        )
+        .expect("FieldSlots route is registered");
+        assert_eq!(metadata.parts.len(), metadata.required_parts.len());
+        assert_eq!(
+            metadata.states.len(),
+            3,
+            "label required, disabled and invalid are the slot states"
+        );
+        let field_error = metadata
+            .api
+            .iter()
+            .find(|row| row.owner == "FieldError" && row.prop == "children")
+            .expect("FieldError children row");
+        assert_eq!(
+            field_error.status,
+            reference_metadata::ImplementationStatus::Partial,
+            "the validation render function is not portable; the message form is"
+        );
+    }
+
+    #[test]
+    fn forbidden_display_token_rejects_known_jargon() {
+        assert_eq!(forbidden_display_token("use className"), Some("className"));
+        assert_eq!(forbidden_display_token("a ReactNode here"), Some("React"));
+        assert_eq!(
+            forbidden_display_token(".button--sm"),
+            Some("CSS class token")
+        );
+        assert_eq!(
+            forbidden_display_token("hover:bg-accent"),
+            Some("pseudo selector or CSS declaration")
+        );
+        assert_eq!(
+            forbidden_display_token("px-4 gap-2"),
+            Some("utility class token")
+        );
+        assert_eq!(
+            forbidden_display_token("--badge-bg"),
+            Some("CSS custom property")
+        );
+        assert_eq!(forbidden_display_token("plain gpui builder text"), None);
+        assert!(
+            forbidden_display_token(&scrub_prose("mt-2; sm:mt-0")).is_none(),
+            "styling utilities and breakpoint variants must scrub: {}",
+            scrub_prose("mt-2; sm:mt-0")
+        );
+        assert!(
+            forbidden_display_token(&scrub_prose("hover:bg-accent")).is_none(),
+            "state-variant utilities must scrub: {}",
+            scrub_prose("hover:bg-accent")
+        );
+    }
+
+    #[test]
+    fn display_translates_pinned_type_and_selector_evidence() {
+        assert_eq!(
+            TYPE_PHRASES
+                .iter()
+                .find(|(from, _)| *from == "RenderFunction")
+                .map(|(_, to)| *to),
+            Some("render closure")
+        );
+        assert_eq!(rust_value_type("RenderFunction"), "render closure");
+        assert_eq!(
+            rust_value_type("ReactNode | RenderFunction"),
+            "AnyElement | render closure"
+        );
+        assert_eq!(
+            rust_value_type("CheckboxFieldRenderFunction"),
+            "CheckboxField render closure"
+        );
+        assert_eq!(
+            rust_value_type("ReactNode | (values: ButtonRenderProps) => ReactNode"),
+            "AnyElement | Fn(values: Button render props) -> AnyElement"
+        );
+        assert_eq!(
+            rust_value_type(
+                "DOMRenderFunction<keyof React.JSX.IntrinsicElements, TabsRenderProps>"
+            ),
+            "render closure<Tabs render props>"
+        );
+        assert_eq!(
+            rust_value_type("(isOpen: boolean) => void"),
+            "Fn(isOpen: bool) -> ()"
+        );
+        assert_eq!(
+            scrub_prose(".button:hover / [data-hovered=\"true\"]"),
+            "button hover / hovered"
+        );
+        assert_eq!(
+            scrub_prose("Additional DOM classes have no GPUI analogue."),
+            "Additional upstream style classes have no GPUI analogue."
+        );
+        assert_eq!(
+            scrub_prose("Overrides the browser DOM root."),
+            "Overrides the browser root element."
+        );
+    }
+
+    #[test]
+    fn metadata_display_carries_no_web_framework_instructions() {
+        // Pinned source links are shown verbatim by design; their URL path
+        // segments are not user instructions.
+        fn without_pinned_links(cell: &str) -> String {
+            let mut out = String::new();
+            let mut rest = cell;
+            while let Some(start) = rest.find("https://") {
+                out.push_str(&rest[..start]);
+                let end = rest[start..]
+                    .find(|ch: char| ch.is_whitespace())
+                    .map_or(rest.len(), |end| start + end);
+                rest = &rest[end..];
+            }
+            out.push_str(rest);
+            out
+        }
+        for metadata in reference_metadata::ALL {
+            let display = cached_display_metadata(metadata);
+            for rows in [
+                display.api.as_slice(),
+                display.parts.as_slice(),
+                display.states.as_slice(),
+                display.styling.as_slice(),
+            ] {
+                for row in rows {
+                    for cell in &row.cells {
+                        let cell = without_pinned_links(cell);
+                        if let Some(token) = forbidden_display_token(&cell) {
+                            panic!("{}: display cell contains {token}: {cell}", metadata.page);
+                        }
+                    }
+                }
+            }
+            for cell in &display.contract.cells {
+                let cell = without_pinned_links(cell);
+                if let Some(token) = forbidden_display_token(&cell) {
+                    panic!("{}: display cell contains {token}: {cell}", metadata.page);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn pinned_metadata_still_records_upstream_evidence() {
+        // The display layer translates at render time; the checked-in rows
+        // that api/reference/reason audits verify must keep the upstream
+        // spellings untouched so the pinned v3.2.4 contract stays auditable.
+        let all = reference_metadata::ALL;
+        let api_rows = || all.iter().flat_map(|metadata| metadata.api.iter());
+        assert!(api_rows().any(|row| row.prop == "className"));
+        assert!(api_rows().any(|row| row.ty.contains("ReactNode")));
+        assert!(api_rows().any(|row| row.ty.contains("DOMRenderFunction")));
+        assert!(api_rows().any(|row| row.ty.contains("React.JSX.IntrinsicElements")));
+        assert!(api_rows().any(|row| row.ty.contains("CSSProperties")));
+        assert!(api_rows().any(|row| row.status == unavailable()));
+        assert!(all.iter().any(|metadata| {
+            metadata
+                .states
+                .iter()
+                .any(|state| state.selector.contains(':'))
+        }));
+        assert!(all.iter().any(|metadata| {
+            metadata
+                .styling
+                .iter()
+                .any(|style| style.class_or_token.starts_with('.'))
+        }));
+    }
+
+    fn unavailable() -> reference_metadata::ImplementationStatus {
+        reference_metadata::ImplementationStatus::Unavailable
+    }
+
+    #[test]
+    fn web_only_rows_are_marked_not_callable() {
+        let mut marked = 0;
+        for metadata in reference_metadata::ALL {
+            for row in metadata
+                .api
+                .iter()
+                .filter(|row| row.status == unavailable())
+            {
+                marked += 1;
+                let displayed = api_display_row(row);
+                assert_eq!(
+                    displayed.cells[2], "Web-only — not callable from GPUI",
+                    "{}: web-only row must not display a GPUI builder",
+                    metadata.page
+                );
+            }
+        }
+        assert!(
+            marked > 0,
+            "the pinned contract still records web-only rows"
+        );
+    }
+
+    #[test]
+    fn display_keeps_rust_builders_and_pinned_source_links() {
+        let metadata = reference_metadata::for_route(
+            "Button",
+            "use herogpui::prelude::{Button, Size, Variant};",
+        )
+        .expect("Button metadata is registered");
+        let variant = metadata
+            .api
+            .iter()
+            .find(|row| row.owner == "Button" && row.prop == "variant")
+            .expect("Button variant row");
+        let displayed = api_display_row(variant);
+        assert_eq!(displayed.cells[0], "Button::variant");
+        assert!(displayed.cells[2].starts_with("variant("));
+        assert!(displayed
+            .cells
+            .iter()
+            .all(|cell| forbidden_display_token(cell).is_none()));
+
+        let contract = contract_display_row(metadata, 3);
+        assert!(contract.cells[3].contains("/blob/v3.2.4/"));
+        assert!(contract.cells[3].contains("https://"));
+    }
+
+    #[test]
+    fn display_keeps_rust_prop_names_and_translates_markup_defaults() {
+        assert_eq!(
+            rust_prop_name("isFocusVisible / isFocusWithin"),
+            "is_focus_visible / is_focus_within"
+        );
+        assert_eq!(rust_prop_name("className / render"), "style_class / render");
+        assert_eq!(
+            scrub_prose("Default: <CloseIcon />"),
+            "Default: upstream element"
+        );
+        assert_eq!(
+            scrub_prose("v3 renders a native <form>."),
+            "v3 renders a native upstream element."
+        );
+
+        let metadata = reference_metadata::for_route(
+            "NumberField",
+            "use herogpui::components::number_field::{NumberField, NumberState};",
+        )
+        .expect("NumberField metadata is registered");
+        let icon = metadata
+            .api
+            .iter()
+            .find(|row| row.owner == "NumberField.IncrementButton" && row.prop == "children")
+            .expect("increment icon row");
+        let displayed = api_display_row(icon);
+        assert_eq!(displayed.cells[0], "NumberField::children");
+        assert!(displayed.cells[2].starts_with("increment_icon(icon)"));
+        assert_eq!(
+            displayed.cells[3],
+            "Default: upstream element — Replaces the increment glyph while preserving the button's spin behavior."
+        );
+    }
+
+    #[test]
+    fn display_metadata_is_translated_once_and_reused() {
+        let metadata =
+            reference_metadata::for_route("Avatar", "use herogpui::components::avatar::Avatar;")
+                .expect("Avatar metadata is registered");
+        let first = cached_display_metadata(metadata) as *const DisplayMetadata;
+        let second = cached_display_metadata(metadata) as *const DisplayMetadata;
+        assert_eq!(first, second);
+    }
+
+    #[test]
+    fn display_cache_lookup_uses_identity_not_page_title() {
+        fn dummy(
+            page: &'static str,
+            import_line: &'static str,
+        ) -> reference_metadata::ReferenceMetadata {
+            reference_metadata::ReferenceMetadata {
+                page,
+                import_line,
+                source_module: "slider",
+                version: "3.2.4",
+                docs_source: "",
+                api_source: "",
+                style_source: "",
+                required_parts: &[],
+                api: &[],
+                parts: &[],
+                states: &[],
+                styling: &[],
+            }
+        }
+        let all = [dummy("Shared", "use a;"), dummy("Shared", "use b;")];
+        assert_eq!(display_cache_index(&all, &all[0]), Some(0));
+        assert_eq!(display_cache_index(&all, &all[1]), Some(1));
+        assert_ne!(
+            display_cache_index(&all, &all[0]),
+            display_cache_index(&all, &all[1]),
+            "same page title must not collapse two metadata identities"
+        );
+    }
+
+    #[test]
+    fn display_cache_is_parallel_to_all_by_index() {
+        let cache = display_metadata();
+        assert_eq!(cache.len(), reference_metadata::ALL.len());
+        let mut seen = BTreeSet::new();
+        for (index, metadata) in reference_metadata::ALL.iter().enumerate() {
+            assert!(
+                seen.insert((metadata.page, metadata.import_line)),
+                "duplicate metadata identity {} / {}",
+                metadata.page,
+                metadata.import_line
+            );
+            assert!(
+                std::ptr::eq(cached_display_metadata(metadata), &cache[index]),
+                "{} cache slot must follow ALL order, not page title",
+                metadata.page
+            );
+        }
+    }
+
+    #[test]
+    fn cached_rows_are_borrowed_into_the_table() {
+        fn accept_borrowed_rows<'a>(rows: impl IntoIterator<Item = &'a DetailRow>) -> usize {
+            rows.into_iter().count()
+        }
+        let metadata =
+            reference_metadata::for_route("Slider", "use herogpui::components::slider::Slider;")
+                .expect("Slider metadata is registered");
+        let display = cached_display_metadata(metadata);
+        assert!(accept_borrowed_rows(display.api.iter()) > 0);
+        assert!(
+            accept_borrowed_rows(
+                display
+                    .styling
+                    .iter()
+                    .chain(std::iter::once(&display.contract))
+            ) > 1
+        );
+    }
+
+    #[test]
+    fn slider_track_row_records_axis_inset_as_implemented() {
+        let metadata =
+            reference_metadata::for_route("Slider", "use herogpui::components::slider::Slider;")
+                .expect("Slider metadata is registered");
+        let track = metadata
+            .styling
+            .iter()
+            .find(|row| row.class_or_token == ".slider__track")
+            .expect("slider track styling row");
+        assert_eq!(
+            track.status,
+            reference_metadata::ImplementationStatus::Implemented
+        );
+        assert!(
+            track.rust.contains("axis_inset(12px)")
+                && track.rust.contains("fill_start/fill_end caps"),
+            "the track row must name the 12px inset and fill caps: {}",
+            track.rust
+        );
+        assert!(
+            !track.rust.contains("no separate transparent end borders"),
+            "stale Partial wording must not remain: {}",
+            track.rust
+        );
+    }
+
+    /// The `static` display cache may only hold translated data. A
+    /// `gpui::AnyElement` is not `Send`, so an element-typed field added to
+    /// `DisplayMetadata` would fail this bound at compile time.
+    #[test]
+    fn display_metadata_cache_holds_no_elements() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<DisplayMetadata>();
+        assert_send_sync::<DetailRow>();
+    }
+
+    #[test]
+    fn display_keeps_rust_href_builders_but_rewords_prose_href() {
+        // Builder evidence keeps the call name verbatim.
+        assert_eq!(scrub_phrases("href(url)"), "href(url)");
+        assert_eq!(scrub_phrases("href(href)"), "href(href)");
+        assert_eq!(
+            scrub_phrases("placed_field_panel + href(url)"),
+            "placed_field_panel + href(url)"
+        );
+        // Prose href becomes words, including through a backticked span.
+        assert_eq!(
+            scrub_prose("a href crumb opens it through the OS URL handler"),
+            "the link URL crumb opens it through the OS URL handler"
+        );
+        assert_eq!(
+            scrub_prose("so `href` opens through the OS handler"),
+            "so the link URL opens through the OS handler"
+        );
+        let metadata =
+            reference_metadata::for_route("Link", "use herogpui::components::link::Link;")
+                .expect("Link route is registered");
+        let href = metadata
+            .api
+            .iter()
+            .find(|row| row.prop == "href")
+            .expect("Link href row");
+        assert!(
+            api_display_row(href).cells[2].contains("href(url)"),
+            "the Link href builder name must survive display"
+        );
+    }
+
+    #[test]
+    fn display_repairs_articles_after_replacements() {
+        assert_eq!(
+            scrub_prose("does not expose a DOM render seam."),
+            "does not expose an upstream render seam."
+        );
+        assert_eq!(
+            scrub_prose("forwards a React Aria state that does not emit it."),
+            "forwards the pinned upstream state that does not emit it."
+        );
+        assert_eq!(
+            scrub_prose("cloning a React element with data-direction."),
+            "cloning an upstream element with the upstream direction flag."
+        );
+        assert_eq!(
+            scrub_prose("even with an href, and never takes the disabled fade."),
+            "even with the link URL, and never takes the disabled fade."
+        );
+        // Correct articles survive untouched.
+        assert_eq!(scrub_prose("a uniform grid"), "a uniform grid");
+        assert_eq!(scrub_prose("an iterable of keys"), "an iterable of keys");
+        assert_eq!(scrub_prose("a a submitted record"), "a submitted record");
+    }
+
+    #[test]
+    fn display_preserves_unknown_pseudo_and_css_variable_words() {
+        // Known pseudos still translate.
+        assert_eq!(scrub_prose("on :hover"), "on hover");
+        assert_eq!(
+            scrub_prose(".checkbox__control::before"),
+            "checkbox control before"
+        );
+        assert_eq!(scrub_prose("on :autofill"), "on autofill");
+        // Unknown pseudo names keep their original spelling (Rust paths too).
+        assert_eq!(
+            scrub_prose("fed by ParentElement::extend children"),
+            "fed by ParentElement::extend children"
+        );
+        assert_eq!(scrub_prose("matches ::selection"), "matches ::selection");
+        // Unknown CSS variables keep their name words.
+        assert_eq!(
+            scrub_prose("background --field-focus on the input"),
+            "background the upstream token field focus on the input"
         );
     }
 }
