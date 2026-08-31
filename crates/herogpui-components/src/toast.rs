@@ -1,0 +1,987 @@
+//! Toast — port of `@heroui/toast` (v3).
+//!
+//! Create the store once (`toast_store(cx)`), render [`ToastViewport`] — the
+//! equivalent of `Toast.Provider` — from your root view, and fire toasts
+//! anywhere with [`Toast::push`].
+//!
+//! v3 names the colour prop `variant`, and its values are the semantic colour
+//! roles, so [`Color`] is the variant type here.
+
+use std::collections::{HashMap, HashSet};
+use std::time::Duration;
+
+use gpui::{
+    prelude::*, px, App, Entity, Global, IntoElement, RenderOnce, SharedString, Styled,
+    Subscription, Window,
+};
+use herogpui_core::Color;
+use herogpui_theme::ActiveTheme;
+
+use crate::icons;
+
+/// `maxVisibleToasts` default from `Toast.Provider`.
+pub const DEFAULT_MAX_VISIBLE_TOASTS: usize = 3;
+
+/// Where the toast region sits (`placement` on `Toast.Provider`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ToastPlacement {
+    TopStart,
+    Top,
+    TopEnd,
+    BottomStart,
+    #[default]
+    Bottom,
+    BottomEnd,
+}
+
+impl ToastPlacement {
+    pub const ALL: [ToastPlacement; 6] = [
+        ToastPlacement::TopStart,
+        ToastPlacement::Top,
+        ToastPlacement::TopEnd,
+        ToastPlacement::BottomStart,
+        ToastPlacement::Bottom,
+        ToastPlacement::BottomEnd,
+    ];
+
+    fn is_top(self) -> bool {
+        matches!(self, Self::TopStart | Self::Top | Self::TopEnd)
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            ToastPlacement::TopStart => "Top start",
+            ToastPlacement::Top => "Top",
+            ToastPlacement::TopEnd => "Top end",
+            ToastPlacement::BottomStart => "Bottom start",
+            ToastPlacement::Bottom => "Bottom",
+            ToastPlacement::BottomEnd => "Bottom end",
+        }
+    }
+}
+
+/// What a toast's action button, or its `onClose`, runs.
+pub type ToastHandler = std::sync::Arc<dyn Fn(&mut App) + 'static>;
+
+/// One toast's data.
+#[derive(Clone)]
+pub struct ToastData {
+    pub id: u64,
+    pub color: Color,
+    pub title: SharedString,
+    pub description: Option<SharedString>,
+    pub closable: bool,
+    /// `indicator` — the glyph before the text.
+    ///
+    /// Two states in one prop, as in v3: left alone it is the variant's own
+    /// glyph, and `indicator={null}` hides it. `indicator_set` is which of the
+    /// two an empty `indicator` means.
+    pub indicator: Option<SharedString>,
+    pub indicator_set: bool,
+    /// `isLoading` — a spinner stands in for the indicator.
+    pub is_loading: bool,
+    /// `actionProps` — a button inside the toast: its label and its handler.
+    pub action: Option<(SharedString, ToastHandler)>,
+    /// `onClose` — run when the toast goes away, however it goes.
+    pub on_close: Option<ToastHandler>,
+}
+
+/// Entity holding the active toasts — v3's `ToastQueue`.
+pub struct ToastStore {
+    toasts: Vec<ToastData>,
+    next_id: u64,
+    /// `pauseAll` / `resumeAll`. Every toast's timer reads this on each tick,
+    /// which is why the timer ticks rather than sleeping once.
+    paused: bool,
+    /// Timeout configured for each queued toast.
+    timeouts: HashMap<u64, Duration>,
+    /// Generation for each currently armed toast, so a stale task cannot close
+    /// a later toast if ids are ever reused.
+    timer_generations: HashMap<u64, u64>,
+    next_timer_generation: u64,
+    /// Ids whose `onClose` has already been run. `dismiss_toast` and a
+    /// toast's own timer both report the close; whoever claims the id first is
+    /// the only one that does.
+    reported: HashSet<u64>,
+}
+
+impl ToastStore {
+    fn new() -> Self {
+        Self {
+            toasts: Vec::new(),
+            next_id: 1,
+            paused: false,
+            timeouts: HashMap::new(),
+            timer_generations: HashMap::new(),
+            next_timer_generation: 1,
+            reported: HashSet::new(),
+        }
+    }
+
+    /// `ToastQueue.subscribe` — run `f` whenever the queue changes.
+    ///
+    /// v3 returns an unsubscribe function; gpui returns a `Subscription` whose
+    /// drop does the same, so the caller keeps it for as long as it wants the
+    /// callback.
+    pub fn subscribe(
+        store: &Entity<Self>,
+        cx: &mut App,
+        mut f: impl FnMut(&mut App) + 'static,
+    ) -> Subscription {
+        cx.observe(store, move |_, cx| f(cx))
+    }
+
+    pub fn toasts(&self) -> &[ToastData] {
+        &self.toasts
+    }
+
+    /// The newest toasts currently exposed by `maxVisibleToasts`; overflow
+    /// remains queued until a visible toast closes.
+    pub fn visible_toasts(&self, max_visible: usize) -> &[ToastData] {
+        &self.toasts[..self.toasts.len().min(max_visible.max(1))]
+    }
+
+    /// `pauseAll` — stop every toast's dismissal clock.
+    pub fn pause_all(&mut self) {
+        self.paused = true;
+    }
+
+    /// `resumeAll` — start them again.
+    pub fn resume_all(&mut self) {
+        self.paused = false;
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.paused
+    }
+
+    /// `add` — queue a toast, notify subscribers, and return its id.
+    pub fn add(store: &Entity<Self>, data: ToastData, cx: &mut App) -> u64 {
+        store.update(cx, |store, cx| {
+            let id = store.insert(data);
+            cx.notify();
+            id
+        })
+    }
+
+    /// `close` — drop one toast by id and report its `onClose` once.
+    pub fn close(store: &Entity<Self>, id: u64, cx: &mut App) {
+        let on_close = store.update(cx, |store, cx| {
+            let callback = if store.claim_close(id) {
+                store.on_close(id)
+            } else {
+                None
+            };
+            store.dismiss(id);
+            cx.notify();
+            callback
+        });
+        if let Some(callback) = on_close {
+            callback(cx);
+        }
+    }
+
+    /// `clear` — drop all of them and notify subscribers.
+    pub fn clear(store: &Entity<Self>, cx: &mut App) {
+        store.update(cx, |store, cx| {
+            store.clear_inner();
+            cx.notify();
+        });
+    }
+
+    fn clear_inner(&mut self) {
+        // React Stately's `ToastQueue.clear()` does not call each toast's
+        // `onClose`. Retire every id before its sleeping timer wakes, or the
+        // timer's missing-row path would claim and report that close later.
+        self.reported
+            .extend(self.toasts.iter().map(|toast| toast.id));
+        self.toasts.clear();
+        self.timeouts.clear();
+        self.timer_generations.clear();
+    }
+
+    /// The `onClose` of the toast with this id, so a caller closing a toast runs
+    /// the same handler the timer would have.
+    fn on_close(&self, id: u64) -> Option<ToastHandler> {
+        self.toasts
+            .iter()
+            .find(|t| t.id == id)
+            .and_then(|t| t.on_close.clone())
+    }
+
+    /// Claims the right to report a toast's close: `true` when this call is
+    /// the first to do so. Both `dismiss_toast` and the toast's own timer run
+    /// its `onClose`; the path that gets here second sees `false` and stays
+    /// silent, which is what stops a hand-dismissed timed toast from closing
+    /// twice — the timer wakes to find the toast already gone and would
+    /// otherwise fire the same handler again.
+    fn claim_close(&mut self, id: u64) -> bool {
+        self.reported.insert(id)
+    }
+
+    fn dismiss(&mut self, id: u64) {
+        self.toasts.retain(|t| t.id != id);
+        self.timeouts.remove(&id);
+        self.timer_generations.remove(&id);
+    }
+
+    /// Inserts a fully-formed toast; zero ids are auto-assigned.
+    pub fn insert(&mut self, mut data: ToastData) -> u64 {
+        if data.id == 0 {
+            data.id = self.next_id;
+            self.next_id += 1;
+        } else if data.id >= self.next_id {
+            self.next_id = data.id.saturating_add(1);
+        }
+        let id = data.id;
+        // Explicit ids may be reused by a custom queue. A newly inserted
+        // toast owns a fresh close lifecycle even when an older toast with the
+        // same id was dismissed or cleared.
+        self.reported.remove(&id);
+        self.toasts.insert(0, data);
+        id
+    }
+}
+
+struct ToastHub {
+    store: Entity<ToastStore>,
+}
+impl Global for ToastHub {}
+
+/// Creates (or returns) the app-wide toast store.
+pub fn toast_store(cx: &mut App) -> Entity<ToastStore> {
+    if let Some(hub) = cx.try_global::<ToastHub>() {
+        return hub.store.clone();
+    }
+    let store = cx.new(|_| ToastStore::new());
+    cx.set_global(ToastHub {
+        store: store.clone(),
+    });
+    store
+}
+
+/// v3's default toast timeout: four seconds, and `timeout: 0` for one that
+/// stays until it is closed.
+pub const DEFAULT_TOAST_TIMEOUT: Duration = Duration::from_secs(4);
+
+/// Builder for a toast notification.
+pub struct Toast {
+    color: Color,
+    title: SharedString,
+    description: Option<SharedString>,
+    closable: bool,
+    indicator: Option<SharedString>,
+    indicator_set: bool,
+    is_loading: bool,
+    action: Option<(SharedString, ToastHandler)>,
+    on_close: Option<ToastHandler>,
+    timeout: Option<Duration>,
+}
+
+impl Toast {
+    pub fn new(title: impl Into<SharedString>) -> Self {
+        Self {
+            color: Color::Default,
+            title: title.into(),
+            description: None,
+            closable: true,
+            indicator: None,
+            indicator_set: false,
+            is_loading: false,
+            action: None,
+            on_close: None,
+            timeout: Some(DEFAULT_TOAST_TIMEOUT),
+        }
+    }
+
+    /// `toast.success(..)` — the same toast in the success variant.
+    pub fn success(title: impl Into<SharedString>) -> Self {
+        Self::new(title).variant(Color::Success)
+    }
+
+    /// `toast.danger(..)`, and the `error` message of `toast.promise`.
+    pub fn error(title: impl Into<SharedString>) -> Self {
+        Self::new(title).variant(Color::Danger)
+    }
+
+    /// The `loading` message of `toast.promise`: a spinner, and no timeout, so
+    /// the caller closes it when the work finishes.
+    pub fn loading(title: impl Into<SharedString>) -> Self {
+        Self::new(title).is_loading(true).timeout(Duration::ZERO)
+    }
+
+    pub fn description(mut self, d: impl Into<SharedString>) -> Self {
+        self.description = Some(d.into());
+        self
+    }
+
+    /// `indicator` — the glyph before the text.
+    ///
+    /// Left alone it is the variant's own; `None` hides it, which is v3's
+    /// `indicator={null}`.
+    pub fn indicator(mut self, icon: impl Into<Option<SharedString>>) -> Self {
+        self.indicator = icon.into();
+        self.indicator_set = true;
+        self
+    }
+
+    /// `isLoading` — a spinner in place of the indicator. Pair it with a zero
+    /// `timeout` for a toast that waits on something.
+    pub fn is_loading(mut self, v: bool) -> Self {
+        self.is_loading = v;
+        self
+    }
+
+    /// `actionProps` — a button in the toast. v3 passes `{children, onPress}`;
+    /// here that is the label and the handler.
+    pub fn action(
+        mut self,
+        label: impl Into<SharedString>,
+        on_press: impl Fn(&mut App) + 'static,
+    ) -> Self {
+        self.action = Some((label.into(), std::sync::Arc::new(on_press)));
+        self
+    }
+
+    /// `onClose` — run when the toast goes away, whether it timed out or was
+    /// dismissed.
+    pub fn on_close(mut self, f: impl Fn(&mut App) + 'static) -> Self {
+        self.on_close = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// `timeout` — how long the toast stays. `Duration::ZERO` is v3's
+    /// `timeout: 0`: it stays until something closes it.
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    /// `variant` — `default | accent | success | warning | danger`.
+    pub fn variant(mut self, variant: Color) -> Self {
+        self.color = variant;
+        self
+    }
+
+    pub fn closable(mut self, v: bool) -> Self {
+        self.closable = v;
+        self
+    }
+
+    /// Pushes the toast and starts its clock unless the timeout is zero.
+    ///
+    /// `duration` overrides [`Self::timeout`], which is how the caller that
+    /// spells the timeout at the push site keeps working.
+    pub fn push(self, duration: Option<Duration>, cx: &mut App) -> u64 {
+        // A zero timeout is v3's persistent toast, and so is `Some(ZERO)` from
+        // the builder: either way there is no clock to arm.
+        let timeout = duration.or(self.timeout).unwrap_or(Duration::ZERO);
+        let store = toast_store(cx);
+        let (id, generation) = store.update(cx, |s, cx| {
+            let id = s.next_id;
+            s.next_id += 1;
+            let pushed = s.insert(ToastData {
+                id,
+                color: self.color,
+                title: self.title.clone(),
+                description: self.description.clone(),
+                closable: self.closable,
+                indicator: self.indicator.clone(),
+                indicator_set: self.indicator_set,
+                is_loading: self.is_loading,
+                action: self.action.clone(),
+                on_close: self.on_close.clone(),
+            });
+            let generation = if timeout.is_zero() {
+                None
+            } else {
+                s.timeouts.insert(id, timeout);
+                let generation = s.next_timer_generation;
+                s.next_timer_generation = s.next_timer_generation.saturating_add(1);
+                s.timer_generations.insert(id, generation);
+                Some(generation)
+            };
+            cx.notify();
+            (pushed, generation)
+        });
+        if let Some(generation) = generation {
+            start_toast_timer(
+                store.downgrade(),
+                id,
+                timeout,
+                self.on_close,
+                generation,
+                cx,
+            );
+        }
+        id
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ToastTimerTick {
+    Continue,
+    Closed(bool),
+}
+
+fn start_toast_timer(
+    store: gpui::WeakEntity<ToastStore>,
+    id: u64,
+    timeout: Duration,
+    on_close: Option<ToastHandler>,
+    generation: u64,
+    cx: &mut App,
+) {
+    cx.spawn(async move |cx: &mut gpui::AsyncApp| {
+        // Tick instead of sleeping once: `pauseAll` has to be able to stop the
+        // clock, and a gpui timer cannot be cancelled.
+        const TICK: Duration = Duration::from_millis(100);
+        let mut left = timeout;
+        loop {
+            cx.background_executor().timer(TICK).await;
+            let Some(store) = store.upgrade() else { return };
+            let Ok(tick) = store.update(cx, |s, cx| {
+                if !s.toasts.iter().any(|toast| toast.id == id) {
+                    s.timer_generations.remove(&id);
+                    s.timeouts.remove(&id);
+                    return ToastTimerTick::Closed(s.claim_close(id));
+                }
+                if s.timer_generations.get(&id) != Some(&generation) {
+                    return ToastTimerTick::Closed(false);
+                }
+                if s.paused {
+                    return ToastTimerTick::Continue;
+                }
+                left = left.saturating_sub(TICK);
+                if left.is_zero() {
+                    let mine = s.claim_close(id);
+                    s.dismiss(id);
+                    cx.notify();
+                    return ToastTimerTick::Closed(mine);
+                }
+                ToastTimerTick::Continue
+            }) else {
+                return;
+            };
+            match tick {
+                ToastTimerTick::Continue => {}
+                ToastTimerTick::Closed(mine) => {
+                    if mine {
+                        if let Some(cb) = on_close {
+                            let _ = cx.update(|cx| cb(cx));
+                        }
+                    }
+                    return;
+                }
+            }
+        }
+    })
+    .detach();
+}
+
+/// Convenience free function (manual dismissal).
+pub fn push_toast(toast: Toast, cx: &mut App) -> u64 {
+    toast.timeout(Duration::ZERO).push(None, cx)
+}
+
+/// Dismisses one toast by id, running its `onClose`.
+pub fn dismiss_toast(id: u64, cx: &mut App) {
+    let store = toast_store(cx);
+    ToastStore::close(&store, id, cx);
+}
+
+/// `toast.clear()` — closes every toast.
+pub fn clear_toasts(cx: &mut App) {
+    let store = toast_store(cx);
+    ToastStore::clear(&store, cx);
+}
+
+/// `toast.pauseAll()` / `toast.resumeAll()` — stops and restarts every clock.
+pub fn pause_toasts(paused: bool, cx: &mut App) {
+    let store = toast_store(cx);
+    store.update(cx, |s, cx| {
+        if paused {
+            s.pause_all();
+        } else {
+            s.resume_all();
+        }
+        cx.notify();
+    });
+}
+
+/// The toast region — `Toast.Provider` in React. Mount once near the root; it
+/// reads the store on every root re-render (store mutations notify it via the
+/// parent view's `cx.notify()`).
+#[derive(IntoElement)]
+pub struct ToastViewport {
+    placement: ToastPlacement,
+    gap: gpui::Pixels,
+    max_visible_toasts: usize,
+    width: gpui::Pixels,
+    inset: gpui::Pixels,
+    scale_factor: f32,
+}
+
+impl ToastViewport {
+    pub fn new() -> Self {
+        Self {
+            placement: ToastPlacement::default(),
+            gap: px(12.),
+            max_visible_toasts: DEFAULT_MAX_VISIBLE_TOASTS,
+            scale_factor: 0.05,
+            width: px(460.),
+            inset: px(16.),
+        }
+    }
+
+    pub fn placement(mut self, placement: ToastPlacement) -> Self {
+        self.placement = placement;
+        self
+    }
+
+    pub fn gap(mut self, gap: impl Into<gpui::Pixels>) -> Self {
+        self.gap = gap.into();
+        self
+    }
+
+    /// `scaleFactor` on `Toast.Provider` — how much each toast behind the
+    /// newest one shrinks, 0.05 in v3.
+    ///
+    /// gpui cannot scale a div, so the shrink is geometric: a stacked toast is
+    /// inset horizontally by its depth's share of the width. Pass `0.0` for a
+    /// flat stack.
+    pub fn scale_factor(mut self, factor: f32) -> Self {
+        self.scale_factor = factor.clamp(0.0, 1.0);
+        self
+    }
+
+    pub fn max_visible_toasts(mut self, n: usize) -> Self {
+        self.max_visible_toasts = n.max(1);
+        self
+    }
+
+    pub fn width(mut self, width: impl Into<gpui::Pixels>) -> Self {
+        self.width = width.into();
+        self
+    }
+
+    /// Distance from the window edge.
+    pub fn inset(mut self, inset: impl Into<gpui::Pixels>) -> Self {
+        self.inset = inset.into();
+        self
+    }
+}
+
+impl Default for ToastViewport {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl RenderOnce for ToastViewport {
+    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let mut toasts: Vec<ToastData> = match cx.try_global::<ToastHub>() {
+            Some(hub) => hub
+                .store
+                .read(cx)
+                .visible_toasts(self.max_visible_toasts)
+                .to_vec(),
+            None => Vec::new(),
+        };
+
+        let mut region = gpui::div().absolute().flex().flex_col().gap(self.gap);
+
+        region = if self.placement.is_top() {
+            region.top(self.inset)
+        } else {
+            region.bottom(self.inset)
+        };
+
+        region = match self.placement {
+            ToastPlacement::TopStart | ToastPlacement::BottomStart => region.left(self.inset),
+            ToastPlacement::TopEnd | ToastPlacement::BottomEnd => region.right(self.inset),
+            // Centred placements stretch and centre their children.
+            ToastPlacement::Top | ToastPlacement::Bottom => {
+                region.left_0().right_0().items_center()
+            }
+        };
+
+        // Pinned React Stately unshifts new entries, so index zero is the
+        // frontmost toast. A bottom stack draws it last so it sits nearest the
+        // edge; a top stack draws it first. Either way its depth stays zero.
+        let width = self.width;
+        let scale = self.scale_factor;
+        let top = self.placement.is_top();
+        if !top {
+            toasts.reverse();
+        }
+        let last = toasts.len().saturating_sub(1);
+        region.children(
+            toasts
+                .into_iter()
+                .enumerate()
+                .map(move |(i, t)| toast_card(t, width, if top { i } else { last - i }, scale)),
+        )
+    }
+}
+
+fn toast_card(
+    t: ToastData,
+    width: gpui::Pixels,
+    depth: usize,
+    scale_factor: f32,
+) -> gpui::AnyElement {
+    // Each step back shrinks the card by `scale_factor`, expressed as a
+    // horizontal inset since a div cannot be scaled.
+    let shrink = (1.0 - scale_factor * depth as f32).clamp(0.5, 1.0);
+    let width = px(f32::from(width) * shrink);
+    ToastCardEl {
+        t,
+        width,
+        frontmost: depth == 0,
+    }
+    .into_any_element()
+}
+
+#[derive(IntoElement)]
+struct ToastCardEl {
+    t: ToastData,
+    width: gpui::Pixels,
+    frontmost: bool,
+}
+
+impl RenderOnce for ToastCardEl {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // `.toast__close-button` is the CloseButton v3 composes, which is a
+        // real keyboard tab stop. The handle has to be created before the
+        // theme tokens are read: `use_keyed_state` takes `cx` mutably and
+        // `colors` borrows it.
+        let close_focus = if self.t.closable && self.frontmost {
+            Some(crate::util::tab_stop_handle(
+                gpui::ElementId::Name(format!("toast-close-{}-focus", self.t.id).into()),
+                window,
+                cx,
+            ))
+        } else {
+            None
+        };
+        let colors = cx.colors();
+        let sem = cx.role(self.t.color);
+        let title_color = match self.t.color {
+            Color::Default => colors.overlay.foreground,
+            Color::Accent | Color::Success | Color::Warning | Color::Danger => {
+                sem.soft_foreground(colors.foreground)
+            }
+        };
+        let indicator_color = match self.t.color {
+            Color::Default | Color::Accent => colors.overlay.foreground,
+            Color::Success | Color::Warning | Color::Danger => {
+                sem.soft_foreground(colors.foreground)
+            }
+        };
+
+        let mut card = gpui::div()
+            .w(self.width)
+            .flex()
+            .items_start()
+            .gap(px(6.))
+            .px(px(16.))
+            .py(px(12.))
+            .rounded(crate::util::container_radius(cx))
+            .bg(colors.surface.background)
+            .text_color(colors.overlay.foreground)
+            .when(!cx.layout().overlay_shadow.is_empty(), |c| {
+                c.shadow(cx.layout().overlay_shadow.clone())
+            })
+            .overflow_hidden();
+
+        // `.toast__indicator` — `flex shrink-0 items-center justify-center p-1`
+        // at `size-4`. v3 uses the overlay foreground for default/accent and a
+        // status role's soft foreground for success/warning/danger.
+        if self.t.is_loading {
+            card = card.child(
+                gpui::div().flex().flex_shrink_0().p(px(4.)).child(
+                    crate::spinner::Spinner::new(gpui::ElementId::Name(
+                        format!("toast-spinner-{}", self.t.id).into(),
+                    ))
+                    .size(herogpui_core::Size::Sm)
+                    .current_color(indicator_color),
+                ),
+            );
+        } else if let Some(icon) = self.t.indicator.clone().or_else(|| {
+            // Not set at all means the variant's own glyph; set to nothing
+            // means v3's `indicator={null}`.
+            if self.t.indicator_set {
+                None
+            } else {
+                default_indicator(self.t.color).map(SharedString::from)
+            }
+        }) {
+            card = card.child(
+                gpui::div()
+                    .flex()
+                    .flex_shrink_0()
+                    .items_center()
+                    .justify_center()
+                    .p(px(4.))
+                    .child(
+                        gpui::svg()
+                            .size(px(16.))
+                            .path(icon)
+                            .text_color(indicator_color),
+                    ),
+            );
+        }
+
+        // `.toast__content` -- the title and description column, beside the
+        // indicator and inside the card.
+        let mut text_col = gpui::div().flex().flex_col().flex_1().min_w_0();
+        text_col = text_col.child(
+            gpui::div()
+                // `.toast__title` is `text-sm leading-5 font-medium`.
+                .text_size(px(14.))
+                .line_height(px(20.))
+                .font_weight(gpui::FontWeight::MEDIUM)
+                .text_color(title_color)
+                .truncate()
+                .child(self.t.title.to_string()),
+        );
+        if let Some(desc) = &self.t.description {
+            text_col = text_col.child(
+                gpui::div()
+                    // `.toast__description` is `text-sm text-muted`.
+                    .text_size(px(14.))
+                    .line_height(px(20.))
+                    .text_color(colors.muted)
+                    .child(desc.to_string()),
+            );
+        }
+        card = card.child(text_col);
+
+        // `.toast__action` — the button v3 configures with `actionProps`.
+        if let Some((label, on_press)) = self.t.action.clone() {
+            let id = self.t.id;
+            let mut action = crate::button::Button::new(gpui::ElementId::Name(
+                format!("toast-action-{id}").into(),
+            ))
+            .label(label)
+            .variant(herogpui_core::Variant::Secondary)
+            .size(herogpui_core::Size::Sm)
+            .is_disabled(!self.frontmost);
+            if self.frontmost {
+                action = action.on_press(move |_, _, cx| {
+                    on_press(cx);
+                    // v3's action closes the toast it belongs to.
+                    dismiss_toast(id, cx);
+                });
+            }
+            card = card.child(action);
+        }
+
+        if self.t.closable {
+            let id = self.t.id;
+            let mut close_btn = gpui::div()
+                .id(gpui::ElementId::Name(format!("toast-close-{id}").into()))
+                .flex()
+                .items_center()
+                .justify_center()
+                // `.toast__close-button` is `size-5` with `sm:border
+                // border-border sm:bg-overlay`, and its icon follows the close
+                // button's own `size-3`.
+                .size(px(20.))
+                .border(cx.layout().border_width)
+                .border_color(colors.border)
+                .bg(colors.overlay.background)
+                .rounded(crate::util::small_radius(cx));
+            if self.frontmost {
+                close_btn = close_btn.cursor_pointer();
+                // `.toast__close-button:hover` fills with `bg-default` --
+                // the full token, overriding the composed CloseButton's own
+                // `--default-hover` refinement.
+                let hover_bg = colors.default.color;
+                close_btn = close_btn.hover(move |s| s.bg(hover_bg));
+                close_btn = close_btn.on_click(move |_, _, cx| dismiss_toast(id, cx));
+                // A keyboard tab stop that rings on focus-visible — gpui builds
+                // its tab order from `track_focus` handles, and the Enter/Space
+                // activation fires the click listener above on its own.
+                let close_focus = close_focus
+                    .as_ref()
+                    .expect("a frontmost closable toast created its close handle");
+                close_btn = crate::util::ring_if_focused(
+                    close_btn.track_focus(close_focus),
+                    close_focus,
+                    true,
+                    Vec::new(),
+                    window,
+                    cx,
+                );
+            } else {
+                // Pinned CSS hides and disables the close affordance behind
+                // the front toast.
+                close_btn = close_btn.opacity(0.);
+            }
+            card = card.child(
+                close_btn.child(
+                    gpui::svg()
+                        .size(px(12.))
+                        .path(icons::CLOSE)
+                        .text_color(colors.muted),
+                ),
+            );
+        }
+
+        crate::anim::entering_zoom(
+            card,
+            gpui::ElementId::Name(format!("toast-anim-{}", self.t.id).into()),
+            crate::anim::ZoomBox::panel(px(10.), crate::util::container_radius(cx))
+                .padding_x(px(16.))
+                .sized(self.width),
+            crate::anim::Motion::LIST_IN,
+            cx,
+        )
+    }
+}
+
+/// The glyph a variant shows when the caller names none —
+/// `[data-slot="toast-default-icon"]` in v3, coloured by
+/// `.toast--<variant> .toast__indicator`.
+fn default_indicator(color: Color) -> Option<&'static str> {
+    match color {
+        Color::Default | Color::Accent => Some(icons::INFO_CIRCLE),
+        Color::Success => Some(icons::CHECK_CIRCLE),
+        Color::Warning => Some(icons::WARNING_TRIANGLE),
+        Color::Danger => Some(icons::CIRCLE_EXCLAMATION),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn implementation_source() -> &'static str {
+        include_str!("toast.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present")
+    }
+
+    #[test]
+    fn default_uses_info_indicator() {
+        assert_eq!(default_indicator(Color::Default), Some(icons::INFO_CIRCLE));
+    }
+
+    #[test]
+    fn accent_uses_the_pinned_info_indicator() {
+        assert_eq!(default_indicator(Color::Accent), Some(icons::INFO_CIRCLE));
+    }
+
+    #[test]
+    fn success_uses_check_circle_indicator() {
+        assert_eq!(default_indicator(Color::Success), Some(icons::CHECK_CIRCLE));
+    }
+
+    #[test]
+    fn warning_uses_warning_triangle_indicator() {
+        assert_eq!(
+            default_indicator(Color::Warning),
+            Some(icons::WARNING_TRIANGLE)
+        );
+    }
+
+    #[test]
+    fn danger_uses_circle_exclamation_indicator() {
+        assert_eq!(
+            default_indicator(Color::Danger),
+            Some(icons::CIRCLE_EXCLAMATION)
+        );
+    }
+
+    #[test]
+    fn neutral_indicators_use_the_overlay_foreground_token() {
+        let indicator = implementation_source()
+            .split("let indicator_color = match self.t.color")
+            .nth(1)
+            .expect("the indicator color implementation is present")
+            .split("let mut card =")
+            .next()
+            .expect("the card implementation follows the indicator color");
+        assert!(
+            indicator.contains("Color::Default | Color::Accent => colors.overlay.foreground"),
+            "default and accent indicators must use `text-overlay-foreground`"
+        );
+    }
+
+    #[test]
+    fn semantic_indicators_use_their_soft_foreground_tokens() {
+        let indicator = implementation_source()
+            .split("let indicator_color = match self.t.color")
+            .nth(1)
+            .expect("the indicator color implementation is present")
+            .split("let mut card =")
+            .next()
+            .expect("the card implementation follows the indicator color");
+        assert!(
+            indicator.contains("Color::Success | Color::Warning | Color::Danger =>"),
+            "status indicators must branch separately from neutral indicators"
+        );
+    }
+
+    #[test]
+    fn loading_indicator_inherits_the_status_indicator_color() {
+        let loading = implementation_source()
+            .split("if self.t.is_loading {")
+            .nth(1)
+            .expect("the loading indicator implementation is present")
+            .split("} else if let Some(icon)")
+            .next()
+            .expect("the custom indicator implementation follows loading");
+        assert!(
+            loading.contains(".current_color(indicator_color)"),
+            "the loading spinner must inherit the toast indicator color"
+        );
+    }
+
+    #[test]
+    fn toast_card_does_not_add_a_border() {
+        let card = implementation_source()
+            .split("let mut card =")
+            .nth(1)
+            .expect("the card implementation is present")
+            .split("// `.toast__indicator`")
+            .next()
+            .expect("the indicator implementation follows the card");
+        assert!(!card.contains(".border(cx.layout().border_width)"));
+        assert!(!card.contains(".border_color(colors.border)"));
+    }
+
+    #[test]
+    fn toast_content_does_not_add_an_extra_gap() {
+        let content = implementation_source()
+            .split("let mut text_col =")
+            .nth(1)
+            .expect("the content implementation is present")
+            .split("// `.toast__action`")
+            .next()
+            .expect("the action implementation follows the content");
+        assert!(!content.contains(".gap(px(2.))"));
+    }
+
+    // The pinned `.toast__close-button:hover` fills with `bg-default`, the
+    // full token -- the composed CloseButton's own `--default-hover`
+    // refinement is overridden, and no soft token survives here.
+    #[test]
+    fn the_close_button_hovers_the_full_default() {
+        // Scan the implementation only; this test's own text names the
+        // forbidden accessor.
+        let source = implementation_source();
+        assert!(
+            source.contains("let hover_bg = colors.default.color;"),
+            "the toast close button must hover `bg-default` \
+             (pinned `.toast__close-button:hover`)"
+        );
+        assert!(
+            !source.contains("soft_hover()"),
+            "the close button must not come back on a soft token"
+        );
+    }
+}

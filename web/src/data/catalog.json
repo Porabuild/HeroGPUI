@@ -1,0 +1,889 @@
+{
+  "version": "0.1.0",
+  "categories": [
+    {
+      "name": "Buttons",
+      "slug": "buttons",
+      "components": [
+        "button",
+        "button-group",
+        "close-button",
+        "toggle-button"
+      ]
+    },
+    {
+      "name": "Collections",
+      "slug": "collections",
+      "components": [
+        "dropdown",
+        "list-box",
+        "tag-group"
+      ]
+    },
+    {
+      "name": "Colors",
+      "slug": "colors",
+      "components": [
+        "color-area",
+        "color-field",
+        "color-picker",
+        "color-slider",
+        "color-swatch",
+        "color-swatch-picker"
+      ]
+    },
+    {
+      "name": "Controls",
+      "slug": "controls",
+      "components": [
+        "slider",
+        "switch"
+      ]
+    },
+    {
+      "name": "Data display",
+      "slug": "data-display",
+      "components": [
+        "badge",
+        "chip",
+        "table"
+      ]
+    },
+    {
+      "name": "Date and time",
+      "slug": "date-and-time",
+      "components": [
+        "calendar",
+        "date-field",
+        "date-picker",
+        "date-range-picker",
+        "range-calendar",
+        "time-field"
+      ]
+    },
+    {
+      "name": "Feedback",
+      "slug": "feedback",
+      "components": [
+        "alert",
+        "meter",
+        "progress-bar",
+        "progress-circle",
+        "skeleton",
+        "spinner"
+      ]
+    },
+    {
+      "name": "Forms",
+      "slug": "forms",
+      "components": [
+        "checkbox",
+        "checkbox-group",
+        "fieldset",
+        "label-messages",
+        "form",
+        "input",
+        "input-group",
+        "input-otp",
+        "number-field",
+        "radio-group",
+        "search-field",
+        "text-area",
+        "text-field"
+      ]
+    },
+    {
+      "name": "Layout",
+      "slug": "layout",
+      "components": [
+        "card",
+        "separator",
+        "surface",
+        "toolbar"
+      ]
+    },
+    {
+      "name": "Media",
+      "slug": "media",
+      "components": [
+        "avatar"
+      ]
+    },
+    {
+      "name": "Navigation",
+      "slug": "navigation",
+      "components": [
+        "accordion",
+        "breadcrumbs",
+        "disclosure",
+        "link",
+        "pagination",
+        "tabs"
+      ]
+    },
+    {
+      "name": "Overlays",
+      "slug": "overlays",
+      "components": [
+        "alert-dialog",
+        "drawer",
+        "modal",
+        "popover",
+        "toast",
+        "tooltip"
+      ]
+    },
+    {
+      "name": "Pickers",
+      "slug": "pickers",
+      "components": [
+        "autocomplete",
+        "combo-box",
+        "select"
+      ]
+    },
+    {
+      "name": "Typography",
+      "slug": "typography",
+      "components": [
+        "kbd",
+        "typography"
+      ]
+    },
+    {
+      "name": "Utilities",
+      "slug": "utilities",
+      "components": [
+        "scroll-shadow"
+      ]
+    }
+  ],
+  "components": {
+    "button": {
+      "slug": "button",
+      "title": "Button",
+      "description": "A pressable button with variants and states.",
+      "category": "Buttons",
+      "importLine": "use herogpui::prelude::{Button, Size, Variant};",
+      "shot": "/shots/button-v3.png",
+      "shotDark": "/shots/button-dark-v3.png",
+      "demos": [],
+      "hasReference": true
+    },
+    "button-group": {
+      "slug": "button-group",
+      "title": "Button Group",
+      "description": "Group related buttons with a shared variant and merged edges.",
+      "category": "Buttons",
+      "importLine": "use herogpui::components::button_group::ButtonGroup;",
+      "shot": "/shots/buttongroup-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "close-button": {
+      "slug": "close-button",
+      "title": "Close Button",
+      "description": "A button for dismissing dialogs, modals and inline content.",
+      "category": "Buttons",
+      "importLine": "use herogpui::components::close_button::CloseButton;",
+      "shot": "/shots/closebutton-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "toggle-button": {
+      "slug": "toggle-button",
+      "title": "Toggle Button",
+      "description": "Toggle between a selected and unselected state.",
+      "category": "Buttons",
+      "importLine": "use herogpui::components::toggle_button::{ToggleButton, ToggleButtonGroup};",
+      "shot": "/shots/togglebutton-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "dropdown": {
+      "slug": "dropdown",
+      "title": "Dropdown",
+      "description": "Display a menu of actions anchored to a trigger.",
+      "category": "Collections",
+      "importLine": "use herogpui::components::dropdown::{Dropdown, MenuItem};",
+      "shot": "/shots/dropdown-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "list-box": {
+      "slug": "list-box",
+      "title": "List Box",
+      "description": "A list of options, nonselecting until a selection mode is set.",
+      "category": "Collections",
+      "importLine": "use herogpui::components::list_box::{ListBox, ListBoxItem};",
+      "shot": "/shots/listbox-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "tag-group": {
+      "slug": "tag-group",
+      "title": "Tag Group",
+      "description": "A focusable list of tags with selection and removal.",
+      "category": "Collections",
+      "importLine": "use herogpui::components::tag_group::{Tag, TagGroup};",
+      "shot": "/shots/taggroup-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "color-area": {
+      "slug": "color-area",
+      "title": "Color Area",
+      "description": "Pick saturation and lightness from a two-dimensional gradient.",
+      "category": "Colors",
+      "importLine": "use herogpui::components::color_picker::ColorArea;",
+      "shot": "/shots/colorarea-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "color-field": {
+      "slug": "color-field",
+      "title": "Color Field",
+      "description": "Enter a color value as text.",
+      "category": "Colors",
+      "importLine": "use herogpui::components::color_picker::ColorField;",
+      "shot": "/shots/colorfield-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "color-picker": {
+      "slug": "color-picker",
+      "title": "Color Picker",
+      "description": "A complete color picking surface in a popover.",
+      "category": "Colors",
+      "importLine": "use herogpui::components::color_picker::ColorPicker;",
+      "shot": "/shots/colorpicker-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "color-slider": {
+      "slug": "color-slider",
+      "title": "Color Slider",
+      "description": "Adjust a single channel of a color.",
+      "category": "Colors",
+      "importLine": "use herogpui::components::color_picker::{ColorChannel, ColorSlider};",
+      "shot": "/shots/colorslider-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "color-swatch": {
+      "slug": "color-swatch",
+      "title": "Color Swatch",
+      "description": "Preview a single color value.",
+      "category": "Colors",
+      "importLine": null,
+      "shot": "/shots/colorswatch-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": false
+    },
+    "color-swatch-picker": {
+      "slug": "color-swatch-picker",
+      "title": "Color Swatch Picker",
+      "description": "Choose from a predefined set of colors.",
+      "category": "Colors",
+      "importLine": "use herogpui::components::color_picker::ColorSwatchPicker;",
+      "shot": "/shots/colorswatchpicker-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "slider": {
+      "slug": "slider",
+      "title": "Slider",
+      "description": "Select a value from a range by dragging.",
+      "category": "Controls",
+      "importLine": "use herogpui::components::slider::Slider;",
+      "shot": "/shots/slider-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "switch": {
+      "slug": "switch",
+      "title": "Switch",
+      "description": "Toggle a single setting on or off.",
+      "category": "Controls",
+      "importLine": "use herogpui::components::switch::Switch;",
+      "shot": "/shots/switch-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "badge": {
+      "slug": "badge",
+      "title": "Badge",
+      "description": "Display a count or status marker on its children.",
+      "category": "Data display",
+      "importLine": "use herogpui::components::badge::{Badge, BadgeAnchor, BadgeLabel};",
+      "shot": "/shots/badge-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "chip": {
+      "slug": "chip",
+      "title": "Chip",
+      "description": "A compact element for tags and filters.",
+      "category": "Data display",
+      "importLine": "use herogpui::components::chip::{Chip, ChipLabel};",
+      "shot": "/shots/chip-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "table": {
+      "slug": "table",
+      "title": "Table",
+      "description": "Display rows of data in columns.",
+      "category": "Data display",
+      "importLine": "use herogpui::components::table::Table;",
+      "shot": "/shots/table-v3.png",
+      "shotDark": "/shots/table-dark-v3.png",
+      "demos": [],
+      "hasReference": true
+    },
+    "calendar": {
+      "slug": "calendar",
+      "title": "Calendar",
+      "description": "A month grid for picking a single date.",
+      "category": "Date and time",
+      "importLine": "use herogpui::components::calendar::{Calendar, CalendarState};",
+      "shot": "/shots/calendar-v3.png",
+      "shotDark": "/shots/calendar-dark-v3.png",
+      "demos": [],
+      "hasReference": true
+    },
+    "date-field": {
+      "slug": "date-field",
+      "title": "Date Field",
+      "description": "Enter a date segment by segment.",
+      "category": "Date and time",
+      "importLine": "use herogpui::components::date_picker::DateField;",
+      "shot": "/shots/datefield-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "date-picker": {
+      "slug": "date-picker",
+      "title": "Date Picker",
+      "description": "A date field with a calendar popover.",
+      "category": "Date and time",
+      "importLine": "use herogpui::components::date_picker::DatePicker;",
+      "shot": "/shots/datepicker-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "date-range-picker": {
+      "slug": "date-range-picker",
+      "title": "Date Range Picker",
+      "description": "Pick a start and end date together.",
+      "category": "Date and time",
+      "importLine": "use herogpui::components::date_picker::{DateRangePicker, DateRangeState};",
+      "shot": "/shots/daterangepicker-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "range-calendar": {
+      "slug": "range-calendar",
+      "title": "Range Calendar",
+      "description": "A month grid for picking a date range.",
+      "category": "Date and time",
+      "importLine": "use herogpui::components::range_calendar::RangeCalendar;",
+      "shot": "/shots/rangecalendar-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "time-field": {
+      "slug": "time-field",
+      "title": "Time Field",
+      "description": "Enter a time segment by segment.",
+      "category": "Date and time",
+      "importLine": "use herogpui::components::time_field::{TimeField, TimeState};",
+      "shot": "/shots/timefield-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "alert": {
+      "slug": "alert",
+      "title": "Alert",
+      "description": "Display an important inline message.",
+      "category": "Feedback",
+      "importLine": "use herogpui::components::alert::Alert;",
+      "shot": "/shots/alert-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "meter": {
+      "slug": "meter",
+      "title": "Meter",
+      "description": "Show a value within a known range.",
+      "category": "Feedback",
+      "importLine": null,
+      "shot": "/shots/meter-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": false
+    },
+    "progress-bar": {
+      "slug": "progress-bar",
+      "title": "Progress Bar",
+      "description": "Show determinate or indeterminate progress.",
+      "category": "Feedback",
+      "importLine": "use herogpui::components::progress::ProgressBar;",
+      "shot": "/shots/progressbar-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "progress-circle": {
+      "slug": "progress-circle",
+      "title": "Progress Circle",
+      "description": "Show progress along a circular arc.",
+      "category": "Feedback",
+      "importLine": "use herogpui::components::progress::ProgressCircle;",
+      "shot": "/shots/progresscircle-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "skeleton": {
+      "slug": "skeleton",
+      "title": "Skeleton",
+      "description": "A placeholder shimmer shown while content loads.",
+      "category": "Feedback",
+      "importLine": null,
+      "shot": "/shots/skeleton-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": false
+    },
+    "spinner": {
+      "slug": "spinner",
+      "title": "Spinner",
+      "description": "Indicate a busy state with a rotating arc.",
+      "category": "Feedback",
+      "importLine": null,
+      "shot": "/shots/spinner-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": false
+    },
+    "checkbox": {
+      "slug": "checkbox",
+      "title": "Checkbox",
+      "description": "Select one or more values from a set.",
+      "category": "Forms",
+      "importLine": "use herogpui::components::checkbox::Checkbox;",
+      "shot": "/shots/checkbox-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "checkbox-group": {
+      "slug": "checkbox-group",
+      "title": "Checkbox Group",
+      "description": "A group of checkboxes with shared state.",
+      "category": "Forms",
+      "importLine": "use herogpui::components::checkbox::CheckboxGroup;",
+      "shot": "/shots/checkboxgroup-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "fieldset": {
+      "slug": "fieldset",
+      "title": "Fieldset",
+      "description": "Group related form controls under a legend.",
+      "category": "Forms",
+      "importLine": "use herogpui::components::field::{Fieldset, FieldGroup, FieldsetLegend, FieldsetActions};",
+      "shot": "/shots/fieldset-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "label-messages": {
+      "slug": "label-messages",
+      "title": "Label & Messages",
+      "description": "The label, description and error slots every field composes.",
+      "category": "Forms",
+      "importLine": "use herogpui::components::field::{Description, ErrorMessage, FieldError, Label};",
+      "shot": "/shots/label&messages-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "form": {
+      "slug": "form",
+      "title": "Form",
+      "description": "Group fields with validation and submit handling.",
+      "category": "Forms",
+      "importLine": "use herogpui::components::form::Form;",
+      "shot": "/shots/form-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "input": {
+      "slug": "input",
+      "title": "Input",
+      "description": "A single-line text input.",
+      "category": "Forms",
+      "importLine": "use herogpui::components::input::{Input, InputState};",
+      "shot": "/shots/input-v3.png",
+      "shotDark": "/shots/input-dark-v3.png",
+      "demos": [],
+      "hasReference": true
+    },
+    "input-group": {
+      "slug": "input-group",
+      "title": "Input Group",
+      "description": "Combine an input with adjacent addons and controls.",
+      "category": "Forms",
+      "importLine": "use herogpui::components::input_group::InputGroup;",
+      "shot": "/shots/inputgroup-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "input-otp": {
+      "slug": "input-otp",
+      "title": "Input OTP",
+      "description": "A segmented one-time-password input.",
+      "category": "Forms",
+      "importLine": "use herogpui::components::input_otp::{InputOTP, OtpState};",
+      "shot": "/shots/inputotp-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "number-field": {
+      "slug": "number-field",
+      "title": "Number Field",
+      "description": "A numeric field with steppers, range and step.",
+      "category": "Forms",
+      "importLine": "use herogpui::components::number_field::{NumberField, NumberState};",
+      "shot": "/shots/numberfield-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "radio-group": {
+      "slug": "radio-group",
+      "title": "Radio Group",
+      "description": "Select exactly one value from a set.",
+      "category": "Forms",
+      "importLine": "use herogpui::components::radio_group::RadioGroup;",
+      "shot": "/shots/radiogroup-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "search-field": {
+      "slug": "search-field",
+      "title": "Search Field",
+      "description": "A text input specialised for search, with a clear action.",
+      "category": "Forms",
+      "importLine": "use herogpui::components::input::SearchField;",
+      "shot": "/shots/searchfield-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "text-area": {
+      "slug": "text-area",
+      "title": "Text Area",
+      "description": "A multi-line text input.",
+      "category": "Forms",
+      "importLine": "use herogpui::components::textarea::TextArea;",
+      "shot": "/shots/textarea-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "text-field": {
+      "slug": "text-field",
+      "title": "Text Field",
+      "description": "A composition-friendly field with label and validation.",
+      "category": "Forms",
+      "importLine": "use herogpui::components::input::TextField;",
+      "shot": "/shots/textfield-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "card": {
+      "slug": "card",
+      "title": "Card",
+      "description": "Group related content and actions on a surface.",
+      "category": "Layout",
+      "importLine": "use herogpui::components::card::{Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle};",
+      "shot": "/shots/card-v3.png",
+      "shotDark": "/shots/card-dark-v3.png",
+      "demos": [],
+      "hasReference": true
+    },
+    "separator": {
+      "slug": "separator",
+      "title": "Separator",
+      "description": "Separate content with a horizontal or vertical line.",
+      "category": "Layout",
+      "importLine": "use herogpui::components::separator::Separator;",
+      "shot": "/shots/separator-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "surface": {
+      "slug": "surface",
+      "title": "Surface",
+      "description": "A container that applies surface-level styling to its children.",
+      "category": "Layout",
+      "importLine": "use herogpui::components::surface::Surface;",
+      "shot": "/shots/surface-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "toolbar": {
+      "slug": "toolbar",
+      "title": "Toolbar",
+      "description": "A container for interactive controls with arrow-key navigation.",
+      "category": "Layout",
+      "importLine": "use herogpui::components::toolbar::Toolbar;",
+      "shot": "/shots/toolbar-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "avatar": {
+      "slug": "avatar",
+      "title": "Avatar",
+      "description": "Display an image or initials representing a user.",
+      "category": "Media",
+      "importLine": "use herogpui::components::avatar::Avatar;",
+      "shot": "/shots/avatar-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "accordion": {
+      "slug": "accordion",
+      "title": "Accordion",
+      "description": "Vertically collapsing panels.",
+      "category": "Navigation",
+      "importLine": "use herogpui::components::accordion::{Accordion, AccordionItem};",
+      "shot": "/shots/accordion-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "breadcrumbs": {
+      "slug": "breadcrumbs",
+      "title": "Breadcrumbs",
+      "description": "Show the path to the current resource.",
+      "category": "Navigation",
+      "importLine": "use herogpui::components::breadcrumbs::{Breadcrumbs, Crumb};",
+      "shot": "/shots/breadcrumbs-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "disclosure": {
+      "slug": "disclosure",
+      "title": "Disclosure",
+      "description": "A single collapsible section.",
+      "category": "Navigation",
+      "importLine": "use herogpui::components::disclosure::{Disclosure, DisclosureGroup};",
+      "shot": "/shots/disclosure-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "link": {
+      "slug": "link",
+      "title": "Link",
+      "description": "Navigate or open external resources.",
+      "category": "Navigation",
+      "importLine": "use herogpui::components::link::Link;",
+      "shot": "/shots/link-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "pagination": {
+      "slug": "pagination",
+      "title": "Pagination",
+      "description": "Navigate between pages of content.",
+      "category": "Navigation",
+      "importLine": "use herogpui::components::pagination::Pagination;",
+      "shot": "/shots/pagination-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "tabs": {
+      "slug": "tabs",
+      "title": "Tabs",
+      "description": "Organise content into switchable panels.",
+      "category": "Navigation",
+      "importLine": "use herogpui::components::tabs::{TabItem, Tabs};",
+      "shot": "/shots/tabs-v3.png",
+      "shotDark": "/shots/tabs-dark-v3.png",
+      "demos": [],
+      "hasReference": true
+    },
+    "alert-dialog": {
+      "slug": "alert-dialog",
+      "title": "Alert Dialog",
+      "description": "A modal for critical confirmations.",
+      "category": "Overlays",
+      "importLine": "use herogpui::components::alert_dialog::{AlertDialog, AlertDialogCloseTrigger};",
+      "shot": "/shots/alertdialog-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "drawer": {
+      "slug": "drawer",
+      "title": "Drawer",
+      "description": "A slide-over panel anchored to a window edge.",
+      "category": "Overlays",
+      "importLine": "use herogpui::components::drawer::{Drawer, DrawerCloseTrigger, DrawerPlacement};",
+      "shot": "/shots/drawer-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "modal": {
+      "slug": "modal",
+      "title": "Modal",
+      "description": "Display a dialog over the page content.",
+      "category": "Overlays",
+      "importLine": "use herogpui::components::modal::{Modal, ModalCloseTrigger, ModalSize};",
+      "shot": "/shots/modal-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "popover": {
+      "slug": "popover",
+      "title": "Popover",
+      "description": "A floating panel anchored to a trigger.",
+      "category": "Overlays",
+      "importLine": "use herogpui::components::popover::{Popover, PopoverArrow, PopoverPlacement};",
+      "shot": "/shots/popover-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "toast": {
+      "slug": "toast",
+      "title": "Toast",
+      "description": "Transient notifications stacked in a corner.",
+      "category": "Overlays",
+      "importLine": "use herogpui::components::toast::{Toast, ToastViewport};",
+      "shot": "/shots/toast-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "tooltip": {
+      "slug": "tooltip",
+      "title": "Tooltip",
+      "description": "Contextual information shown on hover or focus.",
+      "category": "Overlays",
+      "importLine": "use herogpui::components::tooltip::Tooltip;",
+      "shot": "/shots/tooltip-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "autocomplete": {
+      "slug": "autocomplete",
+      "title": "Autocomplete",
+      "description": "An autocomplete combines a select with filtering, allowing users to search and select from a list of options.",
+      "category": "Pickers",
+      "importLine": "use herogpui::components::autocomplete::Autocomplete;",
+      "shot": "/shots/autocomplete-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "combo-box": {
+      "slug": "combo-box",
+      "title": "Combo Box",
+      "description": "A text input combined with a selectable list.",
+      "category": "Pickers",
+      "importLine": "use herogpui::components::combo_box::ComboBox;",
+      "shot": "/shots/combobox-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "select": {
+      "slug": "select",
+      "title": "Select",
+      "description": "Pick one value from a dropdown list.",
+      "category": "Pickers",
+      "importLine": "use herogpui::components::select::Select;",
+      "shot": "/shots/select-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "kbd": {
+      "slug": "kbd",
+      "title": "Kbd",
+      "description": "Display keyboard key combinations.",
+      "category": "Typography",
+      "importLine": "use herogpui::components::kbd::Kbd;",
+      "shot": "/shots/kbd-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "typography": {
+      "slug": "typography",
+      "title": "Typography",
+      "description": "Semantic typography primitives for headings, body and code.",
+      "category": "Typography",
+      "importLine": "use herogpui::components::typography::{Typography, TypographyType};",
+      "shot": "/shots/typography-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": true
+    },
+    "scroll-shadow": {
+      "slug": "scroll-shadow",
+      "title": "Scroll Shadow",
+      "description": "A scrollable area with soft fading edges.",
+      "category": "Utilities",
+      "importLine": null,
+      "shot": "/shots/scrollshadow-v3.png",
+      "shotDark": null,
+      "demos": [],
+      "hasReference": false
+    }
+  }
+}

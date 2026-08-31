@@ -1,0 +1,97 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/herogpui-core",
+    "crates/herogpui-theme",
+    "crates/herogpui-components",
+    "crates/herogpui",
+    "gallery",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/heroui-inc/HeroGPUI"
+keywords = ["gpui", "gui", "components", "heroui", "desktop"]
+categories = ["gui"]
+
+[workspace.dependencies]
+gpui = "0.2.2"
+jiff = "0.2"
+herogpui-core = { version = "0.1.0", path = "crates/herogpui-core" }
+herogpui-theme = { version = "0.1.0", path = "crates/herogpui-theme" }
+herogpui-components = { version = "0.1.0", path = "crates/herogpui-components" }
+herogpui = { version = "0.1.0", path = "crates/herogpui" }
+
+# Lint policy lives here so every crate gets the same one via
+# `lints.workspace = true`; a crate that forgets that line is the only way to
+# drift. `.shots/lint.ps1` is the gate that enforces it.
+[workspace.lints.rust]
+unsafe_code = "deny"
+rust_2018_idioms = { level = "warn", priority = -1 }
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+# Every prop builder is named after its v3 prop and consumes `self`, so
+# `isDisabled` ports to `fn is_disabled(mut self, ..) -> Self`. `extra_audit.py`
+# checks those names against v3's tables; renaming them to satisfy the lint
+# would fail the parity audit instead.
+wrong_self_convention = "allow"
+
+# Would rewrite `.when_some(top, |b, t| b.top(t))` into
+# `.when_some(top, gpui::Styled::top)`, naming a trait path that appears
+# nowhere else in the codebase. The fluent closure is the house style.
+redundant_closure_for_method_calls = "allow"
+
+# Rust 2024 makes let chains available, so `collapsible_if` asks to rewrite
+# established nested control flow across the component tree. That mechanical
+# churn does not improve the v3 port and obscures behavioural diffs.
+collapsible_if = "allow"
+
+# Left in the tree by accident, never on purpose.
+dbg_macro = "deny"
+todo = "warn"
+
+# Colour math is f32 all the way down; `==` on a float is a real bug here.
+float_cmp = "warn"
+
+# Selected pedantic/nursery lints. The whole `pedantic` group is too noisy for
+# a builder-heavy UI library (every `pub fn size(mut self, ..)` trips
+# `must_use_candidate`), so the useful members are named individually.
+cloned_instead_of_copied = "warn"
+explicit_iter_loop = "warn"
+implicit_clone = "warn"
+inefficient_to_string = "warn"
+manual_let_else = "warn"
+map_unwrap_or = "warn"
+needless_continue = "warn"
+redundant_clone = "warn"
+semicolon_if_nothing_returned = "warn"
+str_to_string = "warn"
+uninlined_format_args = "warn"
+unnested_or_patterns = "warn"
+
+[profile.dev]
+opt-level = 1
+# Line tables instead of full debug info: enough for a backtrace with file and
+# line, without the multi-gigabyte PDBs. Full `debug = true` filled the disk on
+# a build with ten test binaries -- the link failed with a bare
+# `link.exe: exit code 1318`, which reads as a toolchain fault rather than as
+# "no space left". Linking goes through `rust-lld` (see .cargo/config.toml),
+# which also sidesteps the old MSVC linker's PDB quirks.
+debug = "line-tables-only"
+# Something on this machine still locks the incremental session directory
+# ("error finalizing incremental compilation session directory ... os error 5"),
+# leaving partial artifacts that both break the next link and replay phantom
+# diagnostics (an in-use variable reported unused). Re-verified with Defender
+# path exclusions present; still reproduces every run, so incremental stays
+# off: a slower rebuild beats a build that spuriously breaks.
+incremental = false
+
+[profile.dev.package."*"]
+opt-level = 3

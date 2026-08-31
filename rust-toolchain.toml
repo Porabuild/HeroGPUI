@@ -1,0 +1,8 @@
+# Pins the toolchain so every machine and CI resolves the same rustc: a
+# floating channel lets a Tuesday release silently invalidate every
+# incremental cache and change rustfmt's output mid-project. Bump the version
+# (and re-run the gates) deliberately. `rust-version` in Cargo.toml matches this
+# pin because the unpublished pre-1.0 workspace tracks the current stable Rust.
+[toolchain]
+channel = "1.98.0"
+components = ["rustfmt", "clippy"]

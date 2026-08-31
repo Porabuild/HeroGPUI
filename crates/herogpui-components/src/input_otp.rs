@@ -1,0 +1,886 @@
+//! InputOTP — port of `@heroui/input-otp`.
+
+use gpui::{
+    prelude::*, px, App, Entity, FocusHandle, Focusable, IntoElement, KeyDownEvent, RenderOnce,
+    SharedString, Styled, Window,
+};
+use herogpui_core::FieldVariant;
+use herogpui_theme::ActiveTheme;
+
+/// Editable state for an OTP field: one char per cell.
+/// Which characters an OTP cell accepts (`pattern`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum OtpPattern {
+    /// `0-9` — the v3 default.
+    #[default]
+    Digits,
+    /// `0-9A-Za-z`
+    Alphanumeric,
+    /// Any printable character.
+    Any,
+}
+
+impl OtpPattern {
+    pub const ALL: [OtpPattern; 3] = [
+        OtpPattern::Digits,
+        OtpPattern::Alphanumeric,
+        OtpPattern::Any,
+    ];
+
+    /// Whether `ch` may be entered into a cell.
+    pub fn accepts(self, ch: char) -> bool {
+        match self {
+            OtpPattern::Digits => ch.is_ascii_digit(),
+            OtpPattern::Alphanumeric => ch.is_ascii_alphanumeric(),
+            OtpPattern::Any => !ch.is_control(),
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            OtpPattern::Digits => "Digits",
+            OtpPattern::Alphanumeric => "Alphanumeric",
+            OtpPattern::Any => "Any",
+        }
+    }
+}
+
+pub struct OtpState {
+    cells: Vec<char>,
+    cursor: usize,
+    pub(crate) focus_handle: FocusHandle,
+    /// Disabled native controls are omitted from FormData and native form validation.
+    /// Written by `InputOTP::render` for the registered FormField to read.
+    is_successful: bool,
+    /// Resolved component validation, read by native Form submission.
+    validity: crate::validation::Validity,
+    /// Server messages routed to this field by its `Form`'s
+    /// `validationErrors` record (`form.rs`). The form writes them on a new
+    /// record; an accepted edit in any cell clears them — v3: "displayed
+    /// immediately and cleared when user modifies the field".
+    routed_errors: Vec<SharedString>,
+    /// The delivery receipt for `routed_errors`: the record revision these
+    /// messages last came from, `0` before anything arrived. The form's
+    /// delivery consults it — a record the receipt already names is a clone
+    /// of one already delivered and re-arms nothing — and an accepted edit
+    /// clears the messages without rewinding it, so the next frame's clone
+    /// cannot resurrect what the keystroke answered.
+    routed_revision: u64,
+}
+
+impl OtpState {
+    /// Fills the cells from `code`, padding with blanks and dropping any
+    /// overflow.
+    pub fn set_code(&mut self, code: &str) {
+        let len = self.cells.len();
+        let mut chars = code.chars();
+        for i in 0..len {
+            self.cells[i] = chars.next().unwrap_or(' ');
+        }
+        self.cursor = code.chars().count().min(len.saturating_sub(1));
+    }
+
+    /// `length` = number of cells (HeroUI default 4).
+    pub fn with_length(cx: &mut App, length: usize) -> Self {
+        Self {
+            cells: vec![' '; length.max(1)],
+            cursor: 0,
+            // A field is a tab stop: the handle carries that, not the element.
+            focus_handle: cx.focus_handle().tab_stop(true),
+            is_successful: true,
+            validity: crate::validation::Validity::default(),
+            routed_errors: Vec::new(),
+            routed_revision: 0,
+        }
+    }
+
+    pub fn code(&self) -> String {
+        self.cells.iter().filter(|c| **c != ' ').collect()
+    }
+
+    pub fn is_complete(&self) -> bool {
+        self.cells.iter().all(|c| *c != ' ')
+    }
+
+    pub fn clear(&mut self) {
+        self.cells.iter_mut().for_each(|c| *c = ' ');
+        self.cursor = 0;
+    }
+
+    pub(crate) fn is_successful(&self) -> bool {
+        self.is_successful
+    }
+
+    pub(crate) fn set_successful(&mut self, is_successful: bool) {
+        self.is_successful = is_successful;
+    }
+
+    pub(crate) fn validity(&self) -> &crate::validation::Validity {
+        &self.validity
+    }
+
+    pub(crate) fn set_validity(&mut self, validity: crate::validation::Validity) {
+        self.validity = validity;
+    }
+
+    /// The server messages the form routed to this field, as last written by
+    /// the form's `validationErrors` delivery — what this field's error slot
+    /// renders. Empty once an accepted edit suppressed them or a reset hid
+    /// them.
+    pub fn routed_errors(&self) -> &[SharedString] {
+        &self.routed_errors
+    }
+
+    /// The delivery receipt beside [`Self::routed_errors`] — the record
+    /// revision these messages last came from, `0` before any delivery.
+    pub(crate) fn routed_revision(&self) -> u64 {
+        self.routed_revision
+    }
+
+    /// Replaces the routed server messages *and* the receipt that names the
+    /// record they came from, in one update. Guarded by the caller, which
+    /// compares the receipt before writing so a render cannot notify-loop.
+    pub(crate) fn set_routed(&mut self, messages: Vec<SharedString>, revision: u64) {
+        self.routed_errors = messages;
+        self.routed_revision = revision;
+    }
+
+    /// Suppresses the routed server messages after an accepted edit. The
+    /// delivery receipt is deliberately untouched — the record that delivered
+    /// already named this field, so the next frame's clone must not resurrect
+    /// what the keystroke answered.
+    pub(crate) fn clear_routed_errors(&mut self) {
+        self.routed_errors.clear();
+    }
+}
+
+impl Focusable for OtpState {
+    fn focus_handle(&self, _cx: &App) -> FocusHandle {
+        self.focus_handle.clone()
+    }
+}
+
+type OnComplete = std::sync::Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>;
+
+/// An accepted edit — a typed digit, a paste, a backspace that removed
+/// something — suppresses the routed server messages (v3: server errors are
+/// "cleared when user modifies the field"). A rejected keystroke is not an
+/// edit and clears nothing.
+fn suppress_routed_errors(state: &Entity<OtpState>, cx: &mut App) {
+    if !state.read(cx).routed_errors().is_empty() {
+        state.update(cx, |state, cx| {
+            state.clear_routed_errors();
+            cx.notify();
+        });
+    }
+}
+
+/// An accepted edit also refreshes the stored validity mirror. `render`
+/// writes that mirror, so without this it is one frame old — and a
+/// completion handler may submit the form synchronously (the one-time-code
+/// auto-submit v3's `onComplete` invites) before any frame catches up. The
+/// routed messages the edit just suppressed are left out, so the mirror
+/// says what the field says *now*: its own `isInvalid`, `validationErrors`
+/// and `validate` against the current code.
+fn refresh_stored_validity(
+    state: &Entity<OtpState>,
+    is_invalid: bool,
+    validation_errors: &[SharedString],
+    validate: Option<&crate::validation::Validator<str>>,
+    cx: &mut App,
+) {
+    let code: String = state.read(cx).code();
+    let validity = crate::validation::resolve(
+        is_invalid,
+        validation_errors,
+        validate.and_then(|f| f(code.as_str())),
+        None,
+    );
+    if state.read(cx).validity() != &validity {
+        state.update(cx, |s, _| s.set_validity(validity));
+    }
+}
+
+type Slot = std::sync::Arc<dyn Fn(usize, Option<char>) -> gpui::AnyElement + 'static>;
+
+/// `textAlign` — where a digit sits inside its slot.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum OtpTextAlign {
+    Left,
+    #[default]
+    Center,
+    Right,
+}
+
+impl OtpTextAlign {
+    pub const ALL: [OtpTextAlign; 3] = [
+        OtpTextAlign::Left,
+        OtpTextAlign::Center,
+        OtpTextAlign::Right,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            OtpTextAlign::Left => "Left",
+            OtpTextAlign::Center => "Center",
+            OtpTextAlign::Right => "Right",
+        }
+    }
+}
+
+/// HeroUI InputOTP.
+#[derive(IntoElement)]
+pub struct InputOTP {
+    /// `children` on `InputOTP.Slot` — v3's render prop, handed the slot's
+    /// `index` and its character.
+    slot: Option<Slot>,
+    /// `name` — the name this control submits under; read back by
+    /// [`Self::form_field`].
+    name: Option<SharedString>,
+    variant: FieldVariant,
+    /// `validate` — run by the component, not the caller.
+    validate: Option<crate::validation::Validator<str>>,
+    /// `validationErrors` — messages from a server round-trip.
+    validation_errors: Vec<SharedString>,
+    /// `textAlign` — where the digit sits inside its slot.
+    text_align: OtpTextAlign,
+    /// `autoFocus` — take focus on the first render.
+    auto_focus: bool,
+    /// `pasteTransformer` — rewrites pasted text before the slots take it.
+    paste_transformer: Option<std::sync::Arc<dyn Fn(&str) -> String + 'static>>,
+    is_invalid: bool,
+    placeholder: char,
+    pattern: OtpPattern,
+    on_change: Option<std::sync::Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>>,
+    state: Entity<OtpState>,
+    is_disabled: bool,
+    separator: bool,
+    on_complete: Option<OnComplete>,
+}
+
+impl InputOTP {
+    /// `value` — writes the code through to the bound [`OtpState`], one char
+    /// per cell.
+    pub fn value(self, code: &str, cx: &mut App) -> Self {
+        self.state.update(cx, |s, _| s.set_code(code));
+        self
+    }
+
+    pub fn new(state: Entity<OtpState>) -> Self {
+        Self {
+            slot: None,
+            name: None,
+            variant: FieldVariant::Primary,
+            validate: None,
+            validation_errors: Vec::new(),
+            text_align: OtpTextAlign::Center,
+            auto_focus: false,
+            paste_transformer: None,
+            is_invalid: false,
+            placeholder: '-',
+            pattern: OtpPattern::Digits,
+            on_change: None,
+            state,
+            is_disabled: false,
+            separator: false,
+            on_complete: None,
+        }
+    }
+
+    /// `children` on `InputOTP.Slot` — replaces a slot's contents.
+    ///
+    /// The closure receives the slot's `index` and its character (`None` when
+    /// empty), the values v3 passes into the same render prop.
+    pub fn slot(
+        mut self,
+        render: impl Fn(usize, Option<char>) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.slot = Some(std::sync::Arc::new(render));
+        self
+    }
+
+    /// `name` — the name this control submits under.
+    pub fn name(mut self, name: impl Into<SharedString>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// The `Form` field this control submits, when it has a `name`.
+    ///
+    /// v3 discovers a field through the DOM; gpui gives a child no way to reach
+    /// its ancestor, so the control hands the pair over instead. Borrows, so the
+    /// control is still yours to place:
+    ///
+    /// ```ignore
+    /// let field = control.form_field();
+    /// form.field(field.unwrap()).child(control)
+    /// ```
+    pub fn form_field(&self) -> Option<crate::form::FormField> {
+        let name = self.name.clone()?;
+        let state = self.state.clone();
+        Some(crate::form::FormField::code(name, state).is_required(false))
+    }
+
+    pub fn variant(mut self, variant: FieldVariant) -> Self {
+        self.variant = variant;
+        self
+    }
+
+    /// `validate` — returns the message to show, or `None` when the code is fine.
+    ///
+    /// The component runs it and surfaces the result.
+    pub fn validate(mut self, f: impl Fn(&str) -> Option<SharedString> + 'static) -> Self {
+        self.validate = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// `validationErrors` — messages produced elsewhere, shown ahead of
+    /// whatever `validate` returns.
+    pub fn validation_errors(
+        mut self,
+        errors: impl IntoIterator<Item = impl Into<SharedString>>,
+    ) -> Self {
+        self.validation_errors = errors.into_iter().map(Into::into).collect();
+        self
+    }
+
+    /// `autoFocus` — take focus on the first render.
+    pub fn auto_focus(mut self, v: bool) -> Self {
+        self.auto_focus = v;
+        self
+    }
+
+    /// `pasteTransformer` — rewrites pasted text before it fills the slots.
+    ///
+    /// Useful for stripping separators from a code the user copied out of an
+    /// email, e.g. `|t| t.replace('-', "")`.
+    pub fn paste_transformer(mut self, f: impl Fn(&str) -> String + 'static) -> Self {
+        self.paste_transformer = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// `textAlign` — where each digit sits inside its slot.
+    ///
+    /// v3 documents `left` as the default; a single character in a square slot
+    /// reads better centred, which is what the slots render, so `Center` is the
+    /// default here and the other two are available.
+    pub fn text_align(mut self, align: OtpTextAlign) -> Self {
+        self.text_align = align;
+        self
+    }
+
+    pub fn is_invalid(mut self, v: bool) -> Self {
+        self.is_invalid = v;
+        self
+    }
+
+    /// `placeholder` — the glyph shown in an empty cell.
+    pub fn placeholder(mut self, ch: char) -> Self {
+        self.placeholder = ch;
+        self
+    }
+
+    /// `pattern` — the characters a cell accepts. Defaults to digits.
+    pub fn pattern(mut self, pattern: OtpPattern) -> Self {
+        self.pattern = pattern;
+        self
+    }
+
+    /// Fires on every cell change, not just completion (`onChange`).
+    pub fn on_change(mut self, f: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
+        self.on_change = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    pub fn is_disabled(mut self, v: bool) -> Self {
+        self.is_disabled = v;
+        self
+    }
+
+    /// `InputOTP.Separator` — the dash between cell groups.
+    ///
+    /// It takes no content in v3: `.input-otp__separator` is `h-[2px] w-[6px]
+    /// rounded-sm bg-separator`, a bar rather than a glyph, so this is a flag
+    /// and not the string it used to accept.
+    pub fn separator(mut self) -> Self {
+        self.separator = true;
+        self
+    }
+
+    pub fn on_complete(mut self, f: impl Fn(&str, &mut Window, &mut App) + 'static) -> Self {
+        self.on_complete = Some(std::sync::Arc::new(f));
+        self
+    }
+}
+
+impl RenderOnce for InputOTP {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let is_successful = !self.is_disabled;
+        if self.state.read(cx).is_successful() != is_successful {
+            self.state
+                .update(cx, |state, _| state.set_successful(is_successful));
+        }
+        // The mount-time autofocus decision runs before the tokens. A disabled
+        // field consumes the one-shot without focusing, just like a disabled
+        // native input whose `autofocus` attribute does not rerun if enabled.
+        let focused_handle = self.state.read(cx).focus_handle.clone();
+        if self.auto_focus {
+            let done = window.use_keyed_state(
+                gpui::ElementId::Name(
+                    format!("otp-autofocus-{}", self.state.entity_id().as_u64()).into(),
+                ),
+                cx,
+                |_, _| false,
+            );
+            if !*done.read(cx) {
+                if !self.is_disabled {
+                    window.focus(&focused_handle);
+                }
+                done.update(cx, |done, _| *done = true);
+            }
+        }
+
+        // Where the row's text starts, remembered from the last frame: a
+        // `canvas` is the only element that is told its own bounds, and a
+        // click has to be measured against something. `use_keyed_state` takes
+        // `cx` mutably, so it runs before the theme tokens — the same reason
+        // `focus_once` above runs before them.
+        let row_origin = window.use_keyed_state(
+            gpui::ElementId::Name(format!("otp-origin-{}", self.state.entity_id().as_u64()).into()),
+            cx,
+            |_, _| None::<gpui::Pixels>,
+        );
+
+        // `.input-otp__slot` is `h-10 w-9.5` with `text-sm`, and the row and
+        // group are both `gap-2`.
+        let (cell_w, cell_h, text, slot_gap) = (px(38.), px(40.), px(14.), px(8.));
+
+        let focused = focused_handle.is_focused(window);
+        let (cells_snapshot, cursor) = {
+            let st = self.state.read(cx);
+            (st.cells.clone(), st.cursor)
+        };
+        let _length = cells_snapshot.len();
+        let disabled = self.is_disabled;
+
+        // v3 order: the controlled flag, then server errors, then `validate`.
+        // The server slot carries the messages the `Form`'s
+        // `validationErrors` record routed into this state by name, ahead of
+        // this field's own `validationErrors` prop.
+        let code_now = self.state.read(cx).code();
+        let mut server_errors = self.state.read(cx).routed_errors().to_vec();
+        server_errors.extend(self.validation_errors.iter().cloned());
+        let validity = crate::validation::resolve(
+            self.is_invalid,
+            &server_errors,
+            self.validate.as_ref().and_then(|f| f(code_now.as_str())),
+            None,
+        );
+        if self.state.read(cx).validity() != &validity {
+            self.state
+                .update(cx, |state, _| state.set_validity(validity.clone()));
+        }
+        let invalid = validity.is_invalid;
+        let colors = cx.colors();
+        let layout = cx.layout();
+
+        let mut row = gpui::div()
+            .id(gpui::ElementId::Name(
+                format!("otp-{}", self.state.entity_id().as_u64()).into(),
+            ))
+            .flex()
+            .items_center()
+            .gap(slot_gap)
+            .cursor(if disabled {
+                gpui::CursorStyle::Arrow
+            } else {
+                gpui::CursorStyle::IBeam
+            })
+            // A disabled field is not a tab stop.
+            .when(!self.is_disabled, |el| el.track_focus(&focused_handle))
+            .key_context("InputOTP")
+            .on_mouse_down(gpui::MouseButton::Left, {
+                let fh = focused_handle.clone();
+                let origin = row_origin.clone();
+                let st = self.state.clone();
+                let disabled = self.is_disabled;
+                move |ev: &gpui::MouseDownEvent, window, cx| {
+                    if disabled {
+                        return;
+                    }
+                    // The click that *grants* the focus must not disturb a
+                    // caret the value placed (a seeded code parks it after
+                    // the last filled slot); only a click on an already
+                    // focused row re-homes it, which is what v3's input-otp
+                    // does when a slot is clicked.
+                    let was_focused = fh.is_focused(window);
+                    window.focus(&fh);
+                    if !was_focused {
+                        return;
+                    }
+                    // The caret lands on the slot the click hit, measured
+                    // from the row's remembered left edge. The gap after the
+                    // zero-width origin item shifts each cell 8px in;
+                    // flooring the pitch-scaled position still names the
+                    // right cell.
+                    let Some(left) = *origin.read(cx) else {
+                        return;
+                    };
+                    let pitch = f32::from(cell_w + slot_gap);
+                    let x = f32::from(ev.position.x) - f32::from(left);
+                    let len = st.read(cx).cells.len();
+                    let cell = (x / pitch).floor() as i32;
+                    st.update(cx, |s, cx| {
+                        s.cursor = cell.clamp(0, len as i32 - 1) as usize;
+                        cx.notify();
+                    });
+                }
+            });
+
+        if disabled {
+            row = row.opacity(layout.disabled_opacity);
+        }
+
+        // A zero-width item at the row's head: its bounds give the row's left
+        // edge, which the click handler above measures against (it took its
+        // own clone). A row starts with this, then its cells, so cell *i*
+        // spans `i*46 + 8` px in.
+        row = row.child(
+            gpui::canvas(
+                move |bounds, _window, cx| {
+                    let left = bounds.origin.x;
+                    if *row_origin.read(cx) != Some(left) {
+                        row_origin.update(cx, |v, _| *v = Some(left));
+                    }
+                },
+                |_, _, _, _| {},
+            )
+            .w(px(0.))
+            .h(px(0.))
+            .flex_shrink_0(),
+        );
+
+        for (i, cell_ch) in cells_snapshot.iter().enumerate() {
+            // group separator every 3 cells
+            if i > 0 && i % 3 == 0 && self.separator {
+                row = row.child(
+                    gpui::div()
+                        .flex_shrink_0()
+                        .w(px(6.))
+                        .h(px(2.))
+                        .rounded(crate::util::hairline_radius(cx))
+                        .bg(colors.separator),
+                );
+            }
+
+            let ch = *cell_ch;
+            let is_cursor_cell = focused && i == cursor && !disabled;
+
+            let mut cell = gpui::div()
+                .flex()
+                .items_center()
+                // `textAlign` positions the digit inside its slot.
+                .map(|c| match self.text_align {
+                    OtpTextAlign::Left => c.justify_start().pl(px(6.)),
+                    OtpTextAlign::Center => c.justify_center(),
+                    OtpTextAlign::Right => c.justify_end().pr(px(6.)),
+                })
+                .w(cell_w)
+                .h(cell_h)
+                .rounded(crate::util::field_radius(cx))
+                .text_size(text)
+                .font_weight(gpui::FontWeight::SEMIBOLD);
+
+            // Every slot is filled and shadowed, empty or not -- v3 gives
+            // `.input-otp__slot` `bg-field shadow-field` with a zero-width
+            // border, and `bg-field-focus` (which resolves back to the same
+            // background) once it is active or filled. Drawing empty slots as a
+            // bare 2px outline instead made them all but invisible.
+            let slot_bg = match self.variant {
+                FieldVariant::Primary => colors.field.background,
+                FieldVariant::Secondary => colors.default.color,
+            };
+            cell = cell.bg(slot_bg).text_color(colors.foreground);
+            // `--input-otp-slot-bg-hover` is `--default-hover`.
+            if !self.is_disabled {
+                let hover_bg = colors.default.hover();
+                cell = cell.hover(move |s| s.bg(hover_bg));
+            }
+            if self.variant == FieldVariant::Primary && !layout.field_shadow.is_empty() {
+                cell = cell.shadow(layout.field_shadow.clone());
+            }
+            if is_cursor_cell {
+                // `status-focused-field` -- a 2px ring, no offset. A ring rather
+                // than a border, which would shrink the digit's box by 2px as
+                // the caret arrived.
+                let base = if self.variant == FieldVariant::Primary {
+                    layout.field_shadow.clone()
+                } else {
+                    Vec::new()
+                };
+                cell = crate::util::with_focus_ring(cell, true, false, base, cx);
+            } else if invalid {
+                // `status-invalid-field` — a 1px danger outline.
+                cell = cell.border_1().border_color(colors.danger.color);
+            }
+
+            // `slot` is v3's render prop on `InputOTP.Slot`: it receives the
+            // slot's `index` and its character, so a caller can draw the cell's
+            // contents without re-deriving either.
+            if let Some(render) = &self.slot {
+                cell = cell.child(render(i, if ch == ' ' { None } else { Some(ch) }));
+            } else if ch != ' ' {
+                // `.input-otp__slot-value` is `text-lg leading-6`: the digit is
+                // a step larger than the slot's own `text-sm`.
+                cell = cell.child(
+                    gpui::div()
+                        .text_size(px(18.))
+                        .line_height(px(24.))
+                        .child(ch.to_string()),
+                );
+            } else if is_cursor_cell {
+                // v3's `@keyframes caret-blink`.
+                cell = cell.child(crate::anim::caret_blink(
+                    // `.input-otp__caret` is `h-4 w-[2px] rounded-sm
+                    // bg-field-placeholder`.
+                    gpui::div()
+                        .w(px(2.))
+                        .h(px(16.))
+                        .rounded(crate::util::hairline_radius(cx))
+                        .bg(colors.field.placeholder),
+                    gpui::ElementId::Name(
+                        format!("otp-caret-{}-{i}", self.state.entity_id().as_u64()).into(),
+                    ),
+                    cx,
+                ));
+            } else {
+                // `placeholder` fills the empty, unfocused cells.
+                cell = cell
+                    .text_color(colors.muted)
+                    .child(self.placeholder.to_string());
+            }
+
+            row = row.child(cell);
+        }
+
+        // editing
+        let state_entity = self.state.clone();
+        let on_complete = self.on_complete.clone();
+        let on_change = self.on_change.clone();
+        let pattern = self.pattern;
+        let paste_transformer = self.paste_transformer.clone();
+        // The sources an accepted edit re-resolves the stored validity from
+        // (see `refresh_stored_validity`): the field's own, never the
+        // routed slot the edit suppresses.
+        let edit_is_invalid = self.is_invalid;
+        let edit_validation_errors = self.validation_errors.clone();
+        let edit_validate = self.validate.clone();
+        row = row.on_key_down(move |ev: &KeyDownEvent, window, cx| {
+            if disabled {
+                return;
+            }
+            let key: &str = &ev.keystroke.key;
+
+            // Ctrl/Cmd+V fills the slots from the clipboard. `Cmd` matters on
+            // macOS; checking only `control` would make paste dead there.
+            let paste_chord =
+                (ev.keystroke.modifiers.control || ev.keystroke.modifiers.platform) && key == "v";
+            if paste_chord {
+                if let Some(text) = cx.read_from_clipboard().and_then(|c| c.text()) {
+                    let text = match &paste_transformer {
+                        Some(f) => f(&text),
+                        None => text,
+                    };
+                    let was_complete = state_entity.read(cx).is_complete();
+                    let accepted = state_entity.update(cx, |s, cx| {
+                        let mut accepted = false;
+                        // A paste replaces the code from the cursor onward.
+                        // Every pasted char goes through the same `pattern`
+                        // gate a keystroke does (the typing branch calls
+                        // `pattern.accepts`); a digits field used to take
+                        // letters simply because they were alphanumeric.
+                        for ch in text.chars() {
+                            if s.cursor >= s.cells.len() {
+                                break;
+                            }
+                            if !pattern.accepts(ch) {
+                                continue;
+                            }
+                            accepted = true;
+                            s.cells[s.cursor] = ch.to_ascii_uppercase();
+                            s.cursor += 1;
+                        }
+                        // Leave the cursor on the last filled slot so the next
+                        // keystroke overwrites rather than falling off the end.
+                        if s.cursor >= s.cells.len() {
+                            s.cursor = s.cells.len() - 1;
+                        }
+                        cx.notify();
+                        accepted
+                    });
+                    let code: String = state_entity.read(cx).code();
+                    if accepted {
+                        suppress_routed_errors(&state_entity, cx);
+                        refresh_stored_validity(
+                            &state_entity,
+                            edit_is_invalid,
+                            &edit_validation_errors,
+                            edit_validate.as_ref(),
+                            cx,
+                        );
+                        if let Some(cb) = &on_change {
+                            cb(&code, window, cx);
+                        }
+                    }
+                    if !was_complete && state_entity.read(cx).is_complete() {
+                        if let Some(cb) = &on_complete {
+                            cb(&code, window, cx);
+                        }
+                    }
+                }
+                return;
+            }
+
+            match key {
+                "backspace" => {
+                    let changed = state_entity.update(cx, |s, cx| {
+                        let changed = if s.cells[s.cursor] != ' ' {
+                            s.cells[s.cursor] = ' ';
+                            true
+                        } else if s.cursor > 0 {
+                            s.cursor -= 1;
+                            s.cells[s.cursor] = ' ';
+                            true
+                        } else {
+                            false
+                        };
+                        if changed {
+                            cx.notify();
+                        }
+                        changed
+                    });
+                    // A backspace that clears nothing is not a change:
+                    // `onChange` reports what changed, never what it was told.
+                    if changed {
+                        suppress_routed_errors(&state_entity, cx);
+                        refresh_stored_validity(
+                            &state_entity,
+                            edit_is_invalid,
+                            &edit_validation_errors,
+                            edit_validate.as_ref(),
+                            cx,
+                        );
+                        if let Some(cb) = &on_change {
+                            let code = state_entity.read(cx).code();
+                            cb(&code, window, cx);
+                        }
+                    }
+                }
+                "left" => state_entity.update(cx, |s, cx| {
+                    s.cursor = s.cursor.saturating_sub(1);
+                    cx.notify();
+                }),
+                "right" => state_entity.update(cx, |s, cx| {
+                    if s.cursor + 1 < s.cells.len() {
+                        s.cursor += 1;
+                    }
+                    cx.notify();
+                }),
+                single if single.chars().count() == 1 && !single.is_empty() => {
+                    // `key` is the key cap; `key_char` is what was typed, which
+                    // is what a capital or a shifted symbol needs.
+                    let typed = ev.keystroke.key_char.as_deref().unwrap_or(single);
+                    let mut chars = typed.chars();
+                    let (Some(c), None) = (chars.next(), chars.next()) else {
+                        return;
+                    };
+                    let accepted = pattern.accepts(c);
+                    if accepted {
+                        let completed = state_entity.update(cx, |s, cx| {
+                            s.cells[s.cursor] = c;
+                            if s.cursor + 1 < s.cells.len() {
+                                s.cursor += 1;
+                            }
+                            let done = s.is_complete();
+                            cx.notify();
+                            done
+                        });
+                        // The accepted mutation above *is* the user
+                        // modification, so the routed server errors must be
+                        // gone — and the stored validity mirror must agree —
+                        // before any callback can observe the field: a
+                        // completion handler that submits the form
+                        // synchronously (the one-time-code auto-submit v3's
+                        // `onComplete` invites) must never be blocked by the
+                        // very error this keystroke answers.
+                        suppress_routed_errors(&state_entity, cx);
+                        refresh_stored_validity(
+                            &state_entity,
+                            edit_is_invalid,
+                            &edit_validation_errors,
+                            edit_validate.as_ref(),
+                            cx,
+                        );
+                        let code = state_entity.read(cx).code();
+                        if let Some(cb) = &on_change {
+                            cb(&code, window, cx);
+                        }
+                        if completed {
+                            if let Some(cb) = &on_complete {
+                                cb(&code, window, cx);
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        });
+
+        // A field that can be invalid has to be able to say why — every
+        // message, space-joined in upstream order (React Aria's `FieldError`
+        // default), not just the first.
+        match validity.messages.is_empty() {
+            true => row.into_any_element(),
+            false => gpui::div()
+                .flex()
+                .flex_col()
+                .gap(px(6.))
+                .child(row)
+                .child(crate::field::ErrorMessage::new(validity.joined()))
+                .into_any_element(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn digits_pattern_is_the_default() {
+        assert_eq!(OtpPattern::default(), OtpPattern::Digits);
+    }
+
+    #[test]
+    fn digits_rejects_letters_and_symbols() {
+        assert!(OtpPattern::Digits.accepts('7'));
+        assert!(!OtpPattern::Digits.accepts('a'));
+        assert!(!OtpPattern::Digits.accepts('-'));
+    }
+
+    #[test]
+    fn alphanumeric_accepts_both_cases() {
+        assert!(OtpPattern::Alphanumeric.accepts('7'));
+        assert!(OtpPattern::Alphanumeric.accepts('a'));
+        assert!(OtpPattern::Alphanumeric.accepts('Z'));
+        assert!(!OtpPattern::Alphanumeric.accepts('-'));
+    }
+
+    #[test]
+    fn any_accepts_printables_but_not_controls() {
+        assert!(OtpPattern::Any.accepts('-'));
+        assert!(OtpPattern::Any.accepts(' '));
+        assert!(!OtpPattern::Any.accepts('\n'));
+        assert!(!OtpPattern::Any.accepts('\t'));
+    }
+}

@@ -1,0 +1,30 @@
+[package]
+name = "herogpui-components"
+description = "HeroUI-style component library for GPUI"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[features]
+gallery-source = []
+
+[dependencies]
+gpui.workspace = true
+herogpui-core.workspace = true
+herogpui-theme.workspace = true
+# Local-timezone civil dates for `Date::today` (v3's `today(getLocalTimeZone())`).
+jiff.workspace = true
+
+# `test-support` is what gives the tests a headless platform, a
+# `VisualTestContext` and simulated input -- the only way to assert that a
+# control *works* rather than that it draws.
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true

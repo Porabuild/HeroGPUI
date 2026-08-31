@@ -1,0 +1,60 @@
+# Build output. Anchored to the root: the workspace shares one target dir, and
+# an unanchored rule would also hide a source directory named `target`.
+/target
+
+# Long `cargo check` / `cargo clippy` transcripts, kept while working through a
+# wave of errors. `check_full.txt` is the usual one.
+check*.txt
+
+# rustfmt's pre-format copy, left by `cargo fmt -- --backup`.
+**/*.rs.bk
+
+# The v3 sources the audits read. AGENTS.md says to cache them under $TEMP and
+# every script does, but a `curl -o` run from the repo root would land the 5MB
+# bundle here instead.
+heroui-full.txt
+llms-full.txt
+heroui-css/
+
+# The capture scripts prefix their scratch files with `~`: `~tmp.png` is the
+# frame `capture2.ps1` saves before renaming it to `<page>-v3.png`, `~crop.png`
+# is an intermediate. Matching the prefix rather than each name, so the next one
+# does not have to be found by grepping the script again.
+.shots/~*
+
+# The audit scripts in .shots/ are Python.
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Agent tooling: per-machine state, not part of the port.
+.agents/
+.claude/
+skills-lock.json
+
+# Editors.
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS turds.
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Patch and merge leftovers.
+*.orig
+*.rej
+
+# Per-agent skill caches: Factory Droid mirrors its skill docs into the repo it
+# is working in, and Claude Code keeps its own settings there. Neither is part
+# of the port, and both are recreated on demand.
+/.factory
+
+# Vercel CLI project link (created by 'vercel link' when deploying the
+# website from the repository root; the project itself is defined in web/).
+.vercel/
+.vercel
+.env*

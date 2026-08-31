@@ -1,0 +1,11 @@
+# Mirrors `rust-version` in the workspace manifest. Set from what the code
+# actually supports. This unpublished pre-1.0 workspace deliberately tracks the
+# pinned stable toolchain rather than carrying an older compatibility floor.
+msrv = "1.98"
+
+# Pre-1.0 and unpublished, so clippy should suggest signature fixes rather than
+# hold back on the grounds that they would break downstream callers.
+avoid-breaking-exported-api = false
+
+# Names that appear in doc comments and are not typos.
+doc-valid-idents = ["HeroUI", "HeroGPUI", "GPUI", "gpui", "OKLCH", "..", "OpenType"]

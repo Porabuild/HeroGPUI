@@ -1,0 +1,544 @@
+//! Pagination — port of `@heroui/pagination`.
+
+use gpui::{
+    prelude::*, px, App, InteractiveElement, IntoElement, RenderOnce, StatefulInteractiveElement,
+    Styled, Window,
+};
+use herogpui_core::Size;
+use herogpui_theme::ActiveTheme;
+
+use crate::icons;
+
+type OnChange = std::sync::Arc<dyn Fn(usize, &mut Window, &mut App) + 'static>;
+
+type Link = std::sync::Arc<dyn Fn(usize, bool) -> gpui::AnyElement + 'static>;
+
+/// HeroUI Pagination (controlled).
+#[derive(IntoElement)]
+pub struct Pagination {
+    /// `link` — v3's render prop for a page link, handed `isActive`.
+    link: Option<Link>,
+    previous_icon: Option<gpui::AnyElement>,
+    next_icon: Option<gpui::AnyElement>,
+    summary: Option<gpui::SharedString>,
+    id: gpui::ElementId,
+    page: usize,
+    total: usize,
+    is_disabled: bool,
+    /// `Pagination.Link.isDisabled` / `Pagination.Previous.isDisabled` /
+    /// `Pagination.Next.isDisabled` — the links and nav buttons disabled
+    /// individually, keyed by the page each one navigates to: a page number
+    /// in `1..=total` disables that link, `0` names Previous and
+    /// `total + 1` names Next (the pages those two buttons point at).
+    disabled_keys: std::collections::HashSet<usize>,
+    size: Size,
+    on_change: Option<OnChange>,
+}
+
+impl Pagination {
+    pub fn size(mut self, size: Size) -> Self {
+        self.size = size;
+        self
+    }
+
+    pub fn new(id: impl Into<gpui::ElementId>, page: usize, total: usize) -> Self {
+        Self {
+            link: None,
+            previous_icon: None,
+            next_icon: None,
+            summary: None,
+            id: id.into(),
+            page: page.max(1),
+            total: total.max(1),
+            is_disabled: false,
+            disabled_keys: std::collections::HashSet::new(),
+            size: Size::Md,
+            on_change: None,
+        }
+    }
+
+    /// `Pagination.Summary` — the "Page 1 of 10" text v3 composes at the start
+    /// of the row (`flex items-center gap-2 text-sm text-muted`).
+    pub fn summary(mut self, text: impl Into<gpui::SharedString>) -> Self {
+        self.summary = Some(text.into());
+        self
+    }
+
+    /// `children` on `Pagination.Link` — replaces a page's label.
+    ///
+    /// The closure receives the page number and `isActive`, the values v3
+    /// passes into the same render prop.
+    pub fn link(mut self, render: impl Fn(usize, bool) -> gpui::AnyElement + 'static) -> Self {
+        self.link = Some(std::sync::Arc::new(render));
+        self
+    }
+
+    /// `Pagination.PreviousIcon.children` — replaces the default previous chevron.
+    pub fn previous_icon(mut self, icon: impl IntoElement) -> Self {
+        self.previous_icon = Some(icon.into_any_element());
+        self
+    }
+
+    /// `Pagination.NextIcon.children` — replaces the default next chevron.
+    pub fn next_icon(mut self, icon: impl IntoElement) -> Self {
+        self.next_icon = Some(icon.into_any_element());
+        self
+    }
+
+    pub fn is_disabled(mut self, v: bool) -> Self {
+        self.is_disabled = v;
+        self
+    }
+
+    /// `Pagination.Link.isDisabled`, `Pagination.Previous.isDisabled` and
+    /// `Pagination.Next.isDisabled` — the links a caller wants disabled
+    /// individually, keyed by the page each one navigates to. A page number
+    /// in `1..=total` disables that link; `0` names Previous and
+    /// `total + 1` names Next, the pages those buttons point at. A disabled
+    /// link renders dimmed, leaves the tab order and answers no press,
+    /// exactly like the whole-bar `is_disabled`.
+    pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = usize>) -> Self {
+        self.disabled_keys = keys.into_iter().collect();
+        self
+    }
+
+    pub fn on_change(mut self, f: impl Fn(usize, &mut Window, &mut App) + 'static) -> Self {
+        self.on_change = Some(std::sync::Arc::new(f));
+        self
+    }
+}
+
+impl RenderOnce for Pagination {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        // Every interactive item is a tab stop with a ring. The handles come
+        // first: `use_keyed_state` takes `cx` mutably and the theme is borrowed
+        // for the rest of the render.
+        let base_id = format!("{:?}", self.id);
+        let pages = visible_pages(self.page, self.total);
+        // Only the page cells that are actually rendered need a tab stop.
+        // Minting a keyed handle for every page in `0..=total` on every frame
+        // grew with the collection even though `visible_pages` shows at most
+        // a handful of them.
+        let page_focus: Vec<(usize, gpui::FocusHandle)> = pages
+            .iter()
+            .filter_map(|page| match page {
+                PageRef::Num(n) => Some((
+                    *n,
+                    crate::util::tab_stop_handle(
+                        gpui::ElementId::Name(format!("{base_id}-page-{n}-focus").into()),
+                        window,
+                        cx,
+                    ),
+                )),
+                PageRef::Ellipsis => None,
+            })
+            .collect();
+        let prev_focus = crate::util::tab_stop_handle(
+            gpui::ElementId::Name(format!("{base_id}-prev-focus").into()),
+            window,
+            cx,
+        );
+        let next_focus = crate::util::tab_stop_handle(
+            gpui::ElementId::Name(format!("{base_id}-next-focus").into()),
+            window,
+            cx,
+        );
+        let ring_visible = crate::util::focus_visible(cx);
+
+        let colors = cx.colors();
+        let layout = cx.layout();
+        let base = base_id;
+
+        let self_on_change: Option<OnChange> = self.on_change.clone();
+
+        // v3 sizes the items; the nav buttons and page cells share it.
+        let cell = match self.size {
+            Size::Sm => px(28.),
+            Size::Md => px(32.),
+            Size::Lg => px(36.),
+        };
+        let press_scale = match self.size {
+            Size::Sm => crate::anim::PRESSED_SCALE_SUBTLE,
+            Size::Md => crate::anim::PRESSED_SCALE,
+            Size::Lg => crate::anim::PRESSED_SCALE_FIRM,
+        };
+        let nav_padding = match self.size {
+            Size::Sm => px(8.),
+            Size::Md => px(10.),
+            Size::Lg => px(12.),
+        };
+        let cell_text = self.size.text_size();
+        let previous_icon = self.previous_icon.unwrap_or_else(|| {
+            gpui::svg()
+                .size(px(14.))
+                .path(icons::CHEVRON_LEFT)
+                .text_color(colors.foreground)
+                .into_any_element()
+        });
+        let next_icon = self.next_icon.unwrap_or_else(|| {
+            gpui::svg()
+                .size(px(14.))
+                .path(icons::CHEVRON_RIGHT)
+                .text_color(colors.foreground)
+                .into_any_element()
+        });
+
+        // `.pagination__content` is `gap-1`, not the 16px this used to leave.
+        let mut row = gpui::div().flex().items_center().gap(px(4.));
+
+        // v3: "Disabled states properly communicated" — a disabled arrow is
+        // `pointer-events-none` and React Aria's press never fires for it, so
+        // the click handler is only attached when the arrow is enabled (the
+        // tab stop is gated the same way inside `nav_button`).
+        // `Pagination.Previous.isDisabled` force-disables the button beyond
+        // the page bounds: `0` names it, the page the arrow navigates to.
+        let prev_enabled = self.page > 1 && !self.is_disabled && !self.disabled_keys.contains(&0);
+        row = row.child(
+            nav_button(
+                format!("{base}-prev"),
+                previous_icon,
+                prev_enabled,
+                NavStyle {
+                    foreground: colors.foreground,
+                    hover_bg: colors.default.hover(),
+                    disabled_opacity: layout.disabled_opacity,
+                    cell,
+                    padding_x: nav_padding,
+                    press_scale,
+                    radius: crate::util::control_radius(cx),
+                },
+                &prev_focus,
+                (ring_visible && prev_focus.is_focused(window))
+                    .then(|| crate::util::focus_ring_shadows(true, cx)),
+                cx,
+            )
+            .when(prev_enabled, |b| {
+                b.on_click({
+                    let cb: Option<OnChange> = self.on_change.clone();
+                    move |_, w, cx| {
+                        if let Some(cb) = &cb {
+                            cb(self.page - 1, w, cx);
+                        }
+                    }
+                })
+            }),
+        );
+
+        for p in pages {
+            match p {
+                PageRef::Num(n) => {
+                    let active = n == self.page;
+                    // `Pagination.Link.isDisabled` — a link whose page number
+                    // is in `disabled_keys` is disabled exactly like one under
+                    // the whole-bar flag: it leaves the tab order and answers
+                    // no press (v3's `status-disabled` is `pointer-events-none`
+                    // and React Aria's press never fires for it).
+                    let link_disabled = self.is_disabled || self.disabled_keys.contains(&n);
+                    let mut btn = gpui::div()
+                        .id(gpui::ElementId::Name(format!("{base}-page-{n}").into()))
+                        .when_some(
+                            page_focus
+                                .iter()
+                                .find(|(p, _)| *p == n)
+                                .map(|(_, handle)| handle)
+                                .filter(|_| !link_disabled),
+                            |b, handle| b.track_focus(handle),
+                        )
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        // `.pagination__link` is `size-8` from `md` up: a square
+                        // cell with no padding of its own.
+                        .min_w(cell)
+                        .h(cell)
+                        .text_size(cell_text)
+                        .rounded(crate::util::control_radius(cx))
+                        .when(!link_disabled, |b| b.cursor_pointer());
+
+                    if active {
+                        // `[data-active=true]` is v3's tertiary-button state:
+                        // `--default` at rest and `--default-hover` while
+                        // hovered or pressed, not the accent fill.
+                        btn = btn.bg(colors.default.color).text_color(colors.foreground);
+                    } else {
+                        // The resting ghost link is transparent and borderless.
+                        btn = btn.text_color(colors.foreground);
+                    }
+                    if !link_disabled {
+                        let hover_bg = colors.default.hover();
+                        let pressed_bg = colors.default.hover();
+                        btn = btn.hover(move |s| s.bg(hover_bg));
+                        // `.pagination__link[data-pressed]` applies to every
+                        // enabled link, including the active page.
+                        btn = crate::anim::pressed(
+                            btn,
+                            crate::anim::PressBox {
+                                height: cell,
+                                padding_x: Some(px(6.)),
+                                width: None,
+                                min_width: Some(cell),
+                                text_size: cell_text,
+                                line_height: cell_text,
+                                gap: px(0.),
+                                radius: crate::util::control_radius(cx),
+                                shrink_x: true,
+                                scale: press_scale,
+                            },
+                            cx,
+                        )
+                        .active(move |s| s.bg(pressed_bg));
+                    }
+                    // `aria-current` identifies the active page without
+                    // disabling its React Aria Button. Every enabled numeric
+                    // link forwards the same press callback, active or not.
+                    if !link_disabled {
+                        if let Some(cb) = self_on_change.clone() {
+                            btn = btn.on_click(move |_, w, cx| cb(n, w, cx));
+                        }
+                    }
+                    // `.pagination__link:disabled` is `status-disabled` —
+                    // dimmed, like the nav buttons at their own bounds.
+                    if link_disabled {
+                        btn = btn.opacity(layout.disabled_opacity);
+                    }
+                    // `link` is v3's render prop on `Pagination.Link`: it
+                    // receives `isActive`, so a caller can style the current
+                    // page without re-deriving which one it is.
+                    // `.pagination__item:focus-visible` is `status-focused`.
+                    let btn = crate::util::with_focus_ring(
+                        btn,
+                        ring_visible
+                            && page_focus
+                                .iter()
+                                .any(|(p, handle)| *p == n && handle.is_focused(window)),
+                        true,
+                        Vec::new(),
+                        cx,
+                    );
+                    row = row.child(match &self.link {
+                        Some(render) => btn.child(render(n, active)),
+                        None => btn.child(n.to_string()),
+                    });
+                }
+                PageRef::Ellipsis => {
+                    row = row.child(
+                        gpui::div()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            // `.pagination__ellipsis` is the same `size-8
+                            // text-sm` cell as a page link.
+                            .size(cell)
+                            .text_size(cell_text)
+                            .text_color(colors.muted)
+                            .child("…"),
+                    );
+                }
+            }
+        }
+
+        // `Pagination.Next.isDisabled` force-disables the button beyond the
+        // page bounds: `total + 1` names it, the page the arrow navigates to.
+        let next_enabled = self.page < self.total
+            && !self.is_disabled
+            && !self.disabled_keys.contains(&(self.total + 1));
+        row = row.child(
+            nav_button(
+                format!("{base}-next"),
+                next_icon,
+                next_enabled,
+                NavStyle {
+                    foreground: colors.foreground,
+                    hover_bg: colors.default.hover(),
+                    disabled_opacity: layout.disabled_opacity,
+                    cell,
+                    padding_x: nav_padding,
+                    press_scale,
+                    radius: crate::util::control_radius(cx),
+                },
+                &next_focus,
+                (ring_visible && next_focus.is_focused(window))
+                    .then(|| crate::util::focus_ring_shadows(true, cx)),
+                cx,
+            )
+            .when(next_enabled, |b| {
+                b.on_click({
+                    let cb: Option<OnChange> = self.on_change.clone();
+                    move |_, w, cx| {
+                        if let Some(cb) = &cb {
+                            cb(self.page + 1, w, cx);
+                        }
+                    }
+                })
+            }),
+        );
+
+        // `.pagination` is the root: `flex w-full items-center justify-between
+        // gap-4` around the summary and the content.
+        gpui::div()
+            .flex()
+            .items_center()
+            .justify_between()
+            .gap(px(16.))
+            .children(self.summary.map(|text| {
+                gpui::div()
+                    .flex()
+                    .items_center()
+                    // `.pagination__summary` is `gap-2 text-sm text-muted`.
+                    .gap(px(8.))
+                    .text_size(px(14.))
+                    .text_color(colors.muted)
+                    .child(text.to_string())
+            }))
+            .child(row)
+    }
+}
+
+/// Colours and metrics shared by the nav buttons.
+struct NavStyle {
+    foreground: gpui::Hsla,
+    hover_bg: gpui::Hsla,
+    disabled_opacity: f32,
+    cell: gpui::Pixels,
+    padding_x: gpui::Pixels,
+    press_scale: f32,
+    /// `.pagination__link` is `rounded-3xl`; `--nav` restates only the width.
+    radius: gpui::Pixels,
+}
+
+fn nav_button(
+    id: String,
+    icon: gpui::AnyElement,
+    enabled: bool,
+    style: NavStyle,
+    focus: &gpui::FocusHandle,
+    // The focus ring's shadows, when this button is the one holding the focus.
+    ring: Option<Vec<gpui::BoxShadow>>,
+    cx: &App,
+) -> gpui::Stateful<gpui::Div> {
+    let NavStyle {
+        foreground,
+        hover_bg,
+        disabled_opacity,
+        cell,
+        padding_x,
+        press_scale,
+        radius,
+    } = style;
+    let mut btn = gpui::div()
+        .id(gpui::ElementId::Name(id.into()))
+        // A disabled control must leave the tab order — `track_focus` is what
+        // puts it in, so gate it (v3 gives a disabled arrow `pointer-events-none`
+        // and nothing for Tab to land on).
+        .when(enabled, |b| b.track_focus(focus))
+        .when_some(ring, |b, shadows| b.shadow(shadows))
+        .flex()
+        .items_center()
+        .justify_center()
+        // `.pagination__link--nav` is `w-auto gap-1.5 px-2.5`: the height of a
+        // page cell, but as wide as its content needs.
+        .h(cell)
+        .gap(px(6.))
+        .px(padding_x)
+        .rounded(radius)
+        .text_color(foreground);
+    if enabled {
+        btn = btn.cursor_pointer().hover(move |s| s.bg(hover_bg));
+        btn = crate::anim::pressed_with_background(
+            btn,
+            crate::anim::PressBox {
+                height: cell,
+                padding_x: Some(padding_x),
+                width: None,
+                min_width: None,
+                text_size: px(14.),
+                line_height: px(14.),
+                gap: px(6.),
+                radius,
+                shrink_x: true,
+                scale: press_scale,
+            },
+            hover_bg,
+            cx,
+        );
+    } else {
+        btn = btn.opacity(disabled_opacity);
+    }
+    btn.child(icon)
+}
+
+enum PageRef {
+    Num(usize),
+    Ellipsis,
+}
+
+fn visible_pages(page: usize, total: usize) -> Vec<PageRef> {
+    // v3 removed the v2 `siblings`/`boundaries` props ("Removed (compose items
+    // manually)"), so the window is fixed at one sibling either side.
+    let siblings = 1;
+    // total numbers to show = 2*siblings + 5 (first, last, current, 2 ellipsis slots)
+    let total_slots = 2 * siblings + 5;
+    if total <= total_slots {
+        return (1..=total).map(PageRef::Num).collect();
+    }
+
+    let left = (page - siblings).max(2);
+    let right = (page + siblings).min(total - 1);
+
+    let mut out = vec![PageRef::Num(1)];
+    if left > 2 {
+        out.push(PageRef::Ellipsis);
+    }
+    for n in left..=right {
+        out.push(PageRef::Num(n));
+    }
+    if right < total - 1 {
+        out.push(PageRef::Ellipsis);
+    }
+    out.push(PageRef::Num(total));
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `visible_pages` is the window `page_focus` is minted from. The bound is
+    /// `2 * siblings + 5` with `siblings` fixed at 1, so a large `total` still
+    /// produces a handful of slots — the allocation the render used to spend
+    /// per page in `0..=total`.
+    #[test]
+    fn visible_page_window_is_bounded_for_a_large_total() {
+        let cap = 7;
+        for total in [8, 50, 2000, 10_000] {
+            for page in [1, total / 2, total] {
+                let pages = visible_pages(page.max(1), total);
+                assert!(
+                    pages.len() <= cap,
+                    "page {page} of {total} showed {} slots, cap {cap}",
+                    pages.len()
+                );
+            }
+        }
+        assert!(
+            visible_pages(1, 5).len() <= cap,
+            "a collection that fits in the window is still within the cap"
+        );
+    }
+
+    #[test]
+    fn page_focus_is_minted_from_the_visible_window() {
+        let source = include_str!("pagination.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("the implementation section is always present");
+        assert!(
+            source.contains("let page_focus: Vec<(usize, gpui::FocusHandle)> = pages"),
+            "page-cell focus handles must be minted from visible_pages"
+        );
+        assert!(
+            !source.contains("(0..=self.total)"),
+            "minting a handle per page in 0..=total grew with the collection"
+        );
+    }
+}
