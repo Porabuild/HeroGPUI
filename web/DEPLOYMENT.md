@@ -27,9 +27,9 @@ set, on the **Root Directory** step or in Project → Settings → General:
 |---|---|---|
 | Root Directory | `web` | The repository root is a Rust/Cargo workspace. Built from the root, Vercel would find no `package.json` and no Next.js app. Everything Vercel needs — `package.json`, `pnpm-lock.yaml`, `next.config.ts`, `public/` — lives in `web/`. |
 | Framework Preset | Next.js (auto-detected) | Detected from `web/package.json`. |
-| Install Command | `pnpm install` | Set it explicitly. See the package-lock warning in "Current blockers". |
+| Install Command | `pnpm install --frozen-lockfile` | Set explicitly via Project Settings (API `installCommand`). Required: Vercel's auto-detected install appends `--unsafe-perm`, which pnpm 10+ rejects, and its cached pnpm 12.1.0 Linux artifact is corrupt (a broken `bin/pnpm` launcher — "syntax error near unexpected token"). `web/package.json` pins `packageManager: pnpm@10.34.5`; don't bump to 12.x until its artifact is fixed. |
 | Build Command | `pnpm run build` | The default `next build` is equivalent; pinning the pnpm form keeps it unambiguous. |
-| Node.js Version | 22.x | `web/package.json` requires `>=22.13.0`. |
+| Node.js Version | 24.x | `web/package.json` requires `>=22.13.0`; 24.x is what the project runs on. |
 
 With Root Directory set to `web`, Vercel still clones the **whole**
 repository and runs the commands inside `web/`. That matters: the build
@@ -177,9 +177,11 @@ effect on the next deployment. It is unset by default — without the artifact
 at that path, previews render nothing and pages fall back to the native
 screenshot, which is the honest state.
 
-The three files are **not tracked in git** (`web/.gitignore`) — they are
-build products, and the CLI deploy uploads them from the working tree. A
-fresh clone must rebuild them per the commands below before deploying.
+The three files are **tracked in git** (alongside `public/shots/`): remote
+builds run `next build` alone — no Rust toolchain, no capture rig — so the
+artifact and the screenshots must ship in the tree. The 26 MB binary only
+changes when the wasm build is regenerated; rebuilding it means running
+the commands below and committing the result.
 
 Because the artifact lives under the same origin, the embedded gallery
 follows the site's live light/dark toggle (`GalleryFrame` also passes
@@ -233,36 +235,41 @@ Two load-bearing details on the Rust side, both verified empirically:
 3. `http://localhost:3000/gallery/?story=<slug>` directly: the gallery
    fills the tab, deep-linked to that component.
 
-## Current blockers
+## Current status
 
-In the order they will bite:
+**Deployed 2026-08-30.** The site is live at
+[porabuild.com/herogpui](https://porabuild.com/herogpui) (zone project
+`herogpui`, production alias `herogpui.vercel.app`, mounted through the
+parent-zone rewrites of section 3 — those rewrites are applied in the
+parent's checkout and deployed; committing them to the parent repository,
+`Porabuild/website`, is still owed). The live WebAssembly gallery is
+verified on production: `/herogpui/gallery/herogpui_web_bg.wasm` serves
+`application/wasm`, and the embedded frame boots and renders on
+`/herogpui/docs/components/button`.
 
-1. **`web/` is untracked.** `git status` reports `?? web/` — the entire
-   site, including the committed generated data it deploys with
-   (`src/data/*.json`, `public/shots/`), exists only in this checkout.
-   Nothing can be imported or pushed until `web/` is committed and pushed.
-2. **The GitHub remote is not publicly reachable.**
-   `git@github.com:Porabuild/HeroGPUI.git` returns 404 to anonymous
-   requests — the repository is private or not yet created. Until it is
-   created (or made accessible to the Porabuild team's GitHub App), Vercel
-   cannot import it. Separately: every GitHub link **on the site** — the
-   nav, hero, and final-CTA buttons point at
-   `github.com/Porabuild/HeroGPUI` — will 404 for visitors until the
-   repository exists publicly. (Links to `heroui-inc/heroui` in the
-   component reference sections are upstream and already work.)
-3. **`web/package-lock.json` sits next to `pnpm-lock.yaml`.** A 133 KB
-   artifact of an accidental `npm install` (the project uses pnpm — never
-   npm). With both lockfiles present, Vercel's package-manager
-   autodetection is ambiguous, and an npm install would ignore
-   `pnpm-lock.yaml` entirely. Delete the file; if it must stay for now, the
-   explicit `pnpm install` Install Command in section 1 neutralises it.
-   Not deleted here because lockfiles are outside this task's file
-   ownership.
-4. **The Vercel project does not exist yet.** Section 1 creates it.
-5. **The parent has no rewrites yet.** `E:\work\porabuild\next.config.ts`
-   currently has no `rewrites()`; until section 3 is applied and deployed,
-   `porabuild.com/herogpui` is served by the parent zone and 404s.
-6. **The registry release is not published.** Not a deployment blocker, but
+What was deployed, for reproduction: CLI deploys
+(`vercel deploy --prod`) from the repository root — not from `web/` — so
+the whole workspace uploads and the builder's Root Directory setting
+(`web`) picks the app; that is what makes the sibling `../llms.txt`
+visible to the `/llms.txt` route. Project settings that matter beyond the
+defaults: Root Directory `web`, Install Command
+`pnpm install --frozen-lockfile` (see below), Node 24.x. Deploys from
+`web/` alone will fail at build (the route cannot read `../llms.txt`).
+
+## Remaining items
+
+1. **The GitHub repository is private.** Every GitHub link **on the site**
+   — the nav, hero, and final-CTA buttons point at
+   `github.com/Porabuild/HeroGPUI` — 404s for visitors until it is made
+   public. (Links to `heroui-inc/heroui` in the component reference
+   sections are upstream and already work.)
+2. **The Vercel project is not Git-connected.** The deploy was CLI-based;
+   the git integration (Pull Request previews, deploy-on-push) is not set
+   up. Until it is, deploys are manual, exactly as above.
+3. **The parent-zone rewrites are not committed** to `Porabuild/website`
+   (applied and deployed from the checkout; a future Git-connected parent
+   deploy without them would drop the mount).
+4. **The registry release is not published.** Not a deployment blocker, but
    the site says so honestly: `herogpui` on crates.io is prepared, not
    published, and the install snippets show the path-dependency workaround.
 

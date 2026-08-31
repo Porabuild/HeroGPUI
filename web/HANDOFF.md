@@ -153,20 +153,33 @@ teardown) and `iframetest.html` (embed-shape harness) for future debugging.
 
 ## Known open items
 
-- **`ActiveTheme` is missing from generated imports.** `button-group`'s
-  "Usage" and "With Icons" examples call `cx.colors()`, which needs the
-  `ActiveTheme` trait in scope, and no generated import set includes it. This
-  is the opposite of the duplicate-import bug that was fixed, and it predates
-  it.
-- **Some `code` fields pass bare floats where `Into<Length>` is required** —
-  26 snippets, e.g. `.w(256.)` in meter/Colors, which should be `px(256.)`.
-  The gallery source is correct (`fixed_demo(256., …)`, which wraps in `px`
-  internally); the extractor's expansion of that helper drops the wrapper. Fix
-  it in `scripts/extract-rust-examples.mjs`, not by hand.
-- **The GitHub repository is not public.** `git@github.com:Porabuild/HeroGPUI.git`
-  returns 404 anonymously, so every GitHub link on the site will break for
-  visitors until it exists.
-- **`web/` is untracked in git.** Nothing here has been committed.
-- **Vercel project does not exist yet**, and the parent site's `rewrites()`
-  are not applied. `DEPLOYMENT.md` §1 and §3 cover both. My Vercel access is
-  authorised on a different account than the one owning `porabuild.com`.
+- **The GitHub repository is private.**
+  `git@github.com:Porabuild/HeroGPUI.git` 404s to anonymous requests, so
+  every GitHub link **on the site** (nav, hero, final CTA) breaks for
+  visitors until it is made public. The repo itself exists and is live:
+  branch `v3-parity` (open PR #1 against `master`, the trunk), `web/`
+  committed, screenshots and the wasm artifact tracked.
+- **The site is deployed** — [porabuild.com/herogpui](https://porabuild.com/herogpui),
+  live since 2026-08-30 via Vercel CLI deploys from the repository root
+  (project `herogpui`, alias `herogpui.vercel.app`, parent-zone rewrites
+  applied and deployed). Reproduction and the two project settings that
+  are load-bearing (Root Directory, Install Command — see the pnpm 12.1.0
+  corrupt-artifact note) are in `DEPLOYMENT.md` "Current status" and §1.
+  Still owed: commit the parent-zone rewrites to `Porabuild/website`, and
+  a Git connection on the Vercel project so previews/deploy-on-push work.
+- The two extractor bugs below were **fixed 2026-08-30** (kept here so the
+  commit history of `rust-examples.json` makes sense): `ActiveTheme` now
+  lands in generated imports for snippets calling `.colors()`, and
+  `fixed_demo`'s expansion wraps its width in `px()`.
+
+## Deployment history
+
+- 2026-08-30 — first production deploy, then the mount. Failures hit on
+  the way and are all recorded in `DEPLOYMENT.md`: Vercel's pnpm
+  autodetection picked pnpm 10.x and appended `--unsafe-perm` (rejected),
+  the explicit Install Command fixed that; pnpm 12.1.0's cached Linux
+  launcher on the builder is corrupt (fixed by pinning `pnpm@10.34.5`);
+  a `web/`-rooted CLI upload lacks `../llms.txt` (fixed by deploying from
+  the repository root with Root Directory `web`); CLI uploads honour
+  `.gitignore`, which is why `public/shots/` and `public/gallery/` are now
+  tracked rather than ignored.
