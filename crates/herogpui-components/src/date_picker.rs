@@ -2793,18 +2793,12 @@ fn parse_iso(text: &str) -> Option<Date> {
 /// description v3 shows when the caller supplies none of their own.
 fn format_hint(
     regional_date: &RegionalDateFormat,
-    granularity: Granularity,
-    twelve_hour: bool,
+    regional_time: Option<&crate::time_field::RegionalTimePattern>,
 ) -> String {
     let mut hint = regional_date.date_hint();
-    match granularity {
-        Granularity::Day => return hint,
-        Granularity::Hour => hint.push_str(", HH"),
-        Granularity::Minute => hint.push_str(", HH:MM"),
-        Granularity::Second => hint.push_str(", HH:MM:SS"),
-    }
-    if twelve_hour {
-        hint.push_str(" AM");
+    if let Some(regional_time) = regional_time {
+        hint.push_str(", ");
+        hint.push_str(&regional_time.hint());
     }
     hint
 }
@@ -2931,22 +2925,18 @@ impl RenderOnce for DateField {
         let (parsed, _) = parse_value(&text);
         let non_empty = !text.trim().is_empty();
 
-        // The slots this field shows: the three date parts, then the time parts
-        // `granularity` asks for. `TimeSegment::order` is the time field's own,
-        // so a minute field looks the same wherever it appears.
         let twelve_hour = self.hour_cycle == crate::time_field::HourCycle::H12;
+        let regional_time = self.granularity.time().map(|granularity| {
+            crate::time_field::regional_time_pattern(granularity, self.hour_cycle)
+        });
         let mut segments: Vec<FieldSegment> = regional_date
             .order
             .iter()
             .copied()
             .map(FieldSegment::Date)
             .collect();
-        if let Some(time_granularity) = self.granularity.time() {
-            segments.extend(
-                crate::time_field::TimeSegment::order(time_granularity, twelve_hour)
-                    .into_iter()
-                    .map(FieldSegment::Time),
-            );
+        if let Some(regional_time) = regional_time.as_ref() {
+            segments.extend(regional_time.order.iter().copied().map(FieldSegment::Time));
         }
         // A narrower granularity can leave the caret on a slot that is gone.
         if !segments.contains(&focused) {
@@ -3039,7 +3029,24 @@ impl RenderOnce for DateField {
         let pad_month = self.should_force_leading_zeros || regional_date.month_has_leading_zero;
         let pad_day = self.should_force_leading_zeros || regional_date.day_has_leading_zero;
         let pad_hour = self.should_force_leading_zeros
-            || crate::time_field::hour_has_leading_zero(self.hour_cycle);
+            || regional_time
+                .as_ref()
+                .is_some_and(|format| format.hour_has_leading_zero);
+        let pad_minute = regional_time
+            .as_ref()
+            .is_none_or(|format| format.minute_has_leading_zero);
+        let pad_second = regional_time
+            .as_ref()
+            .is_none_or(|format| format.second_has_leading_zero);
+        let zero_based_twelve_hour = regional_time
+            .as_ref()
+            .is_some_and(|format| format.hour_zero_based);
+        let am = regional_time
+            .as_ref()
+            .map_or_else(|| "AM".to_owned(), |format| format.am.clone());
+        let pm = regional_time
+            .as_ref()
+            .map_or_else(|| "PM".to_owned(), |format| format.pm.clone());
         let segment_text = move |segment: FieldSegment| -> String {
             use crate::time_field::TimeSegment as T;
             match segment {
@@ -3061,7 +3068,7 @@ impl RenderOnce for DateField {
                 FieldSegment::Time(segment) => {
                     if cleared.contains(&FieldSegment::Time(segment)) {
                         return if segment == T::Meridiem {
-                            "AM".to_owned()
+                            am.clone()
                         } else {
                             "--".to_owned()
                         };
@@ -3071,14 +3078,33 @@ impl RenderOnce for DateField {
                     };
                     match segment {
                         T::Hour if twelve_hour && pad_hour => {
-                            format!("{:02}", t.twelve_hour().0)
+                            let hour = if zero_based_twelve_hour {
+                                t.hour % 12
+                            } else {
+                                t.twelve_hour().0
+                            };
+                            format!("{hour:02}")
                         }
-                        T::Hour if twelve_hour => t.twelve_hour().0.to_string(),
+                        T::Hour if twelve_hour => {
+                            if zero_based_twelve_hour {
+                                (t.hour % 12).to_string()
+                            } else {
+                                t.twelve_hour().0.to_string()
+                            }
+                        }
                         T::Hour if pad_hour => format!("{:02}", t.hour),
                         T::Hour => t.hour.to_string(),
-                        T::Minute => format!("{:02}", t.minute),
-                        T::Second => format!("{:02}", t.second),
-                        T::Meridiem => t.twelve_hour().1.to_owned(),
+                        T::Minute if pad_minute => format!("{:02}", t.minute),
+                        T::Minute => t.minute.to_string(),
+                        T::Second if pad_second => format!("{:02}", t.second),
+                        T::Second => t.second.to_string(),
+                        T::Meridiem => {
+                            if t.hour < 12 {
+                                am.clone()
+                            } else {
+                                pm.clone()
+                            }
+                        }
                     }
                 }
             }
@@ -3245,6 +3271,7 @@ impl RenderOnce for DateField {
                                             seed_time,
                                             if maximum { u32::MAX } else { 0 },
                                             twelve_hour,
+                                            zero_based_twelve_hour,
                                         ),
                                     };
                                     commit(focused, base, Some(next), window, cx);
@@ -3316,7 +3343,12 @@ impl RenderOnce for DateField {
                                 FieldSegment::Time(segment) => commit(
                                     focused,
                                     display_date.unwrap_or(seed),
-                                    Some(segment.with_value(seed_time, value, twelve_hour)),
+                                    Some(segment.with_value(
+                                        seed_time,
+                                        value,
+                                        twelve_hour,
+                                        zero_based_twelve_hour,
+                                    )),
                                     window,
                                     cx,
                                 ),
@@ -3369,22 +3401,23 @@ impl RenderOnce for DateField {
         }
 
         for (index, segment) in segments.iter().copied().enumerate() {
-            // ICU supplies the date-part order and literals. Time keeps its
-            // own segment order, with a comma where the date and time meet.
-            use crate::time_field::TimeSegment as T;
             let separator = match (index, segment) {
-                (index, FieldSegment::Date(_)) => Some(regional_date.literals[index].as_str()),
-                (_, FieldSegment::Time(T::Hour)) => Some(","),
-                (_, FieldSegment::Time(T::Meridiem)) => Some(" "),
-                (_, FieldSegment::Time(_)) => Some(":"),
+                (index, FieldSegment::Date(_)) => Some(regional_date.literals[index].clone()),
+                (index, FieldSegment::Time(_)) => {
+                    let time_index = index - regional_date.order.len();
+                    regional_time.as_ref().and_then(|format| {
+                        format.literals.get(time_index).map(|literal| {
+                            if time_index == 0 {
+                                format!(", {literal}")
+                            } else {
+                                literal.clone()
+                            }
+                        })
+                    })
+                }
             };
             if let Some(separator) = separator.filter(|separator| !separator.is_empty()) {
-                group = group.child(
-                    gpui::div()
-                        .text_color(colors.muted)
-                        .child(separator)
-                        .when(separator == ",", |el| el.mr(px(2.))),
-                );
+                group = group.child(gpui::div().text_color(colors.muted).child(separator));
             }
 
             let mut seg = gpui::div()
@@ -3429,6 +3462,13 @@ impl RenderOnce for DateField {
                         .child(regional_date.literals[3].clone()),
                 );
             }
+        }
+        if let Some(literal) = regional_time
+            .as_ref()
+            .and_then(|format| format.literals.last())
+            .filter(|literal| !literal.is_empty())
+        {
+            group = group.child(gpui::div().text_color(colors.muted).child(literal.clone()));
         }
 
         if let Some(suffix) = self.suffix {
@@ -3476,7 +3516,7 @@ impl RenderOnce for DateField {
                 let description = self
                     .description
                     .clone()
-                    .unwrap_or_else(|| format_hint(regional_date, granularity, twelve_hour).into());
+                    .unwrap_or_else(|| format_hint(regional_date, regional_time.as_ref()).into());
                 el = el.child(crate::field::Description::new(description));
             }
         }
@@ -3662,19 +3702,44 @@ mod tests {
         let us = RegionalDateFormat::for_locale("en-US").unwrap();
         let gb = RegionalDateFormat::for_locale("en-GB").unwrap();
         let german = RegionalDateFormat::for_locale("de-DE").unwrap();
-        assert_eq!(format_hint(&us, Granularity::Day, false), "MM/DD/YYYY");
-        assert_eq!(format_hint(&gb, Granularity::Day, false), "DD/MM/YYYY");
-        assert_eq!(format_hint(&german, Granularity::Day, false), "DD.MM.YYYY");
+        assert_eq!(format_hint(&us, None), "MM/DD/YYYY");
+        assert_eq!(format_hint(&gb, None), "DD/MM/YYYY");
+        assert_eq!(format_hint(&german, None), "DD.MM.YYYY");
+        let minute = crate::time_field::RegionalTimePattern {
+            order: vec![TimeSegment::Hour, TimeSegment::Minute],
+            literals: vec![String::new(), ":".to_owned(), String::new()],
+            hour_has_leading_zero: true,
+            hour_zero_based: false,
+            minute_has_leading_zero: true,
+            second_has_leading_zero: false,
+            am: "AM".to_owned(),
+            pm: "PM".to_owned(),
+        };
+        assert_eq!(format_hint(&us, Some(&minute)), "MM/DD/YYYY, HH:MM");
+        let second_twelve = crate::time_field::RegionalTimePattern {
+            order: vec![
+                TimeSegment::Hour,
+                TimeSegment::Minute,
+                TimeSegment::Second,
+                TimeSegment::Meridiem,
+            ],
+            literals: vec![
+                String::new(),
+                ":".to_owned(),
+                ":".to_owned(),
+                " ".to_owned(),
+                String::new(),
+            ],
+            hour_has_leading_zero: false,
+            hour_zero_based: false,
+            minute_has_leading_zero: true,
+            second_has_leading_zero: true,
+            am: "AM".to_owned(),
+            pm: "PM".to_owned(),
+        };
         assert_eq!(
-            format_hint(&us, Granularity::Minute, false),
-            "MM/DD/YYYY, HH:MM"
-        );
-        assert_eq!(
-            format_hint(&us, Granularity::Second, true),
+            format_hint(&us, Some(&second_twelve)),
             "MM/DD/YYYY, HH:MM:SS AM"
         );
-        // The cycle only shows where there is an hour to qualify.
-        assert_eq!(format_hint(&us, Granularity::Day, true), "MM/DD/YYYY");
-        let _ = HourCycle::H12;
     }
 }

@@ -43,10 +43,25 @@ impl HourCycle {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct RegionalTimeFormat {
     hour_cycle: HourCycle,
-    hour_has_leading_zero: bool,
+    minute_pattern: RegionalTimePattern,
+    second_pattern: RegionalTimePattern,
+    am: String,
+    pm: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct RegionalTimePattern {
+    pub(crate) order: Vec<TimeSegment>,
+    pub(crate) literals: Vec<String>,
+    pub(crate) hour_has_leading_zero: bool,
+    pub(crate) hour_zero_based: bool,
+    pub(crate) minute_has_leading_zero: bool,
+    pub(crate) second_has_leading_zero: bool,
+    pub(crate) am: String,
+    pub(crate) pm: String,
 }
 
 impl RegionalTimeFormat {
@@ -59,8 +74,8 @@ impl RegionalTimeFormat {
             fieldsets,
             input::Time as IcuTime,
             provider::{
-                fields::{FieldLength, FieldSymbol},
-                pattern::{reference, runtime, CoarseHourCycle, PatternItem},
+                fields::{FieldLength, FieldSymbol, Hour as IcuHour},
+                pattern::{reference, runtime, PatternItem},
             },
             DateTimeFormatterPreferences, NoCalendarFormatter,
         };
@@ -77,27 +92,102 @@ impl RegionalTimeFormat {
                 HourCycle::H24 => IcuHourCycle::Clock24,
             });
         }
-        let formatter = NoCalendarFormatter::try_new(preferences, fieldsets::T::hm()).ok()?;
-        let formatted = formatter.format(&IcuTime::start_of_day());
-        let pattern: runtime::Pattern<'_> = formatted.pattern().into();
-        let pattern = reference::Pattern::from(&pattern);
-        let hour_cycle = match CoarseHourCycle::determine(&pattern)? {
-            CoarseHourCycle::H11H12 => HourCycle::H12,
-            CoarseHourCycle::H23 => HourCycle::H24,
-        };
-        let hour_has_leading_zero =
-            pattern
-                .into_items()
-                .into_iter()
-                .find_map(|item| match item {
-                    PatternItem::Field(field) if matches!(field.symbol, FieldSymbol::Hour(_)) => {
-                        Some(field.length == FieldLength::Two)
+        let parse_pattern = |precision| {
+            let formatter = NoCalendarFormatter::try_new(preferences, precision).ok()?;
+            let formatted = formatter.format(&IcuTime::start_of_day());
+            let pattern: runtime::Pattern<'_> = formatted.pattern().into();
+            let pattern = reference::Pattern::from(&pattern);
+            let mut order = Vec::with_capacity(4);
+            let mut literals = Vec::with_capacity(5);
+            let mut literal = String::new();
+            let mut hour_has_leading_zero = None;
+            let mut hour_zero_based = None;
+            let mut hour_cycle = None;
+            let mut minute_has_leading_zero = None;
+            let mut second_has_leading_zero = None;
+            for item in pattern.into_items() {
+                let field = match item {
+                    PatternItem::Literal(ch) => {
+                        literal.push(ch);
+                        continue;
                     }
-                    _ => None,
-                })?;
+                    PatternItem::Field(field) => field,
+                };
+                let segment = match field.symbol {
+                    FieldSymbol::Hour(hour) => {
+                        hour_has_leading_zero = Some(field.length == FieldLength::Two);
+                        hour_zero_based = Some(hour == IcuHour::H11);
+                        hour_cycle = Some(match hour {
+                            IcuHour::H11 | IcuHour::H12 => HourCycle::H12,
+                            IcuHour::H23 => HourCycle::H24,
+                        });
+                        TimeSegment::Hour
+                    }
+                    FieldSymbol::Minute => {
+                        minute_has_leading_zero = Some(field.length == FieldLength::Two);
+                        TimeSegment::Minute
+                    }
+                    FieldSymbol::Second(_) => {
+                        second_has_leading_zero = Some(field.length == FieldLength::Two);
+                        TimeSegment::Second
+                    }
+                    FieldSymbol::DayPeriod(_) => TimeSegment::Meridiem,
+                    _ => return None,
+                };
+                if order.contains(&segment) {
+                    return None;
+                }
+                literals.push(std::mem::take(&mut literal));
+                order.push(segment);
+            }
+            literals.push(literal);
+            Some((
+                RegionalTimePattern {
+                    order,
+                    literals,
+                    hour_has_leading_zero: hour_has_leading_zero?,
+                    hour_zero_based: hour_zero_based?,
+                    minute_has_leading_zero: minute_has_leading_zero?,
+                    second_has_leading_zero: second_has_leading_zero.unwrap_or(false),
+                    am: String::new(),
+                    pm: String::new(),
+                },
+                hour_cycle?,
+            ))
+        };
+
+        let (minute_pattern, hour_cycle) = parse_pattern(fieldsets::T::hm())?;
+        let (second_pattern, second_hour_cycle) = parse_pattern(fieldsets::T::hms())?;
+        if hour_cycle != second_hour_cycle {
+            return None;
+        }
+        let (am, pm) = if hour_cycle == HourCycle::H12 {
+            let formatter = NoCalendarFormatter::try_new(preferences, fieldsets::T::hm()).ok()?;
+            (
+                minute_pattern
+                    .day_period_from_formatted(
+                        &formatter
+                            .format(&IcuTime::try_new(1, 5, 0, 0).ok()?)
+                            .to_string(),
+                    )
+                    .unwrap_or_else(|| "AM".to_owned()),
+                minute_pattern
+                    .day_period_from_formatted(
+                        &formatter
+                            .format(&IcuTime::try_new(13, 5, 0, 0).ok()?)
+                            .to_string(),
+                    )
+                    .unwrap_or_else(|| "PM".to_owned()),
+            )
+        } else {
+            ("AM".to_owned(), "PM".to_owned())
+        };
         Some(Self {
             hour_cycle,
-            hour_has_leading_zero,
+            minute_pattern,
+            second_pattern,
+            am,
+            pm,
         })
     }
 
@@ -108,26 +198,29 @@ impl RegionalTimeFormat {
     }
 }
 
-fn system_time_format() -> RegionalTimeFormat {
+fn system_time_format() -> &'static RegionalTimeFormat {
     static SYSTEM_TIME_FORMAT: OnceLock<RegionalTimeFormat> = OnceLock::new();
-    *SYSTEM_TIME_FORMAT.get_or_init(|| {
+    SYSTEM_TIME_FORMAT.get_or_init(|| {
         RegionalTimeFormat::for_preferences(&locale_config::Locale::user_default()).unwrap_or(
             RegionalTimeFormat {
                 hour_cycle: HourCycle::H24,
-                hour_has_leading_zero: true,
+                minute_pattern: RegionalTimePattern::fallback(TimeGranularity::Minute, false),
+                second_pattern: RegionalTimePattern::fallback(TimeGranularity::Second, false),
+                am: "AM".to_owned(),
+                pm: "PM".to_owned(),
             },
         )
     })
 }
 
-fn system_time_format_for_cycle(hour_cycle: HourCycle) -> RegionalTimeFormat {
+fn system_time_format_for_cycle(hour_cycle: HourCycle) -> &'static RegionalTimeFormat {
     static SYSTEM_H12_FORMAT: OnceLock<RegionalTimeFormat> = OnceLock::new();
     static SYSTEM_H24_FORMAT: OnceLock<RegionalTimeFormat> = OnceLock::new();
     let cache = match hour_cycle {
         HourCycle::H12 => &SYSTEM_H12_FORMAT,
         HourCycle::H24 => &SYSTEM_H24_FORMAT,
     };
-    *cache.get_or_init(|| {
+    cache.get_or_init(|| {
         locale_config::Locale::user_default()
             .tags_for("time")
             .find_map(|tag| {
@@ -135,13 +228,120 @@ fn system_time_format_for_cycle(hour_cycle: HourCycle) -> RegionalTimeFormat {
             })
             .unwrap_or(RegionalTimeFormat {
                 hour_cycle,
-                hour_has_leading_zero: hour_cycle == HourCycle::H24,
+                minute_pattern: RegionalTimePattern::fallback(
+                    TimeGranularity::Minute,
+                    hour_cycle == HourCycle::H12,
+                ),
+                second_pattern: RegionalTimePattern::fallback(
+                    TimeGranularity::Second,
+                    hour_cycle == HourCycle::H12,
+                ),
+                am: "AM".to_owned(),
+                pm: "PM".to_owned(),
             })
     })
 }
 
-pub(crate) fn hour_has_leading_zero(hour_cycle: HourCycle) -> bool {
-    system_time_format_for_cycle(hour_cycle).hour_has_leading_zero
+impl RegionalTimeFormat {
+    fn pattern(&self, granularity: TimeGranularity) -> RegionalTimePattern {
+        let mut pattern = match granularity {
+            TimeGranularity::Hour | TimeGranularity::Minute => self.minute_pattern.clone(),
+            TimeGranularity::Second => self.second_pattern.clone(),
+        };
+        if granularity == TimeGranularity::Hour {
+            let mut order = Vec::with_capacity(2);
+            let mut literals = Vec::with_capacity(3);
+            for (index, segment) in pattern.order.iter().copied().enumerate() {
+                if matches!(segment, TimeSegment::Hour | TimeSegment::Meridiem) {
+                    literals.push(pattern.literals[index].clone());
+                    order.push(segment);
+                }
+            }
+            literals.push(String::new());
+            pattern.order = order;
+            pattern.literals = literals;
+        }
+        pattern.am.clone_from(&self.am);
+        pattern.pm.clone_from(&self.pm);
+        pattern
+    }
+}
+
+impl RegionalTimePattern {
+    fn fallback(granularity: TimeGranularity, twelve_hour: bool) -> Self {
+        let order = TimeSegment::order(granularity, twelve_hour);
+        let literals = order
+            .iter()
+            .enumerate()
+            .map(|(index, segment)| {
+                if index == 0 {
+                    String::new()
+                } else if *segment == TimeSegment::Meridiem {
+                    " ".to_owned()
+                } else {
+                    ":".to_owned()
+                }
+            })
+            .chain(std::iter::once(String::new()))
+            .collect();
+        Self {
+            order,
+            literals,
+            hour_has_leading_zero: !twelve_hour,
+            hour_zero_based: false,
+            minute_has_leading_zero: true,
+            second_has_leading_zero: true,
+            am: "AM".to_owned(),
+            pm: "PM".to_owned(),
+        }
+    }
+
+    fn day_period_from_formatted(&self, formatted: &str) -> Option<String> {
+        let index = self
+            .order
+            .iter()
+            .position(|segment| *segment == TimeSegment::Meridiem)?;
+        let name = if index == 0 {
+            let formatted = formatted.strip_prefix(self.literals.first()?.as_str())?;
+            let numeric_start = formatted
+                .char_indices()
+                .find_map(|(index, ch)| ch.is_numeric().then_some(index))?;
+            formatted[..numeric_start].strip_suffix(self.literals.get(1)?.as_str())?
+        } else if index + 1 == self.order.len() {
+            let numeric_end = formatted
+                .char_indices()
+                .filter_map(|(index, ch)| ch.is_numeric().then_some(index + ch.len_utf8()))
+                .next_back()?;
+            formatted[numeric_end..]
+                .strip_prefix(self.literals.get(index)?.as_str())?
+                .strip_suffix(self.literals.get(index + 1)?.as_str())?
+        } else {
+            return None;
+        };
+        (!name.is_empty()).then(|| name.to_owned())
+    }
+
+    pub(crate) fn hint(&self) -> String {
+        let mut hint = String::new();
+        for (index, segment) in self.order.iter().copied().enumerate() {
+            hint.push_str(&self.literals[index]);
+            hint.push_str(match segment {
+                TimeSegment::Hour => "HH",
+                TimeSegment::Minute => "MM",
+                TimeSegment::Second => "SS",
+                TimeSegment::Meridiem => self.am.as_str(),
+            });
+        }
+        hint.push_str(self.literals.last().map_or("", String::as_str));
+        hint
+    }
+}
+
+pub(crate) fn regional_time_pattern(
+    granularity: TimeGranularity,
+    hour_cycle: HourCycle,
+) -> RegionalTimePattern {
+    system_time_format_for_cycle(hour_cycle).pattern(granularity)
 }
 
 /// A wall-clock time — the `TimeValue` of `@internationalized/date`.
@@ -262,13 +462,23 @@ impl TimeSegment {
     }
 
     /// `time` with this segment set to `value`, clamped to its range.
-    pub(crate) fn with_value(self, time: Time, value: u32, twelve_hour: bool) -> Time {
+    pub(crate) fn with_value(
+        self,
+        time: Time,
+        value: u32,
+        twelve_hour: bool,
+        zero_based_twelve_hour: bool,
+    ) -> Time {
         match self {
             TimeSegment::Hour => {
                 let hour = if twelve_hour {
                     // 12-hour entry keeps the half of the day the field is in.
                     let pm = time.hour >= 12;
-                    let base = value.clamp(1, 12) % 12;
+                    let base = if zero_based_twelve_hour {
+                        value.min(11)
+                    } else {
+                        value.clamp(1, 12) % 12
+                    };
                     if pm {
                         base + 12
                     } else {
@@ -297,6 +507,7 @@ pub struct TimeState {
     /// keeps this incomplete value locally and defers `onChange` until every
     /// displayed segment is complete again.
     cleared: Vec<TimeSegment>,
+    segment_order: Vec<TimeSegment>,
     /// The last controlled prop seen. The outer `Option` distinguishes an
     /// uncontrolled field from an explicitly controlled `None`.
     last_controlled: Option<Option<Time>>,
@@ -314,6 +525,7 @@ impl TimeState {
             focused: TimeSegment::Hour,
             display_value: None,
             cleared: Vec::new(),
+            segment_order: Vec::new(),
             last_controlled: None,
             // A field is a tab stop: the handle carries that, not the element.
             focus_handle: cx.focus_handle().tab_stop(true),
@@ -326,6 +538,7 @@ impl TimeState {
             focused: TimeSegment::Hour,
             display_value: Some(value),
             cleared: Vec::new(),
+            segment_order: Vec::new(),
             last_controlled: None,
             focus_handle: cx.focus_handle().tab_stop(true),
         }
@@ -374,6 +587,16 @@ impl TimeState {
             && self.display_value != self.value
         {
             self.display_value = self.value;
+        }
+    }
+
+    fn sync_segment_order(&mut self, order: &[TimeSegment]) {
+        if self.segment_order != order {
+            if self.segment_order.is_empty() || !order.contains(&self.focused) {
+                self.focused = order[0];
+            }
+            self.segment_order.clear();
+            self.segment_order.extend_from_slice(order);
         }
     }
 
@@ -773,9 +996,8 @@ impl TimeField {
         self
     }
 
-    /// `shouldForceLeadingZeros` — force the hour to two digits. Minutes and
-    /// seconds are always two digits; without this flag the hour follows the
-    /// system regional format.
+    /// `shouldForceLeadingZeros` — force the hour to two digits. Without this
+    /// flag, each numeric segment follows the system regional time pattern.
     pub fn should_force_leading_zeros(mut self, v: bool) -> Self {
         self.should_force_leading_zeros = v;
         self
@@ -936,6 +1158,11 @@ impl RenderOnce for TimeField {
             |_, _| String::new(),
         );
 
+        let regional_time = regional_time_pattern(self.granularity, self.hour_cycle);
+        self.state.update(cx, |state, _| {
+            state.sync_segment_order(&regional_time.order);
+        });
+
         let colors = cx.colors();
         let layout = cx.layout();
         let navigable = !self.is_disabled;
@@ -979,25 +1206,19 @@ impl RenderOnce for TimeField {
             .into_any_element();
         }
 
-        // The segments this field shows, in reading order -- `granularity`
-        // decides where the list stops.
-        let mut segments = vec![TimeSegment::Hour];
-        if self.granularity != TimeGranularity::Hour {
-            segments.push(TimeSegment::Minute);
-        }
-        if self.granularity == TimeGranularity::Second {
-            segments.push(TimeSegment::Second);
-        }
-        if self.hour_cycle == HourCycle::H12 {
-            segments.push(TimeSegment::Meridiem);
-        }
+        let segments = regional_time.order.clone();
 
         let hour_cycle = self.hour_cycle;
-        let pad_hour = self.should_force_leading_zeros || hour_has_leading_zero(self.hour_cycle);
+        let pad_hour = self.should_force_leading_zeros || regional_time.hour_has_leading_zero;
+        let pad_minute = regional_time.minute_has_leading_zero;
+        let pad_second = regional_time.second_has_leading_zero;
+        let zero_based_twelve_hour = regional_time.hour_zero_based;
+        let am = regional_time.am.clone();
+        let pm = regional_time.pm.clone();
         let segment_text = move |segment: TimeSegment| -> String {
             if cleared.contains(&segment) {
                 return if segment == TimeSegment::Meridiem {
-                    "AM".to_owned()
+                    am.clone()
                 } else {
                     "--".to_owned()
                 };
@@ -1008,14 +1229,25 @@ impl RenderOnce for TimeField {
             match segment {
                 TimeSegment::Hour => {
                     if hour_cycle == HourCycle::H12 {
-                        pad2(t.twelve_hour().0, pad_hour)
+                        let hour = if zero_based_twelve_hour {
+                            t.hour % 12
+                        } else {
+                            t.twelve_hour().0
+                        };
+                        pad2(hour, pad_hour)
                     } else {
                         pad2(t.hour, pad_hour)
                     }
                 }
-                TimeSegment::Minute => pad2(t.minute, true),
-                TimeSegment::Second => pad2(t.second, true),
-                TimeSegment::Meridiem => t.twelve_hour().1.to_owned(),
+                TimeSegment::Minute => pad2(t.minute, pad_minute),
+                TimeSegment::Second => pad2(t.second, pad_second),
+                TimeSegment::Meridiem => {
+                    if t.hour < 12 {
+                        am.clone()
+                    } else {
+                        pm.clone()
+                    }
+                }
             }
         };
 
@@ -1049,7 +1281,7 @@ impl RenderOnce for TimeField {
             let on_change = self.on_change.clone();
             let buffer = typing;
             let fh = focus_handle.clone();
-            let order = TimeSegment::order(self.granularity, self.hour_cycle == HourCycle::H12);
+            let order = segments.clone();
             let twelve_hour = self.hour_cycle == HourCycle::H12;
             let seed = self.placeholder_value.unwrap_or(Time::new(0, 0));
             let min_value = self.min_value;
@@ -1136,7 +1368,16 @@ impl RenderOnce for TimeField {
                                 return;
                             };
                             let base = state.read(cx).display_value.unwrap_or(seed);
-                            commit(focused.with_value(base, value, twelve_hour), window, cx);
+                            commit(
+                                focused.with_value(
+                                    base,
+                                    value,
+                                    twelve_hour,
+                                    zero_based_twelve_hour,
+                                ),
+                                window,
+                                cx,
+                            );
                             if text.len() >= width {
                                 buffer.update(cx, |b, _| b.clear());
                                 if let Some(segment) = order.get(here + 1).copied() {
@@ -1173,11 +1414,12 @@ impl RenderOnce for TimeField {
         }
 
         for (index, segment) in segments.iter().copied().enumerate() {
-            // Colons separate the numeric segments; the meridiem gets a space.
-            if segment == TimeSegment::Meridiem {
-                group = group.child(div().w(px(4.)));
-            } else if index > 0 {
-                group = group.child(div().text_color(colors.muted).child(":"));
+            if let Some(literal) = regional_time
+                .literals
+                .get(index)
+                .filter(|literal| !literal.is_empty())
+            {
+                group = group.child(div().text_color(colors.muted).child(literal.clone()));
             }
 
             let mut seg = div()
@@ -1213,13 +1455,20 @@ impl RenderOnce for TimeField {
 
             group = group.child(seg);
         }
+        if let Some(literal) = regional_time
+            .literals
+            .last()
+            .filter(|literal| !literal.is_empty())
+        {
+            group = group.child(div().text_color(colors.muted).child(literal.clone()));
+        }
 
         // Steppers adjust whichever segment is focused.
         if editable {
             let seed = self.placeholder_value.unwrap_or(Time::new(0, 0));
             let min_value = self.min_value;
             let max_value = self.max_value;
-            let visible_segments = segments.clone();
+            let visible_segments = segments;
             let mut steppers = div().flex().flex_col().ml(px(8.)).flex_shrink_0();
             for (icon, delta, key) in [
                 (icons::CHEVRON_UP, 1i32, "up"),
@@ -1335,6 +1584,28 @@ mod tests {
     }
 
     #[test]
+    fn zero_based_twelve_hour_entry_preserves_the_half_day() {
+        assert_eq!(
+            TimeSegment::Hour
+                .with_value(Time::new(1, 0), 0, true, true)
+                .hour,
+            0
+        );
+        assert_eq!(
+            TimeSegment::Hour
+                .with_value(Time::new(13, 0), 0, true, true)
+                .hour,
+            12
+        );
+        assert_eq!(
+            TimeSegment::Hour
+                .with_value(Time::new(13, 0), 12, true, false)
+                .hour,
+            12
+        );
+    }
+
+    #[test]
     fn hour_cycle_follows_locale_time_data_and_overrides() {
         assert_eq!(
             RegionalTimeFormat::for_locale("en-US").map(|format| format.hour_cycle),
@@ -1367,23 +1638,100 @@ mod tests {
     #[test]
     fn hour_padding_follows_locale_time_patterns() {
         assert_eq!(
-            RegionalTimeFormat::for_locale("en-US").map(|format| format.hour_has_leading_zero),
+            RegionalTimeFormat::for_locale("en-US")
+                .map(|format| format.minute_pattern.hour_has_leading_zero),
             Some(false)
         );
         assert_eq!(
-            RegionalTimeFormat::for_locale("de-DE").map(|format| format.hour_has_leading_zero),
+            RegionalTimeFormat::for_locale("de-DE")
+                .map(|format| format.minute_pattern.hour_has_leading_zero),
             Some(true)
         );
         assert_eq!(
             RegionalTimeFormat::for_locale("en-US-u-hc-h23")
-                .map(|format| format.hour_has_leading_zero),
+                .map(|format| format.minute_pattern.hour_has_leading_zero),
             Some(true)
         );
         let explicit_twelve =
             RegionalTimeFormat::for_locale_with_cycle("en-US-u-hc-h23", Some(HourCycle::H12))
                 .unwrap();
         assert_eq!(explicit_twelve.hour_cycle, HourCycle::H12);
-        assert!(!explicit_twelve.hour_has_leading_zero);
+        assert!(!explicit_twelve.minute_pattern.hour_has_leading_zero);
+    }
+
+    #[test]
+    fn segment_order_literals_padding_and_day_periods_follow_locale_patterns() {
+        let us = RegionalTimeFormat::for_locale_with_cycle("en-US", Some(HourCycle::H12))
+            .unwrap()
+            .pattern(TimeGranularity::Second);
+        assert_eq!(
+            us.order,
+            [
+                TimeSegment::Hour,
+                TimeSegment::Minute,
+                TimeSegment::Second,
+                TimeSegment::Meridiem,
+            ]
+        );
+        assert_eq!(us.literals, ["", ":", ":", "\u{202f}", ""]);
+        assert!(!us.hour_has_leading_zero);
+        assert!(!us.hour_zero_based);
+        assert!(us.minute_has_leading_zero);
+        assert!(us.second_has_leading_zero);
+        assert_eq!((us.am.as_str(), us.pm.as_str()), ("AM", "PM"));
+        assert_eq!(us.hint(), "HH:MM:SS\u{202f}AM");
+
+        let japanese = RegionalTimeFormat::for_locale_with_cycle("ja-JP", Some(HourCycle::H12))
+            .unwrap()
+            .pattern(TimeGranularity::Minute);
+        assert_eq!(
+            japanese.order,
+            [
+                TimeSegment::Meridiem,
+                TimeSegment::Hour,
+                TimeSegment::Minute,
+            ]
+        );
+        assert_eq!(japanese.literals, ["", "", ":", ""]);
+        assert!(japanese.hour_zero_based);
+        assert_eq!(
+            (japanese.am.as_str(), japanese.pm.as_str()),
+            ("午前", "午後")
+        );
+        assert_eq!(japanese.hint(), "午前HH:MM");
+
+        let arabic = RegionalTimeFormat::for_locale_with_cycle("ar-EG", Some(HourCycle::H12))
+            .unwrap()
+            .pattern(TimeGranularity::Minute);
+        assert_eq!((arabic.am.as_str(), arabic.pm.as_str()), ("ص", "م"));
+
+        let korean = RegionalTimeFormat::for_locale_with_cycle("ko-KR", Some(HourCycle::H24))
+            .unwrap()
+            .pattern(TimeGranularity::Second);
+        assert_eq!(
+            korean.order,
+            [TimeSegment::Hour, TimeSegment::Minute, TimeSegment::Second,]
+        );
+        assert_eq!(korean.literals, ["", ":", ":", ""]);
+        assert!(korean.hour_has_leading_zero);
+        assert!(korean.minute_has_leading_zero);
+        assert!(korean.second_has_leading_zero);
+        assert_eq!(korean.hint(), "HH:MM:SS");
+    }
+
+    #[test]
+    fn hour_granularity_keeps_day_period_order_without_minute_punctuation() {
+        let us = RegionalTimeFormat::for_locale_with_cycle("en-US", Some(HourCycle::H12))
+            .unwrap()
+            .pattern(TimeGranularity::Hour);
+        assert_eq!(us.order, [TimeSegment::Hour, TimeSegment::Meridiem]);
+        assert_eq!(us.literals, ["", "\u{202f}", ""]);
+
+        let japanese = RegionalTimeFormat::for_locale_with_cycle("ja-JP", Some(HourCycle::H12))
+            .unwrap()
+            .pattern(TimeGranularity::Hour);
+        assert_eq!(japanese.order, [TimeSegment::Meridiem, TimeSegment::Hour]);
+        assert_eq!(japanese.literals, ["", "", ""]);
     }
 
     #[test]

@@ -4634,7 +4634,7 @@ impl Gallery {
                         .should_force_leading_zeros(true)
                         .into_any_element(),
                         para(
-                            "The system locale controls the date segment order, separators, and month, day, and hour padding. The prop only forces those numeric segments to two digits.",
+                            "The system locale controls date and time segment order, separators, padding, and day-period names. The prop forces month, day, and hour segments to two digits.",
                             cx,
                         ),
                     ]),
@@ -5396,7 +5396,7 @@ impl Gallery {
                             .should_force_leading_zeros(true)
                             .into_any_element(),
                         para(
-                            "Minutes and seconds stay two digits; this prop only forces the hour.",
+                            "The system locale controls numeric padding; this prop only forces the hour to two digits.",
                             cx,
                         ),
                     ]),
@@ -5407,7 +5407,10 @@ impl Gallery {
                         h::TimeField::new(self.demo_time("tmf-usage", cx))
                             .label("Time")
                             .into_any_element(),
-                        para("Uses your system regional 12- or 24-hour format.", cx),
+                        para(
+                            "Uses your system regional segment order, separators, padding, day-period names, and 12- or 24-hour cycle.",
+                            cx,
+                        ),
                     ]),
                 ),
                 (
@@ -13915,7 +13918,7 @@ mod example_quality {
     fn time_field_examples_separate_system_and_explicit_hour_cycles() {
         let page = page_fn(SRC, "time_field");
         let usage = section_body(page, "Usage");
-        assert!(usage.contains("system regional 12- or 24-hour format"));
+        assert!(usage.contains("system regional segment order, separators, padding"));
         assert!(!usage.contains(".hour_cycle("));
         assert!(section_body(page, "24-hour").contains(".hour_cycle(h::HourCycle::H24)"));
         assert!(
@@ -13928,7 +13931,7 @@ mod example_quality {
             leading.matches(".should_force_leading_zeros(true)").count(),
             1
         );
-        assert!(leading.contains("this prop only forces the hour"));
+        assert!(leading.contains("this prop only forces the hour to two digits"));
     }
 
     #[test]
@@ -13946,7 +13949,7 @@ mod example_quality {
             leading.matches(".should_force_leading_zeros(true)").count(),
             1
         );
-        assert!(leading.contains("system locale controls the date segment order, separators"));
+        assert!(leading.contains("system locale controls date and time segment order, separators"));
 
         let date_picker = section_body(page_fn(SRC, "date_picker"), "Format Options");
         assert!(date_picker.contains("operating system's regional date order"));

@@ -11938,7 +11938,7 @@
         "prop": "shouldForceLeadingZeros",
         "type": "boolean",
         "default": "locale",
-        "description": "Forces two-digit month, day and hour segments; otherwise each follows the system regional pattern while minutes and seconds remain two digits.",
+        "description": "Forces two-digit month, day and hour segments; otherwise numeric padding follows the system regional date and time patterns.",
         "rustOwner": "DateField",
         "rust": "should_force_leading_zeros(bool)",
         "status": "implemented"
@@ -12038,7 +12038,7 @@
         "prop": "segment",
         "type": "DateSegment",
         "default": "—",
-        "description": "Hands custom content each supported Gregorian date or plain-time segment and its generated text. Date segments follow the operating system's regional order and separators; era and time-zone segment kinds require value models the port does not expose.",
+        "description": "Hands custom content each supported Gregorian date or plain-time segment and its generated text. Date and time segments follow the operating system's regional order, separators, padding, and day-period names; era and time-zone segment kinds require value models the port does not expose.",
         "rustOwner": "DateField",
         "rust": "segment(render)",
         "status": "partial"
@@ -13871,7 +13871,7 @@
         "prop": "shouldForceLeadingZeros",
         "type": "boolean",
         "default": "locale",
-        "description": "Forces a two-digit hour when true; otherwise the hour follows the system regional pattern while minutes and seconds remain two digits.",
+        "description": "Forces a two-digit hour when true; otherwise numeric padding follows the system regional time pattern.",
         "rustOwner": "TimeField",
         "rust": "should_force_leading_zeros(bool)",
         "status": "implemented"
@@ -13961,7 +13961,7 @@
         "prop": "segment",
         "type": "DateSegment",
         "default": "—",
-        "description": "Hands custom content each time segment and its generated text.",
+        "description": "Hands custom content each time segment and its system-regional generated text.",
         "rustOwner": "TimeField",
         "rust": "segment(render)",
         "status": "implemented"

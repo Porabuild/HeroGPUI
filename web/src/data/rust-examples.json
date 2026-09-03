@@ -1090,7 +1090,7 @@
     },
     {
       "heading": "Forced Leading Zeros",
-      "description": "The system locale controls the date segment order, separators, and month, day, and hour padding. The prop only forces those numeric segments to two digits.",
+      "description": "The system locale controls date and time segment order, separators, padding, and day-period names. The prop forces month, day, and hour segments to two digits.",
       "imports": "use herogpui::prelude::{DateField, Granularity, HourCycle};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        DateField::new(self.demo_text(\n            \"df-leading-locale\",\n            \"2025-02-03T08:05:07\",\n            cx,\n        ))\n        .label(\"System locale\")\n        .granularity(Granularity::Second)\n        .hour_cycle(HourCycle::H12)\n        .into_any_element(),\n        DateField::new(self.demo_text(\n            \"df-leading-forced\",\n            \"2025-02-03T08:05:07\",\n            cx,\n        ))\n        .label(\"Forced two-digit fields\")\n        .granularity(Granularity::Second)\n        .hour_cycle(HourCycle::H12)\n        .should_force_leading_zeros(true)\n        .into_any_element(),\n    ])"
     },
@@ -1358,13 +1358,13 @@
     },
     {
       "heading": "Forced Leading Zeros",
-      "description": "Minutes and seconds stay two digits; this prop only forces the hour.",
+      "description": "The system locale controls numeric padding; this prop only forces the hour to two digits.",
       "imports": "use herogpui::prelude::{HourCycle, TimeField, TimeState};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        TimeField::new(self.demo_time(\"tmf-leading-locale\", cx))\n            .label(\"Locale default\")\n            .hour_cycle(HourCycle::H12)\n            .show_seconds(true)\n            .into_any_element(),\n        TimeField::new(self.demo_time(\"tmf-leading-forced\", cx))\n            .label(\"Forced two-digit hour\")\n            .hour_cycle(HourCycle::H12)\n            .show_seconds(true)\n            .should_force_leading_zeros(true)\n            .into_any_element(),\n    ])"
     },
     {
       "heading": "Usage",
-      "description": "Uses your system regional 12- or 24-hour format.",
+      "description": "Uses your system regional segment order, separators, padding, day-period names, and 12- or 24-hour cycle.",
       "imports": "use herogpui::prelude::{TimeField, TimeState};",
       "code": "TimeField::new(self.demo_time(\"tmf-usage\", cx))\n    .label(\"Time\")"
     },
