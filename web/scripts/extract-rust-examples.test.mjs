@@ -2,10 +2,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  documentationParity,
   humanizeGalleryIds,
   normalizeCollapsedItem,
   separateExampleDescription,
 } from "./extract-rust-examples.mjs";
+
+test("documentationParity keeps component examples and reference metadata in sync", () => {
+  assert.deepEqual(documentationParity(["button", "date-field"], ["button", "date-field"]), {
+    missingReference: [],
+    missingExamples: [],
+  });
+  assert.deepEqual(documentationParity(["button", "new-page"], ["button", "old-page"]), {
+    missingReference: ["new-page"],
+    missingExamples: ["old-page"],
+  });
+});
 
 test("humanizeGalleryIds preserves multiline constructor indentation", () => {
   const source = `gpui::div()

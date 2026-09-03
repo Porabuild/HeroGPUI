@@ -714,6 +714,15 @@ export function normalizeCollapsedItem(code) {
   return excess ? normalizeIndent(code, excess) : code;
 }
 
+export function documentationParity(exampleSlugs, referenceSlugs) {
+  const examples = new Set(exampleSlugs);
+  const references = new Set(referenceSlugs);
+  return {
+    missingReference: [...examples].filter((slug) => !references.has(slug)).sort(),
+    missingExamples: [...references].filter((slug) => !examples.has(slug)).sort(),
+  };
+}
+
 function cleanExample(rawCode, baseIndent, pageSlug) {
   const aliases = collectAliases(rawCode);
   let code = normalizeIndent(rawCode, baseIndent);
@@ -966,6 +975,21 @@ export function run({ check = false } = {}) {
   }
 
   const data = Object.fromEntries([...pages.entries()]);
+  const reference = JSON.parse(readFileSync(REFERENCE, "utf8"));
+  const parity = documentationParity(pages.keys(), Object.keys(reference));
+  if (parity.missingReference.length || parity.missingExamples.length) {
+    if (parity.missingReference.length) {
+      console.error(
+        `ERROR: component pages missing reference metadata: ${parity.missingReference.join(", ")}`,
+      );
+    }
+    if (parity.missingExamples.length) {
+      console.error(
+        `ERROR: reference metadata missing component examples: ${parity.missingExamples.join(", ")}`,
+      );
+    }
+    process.exitCode = 1;
+  }
   const output = JSON.stringify(data, null, 2) + "\n";
   if (check) {
     let current = "";
