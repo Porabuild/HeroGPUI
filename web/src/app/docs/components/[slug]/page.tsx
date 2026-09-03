@@ -31,31 +31,30 @@ export async function generateMetadata({ params }: ComponentPageProps): Promise<
 interface ExampleCardProps {
   id: string;
   heading: string;
+  description?: string;
   code: string;
   preview?: ReactNode;
 }
 
-function ExampleCard({ id, heading, code, preview }: ExampleCardProps) {
+function ExampleCard({ id, heading, description, code, preview }: ExampleCardProps) {
   return (
-    <article
-      aria-labelledby={id}
-      className="mt-6 overflow-hidden rounded-xl border border-separator bg-surface"
-    >
-      {preview ? (
-        <div className="border-b border-separator bg-surface-secondary p-4">{preview}</div>
-      ) : null}
-      <div className="px-4 pt-4">
-        <h3 className="text-base font-medium text-foreground" id={id}>
-          {heading}
-        </h3>
+    <section aria-labelledby={id} className="mt-10">
+      <h3 className="text-xl font-semibold text-foreground" id={id}>
+        {heading}
+      </h3>
+      {description ? <p className="mt-2 text-sm leading-6 text-muted">{description}</p> : null}
+      <div className="mt-4 overflow-hidden rounded-xl border border-separator bg-surface">
+        {preview ? (
+          <div className="border-b border-separator bg-surface-secondary p-4">{preview}</div>
+        ) : null}
+        <CodeBlock
+          className="rounded-none border-0 bg-transparent"
+          code={code}
+          id={`${id}-code`}
+          lang="rust"
+        />
       </div>
-      <CodeBlock
-        className="mt-3 rounded-none border-0 bg-transparent"
-        code={code}
-        id={`${id}-code`}
-        lang="rust"
-      />
-    </article>
+    </section>
   );
 }
 
@@ -118,6 +117,7 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
       {sections.map((section) => (
         <ExampleCard
           code={exampleCode(section.rust)}
+          description={section.rust.description}
           heading={section.heading}
           id={section.id}
           key={section.id}

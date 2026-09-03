@@ -44,6 +44,7 @@ export interface StylingRow {
 
 export interface RustExample {
   heading: string;
+  description?: string;
   code: string;
   imports?: string;
 }
@@ -201,6 +202,8 @@ export function getRustExamples(slug: string): RustExample[] {
     isRecord(row)
       ? {
           heading: asString(row.heading),
+          description:
+            typeof row.description === "string" ? row.description : undefined,
           code: asString(row.code),
           imports: typeof row.imports === "string" ? row.imports : undefined,
         }
