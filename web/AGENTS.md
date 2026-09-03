@@ -18,3 +18,8 @@ Keep `gallery/src/pages/reference_metadata.rs`,
 `gallery/src/pages/components.rs`, `web/src/data/reference.json`,
 `web/src/data/rust-examples.json`, and the public `llms.txt` description aligned;
 do not hand-edit generated JSON.
+
+Example presentation follows the Rust gallery source: section title, optional
+description, then the bordered example. Keep explanatory prose outside the
+example surface on both sites; component-owned labels, helper text, values, and
+composed content remain inside the demonstrated component.

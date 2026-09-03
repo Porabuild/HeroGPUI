@@ -9,6 +9,10 @@ reference metadata.
 
 - Component demos live in `src/pages/components.rs`; shared documentation
   rendering and route/category registration live in `src/pages/mod.rs`.
+- Keep each documentation example in title, optional description, then live
+  component order. Explanatory gallery prose belongs outside the bordered
+  preview; only text owned by the demonstrated component (labels, helper text,
+  values, and composed content) belongs inside it.
 - Every interactive controlled prop in a demo must store and feed back its
   callback value. Otherwise use the matching `default_*` seed.
 - Repeated components need unique ids, even when a helper constructs them.
