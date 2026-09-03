@@ -5278,6 +5278,26 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
+                    "Forced Leading Zeros",
+                    field_col(vec![
+                        h::TimeField::new(self.demo_time("tmf-leading-locale", cx))
+                            .label("Locale default")
+                            .hour_cycle(h::HourCycle::H12)
+                            .show_seconds(true)
+                            .into_any_element(),
+                        h::TimeField::new(self.demo_time("tmf-leading-forced", cx))
+                            .label("Forced two-digit hour")
+                            .hour_cycle(h::HourCycle::H12)
+                            .show_seconds(true)
+                            .should_force_leading_zeros(true)
+                            .into_any_element(),
+                        para(
+                            "Minutes and seconds stay two digits; this prop only forces the hour.",
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
                     "Usage",
                     field_col(vec![
                         h::TimeField::new(self.demo_time("tmf-usage", cx))
@@ -13785,6 +13805,14 @@ mod example_quality {
         assert!(
             section_body(page, "12-hour with seconds").contains(".hour_cycle(h::HourCycle::H12)")
         );
+        let leading = section_body(page, "Forced Leading Zeros");
+        assert_eq!(leading.matches(".hour_cycle(h::HourCycle::H12)").count(), 2);
+        assert_eq!(leading.matches(".show_seconds(true)").count(), 2);
+        assert_eq!(
+            leading.matches(".should_force_leading_zeros(true)").count(),
+            1
+        );
+        assert!(leading.contains("this prop only forces the hour"));
     }
 
     #[test]

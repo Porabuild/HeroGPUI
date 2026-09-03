@@ -28,10 +28,7 @@ pub enum HourCycle {
 
 impl Default for HourCycle {
     fn default() -> Self {
-        static SYSTEM_HOUR_CYCLE: OnceLock<HourCycle> = OnceLock::new();
-        *SYSTEM_HOUR_CYCLE.get_or_init(|| {
-            Self::for_preferences(&locale_config::Locale::user_default()).unwrap_or(Self::H24)
-        })
+        system_time_format().hour_cycle
     }
 }
 
@@ -44,24 +41,64 @@ impl HourCycle {
             HourCycle::H24 => "24-hour",
         }
     }
+}
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RegionalTimeFormat {
+    hour_cycle: HourCycle,
+    hour_has_leading_zero: bool,
+}
+
+impl RegionalTimeFormat {
     fn for_locale(locale: &str) -> Option<Self> {
+        Self::for_locale_with_cycle(locale, None)
+    }
+
+    fn for_locale_with_cycle(locale: &str, hour_cycle: Option<HourCycle>) -> Option<Self> {
         use icu_datetime::{
             fieldsets,
             input::Time as IcuTime,
-            provider::pattern::{reference, runtime, CoarseHourCycle},
-            NoCalendarFormatter,
+            provider::{
+                fields::{FieldLength, FieldSymbol},
+                pattern::{reference, runtime, CoarseHourCycle, PatternItem},
+            },
+            DateTimeFormatterPreferences, NoCalendarFormatter,
         };
-        use icu_locale_core::Locale as IcuLocale;
+        use icu_locale_core::{
+            preferences::extensions::unicode::keywords::HourCycle as IcuHourCycle,
+            Locale as IcuLocale,
+        };
 
         let locale = locale.parse::<IcuLocale>().ok()?;
-        let formatter = NoCalendarFormatter::try_new(locale.into(), fieldsets::T::hm()).ok()?;
+        let mut preferences = DateTimeFormatterPreferences::from(locale);
+        if let Some(hour_cycle) = hour_cycle {
+            preferences.hour_cycle = Some(match hour_cycle {
+                HourCycle::H12 => IcuHourCycle::Clock12,
+                HourCycle::H24 => IcuHourCycle::Clock24,
+            });
+        }
+        let formatter = NoCalendarFormatter::try_new(preferences, fieldsets::T::hm()).ok()?;
         let formatted = formatter.format(&IcuTime::start_of_day());
         let pattern: runtime::Pattern<'_> = formatted.pattern().into();
-        match CoarseHourCycle::determine(&reference::Pattern::from(&pattern))? {
-            CoarseHourCycle::H11H12 => Some(Self::H12),
-            CoarseHourCycle::H23 => Some(Self::H24),
-        }
+        let pattern = reference::Pattern::from(&pattern);
+        let hour_cycle = match CoarseHourCycle::determine(&pattern)? {
+            CoarseHourCycle::H11H12 => HourCycle::H12,
+            CoarseHourCycle::H23 => HourCycle::H24,
+        };
+        let hour_has_leading_zero =
+            pattern
+                .into_items()
+                .into_iter()
+                .find_map(|item| match item {
+                    PatternItem::Field(field) if matches!(field.symbol, FieldSymbol::Hour(_)) => {
+                        Some(field.length == FieldLength::Two)
+                    }
+                    _ => None,
+                })?;
+        Some(Self {
+            hour_cycle,
+            hour_has_leading_zero,
+        })
     }
 
     fn for_preferences(locale: &locale_config::Locale) -> Option<Self> {
@@ -69,6 +106,38 @@ impl HourCycle {
             .tags_for("time")
             .find_map(|tag| Self::for_locale(tag.as_ref()))
     }
+}
+
+fn system_time_format() -> RegionalTimeFormat {
+    static SYSTEM_TIME_FORMAT: OnceLock<RegionalTimeFormat> = OnceLock::new();
+    *SYSTEM_TIME_FORMAT.get_or_init(|| {
+        RegionalTimeFormat::for_preferences(&locale_config::Locale::user_default()).unwrap_or(
+            RegionalTimeFormat {
+                hour_cycle: HourCycle::H24,
+                hour_has_leading_zero: true,
+            },
+        )
+    })
+}
+
+fn system_time_format_for_cycle(hour_cycle: HourCycle) -> RegionalTimeFormat {
+    static SYSTEM_H12_FORMAT: OnceLock<RegionalTimeFormat> = OnceLock::new();
+    static SYSTEM_H24_FORMAT: OnceLock<RegionalTimeFormat> = OnceLock::new();
+    let cache = match hour_cycle {
+        HourCycle::H12 => &SYSTEM_H12_FORMAT,
+        HourCycle::H24 => &SYSTEM_H24_FORMAT,
+    };
+    *cache.get_or_init(|| {
+        locale_config::Locale::user_default()
+            .tags_for("time")
+            .find_map(|tag| {
+                RegionalTimeFormat::for_locale_with_cycle(tag.as_ref(), Some(hour_cycle))
+            })
+            .unwrap_or(RegionalTimeFormat {
+                hour_cycle,
+                hour_has_leading_zero: hour_cycle == HourCycle::H24,
+            })
+    })
 }
 
 /// A wall-clock time — the `TimeValue` of `@internationalized/date`.
@@ -514,8 +583,8 @@ pub struct TimeField {
     granularity: TimeGranularity,
     /// `autoFocus` — take focus on the first render.
     auto_focus: bool,
-    /// `shouldForceLeadingZeros` — pad the hour, minute and second to two
-    /// digits. On by default, which is what a time field usually wants.
+    /// `shouldForceLeadingZeros` — force the hour to two digits instead of
+    /// using the system regional format.
     should_force_leading_zeros: bool,
     full_width: bool,
     is_disabled: bool,
@@ -557,7 +626,7 @@ impl TimeField {
             hour_cycle: HourCycle::default(),
             granularity: TimeGranularity::default(),
             auto_focus: false,
-            should_force_leading_zeros: true,
+            should_force_leading_zeros: false,
             full_width: false,
             is_disabled: false,
             is_read_only: false,
@@ -700,8 +769,9 @@ impl TimeField {
         self
     }
 
-    /// `shouldForceLeadingZeros` — whether the segments are padded to two
-    /// digits.
+    /// `shouldForceLeadingZeros` — force the hour to two digits. Minutes and
+    /// seconds are always two digits; without this flag the hour follows the
+    /// system regional format.
     pub fn should_force_leading_zeros(mut self, v: bool) -> Self {
         self.should_force_leading_zeros = v;
         self
@@ -919,7 +989,8 @@ impl RenderOnce for TimeField {
         }
 
         let hour_cycle = self.hour_cycle;
-        let pad = self.should_force_leading_zeros;
+        let pad_hour = self.should_force_leading_zeros
+            || system_time_format_for_cycle(self.hour_cycle).hour_has_leading_zero;
         let segment_text = move |segment: TimeSegment| -> String {
             if cleared.contains(&segment) {
                 return if segment == TimeSegment::Meridiem {
@@ -934,13 +1005,13 @@ impl RenderOnce for TimeField {
             match segment {
                 TimeSegment::Hour => {
                     if hour_cycle == HourCycle::H12 {
-                        pad2(t.twelve_hour().0, pad)
+                        pad2(t.twelve_hour().0, pad_hour)
                     } else {
-                        pad2(t.hour, pad)
+                        pad2(t.hour, pad_hour)
                     }
                 }
-                TimeSegment::Minute => pad2(t.minute, pad),
-                TimeSegment::Second => pad2(t.second, pad),
+                TimeSegment::Minute => pad2(t.minute, true),
+                TimeSegment::Second => pad2(t.second, true),
                 TimeSegment::Meridiem => t.twelve_hour().1.to_owned(),
             }
         };
@@ -1262,23 +1333,54 @@ mod tests {
 
     #[test]
     fn hour_cycle_follows_locale_time_data_and_overrides() {
-        assert_eq!(HourCycle::for_locale("en-US"), Some(HourCycle::H12));
-        assert_eq!(HourCycle::for_locale("de-DE"), Some(HourCycle::H24));
         assert_eq!(
-            HourCycle::for_locale("en-US-u-hc-h23"),
+            RegionalTimeFormat::for_locale("en-US").map(|format| format.hour_cycle),
+            Some(HourCycle::H12)
+        );
+        assert_eq!(
+            RegionalTimeFormat::for_locale("de-DE").map(|format| format.hour_cycle),
             Some(HourCycle::H24)
         );
         assert_eq!(
-            HourCycle::for_locale("de-DE-u-hc-h12"),
+            RegionalTimeFormat::for_locale("en-US-u-hc-h23").map(|format| format.hour_cycle),
+            Some(HourCycle::H24)
+        );
+        assert_eq!(
+            RegionalTimeFormat::for_locale("de-DE-u-hc-h12").map(|format| format.hour_cycle),
             Some(HourCycle::H12)
         );
-        assert_eq!(HourCycle::for_locale("not_a_locale"), None);
+        assert_eq!(RegionalTimeFormat::for_locale("not_a_locale"), None);
     }
 
     #[test]
     fn hour_cycle_prefers_the_system_time_category() {
         let locale = locale_config::Locale::new("de-DE,time=en-US").unwrap();
-        assert_eq!(HourCycle::for_preferences(&locale), Some(HourCycle::H12));
+        assert_eq!(
+            RegionalTimeFormat::for_preferences(&locale).map(|format| format.hour_cycle),
+            Some(HourCycle::H12)
+        );
+    }
+
+    #[test]
+    fn hour_padding_follows_locale_time_patterns() {
+        assert_eq!(
+            RegionalTimeFormat::for_locale("en-US").map(|format| format.hour_has_leading_zero),
+            Some(false)
+        );
+        assert_eq!(
+            RegionalTimeFormat::for_locale("de-DE").map(|format| format.hour_has_leading_zero),
+            Some(true)
+        );
+        assert_eq!(
+            RegionalTimeFormat::for_locale("en-US-u-hc-h23")
+                .map(|format| format.hour_has_leading_zero),
+            Some(true)
+        );
+        let explicit_twelve =
+            RegionalTimeFormat::for_locale_with_cycle("en-US-u-hc-h23", Some(HourCycle::H12))
+                .unwrap();
+        assert_eq!(explicit_twelve.hour_cycle, HourCycle::H12);
+        assert!(!explicit_twelve.hour_has_leading_zero);
     }
 
     #[test]

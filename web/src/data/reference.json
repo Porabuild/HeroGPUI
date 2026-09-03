@@ -13871,10 +13871,10 @@
         "prop": "shouldForceLeadingZeros",
         "type": "boolean",
         "default": "locale",
-        "description": "Controls padding for hour, minute and second rather than only the locale-sensitive hour.",
+        "description": "Forces a two-digit hour when true; otherwise the hour follows the system regional pattern while minutes and seconds remain two digits.",
         "rustOwner": "TimeField",
         "rust": "should_force_leading_zeros(bool)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "TimeField",

@@ -1302,6 +1302,11 @@
       "code": "TimeField::new(self.time.clone())\n    .label(\"Reminder\")\n    .hour_cycle(HourCycle::H12)\n    .show_seconds(true)\n    .on_change(opt_time_cb(\n        cx.listener(|_, _t: &Option<Time>, _, cx| cx.notify()),\n    ))"
     },
     {
+      "heading": "Forced Leading Zeros",
+      "imports": "use herogpui::prelude::{HourCycle, TimeField, TimeState};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        TimeField::new(self.demo_time(\"tmf-leading-locale\", cx))\n            .label(\"Locale default\")\n            .hour_cycle(HourCycle::H12)\n            .show_seconds(true)\n            .into_any_element(),\n        TimeField::new(self.demo_time(\"tmf-leading-forced\", cx))\n            .label(\"Forced two-digit hour\")\n            .hour_cycle(HourCycle::H12)\n            .show_seconds(true)\n            .should_force_leading_zeros(true)\n            .into_any_element(),\n        para(\n            \"Minutes and seconds stay two digits; this prop only forces the hour.\",\n            cx,\n        ),\n    ])"
+    },
+    {
       "heading": "Usage",
       "imports": "use herogpui::prelude::{TimeField, TimeState};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        TimeField::new(self.demo_time(\"tmf-usage\", cx))\n            .label(\"Time\")\n            .into_any_element(),\n        para(\"Uses your system regional 12- or 24-hour format.\", cx),\n    ])"

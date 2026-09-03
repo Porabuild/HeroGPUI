@@ -270,28 +270,57 @@ fn time_field_default_cycle_follows_the_system_time_locale(cx: &mut TestAppConte
 
     assert_eq!(HourCycle::default(), HourCycle::H12);
     let rendered: Rc<RefCell<Vec<(TimeSegment, String)>>> = Rc::new(RefCell::new(Vec::new()));
+    let forced: Rc<RefCell<Vec<(TimeSegment, String)>>> = Rc::new(RefCell::new(Vec::new()));
     let rendered_for_view = rendered.clone();
-    let state = cx.new(|cx| TimeState::with_value(cx, Time::new(0, 0)));
+    let forced_for_view = forced.clone();
+    let state = cx.new(|cx| TimeState::with_value(cx, Time::new(9, 5).with_second(7)));
+    let forced_state = cx.new(|cx| TimeState::with_value(cx, Time::new(9, 5).with_second(7)));
     let cx = open_host(cx, move || {
         let rendered = rendered_for_view.clone();
-        TimeField::new(state.clone())
-            .segment(move |segment, text| {
-                rendered.borrow_mut().push((segment, text.to_string()));
-                gpui::div().child(text).into_any_element()
-            })
+        let forced = forced_for_view.clone();
+        gpui::div()
+            .children([
+                TimeField::new(state.clone())
+                    .show_seconds(true)
+                    .segment(move |segment, text| {
+                        rendered.borrow_mut().push((segment, text.to_string()));
+                        gpui::div().child(text).into_any_element()
+                    })
+                    .into_any_element(),
+                TimeField::new(forced_state.clone())
+                    .show_seconds(true)
+                    .should_force_leading_zeros(true)
+                    .segment(move |segment, text| {
+                        forced.borrow_mut().push((segment, text.to_string()));
+                        gpui::div().child(text).into_any_element()
+                    })
+                    .into_any_element(),
+            ])
             .into_any_element()
     });
     refresh(cx);
 
-    let latest = |segment| {
-        rendered
-            .borrow()
+    let latest = |log: &Rc<RefCell<Vec<(TimeSegment, String)>>>, segment| {
+        log.borrow()
             .iter()
             .rev()
             .find_map(|(part, text)| (*part == segment).then(|| text.clone()))
     };
-    assert_eq!(latest(TimeSegment::Hour).as_deref(), Some("12"));
-    assert_eq!(latest(TimeSegment::Meridiem).as_deref(), Some("AM"));
+    assert_eq!(latest(&rendered, TimeSegment::Hour).as_deref(), Some("9"));
+    assert_eq!(
+        latest(&rendered, TimeSegment::Minute).as_deref(),
+        Some("05")
+    );
+    assert_eq!(
+        latest(&rendered, TimeSegment::Second).as_deref(),
+        Some("07")
+    );
+    assert_eq!(
+        latest(&rendered, TimeSegment::Meridiem).as_deref(),
+        Some("AM")
+    );
+    assert_eq!(latest(&forced, TimeSegment::Hour).as_deref(), Some("09"));
+    assert_eq!(latest(&forced, TimeSegment::Minute).as_deref(), Some("05"));
 }
 
 #[gpui::test]
