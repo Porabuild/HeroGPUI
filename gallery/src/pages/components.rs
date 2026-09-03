@@ -776,17 +776,6 @@ impl Gallery {
                     row(vec![h::CloseButton::new("cb-usage").into_any_element()]),
                 ),
                 (
-                    "With Custom Icon",
-                    row(vec![
-                        spec(
-                            "Custom icon",
-                            h::CloseButton::new("cb-icon-1").icon(icon(h::icons::CLOSE_CIRCLE, cx)),
-                            cx,
-                        ),
-                        spec("Default", h::CloseButton::new("cb-icon-2"), cx),
-                    ]),
-                ),
-                (
                     "Interactive",
                     col(vec![
                         h::CloseButton::new("cb-press")
@@ -798,6 +787,46 @@ impl Gallery {
                         para(&format!("Pressed {presses} times"), cx),
                     ]),
                 ),
+                (
+                    "With Custom Icon",
+                    row(vec![spec(
+                        "Custom icon",
+                        h::CloseButton::new("cb-icon-1").icon(icon(h::icons::CLOSE_CIRCLE, cx)),
+                        cx,
+                    ),]),
+                ),
+                ("Render Function", {
+                    let muted = cx.colors().muted;
+                    let foreground = cx.colors().foreground;
+                    col(vec![
+                        h::CloseButton::new("cb-render-state")
+                            .content(move |state| {
+                                gpui::svg()
+                                    .size(px(16.))
+                                    .path(if state.is_pressed {
+                                        h::icons::CLOSE_CIRCLE
+                                    } else {
+                                        h::icons::CLOSE
+                                    })
+                                    .text_color(if state.is_disabled {
+                                        muted
+                                    } else if state.is_hovered || state.is_focused {
+                                        foreground
+                                    } else {
+                                        muted
+                                    })
+                                    .into_any_element()
+                            })
+                            .into_any_element(),
+                        gpui::div()
+                            .text_size(px(13.))
+                            .text_color(muted)
+                            .child(
+                                "Hover, focus, or press the button to drive the custom icon from its live render state.",
+                            )
+                            .into_any_element(),
+                    ])
+                }),
                 (
                     "Disabled",
                     row(vec![h::CloseButton::new("cb-disabled")
@@ -3865,12 +3894,28 @@ impl Gallery {
                             .into_any_element(),
                     ]),
                 ),
-                (
-                    "Column Resizing",
+                ("Column Resizing", {
+                    let resize_name = self.demo_value("tbl-resize-name", 220.);
+                    let resize_role = self.demo_value("tbl-resize-role", 180.);
+                    let resize_status = self.demo_text_value("tbl-resize-status");
                     col(vec![
                         para(
-                            "Drag the divider on a resizable column's trailing edge. The width \
-                             is per column and survives the drag.",
+                            "Drag a trailing-edge divider, or focus it with Tab, press Enter, \
+                             and use the arrow keys. This example feeds onResize values back as \
+                             controlled column widths and reports completion through onResizeEnd.",
+                            cx,
+                        ),
+                        para(
+                            &format!(
+                                "{} Name: {:.0}px · Role: {:.0}px",
+                                if resize_status.is_empty() {
+                                    "Ready."
+                                } else {
+                                    resize_status.as_str()
+                                },
+                                resize_name,
+                                resize_role,
+                            ),
                             cx,
                         ),
                         h::Table::new(vec![])
@@ -3878,15 +3923,15 @@ impl Gallery {
                             .column(
                                 h::TableColumn::new("Name")
                                     .allows_resizing(true)
-                                    .default_width(px(220.))
+                                    .width(px(resize_name))
                                     .min_width(px(120.)),
                             )
                             .column(
                                 h::TableColumn::new("Role")
                                     .allows_resizing(true)
-                                    .default_width(px(180.)),
+                                    .width(px(resize_role)),
                             )
-                            .column("Status")
+                            .column(h::TableColumn::new("Status").default_width(px(140.)))
                             .row(vec![
                                 gpui::div().child("Tony Reichert").into_any_element(),
                                 gpui::div().child("CEO").into_any_element(),
@@ -3897,9 +3942,38 @@ impl Gallery {
                                 gpui::div().child("Tech Lead").into_any_element(),
                                 gpui::div().child("Paused").into_any_element(),
                             ])
+                            .on_resize_start(cx.listener(|this, _, _, cx| {
+                                this.set_demo_text_value(
+                                    "tbl-resize-status",
+                                    "Resizing.".to_owned(),
+                                );
+                                cx.notify();
+                            }))
+                            .on_resize(cx.listener(
+                                |this, widths: &[(SharedString, gpui::Pixels)], _, cx| {
+                                    for (column, width) in widths {
+                                        match column.as_ref() {
+                                            "Name" => this.set_demo_value(
+                                                "tbl-resize-name",
+                                                f32::from(*width),
+                                            ),
+                                            "Role" => this.set_demo_value(
+                                                "tbl-resize-role",
+                                                f32::from(*width),
+                                            ),
+                                            _ => {}
+                                        }
+                                    }
+                                    cx.notify();
+                                },
+                            ))
+                            .on_resize_end(cx.listener(|this, _, _, cx| {
+                                this.set_demo_text_value("tbl-resize-status", "Saved.".to_owned());
+                                cx.notify();
+                            }))
                             .into_any_element(),
-                    ]),
-                ),
+                    ])
+                },),
                 (
                     "Expandable Rows",
                     col(vec![
@@ -4307,7 +4381,7 @@ impl Gallery {
                 (
                     "First day of week",
                     col(vec![h::Calendar::new(self.calendar.clone())
-                        .first_day_of_week(h::Weekday::Sun)
+                        .first_day_of_week(h::Weekday::Mon)
                         .weeks_in_month(6)
                         .into_any_element()]),
                 ),
@@ -5027,14 +5101,28 @@ impl Gallery {
                 ),
                 (
                     "Unavailable Dates",
-                    col(vec![h::RangeCalendar::new(
-                        self.demo_range("rc-unavailable", cx),
-                    )
-                    .is_date_unavailable(|date, _| {
-                        let weekday = h::weekday_index(date);
-                        weekday == 0 || weekday == 6
-                    })
-                    .into_any_element()]),
+                    col({
+                        let blocked_ranges = [
+                            (h::add_days(&today, 2), h::add_days(&today, 5)),
+                            (h::add_days(&today, 12), h::add_days(&today, 13)),
+                        ];
+                        vec![
+                            h::RangeCalendar::new(self.demo_range("rc-unavailable", cx))
+                                .default_value((h::add_days(&today, 6), h::add_days(&today, 9)))
+                                .first_day_of_week(h::Weekday::Mon)
+                                .is_date_unavailable(move |date, _| {
+                                    let date = h::days_from_civil(&date);
+                                    blocked_ranges.iter().any(|(start, end)| {
+                                        date >= h::days_from_civil(start)
+                                            && date <= h::days_from_civil(end)
+                                    })
+                                })
+                                .into_any_element(),
+                            gpui::div()
+                                .child("Some days are unavailable")
+                                .into_any_element(),
+                        ]
+                    }),
                 ),
                 (
                     "Anchor-Based Unavailable Dates",
@@ -5171,6 +5259,7 @@ impl Gallery {
                     "24-hour",
                     field_col(vec![h::TimeField::new(self.time.clone())
                         .label("Start time")
+                        .hour_cycle(h::HourCycle::H24)
                         .description("Click a segment, then use the steppers.")
                         .on_change(opt_time_cb(
                             cx.listener(|_, _t: &Option<h::Time>, _, cx| cx.notify()),
@@ -5190,9 +5279,12 @@ impl Gallery {
                 ),
                 (
                     "Usage",
-                    field_col(vec![h::TimeField::new(self.demo_time("tmf-usage", cx))
-                        .label("Time")
-                        .into_any_element()]),
+                    field_col(vec![
+                        h::TimeField::new(self.demo_time("tmf-usage", cx))
+                            .label("Time")
+                            .into_any_element(),
+                        para("Uses your system regional 12- or 24-hour format.", cx),
+                    ]),
                 ),
                 (
                     "With Icons",
@@ -9089,6 +9181,35 @@ impl Gallery {
                     .child(gpui::div().child("Ships in 2-4 business days."))
                     .into_any_element()]),
                 ),
+                ("Render Function", {
+                    let render_expanded = self.demo_flag("disclosure-render", true);
+                    col(vec![
+                        h::Disclosure::new("disclosure-render", "Account details")
+                            .is_expanded(render_expanded)
+                            .on_expanded_change(bool_cb(cx.listener(
+                                |this, value: &bool, _, cx| {
+                                    this.set_demo_flag("disclosure-render", *value);
+                                    cx.notify();
+                                },
+                            )))
+                            .content(|state| {
+                                gpui::div()
+                                    .child(format!(
+                                        "The render closure received is_expanded={} and is_disabled={}.",
+                                        state.is_expanded, state.is_disabled
+                                    ))
+                                    .into_any_element()
+                            })
+                            .into_any_element(),
+                        para(
+                            &format!(
+                                "Current controlled state: {}.",
+                                if render_expanded { "expanded" } else { "collapsed" }
+                            ),
+                            cx,
+                        ),
+                        ])
+                },),
                 (
                     "Controlled",
                     col(vec![
@@ -13223,7 +13344,7 @@ mod example_quality {
         for (index, raw_line) in lines.iter().enumerate() {
             let line = raw_line.trim_end_matches(['\n', '\r']);
             let title = if line.starts_with("                (\"") {
-                line.get(17..)
+                line.get(18..)
                     .and_then(|rest| rest.find('\"').map(|end| rest[..end].to_owned()))
             } else if line == "                (" {
                 lines.get(index + 1).and_then(|next| {
@@ -13286,6 +13407,67 @@ mod example_quality {
                 "page_{name} should open with Usage"
             );
         }
+    }
+
+    #[test]
+    fn disclosure_render_function_uses_live_component_state() {
+        let page = page_fn(SRC, "disclosure");
+        assert_eq!(
+            section_titles(page).get(1).map(String::as_str),
+            Some("Render Function")
+        );
+        let render = section_body(page, "Render Function");
+        assert!(render.contains("let render_expanded = self.demo_flag("));
+        assert!(render.contains(".is_expanded(render_expanded)"));
+        assert!(render.contains(".content(|state|"));
+        assert!(render.contains("state.is_expanded"));
+        assert!(render.contains("state.is_disabled"));
+        assert!(render.contains(".on_expanded_change("));
+    }
+
+    #[test]
+    fn close_button_follows_pinned_examples_and_exposes_render_state() {
+        let page = page_fn(SRC, "close_button");
+        assert_eq!(
+            &section_titles(page)[..3],
+            &["Usage", "Interactive", "With Custom Icon"]
+        );
+        let custom_icon = section_body(page, "With Custom Icon");
+        assert_eq!(custom_icon.matches(".icon(").count(), 1);
+
+        let render = section_body(page, "Render Function");
+        assert!(render.contains(".content(move |state|"));
+        for field in [
+            "state.is_hovered",
+            "state.is_pressed",
+            "state.is_focused",
+            "state.is_disabled",
+        ] {
+            assert!(render.contains(field), "missing render state {field}");
+        }
+        assert!(!render.contains("para("));
+    }
+
+    #[test]
+    fn range_calendar_unavailable_dates_uses_explicit_pinned_ranges() {
+        let page = page_fn(SRC, "range_calendar");
+        let unavailable = section_body(page, "Unavailable Dates");
+        for offset in [2, 5, 6, 9, 12, 13] {
+            assert!(
+                unavailable.contains(&format!("h::add_days(&today, {offset})")),
+                "missing pinned relative date offset {offset}"
+            );
+        }
+        assert!(unavailable.contains(".first_day_of_week(h::Weekday::Mon)"));
+        assert!(unavailable.contains("Some days are unavailable"));
+        assert!(!unavailable.contains("weekday_index"));
+    }
+
+    #[test]
+    fn calendar_first_day_example_demonstrates_the_regional_override() {
+        let page = page_fn(SRC, "calendar");
+        let first_day = section_body(page, "First day of week");
+        assert!(first_day.contains(".first_day_of_week(h::Weekday::Mon)"));
     }
 
     #[test]
@@ -13591,6 +13773,18 @@ mod example_quality {
                 "page_{name} has an unconditional overlay min-height"
             );
         }
+    }
+
+    #[test]
+    fn time_field_examples_separate_system_and_explicit_hour_cycles() {
+        let page = page_fn(SRC, "time_field");
+        let usage = section_body(page, "Usage");
+        assert!(usage.contains("system regional 12- or 24-hour format"));
+        assert!(!usage.contains(".hour_cycle("));
+        assert!(section_body(page, "24-hour").contains(".hour_cycle(h::HourCycle::H24)"));
+        assert!(
+            section_body(page, "12-hour with seconds").contains(".hour_cycle(h::HourCycle::H12)")
+        );
     }
 
     #[test]

@@ -27,7 +27,7 @@ use harness::{click, events, open_host, press};
 use herogpui_components::{
     calendar::{Date, CALENDAR_WIDTH},
     Button, Calendar, CalendarState, DateConstraints, DateRangeState, RangeCalendar,
-    VisibleDuration,
+    VisibleDuration, Weekday,
 };
 
 /// Column *c*'s centre in a bare Calendar: seven cells across
@@ -308,6 +308,12 @@ fn range_calendar_first_endpoint_does_not_publish_a_half_open_value(cx: &mut Tes
     let changes = events();
     let changed = changes.clone();
     let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
     let state_for_view = state.clone();
     let cx = open_host(cx, move || {
         let changes = changes.clone();
@@ -541,8 +547,8 @@ fn range_calendar_unavailable_dates_follow_the_active_anchor(cx: &mut TestAppCon
     cx.update(|window, _| window.refresh());
     assert_eq!(
         selected_probe.borrow().get(&12),
-        Some(&true),
-        "the hover preview must include dates before the anchor-derived barrier"
+        Some(&false),
+        "hovering a disabled target must not create a partial preview"
     );
     assert_eq!(
         selected_probe.borrow().get(&13),
@@ -552,7 +558,7 @@ fn range_calendar_unavailable_dates_follow_the_active_anchor(cx: &mut TestAppCon
     assert_eq!(
         selected_probe.borrow().get(&14),
         Some(&false),
-        "the contiguous hover preview must stop at the anchor-derived barrier"
+        "dates beyond the anchor-derived bound must remain outside the preview"
     );
     let (selectable_end_x, selectable_end_y) = range_day(2026, 8, 12);
     click(cx, selectable_end_x, selectable_end_y);
@@ -1536,13 +1542,14 @@ fn calendar_pages_dec_to_jan_and_clamps_into_leap_february(cx: &mut TestAppConte
     );
 }
 
-/// Without `allowsNonContiguousRanges`, React Aria constrains the selectable
-/// end to the last available day before the first unavailable date after the
-/// anchor. August 7 is unavailable here, so requesting August 10 must finish
-/// at the neighbouring August 6. This proves the default restriction is about
-/// the whole range, not only whether each endpoint is individually available.
+/// Without `allowsNonContiguousRanges`, React Stately turns the last available
+/// day before the first unavailable date into a temporary navigation and cell
+/// bound. Dates beyond August 7 are disabled rather than clickable shortcuts
+/// that silently clamp the range.
 #[gpui::test]
-fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppContext) {
+fn range_calendar_bounds_cells_and_navigation_at_the_first_unavailable_date(
+    cx: &mut TestAppContext,
+) {
     let changes = events();
     let changed = changes.clone();
     let selected_cells = Rc::new(RefCell::new(HashMap::new()));
@@ -1554,7 +1561,7 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
         state.view_day = 1;
         state.user_navigated = true;
     });
-    let state_for_view = state;
+    let state_for_view = state.clone();
 
     let cx = open_host(cx, move || {
         let changes = changes.clone();
@@ -1567,10 +1574,11 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
                     .push(format!("{}->{}", start.format_iso(), end.format_iso()));
             })
             .cell(move |state| {
-                if !state.is_outside_month && (6..=8).contains(&state.date.day) {
-                    selected_cells
-                        .borrow_mut()
-                        .insert(state.date.day, state.is_selected);
+                if !state.is_outside_month && (6..=10).contains(&state.date.day) {
+                    selected_cells.borrow_mut().insert(
+                        state.date.day,
+                        (state.is_selected, state.is_disabled, state.is_unavailable),
+                    );
                 }
                 gpui::div().size(px(20.)).into_any_element()
             })
@@ -1579,6 +1587,30 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
 
     let (start_x, start_y) = range_day(2026, 8, 5);
     click(cx, start_x, start_y);
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        selected_probe.borrow().get(&6),
+        Some(&(false, false, false)),
+        "the last date before the barrier must remain selectable"
+    );
+    assert_eq!(
+        selected_probe.borrow().get(&7),
+        Some(&(false, true, true)),
+        "the unavailable barrier is also outside the effective range bound"
+    );
+    assert_eq!(
+        selected_probe.borrow().get(&8),
+        Some(&(false, true, false)),
+        "dates beyond the barrier must be disabled without being marked unavailable"
+    );
+
+    click(cx, 238., 12.);
+    assert_eq!(
+        cx.update(|_, cx| (state.read(cx).view_year, state.read(cx).view_month)),
+        (2026, 8),
+        "the anchor-derived maximum must disable forward paging"
+    );
+
     let (end_x, end_y) = range_day(2026, 8, 10);
     cx.simulate_mouse_move(
         point(px(end_x), px(end_y)),
@@ -1588,36 +1620,163 @@ fn range_calendar_clamps_around_an_unavailable_date_by_default(cx: &mut TestAppC
     cx.update(|window, _| window.refresh());
     assert_eq!(
         selected_probe.borrow().get(&6),
-        Some(&true),
-        "the preview must reach the last available day before the gap"
+        Some(&(false, false, false)),
+        "hovering a disabled target must not create a clamped preview"
     );
     assert_eq!(
         selected_probe.borrow().get(&7),
-        Some(&false),
+        Some(&(false, true, true)),
         "the unavailable day must not be part of the preview"
     );
     assert_eq!(
         selected_probe.borrow().get(&8),
-        Some(&false),
+        Some(&(false, true, false)),
         "the default preview must not continue beyond the unavailable day"
     );
     click(cx, end_x, end_y);
+    assert!(
+        changed.borrow().is_empty(),
+        "a disabled date beyond the barrier must not commit a clamped range"
+    );
+    let (last_x, last_y) = range_day(2026, 8, 6);
+    click(cx, last_x, last_y);
     assert_eq!(
         changed.borrow().as_slice(),
         ["2026-08-05->2026-08-06"],
-        "a forward range must clamp before the first unavailable day"
+        "the last selectable date must complete the bounded range"
     );
 
-    // A completed range starts over on the next click. Extending the new
-    // anchor backwards across the same unavailable day clamps symmetrically.
+    // A completed range starts over on the next click. The backward bound is
+    // symmetric: dates before the barrier are inert until the user chooses its
+    // last selectable neighbour.
     click(cx, end_x, end_y);
+    cx.update(|window, _| window.refresh());
     click(cx, start_x, start_y);
+    assert_eq!(changed.borrow().len(), 1);
+    let (backward_end_x, backward_end_y) = range_day(2026, 8, 8);
+    click(cx, backward_end_x, backward_end_y);
 
     assert_eq!(
         changed.borrow().as_slice(),
         ["2026-08-05->2026-08-06", "2026-08-08->2026-08-10",],
         "a backward range must clamp after the first unavailable day"
     );
+}
+
+/// React Stately bounds the unavailable-date search to one visible duration.
+/// A gap farther away is not promoted into a navigation bound, so paging and a
+/// later available endpoint remain valid even in contiguous mode.
+#[gpui::test]
+fn range_calendar_unavailable_bound_search_stops_after_the_visible_duration(
+    cx: &mut TestAppContext,
+) {
+    let changes = events();
+    let changed = changes.clone();
+    let endpoint_state = Rc::new(RefCell::new(None));
+    let endpoint_probe = endpoint_state.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let endpoint_state = endpoint_state.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .is_date_unavailable(|date, _| date == Date::new(2026, 9, 10))
+            .on_change(move |start, end, _, _| {
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
+            })
+            .cell(move |cell| {
+                if cell.date == Date::new(2026, 9, 15) && !cell.is_outside_month {
+                    *endpoint_state.borrow_mut() = Some(cell.is_disabled);
+                }
+                gpui::div().size(px(20.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let (anchor_x, anchor_y) = range_day(2026, 8, 5);
+    click(cx, anchor_x, anchor_y);
+    click(cx, 238., 12.);
+    assert_eq!(
+        cx.update(|_, cx| (state.read(cx).view_year, state.read(cx).view_month)),
+        (2026, 9),
+        "an unavailable date beyond the bounded scan must not disable paging"
+    );
+    cx.update(|window, _| window.refresh());
+    assert_eq!(
+        *endpoint_probe.borrow(),
+        Some(false),
+        "a later available endpoint must remain enabled"
+    );
+
+    let (end_x, end_y) = range_day(2026, 9, 15);
+    click(cx, end_x, end_y);
+    assert_eq!(changed.borrow().as_slice(), ["2026-08-05->2026-09-15"]);
+}
+
+/// The bounded scan includes one sentinel probe immediately after the visible
+/// duration. With an August 5 anchor, September 6 closes the effective range at
+/// September 5 even though the barrier itself is one day past the month span.
+#[gpui::test]
+fn range_calendar_unavailable_sentinel_day_closes_the_effective_bound(cx: &mut TestAppContext) {
+    let changes = events();
+    let changed = changes.clone();
+    let cell_states = Rc::new(RefCell::new(HashMap::new()));
+    let states_probe = cell_states.clone();
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    state.update(cx, |state, _| {
+        state.view_year = 2026;
+        state.view_month = 8;
+        state.view_day = 1;
+        state.user_navigated = true;
+    });
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        let cell_states = cell_states.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .is_date_unavailable(|date, _| date == Date::new(2026, 9, 6))
+            .on_change(move |start, end, _, _| {
+                changes
+                    .borrow_mut()
+                    .push(format!("{}->{}", start.format_iso(), end.format_iso()));
+            })
+            .cell(move |cell| {
+                if cell.date.month == 9 && (5..=7).contains(&cell.date.day) {
+                    cell_states
+                        .borrow_mut()
+                        .insert(cell.date.day, (cell.is_disabled, cell.is_unavailable));
+                }
+                gpui::div().size(px(20.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    let (anchor_x, anchor_y) = range_day(2026, 8, 5);
+    click(cx, anchor_x, anchor_y);
+    click(cx, 238., 12.);
+    assert_eq!(
+        cx.update(|_, cx| (state.read(cx).view_year, state.read(cx).view_month)),
+        (2026, 9)
+    );
+    cx.update(|window, _| window.refresh());
+    assert_eq!(states_probe.borrow().get(&5), Some(&(false, false)));
+    assert_eq!(states_probe.borrow().get(&6), Some(&(true, true)));
+    assert_eq!(states_probe.borrow().get(&7), Some(&(true, false)));
+
+    let (disabled_x, disabled_y) = range_day(2026, 9, 7);
+    click(cx, disabled_x, disabled_y);
+    assert!(changed.borrow().is_empty());
+    let (last_x, last_y) = range_day(2026, 9, 5);
+    click(cx, last_x, last_y);
+    assert_eq!(changed.borrow().as_slice(), ["2026-08-05->2026-09-05"]);
 }
 
 /// Enabling `allowsNonContiguousRanges` removes only the interior gap
@@ -2467,9 +2626,9 @@ fn range_indicator_selector(entity_id: u64, year: i32, month: u32, day: u32) -> 
 /// The pinned range track runs under the caps too, and it stays continuous
 /// across a week boundary: the last column of a row closes the run at the
 /// 252px right edge, the first column of the next row reopens it at x = 0
-/// exactly one 40px row pitch lower. August 2026 starts on a Saturday, so the
-/// five leading blanks put day 16 in the last column of its row and day 17 in
-/// the first column of the next one.
+/// exactly one 40px row pitch lower. This geometry fixture explicitly uses a
+/// Monday-first grid, so August 2026's five leading blanks put day 16 in the
+/// last column of its row and day 17 in the first column of the next one.
 #[gpui::test]
 fn range_calendar_track_crosses_the_row_boundary_and_caps_carry_it(cx: &mut TestAppContext) {
     let state = cx.new(|cx| DateRangeState::new(cx));
@@ -2477,6 +2636,7 @@ fn range_calendar_track_crosses_the_row_boundary_and_caps_carry_it(cx: &mut Test
     let cx = open_host(cx, move || {
         RangeCalendar::new(state_for_view.clone())
             .default_value((Date::new(2026, 8, 13), Date::new(2026, 8, 20)))
+            .first_day_of_week(Weekday::Mon)
             .into_any_element()
     });
 

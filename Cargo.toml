@@ -20,7 +20,11 @@ categories = ["gui"]
 
 [workspace.dependencies]
 gpui = "0.2.2"
+icu_calendar = { version = "=2.2.1", default-features = false, features = ["compiled_data"] }
+icu_datetime = { version = "=2.2.0", default-features = false, features = ["compiled_data"] }
+icu_locale_core = "=2.2.0"
 jiff = "0.2"
+locale_config = "=0.3.0"
 herogpui-core = { version = "0.1.0", path = "crates/herogpui-core" }
 herogpui-theme = { version = "0.1.0", path = "crates/herogpui-theme" }
 herogpui-components = { version = "0.1.0", path = "crates/herogpui-components" }

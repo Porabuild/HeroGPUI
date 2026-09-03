@@ -5,21 +5,32 @@
 //! `firstDayOfWeek` and `weeksInMonth`. Modelling them once keeps the five
 //! components from drifting apart.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
+
+use icu_calendar::{types::Weekday as IcuWeekday, week::WeekInformation};
+use icu_locale_core::Locale as IcuLocale;
 
 use crate::calendar::{days_from_civil, days_in_month, first_weekday_pub, Date};
 
 /// The first column of a month grid (`firstDayOfWeek`).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Weekday {
     Sun,
-    #[default]
     Mon,
     Tue,
     Wed,
     Thu,
     Fri,
     Sat,
+}
+
+impl Default for Weekday {
+    fn default() -> Self {
+        static SYSTEM_FIRST_DAY: OnceLock<Weekday> = OnceLock::new();
+        *SYSTEM_FIRST_DAY.get_or_init(|| {
+            Self::for_preferences(&locale_config::Locale::user_default()).unwrap_or(Self::Sun)
+        })
+    }
 }
 
 impl Weekday {
@@ -33,6 +44,28 @@ impl Weekday {
         Weekday::Sat,
         Weekday::Sun,
     ];
+
+    fn for_locale(locale: &str) -> Option<Self> {
+        let locale = locale.parse::<IcuLocale>().ok()?;
+        let first = WeekInformation::try_new((&locale).into())
+            .ok()?
+            .first_weekday;
+        Some(match first {
+            IcuWeekday::Sunday => Self::Sun,
+            IcuWeekday::Monday => Self::Mon,
+            IcuWeekday::Tuesday => Self::Tue,
+            IcuWeekday::Wednesday => Self::Wed,
+            IcuWeekday::Thursday => Self::Thu,
+            IcuWeekday::Friday => Self::Fri,
+            IcuWeekday::Saturday => Self::Sat,
+        })
+    }
+
+    fn for_preferences(locale: &locale_config::Locale) -> Option<Self> {
+        locale
+            .tags_for("time")
+            .find_map(|tag| Self::for_locale(tag.as_ref()))
+    }
 
     /// Index with Monday as 0.
     pub fn monday_index(self) -> usize {
@@ -263,14 +296,31 @@ mod tests {
     #[test]
     fn first_day_of_week_shifts_the_lead() {
         // 2026-03-01 is a Sunday: Monday-start needs six blanks, Sunday none.
-        let monday = DateConstraints::new();
-        assert_eq!(monday.lead_cells(2026, 3), 6);
-
         let sunday = DateConstraints {
             first_day_of_week: Weekday::Sun,
             ..Default::default()
         };
         assert_eq!(sunday.lead_cells(2026, 3), 0);
+
+        let monday = DateConstraints {
+            first_day_of_week: Weekday::Mon,
+            ..Default::default()
+        };
+        assert_eq!(monday.lead_cells(2026, 3), 6);
+    }
+
+    #[test]
+    fn first_day_of_week_follows_locale_week_data() {
+        assert_eq!(Weekday::for_locale("en-US"), Some(Weekday::Sun));
+        assert_eq!(Weekday::for_locale("de-DE"), Some(Weekday::Mon));
+        assert_eq!(Weekday::for_locale("en-US-u-fw-wed"), Some(Weekday::Wed));
+        assert_eq!(Weekday::for_locale("not_a_locale"), None);
+    }
+
+    #[test]
+    fn first_day_of_week_prefers_the_system_time_category() {
+        let locale = locale_config::Locale::new("en-US,time=de-DE").unwrap();
+        assert_eq!(Weekday::for_preferences(&locale), Some(Weekday::Mon));
     }
 
     #[test]
@@ -318,6 +368,7 @@ mod tests {
 
         let locale_default = DateConstraints {
             weeks_in_month: Some(0),
+            first_day_of_week: Weekday::Mon,
             ..Default::default()
         };
         assert_eq!(locale_default.rows(2026, 2), 5);

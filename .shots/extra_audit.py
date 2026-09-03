@@ -482,6 +482,12 @@ EXTRA_OK_SCOPED = {
     # HeroUI forwards both inherited React Aria Column resize props even
     # though its Table.Column table lists only the initial/minimum widths.
     'Table.allows_resizing': 'react-aria-inherited',
+    # HeroUI's ResizableContainer forwards the inherited React Aria resize
+    # lifecycle callbacks, which its local prop table does not repeat.
+    'Table.on_resize_start': 'react-aria-inherited',
+    'Table.on_resize': 'react-aria-inherited',
+    'Table.on_resize_end': 'react-aria-inherited',
+    'Table.width': 'react-aria-inherited',
     # HeroUI forwards the inherited React Aria Column `maxWidth` prop even
     # though its Table.Column table omits it alongside other inherited props.
     'Table.max_width': 'react-aria-inherited',

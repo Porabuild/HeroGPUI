@@ -16,6 +16,7 @@
 mod harness;
 
 use std::cell::{Cell, RefCell};
+use std::process::Command;
 use std::rc::Rc;
 
 use gpui::{
@@ -67,6 +68,7 @@ impl Render for ControlledTimeHost {
             .size_full()
             .child(
                 TimeField::new(self.state.clone())
+                    .hour_cycle(HourCycle::H24)
                     .value(self.controlled.get(), cx)
                     .segment(move |segment, text| {
                         rendered.borrow_mut().push((segment, text.to_string()));
@@ -214,6 +216,7 @@ fn time_field_read_only_stays_focusable_and_navigable_without_editing(cx: &mut T
     let cx = open_host(cx, move || {
         let changes = changes.clone();
         TimeField::new(state_for_view.clone())
+            .hour_cycle(HourCycle::H24)
             .is_read_only(true)
             .on_change(move |time, _, _| {
                 changes.borrow_mut().push(time.map_or_else(
@@ -239,6 +242,56 @@ fn time_field_read_only_stays_focusable_and_navigable_without_editing(cx: &mut T
         changed.borrow().is_empty(),
         "read-only navigation may move the active segment but must not emit a value change"
     );
+}
+
+#[gpui::test]
+fn time_field_default_cycle_follows_the_system_time_locale(cx: &mut TestAppContext) {
+    const CHILD: &str = "HEROGPUI_TIME_LOCALE_TEST";
+    if std::env::var_os(CHILD).is_none() {
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "time_field_default_cycle_follows_the_system_time_locale",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .env_remove("LC_ALL")
+            .env("LC_TIME", "en_US.UTF-8")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "12-hour locale child failed:\n{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        return;
+    }
+
+    assert_eq!(HourCycle::default(), HourCycle::H12);
+    let rendered: Rc<RefCell<Vec<(TimeSegment, String)>>> = Rc::new(RefCell::new(Vec::new()));
+    let rendered_for_view = rendered.clone();
+    let state = cx.new(|cx| TimeState::with_value(cx, Time::new(0, 0)));
+    let cx = open_host(cx, move || {
+        let rendered = rendered_for_view.clone();
+        TimeField::new(state.clone())
+            .segment(move |segment, text| {
+                rendered.borrow_mut().push((segment, text.to_string()));
+                gpui::div().child(text).into_any_element()
+            })
+            .into_any_element()
+    });
+    refresh(cx);
+
+    let latest = |segment| {
+        rendered
+            .borrow()
+            .iter()
+            .rev()
+            .find_map(|(part, text)| (*part == segment).then(|| text.clone()))
+    };
+    assert_eq!(latest(TimeSegment::Hour).as_deref(), Some("12"));
+    assert_eq!(latest(TimeSegment::Meridiem).as_deref(), Some("AM"));
 }
 
 #[gpui::test]
@@ -367,6 +420,7 @@ fn time_field_delete_clears_only_the_active_segment_and_defers_change(cx: &mut T
         let validations = validations.clone();
         let rendered = rendered_for_view.clone();
         TimeField::new(state_for_view.clone())
+            .hour_cycle(HourCycle::H24)
             .segment(move |segment, text| {
                 rendered.borrow_mut().push((segment, text.to_string()));
                 gpui::div().child(text).into_any_element()
@@ -447,6 +501,7 @@ fn time_field_direct_public_value_mutation_updates_complete_display(cx: &mut Tes
     let cx = open_host(cx, move || {
         let rendered = rendered_for_view.clone();
         TimeField::new(state_for_view.clone())
+            .hour_cycle(HourCycle::H24)
             .segment(move |segment, text| {
                 rendered.borrow_mut().push((segment, text.to_string()));
                 gpui::div().child(text).into_any_element()
@@ -489,6 +544,7 @@ fn time_field_deleting_every_visible_segment_reports_null(cx: &mut TestAppContex
         let changes = changes.clone();
         let validations = validations.clone();
         TimeField::new(state_for_view.clone())
+            .hour_cycle(HourCycle::H24)
             .validate(move |value| {
                 validations.borrow_mut().push(value.is_none());
                 None
@@ -530,6 +586,7 @@ fn time_field_reentry_commits_only_after_every_visible_segment_is_complete(
     let cx = open_host(cx, move || {
         let changes = changes.clone();
         TimeField::new(state_for_view.clone())
+            .hour_cycle(HourCycle::H24)
             .on_change(move |time, _, _| {
                 changes.borrow_mut().push(time.map_or_else(
                     || "none".to_owned(),
@@ -553,9 +610,35 @@ fn time_field_reentry_commits_only_after_every_visible_segment_is_complete(
 
     press(cx, "right");
     press(cx, "up");
-    assert_eq!(changed.borrow().as_slice(), ["none", "10:01"]);
+    assert_eq!(changed.borrow().as_slice(), ["none", "01:01"]);
     let complete = cx.update(|_, cx| state.read(cx).value);
-    assert_eq!(complete, Some(Time::new(10, 1)));
+    assert_eq!(complete, Some(Time::new(1, 1)));
+}
+
+#[gpui::test]
+fn time_field_empty_keyboard_seed_respects_min_value(cx: &mut TestAppContext) {
+    let changes = events();
+    let changed = changes.clone();
+    let state = cx.new(|cx| TimeState::new(cx));
+    let cx = open_host(cx, move || {
+        let changes = changes.clone();
+        TimeField::new(state.clone())
+            .hour_cycle(HourCycle::H24)
+            .min_value(Time::new(9, 0))
+            .on_change(move |time, _, _| {
+                changes.borrow_mut().push(time.map_or_else(
+                    || "none".to_owned(),
+                    |time| format!("{:02}:{:02}", time.hour, time.minute),
+                ));
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "up");
+    press(cx, "right");
+    press(cx, "up");
+    assert_eq!(changed.borrow().as_slice(), ["09:01"]);
 }
 
 #[gpui::test]
@@ -634,7 +717,7 @@ fn time_field_controlled_none_preserves_partial_display_until_completion(cx: &mu
     };
     assert_eq!(
         (latest(TimeSegment::Hour), latest(TimeSegment::Minute)),
-        ("10".to_owned(), "--".to_owned()),
+        ("01".to_owned(), "--".to_owned()),
         "repeated controlled None renders must preserve the local incomplete display"
     );
     assert_eq!(cx.update(|_, cx| state.read(cx).value), None);
@@ -642,18 +725,18 @@ fn time_field_controlled_none_preserves_partial_display_until_completion(cx: &mu
 
     press(cx, "right");
     press(cx, "up");
-    assert_eq!(changed.borrow().as_slice(), ["10:01"]);
+    assert_eq!(changed.borrow().as_slice(), ["01:01"]);
     assert_eq!(
         cx.update(|_, cx| state.read(cx).value),
         None,
         "without a controlled prop update, completion reports the candidate but keeps the controlled value null"
     );
 
-    controlled.set(Some(Time::new(10, 1)));
+    controlled.set(Some(Time::new(1, 1)));
     refresh(cx);
     assert_eq!(
         cx.update(|_, cx| state.read(cx).value),
-        Some(Time::new(10, 1)),
+        Some(Time::new(1, 1)),
         "accepting the callback through the controlled prop must restore the committed value"
     );
 }

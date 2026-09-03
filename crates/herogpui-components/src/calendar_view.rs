@@ -161,9 +161,9 @@ pub fn focus_section(
 pub fn section_start(duration: VisibleDuration, visible_start: Date, focused: Date) -> Date {
     match duration {
         VisibleDuration::Days(_) => visible_start,
-        // This port's fixed locale is en-US. React Stately deliberately uses
-        // the locale week here rather than the grid's firstDayOfWeek override.
-        VisibleDuration::Weeks(_) => week_start(focused, Weekday::Sun),
+        // React Stately deliberately uses the locale week here rather than
+        // the grid's firstDayOfWeek override.
+        VisibleDuration::Weeks(_) => week_start(focused, Weekday::default()),
         VisibleDuration::Months(_) => Date::new(focused.year, focused.month, 1),
     }
 }
@@ -172,7 +172,7 @@ pub fn section_start(duration: VisibleDuration, visible_start: Date, focused: Da
 pub fn section_end(duration: VisibleDuration, visible_end: Date, focused: Date) -> Date {
     match duration {
         VisibleDuration::Days(_) => visible_end,
-        VisibleDuration::Weeks(_) => add_days(&week_start(focused, Weekday::Sun), 6),
+        VisibleDuration::Weeks(_) => add_days(&week_start(focused, Weekday::default()), 6),
         VisibleDuration::Months(_) => Date::new(
             focused.year,
             focused.month,

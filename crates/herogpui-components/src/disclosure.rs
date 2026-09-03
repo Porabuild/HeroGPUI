@@ -13,6 +13,15 @@ use gpui::{
 };
 use herogpui_theme::ActiveTheme;
 
+/// The values HeroUI passes to a Disclosure children render function.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DisclosureRenderState {
+    pub is_expanded: bool,
+    pub is_disabled: bool,
+}
+
+type DisclosureContent = std::sync::Arc<dyn Fn(DisclosureRenderState) -> AnyElement + 'static>;
+
 /// Single Disclosure — like an accordion with one item.
 #[derive(IntoElement)]
 pub struct Disclosure {
@@ -22,6 +31,7 @@ pub struct Disclosure {
     default_expanded: bool,
     is_disabled: bool,
     children: Vec<AnyElement>,
+    content: Option<DisclosureContent>,
     on_toggle: Option<std::sync::Arc<dyn Fn(bool, &mut Window, &mut App) + 'static>>,
 }
 
@@ -43,6 +53,7 @@ impl Disclosure {
             default_expanded: false,
             is_disabled: false,
             children: Vec::new(),
+            content: None,
             on_toggle: None,
         }
     }
@@ -60,6 +71,16 @@ impl Disclosure {
 
     pub fn is_disabled(mut self, v: bool) -> Self {
         self.is_disabled = v;
+        self
+    }
+
+    /// `children` as a render function — replaces static body children and is
+    /// handed the current expanded and disabled state on every render.
+    pub fn content(
+        mut self,
+        render: impl Fn(DisclosureRenderState) -> AnyElement + 'static,
+    ) -> Self {
+        self.content = Some(std::sync::Arc::new(render));
         self
     }
 }
@@ -86,6 +107,13 @@ impl RenderOnce for Disclosure {
             self.default_expanded,
         );
         let cb = self.on_toggle.clone();
+        let children = match self.content {
+            Some(render) => vec![render(DisclosureRenderState {
+                is_expanded: expanded,
+                is_disabled: self.is_disabled,
+            })],
+            None => self.children,
+        };
         // `.disclosure__trigger` is `inline-block` with the focus ring on it;
         // v3 passes a Button, which is what this builds.
         let trigger = crate::button::Button::new(ElementId::Name(
@@ -142,7 +170,7 @@ impl RenderOnce for Disclosure {
                         .flex()
                         .flex_col()
                         .gap(px(6.))
-                        .children(self.children),
+                        .children(children),
                     "disclosure-body",
                     crate::anim::Motion::DISCLOSURE,
                     cx,

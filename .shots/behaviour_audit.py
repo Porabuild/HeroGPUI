@@ -283,6 +283,8 @@ RESIZE_BOUNDS = ('Table',)
 # those inherited keys.
 RESIZE_KEYS = ('Table',)
 
+RESIZE_KEYS_EVIDENCE = '<structured resize-key handler>'
+
 # `Table.LoadMore` is an end-of-collection sentinel. HeroUI documents the
 # visibility trigger in the composed part's prop table and Async Loading
 # example rather than under Accessibility, so this inherited behavior is a
@@ -1019,15 +1021,7 @@ EVIDENCE = {
     ),
     ('Table', 'resize-keys'): (
         'table.rs',
-        r'(?s)keyboard-resizing.*?on_mouse_down_out.*?== Some\(column_index\)'
-        r'.*?\*active = None.*?"enter" =>.*?\*active = if editing \{ None \}'
-        r' else \{ Some\(column_index\) \}.*?stop_propagation\(\)'
-        r'.*?"escape" \| "space" if editing =>.*?\*active = None'
-        r'.*?stop_propagation\(\).*?"tab" if editing =>.*?\*active = None'
-        r'.*?stop_propagation\(\).*?"right" \| "up" \| "left" \| "down" if editing'
-        r'.*?matches!\(key, "right" \| "up"\).*?10\..*?-10\.'
-        r'.*?floor\(\).*?\.min\(max_width\).*?\.max\(min_width\)'
-        r'.*?stop_propagation\(\)',
+        RESIZE_KEYS_EVIDENCE,
     ),
     ('ComboBox', 'custom-value-multiple'): (
         'combo_box.rs',
@@ -1144,12 +1138,119 @@ def accessibility_sections():
     return out
 
 
+def table_resize_keys_evidence(source):
+    """Require lifecycle evidence inside each owning resizer handler/arm."""
+    try:
+        resize = source.split('keyboard-resizing', 1)[1]
+        outside_and_keys = resize.split('.on_mouse_down_out(', 1)[1]
+        outside, keys = outside_and_keys.split('.on_key_down(', 1)
+        arms = keys.split('match key {', 1)[1]
+        enter_and_rest = arms.split('"enter" => {', 1)[1]
+        enter, finish_and_rest = enter_and_rest.split(
+            '"escape" | "space" | "tab" if editing => {', 1)
+        finish, arrows_and_rest = finish_and_rest.split(
+            '"right" | "up" | "left" | "down" if editing => {', 1)
+        arrows, _ = arrows_and_rest.split('_ => {}', 1)
+    except (IndexError, ValueError):
+        return False
+
+    return all((
+        re.search(
+            r'(?s)keyboard_out\.read\(cx\) == Some\(column_index\).*?'
+            r'\*active = None.*?clear_controlled_resize_proposal.*?'
+            r'if let Some\(callback\) = &resize_end_for_outside',
+            outside,
+        ),
+        re.search(
+            r'(?s)if editing \{.*?\*active = None.*?'
+            r'clear_controlled_resize_proposal.*?'
+            r'if let Some\(callback\) = &resize_end_for_keys.*?\} else \{.*?'
+            r'\*active = Some\(column_index\).*?'
+            r'if let Some\(callback\) = &resize_start_for_keys.*?'
+            r'cx\.stop_propagation\(\)',
+            enter,
+        ),
+        re.search(
+            r'(?s)\*active = None.*?clear_controlled_resize_proposal.*?'
+            r'if let Some\(callback\) = &resize_end_for_keys.*?'
+            r'cx\.stop_propagation\(\)',
+            finish,
+        ),
+        re.search(
+            r'(?s)matches!\(key, "right" \| "up"\).*?10\..*?-10\..*?'
+            r'floor\(\).*?\.min\(max_width\).*?\.max\(min_width\).*?'
+            r'if let Some\(callback\) = &resize_for_keys.*?'
+            r'cx\.stop_propagation\(\)',
+            arrows,
+        ),
+    ))
+
+
+def evidence_matches(key, evidence, source):
+    if key == ('Table', 'resize-keys'):
+        return table_resize_keys_evidence(source)
+    return re.search(evidence, source)
+
+
 def main():
     sections = accessibility_sections()
     sources = {}
     claimed = implemented = excused = 0
     missing, unmapped = [], []
     by_reason = {}
+
+    table_source = io.open(SRC + 'table.rs', encoding='utf-8', errors='replace').read()
+    for label, token, replacement in (
+        ('outside-click exit', '.on_mouse_down_out(', 'REMOVED_RESIZE_EVIDENCE'),
+        (
+            'combined exit keys',
+            '"escape" | "space" | "tab" if editing',
+            'REMOVED_RESIZE_EVIDENCE',
+        ),
+        (
+            'resize start callback',
+            'if let Some(callback) = &resize_start_for_keys',
+            'REMOVED_RESIZE_EVIDENCE',
+        ),
+        (
+            'resize callback',
+            'if let Some(callback) = &resize_for_keys',
+            'REMOVED_RESIZE_EVIDENCE',
+        ),
+        (
+            'resize end callback',
+            'if let Some(callback) = &resize_end_for_keys',
+            'REMOVED_RESIZE_EVIDENCE',
+        ),
+        (
+            'Enter propagation stop',
+            'cx.stop_propagation();\n                                    }\n'
+            '                                    "escape" | "space" | "tab" if editing',
+            'REMOVED_RESIZE_EVIDENCE;\n                                    }\n'
+            '                                    "escape" | "space" | "tab" if editing',
+        ),
+        (
+            'exit-key propagation stop',
+            'cx.stop_propagation();\n                                    }\n'
+            '                                    "right" | "up" | "left" | "down" if editing',
+            'REMOVED_RESIZE_EVIDENCE;\n                                    }\n'
+            '                                    "right" | "up" | "left" | "down" if editing',
+        ),
+        (
+            'arrow propagation stop',
+            'cx.stop_propagation();\n                                    }\n'
+            '                                    _ => {}',
+            'REMOVED_RESIZE_EVIDENCE;\n                                    }\n'
+            '                                    _ => {}',
+        ),
+    ):
+        if token not in table_source:
+            print('AUDIT READER ERROR: Table.resize-keys self-test cannot find %s' % label)
+            return 1
+        mutant = table_source.replace(token, replacement, 1)
+        if table_resize_keys_evidence(mutant):
+            print('AUDIT READER ERROR: Table.resize-keys does not require %s' % label)
+            return 1
 
     for page in SUCCESSFUL_FORM_CONTROLS:
         key = (page, 'disabled-form-omission')
@@ -1239,7 +1340,7 @@ def main():
                 path = SRC + module
                 sources[module] = (io.open(path, encoding='utf-8', errors='replace').read()
                                    if os.path.exists(path) else '')
-            if re.search(evidence, sources[module]):
+            if evidence_matches(key, evidence, sources[module]):
                 implemented += 1
             else:
                 missing.append('%-14s %-14s %s: /%s/' % (page, claim, module, evidence))
@@ -1252,7 +1353,7 @@ def main():
             path = SRC + module
             sources[module] = (io.open(path, encoding='utf-8', errors='replace').read()
                                if os.path.exists(path) else '')
-        if re.search(evidence, sources[module]):
+        if evidence_matches(key, evidence, sources[module]):
             implemented += 1
         else:
             missing.append('%-14s %-14s %s: /%s/' % (page, 'activation', module, evidence))
@@ -1278,7 +1379,7 @@ def main():
                 path = SRC + module
                 sources[module] = (io.open(path, encoding='utf-8', errors='replace').read()
                                    if os.path.exists(path) else '')
-            if re.search(evidence, sources[module]):
+            if evidence_matches(key, evidence, sources[module]):
                 implemented += 1
             else:
                 missing.append('%-14s %-14s %s: /%s/' % (page, claim, module, evidence))

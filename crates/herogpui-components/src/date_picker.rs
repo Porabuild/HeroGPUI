@@ -2584,7 +2584,7 @@ impl DateField {
             content: None,
             segment: None,
             granularity: Granularity::Day,
-            hour_cycle: crate::time_field::HourCycle::H24,
+            hour_cycle: crate::time_field::HourCycle::default(),
             validation_behavior: None,
             default_value: None,
             full_width: false,
@@ -3366,6 +3366,8 @@ impl RenderOnce for DateField {
 
 #[cfg(test)]
 mod tests {
+    use std::process::Command;
+
     use super::*;
     use crate::time_field::{HourCycle, Time, TimeSegment};
 
@@ -3374,6 +3376,59 @@ mod tests {
         let date = Date::new(2025, 2, 3);
         assert_eq!(format_value(date, None, Granularity::Day), "2025-02-03");
         assert_eq!(parse_value("2025-02-03"), (Some(date), None));
+    }
+
+    #[gpui::test]
+    fn date_field_hour_cycle_follows_the_system_time_locale(cx: &mut gpui::TestAppContext) {
+        const CHILD: &str = "HEROGPUI_DATE_FIELD_TIME_LOCALE_TEST";
+        if std::env::var_os(CHILD).is_none() {
+            let output = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "date_picker::tests::date_field_hour_cycle_follows_the_system_time_locale",
+                    "--nocapture",
+                ])
+                .env(CHILD, "1")
+                .env_remove("LC_ALL")
+                .env("LC_TIME", "en_US.UTF-8")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "12-hour DateField locale child failed:\n{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr),
+            );
+            return;
+        }
+
+        assert_eq!(HourCycle::default(), HourCycle::H12);
+        let state = cx.new(|cx| crate::input::InputState::new(cx));
+        let field = DateField::new(state.clone()).granularity(Granularity::Minute);
+        assert_eq!(field.hour_cycle, HourCycle::H12);
+        assert_eq!(
+            TimeSegment::order(
+                field.granularity.time().unwrap(),
+                field.hour_cycle == HourCycle::H12,
+            ),
+            [
+                TimeSegment::Hour,
+                TimeSegment::Minute,
+                TimeSegment::Meridiem,
+            ]
+        );
+
+        let explicit = DateField::new(state)
+            .granularity(Granularity::Minute)
+            .hour_cycle(HourCycle::H24);
+        assert_eq!(explicit.hour_cycle, HourCycle::H24);
+        assert_eq!(
+            TimeSegment::order(
+                explicit.granularity.time().unwrap(),
+                explicit.hour_cycle == HourCycle::H12,
+            ),
+            [TimeSegment::Hour, TimeSegment::Minute]
+        );
     }
 
     #[test]

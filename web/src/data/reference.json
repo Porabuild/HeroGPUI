@@ -6626,20 +6626,20 @@
         "prop": "isHovered",
         "type": "boolean",
         "default": "—",
-        "description": "Whether the enabled button is hovered; GPUI reports it one frame later.",
+        "description": "Current enabled hover state supplied to custom content.",
         "rustOwner": "CloseButton",
         "rust": "content(render)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "CloseButtonRenderProps",
         "prop": "isPressed",
         "type": "boolean",
         "default": "—",
-        "description": "Whether the enabled button is pressed; GPUI reports it one frame later.",
+        "description": "Current enabled press state supplied to custom content.",
         "rustOwner": "CloseButton",
         "rust": "content(render)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "CloseButtonRenderProps",
@@ -6675,7 +6675,7 @@
         "slot": "close-button-icon",
         "description": "Built-in close glyph; icon(element) or content(render) replaces it in the port.",
         "rustOwner": "CloseButton",
-        "status": "partial"
+        "status": "implemented"
       }
     ],
     "states": [
@@ -6684,13 +6684,13 @@
         "selector": ".close-button:hover / [data-hovered=\"true\"]",
         "description": "Enabled buttons use the default-hover background and report hover to render content.",
         "rust": "hover(colors.default.hover()) + InteractiveState::is_hovered",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "state": "Pressed",
         "selector": ".close-button:active / [data-pressed=\"true\"]",
-        "description": "The port reports press state but uses opacity instead of v3's scale(0.93).",
-        "rust": "active(opacity 0.7) + InteractiveState::is_pressed",
+        "description": "Pressed state reaches custom content; the root bounds shrink to a centered 93%, but fixed child content does not scale with the CSS transform.",
+        "rust": "active centered root-bounds shrink + InteractiveState::is_pressed",
         "status": "partial"
       },
       {
@@ -6748,8 +6748,8 @@
       },
       {
         "token": ".close-button--default:active / [data-pressed=\"true\"]",
-        "description": "The port currently fades to 70% opacity instead of reproducing the press geometry.",
-        "rust": "active(opacity 0.7)",
+        "description": "The root bounds shrink to 93% about the center without moving neighboring layout; fixed child content remains unscaled.",
+        "rust": "active centered root-bounds shrink",
         "status": "partial"
       },
       {
@@ -11175,10 +11175,10 @@
         "prop": "firstDayOfWeek",
         "type": "'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'",
         "default": "Locale default",
-        "description": "An explicit weekday is supported; the GPUI default is Monday, not locale-derived.",
+        "description": "Defaults from the operating system's regional date preferences through CLDR week data; an explicit weekday overrides it, with Sunday as the invalid-locale fallback.",
         "rustOwner": "Calendar",
         "rust": "first_day_of_week(Weekday)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "Calendar",
@@ -11918,10 +11918,10 @@
         "prop": "hourCycle",
         "type": "12 | 24",
         "default": "locale",
-        "description": "Explicit 12/24-hour modes work; the local default is 24-hour rather than locale-derived.",
+        "description": "Defaults to the system regional time format; an explicit cycle overrides it.",
         "rustOwner": "DateField",
         "rust": "hour_cycle(HourCycle)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "DateField",
@@ -12448,10 +12448,10 @@
         "prop": "firstDayOfWeek",
         "type": "string",
         "default": "locale",
-        "description": "Overrides the calendar grid's first weekday with the local Weekday enum.",
+        "description": "The calendar grid defaults from the operating system's regional date preferences through CLDR week data; the local Weekday enum provides an explicit override.",
         "rustOwner": "DatePicker",
         "rust": "first_day_of_week(Weekday)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "DatePicker",
@@ -12840,10 +12840,10 @@
         "prop": "firstDayOfWeek",
         "type": "string",
         "default": "locale",
-        "description": "Overrides the range calendar grid's first weekday with the local Weekday enum.",
+        "description": "The range calendar grid defaults from the operating system's regional date preferences through CLDR week data; the local Weekday enum provides an explicit override.",
         "rustOwner": "DateRangePicker",
         "rust": "first_day_of_week(Weekday)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "DateRangePicker",
@@ -13771,10 +13771,10 @@
         "prop": "placeholderValue",
         "type": "TimeValue | null",
         "default": "12:00 AM / 00:00",
-        "description": "Seeds the first edit; the local default is 09:00 rather than hour-cycle-derived midnight/noon.",
+        "description": "Seeds the first edit and defaults to midnight in the active hour cycle.",
         "rustOwner": "TimeField",
         "rust": "placeholder_value(Time)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "TimeField",
@@ -13851,10 +13851,10 @@
         "prop": "hourCycle",
         "type": "12 | 24",
         "default": "locale",
-        "description": "Explicit cycles work; the local default is 24-hour rather than locale-derived.",
+        "description": "Defaults to the system regional time format; an explicit cycle overrides it.",
         "rustOwner": "TimeField",
         "rust": "hour_cycle(HourCycle)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "TimeField",
@@ -14294,20 +14294,20 @@
         "prop": "isDateUnavailable",
         "type": "(date: DateValue, anchorDate: CalendarDate | null) => boolean",
         "default": "—",
-        "description": "Receives the active anchor for cells, preview and both input paths; pinned window-bounded scanning and merged navigation bounds remain incomplete.",
+        "description": "Receives the active anchor for cells and both input paths; contiguous selection scans through one visible duration on each side plus the sentinel day beyond each limit, then merges discovered bounds into cells, focus and navigation.",
         "rustOwner": "RangeCalendar",
         "rust": "is_date_unavailable(callback)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "RangeCalendar",
         "prop": "firstDayOfWeek",
         "type": "'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'",
         "default": "Locale default",
-        "description": "Explicit weekdays work; the GPUI default is Monday rather than locale-derived.",
+        "description": "Defaults from the operating system's regional date preferences through CLDR week data; an explicit weekday overrides it, with Sunday as the invalid-locale fallback.",
         "rustOwner": "RangeCalendar",
         "rust": "first_day_of_week(Weekday)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "RangeCalendar",
@@ -14504,7 +14504,7 @@
         "prop": "isDisabled",
         "type": "boolean",
         "default": "—",
-        "description": "Reports disabled, out-of-range and outside-month cells without conflating unavailable or read-only state.",
+        "description": "Reports root-disabled, outside-month and effective min/max cells, including anchor-derived contiguous-range bounds; isUnavailable remains independently observable.",
         "rustOwner": "RangeCalendar",
         "rust": "cell(render)",
         "status": "implemented"
@@ -15279,8 +15279,8 @@
       {
         "state": "Active",
         "selector": ":active / [data-pressed=\"true\"]",
-        "description": "Applied to the trigger and close button when pressed; the close button dims on press, and the absent trigger has no surface.",
-        "rust": "CloseButton .active opacity 0.7",
+        "description": "Applied to the trigger and close button when pressed; the close button uses a centered root-bounds shrink while fixed child content remains unscaled, and the absent trigger has no surface.",
+        "rust": "CloseButton .active centered root-bounds shrink",
         "status": "partial"
       },
       {
@@ -15855,8 +15855,8 @@
       {
         "state": "Active",
         "selector": ":active / [data-pressed=\"true\"]",
-        "description": "Applied to the trigger and close button when pressed; the close button dims on press, and the absent trigger has no surface.",
-        "rust": "CloseButton .active opacity 0.7",
+        "description": "Applied to the trigger and close button when pressed; the close button uses a centered root-bounds shrink while fixed child content remains unscaled, and the absent trigger has no surface.",
+        "rust": "CloseButton .active centered root-bounds shrink",
         "status": "partial"
       },
       {
@@ -19769,10 +19769,10 @@
         "prop": "width",
         "type": "ColumnSize | null",
         "default": "—",
-        "description": "Controlled column width; the port stores a default and keyed drag result, not a caller-owned controlled width.",
+        "description": "Caller-owned controlled width in pixels; CSS length and fractional strings are not accepted.",
         "rustOwner": "TableColumn",
-        "rust": "—",
-        "status": "unavailable"
+        "rust": "width(width)",
+        "status": "partial"
       },
       {
         "owner": "Table.Column",
@@ -20102,6 +20102,36 @@
         "description": "v3 wraps Content in a separate overflow-auto container; the port enables resizing per column and scrolls on ScrollContainer.",
         "rustOwner": "TableColumn",
         "rust": "allows_resizing(bool)",
+        "status": "partial"
+      },
+      {
+        "owner": "Table.ResizableContainer",
+        "prop": "onResizeStart",
+        "type": "(widths: Map<Key, ColumnSize>) => void",
+        "default": "—",
+        "description": "Reports known pixel widths when pointer or keyboard resizing begins.",
+        "rustOwner": "Table",
+        "rust": "on_resize_start(callback)",
+        "status": "partial"
+      },
+      {
+        "owner": "Table.ResizableContainer",
+        "prop": "onResize",
+        "type": "(widths: Map<Key, ColumnSize>) => void",
+        "default": "—",
+        "description": "Reports each proposed pixel width map; feed values back through controlled TableColumn.width.",
+        "rustOwner": "Table",
+        "rust": "on_resize(callback)",
+        "status": "partial"
+      },
+      {
+        "owner": "Table.ResizableContainer",
+        "prop": "onResizeEnd",
+        "type": "(widths: Map<Key, ColumnSize>) => void",
+        "default": "—",
+        "description": "Reports the final known pixel widths after pointer or keyboard resizing ends.",
+        "rustOwner": "Table",
+        "rust": "on_resize_end(callback)",
         "status": "partial"
       },
       {
@@ -21198,9 +21228,9 @@
         "prop": "children",
         "type": "ReactNode | RenderFunction",
         "default": "—",
-        "description": "Compound heading, trigger and panel children; the GPUI control builds the trigger and accepts body children.",
+        "description": "Compound heading, trigger and panel children; the GPUI control builds the trigger and accepts static body children through ParentElement or a state-aware body render closure.",
         "rustOwner": "Disclosure",
-        "rust": "—",
+        "rust": "content(render)",
         "status": "partial"
       },
       {
@@ -21248,9 +21278,9 @@
         "prop": "children",
         "type": "ReactNode",
         "default": "—",
-        "description": "Panel body content supplied through ParentElement composition.",
+        "description": "Panel body content supplied through ParentElement composition or the state-aware render closure.",
         "rustOwner": "Disclosure",
-        "rust": "—",
+        "rust": "content(render)",
         "status": "partial"
       },
       {
@@ -21278,20 +21308,20 @@
         "prop": "isExpanded",
         "type": "boolean",
         "default": "—",
-        "description": "Current expanded state; drawn internally but not delegated to a child closure.",
+        "description": "Current expanded state supplied to the body render closure.",
         "rustOwner": "Disclosure",
-        "rust": "is_expanded(bool)",
-        "status": "partial"
+        "rust": "content(render)",
+        "status": "implemented"
       },
       {
         "owner": "DisclosureRenderProps",
         "prop": "isDisabled",
         "type": "boolean",
         "default": "—",
-        "description": "Current disabled state; drawn internally but not delegated to a child closure.",
+        "description": "Current disabled state supplied to the body render closure.",
         "rustOwner": "Disclosure",
-        "rust": "is_disabled(bool)",
-        "status": "partial"
+        "rust": "content(render)",
+        "status": "implemented"
       },
       {
         "owner": "DisclosureGroupRenderProps",
@@ -22259,8 +22289,8 @@
       {
         "state": "Active",
         "selector": ":active / [data-pressed=\"true\"]",
-        "description": "Applied to the trigger and the close button when pressed; the close button dims on press, and the absent trigger has no surface.",
-        "rust": "CloseButton .active opacity 0.7",
+        "description": "Applied to the trigger and the close button when pressed; the close button uses a centered root-bounds shrink while fixed child content remains unscaled, and the absent trigger has no surface.",
+        "rust": "CloseButton .active centered root-bounds shrink",
         "status": "partial"
       },
       {

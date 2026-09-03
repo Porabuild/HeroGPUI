@@ -3,7 +3,12 @@
 //! Segment-by-segment time entry. Clicking a segment focuses it; the stepper
 //! buttons adjust whichever segment has focus.
 
-use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    rc::Rc,
+    sync::{Arc, OnceLock},
+};
 
 use gpui::{
     div, prelude::*, px, App, ElementId, Entity, InteractiveElement, IntoElement, RenderOnce,
@@ -15,11 +20,19 @@ use herogpui_theme::ActiveTheme;
 use crate::{icons, util};
 
 /// Whether a [`TimeField`] shows a 12- or 24-hour clock (`hourCycle`).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HourCycle {
     H12,
-    #[default]
     H24,
+}
+
+impl Default for HourCycle {
+    fn default() -> Self {
+        static SYSTEM_HOUR_CYCLE: OnceLock<HourCycle> = OnceLock::new();
+        *SYSTEM_HOUR_CYCLE.get_or_init(|| {
+            Self::for_preferences(&locale_config::Locale::user_default()).unwrap_or(Self::H24)
+        })
+    }
 }
 
 impl HourCycle {
@@ -30,6 +43,31 @@ impl HourCycle {
             HourCycle::H12 => "12-hour",
             HourCycle::H24 => "24-hour",
         }
+    }
+
+    fn for_locale(locale: &str) -> Option<Self> {
+        use icu_datetime::{
+            fieldsets,
+            input::Time as IcuTime,
+            provider::pattern::{reference, runtime, CoarseHourCycle},
+            NoCalendarFormatter,
+        };
+        use icu_locale_core::Locale as IcuLocale;
+
+        let locale = locale.parse::<IcuLocale>().ok()?;
+        let formatter = NoCalendarFormatter::try_new(locale.into(), fieldsets::T::hm()).ok()?;
+        let formatted = formatter.format(&IcuTime::start_of_day());
+        let pattern: runtime::Pattern<'_> = formatted.pattern().into();
+        match CoarseHourCycle::determine(&reference::Pattern::from(&pattern))? {
+            CoarseHourCycle::H11H12 => Some(Self::H12),
+            CoarseHourCycle::H23 => Some(Self::H24),
+        }
+    }
+
+    fn for_preferences(locale: &locale_config::Locale) -> Option<Self> {
+        locale
+            .tags_for("time")
+            .find_map(|tag| Self::for_locale(tag.as_ref()))
     }
 }
 
@@ -516,7 +554,7 @@ impl TimeField {
             prefix: None,
             suffix: None,
             variant: FieldVariant::Primary,
-            hour_cycle: HourCycle::H24,
+            hour_cycle: HourCycle::default(),
             granularity: TimeGranularity::default(),
             auto_focus: false,
             should_force_leading_zeros: true,
@@ -939,7 +977,9 @@ impl RenderOnce for TimeField {
             let fh = focus_handle.clone();
             let order = TimeSegment::order(self.granularity, self.hour_cycle == HourCycle::H12);
             let twelve_hour = self.hour_cycle == HourCycle::H12;
-            let seed = self.placeholder_value.unwrap_or(Time::new(9, 0));
+            let seed = self.placeholder_value.unwrap_or(Time::new(0, 0));
+            let min_value = self.min_value;
+            let max_value = self.max_value;
             let is_read_only = self.is_read_only;
             group = group
                 .track_focus(&focus_handle)
@@ -979,15 +1019,8 @@ impl RenderOnce for TimeField {
                             let delta = if key == "up" { 1 } else { -1 };
                             buffer.update(cx, |b, _| b.clear());
                             let base = state.read(cx).display_value.unwrap_or(seed);
-                            let time = base.bump(focused, delta);
-                            let complete = state.update(cx, |s, cx| {
-                                let complete = s.edit_focused(time, &order);
-                                cx.notify();
-                                complete
-                            });
-                            if let (true, Some(cb)) = (complete, &on_change) {
-                                cb(Some(time), window, cx);
-                            }
+                            let time = clamp_time(base.bump(focused, delta), min_value, max_value);
+                            commit(time, window, cx);
                         }
                         "backspace" | "delete" => {
                             buffer.update(cx, |b, _| b.clear());
@@ -1225,6 +1258,27 @@ mod tests {
         assert_eq!(Time::new(12, 0).twelve_hour(), (12, "PM"));
         assert_eq!(Time::new(13, 0).twelve_hour(), (1, "PM"));
         assert_eq!(Time::new(11, 0).twelve_hour(), (11, "AM"));
+    }
+
+    #[test]
+    fn hour_cycle_follows_locale_time_data_and_overrides() {
+        assert_eq!(HourCycle::for_locale("en-US"), Some(HourCycle::H12));
+        assert_eq!(HourCycle::for_locale("de-DE"), Some(HourCycle::H24));
+        assert_eq!(
+            HourCycle::for_locale("en-US-u-hc-h23"),
+            Some(HourCycle::H24)
+        );
+        assert_eq!(
+            HourCycle::for_locale("de-DE-u-hc-h12"),
+            Some(HourCycle::H12)
+        );
+        assert_eq!(HourCycle::for_locale("not_a_locale"), None);
+    }
+
+    #[test]
+    fn hour_cycle_prefers_the_system_time_category() {
+        let locale = locale_config::Locale::new("de-DE,time=en-US").unwrap();
+        assert_eq!(HourCycle::for_preferences(&locale), Some(HourCycle::H12));
     }
 
     #[test]

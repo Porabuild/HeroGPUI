@@ -72,7 +72,7 @@ use herogpui_components::{
     util::InteractiveState,
     Button, Calendar, CalendarCellState, CalendarState, DateConstraints, DateRangeState, Dropdown,
     ListBox, ListBoxItem, Menu, MenuItem, RadioGroup, RadioOption, RadioOptionState, RangeCalendar,
-    RangeCalendarCellState, SelectionMode, Tag, TagGroup, VisibleDuration,
+    RangeCalendarCellState, SelectionMode, Tag, TagGroup, VisibleDuration, Weekday,
 };
 
 use harness::{click, events, open_host, press};
@@ -1460,6 +1460,7 @@ fn calendar_cell_renders_at_all(cx: &mut TestAppContext) {
         // 2026), so the grid and the click arithmetic are deterministic.
         Calendar::new(state_for_view.clone())
             .default_value(Date::new(2026, 8, 15))
+            .first_day_of_week(Weekday::Mon)
             .cell(move |state| {
                 record_cell(&record, &state);
                 gpui::div().w(px(20.)).h(px(20.)).into_any_element()
@@ -1476,9 +1477,13 @@ fn calendar_cell_renders_at_all(cx: &mut TestAppContext) {
     // cells, 31 August cells, and six September cells. React Aria invokes the
     // renderer for all 42 real dates; outside-month cells are disabled and
     // cannot be selected, but their other state still comes from the date.
-    let lead = DateConstraints::new().lead_cells(2026, 8);
+    let constraints = DateConstraints {
+        first_day_of_week: Weekday::Mon,
+        ..Default::default()
+    };
+    let lead = constraints.lead_cells(2026, 8);
     assert_eq!(lead, 5, "the month's own derivation must give a lead");
-    let rows = DateConstraints::new().rows(2026, 8);
+    let rows = constraints.rows(2026, 8);
     let cells = recorded.borrow();
     let in_month = cells.values().filter(|cell| !cell.is_outside_month).count();
     assert_eq!(
@@ -1528,6 +1533,7 @@ fn calendar_cell_spill_dates_preserve_their_identity(cx: &mut TestAppContext) {
         let record = record.clone();
         Calendar::new(state_for_view.clone())
             .default_value(Date::new(2026, 8, 15))
+            .first_day_of_week(Weekday::Mon)
             .cell(move |state| {
                 record.borrow_mut().push((
                     state.date.format_iso(),
@@ -1759,6 +1765,7 @@ fn calendar_outside_selected_copy_is_unselected_and_inert(cx: &mut TestAppContex
         let changes = changes.clone();
         let record = record.clone();
         Calendar::new(state_for_view.clone())
+            .first_day_of_week(Weekday::Mon)
             .on_change(move |date, _, _| {
                 changes
                     .borrow_mut()
@@ -1947,6 +1954,7 @@ fn range_calendar_spill_dates_preserve_their_identity(cx: &mut TestAppContext) {
     let _cx = open_host(cx, move || {
         let record = record.clone();
         RangeCalendar::new(state.clone())
+            .first_day_of_week(Weekday::Mon)
             .cell(move |cell| {
                 record_range_cell(&record, &cell);
                 gpui::div().w(px(20.)).h(px(20.)).into_any_element()
@@ -1994,6 +2002,7 @@ fn range_calendar_weeks_in_month_keeps_exact_row_count(cx: &mut TestAppContext) 
     let _cx = open_host(cx, move || {
         let record = record.clone();
         RangeCalendar::new(state.clone())
+            .first_day_of_week(Weekday::Mon)
             .weeks_in_month(7)
             .cell(move |cell| {
                 record_range_cell(&record, &cell);

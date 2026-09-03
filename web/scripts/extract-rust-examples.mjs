@@ -795,7 +795,7 @@ function addImports(canonical, code, aliases) {
   return [...herogpuiLines, ...gpuiLines, ...otherLines].join("\n");
 }
 
-export function run() {
+export function run({ check = false } = {}) {
   const src = readFileSync(SOURCE, "utf8");
   const importsByPage = canonicalImports();
   const pages = new Map();
@@ -868,8 +868,22 @@ export function run() {
   }
 
   const data = Object.fromEntries([...pages.entries()]);
-  mkdirSync(dirname(OUT), { recursive: true });
-  writeFileSync(OUT, JSON.stringify(data, null, 2) + "\n");
+  const output = JSON.stringify(data, null, 2) + "\n";
+  if (check) {
+    let current = "";
+    try {
+      current = readFileSync(OUT, "utf8");
+    } catch {}
+    if (current !== output) {
+      console.error(
+        "ERROR: rust-examples.json is stale; run `pnpm run extract`",
+      );
+      process.exitCode = 1;
+    }
+  } else {
+    mkdirSync(dirname(OUT), { recursive: true });
+    writeFileSync(OUT, output);
+  }
 
   console.log(
     `rust-examples.json: ${pages.size} pages, ${totalSnippets} snippets` +
@@ -890,5 +904,5 @@ export function run() {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  run();
+  run({ check: process.argv.includes("--check") });
 }

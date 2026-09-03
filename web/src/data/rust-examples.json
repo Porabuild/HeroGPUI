@@ -100,14 +100,19 @@
       "code": "CloseButton::new(\"close-button\")"
     },
     {
-      "heading": "With Custom Icon",
-      "imports": "use herogpui::prelude::{CloseButton, icons};",
-      "code": "row(vec![\n    CloseButton::new(\"close-button-icon-1\").icon(icon(icons::CLOSE_CIRCLE, cx)),\n    CloseButton::new(\"close-button-icon-2\"),\n])"
-    },
-    {
       "heading": "Interactive",
       "imports": "use herogpui::prelude::CloseButton;\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        CloseButton::new(\"close-button-press\")\n            .on_press(cx.listener(|this, _, _, cx| {\n                this.close_button_presses += 1;\n                cx.notify();\n            }))\n            .into_any_element(),\n        para(&format!(\"Pressed {presses} times\"), cx),\n    ])"
+    },
+    {
+      "heading": "With Custom Icon",
+      "imports": "use herogpui::prelude::{CloseButton, icons};",
+      "code": "CloseButton::new(\"close-button-icon-1\").icon(icon(icons::CLOSE_CIRCLE, cx))"
+    },
+    {
+      "heading": "Render Function",
+      "imports": "use herogpui::prelude::{ActiveTheme, CloseButton, icons};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "{\n    let muted = cx.colors().muted;\n    let foreground = cx.colors().foreground;\n    gpui::div()\n        .flex()\n        .flex_col()\n        .items_start()\n        .gap(px(12.))\n        .children(vec![\n                CloseButton::new(\"close-button-render-state\")\n                    .content(move |state| {\n                        gpui::svg()\n                            .size(px(16.))\n                            .path(if state.is_pressed {\n                                icons::CLOSE_CIRCLE\n                            } else {\n                                icons::CLOSE\n                            })\n                            .text_color(if state.is_disabled {\n                                muted\n                            } else if state.is_hovered || state.is_focused {\n                                foreground\n                            } else {\n                                muted\n                            })\n                            .into_any_element()\n                    })\n                    .into_any_element(),\n                gpui::div()\n                    .text_size(px(13.))\n                    .text_color(muted)\n                    .child(\n                        \"Hover, focus, or press the button to drive the custom icon from its live render state.\",\n                    )\n                    .into_any_element(),\n            ])\n}"
     },
     {
       "heading": "Disabled",
@@ -902,7 +907,7 @@
     {
       "heading": "Column Resizing",
       "imports": "use herogpui::prelude::{Table, TableColumn};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        para(\n            \"Drag the divider on a resizable column's trailing edge. The width \\\n                                 is per column and survives the drag.\",\n            cx,\n        ),\n        Table::new(vec![])\n            .id(\"table-column-resizing\")\n            .column(\n                TableColumn::new(\"Name\")\n                    .allows_resizing(true)\n                    .default_width(px(220.))\n                    .min_width(px(120.)),\n            )\n            .column(\n                TableColumn::new(\"Role\")\n                    .allows_resizing(true)\n                    .default_width(px(180.)),\n            )\n            .column(\"Status\")\n            .row(vec![\n                gpui::div().child(\"Tony Reichert\").into_any_element(),\n                gpui::div().child(\"CEO\").into_any_element(),\n                gpui::div().child(\"Active\").into_any_element(),\n            ])\n            .row(vec![\n                gpui::div().child(\"Zoey Lang\").into_any_element(),\n                gpui::div().child(\"Tech Lead\").into_any_element(),\n                gpui::div().child(\"Paused\").into_any_element(),\n            ])\n            .into_any_element(),\n    ])"
+      "code": "{\n    let resize_name = self.demo_value(\"tbl-resize-name\", 220.);\n    let resize_role = self.demo_value(\"tbl-resize-role\", 180.);\n    let resize_status = self.demo_text_value(\"tbl-resize-status\");\n    gpui::div()\n        .flex()\n        .flex_col()\n        .items_start()\n        .gap(px(12.))\n        .children(vec![\n                para(\n                    \"Drag a trailing-edge divider, or focus it with Tab, press Enter, \\\n                                     and use the arrow keys. This example feeds onResize values back as \\\n                                     controlled column widths and reports completion through onResizeEnd.\",\n                    cx,\n                ),\n                para(\n                    &format!(\n                        \"{} Name: {:.0}px · Role: {:.0}px\",\n                        if resize_status.is_empty() {\n                            \"Ready.\"\n                        } else {\n                            resize_status.as_str()\n                        },\n                        resize_name,\n                        resize_role,\n                    ),\n                    cx,\n                ),\n                Table::new(vec![])\n                    .id(\"table-column-resizing\")\n                    .column(\n                        TableColumn::new(\"Name\")\n                            .allows_resizing(true)\n                            .width(px(resize_name))\n                            .min_width(px(120.)),\n                    )\n                    .column(\n                        TableColumn::new(\"Role\")\n                            .allows_resizing(true)\n                            .width(px(resize_role)),\n                    )\n                    .column(TableColumn::new(\"Status\").default_width(px(140.)))\n                    .row(vec![\n                        gpui::div().child(\"Tony Reichert\").into_any_element(),\n                        gpui::div().child(\"CEO\").into_any_element(),\n                        gpui::div().child(\"Active\").into_any_element(),\n                    ])\n                    .row(vec![\n                        gpui::div().child(\"Zoey Lang\").into_any_element(),\n                        gpui::div().child(\"Tech Lead\").into_any_element(),\n                        gpui::div().child(\"Paused\").into_any_element(),\n                    ])\n                    .on_resize_start(cx.listener(|this, _, _, cx| {\n                        this.set_demo_text_value(\n                            \"tbl-resize-status\",\n                            \"Resizing.\".to_owned(),\n                        );\n                        cx.notify();\n                    }))\n                    .on_resize(cx.listener(\n                        |this, widths: &[(SharedString, gpui::Pixels)], _, cx| {\n                            for (column, width) in widths {\n                                match column.as_ref() {\n                                    \"Name\" => this.set_demo_value(\n                                        \"tbl-resize-name\",\n                                        f32::from(*width),\n                                    ),\n                                    \"Role\" => this.set_demo_value(\n                                        \"tbl-resize-role\",\n                                        f32::from(*width),\n                                    ),\n                                    _ => {}\n                                }\n                            }\n                            cx.notify();\n                        },\n                    ))\n                    .on_resize_end(cx.listener(|this, _, _, cx| {\n                        this.set_demo_text_value(\"tbl-resize-status\", \"Saved.\".to_owned());\n                        cx.notify();\n                    }))\n                    .into_any_element(),\n            ])\n}"
     },
     {
       "heading": "Expandable Rows",
@@ -999,7 +1004,7 @@
     {
       "heading": "First day of week",
       "imports": "use herogpui::prelude::{Calendar, CalendarState, Weekday};",
-      "code": "Calendar::new(self.calendar.clone())\n    .first_day_of_week(Weekday::Sun)\n    .weeks_in_month(6)"
+      "code": "Calendar::new(self.calendar.clone())\n    .first_day_of_week(Weekday::Mon)\n    .weeks_in_month(6)"
     },
     {
       "heading": "Read only & disabled",
@@ -1221,8 +1226,8 @@
     },
     {
       "heading": "Unavailable Dates",
-      "imports": "use herogpui::prelude::{RangeCalendar, weekday_index};",
-      "code": "RangeCalendar::new(\n    self.demo_range(\"rc-unavailable\", cx),\n)\n.is_date_unavailable(|date, _| {\n    let weekday = weekday_index(date);\n    weekday == 0 || weekday == 6\n})"
+      "imports": "use herogpui::prelude::{RangeCalendar, Weekday, add_days, days_from_civil};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children({\n        let blocked_ranges = [\n            (add_days(&today, 2), add_days(&today, 5)),\n            (add_days(&today, 12), add_days(&today, 13)),\n        ];\n        vec![\n            RangeCalendar::new(self.demo_range(\"rc-unavailable\", cx))\n                .default_value((add_days(&today, 6), add_days(&today, 9)))\n                .first_day_of_week(Weekday::Mon)\n                .is_date_unavailable(move |date, _| {\n                    let date = days_from_civil(&date);\n                    blocked_ranges.iter().any(|(start, end)| {\n                        date >= days_from_civil(start)\n                            && date <= days_from_civil(end)\n                    })\n                })\n                .into_any_element(),\n            gpui::div()\n                .child(\"Some days are unavailable\")\n                .into_any_element(),\n        ]\n    })"
     },
     {
       "heading": "Anchor-Based Unavailable Dates",
@@ -1288,8 +1293,8 @@
   "time-field": [
     {
       "heading": "24-hour",
-      "imports": "use herogpui::prelude::{Time, TimeField, TimeState};",
-      "code": "TimeField::new(self.time.clone())\n    .label(\"Start time\")\n    .description(\"Click a segment, then use the steppers.\")\n    .on_change(opt_time_cb(\n        cx.listener(|_, _t: &Option<Time>, _, cx| cx.notify()),\n    ))"
+      "imports": "use herogpui::prelude::{HourCycle, Time, TimeField, TimeState};",
+      "code": "TimeField::new(self.time.clone())\n    .label(\"Start time\")\n    .hour_cycle(HourCycle::H24)\n    .description(\"Click a segment, then use the steppers.\")\n    .on_change(opt_time_cb(\n        cx.listener(|_, _t: &Option<Time>, _, cx| cx.notify()),\n    ))"
     },
     {
       "heading": "12-hour with seconds",
@@ -1298,8 +1303,8 @@
     },
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::{TimeField, TimeState};",
-      "code": "TimeField::new(self.demo_time(\"tmf-usage\", cx))\n    .label(\"Time\")"
+      "imports": "use herogpui::prelude::{TimeField, TimeState};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        TimeField::new(self.demo_time(\"tmf-usage\", cx))\n            .label(\"Time\")\n            .into_any_element(),\n        para(\"Uses your system regional 12- or 24-hour format.\", cx),\n    ])"
     },
     {
       "heading": "With Icons",
@@ -2469,6 +2474,11 @@
       "heading": "Usage",
       "imports": "use herogpui::prelude::{Disclosure, DisclosureGroup};\nuse gpui::prelude::*;",
       "code": "Disclosure::new(\n    \"disclosure-usage\",\n    \"Shipping details\"\n)\n.child(gpui::div().child(\"Ships in 2-4 business days.\"))"
+    },
+    {
+      "heading": "Render Function",
+      "imports": "use herogpui::prelude::{Disclosure, DisclosureGroup};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "{\n    let render_expanded = self.demo_flag(\"disclosure-render\", true);\n    gpui::div()\n        .flex()\n        .flex_col()\n        .items_start()\n        .gap(px(12.))\n        .children(vec![\n                Disclosure::new(\"disclosure-render\", \"Account details\")\n                    .is_expanded(render_expanded)\n                    .on_expanded_change(bool_cb(cx.listener(\n                        |this, value: &bool, _, cx| {\n                            this.set_demo_flag(\"disclosure-render\", *value);\n                            cx.notify();\n                        },\n                    )))\n                    .content(|state| {\n                        gpui::div()\n                            .child(format!(\n                                \"The render closure received is_expanded={} and is_disabled={}.\",\n                                state.is_expanded, state.is_disabled\n                            ))\n                            .into_any_element()\n                    })\n                    .into_any_element(),\n                para(\n                    &format!(\n                        \"Current controlled state: {}.\",\n                        if render_expanded { \"expanded\" } else { \"collapsed\" }\n                    ),\n                    cx,\n                ),\n                ])\n}"
     },
     {
       "heading": "Controlled",

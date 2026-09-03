@@ -1785,7 +1785,7 @@ def fetch():
     for name, url in THEME_FILES:
         subprocess.run(['curl', '-sL', '--max-time', '30', '-o',
                         os.path.join(CACHE, name), url], check=False)
-    names = sorted({c for c, *_ in CHECKS})
+    names = sorted({c for c, *_ in CHECKS} | {c for c, *_ in FILLS})
     for name in names:
         subprocess.run(['curl', '-sL', '--max-time', '30', '-o',
                         os.path.join(CACHE, name + '.css'), COMPONENTS % name],

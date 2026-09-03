@@ -369,7 +369,7 @@ function extract() {
   };
 }
 
-export function run() {
+export function run({ check = false } = {}) {
   const { entries, warnings, counts } = extract();
 
   if (warnings.length) {
@@ -386,8 +386,20 @@ export function run() {
     return counts;
   }
 
-  mkdirSync(dirname(OUT), { recursive: true });
-  writeFileSync(OUT, JSON.stringify(entries, null, 2) + "\n");
+  const output = JSON.stringify(entries, null, 2) + "\n";
+  if (check) {
+    let current = "";
+    try {
+      current = readFileSync(OUT, "utf8");
+    } catch {}
+    if (current !== output) {
+      console.error("ERROR: reference.json is stale; run `pnpm run extract`");
+      process.exitCode = 1;
+    }
+  } else {
+    mkdirSync(dirname(OUT), { recursive: true });
+    writeFileSync(OUT, output);
+  }
   console.log(
     `reference.json: ${counts.entries} entries, ` +
       `${counts.apiRows} api rows, ${counts.partsRows} parts rows, ` +
@@ -397,5 +409,5 @@ export function run() {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  run();
+  run({ check: process.argv.includes("--check") });
 }

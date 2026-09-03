@@ -311,16 +311,15 @@ impl RangeCalendar {
 }
 
 /// Resolves one range selection through the same constraint path for clicks
-/// and keyboard activation. While selecting the second endpoint, min/max clamp
-/// the requested date first; unless non-contiguous ranges are enabled, the
-/// first unavailable day then clamps it toward the anchor.
+/// and keyboard activation. The effective constraints already include the
+/// anchor-derived range bounds, so the requested endpoint only needs clamping
+/// and an availability check here.
 fn resolve_pick(
     start: Option<Date>,
     end: Option<Date>,
     requested: Date,
     constraints: &DateConstraints,
     range_date_unavailable: Option<&RangeDateUnavailable>,
-    allows_non_contiguous_ranges: bool,
 ) -> Option<(Date, Option<Date>)> {
     if start.is_none() || end.is_some() {
         return range_allows(constraints, range_date_unavailable, requested, None)
@@ -328,41 +327,9 @@ fn resolve_pick(
     }
 
     let anchor = start?;
-    if range_is_unavailable(constraints, range_date_unavailable, requested, Some(anchor)) {
+    let target = constraints.constrain(requested);
+    if range_is_unavailable(constraints, range_date_unavailable, target, Some(anchor)) {
         return None;
-    }
-    let mut target = requested;
-    if let Some(min) = constraints.min_value {
-        if days_from_civil(&target) < days_from_civil(&min) {
-            target = min;
-        }
-    }
-    if let Some(max) = constraints.max_value {
-        if days_from_civil(&target) > days_from_civil(&max) {
-            target = max;
-        }
-    }
-
-    if allows_non_contiguous_ranges {
-        if range_is_unavailable(constraints, range_date_unavailable, target, Some(anchor)) {
-            return None;
-        }
-    } else {
-        let direction = days_from_civil(&target).cmp(&days_from_civil(&anchor));
-        let step = match direction {
-            std::cmp::Ordering::Less => -1,
-            std::cmp::Ordering::Equal => 0,
-            std::cmp::Ordering::Greater => 1,
-        };
-        let mut resolved = anchor;
-        while resolved != target {
-            let next = add_days(&resolved, step);
-            if range_is_unavailable(constraints, range_date_unavailable, next, Some(anchor)) {
-                break;
-            }
-            resolved = next;
-        }
-        target = resolved;
     }
 
     if days_from_civil(&target) < days_from_civil(&anchor) {
@@ -394,6 +361,74 @@ fn range_allows(
         && !range_is_unavailable(constraints, range_date_unavailable, date, anchor)
 }
 
+/// Pinned React Stately searches through one visible duration on either side
+/// of the active anchor, then probes the next sentinel day. The last available
+/// neighbour becomes a temporary min/max bound for cells, focus and navigation.
+fn unavailable_range_boundary(
+    anchor: Date,
+    direction: i32,
+    duration: VisibleDuration,
+    constraints: &DateConstraints,
+    range_date_unavailable: Option<&RangeDateUnavailable>,
+) -> Option<Date> {
+    let limit = calendar_view::page(duration, PageBehavior::Visible, anchor, direction);
+    let mut next = add_days(&anchor, i64::from(direction));
+    let within_limit = |date: Date| {
+        if direction < 0 {
+            days_from_civil(&date) >= days_from_civil(&limit)
+        } else {
+            days_from_civil(&date) <= days_from_civil(&limit)
+        }
+    };
+
+    while within_limit(next) {
+        if range_is_unavailable(constraints, range_date_unavailable, next, Some(anchor)) {
+            return Some(add_days(&next, -i64::from(direction)));
+        }
+        next = add_days(&next, i64::from(direction));
+    }
+
+    range_is_unavailable(constraints, range_date_unavailable, next, Some(anchor))
+        .then(|| add_days(&next, -i64::from(direction)))
+}
+
+fn effective_range_constraints(
+    anchor: Option<Date>,
+    duration: VisibleDuration,
+    constraints: &DateConstraints,
+    range_date_unavailable: Option<&RangeDateUnavailable>,
+    allows_non_contiguous_ranges: bool,
+) -> DateConstraints {
+    let mut effective = constraints.clone();
+    let Some(anchor) = anchor else {
+        return effective;
+    };
+    if allows_non_contiguous_ranges
+        || (range_date_unavailable.is_none() && constraints.is_date_unavailable.is_none())
+    {
+        return effective;
+    }
+
+    if let Some(boundary) =
+        unavailable_range_boundary(anchor, -1, duration, constraints, range_date_unavailable)
+    {
+        effective.min_value = Some(match effective.min_value {
+            Some(min) if days_from_civil(&min) > days_from_civil(&boundary) => min,
+            _ => boundary,
+        });
+    }
+    if let Some(boundary) =
+        unavailable_range_boundary(anchor, 1, duration, constraints, range_date_unavailable)
+    {
+        effective.max_value = Some(match effective.max_value {
+            Some(max) if days_from_civil(&max) < days_from_civil(&boundary) => max,
+            _ => boundary,
+        });
+    }
+
+    effective
+}
+
 /// Where pinned React Stately moves focus after the first keyboard endpoint:
 /// prefer tomorrow, fall back to yesterday, and stay put if neither is valid.
 fn keyboard_range_focus(
@@ -422,6 +457,7 @@ struct Frame<'a> {
     start: Option<Date>,
     preview_end: Option<Date>,
     unavailable_anchor: Option<Date>,
+    constraints: &'a DateConstraints,
     today: Date,
     cursor: &'a Entity<Option<Date>>,
     focus_preview: &'a Entity<bool>,
@@ -472,12 +508,12 @@ impl RangeCalendar {
         let start_day = frame.start.map(|d| days_from_civil(&d));
         let end_day = frame.preview_end.map(|d| days_from_civil(&d));
         let unavailable = range_is_unavailable(
-            &self.constraints,
+            frame.constraints,
             self.range_date_unavailable.as_ref(),
             date,
             frame.unavailable_anchor,
         );
-        let disabled = outside_month || self.is_disabled || self.constraints.out_of_range(date);
+        let disabled = outside_month || self.is_disabled || frame.constraints.out_of_range(date);
         let eligible = !disabled && !unavailable;
         let selectable = eligible && !self.is_read_only;
 
@@ -684,9 +720,8 @@ impl RangeCalendar {
             let state = self.state.clone();
             let on_change = self.on_change.clone();
             let on_focus = self.on_focus_change.clone();
-            let constraints = self.constraints.clone();
+            let constraints = frame.constraints.clone();
             let range_date_unavailable = self.range_date_unavailable.clone();
-            let allows_non_contiguous_ranges = self.allows_non_contiguous_ranges;
             let cursor = frame.cursor.clone();
             let focus_preview = frame.focus_preview.clone();
             let selection_before_anchor = frame.selection_before_anchor.clone();
@@ -702,7 +737,6 @@ impl RangeCalendar {
                         date,
                         &constraints,
                         range_date_unavailable.as_ref(),
-                        allows_non_contiguous_ranges,
                     );
                     if let Some((start, end)) = next {
                         s.start = Some(start);
@@ -1030,24 +1064,29 @@ impl RenderOnce for RangeCalendar {
         let cursor_at = *cursor.read(cx);
         let focus_preview_at = *focus_preview.read(cx);
 
-        let first_day = self.constraints.first_day_of_week;
-        let focused_value = self
-            .focused_value
-            .map(|date| self.constraints.constrain(date));
-
         let (stored_anchor, selection_start, selection_end, hovered, navigated) = {
             let st = self.state.read(cx);
             (st.anchor(), st.start, st.end, st.hovered, st.user_navigated)
         };
+        let effective_constraints = effective_range_constraints(
+            selection_start.filter(|_| selection_end.is_none()),
+            self.duration,
+            &self.constraints,
+            self.range_date_unavailable.as_ref(),
+            self.allows_non_contiguous_ranges,
+        );
+        let first_day = effective_constraints.first_day_of_week;
+        let focused_value = self
+            .focused_value
+            .map(|date| effective_constraints.constrain(date));
         let active_preview = hovered.or(focus_preview_at.then_some(cursor_at).flatten());
         let (paint_start, preview_end) = match (selection_start, selection_end, active_preview) {
             (Some(start), None, Some(preview)) => resolve_pick(
                 Some(start),
                 None,
                 preview,
-                &self.constraints,
+                &effective_constraints,
                 self.range_date_unavailable.as_ref(),
-                self.allows_non_contiguous_ranges,
             )
             .map_or((Some(start), None), |(start, end)| (Some(start), end)),
             _ => (selection_start, selection_end),
@@ -1099,8 +1138,8 @@ impl RenderOnce for RangeCalendar {
         let years = calendar_view::year_window(
             initial_year,
             self.visible_years,
-            self.constraints.min_value,
-            self.constraints.max_value,
+            effective_constraints.min_value,
+            effective_constraints.max_value,
         );
         let first_year = years.first().copied().unwrap_or(anchor.year);
         let last_year = years.last().copied().unwrap_or(anchor.year);
@@ -1126,6 +1165,7 @@ impl RenderOnce for RangeCalendar {
             start: paint_start,
             preview_end,
             unavailable_anchor: selection_start.filter(|_| selection_end.is_none()),
+            constraints: &effective_constraints,
             today: Date::today(),
             cursor: &cursor,
             focus_preview: &focus_preview,
@@ -1156,12 +1196,13 @@ impl RenderOnce for RangeCalendar {
         let (visible_start, visible_end) =
             calendar_view::visible_range(self.duration, first_day, anchor);
         // React Stately checks only the day immediately outside the visible
-        // range against minValue/maxValue. Unavailable dates do not block
-        // paging, and readOnly prevents selection without preventing paging.
+        // range against minValue/maxValue. A raw unavailable date does not
+        // block paging, but an open contiguous range promotes the nearest
+        // barrier to an effective bound above. Read-only still permits paging.
         let previous_disabled =
-            self.is_disabled || self.constraints.out_of_range(add_days(&visible_start, -1));
+            self.is_disabled || effective_constraints.out_of_range(add_days(&visible_start, -1));
         let next_disabled =
-            self.is_disabled || self.constraints.out_of_range(add_days(&visible_end, 1));
+            self.is_disabled || effective_constraints.out_of_range(add_days(&visible_end, 1));
         let state_for_nav = self.state.clone();
         let nav_btn = |icon: &'static str,
                        target: Date,
@@ -1363,7 +1404,7 @@ impl RenderOnce for RangeCalendar {
             let state = self.state.clone();
             let on_change = self.on_change.clone();
             let on_focus = self.on_focus_change.clone();
-            let constraints = self.constraints.clone();
+            let constraints = effective_constraints.clone();
             let range_date_unavailable = self.range_date_unavailable.clone();
             let allows_non_contiguous_ranges = self.allows_non_contiguous_ranges;
             let read_only = self.is_read_only;
@@ -1416,7 +1457,6 @@ impl RenderOnce for RangeCalendar {
                             at,
                             &constraints,
                             range_date_unavailable.as_ref(),
-                            allows_non_contiguous_ranges,
                         );
                         if let Some((start, end)) = next {
                             s.start = Some(start);
@@ -1487,6 +1527,7 @@ impl RenderOnce for RangeCalendar {
                     "end" => calendar_view::section_end(duration, visible_end, at),
                     _ => return,
                 };
+                let next = constraints.constrain(next);
                 if controlled_focus.is_none() {
                     held.update(cx, |v, cx| {
                         *v = Some(next);

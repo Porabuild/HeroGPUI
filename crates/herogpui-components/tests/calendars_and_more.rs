@@ -14,8 +14,9 @@
 //!   sits at y = 74 (24px nav header + gap 8 + ~16px weekday line + gap 8 +
 //!   half a 36px cell). Rows step 38px (36 cell + 2 gap). Day *d* of a month
 //!   with `lead` leading blanks sits at `idx = d + lead - 1`, row `idx / 7`,
-//!   column `idx % 7`. Only the weekday line height is a text metric, and the
-//!   click tolerates it the same way `date_picker_close.rs` does.
+//!   column `idx % 7`. The lead follows the system locale, just like the
+//!   component. Only the weekday line height is a text metric, and the click
+//!   tolerates it the same way `date_picker_close.rs` does.
 //! - Nav buttons live in the header row: `.calendar__header` is `px-0.5`, the
 //!   buttons are `size-6`, so previous centres at (14, 12) and next at
 //!   (238, 12) inside the 252px-wide column.
@@ -44,6 +45,7 @@ mod harness;
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeSet, HashSet},
+    process::Command,
     rc::Rc,
 };
 
@@ -53,7 +55,11 @@ use gpui::{
 };
 use harness::{click, events, open_host, press};
 use herogpui_components::{
+    add_days,
     calendar::{Date, CALENDAR_WIDTH},
+    calendar_view::{
+        aligned_anchor, anchor_following_focus, linear_cells, week_start, SelectionAlignment,
+    },
     Button, Calendar, CalendarState, ColorPicker, DateConstraints, DateRangeState, Disclosure,
     DisclosureGroup, Input, InputState, PageBehavior, PickerColor, RangeCalendar, Select,
     SelectionMode, Toolbar, VisibleDuration, Weekday,
@@ -73,8 +79,8 @@ fn cal_row_y(row: usize) -> f32 {
 }
 
 /// The centre of the cell holding `day` of `(year, month)` in a bare
-/// Calendar, derived from the month's leading blanks (Monday-start default,
-/// the same `DateConstraints` the test's calendars use).
+/// Calendar, derived from the same locale-sensitive `DateConstraints` the
+/// test's calendars use.
 fn cal_day(year: i32, month: u32, day: u32) -> (f32, f32) {
     let lead = DateConstraints::new().lead_cells(year, month);
     let idx = day as usize + lead - 1;
@@ -98,6 +104,38 @@ fn range_day(year: i32, month: u32, day: u32) -> (f32, f32) {
     let lead = DateConstraints::new().lead_cells(year, month);
     let idx = day as usize + lead - 1;
     (range_col_x(idx % 7), range_row_y(idx / 7))
+}
+
+fn week_home_end_expectations(focused: Date, grid_first_day: Weekday) -> (Date, Date, Date, Date) {
+    let duration = VisibleDuration::Weeks(2);
+    let mut anchor = aligned_anchor(
+        duration,
+        SelectionAlignment::Center,
+        grid_first_day,
+        focused,
+    );
+    let cells = linear_cells(duration, grid_first_day, anchor);
+    let home = week_start(focused, Weekday::default());
+    anchor = anchor_following_focus(
+        duration,
+        grid_first_day,
+        anchor,
+        cells[0],
+        cells[cells.len() - 1],
+        home,
+    );
+    let anchor_after_home = anchor;
+    let cells = linear_cells(duration, grid_first_day, anchor);
+    let end = add_days(&home, 6);
+    anchor = anchor_following_focus(
+        duration,
+        grid_first_day,
+        anchor,
+        cells[0],
+        cells[cells.len() - 1],
+        end,
+    );
+    (home, end, anchor_after_home, anchor)
 }
 
 /// One forced redraw, so a keyed flag change is visible to the next probe.
@@ -305,7 +343,12 @@ fn calendar_week_page_keys_move_one_week_and_shift_moves_one_month(cx: &mut Test
     );
     assert_eq!(
         cx.update(|_, cx| state.read(cx).anchor()),
-        Date::new(2026, 9, 7),
+        aligned_anchor(
+            VisibleDuration::Weeks(2),
+            SelectionAlignment::End,
+            Weekday::default(),
+            Date::new(2026, 9, 15),
+        ),
         "the two-week window must realign at the edge focus crossed"
     );
 }
@@ -407,13 +450,25 @@ fn range_calendar_week_page_keys_realign_at_the_visible_boundary(cx: &mut TestAp
     );
     assert_eq!(
         cx.update(|_, cx| state.read(cx).anchor()),
-        Date::new(2026, 9, 21),
+        aligned_anchor(
+            VisibleDuration::Weeks(2),
+            SelectionAlignment::Start,
+            Weekday::default(),
+            Date::new(2026, 9, 22),
+        ),
         "focus beyond the two-week range must realign it at the start"
     );
 }
 
 #[gpui::test]
 fn calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
+    let grid_first_day = if Weekday::default() == Weekday::Mon {
+        Weekday::Sun
+    } else {
+        Weekday::Mon
+    };
+    let (home, end, anchor_after_home, anchor_after_end) =
+        week_home_end_expectations(Date::new(2026, 8, 15), grid_first_day);
     let focuses = events();
     let focused = focuses.clone();
     let state = cx.new(|cx| CalendarState::new(cx));
@@ -423,7 +478,7 @@ fn calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
         Calendar::new(state_for_view.clone())
             .default_value(Date::new(2026, 8, 15))
             .visible_duration(VisibleDuration::Weeks(2))
-            .first_day_of_week(Weekday::Mon)
+            .first_day_of_week(grid_first_day)
             .on_focus_change(move |date, _, _| {
                 focuses.borrow_mut().push(date.format_iso());
             })
@@ -434,19 +489,70 @@ fn calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
     press(cx, "home");
     assert_eq!(
         cx.update(|_, cx| state.read(cx).anchor()),
-        Date::new(2026, 7, 27),
-        "the Monday-first grid must realign so the locale Sunday remains visible"
+        anchor_after_home,
+        "a non-locale grid override must realign so the locale week start remains visible"
     );
     press(cx, "end");
     assert_eq!(
         focused.borrow().as_slice(),
-        ["2026-08-09", "2026-08-15"],
-        "week section bounds use the en-US locale week even when the grid overrides its first day"
+        [home.format_iso(), end.format_iso()],
+        "week section bounds use the system locale even when the grid overrides its first day"
     );
     assert_eq!(
         cx.update(|_, cx| state.read(cx).anchor()),
-        Date::new(2026, 8, 10),
+        anchor_after_end,
         "End must realign the grid forward after the locale week crosses its visible edge"
+    );
+}
+
+#[gpui::test]
+fn calendar_week_home_end_follow_a_non_sunday_time_locale(cx: &mut TestAppContext) {
+    const CHILD: &str = "HEROGPUI_NON_SUNDAY_TIME_LOCALE_TEST";
+    if std::env::var_os(CHILD).is_none() {
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "calendar_week_home_end_follow_a_non_sunday_time_locale",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .env_remove("LC_ALL")
+            .env("LC_TIME", "de_DE.UTF-8")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "non-Sunday locale child failed:\n{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        return;
+    }
+
+    assert_eq!(Weekday::default(), Weekday::Mon);
+    let focuses = events();
+    let focused = focuses.clone();
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state;
+    let cx = open_host(cx, move || {
+        let focuses = focuses.clone();
+        Calendar::new(state_for_view.clone())
+            .default_value(Date::new(2026, 8, 15))
+            .visible_duration(VisibleDuration::Weeks(2))
+            .first_day_of_week(Weekday::Sun)
+            .on_focus_change(move |date, _, _| {
+                focuses.borrow_mut().push(date.format_iso());
+            })
+            .into_any_element()
+    });
+
+    press(cx, "tab");
+    press(cx, "home");
+    press(cx, "end");
+    assert_eq!(
+        focused.borrow().as_slice(),
+        ["2026-08-10", "2026-08-16"],
+        "LC_TIME must determine the week bounds independently of the Sunday grid override"
     );
 }
 
@@ -478,6 +584,13 @@ fn calendar_day_home_end_use_the_visible_window(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn range_calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
+    let grid_first_day = if Weekday::default() == Weekday::Mon {
+        Weekday::Sun
+    } else {
+        Weekday::Mon
+    };
+    let (home, end, anchor_after_home, anchor_after_end) =
+        week_home_end_expectations(Date::new(2026, 8, 15), grid_first_day);
     let focuses = events();
     let focused = focuses.clone();
     let state = cx.new(|cx| DateRangeState::new(cx));
@@ -487,7 +600,7 @@ fn range_calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
         RangeCalendar::new(state_for_view.clone())
             .default_value((Date::new(2026, 8, 15), Date::new(2026, 8, 16)))
             .visible_duration(VisibleDuration::Weeks(2))
-            .first_day_of_week(Weekday::Mon)
+            .first_day_of_week(grid_first_day)
             .on_focus_change(move |date, _, _| {
                 focuses.borrow_mut().push(date.format_iso());
             })
@@ -498,18 +611,18 @@ fn range_calendar_week_home_end_use_the_locale_week(cx: &mut TestAppContext) {
     press(cx, "home");
     assert_eq!(
         cx.update(|_, cx| state.read(cx).anchor()),
-        Date::new(2026, 7, 27),
+        anchor_after_home,
         "RangeCalendar must keep the locale-week Home target visible"
     );
     press(cx, "end");
     assert_eq!(
         focused.borrow().as_slice(),
-        ["2026-08-09", "2026-08-15"],
+        [home.format_iso(), end.format_iso()],
         "RangeCalendar must share Calendar's locale-week section bounds"
     );
     assert_eq!(
         cx.update(|_, cx| state.read(cx).anchor()),
-        Date::new(2026, 8, 10),
+        anchor_after_end,
         "RangeCalendar must realign again when End crosses the visible edge"
     );
 }

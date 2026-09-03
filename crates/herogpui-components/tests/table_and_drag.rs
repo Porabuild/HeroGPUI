@@ -106,6 +106,15 @@ fn probe_cell(
         .into_any_element()
 }
 
+fn resize_event(stage: &str, widths: &[(SharedString, gpui::Pixels)]) -> String {
+    let widths = widths
+        .iter()
+        .map(|(column, width)| format!("{column}={:.0}", f32::from(*width)))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("{stage}:{widths}")
+}
+
 /// Pushes the pending frame through. Mouse events are dispatched outside an
 /// `App::update`, so a `cx.notify()` from a handler only marks the window
 /// dirty; the test platform draws it at the end of the next update. Call
@@ -544,10 +553,10 @@ fn table_column_resize_drag_changes_width(cx: &mut TestAppContext) {
 
     // Drag column 0's trailing-edge handle from x 160 to x 200. The handle is
     // `absolute right(-8) w(17)`, so it spans x 151..168; the table's move
-    // handler adds the 40px delta to the column's 160px width. Widths are
-    // internal keyed state (no callback), so the probe after is behavioural:
-    // the same click that landed in column two must now land in column one
-    // (0..200), whose cell content ends at x 184.
+    // handler adds the 40px delta to the column's 160px width. The probe after
+    // is behavioural: the same click that landed in column two must now land
+    // in column one (0..200), whose cell content ends at x 184. The lifecycle
+    // callback path is covered separately below; this proves committed geometry.
     drag(cx, (160., 18.), (200., 18.));
     assert_eq!(
         recorded.borrow().as_slice(),
@@ -561,6 +570,168 @@ fn table_column_resize_drag_changes_width(cx: &mut TestAppContext) {
         ["cell-b", "cell-a"],
         "after dragging the boundary 40px right, a click at x=180 that used \
          to land in column two must land in column one"
+    );
+}
+
+#[gpui::test]
+fn table_column_resize_reports_pointer_lifecycle_outside_bounds(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let on_start = for_view.clone();
+        let on_resize = for_view.clone();
+        let on_end = for_view.clone();
+        Table::new(vec![])
+            .id("tbl-resize-lifecycle")
+            .columns(vec![
+                TableColumn::new("Name")
+                    .allows_resizing(true)
+                    .default_width(px(160.)),
+                TableColumn::new("Size")
+                    .allows_resizing(true)
+                    .default_width(px(160.)),
+            ])
+            .row(vec![tall_cell("A"), tall_cell("B")])
+            .on_resize_start(move |widths, _, _| {
+                on_start.borrow_mut().push(resize_event("start", widths));
+            })
+            .on_resize(move |widths, _, _| {
+                on_resize.borrow_mut().push(resize_event("resize", widths));
+            })
+            .on_resize_end(move |widths, _, _| {
+                on_end.borrow_mut().push(resize_event("end", widths));
+            })
+            .into_any_element()
+    });
+
+    // y=500 is below the table, so only the paint-time window listeners can
+    // observe the move and release and pair the lifecycle callbacks.
+    drag(cx, (160., 18.), (200., 500.));
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [
+            "start:Name=160,Size=160",
+            "resize:Name=200,Size=160",
+            "end:Name=200,Size=160",
+        ]
+    );
+}
+
+#[gpui::test]
+fn table_column_controlled_width_reports_without_mutating_layout(cx: &mut TestAppContext) {
+    let probes = events();
+    let resize_events = events();
+    let probes_for_view = probes.clone();
+    let resize_for_view = resize_events.clone();
+    let cx = open_host(cx, move || {
+        let probes = probes_for_view.clone();
+        let on_start = resize_for_view.clone();
+        let on_resize = resize_for_view.clone();
+        let on_end = resize_for_view.clone();
+        Table::new(vec![])
+            .id("tbl-resize-controlled")
+            .columns(vec![
+                TableColumn::new("Name")
+                    .allows_resizing(true)
+                    .width(px(160.)),
+                TableColumn::new("Size")
+                    .allows_resizing(true)
+                    .width(px(160.)),
+            ])
+            .row(vec![
+                probe_cell("resize-controlled-a0", "cell-a", probes.clone()),
+                probe_cell("resize-controlled-b0", "cell-b", probes),
+            ])
+            .on_resize_start(move |widths, _, _| {
+                on_start.borrow_mut().push(resize_event("start", widths));
+            })
+            .on_resize(move |widths, _, _| {
+                on_resize.borrow_mut().push(resize_event("resize", widths));
+            })
+            .on_resize_end(move |widths, _, _| {
+                on_end.borrow_mut().push(resize_event("end", widths));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 190., 90.);
+    assert_eq!(probes.borrow().as_slice(), ["cell-b"]);
+    press(cx, "tab enter right enter");
+    flush_frame(cx);
+    assert_eq!(
+        resize_events.borrow().as_slice(),
+        [
+            "start:Name=160,Size=160",
+            "resize:Name=170,Size=160",
+            "end:Name=170,Size=160",
+        ]
+    );
+    resize_events.borrow_mut().clear();
+
+    // A second session with no arrow must report the caller-owned 160px, not
+    // the prior session's rejected 170px proposal.
+    press(cx, "enter enter");
+    assert_eq!(
+        resize_events.borrow().as_slice(),
+        ["start:Name=160,Size=160", "end:Name=160,Size=160"]
+    );
+
+    click(cx, 190., 90.);
+    assert_eq!(
+        probes.borrow().as_slice(),
+        ["cell-b", "cell-b"],
+        "without controlled feedback, the requested width must not change layout"
+    );
+}
+
+#[gpui::test]
+fn table_pointer_resize_ends_active_keyboard_session(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let on_start = for_view.clone();
+        let on_resize = for_view.clone();
+        let on_end = for_view.clone();
+        Table::new(vec![])
+            .id("tbl-resize-modality")
+            .columns(vec![
+                TableColumn::new("Name")
+                    .allows_resizing(true)
+                    .default_width(px(160.)),
+                TableColumn::new("Size")
+                    .allows_resizing(true)
+                    .default_width(px(160.)),
+            ])
+            .row(vec![tall_cell("A"), tall_cell("B")])
+            .on_resize_start(move |widths, _, _| {
+                on_start.borrow_mut().push(resize_event("start", widths));
+            })
+            .on_resize(move |widths, _, _| {
+                on_resize.borrow_mut().push(resize_event("resize", widths));
+            })
+            .on_resize_end(move |widths, _, _| {
+                on_end.borrow_mut().push(resize_event("end", widths));
+            })
+            .into_any_element()
+    });
+
+    click(cx, 200., 90.);
+    press(cx, "tab enter");
+    drag(cx, (160., 18.), (200., 18.));
+    press(cx, "enter enter");
+
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        [
+            "start:Name=160,Size=160",
+            "end:Name=160,Size=160",
+            "start:Name=160,Size=160",
+            "resize:Name=200,Size=160",
+            "end:Name=200,Size=160",
+            "start:Name=200,Size=160",
+            "end:Name=200,Size=160",
+        ],
+        "pointer resizing must finish keyboard edit mode before starting its own session"
     );
 }
 

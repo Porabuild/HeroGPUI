@@ -21,6 +21,7 @@ type OnRowClick = std::sync::Arc<dyn Fn(usize, &ClickEvent, &mut Window, &mut Ap
 type OnSelectionChange = std::sync::Arc<dyn Fn(&[SharedString], &mut Window, &mut App) + 'static>;
 type OnSortChange = std::sync::Arc<dyn Fn(SortDescriptor, &mut Window, &mut App) + 'static>;
 type OnLoadMore = std::sync::Arc<dyn Fn(&mut Window, &mut App) + 'static>;
+type OnResize = std::sync::Arc<dyn Fn(&[(SharedString, Pixels)], &mut Window, &mut App) + 'static>;
 type VirtualRowKey = std::sync::Arc<dyn Fn(usize) -> SharedString + 'static>;
 type VirtualRow = std::sync::Arc<dyn Fn(usize) -> TableRow + 'static>;
 type VirtualRowText = std::sync::Arc<dyn Fn(usize) -> SharedString + 'static>;
@@ -118,9 +119,11 @@ pub struct TableColumn {
     /// `allowsResizing` — whether a handle on this column's trailing edge
     /// resizes it.
     allows_resizing: bool,
-    /// `defaultWidth` — a fixed column width. Without one the column shares the
-    /// row evenly, which is what `flex-1` does.
+    /// `width` — a caller-owned controlled column width.
     width: Option<Pixels>,
+    /// `defaultWidth` — the uncontrolled starting width. Without one the
+    /// column shares the row evenly, which is what `flex-1` does.
+    default_width: Option<Pixels>,
     /// `minWidth` — the column's floor.
     min_width: Option<Pixels>,
     /// `maxWidth` — the column's ceiling.
@@ -135,6 +138,7 @@ impl TableColumn {
             is_row_header: false,
             allows_resizing: false,
             width: None,
+            default_width: None,
             min_width: None,
             max_width: None,
         }
@@ -149,6 +153,12 @@ impl TableColumn {
     /// `defaultWidth` — the column's starting width, which a resize handle then
     /// moves.
     pub fn default_width(mut self, width: impl Into<Pixels>) -> Self {
+        self.default_width = Some(width.into());
+        self
+    }
+
+    /// `width` — the caller-owned controlled width of this column.
+    pub fn width(mut self, width: impl Into<Pixels>) -> Self {
         self.width = Some(width.into());
         self
     }
@@ -550,6 +560,9 @@ pub struct Table {
     on_selection_change: Option<OnSelectionChange>,
     on_sort_change: Option<OnSortChange>,
     on_load_more: Option<OnLoadMore>,
+    on_resize_start: Option<OnResize>,
+    on_resize: Option<OnResize>,
+    on_resize_end: Option<OnResize>,
 }
 
 impl Table {
@@ -586,6 +599,9 @@ impl Table {
             on_selection_change: None,
             on_sort_change: None,
             on_load_more: None,
+            on_resize_start: None,
+            on_resize: None,
+            on_resize_end: None,
         }
     }
 
@@ -859,6 +875,37 @@ impl Table {
         self
     }
 
+    /// `onResizeStart` on `Table.ResizableContainer` — reports the current
+    /// pixel widths when pointer or keyboard resizing begins.
+    pub fn on_resize_start(
+        mut self,
+        f: impl Fn(&[(SharedString, Pixels)], &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_resize_start = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// `onResize` on `Table.ResizableContainer` — reports each proposed width
+    /// map. Feed the values back through [`TableColumn::width`] for controlled
+    /// resizing.
+    pub fn on_resize(
+        mut self,
+        f: impl Fn(&[(SharedString, Pixels)], &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_resize = Some(std::sync::Arc::new(f));
+        self
+    }
+
+    /// `onResizeEnd` on `Table.ResizableContainer` — reports the final pixel
+    /// widths after pointer or keyboard resizing ends.
+    pub fn on_resize_end(
+        mut self,
+        f: impl Fn(&[(SharedString, Pixels)], &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_resize_end = Some(std::sync::Arc::new(f));
+        self
+    }
+
     /// `Table.Footer` — a row under the body, which is where v3 puts a table's
     /// pagination.
     pub fn footer(mut self, content: impl IntoElement) -> Self {
@@ -932,6 +979,70 @@ fn filtered_selectable_keys(
             .cloned()
             .collect(),
     )
+}
+
+fn resolved_column_widths(
+    columns: &[TableColumn],
+    resized: &[Option<Pixels>],
+    measured: &[Option<Pixels>],
+    proposal: Option<(usize, Pixels)>,
+) -> Vec<(SharedString, Pixels)> {
+    columns
+        .iter()
+        .enumerate()
+        .filter_map(|(index, column)| {
+            let width = proposal
+                .filter(|(proposed_index, _)| *proposed_index == index)
+                .map(|(_, width)| width)
+                .or(column.width)
+                .or_else(|| resized.get(index).copied().flatten())
+                .or(column.default_width)
+                .or_else(|| measured.get(index).copied().flatten())?;
+            let width = if column.allows_resizing {
+                let min = column.min_width.map_or(DEFAULT_COLUMN_MIN_WIDTH, f32::from);
+                let max = column.max_width.map_or(f32::MAX, f32::from);
+                px(f32::from(width).floor().min(max).max(min))
+            } else {
+                width
+            };
+            Some((column.label.clone(), width))
+        })
+        .collect()
+}
+
+fn final_column_widths(
+    columns: &[TableColumn],
+    resized: &[Option<Pixels>],
+    measured: &[Option<Pixels>],
+    column: usize,
+) -> Vec<(SharedString, Pixels)> {
+    let proposal = resized
+        .get(column)
+        .copied()
+        .flatten()
+        .map(|width| (column, width));
+    resolved_column_widths(columns, resized, measured, proposal)
+}
+
+fn clear_controlled_resize_proposal(
+    columns: &[TableColumn],
+    resized: &gpui::Entity<Vec<Option<Pixels>>>,
+    column: usize,
+    cx: &mut App,
+) {
+    if columns
+        .get(column)
+        .is_some_and(|column| column.width.is_some())
+    {
+        resized.update(cx, |values, cx| {
+            if values
+                .get_mut(column)
+                .is_some_and(|width| width.take().is_some())
+            {
+                cx.notify();
+            }
+        });
+    }
 }
 
 impl RenderOnce for Table {
@@ -1247,11 +1358,13 @@ impl RenderOnce for Table {
             .iter()
             .enumerate()
             .map(|(column_index, column)| {
-                let width = resized_now
-                    .get(column_index)
-                    .copied()
-                    .flatten()
-                    .or(column.width);
+                let width = column.width.or_else(|| {
+                    resized_now
+                        .get(column_index)
+                        .copied()
+                        .flatten()
+                        .or(column.default_width)
+                });
                 if column.allows_resizing {
                     let (min, max) = resize_limits[column_index];
                     width.map(|width| px(f32::from(width).floor().min(max).max(min)))
@@ -1276,6 +1389,8 @@ impl RenderOnce for Table {
                 }
             })
             .collect();
+        let resize_columns = std::sync::Arc::new(self.columns.clone());
+        let resize_measurements = std::sync::Arc::new(measured_widths_now.clone());
         let colors = cx.colors();
         // Copies of the tokens the tail needs: the row builder borrows `cx`
         // mutably, which ends the borrow `cx.colors()` holds.
@@ -1508,8 +1623,12 @@ impl RenderOnce for Table {
                     .unwrap_or(px(160.));
                 let keyboard = keyboard_resizing.clone();
                 let keyboard_out = keyboard.clone();
+                let keyboard_for_pointer = keyboard.clone();
                 let widths = resized.clone();
+                let widths_for_pointer = widths.clone();
+                let widths_for_outside = widths.clone();
                 let (min_width, max_width) = resize_limits[column_index];
+                let controlled = column.width.is_some();
                 let focus_for_mouse = resize_focus[column_index]
                     .as_ref()
                     .expect("resizable columns have a focus handle")
@@ -1520,6 +1639,18 @@ impl RenderOnce for Table {
                 let is_resizing = drag_now.is_some_and(|(index, _, _)| index == column_index)
                     || keyboard_resize_now == Some(column_index);
                 let measured = measured_widths.clone();
+                let columns_for_pointer = resize_columns.clone();
+                let columns_for_outside = resize_columns.clone();
+                let columns_for_keys = resize_columns.clone();
+                let measurements_for_pointer = resize_measurements.clone();
+                let measurements_for_outside = resize_measurements.clone();
+                let measurements_for_keys = resize_measurements.clone();
+                let resize_start_for_pointer = self.on_resize_start.clone();
+                let resize_start_for_keys = self.on_resize_start.clone();
+                let resize_for_keys = self.on_resize.clone();
+                let resize_end_for_pointer = self.on_resize_end.clone();
+                let resize_end_for_outside = self.on_resize_end.clone();
+                let resize_end_for_keys = self.on_resize_end.clone();
                 gpui::div()
                     .relative()
                     .when(effective.is_none(), flex_cell)
@@ -1589,42 +1720,135 @@ impl RenderOnce for Table {
                             .cursor(gpui::CursorStyle::ResizeLeftRight)
                             .on_mouse_down(gpui::MouseButton::Left, move |ev, window, cx| {
                                 window.focus(&focus_for_mouse);
+                                if let Some(active_column) = *keyboard_for_pointer.read(cx) {
+                                    let current = final_column_widths(
+                                        &columns_for_pointer,
+                                        widths_for_pointer.read(cx),
+                                        &measurements_for_pointer,
+                                        active_column,
+                                    );
+                                    keyboard_for_pointer.update(cx, |active, _| *active = None);
+                                    clear_controlled_resize_proposal(
+                                        &columns_for_pointer,
+                                        &widths_for_pointer,
+                                        active_column,
+                                        cx,
+                                    );
+                                    if let Some(callback) = &resize_end_for_pointer {
+                                        callback(&current, window, cx);
+                                    }
+                                }
+                                clear_controlled_resize_proposal(
+                                    &columns_for_pointer,
+                                    &widths_for_pointer,
+                                    column_index,
+                                    cx,
+                                );
+                                if let Some(callback) = &resize_start_for_pointer {
+                                    let current = resolved_column_widths(
+                                        &columns_for_pointer,
+                                        widths_for_pointer.read(cx),
+                                        &measurements_for_pointer,
+                                        None,
+                                    );
+                                    callback(&current, window, cx);
+                                }
                                 let x = f32::from(ev.position.x);
                                 held.update(cx, |v, _| {
                                     *v = Some((column_index, x, f32::from(start_width)));
                                 });
                             })
-                            .on_mouse_down_out(move |_, _, cx| {
+                            .on_mouse_down_out(move |_, window, cx| {
                                 if *keyboard_out.read(cx) == Some(column_index) {
+                                    let current = final_column_widths(
+                                        &columns_for_outside,
+                                        widths_for_outside.read(cx),
+                                        &measurements_for_outside,
+                                        column_index,
+                                    );
                                     keyboard_out.update(cx, |active, cx| {
                                         *active = None;
                                         cx.notify();
                                     });
+                                    clear_controlled_resize_proposal(
+                                        &columns_for_outside,
+                                        &widths_for_outside,
+                                        column_index,
+                                        cx,
+                                    );
+                                    if let Some(callback) = &resize_end_for_outside {
+                                        callback(&current, window, cx);
+                                    }
                                 }
                             })
-                            .on_key_down(move |event, _window, cx| {
+                            .on_key_down(move |event, window, cx| {
                                 let key = event.keystroke.key.as_str();
                                 let editing = *keyboard.read(cx) == Some(column_index);
                                 match key {
                                     "enter" => {
-                                        keyboard.update(cx, |active, cx| {
-                                            *active = if editing { None } else { Some(column_index) };
-                                            cx.notify();
-                                        });
+                                        if editing {
+                                            let current = final_column_widths(
+                                                &columns_for_keys,
+                                                widths.read(cx),
+                                                &measurements_for_keys,
+                                                column_index,
+                                            );
+                                            keyboard.update(cx, |active, cx| {
+                                                *active = None;
+                                                cx.notify();
+                                            });
+                                            clear_controlled_resize_proposal(
+                                                &columns_for_keys,
+                                                &widths,
+                                                column_index,
+                                                cx,
+                                            );
+                                            if let Some(callback) = &resize_end_for_keys {
+                                                callback(&current, window, cx);
+                                            }
+                                        } else {
+                                            clear_controlled_resize_proposal(
+                                                &columns_for_keys,
+                                                &widths,
+                                                column_index,
+                                                cx,
+                                            );
+                                            let current = resolved_column_widths(
+                                                &columns_for_keys,
+                                                widths.read(cx),
+                                                &measurements_for_keys,
+                                                None,
+                                            );
+                                            keyboard.update(cx, |active, cx| {
+                                                *active = Some(column_index);
+                                                cx.notify();
+                                            });
+                                            if let Some(callback) = &resize_start_for_keys {
+                                                callback(&current, window, cx);
+                                            }
+                                        }
                                         cx.stop_propagation();
                                     }
-                                    "escape" | "space" if editing => {
+                                    "escape" | "space" | "tab" if editing => {
+                                        let current = final_column_widths(
+                                            &columns_for_keys,
+                                            widths.read(cx),
+                                            &measurements_for_keys,
+                                            column_index,
+                                        );
                                         keyboard.update(cx, |active, cx| {
                                             *active = None;
                                             cx.notify();
                                         });
-                                        cx.stop_propagation();
-                                    }
-                                    "tab" if editing => {
-                                        keyboard.update(cx, |active, cx| {
-                                            *active = None;
-                                            cx.notify();
-                                        });
+                                        clear_controlled_resize_proposal(
+                                            &columns_for_keys,
+                                            &widths,
+                                            column_index,
+                                            cx,
+                                        );
+                                        if let Some(callback) = &resize_end_for_keys {
+                                            callback(&current, window, cx);
+                                        }
                                         cx.stop_propagation();
                                     }
                                     "right" | "up" | "left" | "down" if editing => {
@@ -1633,18 +1857,33 @@ impl RenderOnce for Table {
                                         } else {
                                             -10.
                                         };
+                                        let mut proposed = start_width;
                                         widths.update(cx, |values, cx| {
                                             if values.len() <= column_index {
                                                 values.resize(column_index + 1, None);
                                             }
-                                            let current = values[column_index].unwrap_or(start_width);
+                                            let current = if controlled {
+                                                start_width
+                                            } else {
+                                                values[column_index].unwrap_or(start_width)
+                                            };
                                             let next = (f32::from(current) + delta)
                                                 .floor()
                                                 .min(max_width)
                                                 .max(min_width);
-                                            values[column_index] = Some(px(next));
+                                            proposed = px(next);
+                                            values[column_index] = Some(proposed);
                                             cx.notify();
                                         });
+                                        if let Some(callback) = &resize_for_keys {
+                                            let current = resolved_column_widths(
+                                                &columns_for_keys,
+                                                widths.read(cx),
+                                                &measurements_for_keys,
+                                                Some((column_index, proposed)),
+                                            );
+                                            callback(&current, window, cx);
+                                        }
                                         cx.stop_propagation();
                                     }
                                     _ => {}
@@ -1669,34 +1908,106 @@ impl RenderOnce for Table {
                 .overflow_hidden();
         }
 
-        // The drag itself: the pointer can leave the handle, so the table
-        // watches the move and the release.
+        // The drag itself: the pointer can leave the table, so paint-time
+        // window listeners own the move and release until the drag ends.
         if resizable {
             let held = dragging.clone();
             let held_up = dragging;
             let widths = resized;
-            table = table
-                .on_mouse_move(move |ev, _window, cx| {
-                    let Some((column, from_x, from_w)) = *held.read(cx) else {
-                        return;
-                    };
-                    let raw = (from_w + f32::from(ev.position.x) - from_x).floor();
-                    widths.update(cx, |v, cx| {
-                        if v.len() <= column {
-                            v.resize(column + 1, None);
-                        }
-                        v[column] = Some(px(raw));
-                        cx.notify();
-                    });
-                })
-                .on_mouse_up(gpui::MouseButton::Left, move |_, _window, cx| {
-                    if held_up.read(cx).is_some() {
-                        held_up.update(cx, |v, cx| {
-                            *v = None;
-                            cx.notify();
-                        });
-                    }
-                });
+            let widths_up = widths.clone();
+            let columns_for_move = resize_columns.clone();
+            let columns_for_up = resize_columns;
+            let measurements_for_move = resize_measurements.clone();
+            let measurements_for_up = resize_measurements;
+            let resize_callback = self.on_resize.clone();
+            let resize_end_callback = self.on_resize_end.clone();
+            table = table.relative().child(
+                gpui::canvas(
+                    |bounds, _, _| bounds,
+                    move |_, _, window, _| {
+                        let held = held.clone();
+                        let widths = widths.clone();
+                        let columns_for_move = columns_for_move.clone();
+                        let measurements_for_move = measurements_for_move.clone();
+                        let resize_callback = resize_callback.clone();
+                        window.on_mouse_event(
+                            move |event: &gpui::MouseMoveEvent, phase, window, cx| {
+                                if phase != gpui::DispatchPhase::Capture
+                                    || event.pressed_button != Some(gpui::MouseButton::Left)
+                                {
+                                    return;
+                                }
+                                let Some((column, from_x, from_w)) = *held.read(cx) else {
+                                    return;
+                                };
+                                let raw = (from_w + f32::from(event.position.x) - from_x).floor();
+                                let min = columns_for_move[column]
+                                    .min_width
+                                    .map_or(DEFAULT_COLUMN_MIN_WIDTH, f32::from);
+                                let max = columns_for_move[column]
+                                    .max_width
+                                    .map_or(f32::MAX, f32::from);
+                                let proposed = px(raw.min(max).max(min));
+                                widths.update(cx, |values, cx| {
+                                    if values.len() <= column {
+                                        values.resize(column + 1, None);
+                                    }
+                                    values[column] = Some(proposed);
+                                    cx.notify();
+                                });
+                                if let Some(callback) = &resize_callback {
+                                    let current = resolved_column_widths(
+                                        &columns_for_move,
+                                        widths.read(cx),
+                                        &measurements_for_move,
+                                        Some((column, proposed)),
+                                    );
+                                    callback(&current, window, cx);
+                                }
+                            },
+                        );
+
+                        let held_up = held_up.clone();
+                        let widths_up = widths_up.clone();
+                        let columns_for_up = columns_for_up.clone();
+                        let measurements_for_up = measurements_for_up.clone();
+                        let resize_end_callback = resize_end_callback.clone();
+                        window.on_mouse_event(
+                            move |event: &gpui::MouseUpEvent, phase, window, cx| {
+                                if phase != gpui::DispatchPhase::Capture
+                                    || event.button != gpui::MouseButton::Left
+                                {
+                                    return;
+                                }
+                                let drag = *held_up.read(cx);
+                                if let Some((column, _, _)) = drag {
+                                    let current = final_column_widths(
+                                        &columns_for_up,
+                                        widths_up.read(cx),
+                                        &measurements_for_up,
+                                        column,
+                                    );
+                                    held_up.update(cx, |value, cx| {
+                                        *value = None;
+                                        cx.notify();
+                                    });
+                                    clear_controlled_resize_proposal(
+                                        &columns_for_up,
+                                        &widths_up,
+                                        column,
+                                        cx,
+                                    );
+                                    if let Some(callback) = &resize_end_callback {
+                                        callback(&current, window, cx);
+                                    }
+                                }
+                            },
+                        );
+                    },
+                )
+                .absolute()
+                .inset_0(),
+            );
         }
         // ---- rows --------------------------------------------------------
         // Depth-first, and only through the parents that are open: a nested row

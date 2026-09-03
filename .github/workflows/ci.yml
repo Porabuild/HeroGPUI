@@ -52,6 +52,10 @@ jobs:
       - name: Format check
         run: cargo fmt --all -- --check
 
+      - name: Component gallery sync
+        working-directory: web
+        run: npm run extract:check
+
       - name: Lint gate (workspace lints, clippy -D warnings, cargo-deny)
         shell: pwsh
         run: .shots/lint.ps1

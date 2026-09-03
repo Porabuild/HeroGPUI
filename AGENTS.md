@@ -42,3 +42,18 @@ CI-shaped set for release-facing code changes or an explicit request.
 
 `llms.txt` is the public component API reference. It supplements the
 task guides; it does not replace reading the implementation and tests.
+
+## Keep component surfaces in sync
+
+When a component's public API, behavior, reference status, or gallery example
+changes, update the complete affected surface in the same change:
+
+- the implementation and focused behavior tests under
+  `crates/herogpui-components/`;
+- the matching Rust gallery example and `reference_metadata.rs` entry;
+- `llms.txt` when the public Rust API or behavior changed; and
+- the generated website component data in `web/src/data/reference.json` and
+  `web/src/data/rust-examples.json`.
+
+Regenerate both website datasets from `web/` with `pnpm run extract`, then
+verify both with `pnpm run extract:check`. Do not hand-edit those JSON outputs.

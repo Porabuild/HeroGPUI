@@ -91,7 +91,7 @@
 
 mod harness;
 
-use std::collections::HashSet;
+use std::{cell::Cell, collections::HashSet, rc::Rc};
 
 use gpui::{
     prelude::*, px, Font, FontFeatures, FontStyle, FontWeight, SharedString, TestAppContext,
@@ -655,6 +655,111 @@ fn disclosure_default_expanded_seeds_uncontrolled_state(cx: &mut TestAppContext)
         probes.borrow().as_slice(),
         ["body"],
         "the default seed must not be reapplied after the disclosure closes"
+    );
+}
+
+#[gpui::test]
+fn disclosure_content_render_prop_receives_live_expanded_state(cx: &mut TestAppContext) {
+    let rendered = events();
+    let observed = rendered.clone();
+    let cx = open_host(cx, move || {
+        let rendered = rendered.clone();
+        Disclosure::new("nav-render-disclosure", "Details")
+            .content(move |state| {
+                rendered.borrow_mut().push(format!(
+                    "expanded:{} disabled:{}",
+                    state.is_expanded, state.is_disabled
+                ));
+                gpui::div().h(px(36.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        observed.borrow().last().map(String::as_str),
+        Some("expanded:false disabled:false")
+    );
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    assert_eq!(
+        observed.borrow().last().map(String::as_str),
+        Some("expanded:true disabled:false"),
+        "the render closure must receive the disclosure's updated owned state"
+    );
+}
+
+#[gpui::test]
+fn disclosure_content_render_prop_waits_for_controlled_owner_feedback(cx: &mut TestAppContext) {
+    let owner = Rc::new(Cell::new(true));
+    let owner_for_view = owner.clone();
+    let rendered = events();
+    let observed = rendered.clone();
+    let changes = events();
+    let proposed = changes.clone();
+    let cx = open_host(cx, move || {
+        let rendered = rendered.clone();
+        let changes = changes.clone();
+        Disclosure::new("nav-render-controlled-disclosure", "Details")
+            .is_expanded(owner_for_view.get())
+            .on_expanded_change(move |expanded, _, _| {
+                changes.borrow_mut().push(expanded.to_string());
+            })
+            .content(move |state| {
+                rendered.borrow_mut().push(state.is_expanded.to_string());
+                gpui::div().h(px(36.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(observed.borrow().last().map(String::as_str), Some("true"));
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    assert_eq!(proposed.borrow().as_slice(), ["false"]);
+    assert_eq!(
+        observed.borrow().last().map(String::as_str),
+        Some("true"),
+        "the render closure must keep the controlled owner value after an unaccepted proposal"
+    );
+
+    owner.set(false);
+    flush_frame(cx);
+    assert_eq!(
+        observed.borrow().last().map(String::as_str),
+        Some("false"),
+        "the render closure must update once the owner feeds the proposed value back"
+    );
+}
+
+#[gpui::test]
+fn disclosure_content_render_prop_receives_disabled_state(cx: &mut TestAppContext) {
+    let rendered = events();
+    let observed = rendered.clone();
+    let cx = open_host(cx, move || {
+        let rendered = rendered.clone();
+        Disclosure::new("nav-render-disabled-disclosure", "Details")
+            .is_disabled(true)
+            .content(move |state| {
+                rendered.borrow_mut().push(format!(
+                    "expanded:{} disabled:{}",
+                    state.is_expanded, state.is_disabled
+                ));
+                gpui::div().h(px(36.)).into_any_element()
+            })
+            .into_any_element()
+    });
+
+    assert_eq!(
+        observed.borrow().last().map(String::as_str),
+        Some("expanded:false disabled:true")
+    );
+    click(cx, 60., 18.);
+    flush_frame(cx);
+    assert!(
+        observed
+            .borrow()
+            .iter()
+            .all(|state| state == "expanded:false disabled:true"),
+        "a disabled trigger must not propose an expanded render state"
     );
 }
 
