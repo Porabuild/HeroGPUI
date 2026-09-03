@@ -9,13 +9,14 @@ mod harness;
 
 use std::{
     cell::{Cell, RefCell},
+    process::Command,
     rc::Rc,
 };
 
 use gpui::{prelude::*, TestAppContext, VisualTestContext};
 use herogpui_components::{
-    CalendarState, Date, DateField, DatePicker, DateRangePicker, DateRangeState, DateSegment, Form,
-    InputState, ValidationBehavior,
+    CalendarState, Date, DateField, DatePicker, DateRangePicker, DateRangeState, DateSegment,
+    FieldSegment, Form, Granularity, HourCycle, InputState, TimeSegment, ValidationBehavior,
 };
 
 use harness::{click, events, open_host, press};
@@ -28,7 +29,7 @@ fn refresh(cx: &mut VisualTestContext) {
 fn date_field_delete_keeps_an_incomplete_display_without_committing(cx: &mut TestAppContext) {
     let changes = events();
     let changed = changes.clone();
-    let rendered: Rc<RefCell<Vec<(DateSegment, String)>>> = Rc::new(RefCell::new(Vec::new()));
+    let rendered: Rc<RefCell<Vec<(FieldSegment, String)>>> = Rc::new(RefCell::new(Vec::new()));
     let rendered_for_view = rendered.clone();
     let state = cx.new(|cx| InputState::with_value(cx, "2025-01-15"));
     let state_for_view = state.clone();
@@ -68,9 +69,9 @@ fn date_field_delete_keeps_an_incomplete_display_without_committing(cx: &mut Tes
             .find_map(|(part, text)| (*part == segment).then(|| text.clone()))
             .unwrap()
     };
-    assert_eq!(latest(DateSegment::Month), "mm");
-    assert_eq!(latest(DateSegment::Day), "15");
-    assert_eq!(latest(DateSegment::Year), "2025");
+    assert_eq!(latest(FieldSegment::Date(DateSegment::Month)), "mm");
+    assert_eq!(latest(FieldSegment::Date(DateSegment::Day)), "15");
+    assert_eq!(latest(FieldSegment::Date(DateSegment::Year)), "2025");
 
     press(cx, "right");
     press(cx, "delete");
@@ -83,6 +84,103 @@ fn date_field_delete_keeps_an_incomplete_display_without_committing(cx: &mut Tes
         changed.borrow().as_slice(),
         ["none"],
         "only clearing every visible segment commits null"
+    );
+}
+
+#[gpui::test]
+fn date_field_leading_zeros_follow_locale_and_force_all_numeric_segments(cx: &mut TestAppContext) {
+    const CHILD: &str = "HEROGPUI_DATE_FIELD_LEADING_ZERO_TEST";
+    if std::env::var_os(CHILD).is_none() {
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "date_field_leading_zeros_follow_locale_and_force_all_numeric_segments",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .env_remove("LC_ALL")
+            .env("LC_TIME", "en_US.UTF-8")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "DateField leading-zero locale child failed:\n{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr),
+        );
+        return;
+    }
+
+    let regional: Rc<RefCell<Vec<(FieldSegment, String)>>> = Rc::new(RefCell::new(Vec::new()));
+    let forced: Rc<RefCell<Vec<(FieldSegment, String)>>> = Rc::new(RefCell::new(Vec::new()));
+    let regional_for_view = regional.clone();
+    let forced_for_view = forced.clone();
+    let regional_state = cx.new(|cx| InputState::with_value(cx, "2025-02-03T08:05:07"));
+    let forced_state = cx.new(|cx| InputState::with_value(cx, "2025-02-03T08:05:07"));
+    let cx = open_host(cx, move || {
+        let regional = regional_for_view.clone();
+        let forced = forced_for_view.clone();
+        gpui::div()
+            .children([
+                DateField::new(regional_state.clone())
+                    .granularity(Granularity::Second)
+                    .hour_cycle(HourCycle::H12)
+                    .segment(move |segment, text| {
+                        regional.borrow_mut().push((segment, text.to_string()));
+                        gpui::div().child(text).into_any_element()
+                    })
+                    .into_any_element(),
+                DateField::new(forced_state.clone())
+                    .granularity(Granularity::Second)
+                    .hour_cycle(HourCycle::H12)
+                    .should_force_leading_zeros(true)
+                    .segment(move |segment, text| {
+                        forced.borrow_mut().push((segment, text.to_string()));
+                        gpui::div().child(text).into_any_element()
+                    })
+                    .into_any_element(),
+            ])
+            .into_any_element()
+    });
+    refresh(cx);
+
+    let latest = |log: &Rc<RefCell<Vec<(FieldSegment, String)>>>, segment| {
+        log.borrow()
+            .iter()
+            .rev()
+            .find_map(|(part, text)| (*part == segment).then(|| text.clone()))
+    };
+    assert_eq!(
+        latest(&regional, FieldSegment::Date(DateSegment::Month)).as_deref(),
+        Some("2")
+    );
+    assert_eq!(
+        latest(&regional, FieldSegment::Date(DateSegment::Day)).as_deref(),
+        Some("3")
+    );
+    assert_eq!(
+        latest(&regional, FieldSegment::Time(TimeSegment::Hour)).as_deref(),
+        Some("8")
+    );
+    assert_eq!(
+        latest(&regional, FieldSegment::Time(TimeSegment::Minute)).as_deref(),
+        Some("05")
+    );
+    assert_eq!(
+        latest(&regional, FieldSegment::Time(TimeSegment::Second)).as_deref(),
+        Some("07")
+    );
+    assert_eq!(
+        latest(&forced, FieldSegment::Date(DateSegment::Month)).as_deref(),
+        Some("02")
+    );
+    assert_eq!(
+        latest(&forced, FieldSegment::Date(DateSegment::Day)).as_deref(),
+        Some("03")
+    );
+    assert_eq!(
+        latest(&forced, FieldSegment::Time(TimeSegment::Hour)).as_deref(),
+        Some("08")
     );
 }
 

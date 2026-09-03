@@ -194,7 +194,7 @@ caller to supply them — so the prop is real, just inverted:
   `Dropdown.Item`, handed `isSelected` / `isIndeterminate`
 - `Slider::thumb(|index, value| ..)` — `Slider.Thumb`, handed `index`
 - `TimeField::segment(|TimeSegment, text| ..)` — `TimeField.Segment`
-- `DateField::segment(|DateSegment, text| ..)` — `DateField.Segment`
+- `DateField::segment(|FieldSegment, text| ..)` — `DateField.Segment`, covering date and optional time slots
 
 ## Controlled and uncontrolled
 
@@ -335,7 +335,7 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 ### Date and Time
 - **DateConstraints** — shared by all five: `min_value`, `max_value`, `is_date_unavailable(fn)`, `first_day_of_week(Weekday)`, `weeks_in_month`. Each component takes them individually, or a whole set via `.constraints(..)`. The default first weekday comes from the operating system's regional date preferences and ICU4X's compiled CLDR week data; invalid or unavailable preferences fall back to Sunday, and `first_day_of_week` remains an explicit override.
 - **Calendar** — `CalendarState::new(cx)`, `Calendar::new(state).value(..).is_disabled().is_read_only().is_invalid().focused_value().on_focus_change().on_change(Option<Date>)` plus the constraints
-- **DateField** — three editable segments (`mm / dd / yyyy`) with click-to-focus, arrow steppers that roll over month and year correctly, and the `segment(|DateSegment, text|)` render prop. The ISO text stays in the bound `InputState`, so `name`, `FormField::text` and `on_change` are unchanged. `DateField::new(InputState).label().full_width().is_required().is_invalid().variant().placeholder_value().value(Option<Date>, cx).on_change(Option<Date>)` 
+- **DateField** — three editable date segments (`mm / dd / yyyy`) plus optional time segments, with click-to-focus, arrow steppers that roll over month and year correctly, and the `segment(|FieldSegment, text|)` render prop. The ISO text stays in the bound `InputState`, so `name`, `FormField::text` and `on_change` are unchanged. `DateField::new(InputState).label().full_width().is_required().is_invalid().variant().placeholder_value().should_force_leading_zeros(true).value(Option<Date>, cx).on_change(Option<Date>)`; month, day and hour padding follow the system regional format unless forced.
   - constraints: `min_value`, `max_value`, `is_date_unavailable`, or `constraints(DateConstraints)`. The three ways a typed date can be wrong — unparseable, out of range, unavailable — report as distinct messages, and `on_change` yields `None` for a date the constraints reject, so a caller never receives a value it said it would not accept.
 - **DatePicker** — `DatePicker::new(CalendarState).label().is_open().on_open_change().value().is_disabled().is_invalid().on_change()` plus the constraints
 - **DateRangePicker** — `DateRangeState::new(cx)`, `DateRangePicker::new(state).label().placeholder().size().is_open().is_disabled().is_invalid().on_open_change(bool).on_change()`, plus the `DateConstraints` setters

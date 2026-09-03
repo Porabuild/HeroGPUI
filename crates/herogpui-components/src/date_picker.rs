@@ -13,6 +13,7 @@ use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
     rc::Rc,
+    sync::OnceLock,
 };
 
 use crate::{
@@ -2187,6 +2188,75 @@ impl DateSegment {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RegionalDateFormat {
+    month_has_leading_zero: bool,
+    day_has_leading_zero: bool,
+}
+
+impl RegionalDateFormat {
+    fn for_locale(locale: &str) -> Option<Self> {
+        use icu_datetime::{
+            fieldsets,
+            input::Date as IcuDate,
+            options::YearStyle,
+            provider::{
+                fields::{FieldLength, FieldSymbol},
+                pattern::{reference, runtime, PatternItem},
+            },
+            DateTimeFormatter,
+        };
+        use icu_locale_core::Locale as IcuLocale;
+
+        let locale = locale.parse::<IcuLocale>().ok()?;
+        let formatter = DateTimeFormatter::try_new(
+            locale.into(),
+            fieldsets::YMD::short().with_year_style(YearStyle::Full),
+        )
+        .ok()?;
+        let formatted = formatter.format(&IcuDate::try_new_iso(2000, 1, 1).ok()?);
+        let pattern: runtime::Pattern<'_> = formatted.pattern().into();
+        let mut month_has_leading_zero = None;
+        let mut day_has_leading_zero = None;
+        for item in reference::Pattern::from(&pattern).into_items() {
+            let PatternItem::Field(field) = item else {
+                continue;
+            };
+            match field.symbol {
+                FieldSymbol::Month(_) => {
+                    month_has_leading_zero = Some(field.length == FieldLength::Two);
+                }
+                FieldSymbol::Day(_) => {
+                    day_has_leading_zero = Some(field.length == FieldLength::Two);
+                }
+                _ => {}
+            }
+        }
+        Some(Self {
+            month_has_leading_zero: month_has_leading_zero?,
+            day_has_leading_zero: day_has_leading_zero?,
+        })
+    }
+
+    fn for_preferences(locale: &locale_config::Locale) -> Option<Self> {
+        locale
+            .tags_for("time")
+            .find_map(|tag| Self::for_locale(tag.as_ref()))
+    }
+}
+
+fn system_date_format() -> RegionalDateFormat {
+    static SYSTEM_DATE_FORMAT: OnceLock<RegionalDateFormat> = OnceLock::new();
+    *SYSTEM_DATE_FORMAT.get_or_init(|| {
+        RegionalDateFormat::for_preferences(&locale_config::Locale::user_default()).unwrap_or(
+            RegionalDateFormat {
+                month_has_leading_zero: false,
+                day_has_leading_zero: false,
+            },
+        )
+    })
+}
+
 fn cycle_value(value: i32, delta: i32, min: i32, max: i32) -> i32 {
     (value - min + delta).rem_euclid(max - min + 1) + min
 }
@@ -2328,8 +2398,8 @@ impl DateFieldDisplay {
     }
 }
 
-type DateSegmentRender =
-    std::sync::Arc<dyn Fn(DateSegment, SharedString) -> gpui::AnyElement + 'static>;
+type FieldSegmentRender =
+    std::sync::Arc<dyn Fn(FieldSegment, SharedString) -> gpui::AnyElement + 'static>;
 
 /// State supplied to v3's DateField children render function.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -2357,9 +2427,9 @@ pub struct DateFieldRenderState {
 pub struct DateField {
     /// See [`DateField::content`].
     content: Option<std::sync::Arc<dyn Fn(DateFieldRenderState) -> gpui::AnyElement + 'static>>,
-    /// `segment` — v3's render prop for one editable segment,
+    /// `segment` — v3's render prop for one editable date or time segment,
     /// handed which segment it is and the text the field would show.
-    segment: Option<DateSegmentRender>,
+    segment: Option<FieldSegmentRender>,
     /// `validationBehavior` — written into the text state on render.
     validation_behavior: Option<crate::form::ValidationBehavior>,
     /// `defaultValue` — seeds the text state on the first render only.
@@ -2392,7 +2462,8 @@ pub struct DateField {
     name: Option<SharedString>,
     /// `autoFocus` — take focus on the first render.
     auto_focus: bool,
-    /// `shouldForceLeadingZeros` — pad the month and day to two digits.
+    /// `shouldForceLeadingZeros` — force month, day and hour to two digits
+    /// instead of using the system regional format.
     should_force_leading_zeros: bool,
     is_disabled: bool,
     is_read_only: bool,
@@ -2449,8 +2520,9 @@ impl DateField {
         self
     }
 
-    /// `shouldForceLeadingZeros` — whether the month and day are padded to two
-    /// digits. On by default, which is what the `MM/DD/YYYY` hint promises.
+    /// `shouldForceLeadingZeros` — force month, day and hour to two digits.
+    /// Without this flag those segments follow the system regional format;
+    /// minute and second segments are always two digits.
     pub fn should_force_leading_zeros(mut self, v: bool) -> Self {
         self.should_force_leading_zeros = v;
         self
@@ -2602,8 +2674,7 @@ impl DateField {
             description: None,
             name: None,
             auto_focus: false,
-            // v3 defaults this on for the en-US order this port formats in.
-            should_force_leading_zeros: true,
+            should_force_leading_zeros: false,
             is_disabled: false,
             is_read_only: false,
             on_change: None,
@@ -2632,11 +2703,12 @@ impl DateField {
 
     /// `segment` — replaces the contents of each editable segment.
     ///
-    /// The closure receives which [`DateSegment`] it is drawing and the text the
-    /// field would have shown, the values v3 passes into the same render prop.
+    /// The closure receives which [`FieldSegment`] it is drawing and the text
+    /// the field would have shown, including time segments below day
+    /// granularity.
     pub fn segment(
         mut self,
-        render: impl Fn(DateSegment, SharedString) -> gpui::AnyElement + 'static,
+        render: impl Fn(FieldSegment, SharedString) -> gpui::AnyElement + 'static,
     ) -> Self {
         self.segment = Some(std::sync::Arc::new(render));
         self
@@ -2921,7 +2993,11 @@ impl RenderOnce for DateField {
             .into_any_element();
         }
 
-        let pad = self.should_force_leading_zeros;
+        let regional_date = system_date_format();
+        let pad_month = self.should_force_leading_zeros || regional_date.month_has_leading_zero;
+        let pad_day = self.should_force_leading_zeros || regional_date.day_has_leading_zero;
+        let pad_hour = self.should_force_leading_zeros
+            || crate::time_field::hour_has_leading_zero(self.hour_cycle);
         let segment_text = move |segment: FieldSegment| -> String {
             use crate::time_field::TimeSegment as T;
             match segment {
@@ -2933,8 +3009,8 @@ impl RenderOnce for DateField {
                         return segment.hint().to_owned();
                     };
                     match segment {
-                        DateSegment::Month if pad => format!("{:02}", d.month),
-                        DateSegment::Day if pad => format!("{:02}", d.day),
+                        DateSegment::Month if pad_month => format!("{:02}", d.month),
+                        DateSegment::Day if pad_day => format!("{:02}", d.day),
                         DateSegment::Month => d.month.to_string(),
                         DateSegment::Day => d.day.to_string(),
                         DateSegment::Year => format!("{:04}", d.year),
@@ -2952,8 +3028,12 @@ impl RenderOnce for DateField {
                         return "--".to_owned();
                     };
                     match segment {
-                        T::Hour if twelve_hour => format!("{:02}", t.twelve_hour().0),
-                        T::Hour => format!("{:02}", t.hour),
+                        T::Hour if twelve_hour && pad_hour => {
+                            format!("{:02}", t.twelve_hour().0)
+                        }
+                        T::Hour if twelve_hour => t.twelve_hour().0.to_string(),
+                        T::Hour if pad_hour => format!("{:02}", t.hour),
+                        T::Hour => t.hour.to_string(),
                         T::Minute => format!("{:02}", t.minute),
                         T::Second => format!("{:02}", t.second),
                         T::Meridiem => t.twelve_hour().1.to_owned(),
@@ -3277,12 +3357,8 @@ impl RenderOnce for DateField {
                 .rounded(cx.layout().radius_md())
                 // `segment` is v3's render prop on `DateField.Segment`: the
                 // closure is handed which segment it is drawing.
-                .child(match (&self.segment, segment) {
-                    // v3's render prop names a *date* segment; a time slot has
-                    // none to hand over, so it draws itself.
-                    (Some(render), FieldSegment::Date(part)) => {
-                        render(part, segment_text(segment).into())
-                    }
+                .child(match &self.segment {
+                    Some(render) => render(segment, segment_text(segment).into()),
                     _ => segment_text(segment).into_any_element(),
                 });
 
@@ -3376,6 +3452,34 @@ mod tests {
         let date = Date::new(2025, 2, 3);
         assert_eq!(format_value(date, None, Granularity::Day), "2025-02-03");
         assert_eq!(parse_value("2025-02-03"), (Some(date), None));
+    }
+
+    #[test]
+    fn date_padding_follows_locale_patterns() {
+        assert_eq!(
+            RegionalDateFormat::for_locale("en-US"),
+            Some(RegionalDateFormat {
+                month_has_leading_zero: false,
+                day_has_leading_zero: false,
+            })
+        );
+        assert_eq!(
+            RegionalDateFormat::for_locale("en-GB"),
+            Some(RegionalDateFormat {
+                month_has_leading_zero: true,
+                day_has_leading_zero: true,
+            })
+        );
+        assert_eq!(RegionalDateFormat::for_locale("not_a_locale"), None);
+    }
+
+    #[test]
+    fn date_padding_prefers_the_system_time_category() {
+        let locale = locale_config::Locale::new("en-US,time=en-GB").unwrap();
+        assert_eq!(
+            RegionalDateFormat::for_preferences(&locale),
+            RegionalDateFormat::for_locale("en-GB")
+        );
     }
 
     #[gpui::test]

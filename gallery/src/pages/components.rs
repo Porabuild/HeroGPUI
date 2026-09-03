@@ -4538,6 +4538,34 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Forced Leading Zeros",
+                    field_col(vec![
+                        h::DateField::new(self.demo_text(
+                            "df-leading-locale",
+                            "2025-02-03T08:05:07",
+                            cx,
+                        ))
+                        .label("Locale default")
+                        .granularity(h::Granularity::Second)
+                        .hour_cycle(h::HourCycle::H12)
+                        .into_any_element(),
+                        h::DateField::new(self.demo_text(
+                            "df-leading-forced",
+                            "2025-02-03T08:05:07",
+                            cx,
+                        ))
+                        .label("Forced two-digit fields")
+                        .granularity(h::Granularity::Second)
+                        .hour_cycle(h::HourCycle::H12)
+                        .should_force_leading_zeros(true)
+                        .into_any_element(),
+                        para(
+                            "The locale controls month, day and hour padding by default. The prop forces all three to two digits.",
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
                     "With Icons",
                     field_col(vec![h::DateField::new(self.demo_text("df-icon", "", cx))
                         .label("Date")
@@ -13497,7 +13525,7 @@ mod example_quality {
             ("autocomplete", 18),
             ("combo_box", 25),
             ("slider", 11),
-            ("date_field", 13),
+            ("date_field", 14),
             ("alert_dialog", 12),
             ("dropdown", 17),
             ("popover", 6),
@@ -13813,6 +13841,24 @@ mod example_quality {
             1
         );
         assert!(leading.contains("this prop only forces the hour"));
+    }
+
+    #[test]
+    fn date_field_examples_demonstrate_locale_and_forced_padding() {
+        let page = page_fn(SRC, "date_field");
+        let leading = section_body(page, "Forced Leading Zeros");
+        assert_eq!(
+            leading
+                .matches(".granularity(h::Granularity::Second)")
+                .count(),
+            2
+        );
+        assert_eq!(leading.matches(".hour_cycle(h::HourCycle::H12)").count(), 2);
+        assert_eq!(
+            leading.matches(".should_force_leading_zeros(true)").count(),
+            1
+        );
+        assert!(leading.contains("The locale controls month, day and hour padding by default"));
     }
 
     #[test]

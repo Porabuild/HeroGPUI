@@ -140,6 +140,10 @@ fn system_time_format_for_cycle(hour_cycle: HourCycle) -> RegionalTimeFormat {
     })
 }
 
+pub(crate) fn hour_has_leading_zero(hour_cycle: HourCycle) -> bool {
+    system_time_format_for_cycle(hour_cycle).hour_has_leading_zero
+}
+
 /// A wall-clock time — the `TimeValue` of `@internationalized/date`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Time {
@@ -989,8 +993,7 @@ impl RenderOnce for TimeField {
         }
 
         let hour_cycle = self.hour_cycle;
-        let pad_hour = self.should_force_leading_zeros
-            || system_time_format_for_cycle(self.hour_cycle).hour_has_leading_zero;
+        let pad_hour = self.should_force_leading_zeros || hour_has_leading_zero(self.hour_cycle);
         let segment_text = move |segment: TimeSegment| -> String {
             if cleared.contains(&segment) {
                 return if segment == TimeSegment::Meridiem {

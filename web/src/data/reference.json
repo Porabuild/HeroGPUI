@@ -11938,10 +11938,10 @@
         "prop": "shouldForceLeadingZeros",
         "type": "boolean",
         "default": "locale",
-        "description": "Controls month and day zero padding; hour padding remains fixed.",
+        "description": "Forces two-digit month, day and hour segments; otherwise each follows the system regional pattern while minutes and seconds remain two digits.",
         "rustOwner": "DateField",
         "rust": "should_force_leading_zeros(bool)",
-        "status": "partial"
+        "status": "implemented"
       },
       {
         "owner": "DateField",
@@ -12038,7 +12038,7 @@
         "prop": "segment",
         "type": "DateSegment",
         "default": "—",
-        "description": "Hands custom content each date segment and its generated text; time segments remain built in.",
+        "description": "Hands custom content each supported Gregorian date or plain-time segment and its generated text; era and time-zone segment kinds require value models the port does not expose.",
         "rustOwner": "DateField",
         "rust": "segment(render)",
         "status": "partial"
@@ -12103,7 +12103,7 @@
       {
         "name": "DateField.Segment",
         "slot": "date-input-group-segment",
-        "description": "Keyboard-editable date and optional time segment; custom rendering covers date segments.",
+        "description": "Keyboard-editable Gregorian date and optional plain-time segment with custom rendering; era and time-zone kinds are unavailable with the current value model.",
         "rustOwner": "DateField",
         "status": "partial"
       },
