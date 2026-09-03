@@ -14,7 +14,7 @@ use gpui::{
 use herogpui_core::{SelectionMode, Size};
 use herogpui_theme::ActiveTheme;
 
-use crate::icons;
+use crate::{icons, EscapeKeyBehavior};
 
 /// Visual variant of the tags in a group.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -180,6 +180,7 @@ pub struct TagGroup {
     default_selected_keys: HashSet<SharedString>,
     is_controlled: bool,
     disallow_empty_selection: bool,
+    escape_key_behavior: EscapeKeyBehavior,
     disabled_keys: HashSet<SharedString>,
     is_disabled: bool,
     size: Size,
@@ -206,6 +207,7 @@ impl TagGroup {
             default_selected_keys: HashSet::new(),
             is_controlled: false,
             disallow_empty_selection: false,
+            escape_key_behavior: EscapeKeyBehavior::ClearSelection,
             disabled_keys: HashSet::new(),
             is_disabled: false,
             size: Size::Md,
@@ -246,6 +248,12 @@ impl TagGroup {
     /// Prevents selection from becoming empty through a tag toggle or Escape.
     pub fn disallow_empty_selection(mut self, v: bool) -> Self {
         self.disallow_empty_selection = v;
+        self
+    }
+
+    /// `escapeKeyBehavior` — whether unmodified Escape clears selection.
+    pub fn escape_key_behavior(mut self, behavior: EscapeKeyBehavior) -> Self {
+        self.escape_key_behavior = behavior;
         self
     }
 
@@ -649,6 +657,7 @@ impl RenderOnce for TagGroup {
                 let key_for_remove = tag.key.clone();
                 let mode = self.selection_mode;
                 let disallow_empty = self.disallow_empty_selection;
+                let escape_key_behavior = self.escape_key_behavior;
                 let selected_now = self.selected_keys.clone();
                 let selectable_keys = enabled_keys.clone();
                 let collection_for_keys = collection_keys.clone();
@@ -704,6 +713,7 @@ impl RenderOnce for TagGroup {
                     // selection on unmodified Escape by default.
                     if key_name == "escape"
                         && !event.keystroke.modifiers.modified()
+                        && escape_key_behavior == EscapeKeyBehavior::ClearSelection
                         && crate::selection::reports_changes(mode)
                         && !disallow_empty
                         && !selected_now.is_empty()

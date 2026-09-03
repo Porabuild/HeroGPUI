@@ -16,7 +16,7 @@ use gpui::{
 use herogpui_core::SelectionMode;
 use herogpui_theme::ActiveTheme;
 
-use crate::{icons, util};
+use crate::{icons, util, EscapeKeyBehavior};
 
 /// Visual variant of a list item.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -206,6 +206,7 @@ pub struct ListBox {
     default_selected_keys: HashSet<SharedString>,
     is_controlled: bool,
     disallow_empty_selection: bool,
+    escape_key_behavior: EscapeKeyBehavior,
     disabled_keys: HashSet<SharedString>,
     /// Applies to every item unless the item overrides it.
     variant: ListBoxItemVariant,
@@ -249,6 +250,7 @@ impl ListBox {
             default_selected_keys: HashSet::new(),
             is_controlled: false,
             disallow_empty_selection: false,
+            escape_key_behavior: EscapeKeyBehavior::ClearSelection,
             disabled_keys: HashSet::new(),
             variant: ListBoxItemVariant::Default,
             should_focus_wrap: false,
@@ -294,6 +296,12 @@ impl ListBox {
     /// `disallowEmptySelection` — keeps the final selected item selected.
     pub fn disallow_empty_selection(mut self, v: bool) -> Self {
         self.disallow_empty_selection = v;
+        self
+    }
+
+    /// `escapeKeyBehavior` — whether unmodified Escape clears selection.
+    pub fn escape_key_behavior(mut self, behavior: EscapeKeyBehavior) -> Self {
+        self.escape_key_behavior = behavior;
         self
     }
 
@@ -641,6 +649,7 @@ impl RenderOnce for ListBox {
             let typed_keys = typed;
             let mode = self.selection_mode;
             let disallow_empty = self.disallow_empty_selection;
+            let escape_key_behavior = self.escape_key_behavior;
             let selected_now = self.selected_keys.clone();
             let on_selection_change = self.on_selection_change.clone();
             let on_action = self.on_action.clone();
@@ -697,6 +706,7 @@ impl RenderOnce for ListBox {
                 // on Escape by default and leaves an empty collection alone.
                 if key_name == "escape"
                     && !event.keystroke.modifiers.modified()
+                    && escape_key_behavior == EscapeKeyBehavior::ClearSelection
                     && crate::selection::reports_changes(mode)
                     && !disallow_empty
                     && !selected_now.is_empty()

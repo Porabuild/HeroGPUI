@@ -1677,6 +1677,31 @@ impl Gallery {
                     ]),
                 ),
                 (
+                    "Escape Key Behavior",
+                    col(vec![
+                        gpui::div()
+                            .w(px(280.))
+                            .child(
+                                h::ListBox::new(
+                                    "lb-escape-none",
+                                    vec![
+                                        h::ListBoxItem::new("inbox", "Inbox"),
+                                        h::ListBoxItem::new("sent", "Sent"),
+                                    ],
+                                )
+                                .selection_mode(SelectionMode::Single)
+                                .default_selected_keys([SharedString::from("inbox")])
+                                .escape_key_behavior(h::EscapeKeyBehavior::None),
+                            )
+                            .into_any_element(),
+                        para(
+                            "Press Escape while this list is focused. The `None` policy preserves \
+                             the selection and leaves Escape available to an enclosing surface.",
+                            cx,
+                        ),
+                    ]),
+                ),
+                (
                     "Virtualization",
                     col(vec![
                         gpui::div()
@@ -1860,6 +1885,25 @@ impl Gallery {
                     .default_selected_keys([SharedString::from("design")])
                     .disallow_empty_selection(true)
                     .into_any_element()]),
+                ),
+                (
+                    "Escape Key Behavior",
+                    col(vec![
+                        h::TagGroup::new(
+                            "tg-escape-none",
+                            vec![h::Tag::new("design", "Design"), h::Tag::new("code", "Code")],
+                        )
+                        .label("Skills")
+                        .selection_mode(SelectionMode::Single)
+                        .default_selected_keys([SharedString::from("design")])
+                        .escape_key_behavior(h::EscapeKeyBehavior::None)
+                        .into_any_element(),
+                        para(
+                            "With `None`, Escape preserves the selected tag and bubbles to any \
+                             enclosing interaction that handles it.",
+                            cx,
+                        ),
+                    ]),
                 ),
                 (
                     "With Error Message",
@@ -13532,7 +13576,8 @@ mod example_quality {
             ("number_field", 16),
             ("text_area", 6),
             ("date_range_picker", 8),
-            ("list_box", 10),
+            ("list_box", 11),
+            ("tag_group", 13),
             ("meter", 5),
             ("progress_bar", 6),
         ] {
@@ -13653,8 +13698,10 @@ mod example_quality {
                 "h::DateRangePicker::new",
             ),
             ("list_box", "Disallow Empty Selection", "gpui::div()"),
+            ("list_box", "Escape Key Behavior", "gpui::div()"),
             ("list_box", "Virtualization", "gpui::div()"),
             ("list_box", "Custom Check Icon", "gpui::div()"),
+            ("tag_group", "Escape Key Behavior", "h::TagGroup::new"),
             ("autocomplete", "Virtualization", "demo_field("),
             ("autocomplete", "Asynchronous Filtering", "row(vec!["),
             ("autocomplete", "Custom Value", "h::Autocomplete::new"),

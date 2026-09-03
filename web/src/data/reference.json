@@ -840,10 +840,10 @@
         "prop": "escapeKeyBehavior",
         "type": "\"clearSelection\" | \"none\"",
         "default": "\"clearSelection\"",
-        "description": "Pinned default clearing is implemented; a caller cannot independently disable Escape except through disallowEmptySelection.",
+        "description": "Controls whether unmodified Escape clears a nonempty selection or remains available to an enclosing interaction.",
         "rustOwner": "ListBox",
-        "rust": "fixed clearSelection",
-        "status": "partial"
+        "rust": "escape_key_behavior(EscapeKeyBehavior)",
+        "status": "implemented"
       },
       {
         "owner": "ListBox",
@@ -1296,10 +1296,10 @@
         "prop": "escapeKeyBehavior",
         "type": "\"clearSelection\" | \"none\"",
         "default": "\"clearSelection\"",
-        "description": "Pinned default clearing is implemented; callers can suppress it only with disallowEmptySelection.",
+        "description": "Controls whether unmodified Escape clears a nonempty selection or remains available to an enclosing interaction.",
         "rustOwner": "TagGroup",
-        "rust": "fixed clearSelection",
-        "status": "partial"
+        "rust": "escape_key_behavior(EscapeKeyBehavior)",
+        "status": "implemented"
       },
       {
         "owner": "TagGroup",

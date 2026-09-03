@@ -7,6 +7,16 @@
 use gpui::SharedString;
 use herogpui_core::SelectionMode;
 
+/// What an unmodified Escape press does in a selectable collection.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum EscapeKeyBehavior {
+    /// Clear a nonempty selection and consume the key.
+    #[default]
+    ClearSelection,
+    /// Leave selection unchanged and let the key bubble.
+    None,
+}
+
 /// Whether activating an item in `mode` has a selection change to report.
 pub(crate) fn reports_changes(mode: SelectionMode) -> bool {
     mode != SelectionMode::None
