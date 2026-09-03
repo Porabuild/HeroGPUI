@@ -11862,7 +11862,7 @@ const TAG_GROUP_API: &[ApiDoc] = &[
     ApiDoc { owner: "Tag", prop: "children", ty: "ReactNode | RenderFunction", default: "—", description: "Replacement content receives selected, disabled, hovered, pressed, focused, and focus-visible state.", rust_owner: "TagGroup", rust: "tag_content(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Tag", prop: "onAction", ty: "() => void", default: "—", description: "The port exposes group selection and removal callbacks only.", rust_owner: "Tag", rust: "—", status: ImplementationStatus::Unavailable },
     ApiDoc { owner: "Tag", prop: "className / render", ty: "string / DOMRenderFunction", default: "—", description: "DOM attributes, link behavior, and element substitution are unavailable.", rust_owner: "Tag", rust: "—", status: ImplementationStatus::Unavailable },
-    ApiDoc { owner: "Tag.RemoveButton", prop: "children", ty: "ReactNode", default: "close icon", description: "The built-in close icon is automatic when onRemove is set; callers cannot replace it independently.", rust_owner: "TagGroup", rust: "automatic remove action", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Tag.RemoveButton", prop: "children", ty: "ReactNode", default: "close icon", description: "Each tag may replace the automatic close glyph with custom remove-button content while preserving the built-in action.", rust_owner: "Tag", rust: "remove_content(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "Tag.RemoveButton", prop: "className", ty: "string", default: "—", description: "Browser class customization is unavailable.", rust_owner: "TagGroup", rust: "—", status: ImplementationStatus::Unavailable },
 ];
 
@@ -11892,10 +11892,9 @@ const TAG_GROUP_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Tag.RemoveButton",
         slot: "tag-remove-button",
-        description:
-            "Automatic per-tag remove action; independent custom button content is unavailable.",
-        rust_owner: "TagGroup",
-        status: ImplementationStatus::Partial,
+        description: "Automatic per-tag remove action with replaceable caller content.",
+        rust_owner: "Tag",
+        status: ImplementationStatus::Implemented,
     },
 ];
 

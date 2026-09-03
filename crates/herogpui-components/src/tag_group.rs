@@ -43,6 +43,7 @@ pub struct Tag {
     key: SharedString,
     label: SharedString,
     icon: Option<SharedString>,
+    remove_content: Option<Arc<dyn Fn() -> AnyElement + 'static>>,
     is_disabled: bool,
 }
 
@@ -52,12 +53,19 @@ impl Tag {
             key: key.into(),
             label: label.into(),
             icon: None,
+            remove_content: None,
             is_disabled: false,
         }
     }
 
     pub fn icon(mut self, path: impl Into<SharedString>) -> Self {
         self.icon = Some(path.into());
+        self
+    }
+
+    /// `Tag.RemoveButton` children, replacing the default close glyph.
+    pub fn remove_content(mut self, render: impl Fn() -> AnyElement + 'static) -> Self {
+        self.remove_content = Some(Arc::new(render));
         self
     }
 
@@ -576,6 +584,16 @@ impl RenderOnce for TagGroup {
 
             if let Some(on_remove) = self.on_remove.clone() {
                 let key = tag.key.clone();
+                let remove_content = tag.remove_content.as_ref().map_or_else(
+                    || {
+                        gpui::svg()
+                            .size(px(12.))
+                            .path(icons::CLOSE)
+                            .text_color(tag_foreground)
+                            .into_any_element()
+                    },
+                    |render| render(),
+                );
                 let mut close = div()
                     .id(ElementId::Name(
                         format!("{:?}-tag-{index}-remove", self.id).into(),
@@ -587,13 +605,7 @@ impl RenderOnce for TagGroup {
                     .size(px(12.))
                     .rounded_full()
                     .flex_shrink_0()
-                    // gpui svgs need an explicit color; they do not inherit.
-                    .child(
-                        gpui::svg()
-                            .size(px(12.))
-                            .path(icons::CLOSE)
-                            .text_color(tag_foreground),
-                    );
+                    .child(remove_content);
                 if !disabled {
                     let hover_bg = colors.default.hover();
                     let remove_focus = &remove_focus_handles[index];

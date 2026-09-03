@@ -466,10 +466,18 @@ function collectAliases(code) {
 
 /// Rule: the gallery's `spec` helpers only add captions/layout around a
 /// specimen; retain the actual specimen expression and discard that chrome.
+function specContent(src, arg) {
+  const raw = src.slice(arg.start, arg.end);
+  const expressionOffset = raw.search(/\S/);
+  if (expressionOffset === -1) return "";
+  const baseIndent = sourceLineIndent(src, arg.start + expressionOffset);
+  return normalizeIndent(arg.text, baseIndent);
+}
+
 function removeSpecHelpers(code) {
   return replaceCalls(code, SPEC_HELPERS, (_call, src, args) => {
     if (args.length !== 3) return null;
-    return args[1].text;
+    return specContent(src, args[1]);
   });
 }
 
@@ -589,14 +597,27 @@ function rewriteIdExpression(expr, pageSlug) {
   return expr.slice(0, bodyStart) + next + expr.slice(literal.end - 1);
 }
 
-function humanizeGalleryIds(code, pageSlug) {
-  return replaceCalls(code, new Set(["id", "new"]), (call, src, args) => {
-    if (args.length === 0) return null;
-    const next = rewriteIdExpression(args[0].text, pageSlug);
-    if (next === null) return null;
-    const argStart = args[0].start + src.slice(args[0].start, args[0].end).search(/\S/);
-    return src.slice(call.start, argStart) + next + src.slice(args[0].end, call.end);
-  });
+export function humanizeGalleryIds(code, pageSlug) {
+  const edits = namedCalls(code, new Set(["id", "new"]))
+    .map((call) => callArgs(code, call)[0])
+    .filter(Boolean)
+    .map((arg) => {
+      const raw = code.slice(arg.start, arg.end);
+      const leading = raw.search(/\S/);
+      if (leading === -1) return null;
+      const trailing = raw.length - raw.trimEnd().length;
+      const start = arg.start + leading;
+      const end = arg.end - trailing;
+      const next = rewriteIdExpression(code.slice(start, end), pageSlug);
+      return next === null ? null : { start, end, next };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.start - a.start);
+
+  for (const edit of edits) {
+    code = code.slice(0, edit.start) + edit.next + code.slice(edit.end);
+  }
+  return { code, changed: edits.length > 0 };
 }
 
 function stripTerminalAnyElement(code) {
@@ -632,7 +653,7 @@ function cleanExample(rawCode, baseIndent, pageSlug) {
       }
     }
     const spec = topLevelCall(code, SPEC_HELPERS);
-    if (spec && spec.args.length === 3) code = spec.args[1].text;
+    if (spec && spec.args.length === 3) code = specContent(code, spec.args[1]);
     code = removeSpecHelpers(code).code;
     code = removeElementIdHelpers(code).code;
     code = replaceIconHelpers(code).code;
@@ -875,9 +896,7 @@ export function run({ check = false } = {}) {
       current = readFileSync(OUT, "utf8");
     } catch {}
     if (current !== output) {
-      console.error(
-        "ERROR: rust-examples.json is stale; run `pnpm run extract`",
-      );
+      console.error("ERROR: rust-examples.json is stale; run `pnpm run extract`");
       process.exitCode = 1;
     }
   } else {

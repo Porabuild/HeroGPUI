@@ -1438,6 +1438,37 @@ fn tag_group_remove_button_activates_with_enter_and_space(cx: &mut TestAppContex
     );
 }
 
+#[gpui::test]
+fn tag_group_custom_remove_content_keeps_keyboard_removal(cx: &mut TestAppContext) {
+    let rendered = Rc::new(Cell::new(false));
+    let recorded = events();
+    let rendered_for_view = rendered.clone();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let rendered = rendered_for_view.clone();
+        let removed = for_view.clone();
+        TagGroup::new(
+            "contract-tags-custom-remove",
+            vec![Tag::new("alpha", "Alpha").remove_content(move || {
+                rendered.set(true);
+                gpui::div().child("−").into_any_element()
+            })],
+        )
+        .on_remove(move |keys, _, _| {
+            removed
+                .borrow_mut()
+                .push(format!("remove:{}", sorted_join(keys)));
+        })
+        .into_any_element()
+    });
+
+    assert!(rendered.get(), "the custom remove content must be rendered");
+    press(cx, "tab");
+    press(cx, "tab");
+    press(cx, "enter");
+    assert_eq!(recorded.borrow().as_slice(), ["remove:alpha"]);
+}
+
 /// A remove click reports the removal and then seats the group's focus and
 /// roving cursor on the tag that owned the button. Pinned
 /// `useSelectableItem` only isolates the child's press and hands DOM focus

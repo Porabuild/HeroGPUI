@@ -1938,14 +1938,44 @@ impl Gallery {
                 ),
                 (
                     "With Remove Button",
-                    col(vec![h::TagGroup::new("tg-remove-button", tags())
-                        .label("Skills")
-                        .on_remove(cx.listener(|this, keys: &HashSet<SharedString>, _, cx| {
-                            this.tags.retain(|key| !keys.contains(key));
-                            this.tag_selection.retain(|key| !keys.contains(key));
-                            cx.notify();
-                        }))
-                        .into_any_element()]),
+                    col(vec![
+                        spec(
+                            "Default remove button",
+                            h::TagGroup::new("tg-remove-button", tags())
+                                .label("Skills")
+                                .on_remove(cx.listener(
+                                    |this, keys: &HashSet<SharedString>, _, cx| {
+                                        this.tags.retain(|key| !keys.contains(key));
+                                        this.tag_selection.retain(|key| !keys.contains(key));
+                                        cx.notify();
+                                    },
+                                )),
+                            cx,
+                        ),
+                        spec(
+                            "Custom remove button",
+                            {
+                                let custom_tags: Vec<h::Tag> = tags()
+                                    .into_iter()
+                                    .map(|tag| {
+                                        tag.remove_content(|| {
+                                            gpui::div().child("−").into_any_element()
+                                        })
+                                    })
+                                    .collect();
+                                h::TagGroup::new("tg-custom-remove-button", custom_tags)
+                                    .label("Skills")
+                                    .on_remove(cx.listener(
+                                        |this, keys: &HashSet<SharedString>, _, cx| {
+                                            this.tags.retain(|key| !keys.contains(key));
+                                            this.tag_selection.retain(|key| !keys.contains(key));
+                                            cx.notify();
+                                        },
+                                    ))
+                            },
+                            cx,
+                        ),
+                    ]),
                 ),
                 (
                     "Removable",
@@ -13820,6 +13850,15 @@ mod example_quality {
         );
         assert!(section_body(page, "Custom Check Icon")
             .contains(".selection_mode(SelectionMode::Multiple)"));
+    }
+
+    #[test]
+    fn tag_group_remove_example_includes_default_and_custom_content() {
+        let body = section_body(page_fn(SRC, "tag_group"), "With Remove Button");
+        assert!(body.contains("Default remove button"));
+        assert!(body.contains("Custom remove button"));
+        assert!(body.contains(".remove_content("));
+        assert_eq!(body.matches(".on_remove(").count(), 2);
     }
 
     #[test]

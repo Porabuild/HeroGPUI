@@ -14,7 +14,7 @@
     "format:check": "oxfmt --check .",
     "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check",
     "extract": "node scripts/extract-reference.mjs && node scripts/extract-rust-examples.mjs",
-    "extract:check": "node scripts/extract-reference.mjs --check && node scripts/extract-rust-examples.mjs --check"
+    "extract:check": "node --test scripts/extract-rust-examples.test.mjs && node scripts/extract-reference.mjs --check && node scripts/extract-rust-examples.mjs --check"
   },
   "dependencies": {
     "@heroui/react": "3.2.4",
