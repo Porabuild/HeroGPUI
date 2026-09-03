@@ -234,6 +234,70 @@ function isBalanced(code) {
   return stack.length === 0;
 }
 
+/// Lift the first static, top-level gallery paragraph into section copy.
+/// Paragraphs nested in a component builder (for example Card content) and
+/// dynamic status output remain part of the example expression.
+export function separateExampleDescription(code) {
+  const stack = [];
+  let i = 0;
+  while (i < code.length) {
+    const stepped = stepOver(code, i);
+    if (stepped !== null) {
+      i = stepped;
+      continue;
+    }
+
+    const c = code[i];
+    if (c === "(" || c === "[" || c === "{") {
+      stack.push(c);
+      i += 1;
+      continue;
+    }
+    if (c === ")" || c === "]" || c === "}") {
+      stack.pop();
+      i += 1;
+      continue;
+    }
+
+    const directListChild = stack.at(-1) === "[" || stack.length === 0;
+    const startsPara =
+      code.startsWith("para", i) &&
+      (i === 0 || !/[A-Za-z0-9_]/.test(code[i - 1])) &&
+      !/[A-Za-z0-9_]/.test(code[i + 4] ?? "");
+    if (!directListChild || !startsPara) {
+      i += 1;
+      continue;
+    }
+
+    const open = skipTrivia(code, i + 4);
+    const call = code[open] === "(" ? scanGroup(code, open) : null;
+    if (!call) {
+      i += 4;
+      continue;
+    }
+    const textStart = skipTrivia(code, open + 1);
+    const text = readStringLiteral(code, textStart);
+    if (!text || code[skipTrivia(code, text.end)] !== ",") {
+      i = call.end;
+      continue;
+    }
+
+    let removeStart = i;
+    const lineStart = code.lastIndexOf("\n", i - 1) + 1;
+    if (code.slice(lineStart, i).trim() === "") removeStart = lineStart;
+    let removeEnd = skipTrivia(code, call.end);
+    if (code[removeEnd] === ",") removeEnd += 1;
+    if (code[removeEnd] === "\r") removeEnd += 1;
+    if (code[removeEnd] === "\n") removeEnd += 1;
+
+    return {
+      description: text.value.replace(/\s+/g, " ").trim(),
+      code: code.slice(0, removeStart) + code.slice(removeEnd),
+    };
+  }
+  return { description: undefined, code };
+}
+
 /// Return the indentation of the source line containing `index`.
 function sourceLineIndent(src, index) {
   const lineStart = src.lastIndexOf("\n", index - 1) + 1;
@@ -639,6 +703,17 @@ function stripTerminalAnyElement(code) {
   return terminal === -1 ? code : code.slice(0, terminal).trimEnd();
 }
 
+export function normalizeCollapsedItem(code) {
+  const indents = code
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .slice(1)
+    .filter((line) => line.trim() !== "")
+    .map((line) => line.match(/^[ \t]*/)?.[0].length ?? 0);
+  const excess = Math.max(0, (indents.length ? Math.min(...indents) : 4) - 4);
+  return excess ? normalizeIndent(code, excess) : code;
+}
+
 function cleanExample(rawCode, baseIndent, pageSlug) {
   const aliases = collectAliases(rawCode);
   let code = normalizeIndent(rawCode, baseIndent);
@@ -649,7 +724,7 @@ function cleanExample(rawCode, baseIndent, pageSlug) {
       const args = top.args;
       const vector = args.length === 1 ? vecMacro(args[0].text) : null;
       if (vector?.items.length === 1) {
-        code = vector.items[0];
+        code = normalizeCollapsedItem(vector.items[0]);
       }
     }
     const spec = topLevelCall(code, SPEC_HELPERS);
@@ -861,7 +936,8 @@ export function run({ check = false } = {}) {
         });
       }
       for (const section of result.sections) {
-        const cleaned = cleanExample(section.code, section.baseIndent, slug);
+        const separated = separateExampleDescription(section.code);
+        const cleaned = cleanExample(separated.code, section.baseIndent, slug);
         if (!isBalanced(cleaned.code)) {
           unbalanced += 1;
           console.error(
@@ -877,6 +953,7 @@ export function run({ check = false } = {}) {
         }
         pages.get(slug).push({
           heading: section.heading,
+          ...(separated.description ? { description: separated.description } : {}),
           imports: addImports(importsByPage.get(slug) ?? "", cleaned.code, cleaned.aliases),
           code: cleaned.code,
         });
