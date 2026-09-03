@@ -16328,6 +16328,508 @@ pub(crate) const FIELD_SLOTS: ReferenceMetadata = ReferenceMetadata {
     styling: FIELD_SLOTS_STYLING,
 };
 
+const COLOR_SWATCH_REQUIRED_PARTS: &[&str] = &["ColorSwatch"];
+
+const COLOR_SWATCH_API: &[ApiDoc] = &[
+    ApiDoc { owner: "ColorSwatch", prop: "color", ty: "string | Color", default: "—", description: "Color value displayed by the swatch.", rust_owner: "ColorSwatch", rust: "new(PickerColor) / color(PickerColor)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSwatch", prop: "colorName", ty: "string", default: "—", description: "Accessible name overriding the generated color description; GPUI 0.2.2 exposes no accessibility attribute tree.", rust_owner: "ColorSwatch", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorSwatch", prop: "className", ty: "string", default: "—", description: "Browser CSS classes are unavailable.", rust_owner: "ColorSwatch", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorSwatch", prop: "shape", ty: "'circle' | 'square'", default: "'circle'", description: "Selects a circular or rounded-square swatch.", rust_owner: "ColorSwatch", rust: "shape(SwatchShape)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSwatch", prop: "size", ty: "'xs' | 'sm' | 'md' | 'lg' | 'xl'", default: "'md'", description: "Selects the 16, 24, 32, 36 or 40px swatch size.", rust_owner: "ColorSwatch", rust: "size(SizeXl)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "ColorSwatch", prop: "style", ty: "CSSProperties | render function", default: "—", description: "Browser inline styles and style render functions are unavailable.", rust_owner: "ColorSwatch", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorSwatch", prop: "aria-label", ty: "string", default: "—", description: "GPUI 0.2.2 exposes no accessibility attribute tree.", rust_owner: "ColorSwatch", rust: "—", status: ImplementationStatus::Unavailable },
+    ApiDoc { owner: "ColorSwatch", prop: "render", ty: "DOMRenderFunction", default: "—", description: "DOM root substitution has no GPUI equivalent.", rust_owner: "ColorSwatch", rust: "—", status: ImplementationStatus::Unavailable },
+];
+
+const COLOR_SWATCH_PARTS: &[PartDoc] = &[PartDoc {
+    name: "ColorSwatch",
+    slot: "color-swatch",
+    description: "Color preview with a transparency backdrop, border, size, and shape.",
+    rust_owner: "ColorSwatch",
+    status: ImplementationStatus::Implemented,
+}];
+
+const COLOR_SWATCH_STATES: &[StateDoc] = &[];
+
+const COLOR_SWATCH_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: ".color-swatch",
+        value: "size-8 overflow-hidden rounded-3xl border border-default",
+        description: "The default swatch is a clipped 32px circle with the theme border.",
+        rust: "SizeXl::Md + overflow_hidden + border(layout.border_width)",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".color-swatch--circle / --square",
+        value: "size-specific round radius / rounded-md",
+        description: "Circle radii follow each size; square uses the theme medium radius.",
+        rust: "SwatchShape => edge / 2 or radius_md",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: "transparency checkerboard",
+        value: "background-image checker pattern",
+        description: "Translucent colors blend over the secondary surface; the port does not draw the upstream checker pattern.",
+        rust: "colors.surface_secondary beneath PickerColor",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+pub(crate) const COLOR_SWATCH: ReferenceMetadata = ReferenceMetadata {
+    page: "ColorSwatch",
+    import_line: "use herogpui::components::color_picker::ColorSwatch;",
+    source_module: "color_picker",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(colors)/color-swatch.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/color-swatch/color-swatch.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/color-swatch.css",
+    required_parts: COLOR_SWATCH_REQUIRED_PARTS,
+    api: COLOR_SWATCH_API,
+    parts: COLOR_SWATCH_PARTS,
+    states: COLOR_SWATCH_STATES,
+    styling: COLOR_SWATCH_STYLING,
+};
+
+const METER_REQUIRED_PARTS: &[&str] = &["Meter", "Meter.Output", "Meter.Track", "Meter.Fill"];
+
+const METER_API: &[ApiDoc] = &[
+    ApiDoc { owner: "Meter", prop: "value", ty: "number", default: "0", description: "Current value within the configured range.", rust_owner: "Meter", rust: "new(id, value) / value(f32)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Meter", prop: "minValue", ty: "number", default: "0", description: "Minimum value used to normalize the fill.", rust_owner: "Meter", rust: "min_value(f32)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Meter", prop: "maxValue", ty: "number", default: "100", description: "Maximum value used to normalize the fill.", rust_owner: "Meter", rust: "max_value(f32)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Meter", prop: "size", ty: "'sm' | 'md' | 'lg'", default: "'md'", description: "Selects the meter track thickness.", rust_owner: "Meter", rust: "size(Size)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Meter", prop: "color", ty: "'default' | 'accent' | 'success' | 'warning' | 'danger'", default: "'accent'", description: "Semantic color of the fill bar.", rust_owner: "Meter", rust: "color(Color)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "Meter", prop: "formatOptions", ty: "Intl.NumberFormatOptions", default: "{style: 'percent'}", description: "Formats the value label; the port covers common numeric styles without caller-selected locale data.", rust_owner: "Meter", rust: "format_options(NumberFormat)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Meter", prop: "valueLabel", ty: "ReactNode", default: "—", description: "Replaces the generated value text; the port accepts text or a value render closure.", rust_owner: "Meter", rust: "value_label(text) / value_content(render)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "Meter", prop: "children", ty: "ReactNode | (values: MeterRenderProps) => ReactNode", default: "—", description: "The port composes a label and output renderer while track and fill remain built in.", rust_owner: "Meter", rust: "label(text) + value_content(render)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "MeterRenderProps", prop: "percentage", ty: "number", default: "—", description: "Normalized percentage handed to the output renderer.", rust_owner: "Meter", rust: "value_content(render)", status: ImplementationStatus::Implemented },
+    ApiDoc { owner: "MeterRenderProps", prop: "valueText", ty: "string", default: "—", description: "Formatted value text handed to the output renderer.", rust_owner: "Meter", rust: "value_content(render)", status: ImplementationStatus::Implemented },
+];
+
+const METER_PARTS: &[PartDoc] = &[
+    PartDoc {
+        name: "Meter",
+        slot: "meter",
+        description: "Root meter state and layout owner.",
+        rust_owner: "Meter",
+        status: ImplementationStatus::Implemented,
+    },
+    PartDoc {
+        name: "Meter.Output",
+        slot: "meter-output",
+        description: "Formatted output beside the label, customizable through the value closure.",
+        rust_owner: "Meter",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "Meter.Track",
+        slot: "meter-track",
+        description: "Clipped default-color track delegated to ProgressBar.",
+        rust_owner: "Meter",
+        status: ImplementationStatus::Partial,
+    },
+    PartDoc {
+        name: "Meter.Fill",
+        slot: "meter-fill",
+        description: "Semantic fill proportional to the normalized value.",
+        rust_owner: "Meter",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+const METER_STATES: &[StateDoc] = &[StateDoc {
+    state: "Determinate",
+    selector: "[aria-valuenow]",
+    description: "Fill width and output follow the normalized value.",
+    rust: "ProgressBar::value + min_value + max_value",
+    status: ImplementationStatus::Implemented,
+}];
+
+const METER_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: ".meter",
+        value: "grid w-full gap-2",
+        description: "Full-width label/output row above the track.",
+        rust: "ProgressBar root layout",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".meter__track",
+        value: "h-2 rounded-full; sm h-1; lg h-3",
+        description: "Track thickness follows the three documented sizes.",
+        rust: "ProgressBar::size(Size)",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".meter__fill",
+        value: "rounded-full semantic fill",
+        description: "Fill color follows the selected semantic role.",
+        rust: "ProgressBar::color(Color)",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+pub(crate) const METER: ReferenceMetadata = ReferenceMetadata {
+    page: "Meter",
+    import_line: "use herogpui::components::meter::Meter;",
+    source_module: "meter",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(feedback)/meter.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/meter/meter.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/Meter.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/meter.css",
+    required_parts: METER_REQUIRED_PARTS,
+    api: METER_API,
+    parts: METER_PARTS,
+    states: METER_STATES,
+    styling: METER_STYLING,
+};
+
+const SCROLL_SHADOW_REQUIRED_PARTS: &[&str] = &["ScrollShadow"];
+
+const SCROLL_SHADOW_API: &[ApiDoc] = &[
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "orientation",
+        ty: "'vertical' | 'horizontal'",
+        default: "'vertical'",
+        description: "Axis along which content scrolls and fades appear.",
+        rust_owner: "ScrollShadow",
+        rust: "orientation(Orientation)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "variant",
+        ty: "'fade'",
+        default: "'fade'",
+        description:
+            "The documented API has one visual variant, which is the port's built-in treatment.",
+        rust_owner: "ScrollShadow",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "size",
+        ty: "number",
+        default: "40",
+        description: "Depth of each fade gradient in pixels.",
+        rust_owner: "ScrollShadow",
+        rust: "size(Pixels)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "offset",
+        ty: "number",
+        default: "0",
+        description: "Scroll distance before the corresponding fade appears.",
+        rust_owner: "ScrollShadow",
+        rust: "offset(Pixels)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "hideScrollBar",
+        ty: "boolean",
+        default: "false",
+        description: "GPUI draws no browser-native scrollbar for this component to hide.",
+        rust_owner: "ScrollShadow",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "isEnabled",
+        ty: "boolean",
+        default: "true",
+        description: "Turns fade rendering and visibility reporting on or off.",
+        rust_owner: "ScrollShadow",
+        rust: "is_enabled(bool)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "visibility",
+        ty: "'auto' | 'both' | 'top' | 'bottom' | 'left' | 'right' | 'none'",
+        default: "'auto'",
+        description: "Controls which edge fades are eligible to render.",
+        rust_owner: "ScrollShadow",
+        rust: "visibility(ScrollShadowVisibility)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "onVisibilityChange",
+        ty: "(visibility: ScrollShadowVisibility) => void",
+        default: "—",
+        description: "Reports resolved visible edges when they change.",
+        rust_owner: "ScrollShadow",
+        rust: "on_visibility_change(callback)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "className",
+        ty: "string",
+        default: "—",
+        description: "Browser CSS classes are unavailable.",
+        rust_owner: "ScrollShadow",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+    ApiDoc {
+        owner: "ScrollShadow",
+        prop: "children",
+        ty: "ReactNode",
+        default: "—",
+        description: "Scrollable child content.",
+        rust_owner: "ScrollShadow",
+        rust: "—",
+        status: ImplementationStatus::Partial,
+    },
+];
+
+const SCROLL_SHADOW_PARTS: &[PartDoc] = &[PartDoc {
+    name: "ScrollShadow",
+    slot: "scroll-shadow",
+    description: "Scrollable root plus edge-fade overlays.",
+    rust_owner: "ScrollShadow",
+    status: ImplementationStatus::Implemented,
+}];
+
+const SCROLL_SHADOW_STATES: &[StateDoc] = &[
+    StateDoc {
+        state: "Leading edge",
+        selector: "[data-top-scroll] / [data-left-scroll]",
+        description: "Leading fade appears after content moves beyond the configured offset.",
+        rust: "ScrollHandle::offset + offset",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Trailing edge",
+        selector: "[data-bottom-scroll] / [data-right-scroll]",
+        description: "Trailing fade appears while more content remains after the viewport.",
+        rust: "ScrollHandle::max_offset + offset",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Both edges",
+        selector: "[data-top-bottom-scroll] / [data-left-right-scroll]",
+        description: "Both fades render when content can scroll in either direction.",
+        rust: "ScrollShadowVisibility::Both",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const SCROLL_SHADOW_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: ".scroll-shadow",
+        value: "overflow auto with mask-image",
+        description: "The port uses a tracked GPUI scroller with explicit gradient overlays.",
+        rust: "track_scroll + overflow_x_scroll / overflow_y_scroll",
+        status: ImplementationStatus::Partial,
+    },
+    StyleDoc {
+        class_or_token: "--scroll-shadow-size",
+        value: "40px",
+        description: "Fade depth follows the size builder.",
+        rust: "size(Pixels)",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: "[data-orientation]",
+        value: "vertical | horizontal",
+        description: "Orientation switches scroll axis and fade direction.",
+        rust: "orientation(Orientation)",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+pub(crate) const SCROLL_SHADOW: ReferenceMetadata = ReferenceMetadata {
+    page: "ScrollShadow",
+    import_line: "use herogpui::components::scroll_shadow::ScrollShadow;",
+    source_module: "scroll_shadow",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(utilities)/scroll-shadow.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/scroll-shadow/scroll-shadow.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/scroll-shadow/use-scroll-shadow.ts",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/scroll-shadow.css",
+    required_parts: SCROLL_SHADOW_REQUIRED_PARTS,
+    api: SCROLL_SHADOW_API,
+    parts: SCROLL_SHADOW_PARTS,
+    states: SCROLL_SHADOW_STATES,
+    styling: SCROLL_SHADOW_STYLING,
+};
+
+const SKELETON_REQUIRED_PARTS: &[&str] = &["Skeleton"];
+
+const SKELETON_API: &[ApiDoc] = &[
+    ApiDoc {
+        owner: "Skeleton",
+        prop: "animationType",
+        ty: "'shimmer' | 'pulse' | 'none'",
+        default: "theme",
+        description:
+            "Selects shimmer, pulse, or no animation; the theme token supplies the default.",
+        rust_owner: "Skeleton",
+        rust: "animation_type(SkeletonAnimation)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "Skeleton",
+        prop: "className",
+        ty: "string",
+        default: "—",
+        description: "Browser CSS classes are unavailable.",
+        rust_owner: "Skeleton",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+];
+
+const SKELETON_PARTS: &[PartDoc] = &[PartDoc {
+    name: "Skeleton",
+    slot: "skeleton",
+    description: "Clipped placeholder surface with optional hidden layout content.",
+    rust_owner: "Skeleton",
+    status: ImplementationStatus::Implemented,
+}];
+
+const SKELETON_STATES: &[StateDoc] = &[
+    StateDoc {
+        state: "Shimmer",
+        selector: ".skeleton--shimmer",
+        description: "A highlight band sweeps across the placeholder.",
+        rust: "SkeletonAnimation::Shimmer",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "Pulse",
+        selector: ".skeleton--pulse",
+        description: "The placeholder opacity pulses.",
+        rust: "SkeletonAnimation::Pulse",
+        status: ImplementationStatus::Implemented,
+    },
+    StateDoc {
+        state: "No animation",
+        selector: ".skeleton--none",
+        description:
+            "A static placeholder is rendered, including when reduced motion is requested.",
+        rust: "SkeletonAnimation::None / reduce_motion",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+const SKELETON_STYLING: &[StyleDoc] = &[
+    StyleDoc {
+        class_or_token: ".skeleton",
+        value: "relative overflow-hidden rounded-lg bg-surface-secondary/50",
+        description: "Theme secondary-surface placeholder clipped to the shared hairline radius.",
+        rust: "surface_tertiary + hairline_radius + overflow_hidden",
+        status: ImplementationStatus::Partial,
+    },
+    StyleDoc {
+        class_or_token: ".skeleton--shimmer",
+        value: "1.4s highlight sweep",
+        description: "A translucent background-colored band sweeps left to right.",
+        rust: "SkeletonAnimation::Shimmer + 1400ms repeated animation",
+        status: ImplementationStatus::Implemented,
+    },
+    StyleDoc {
+        class_or_token: ".skeleton--pulse",
+        value: "animate-pulse",
+        description: "Opacity oscillates while motion is enabled.",
+        rust: "SkeletonAnimation::Pulse + 1600ms repeated animation",
+        status: ImplementationStatus::Implemented,
+    },
+];
+
+pub(crate) const SKELETON: ReferenceMetadata = ReferenceMetadata {
+    page: "Skeleton",
+    import_line: "use herogpui::components::skeleton::Skeleton;",
+    source_module: "skeleton",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(feedback)/skeleton.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/skeleton/skeleton.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/skeleton.css",
+    required_parts: SKELETON_REQUIRED_PARTS,
+    api: SKELETON_API,
+    parts: SKELETON_PARTS,
+    states: SKELETON_STATES,
+    styling: SKELETON_STYLING,
+};
+
+const SPINNER_REQUIRED_PARTS: &[&str] = &["Spinner"];
+
+const SPINNER_API: &[ApiDoc] = &[
+    ApiDoc {
+        owner: "Spinner",
+        prop: "size",
+        ty: "'sm' | 'md' | 'lg' | 'xl'",
+        default: "'md'",
+        description: "Selects the 16, 24, 32 or 40px indicator size.",
+        rust_owner: "Spinner",
+        rust: "size(SpinnerSize)",
+        status: ImplementationStatus::Implemented,
+    },
+    ApiDoc {
+        owner: "Spinner",
+        prop: "color",
+        ty: "'current' | 'accent' | 'success' | 'warning' | 'danger'",
+        default: "'accent'",
+        description: "Selects a semantic color or a caller-resolved current text color.",
+        rust_owner: "Spinner",
+        rust: "color(Color) / current_color(Hsla)",
+        status: ImplementationStatus::Partial,
+    },
+    ApiDoc {
+        owner: "Spinner",
+        prop: "className",
+        ty: "string",
+        default: "—",
+        description: "Browser CSS classes and animation utilities are unavailable.",
+        rust_owner: "Spinner",
+        rust: "—",
+        status: ImplementationStatus::Unavailable,
+    },
+];
+
+const SPINNER_PARTS: &[PartDoc] = &[PartDoc {
+    name: "Spinner",
+    slot: "spinner",
+    description: "Rotating arc indicator with semantic color and fixed size.",
+    rust_owner: "Spinner",
+    status: ImplementationStatus::Implemented,
+}];
+
+const SPINNER_STATES: &[StateDoc] = &[StateDoc {
+    state: "Spinning",
+    selector: ".spinner",
+    description: "The arc rotates continuously at the configured duration.",
+    rust: "Animation::repeat + Transformation::rotate",
+    status: ImplementationStatus::Implemented,
+}];
+
+const SPINNER_STYLING: &[StyleDoc] = &[
+    StyleDoc { class_or_token: ".spinner", value: "size-6 animate-spin", description: "The default indicator is 24px and rotates continuously; duration_ms provides the gallery's speed customization point.", rust: "SpinnerSize::Md + duration_ms(u64) + repeated rotation", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".spinner--sm / --md / --lg / --xl", value: "16px / 24px / 32px / 40px", description: "All four documented diameters map directly.", rust: "SpinnerSize::px", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".spinner--current / semantic colors", value: "currentColor or semantic role", description: "GPUI SVGs require current text color to be resolved by the caller; semantic roles resolve from the active theme.", rust: "current_color(Hsla) / color(Color)", status: ImplementationStatus::Partial },
+];
+
+pub(crate) const SPINNER: ReferenceMetadata = ReferenceMetadata {
+    page: "Spinner",
+    import_line: "use herogpui::components::spinner::Spinner;",
+    source_module: "spinner",
+    version: "3.2.4",
+    docs_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(feedback)/spinner.mdx",
+    api_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/spinner/spinner.tsx",
+    style_source: "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/spinner.css",
+    required_parts: SPINNER_REQUIRED_PARTS,
+    api: SPINNER_API,
+    parts: SPINNER_PARTS,
+    states: SPINNER_STATES,
+    styling: SPINNER_STYLING,
+};
+
 pub(crate) const ALL: &[ReferenceMetadata] = &[
     DROPDOWN,
     LIST_BOX,
@@ -16336,6 +16838,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     CHIP,
     COLOR_AREA,
     COLOR_SLIDER,
+    COLOR_SWATCH,
     COLOR_SWATCH_PICKER,
     TOAST,
     COLOR_PICKER,
@@ -16370,6 +16873,9 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     AUTOCOMPLETE,
     PROGRESS_BAR,
     PROGRESS_CIRCLE,
+    METER,
+    SKELETON,
+    SPINNER,
     SEPARATOR,
     SELECT,
     POPOVER,
@@ -16388,6 +16894,7 @@ pub(crate) const ALL: &[ReferenceMetadata] = &[
     ALERT,
     LINK,
     AVATAR,
+    SCROLL_SHADOW,
     FIELDSET,
     FIELD_SLOTS,
 ];

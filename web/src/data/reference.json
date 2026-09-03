@@ -2599,6 +2599,129 @@
       }
     ]
   },
+  "color-swatch": {
+    "page": "ColorSwatch",
+    "importLine": "use herogpui::components::color_picker::ColorSwatch;",
+    "version": "3.2.4",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(colors)/color-swatch.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/color-swatch/color-swatch.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/color-swatch.css",
+    "requiredParts": [
+      "ColorSwatch"
+    ],
+    "api": [
+      {
+        "owner": "ColorSwatch",
+        "prop": "color",
+        "type": "string | Color",
+        "default": "—",
+        "description": "Color value displayed by the swatch.",
+        "rustOwner": "ColorSwatch",
+        "rust": "new(PickerColor) / color(PickerColor)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ColorSwatch",
+        "prop": "colorName",
+        "type": "string",
+        "default": "—",
+        "description": "Accessible name overriding the generated color description; GPUI 0.2.2 exposes no accessibility attribute tree.",
+        "rustOwner": "ColorSwatch",
+        "rust": "—",
+        "status": "unavailable"
+      },
+      {
+        "owner": "ColorSwatch",
+        "prop": "className",
+        "type": "string",
+        "default": "—",
+        "description": "Browser CSS classes are unavailable.",
+        "rustOwner": "ColorSwatch",
+        "rust": "—",
+        "status": "unavailable"
+      },
+      {
+        "owner": "ColorSwatch",
+        "prop": "shape",
+        "type": "'circle' | 'square'",
+        "default": "'circle'",
+        "description": "Selects a circular or rounded-square swatch.",
+        "rustOwner": "ColorSwatch",
+        "rust": "shape(SwatchShape)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ColorSwatch",
+        "prop": "size",
+        "type": "'xs' | 'sm' | 'md' | 'lg' | 'xl'",
+        "default": "'md'",
+        "description": "Selects the 16, 24, 32, 36 or 40px swatch size.",
+        "rustOwner": "ColorSwatch",
+        "rust": "size(SizeXl)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ColorSwatch",
+        "prop": "style",
+        "type": "CSSProperties | render function",
+        "default": "—",
+        "description": "Browser inline styles and style render functions are unavailable.",
+        "rustOwner": "ColorSwatch",
+        "rust": "—",
+        "status": "unavailable"
+      },
+      {
+        "owner": "ColorSwatch",
+        "prop": "aria-label",
+        "type": "string",
+        "default": "—",
+        "description": "GPUI 0.2.2 exposes no accessibility attribute tree.",
+        "rustOwner": "ColorSwatch",
+        "rust": "—",
+        "status": "unavailable"
+      },
+      {
+        "owner": "ColorSwatch",
+        "prop": "render",
+        "type": "DOMRenderFunction",
+        "default": "—",
+        "description": "DOM root substitution has no GPUI equivalent.",
+        "rustOwner": "ColorSwatch",
+        "rust": "—",
+        "status": "unavailable"
+      }
+    ],
+    "parts": [
+      {
+        "name": "ColorSwatch",
+        "slot": "color-swatch",
+        "description": "Color preview with a transparency backdrop, border, size, and shape.",
+        "rustOwner": "ColorSwatch",
+        "status": "implemented"
+      }
+    ],
+    "states": [],
+    "styling": [
+      {
+        "token": ".color-swatch",
+        "description": "The default swatch is a clipped 32px circle with the theme border.",
+        "rust": "SizeXl::Md + overflow_hidden + border(layout.border_width)",
+        "status": "implemented"
+      },
+      {
+        "token": ".color-swatch--circle / --square",
+        "description": "Circle radii follow each size; square uses the theme medium radius.",
+        "rust": "SwatchShape => edge / 2 or radius_md",
+        "status": "implemented"
+      },
+      {
+        "token": "transparency checkerboard",
+        "description": "Translucent colors blend over the secondary surface; the port does not draw the upstream checker pattern.",
+        "rust": "colors.surface_secondary beneath PickerColor",
+        "status": "partial"
+      }
+    ]
+  },
   "color-swatch-picker": {
     "page": "ColorSwatchPicker",
     "importLine": "use herogpui::components::color_picker::ColorSwatchPicker;",
@@ -18026,6 +18149,347 @@
       }
     ]
   },
+  "meter": {
+    "page": "Meter",
+    "importLine": "use herogpui::components::meter::Meter;",
+    "version": "3.2.4",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(feedback)/meter.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/meter/meter.tsx + https://github.com/adobe/react-spectrum/blob/react-aria-components@1.20.0/packages/react-aria-components/src/Meter.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/meter.css",
+    "requiredParts": [
+      "Meter",
+      "Meter.Output",
+      "Meter.Track",
+      "Meter.Fill"
+    ],
+    "api": [
+      {
+        "owner": "Meter",
+        "prop": "value",
+        "type": "number",
+        "default": "0",
+        "description": "Current value within the configured range.",
+        "rustOwner": "Meter",
+        "rust": "new(id, value) / value(f32)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Meter",
+        "prop": "minValue",
+        "type": "number",
+        "default": "0",
+        "description": "Minimum value used to normalize the fill.",
+        "rustOwner": "Meter",
+        "rust": "min_value(f32)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Meter",
+        "prop": "maxValue",
+        "type": "number",
+        "default": "100",
+        "description": "Maximum value used to normalize the fill.",
+        "rustOwner": "Meter",
+        "rust": "max_value(f32)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Meter",
+        "prop": "size",
+        "type": "'sm' | 'md' | 'lg'",
+        "default": "'md'",
+        "description": "Selects the meter track thickness.",
+        "rustOwner": "Meter",
+        "rust": "size(Size)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Meter",
+        "prop": "color",
+        "type": "'default' | 'accent' | 'success' | 'warning' | 'danger'",
+        "default": "'accent'",
+        "description": "Semantic color of the fill bar.",
+        "rustOwner": "Meter",
+        "rust": "color(Color)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Meter",
+        "prop": "formatOptions",
+        "type": "Intl.NumberFormatOptions",
+        "default": "{style: 'percent'}",
+        "description": "Formats the value label; the port covers common numeric styles without caller-selected locale data.",
+        "rustOwner": "Meter",
+        "rust": "format_options(NumberFormat)",
+        "status": "partial"
+      },
+      {
+        "owner": "Meter",
+        "prop": "valueLabel",
+        "type": "ReactNode",
+        "default": "—",
+        "description": "Replaces the generated value text; the port accepts text or a value render closure.",
+        "rustOwner": "Meter",
+        "rust": "value_label(text) / value_content(render)",
+        "status": "partial"
+      },
+      {
+        "owner": "Meter",
+        "prop": "children",
+        "type": "ReactNode | (values: MeterRenderProps) => ReactNode",
+        "default": "—",
+        "description": "The port composes a label and output renderer while track and fill remain built in.",
+        "rustOwner": "Meter",
+        "rust": "label(text) + value_content(render)",
+        "status": "partial"
+      },
+      {
+        "owner": "MeterRenderProps",
+        "prop": "percentage",
+        "type": "number",
+        "default": "—",
+        "description": "Normalized percentage handed to the output renderer.",
+        "rustOwner": "Meter",
+        "rust": "value_content(render)",
+        "status": "implemented"
+      },
+      {
+        "owner": "MeterRenderProps",
+        "prop": "valueText",
+        "type": "string",
+        "default": "—",
+        "description": "Formatted value text handed to the output renderer.",
+        "rustOwner": "Meter",
+        "rust": "value_content(render)",
+        "status": "implemented"
+      }
+    ],
+    "parts": [
+      {
+        "name": "Meter",
+        "slot": "meter",
+        "description": "Root meter state and layout owner.",
+        "rustOwner": "Meter",
+        "status": "implemented"
+      },
+      {
+        "name": "Meter.Output",
+        "slot": "meter-output",
+        "description": "Formatted output beside the label, customizable through the value closure.",
+        "rustOwner": "Meter",
+        "status": "partial"
+      },
+      {
+        "name": "Meter.Track",
+        "slot": "meter-track",
+        "description": "Clipped default-color track delegated to ProgressBar.",
+        "rustOwner": "Meter",
+        "status": "partial"
+      },
+      {
+        "name": "Meter.Fill",
+        "slot": "meter-fill",
+        "description": "Semantic fill proportional to the normalized value.",
+        "rustOwner": "Meter",
+        "status": "partial"
+      }
+    ],
+    "states": [
+      {
+        "state": "Determinate",
+        "selector": "[aria-valuenow]",
+        "description": "Fill width and output follow the normalized value.",
+        "rust": "ProgressBar::value + min_value + max_value",
+        "status": "implemented"
+      }
+    ],
+    "styling": [
+      {
+        "token": ".meter",
+        "description": "Full-width label/output row above the track.",
+        "rust": "ProgressBar root layout",
+        "status": "implemented"
+      },
+      {
+        "token": ".meter__track",
+        "description": "Track thickness follows the three documented sizes.",
+        "rust": "ProgressBar::size(Size)",
+        "status": "implemented"
+      },
+      {
+        "token": ".meter__fill",
+        "description": "Fill color follows the selected semantic role.",
+        "rust": "ProgressBar::color(Color)",
+        "status": "implemented"
+      }
+    ]
+  },
+  "skeleton": {
+    "page": "Skeleton",
+    "importLine": "use herogpui::components::skeleton::Skeleton;",
+    "version": "3.2.4",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(feedback)/skeleton.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/skeleton/skeleton.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/skeleton.css",
+    "requiredParts": [
+      "Skeleton"
+    ],
+    "api": [
+      {
+        "owner": "Skeleton",
+        "prop": "animationType",
+        "type": "'shimmer' | 'pulse' | 'none'",
+        "default": "theme",
+        "description": "Selects shimmer, pulse, or no animation; the theme token supplies the default.",
+        "rustOwner": "Skeleton",
+        "rust": "animation_type(SkeletonAnimation)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Skeleton",
+        "prop": "className",
+        "type": "string",
+        "default": "—",
+        "description": "Browser CSS classes are unavailable.",
+        "rustOwner": "Skeleton",
+        "rust": "—",
+        "status": "unavailable"
+      }
+    ],
+    "parts": [
+      {
+        "name": "Skeleton",
+        "slot": "skeleton",
+        "description": "Clipped placeholder surface with optional hidden layout content.",
+        "rustOwner": "Skeleton",
+        "status": "implemented"
+      }
+    ],
+    "states": [
+      {
+        "state": "Shimmer",
+        "selector": ".skeleton--shimmer",
+        "description": "A highlight band sweeps across the placeholder.",
+        "rust": "SkeletonAnimation::Shimmer",
+        "status": "implemented"
+      },
+      {
+        "state": "Pulse",
+        "selector": ".skeleton--pulse",
+        "description": "The placeholder opacity pulses.",
+        "rust": "SkeletonAnimation::Pulse",
+        "status": "implemented"
+      },
+      {
+        "state": "No animation",
+        "selector": ".skeleton--none",
+        "description": "A static placeholder is rendered, including when reduced motion is requested.",
+        "rust": "SkeletonAnimation::None / reduce_motion",
+        "status": "implemented"
+      }
+    ],
+    "styling": [
+      {
+        "token": ".skeleton",
+        "description": "Theme secondary-surface placeholder clipped to the shared hairline radius.",
+        "rust": "surface_tertiary + hairline_radius + overflow_hidden",
+        "status": "partial"
+      },
+      {
+        "token": ".skeleton--shimmer",
+        "description": "A translucent background-colored band sweeps left to right.",
+        "rust": "SkeletonAnimation::Shimmer + 1400ms repeated animation",
+        "status": "implemented"
+      },
+      {
+        "token": ".skeleton--pulse",
+        "description": "Opacity oscillates while motion is enabled.",
+        "rust": "SkeletonAnimation::Pulse + 1600ms repeated animation",
+        "status": "implemented"
+      }
+    ]
+  },
+  "spinner": {
+    "page": "Spinner",
+    "importLine": "use herogpui::components::spinner::Spinner;",
+    "version": "3.2.4",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(feedback)/spinner.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/spinner/spinner.tsx",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/spinner.css",
+    "requiredParts": [
+      "Spinner"
+    ],
+    "api": [
+      {
+        "owner": "Spinner",
+        "prop": "size",
+        "type": "'sm' | 'md' | 'lg' | 'xl'",
+        "default": "'md'",
+        "description": "Selects the 16, 24, 32 or 40px indicator size.",
+        "rustOwner": "Spinner",
+        "rust": "size(SpinnerSize)",
+        "status": "implemented"
+      },
+      {
+        "owner": "Spinner",
+        "prop": "color",
+        "type": "'current' | 'accent' | 'success' | 'warning' | 'danger'",
+        "default": "'accent'",
+        "description": "Selects a semantic color or a caller-resolved current text color.",
+        "rustOwner": "Spinner",
+        "rust": "color(Color) / current_color(Hsla)",
+        "status": "partial"
+      },
+      {
+        "owner": "Spinner",
+        "prop": "className",
+        "type": "string",
+        "default": "—",
+        "description": "Browser CSS classes and animation utilities are unavailable.",
+        "rustOwner": "Spinner",
+        "rust": "—",
+        "status": "unavailable"
+      }
+    ],
+    "parts": [
+      {
+        "name": "Spinner",
+        "slot": "spinner",
+        "description": "Rotating arc indicator with semantic color and fixed size.",
+        "rustOwner": "Spinner",
+        "status": "implemented"
+      }
+    ],
+    "states": [
+      {
+        "state": "Spinning",
+        "selector": ".spinner",
+        "description": "The arc rotates continuously at the configured duration.",
+        "rust": "Animation::repeat + Transformation::rotate",
+        "status": "implemented"
+      }
+    ],
+    "styling": [
+      {
+        "token": ".spinner",
+        "description": "The default indicator is 24px and rotates continuously; duration_ms provides the gallery's speed customization point.",
+        "rust": "SpinnerSize::Md + duration_ms(u64) + repeated rotation",
+        "status": "implemented"
+      },
+      {
+        "token": ".spinner--sm / --md / --lg / --xl",
+        "description": "All four documented diameters map directly.",
+        "rust": "SpinnerSize::px",
+        "status": "implemented"
+      },
+      {
+        "token": ".spinner--current / semantic colors",
+        "description": "GPUI SVGs require current text color to be resolved by the caller; semantic roles resolve from the active theme.",
+        "rust": "current_color(Hsla) / color(Color)",
+        "status": "partial"
+      }
+    ]
+  },
   "separator": {
     "page": "Separator",
     "importLine": "use herogpui::components::separator::Separator;",
@@ -24098,6 +24562,171 @@
         "token": ".avatar--soft / .avatar--soft .avatar__fallback--{color}",
         "description": "The soft variant clears the base fill and the compound rules paint the per-role soft mix behind the same soft-foreground text.",
         "rust": "AvatarVariant::Soft => (fb_role.soft(), soft_fg)",
+        "status": "implemented"
+      }
+    ]
+  },
+  "scroll-shadow": {
+    "page": "ScrollShadow",
+    "importLine": "use herogpui::components::scroll_shadow::ScrollShadow;",
+    "version": "3.2.4",
+    "docsSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/apps/docs/content/docs/en/react/components/(utilities)/scroll-shadow.mdx",
+    "apiSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/scroll-shadow/scroll-shadow.tsx + https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/react/src/components/scroll-shadow/use-scroll-shadow.ts",
+    "styleSource": "https://github.com/heroui-inc/heroui/blob/v3.2.4/packages/styles/components/scroll-shadow.css",
+    "requiredParts": [
+      "ScrollShadow"
+    ],
+    "api": [
+      {
+        "owner": "ScrollShadow",
+        "prop": "orientation",
+        "type": "'vertical' | 'horizontal'",
+        "default": "'vertical'",
+        "description": "Axis along which content scrolls and fades appear.",
+        "rustOwner": "ScrollShadow",
+        "rust": "orientation(Orientation)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "variant",
+        "type": "'fade'",
+        "default": "'fade'",
+        "description": "The documented API has one visual variant, which is the port's built-in treatment.",
+        "rustOwner": "ScrollShadow",
+        "rust": "—",
+        "status": "unavailable"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "size",
+        "type": "number",
+        "default": "40",
+        "description": "Depth of each fade gradient in pixels.",
+        "rustOwner": "ScrollShadow",
+        "rust": "size(Pixels)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "offset",
+        "type": "number",
+        "default": "0",
+        "description": "Scroll distance before the corresponding fade appears.",
+        "rustOwner": "ScrollShadow",
+        "rust": "offset(Pixels)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "hideScrollBar",
+        "type": "boolean",
+        "default": "false",
+        "description": "GPUI draws no browser-native scrollbar for this component to hide.",
+        "rustOwner": "ScrollShadow",
+        "rust": "—",
+        "status": "unavailable"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "isEnabled",
+        "type": "boolean",
+        "default": "true",
+        "description": "Turns fade rendering and visibility reporting on or off.",
+        "rustOwner": "ScrollShadow",
+        "rust": "is_enabled(bool)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "visibility",
+        "type": "'auto' | 'both' | 'top' | 'bottom' | 'left' | 'right' | 'none'",
+        "default": "'auto'",
+        "description": "Controls which edge fades are eligible to render.",
+        "rustOwner": "ScrollShadow",
+        "rust": "visibility(ScrollShadowVisibility)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "onVisibilityChange",
+        "type": "(visibility: ScrollShadowVisibility) => void",
+        "default": "—",
+        "description": "Reports resolved visible edges when they change.",
+        "rustOwner": "ScrollShadow",
+        "rust": "on_visibility_change(callback)",
+        "status": "implemented"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "className",
+        "type": "string",
+        "default": "—",
+        "description": "Browser CSS classes are unavailable.",
+        "rustOwner": "ScrollShadow",
+        "rust": "—",
+        "status": "unavailable"
+      },
+      {
+        "owner": "ScrollShadow",
+        "prop": "children",
+        "type": "ReactNode",
+        "default": "—",
+        "description": "Scrollable child content.",
+        "rustOwner": "ScrollShadow",
+        "rust": "—",
+        "status": "partial"
+      }
+    ],
+    "parts": [
+      {
+        "name": "ScrollShadow",
+        "slot": "scroll-shadow",
+        "description": "Scrollable root plus edge-fade overlays.",
+        "rustOwner": "ScrollShadow",
+        "status": "implemented"
+      }
+    ],
+    "states": [
+      {
+        "state": "Leading edge",
+        "selector": "[data-top-scroll] / [data-left-scroll]",
+        "description": "Leading fade appears after content moves beyond the configured offset.",
+        "rust": "ScrollHandle::offset + offset",
+        "status": "implemented"
+      },
+      {
+        "state": "Trailing edge",
+        "selector": "[data-bottom-scroll] / [data-right-scroll]",
+        "description": "Trailing fade appears while more content remains after the viewport.",
+        "rust": "ScrollHandle::max_offset + offset",
+        "status": "implemented"
+      },
+      {
+        "state": "Both edges",
+        "selector": "[data-top-bottom-scroll] / [data-left-right-scroll]",
+        "description": "Both fades render when content can scroll in either direction.",
+        "rust": "ScrollShadowVisibility::Both",
+        "status": "implemented"
+      }
+    ],
+    "styling": [
+      {
+        "token": ".scroll-shadow",
+        "description": "The port uses a tracked GPUI scroller with explicit gradient overlays.",
+        "rust": "track_scroll + overflow_x_scroll / overflow_y_scroll",
+        "status": "partial"
+      },
+      {
+        "token": "--scroll-shadow-size",
+        "description": "Fade depth follows the size builder.",
+        "rust": "size(Pixels)",
+        "status": "implemented"
+      },
+      {
+        "token": "[data-orientation]",
+        "description": "Orientation switches scroll axis and fade direction.",
+        "rust": "orientation(Orientation)",
         "status": "implemented"
       }
     ]
