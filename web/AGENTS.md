@@ -23,3 +23,8 @@ Example presentation follows the Rust gallery source: section title, optional
 description, then the bordered example. Keep explanatory prose outside the
 example surface on both sites; component-owned labels, helper text, values, and
 composed content remain inside the demonstrated component.
+
+Keep each component on one page: all generated examples come first, followed by
+`Component documentation` with Props, Anatomy, States, and Styling. New gallery
+pages must add checked-in reference metadata so the website does not ship an
+examples-only component page.

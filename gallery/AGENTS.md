@@ -13,6 +13,9 @@ reference metadata.
   component order. Explanatory gallery prose belongs outside the bordered
   preview; only text owned by the demonstrated component (labels, helper text,
   values, and composed content) belongs inside it.
+- Keep every component on one page with all examples before its reference
+  panels. Add checked-in reference metadata with a new page so the native and
+  generated web pages both include Props, Anatomy, States, and Styling.
 - Every interactive controlled prop in a demo must store and feed back its
   callback value. Otherwise use the matching `default_*` seed.
 - Repeated components need unique ids, even when a helper constructs them.

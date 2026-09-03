@@ -125,11 +125,18 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
       ))}
 
       {reference ? (
-        <>
-          <h2 id="api-reference">API reference</h2>
-          <PropsTable label={`${component.title} props`} rows={reference.api} />
+        <section aria-labelledby="api-reference">
+          <h2 id="api-reference">Component documentation</h2>
+          <p className="mt-2 text-sm text-muted">
+            Rust API, composition, interaction states, and styling support for {component.title}.
+          </p>
 
-          <h2 id="anatomy">Anatomy</h2>
+          <h3 id="props">Props</h3>
+          <div className="mt-4">
+            <PropsTable label={`${component.title} props`} rows={reference.api} />
+          </div>
+
+          <h3 id="anatomy">Anatomy</h3>
           {reference.requiredParts.length > 0 ? (
             <div className="mt-4">
               <p className="mb-2 text-sm font-medium text-foreground">Required parts</p>
@@ -146,12 +153,16 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
             <PartsTable rows={reference.parts} title={component.title} />
           </div>
 
-          <h2 id="states">States</h2>
-          <StatesTable rows={reference.states} title={component.title} />
+          <h3 id="states">States</h3>
+          <div className="mt-4">
+            <StatesTable rows={reference.states} title={component.title} />
+          </div>
 
-          <h2 id="styling-tokens">Styling tokens</h2>
-          <StylingTable rows={reference.styling} title={component.title} />
-        </>
+          <h3 id="styling-tokens">Styling</h3>
+          <div className="mt-4">
+            <StylingTable rows={reference.styling} title={component.title} />
+          </div>
+        </section>
       ) : (
         <Callout kind="note" title="Detailed prop documentation is not available yet">
           Detailed prop documentation is not available for {component.title} yet. The examples above
