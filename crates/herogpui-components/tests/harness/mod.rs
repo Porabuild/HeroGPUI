@@ -23,14 +23,17 @@
 // use it. The allow keeps the shared surface from sprouting per-file copies.
 #![allow(dead_code)]
 
-use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    sync::OnceLock,
+};
 
 use gpui::{
     canvas, point, prelude::*, px, AnyElement, Context, KeyUpEvent, Keystroke, Modifiers, Render,
     TestAppContext, VisualTestContext, Window,
 };
-use herogpui_components::{util, Tooltip, TooltipHover};
+use herogpui_components::{util, Date, DateSegment, Tooltip, TooltipHover};
 use herogpui_theme::{set_reduce_motion, ThemeProvider};
 
 thread_local! {
@@ -127,5 +130,80 @@ pub fn press(cx: &mut VisualTestContext, keys: &str) {
         cx.simulate_event(KeyUpEvent {
             keystroke: Keystroke::parse(last).unwrap(),
         });
+    }
+}
+
+fn date_order_for_locale(locale: &str) -> Option<[DateSegment; 3]> {
+    use icu_datetime::{
+        fieldsets,
+        input::Date as IcuDate,
+        options::YearStyle,
+        provider::{
+            fields::FieldSymbol,
+            pattern::{reference, runtime, PatternItem},
+        },
+        DateTimeFormatter,
+    };
+    use icu_locale_core::Locale as IcuLocale;
+
+    let formatter = DateTimeFormatter::try_new(
+        locale.parse::<IcuLocale>().ok()?.into(),
+        fieldsets::YMD::short().with_year_style(YearStyle::Full),
+    )
+    .ok()?;
+    let formatted = formatter.format(&IcuDate::try_new_iso(2000, 1, 1).ok()?);
+    let pattern: runtime::Pattern<'_> = formatted.pattern().into();
+    let order: Vec<_> = reference::Pattern::from(&pattern)
+        .into_items()
+        .into_iter()
+        .filter_map(|item| match item {
+            PatternItem::Field(field) => match field.symbol {
+                FieldSymbol::Month(_) => Some(DateSegment::Month),
+                FieldSymbol::Day(_) => Some(DateSegment::Day),
+                FieldSymbol::Year(_) => Some(DateSegment::Year),
+                _ => None,
+            },
+            PatternItem::Literal(_) => None,
+        })
+        .collect();
+    order.try_into().ok()
+}
+
+/// The order expected from the operating system's regional date preference.
+pub fn system_date_order() -> [DateSegment; 3] {
+    static ORDER: OnceLock<[DateSegment; 3]> = OnceLock::new();
+    *ORDER.get_or_init(|| {
+        locale_config::Locale::user_default()
+            .tags_for("time")
+            .find_map(|tag| date_order_for_locale(tag.as_ref()))
+            .unwrap_or(DateSegment::ALL)
+    })
+}
+
+/// Moves an already focused date-only field to `target` regardless of locale.
+pub fn focus_date_segment(cx: &mut VisualTestContext, target: DateSegment) {
+    for _ in 1..DateSegment::ALL.len() {
+        press(cx, "left");
+    }
+    let target = system_date_order()
+        .iter()
+        .position(|segment| *segment == target)
+        .unwrap();
+    for _ in 0..target {
+        press(cx, "right");
+    }
+}
+
+/// Types a complete date into a field focused on its first regional segment.
+pub fn type_date(cx: &mut VisualTestContext, date: Date) {
+    for segment in system_date_order() {
+        let digits = match segment {
+            DateSegment::Month => format!("{:02}", date.month),
+            DateSegment::Day => format!("{:02}", date.day),
+            DateSegment::Year => format!("{:04}", date.year),
+        };
+        for digit in digits.chars() {
+            press(cx, &digit.to_string());
+        }
     }
 }

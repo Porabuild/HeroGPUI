@@ -2061,7 +2061,7 @@ impl RenderOnce for DateRangePicker {
 // DateField (segmented)
 // ---------------------------------------------------------------------------
 
-/// One editable part of a [`DateField`], in en-US reading order.
+/// One editable part of a [`DateField`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DateSegment {
     Month,
@@ -2070,7 +2070,7 @@ pub enum DateSegment {
 }
 
 impl DateSegment {
-    /// The segments a date field shows, in the order it shows them.
+    /// All date segments in canonical month/day/year order.
     pub const ALL: [DateSegment; 3] = [DateSegment::Month, DateSegment::Day, DateSegment::Year];
 
     pub fn label(self) -> &'static str {
@@ -2188,8 +2188,10 @@ impl DateSegment {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct RegionalDateFormat {
+    order: [DateSegment; 3],
+    literals: [String; 4],
     month_has_leading_zero: bool,
     day_has_leading_zero: bool,
 }
@@ -2216,23 +2218,41 @@ impl RegionalDateFormat {
         .ok()?;
         let formatted = formatter.format(&IcuDate::try_new_iso(2000, 1, 1).ok()?);
         let pattern: runtime::Pattern<'_> = formatted.pattern().into();
+        let mut order = Vec::with_capacity(3);
+        let mut literals = Vec::with_capacity(4);
+        let mut literal = String::new();
         let mut month_has_leading_zero = None;
         let mut day_has_leading_zero = None;
         for item in reference::Pattern::from(&pattern).into_items() {
-            let PatternItem::Field(field) = item else {
-                continue;
+            let field = match item {
+                PatternItem::Literal(ch) => {
+                    literal.push(ch);
+                    continue;
+                }
+                PatternItem::Field(field) => field,
             };
-            match field.symbol {
+            let segment = match field.symbol {
                 FieldSymbol::Month(_) => {
                     month_has_leading_zero = Some(field.length == FieldLength::Two);
+                    DateSegment::Month
                 }
                 FieldSymbol::Day(_) => {
                     day_has_leading_zero = Some(field.length == FieldLength::Two);
+                    DateSegment::Day
                 }
-                _ => {}
+                FieldSymbol::Year(_) => DateSegment::Year,
+                _ => return None,
+            };
+            if order.contains(&segment) {
+                return None;
             }
+            literals.push(std::mem::take(&mut literal));
+            order.push(segment);
         }
+        literals.push(literal);
         Some(Self {
+            order: order.try_into().ok()?,
+            literals: literals.try_into().ok()?,
             month_has_leading_zero: month_has_leading_zero?,
             day_has_leading_zero: day_has_leading_zero?,
         })
@@ -2243,13 +2263,28 @@ impl RegionalDateFormat {
             .tags_for("time")
             .find_map(|tag| Self::for_locale(tag.as_ref()))
     }
+
+    fn date_hint(&self) -> String {
+        let mut hint = self.literals[0].clone();
+        for (index, segment) in self.order.iter().enumerate() {
+            hint.push_str(match segment {
+                DateSegment::Month => "MM",
+                DateSegment::Day => "DD",
+                DateSegment::Year => "YYYY",
+            });
+            hint.push_str(&self.literals[index + 1]);
+        }
+        hint
+    }
 }
 
-fn system_date_format() -> RegionalDateFormat {
+fn system_date_format() -> &'static RegionalDateFormat {
     static SYSTEM_DATE_FORMAT: OnceLock<RegionalDateFormat> = OnceLock::new();
-    *SYSTEM_DATE_FORMAT.get_or_init(|| {
+    SYSTEM_DATE_FORMAT.get_or_init(|| {
         RegionalDateFormat::for_preferences(&locale_config::Locale::user_default()).unwrap_or(
             RegionalDateFormat {
+                order: DateSegment::ALL,
+                literals: [String::new(), "/".to_owned(), "/".to_owned(), String::new()],
                 month_has_leading_zero: false,
                 day_has_leading_zero: false,
             },
@@ -2754,10 +2789,14 @@ fn parse_iso(text: &str) -> Option<Date> {
     Some(Date::new(y, m, d))
 }
 
-/// The format a field of this granularity accepts, which is the description v3
-/// shows when the caller supplies none of their own.
-fn format_hint(granularity: Granularity, twelve_hour: bool) -> String {
-    let mut hint = String::from("MM/DD/YYYY");
+/// The regional format a field of this granularity accepts, which is the
+/// description v3 shows when the caller supplies none of their own.
+fn format_hint(
+    regional_date: &RegionalDateFormat,
+    granularity: Granularity,
+    twelve_hour: bool,
+) -> String {
+    let mut hint = regional_date.date_hint();
     match granularity {
         Granularity::Day => return hint,
         Granularity::Hour => hint.push_str(", HH"),
@@ -2866,12 +2905,15 @@ impl RenderOnce for DateField {
             );
         }
 
+        let regional_date = system_date_format();
+
         // Which segment the arrows and typing act on. `use_keyed_state` takes
         // `cx` mutably, so this precedes the theme tokens.
+        let first_date_segment = regional_date.order[0];
         let focused_seg = window.use_keyed_state(
             gpui::ElementId::Name(format!("datefield-{entity_id}-seg").into()),
             cx,
-            |_, _| FieldSegment::Date(DateSegment::Month),
+            move |_, _| FieldSegment::Date(first_date_segment),
         );
         let mut focused = *focused_seg.read(cx);
         // Digits typed into the focused segment but not yet complete, so `1` in
@@ -2893,7 +2935,8 @@ impl RenderOnce for DateField {
         // `granularity` asks for. `TimeSegment::order` is the time field's own,
         // so a minute field looks the same wherever it appears.
         let twelve_hour = self.hour_cycle == crate::time_field::HourCycle::H12;
-        let mut segments: Vec<FieldSegment> = DateSegment::ALL
+        let mut segments: Vec<FieldSegment> = regional_date
+            .order
             .iter()
             .copied()
             .map(FieldSegment::Date)
@@ -2993,7 +3036,6 @@ impl RenderOnce for DateField {
             .into_any_element();
         }
 
-        let regional_date = system_date_format();
         let pad_month = self.should_force_leading_zeros || regional_date.month_has_leading_zero;
         let pad_day = self.should_force_leading_zeros || regional_date.day_has_leading_zero;
         let pad_hour = self.should_force_leading_zeros
@@ -3327,18 +3369,16 @@ impl RenderOnce for DateField {
         }
 
         for (index, segment) in segments.iter().copied().enumerate() {
-            // `/` between the date parts, `:` between the time parts, a comma
-            // where the two meet and a space before the meridiem -- the order
-            // v3 formats `02/03/2025, 08:45 AM` in.
+            // ICU supplies the date-part order and literals. Time keeps its
+            // own segment order, with a comma where the date and time meet.
             use crate::time_field::TimeSegment as T;
             let separator = match (index, segment) {
-                (0, _) => None,
-                (_, FieldSegment::Date(_)) => Some("/"),
+                (index, FieldSegment::Date(_)) => Some(regional_date.literals[index].as_str()),
                 (_, FieldSegment::Time(T::Hour)) => Some(","),
                 (_, FieldSegment::Time(T::Meridiem)) => Some(" "),
                 (_, FieldSegment::Time(_)) => Some(":"),
             };
-            if let Some(separator) = separator {
+            if let Some(separator) = separator.filter(|separator| !separator.is_empty()) {
                 group = group.child(
                     gpui::div()
                         .text_color(colors.muted)
@@ -3382,6 +3422,13 @@ impl RenderOnce for DateField {
             }
 
             group = group.child(seg);
+            if index == regional_date.order.len() - 1 && !regional_date.literals[3].is_empty() {
+                group = group.child(
+                    gpui::div()
+                        .text_color(colors.muted)
+                        .child(regional_date.literals[3].clone()),
+                );
+            }
         }
 
         if let Some(suffix) = self.suffix {
@@ -3429,7 +3476,7 @@ impl RenderOnce for DateField {
                 let description = self
                     .description
                     .clone()
-                    .unwrap_or_else(|| format_hint(granularity, twelve_hour).into());
+                    .unwrap_or_else(|| format_hint(regional_date, granularity, twelve_hour).into());
                 el = el.child(crate::field::Description::new(description));
             }
         }
@@ -3455,21 +3502,35 @@ mod tests {
     }
 
     #[test]
-    fn date_padding_follows_locale_patterns() {
+    fn date_order_literals_and_padding_follow_locale_patterns() {
+        let us = RegionalDateFormat::for_locale("en-US").unwrap();
+        assert_eq!(us.order, DateSegment::ALL);
+        assert_eq!(us.literals, ["", "/", "/", ""]);
+        assert!(!us.month_has_leading_zero);
+        assert!(!us.day_has_leading_zero);
+
+        let gb = RegionalDateFormat::for_locale("en-GB").unwrap();
         assert_eq!(
-            RegionalDateFormat::for_locale("en-US"),
-            Some(RegionalDateFormat {
-                month_has_leading_zero: false,
-                day_has_leading_zero: false,
-            })
+            gb.order,
+            [DateSegment::Day, DateSegment::Month, DateSegment::Year]
         );
+        assert_eq!(gb.literals, ["", "/", "/", ""]);
+        assert!(gb.month_has_leading_zero);
+        assert!(gb.day_has_leading_zero);
+
+        let german = RegionalDateFormat::for_locale("de-DE").unwrap();
         assert_eq!(
-            RegionalDateFormat::for_locale("en-GB"),
-            Some(RegionalDateFormat {
-                month_has_leading_zero: true,
-                day_has_leading_zero: true,
-            })
+            german.order,
+            [DateSegment::Day, DateSegment::Month, DateSegment::Year]
         );
+        assert_eq!(german.literals, ["", ".", ".", ""]);
+
+        let japanese = RegionalDateFormat::for_locale("ja-JP").unwrap();
+        assert_eq!(
+            japanese.order,
+            [DateSegment::Year, DateSegment::Month, DateSegment::Day]
+        );
+        assert_eq!(japanese.literals, ["", "/", "/", ""]);
         assert_eq!(RegionalDateFormat::for_locale("not_a_locale"), None);
     }
 
@@ -3598,14 +3659,22 @@ mod tests {
 
     #[test]
     fn the_hint_says_what_the_field_takes() {
-        assert_eq!(format_hint(Granularity::Day, false), "MM/DD/YYYY");
-        assert_eq!(format_hint(Granularity::Minute, false), "MM/DD/YYYY, HH:MM");
+        let us = RegionalDateFormat::for_locale("en-US").unwrap();
+        let gb = RegionalDateFormat::for_locale("en-GB").unwrap();
+        let german = RegionalDateFormat::for_locale("de-DE").unwrap();
+        assert_eq!(format_hint(&us, Granularity::Day, false), "MM/DD/YYYY");
+        assert_eq!(format_hint(&gb, Granularity::Day, false), "DD/MM/YYYY");
+        assert_eq!(format_hint(&german, Granularity::Day, false), "DD.MM.YYYY");
         assert_eq!(
-            format_hint(Granularity::Second, true),
+            format_hint(&us, Granularity::Minute, false),
+            "MM/DD/YYYY, HH:MM"
+        );
+        assert_eq!(
+            format_hint(&us, Granularity::Second, true),
             "MM/DD/YYYY, HH:MM:SS AM"
         );
         // The cycle only shows where there is an hour to qualify.
-        assert_eq!(format_hint(Granularity::Day, true), "MM/DD/YYYY");
+        assert_eq!(format_hint(&us, Granularity::Day, true), "MM/DD/YYYY");
         let _ = HourCycle::H12;
     }
 }

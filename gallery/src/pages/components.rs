@@ -4619,7 +4619,7 @@ impl Gallery {
                             "2025-02-03T08:05:07",
                             cx,
                         ))
-                        .label("Locale default")
+                        .label("System locale")
                         .granularity(h::Granularity::Second)
                         .hour_cycle(h::HourCycle::H12)
                         .into_any_element(),
@@ -4634,7 +4634,7 @@ impl Gallery {
                         .should_force_leading_zeros(true)
                         .into_any_element(),
                         para(
-                            "The locale controls month, day and hour padding by default. The prop forces all three to two digits.",
+                            "The system locale controls the date segment order, separators, and month, day, and hour padding. The prop only forces those numeric segments to two digits.",
                             cx,
                         ),
                     ]),
@@ -4824,8 +4824,9 @@ impl Gallery {
                     "Format Options",
                     col(vec![
                         para(
-                            "The trigger shows the date in the ISO order this port formats in; \
-                             `locale` is what v3 varies it with, and that needs CLDR data.",
+                            "The trigger follows the operating system's regional date order, \
+                             separators, and numeric padding. Its state and submitted value stay \
+                             ISO-formatted.",
                             cx,
                         ),
                         h::DatePicker::new(self.demo_calendar("dp-format", cx))
@@ -5000,8 +5001,9 @@ impl Gallery {
                             .label("Stay")
                             .into_any_element(),
                         para(
-                            "Both ends are shown in the ISO order this port formats in; `locale` \
-                             is what v3 varies it with, and that needs CLDR data.",
+                            "Both ends follow the operating system's regional date order, \
+                             separators, and numeric padding. Their state and submitted values \
+                             stay ISO-formatted.",
                             cx,
                         ),
                     ]),
@@ -13930,7 +13932,7 @@ mod example_quality {
     }
 
     #[test]
-    fn date_field_examples_demonstrate_locale_and_forced_padding() {
+    fn date_field_examples_demonstrate_system_format_and_forced_padding() {
         let page = page_fn(SRC, "date_field");
         let leading = section_body(page, "Forced Leading Zeros");
         assert_eq!(
@@ -13944,7 +13946,17 @@ mod example_quality {
             leading.matches(".should_force_leading_zeros(true)").count(),
             1
         );
-        assert!(leading.contains("The locale controls month, day and hour padding by default"));
+        assert!(leading.contains("system locale controls the date segment order, separators"));
+
+        let date_picker = section_body(page_fn(SRC, "date_picker"), "Format Options");
+        assert!(date_picker.contains("operating system's regional date order"));
+        assert!(date_picker.contains("submitted value stay"));
+        assert!(!date_picker.contains("needs CLDR data"));
+
+        let range_picker = section_body(page_fn(SRC, "date_range_picker"), "Format Options");
+        assert!(range_picker.contains("operating system's regional date order"));
+        assert!(range_picker.contains("submitted values"));
+        assert!(!range_picker.contains("needs CLDR data"));
     }
 
     #[test]

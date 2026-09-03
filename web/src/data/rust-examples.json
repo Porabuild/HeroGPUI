@@ -1061,7 +1061,7 @@
     {
       "heading": "Forced Leading Zeros",
       "imports": "use herogpui::prelude::{DateField, Granularity, HourCycle};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        DateField::new(self.demo_text(\n            \"df-leading-locale\",\n            \"2025-02-03T08:05:07\",\n            cx,\n        ))\n        .label(\"Locale default\")\n        .granularity(Granularity::Second)\n        .hour_cycle(HourCycle::H12)\n        .into_any_element(),\n        DateField::new(self.demo_text(\n            \"df-leading-forced\",\n            \"2025-02-03T08:05:07\",\n            cx,\n        ))\n        .label(\"Forced two-digit fields\")\n        .granularity(Granularity::Second)\n        .hour_cycle(HourCycle::H12)\n        .should_force_leading_zeros(true)\n        .into_any_element(),\n        para(\n            \"The locale controls month, day and hour padding by default. The prop forces all three to two digits.\",\n            cx,\n        ),\n    ])"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(256.))\n    .gap(px(12.))\n    .children(vec![\n        DateField::new(self.demo_text(\n            \"df-leading-locale\",\n            \"2025-02-03T08:05:07\",\n            cx,\n        ))\n        .label(\"System locale\")\n        .granularity(Granularity::Second)\n        .hour_cycle(HourCycle::H12)\n        .into_any_element(),\n        DateField::new(self.demo_text(\n            \"df-leading-forced\",\n            \"2025-02-03T08:05:07\",\n            cx,\n        ))\n        .label(\"Forced two-digit fields\")\n        .granularity(Granularity::Second)\n        .hour_cycle(HourCycle::H12)\n        .should_force_leading_zeros(true)\n        .into_any_element(),\n        para(\n            \"The system locale controls the date segment order, separators, and month, day, and hour padding. The prop only forces those numeric segments to two digits.\",\n            cx,\n        ),\n    ])"
     },
     {
       "heading": "With Icons",
@@ -1138,7 +1138,7 @@
     {
       "heading": "Format Options",
       "imports": "use herogpui::prelude::DatePicker;\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        para(\n            \"The trigger shows the date in the ISO order this port formats in; \\\n                                 `locale` is what v3 varies it with, and that needs CLDR data.\",\n            cx,\n        ),\n        DatePicker::new(self.demo_calendar(\"dp-format\", cx))\n            .label(\"Date\")\n            .into_any_element(),\n    ])"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        para(\n            \"The trigger follows the operating system's regional date order, \\\n                                 separators, and numeric padding. Its state and submitted value stay \\\n                                 ISO-formatted.\",\n            cx,\n        ),\n        DatePicker::new(self.demo_calendar(\"dp-format\", cx))\n            .label(\"Date\")\n            .into_any_element(),\n    ])"
     },
     {
       "heading": "Form Example",
@@ -1180,7 +1180,7 @@
     {
       "heading": "Format Options",
       "imports": "use herogpui::prelude::{DateRangePicker, DateRangeState};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        DateRangePicker::new(self.demo_range(\"drp-format\", cx))\n            .label(\"Stay\")\n            .into_any_element(),\n        para(\n            \"Both ends are shown in the ISO order this port formats in; `locale` \\\n                                 is what v3 varies it with, and that needs CLDR data.\",\n            cx,\n        ),\n    ])"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        DateRangePicker::new(self.demo_range(\"drp-format\", cx))\n            .label(\"Stay\")\n            .into_any_element(),\n        para(\n            \"Both ends follow the operating system's regional date order, \\\n                                 separators, and numeric padding. Their state and submitted values \\\n                                 stay ISO-formatted.\",\n            cx,\n        ),\n    ])"
     },
     {
       "heading": "Form Example",

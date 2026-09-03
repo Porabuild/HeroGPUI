@@ -6404,7 +6404,7 @@ const DATE_FIELD_API: &[ApiDoc] = &[
     ApiDoc { owner: "DateFieldRenderProps", prop: "isDisabled / isInvalid / isReadOnly / isRequired", ty: "boolean", default: "—", description: "Disabled, resolved invalid, read-only and required states supplied to replacement content.", rust_owner: "DateField", rust: "content(render)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateField.Group", prop: "fullWidth", ty: "boolean", default: "false", description: "The monolithic group follows the root full-width setting.", rust_owner: "DateField", rust: "full_width(bool)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateField.Group", prop: "variant", ty: "'primary' | 'secondary'", default: "'primary'", description: "Selects shadowed field or lower-emphasis default surface chrome.", rust_owner: "DateField", rust: "variant(FieldVariant)", status: ImplementationStatus::Implemented },
-    ApiDoc { owner: "DateField.Segment", prop: "segment", ty: "DateSegment", default: "—", description: "Hands custom content each supported Gregorian date or plain-time segment and its generated text; era and time-zone segment kinds require value models the port does not expose.", rust_owner: "DateField", rust: "segment(render)", status: ImplementationStatus::Partial },
+    ApiDoc { owner: "DateField.Segment", prop: "segment", ty: "DateSegment", default: "—", description: "Hands custom content each supported Gregorian date or plain-time segment and its generated text. Date segments follow the operating system's regional order and separators; era and time-zone segment kinds require value models the port does not expose.", rust_owner: "DateField", rust: "segment(render)", status: ImplementationStatus::Partial },
     ApiDoc { owner: "DateField.Prefix", prop: "children", ty: "ReactNode", default: "—", description: "Inert content before the segmented input.", rust_owner: "DateField", rust: "prefix(element)", status: ImplementationStatus::Implemented },
     ApiDoc { owner: "DateField.Suffix", prop: "children", ty: "ReactNode", default: "—", description: "Inert content after the segmented input.", rust_owner: "DateField", rust: "suffix(element)", status: ImplementationStatus::Implemented },
 ];
@@ -6413,9 +6413,9 @@ const DATE_FIELD_PARTS: &[PartDoc] = &[
     PartDoc { name: "DateField", slot: "date-field", description: "Field state, validation and form owner.", rust_owner: "DateField", status: ImplementationStatus::Implemented },
     PartDoc { name: "Label", slot: "label", description: "Optional built-in label with required, invalid and disabled state.", rust_owner: "DateField", status: ImplementationStatus::Implemented },
     PartDoc { name: "DateField.Group", slot: "date-input-group", description: "Focusable field chrome around input, prefix and suffix.", rust_owner: "DateField", status: ImplementationStatus::Implemented },
-    PartDoc { name: "DateField.Input", slot: "date-input-group-input", description: "Built-in segmented input rather than an independently composable part.", rust_owner: "DateField", status: ImplementationStatus::Partial },
+    PartDoc { name: "DateField.Input", slot: "date-input-group-input", description: "Built-in segmented input using the operating system's regional date order and separators rather than an independently composable part.", rust_owner: "DateField", status: ImplementationStatus::Partial },
     PartDoc { name: "DateField.InputContainer", slot: "date-input-group-input-container", description: "The port has one clipped input row and no public scrollable multi-input container.", rust_owner: "DateField", status: ImplementationStatus::Unavailable },
-    PartDoc { name: "DateField.Segment", slot: "date-input-group-segment", description: "Keyboard-editable Gregorian date and optional plain-time segment with custom rendering; era and time-zone kinds are unavailable with the current value model.", rust_owner: "DateField", status: ImplementationStatus::Partial },
+    PartDoc { name: "DateField.Segment", slot: "date-input-group-segment", description: "Keyboard-editable Gregorian date and optional plain-time segment with custom rendering and regional date order; era and time-zone kinds are unavailable with the current value model.", rust_owner: "DateField", status: ImplementationStatus::Partial },
     PartDoc { name: "DateField.Prefix", slot: "date-input-group-prefix", description: "Inert leading content.", rust_owner: "DateField", status: ImplementationStatus::Implemented },
     PartDoc { name: "DateField.Suffix", slot: "date-input-group-suffix", description: "Inert trailing content.", rust_owner: "DateField", status: ImplementationStatus::Implemented },
     PartDoc { name: "Description", slot: "description", description: "Help text or generated format hint, hidden when invalid.", rust_owner: "DateField", status: ImplementationStatus::Implemented },
@@ -7867,7 +7867,8 @@ const DATE_PICKER_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "DatePicker.Root",
         slot: "date-picker",
-        description: "Root state owner and focus-within scope.",
+        description:
+            "Root state owner and focus-within scope with a system-regionally formatted DateField.",
         rust_owner: "DatePicker",
         status: ImplementationStatus::Implemented,
     },
@@ -8014,7 +8015,8 @@ const DATE_RANGE_PICKER_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "DateRangePicker.Root",
         slot: "date-range-picker",
-        description: "Root state owner and focus-within scope.",
+        description:
+            "Root state owner and focus-within scope with two system-regionally formatted DateFields.",
         rust_owner: "DateRangePicker",
         status: ImplementationStatus::Implemented,
     },

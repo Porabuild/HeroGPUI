@@ -12038,7 +12038,7 @@
         "prop": "segment",
         "type": "DateSegment",
         "default": "—",
-        "description": "Hands custom content each supported Gregorian date or plain-time segment and its generated text; era and time-zone segment kinds require value models the port does not expose.",
+        "description": "Hands custom content each supported Gregorian date or plain-time segment and its generated text. Date segments follow the operating system's regional order and separators; era and time-zone segment kinds require value models the port does not expose.",
         "rustOwner": "DateField",
         "rust": "segment(render)",
         "status": "partial"
@@ -12089,7 +12089,7 @@
       {
         "name": "DateField.Input",
         "slot": "date-input-group-input",
-        "description": "Built-in segmented input rather than an independently composable part.",
+        "description": "Built-in segmented input using the operating system's regional date order and separators rather than an independently composable part.",
         "rustOwner": "DateField",
         "status": "partial"
       },
@@ -12103,7 +12103,7 @@
       {
         "name": "DateField.Segment",
         "slot": "date-input-group-segment",
-        "description": "Keyboard-editable Gregorian date and optional plain-time segment with custom rendering; era and time-zone kinds are unavailable with the current value model.",
+        "description": "Keyboard-editable Gregorian date and optional plain-time segment with custom rendering and regional date order; era and time-zone kinds are unavailable with the current value model.",
         "rustOwner": "DateField",
         "status": "partial"
       },
@@ -12538,7 +12538,7 @@
       {
         "name": "DatePicker.Root",
         "slot": "date-picker",
-        "description": "Root state owner and focus-within scope.",
+        "description": "Root state owner and focus-within scope with a system-regionally formatted DateField.",
         "rustOwner": "DatePicker",
         "status": "implemented"
       },
@@ -12950,7 +12950,7 @@
       {
         "name": "DateRangePicker.Root",
         "slot": "date-range-picker",
-        "description": "Root state owner and focus-within scope.",
+        "description": "Root state owner and focus-within scope with two system-regionally formatted DateFields.",
         "rustOwner": "DateRangePicker",
         "status": "implemented"
       },

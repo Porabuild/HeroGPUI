@@ -24,12 +24,12 @@ use gpui::{
     Window,
 };
 use herogpui_components::{
-    DateField, HourCycle, InputState, NumberField, NumberState, SearchField, Time, TimeField,
-    TimeGranularity, TimeSegment, TimeState,
+    DateField, DateSegment, HourCycle, InputState, NumberField, NumberState, SearchField, Time,
+    TimeField, TimeGranularity, TimeSegment, TimeState,
 };
 use herogpui_theme::ThemeProvider;
 
-use harness::{click, events, open_host, press, Events};
+use harness::{click, events, focus_date_segment, open_host, press, Events};
 
 fn refresh(cx: &mut VisualTestContext) {
     cx.update(|window, _| window.refresh());
@@ -185,9 +185,9 @@ fn date_field_read_only_stays_focusable_and_navigable_without_editing(cx: &mut T
         "react-aria 3.51.0 leaves read-only date segments in the tab order"
     );
 
-    // Right moves Month -> Day. The editing keys must do nothing while the
-    // field is read-only.
-    press(cx, "right");
+    // Segment navigation remains active. The editing keys must do nothing
+    // while the field is read-only.
+    focus_date_segment(cx, DateSegment::Day);
     press(cx, "up");
     press(cx, "9");
     press(cx, "delete");
@@ -196,7 +196,7 @@ fn date_field_read_only_stays_focusable_and_navigable_without_editing(cx: &mut T
     assert_eq!(value, "2025-01-15");
 
     // Make the same surface editable without changing its focus or cursor.
-    // Up now proves that the read-only Right moved the active segment to Day.
+    // Up now proves that read-only navigation moved the active segment to Day.
     read_only.set(false);
     refresh(cx);
     press(cx, "up");
