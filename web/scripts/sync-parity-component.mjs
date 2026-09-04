@@ -136,7 +136,14 @@ if (mode === "plan") {
       }
     }
     const occurrences = wasmSource.split(wasmCode).length - 1;
-    if (occurrences !== 1) throw new Error(`${key}: wasm body occurs ${occurrences}x, refusing`);
+    if (occurrences !== 1) {
+      if (wasmSource.includes(nativeCode)) {
+        console.log(`already synced ${key}`);
+        done += 1;
+        continue;
+      }
+      throw new Error(`${key}: wasm body occurs ${occurrences}x, refusing`);
+    }
     if (wasmSource.includes(nativeCode)) throw new Error(`${key}: native body already present`);
     wasmSource = wasmSource.replace(wasmCode, nativeCode);
     done += 1;
