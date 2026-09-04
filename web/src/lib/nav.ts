@@ -25,6 +25,7 @@ export const GETTING_STARTED_LINKS: NavLink[] = [
   { href: "/docs/getting-started/installation", label: "Install" },
   { href: "/docs/getting-started/state", label: "State" },
   { href: "/docs/getting-started/composition", label: "Composition" },
+  { href: "/docs/getting-started/animation", label: "Animation" },
   { href: "/docs/getting-started/theming", label: "Theming" },
   { href: "/docs/getting-started/dark-mode", label: "Dark mode" },
   { href: "/docs/getting-started/customization", label: "Customize" },
