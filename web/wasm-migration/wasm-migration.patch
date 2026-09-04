@@ -11767,10 +11767,26 @@ index 4525f723..87a522e0 100644
          };
          let (past_start, before_end) = (
 diff --git a/crates/herogpui-components/src/select.rs b/crates/herogpui-components/src/select.rs
-index 753f8e92..fbe4f573 100644
+index 753f8e92..bf01881f 100644
 --- a/crates/herogpui-components/src/select.rs
 +++ b/crates/herogpui-components/src/select.rs
-@@ -711,8 +711,8 @@ impl RenderOnce for Select {
+@@ -570,6 +570,11 @@ impl RenderOnce for Select {
+             |_, _| None::<usize>,
+         );
+         let cursor_at = *cursor.read(cx);
++        let keyboard_press_open = window.use_keyed_state(
++            el_name(format!("select-{}-keyboard-press", id_debug(&self.id))),
++            cx,
++            |_, _| None::<bool>,
++        );
+         // The Shift-range anchor lives beside the cursor, keyed off the same
+         // instance id, so two selects never share an anchor and a closed
+         // popover leaves its anchor standing for the reopen.
+@@ -708,14 +713,24 @@ impl RenderOnce for Select {
+             let key_list_scroll = list_scroll_now.clone();
+             let key_panel_scroll = panel_scroll_now.clone();
+             let fh = focus_handle.clone();
++            let press_open = keyboard_press_open.clone();
              field = field
                  .track_focus(&focus_handle)
                  .key_context("Select")
@@ -11781,7 +11797,19 @@ index 753f8e92..fbe4f573 100644
                  })
                  .on_key_down(move |event, window, cx| {
                      let key = event.keystroke.key.as_str();
-@@ -749,7 +749,7 @@ impl RenderOnce for Select {
++                    if matches!(key, "enter" | "space") {
++                        // The browser's default newline can synthesize another
++                        // Enter through beforeinput, including while held.
++                        cx.stop_propagation();
++                        if event.is_held {
++                            return;
++                        }
++                        press_open.update(cx, |value, _| *value = Some(was_open));
++                    }
+                     if !was_open {
+                         // Closed: Down and Up open the list. Enter and Space are
+                         // *not* handled here -- the trigger has a click listener
+@@ -749,7 +764,7 @@ impl RenderOnce for Select {
                          if !crate::list_nav::is_typeahead_key(key) {
                              return;
                          }
@@ -11790,7 +11818,20 @@ index 753f8e92..fbe4f573 100644
                          let (query, repeat) = typed.update(cx, |t, _| {
                              let query = t.push(key, now);
                              (query, t.is_repeat())
-@@ -1010,7 +1010,7 @@ impl RenderOnce for Select {
+@@ -943,10 +958,8 @@ impl RenderOnce for Select {
+                             }
+                         }
+                         crate::list_nav::Move::Activate => {
+-                            // Take the selection only. Closing is the trigger's
+-                            // click listener, which gpui fires from the same
+-                            // keystroke -- doing it here as well would toggle the
+-                            // list back open.
++                            // Select on key-down; the trigger click owns closing
++                            // on key-up.
+                             let Some(index) = from else { return };
+                             if multiple {
+                                 let added = !selected_indices_keys.contains(&index);
+@@ -1010,7 +1023,7 @@ impl RenderOnce for Select {
                              if !crate::list_nav::is_typeahead_key(key) {
                                  return;
                              }
@@ -11799,7 +11840,44 @@ index 753f8e92..fbe4f573 100644
                              let (query, repeat) = typed.update(cx, |t, _| {
                                  let query = t.push(key, now);
                                  (query, t.is_repeat())
-@@ -1377,7 +1377,7 @@ impl RenderOnce for Select {
+@@ -1114,19 +1127,33 @@ impl RenderOnce for Select {
+                     // Enter and Space activate the highlighted option before
+                     // gpui synthesizes this trigger click. Multiple selection
+                     // keeps the popover open for the next pick.
+-                    if multiple && open && matches!(event, gpui::ClickEvent::Keyboard(_)) {
++                    let keyboard = matches!(event, gpui::ClickEvent::Keyboard(_));
++                    let press_open = keyboard_press_open.update(cx, |value, _| value.take());
++                    let started_open = if keyboard {
++                        press_open.unwrap_or(open)
++                    } else {
++                        open
++                    };
++                    if multiple && started_open && keyboard {
++                        return;
++                    }
++                    // A selection callback can close a controlled popup and
++                    // redraw between key-down and key-up. Finish that press's
++                    // close rather than toggling the new frame back open.
++                    let next_open = !started_open;
++                    if next_open == open {
+                         return;
+                     }
+                     // Uncontrolled: flip our own copy, or the trigger would be
+                     // inert without a caller handler.
+                     if let Some(held) = &own {
+                         held.update(cx, |v, cx| {
+-                            *v = !open;
++                            *v = next_open;
+                             cx.notify();
+                         });
+                     }
+                     if let Some(cb) = &on_open_change {
+-                        cb(!open, window, cx);
++                        cb(next_open, window, cx);
+                     }
+                 });
+         }
+@@ -1377,7 +1404,7 @@ impl RenderOnce for Select {
                                  // on the row and deafen the trigger's key
                                  // handler; the trigger is what holds focus so
                                  // the open list stays keyboard-walkable.
@@ -11808,7 +11886,7 @@ index 753f8e92..fbe4f573 100644
                                  let mut next = current.clone();
                                  // A Shift click extends from the anchor
                                  // through `extendSelection`; an ordinary or
-@@ -1499,7 +1499,7 @@ impl RenderOnce for Select {
+@@ -1499,7 +1526,7 @@ impl RenderOnce for Select {
                                      .collect::<Vec<_>>()
                              },
                          )
@@ -15902,7 +15980,7 @@ index 148bd867..8a9e0240 100644
  }
  
 diff --git a/crates/herogpui-components/tests/pickers_deep.rs b/crates/herogpui-components/tests/pickers_deep.rs
-index 4cf8efaf..60906967 100644
+index 4cf8efaf..b33b00ae 100644
 --- a/crates/herogpui-components/tests/pickers_deep.rs
 +++ b/crates/herogpui-components/tests/pickers_deep.rs
 @@ -174,7 +174,7 @@ fn autocomplete_programmatic_focus_departure_closes_without_refocusing(cx: &mut
@@ -16034,6 +16112,92 @@ index 4cf8efaf..60906967 100644
      flush_frame(cx);
      press(cx, "down");
      press(cx, "tab");
+@@ -2877,6 +2913,85 @@ fn select_disabled_rows_are_unclickable_and_not_a_stop(cx: &mut TestAppContext)
+     );
+ }
+ 
++#[gpui::test]
++fn select_keyboard_pick_does_not_reopen_when_owner_closes_on_change(cx: &mut TestAppContext) {
++    for key in ["enter", "space"] {
++        let open = Rc::new(Cell::new(false));
++        let changes = events();
++        let opens = events();
++        let view_open = open.clone();
++        let view_changes = changes.clone();
++        let view_opens = opens.clone();
++        let cx = open_host(cx, move || {
++            let selection_open = view_open.clone();
++            let trigger_open = view_open.clone();
++            let changes = view_changes.clone();
++            let opens = view_opens.clone();
++            Select::new("sel-owner-close", vec!["Alpha".into(), "Beta".into()])
++                .is_open(view_open.get())
++                .on_change(move |value, window, _| {
++                    changes.borrow_mut().push(format!("{value:?}"));
++                    selection_open.set(false);
++                    window.refresh();
++                })
++                .on_open_change(move |value, window, _| {
++                    opens.borrow_mut().push(format!("{value}"));
++                    trigger_open.set(value);
++                    window.refresh();
++                })
++                .into_any_element()
++        });
++        press(cx, "tab");
++        press(cx, key);
++        press(cx, "down");
++        let result = cx.update(|window, cx| {
++            window.dispatch_event(
++                gpui::PlatformInput::KeyDown(gpui::KeyDownEvent {
++                    keystroke: gpui::Keystroke::parse(key).unwrap(),
++                    is_held: false,
++                    prefer_character_input: false,
++                }),
++                cx,
++            )
++        });
++        assert!(
++            !result.propagate,
++            "{key} selection must consume the browser default"
++        );
++        flush_frame(cx);
++        let repeated = cx.update(|window, cx| {
++            window.dispatch_event(
++                gpui::PlatformInput::KeyDown(gpui::KeyDownEvent {
++                    keystroke: gpui::Keystroke::parse(key).unwrap(),
++                    is_held: true,
++                    prefer_character_input: false,
++                }),
++                cx,
++            )
++        });
++        assert!(
++            !repeated.propagate,
++            "held {key} must not synthesize another browser press"
++        );
++        cx.simulate_event(gpui::KeyUpEvent {
++            keystroke: gpui::Keystroke::parse(key).unwrap(),
++        });
++        assert_eq!(changes.borrow().as_slice(), ["Some(0)"], "{key}");
++        assert!(
++            !open.get(),
++            "{key} must not reopen the owner's closed popup"
++        );
++        assert_eq!(opens.borrow().as_slice(), ["true"], "{key}");
++        flush_frame(cx);
++        click(cx, 60., 102.);
++        assert_eq!(
++            changes.borrow().as_slice(),
++            ["Some(0)"],
++            "{key} must leave the former Beta option inert"
++        );
++    }
++}
++
+ /// A select whose whole collection is disabled opens but answers nothing: the
+ /// rows have no handlers and the arrow-key resolver has no stops, so neither
+ /// path can choose anything, and nothing is ever reported.
 diff --git a/crates/herogpui-components/tests/table_tabs_accordion.rs b/crates/herogpui-components/tests/table_tabs_accordion.rs
 index 7446367b..6fa09fa1 100644
 --- a/crates/herogpui-components/tests/table_tabs_accordion.rs
@@ -21184,7 +21348,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..356e1201 100644
+index 5eb12cd4..ecbb66dc 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -27031,16 +27195,17 @@ index 5eb12cd4..356e1201 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11868,7 +12579,7 @@ impl Gallery {
+@@ -11868,7 +12579,8 @@ impl Gallery {
                  ),
                  (
                      "Usage",
 -                    col(vec![h::Select::new("sel-main", languages())
++                    "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger.",
 +                    field_col(vec![h::Select::new("sel-main", languages())
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11888,18 +12599,20 @@ impl Gallery {
+@@ -11888,18 +12600,20 @@ impl Gallery {
                  ),
                  (
                      "Uncontrolled",
@@ -27063,7 +27228,7 @@ index 5eb12cd4..356e1201 100644
                                  .value(selected)
                                  .on_selection_change(opt_usize_cb(cx.listener(
                                      |this, i: &Option<usize>, _, cx| {
-@@ -11913,21 +12626,26 @@ impl Gallery {
+@@ -11913,21 +12627,26 @@ impl Gallery {
                  ),
                  (
                      "Full width",
@@ -27101,7 +27266,7 @@ index 5eb12cd4..356e1201 100644
                          .label("Languages")
                          .placeholder("Pick several")
                          .selection_mode(SelectionMode::Multiple)
-@@ -12050,14 +12768,8 @@ impl Gallery {
+@@ -12050,14 +12769,8 @@ impl Gallery {
                  ),
                  (
                      "Render Props",
@@ -27117,7 +27282,7 @@ index 5eb12cd4..356e1201 100644
                          h::Prose::new()
                              .child(h::Typography::paragraph(
                                  h::ParagraphSize::Base,
-@@ -12265,12 +12977,8 @@ impl Gallery {
+@@ -12265,12 +12978,8 @@ impl Gallery {
                  ),
                  (
                      "Hide Scroll Bar",
@@ -27131,7 +27296,7 @@ index 5eb12cd4..356e1201 100644
                          h::ScrollShadow::new("ss-no-bar")
                              .max_h(px(140.))
                              .children(
-@@ -12385,13 +13093,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
+@@ -12385,13 +13094,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
          .into_any_element()
  }
  

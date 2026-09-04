@@ -3087,6 +3087,85 @@ fn select_disabled_rows_are_unclickable_and_not_a_stop(cx: &mut TestAppContext) 
     );
 }
 
+#[gpui::test]
+fn select_keyboard_pick_does_not_reopen_when_owner_closes_on_change(cx: &mut TestAppContext) {
+    for key in ["enter", "space"] {
+        let open = Rc::new(Cell::new(false));
+        let changes = events();
+        let opens = events();
+        let view_open = open.clone();
+        let view_changes = changes.clone();
+        let view_opens = opens.clone();
+        let cx = open_host(cx, move || {
+            let selection_open = view_open.clone();
+            let trigger_open = view_open.clone();
+            let changes = view_changes.clone();
+            let opens = view_opens.clone();
+            Select::new("sel-owner-close", vec!["Alpha".into(), "Beta".into()])
+                .is_open(view_open.get())
+                .on_change(move |value, window, _| {
+                    changes.borrow_mut().push(format!("{value:?}"));
+                    selection_open.set(false);
+                    window.refresh();
+                })
+                .on_open_change(move |value, window, _| {
+                    opens.borrow_mut().push(format!("{value}"));
+                    trigger_open.set(value);
+                    window.refresh();
+                })
+                .into_any_element()
+        });
+        press(cx, "tab");
+        press(cx, key);
+        press(cx, "down");
+        let result = cx.update(|window, cx| {
+            window.dispatch_event(
+                gpui::PlatformInput::KeyDown(gpui::KeyDownEvent {
+                    keystroke: gpui::Keystroke::parse(key).unwrap(),
+                    is_held: false,
+                    prefer_character_input: false,
+                }),
+                cx,
+            )
+        });
+        assert!(
+            !result.propagate,
+            "{key} selection must consume the browser default"
+        );
+        flush_frame(cx);
+        let repeated = cx.update(|window, cx| {
+            window.dispatch_event(
+                gpui::PlatformInput::KeyDown(gpui::KeyDownEvent {
+                    keystroke: gpui::Keystroke::parse(key).unwrap(),
+                    is_held: true,
+                    prefer_character_input: false,
+                }),
+                cx,
+            )
+        });
+        assert!(
+            !repeated.propagate,
+            "held {key} must not synthesize another browser press"
+        );
+        cx.simulate_event(gpui::KeyUpEvent {
+            keystroke: gpui::Keystroke::parse(key).unwrap(),
+        });
+        assert_eq!(changes.borrow().as_slice(), ["Some(0)"], "{key}");
+        assert!(
+            !open.get(),
+            "{key} must not reopen the owner's closed popup"
+        );
+        assert_eq!(opens.borrow().as_slice(), ["true"], "{key}");
+        flush_frame(cx);
+        click(cx, 60., 102.);
+        assert_eq!(
+            changes.borrow().as_slice(),
+            ["Some(0)"],
+            "{key} must leave the former Beta option inert"
+        );
+    }
+}
+
 /// A select whose whole collection is disabled opens but answers nothing: the
 /// rows have no handlers and the arrow-key resolver has no stops, so neither
 /// path can choose anything, and nothing is ever reported.

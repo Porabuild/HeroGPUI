@@ -12372,6 +12372,7 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger.",
                     field_col(vec![h::Select::new("sel-main", languages())
                         .label("Language")
                         .placeholder("Choose one")

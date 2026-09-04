@@ -3222,6 +3222,7 @@
   "select": [
     {
       "heading": "Usage",
+      "description": "Use the arrow keys and Enter or Space to select a language. Selection closes the list and keeps focus on the trigger.",
       "imports": "use herogpui::prelude::Select;",
       "code": "Select::new(\"select-main\", languages())\n    .label(\"Language\")\n    .placeholder(\"Choose one\")\n    .value(selected)\n    .is_open(is_open)\n    .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {\n        this.select_open = *open;\n        cx.notify();\n    })))\n    .on_change(opt_usize_cb(cx.listener(\n        |this, i: &Option<usize>, _, cx| {\n            this.select_lang = *i;\n            this.select_open = false;\n            cx.notify();\n        },\n    )))"
     },

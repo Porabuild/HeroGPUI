@@ -570,6 +570,11 @@ impl RenderOnce for Select {
             |_, _| None::<usize>,
         );
         let cursor_at = *cursor.read(cx);
+        let keyboard_press_open = window.use_keyed_state(
+            el_name(format!("select-{}-keyboard-press", id_debug(&self.id))),
+            cx,
+            |_, _| None::<bool>,
+        );
         // The Shift-range anchor lives beside the cursor, keyed off the same
         // instance id, so two selects never share an anchor and a closed
         // popover leaves its anchor standing for the reopen.
@@ -708,6 +713,7 @@ impl RenderOnce for Select {
             let key_list_scroll = list_scroll_now.clone();
             let key_panel_scroll = panel_scroll_now.clone();
             let fh = focus_handle.clone();
+            let press_open = keyboard_press_open.clone();
             field = field
                 .track_focus(&focus_handle)
                 .key_context("Select")
@@ -716,6 +722,15 @@ impl RenderOnce for Select {
                 })
                 .on_key_down(move |event, window, cx| {
                     let key = event.keystroke.key.as_str();
+                    if matches!(key, "enter" | "space") {
+                        // The browser's default newline can synthesize another
+                        // Enter through beforeinput, including while held.
+                        cx.stop_propagation();
+                        if event.is_held {
+                            return;
+                        }
+                        press_open.update(cx, |value, _| *value = Some(was_open));
+                    }
                     if !was_open {
                         // Closed: Down and Up open the list. Enter and Space are
                         // *not* handled here -- the trigger has a click listener
@@ -943,10 +958,8 @@ impl RenderOnce for Select {
                             }
                         }
                         crate::list_nav::Move::Activate => {
-                            // Take the selection only. Closing is the trigger's
-                            // click listener, which gpui fires from the same
-                            // keystroke -- doing it here as well would toggle the
-                            // list back open.
+                            // Select on key-down; the trigger click owns closing
+                            // on key-up.
                             let Some(index) = from else { return };
                             if multiple {
                                 let added = !selected_indices_keys.contains(&index);
@@ -1114,19 +1127,33 @@ impl RenderOnce for Select {
                     // Enter and Space activate the highlighted option before
                     // gpui synthesizes this trigger click. Multiple selection
                     // keeps the popover open for the next pick.
-                    if multiple && open && matches!(event, gpui::ClickEvent::Keyboard(_)) {
+                    let keyboard = matches!(event, gpui::ClickEvent::Keyboard(_));
+                    let press_open = keyboard_press_open.update(cx, |value, _| value.take());
+                    let started_open = if keyboard {
+                        press_open.unwrap_or(open)
+                    } else {
+                        open
+                    };
+                    if multiple && started_open && keyboard {
+                        return;
+                    }
+                    // A selection callback can close a controlled popup and
+                    // redraw between key-down and key-up. Finish that press's
+                    // close rather than toggling the new frame back open.
+                    let next_open = !started_open;
+                    if next_open == open {
                         return;
                     }
                     // Uncontrolled: flip our own copy, or the trigger would be
                     // inert without a caller handler.
                     if let Some(held) = &own {
                         held.update(cx, |v, cx| {
-                            *v = !open;
+                            *v = next_open;
                             cx.notify();
                         });
                     }
                     if let Some(cb) = &on_open_change {
-                        cb(!open, window, cx);
+                        cb(next_open, window, cx);
                     }
                 });
         }

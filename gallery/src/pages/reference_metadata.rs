@@ -11097,7 +11097,7 @@ const SELECT_PARTS: &[PartDoc] = &[
 
 const SELECT_STATES: &[StateDoc] = &[
     StateDoc { state: "Hovered trigger", selector: ".select__trigger[data-hovered]", description: "Field background changes on pointer hover.", rust: "trigger hover style", status: ImplementationStatus::Implemented },
-    StateDoc { state: "Focus visible", selector: ".select__trigger[data-focus-visible]", description: "Keyboard focus rings the trigger and applies the field-focus background.", rust: "ring_if_focused + focus-visible background", status: ImplementationStatus::Implemented },
+    StateDoc { state: "Focus visible", selector: ".select__trigger[data-focus-visible]", description: "Keyboard focus rings the trigger and applies the field-focus background. Enter and Space finish a single selection without reopening a popup closed by its owner.", rust: "ring_if_focused + focus-visible background", status: ImplementationStatus::Implemented },
     StateDoc { state: "Disabled", selector: ".select__trigger[data-disabled]", description: "Field is dimmed, inert, untabbable and omitted from FormData while disabled.", rust: "is_disabled + live FormField is_successful", status: ImplementationStatus::Implemented },
     StateDoc { state: "Invalid", selector: ".select[data-invalid]", description: "Invalid field chrome applies the focus background and suppresses the description row.", rust: "is_invalid + description suppression", status: ImplementationStatus::Implemented },
     StateDoc { state: "Placeholder", selector: ".select__value[data-placeholder]", description: "Empty value uses muted placeholder colour.", rust: "SelectionValue::is_placeholder", status: ImplementationStatus::Implemented },

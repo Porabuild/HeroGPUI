@@ -19021,7 +19021,7 @@
       {
         "state": "Focus visible",
         "selector": ".select__trigger[data-focus-visible]",
-        "description": "Keyboard focus rings the trigger and applies the field-focus background.",
+        "description": "Keyboard focus rings the trigger and applies the field-focus background. Enter and Space finish a single selection without reopening a popup closed by its owner.",
         "rust": "ring_if_focused + focus-visible background",
         "status": "implemented"
       },
