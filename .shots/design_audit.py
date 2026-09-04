@@ -121,6 +121,19 @@ def helper_px(name):
     return None
 
 
+def pagination_summary_text(_body):
+    src = mask_comments(strip_cfg_test(io.open(SRC + 'pagination.rs', encoding='utf-8').read()))
+    body = re.search(r'\.children\(self\.summary\.map\(\|text\| \{([\s\S]*?)\n            \}\)\)', src)
+    if not body or not re.search(r'\.text_size\(cell_text\)', body.group(1)):
+        return None
+    if not re.search(r'let cell_text = self\.size\.text_size\(\);', src):
+        return None
+    core = mask_comments(strip_cfg_test(io.open(CORE, encoding='utf-8').read()))
+    block = re.search(r'pub fn text_size\(self\)[\s\S]*?match self \{([\s\S]*?)\n        \}', core)
+    value = re.search(r'Size::Md => gpui::px\(([\d.]+)\)', block.group(1)) if block else None
+    return float(value.group(1)) if value else None
+
+
 def fraction_leading(text_px):
     """A unitless `leading-[f]` resolves against the rule's own text size.
 
@@ -847,7 +860,7 @@ CHECKS = [
      r'Size::Md => px\((\d+(?:\.\d*)?)\.\)', None),
     ('pagination', '.pagination__link--nav', 'gap', 'Pagination nav gap',
      SRC + 'pagination.rs',
-     r'`w-auto gap-1\.5 px-2\.5`[\s\S]{0,120}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'`w-auto gap-1\.5 px-2\.5`[\s\S]{0,220}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('pagination', '.pagination__link--nav', 'px', 'Pagination nav px',
      SRC + 'pagination.rs',
      r'let nav_padding = match self\.size \{[\s\S]{0,120}?Size::Md => px\((\d+(?:\.\d*)?)\.\)', None),
@@ -1641,8 +1654,8 @@ CHECKS = [
      r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('pagination', '.pagination__summary', 'text', 'Pagination summary text',
      SRC + 'pagination.rs',
-     r'`\.pagination__summary` is `gap-2 text-sm text-muted`\.[\s\S]{0,120}?'
-     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.children\(self\.summary\.map\(\|text\| \{([\s\S]*?)\n            \}\)\)',
+     pagination_summary_text),
     ('pagination', '.pagination__link', 'radius', 'Pagination link -> control_radius',
      SRC + 'pagination.rs',
      r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),

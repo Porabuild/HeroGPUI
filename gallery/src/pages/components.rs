@@ -9380,10 +9380,12 @@ impl Gallery {
                 ),
                 (
                     "Sizes",
+                    "Summary and link typography scale together and keep their line height in larger text containers.",
                     col(Size::ALL
                         .iter()
                         .map(|sz| {
                             h::Pagination::new(el_id(format!("pg-{sz:?}")), page, 8).size(*sz)
+                                .summary(format!("Page {page} of 8"))
                         })
                         .els()),
                 ),

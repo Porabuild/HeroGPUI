@@ -1584,6 +1584,55 @@ fn breadcrumbs_focus_ring_inputs_track_the_input_modality(cx: &mut TestAppContex
 // exactly the v3 "Controlled"-example arithmetic (siblings = boundaries = 1),
 // and Tab must walk prev, cells and next.
 
+#[gpui::test]
+fn pagination_text_owns_size_specific_line_boxes(cx: &mut TestAppContext) {
+    for (size, leading) in [
+        (herogpui_components::Size::Sm, 16.),
+        (herogpui_components::Size::Md, 20.),
+        (herogpui_components::Size::Lg, 24.),
+    ] {
+        let cx = open_host(cx, move || {
+            gpui::div()
+                .text_size(px(32.))
+                .line_height(px(48.))
+                .child(
+                    gpui::div()
+                        .debug_selector(|| "pagination-box".to_owned())
+                        .child(
+                            Pagination::new("leading-pagination", 2, 3)
+                                .size(size)
+                                .summary("Page\n2 of 3")
+                                .disabled_keys([1])
+                                .link(|page, _| {
+                                    gpui::div()
+                                        .debug_selector(move || format!("page-label-{page}"))
+                                        .child(page.to_string())
+                                        .into_any_element()
+                                })
+                                .previous_icon(
+                                    gpui::div()
+                                        .debug_selector(|| "previous-label".to_owned())
+                                        .child("Previous"),
+                                ),
+                        ),
+                )
+                .into_any_element()
+        });
+        cx.run_until_parked();
+        assert_eq!(
+            cx.debug_bounds("pagination-box").unwrap().size.height,
+            px(leading * 2.)
+        );
+        for selector in ["page-label-1", "page-label-2", "previous-label"] {
+            assert_eq!(
+                cx.debug_bounds(selector).unwrap().size.height,
+                px(leading),
+                "{selector}"
+            );
+        }
+    }
+}
+
 /// At page 1 the Previous arrow is disabled (v3: `isDisabled` communicates
 /// "disabled states properly" and React Aria's press never fires for them),
 /// and at the last page the Next arrow is. Neither disabled arrow is a tab stop

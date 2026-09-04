@@ -4744,8 +4744,8 @@ const PAGINATION_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".pagination__summary",
         value: "flex items-center gap-2 self-start text-sm text-muted",
-        description: "Summary layout and typography.",
-        rust: "flex + gap(px(8.)) + text_size(px(14.)) + muted",
+        description: "Summary text follows the size-specific 12/16, 14/20 and 16/24 font/line-height pairs.",
+        rust: "flex + gap(px(8.)) + cell_text + cell_leading + muted",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {

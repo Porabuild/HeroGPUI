@@ -12570,7 +12570,7 @@ index e24642fd..12b93bfe 100644
                      press.active = true;
                      press.generation = press.generation.wrapping_add(1);
 diff --git a/crates/herogpui-components/src/pagination.rs b/crates/herogpui-components/src/pagination.rs
-index 380beb7a..5578030e 100644
+index 380beb7a..2abd28d5 100644
 --- a/crates/herogpui-components/src/pagination.rs
 +++ b/crates/herogpui-components/src/pagination.rs
 @@ -114,13 +114,23 @@ impl RenderOnce for Pagination {
@@ -12616,7 +12616,28 @@ index 380beb7a..5578030e 100644
  
          // v3 sizes the items; the nav buttons and page cells share it.
          let cell = match self.size {
-@@ -228,7 +237,11 @@ impl RenderOnce for Pagination {
+@@ -159,6 +168,11 @@ impl RenderOnce for Pagination {
+             Size::Lg => px(12.),
+         };
+         let cell_text = self.size.text_size();
++        let cell_leading = match self.size {
++            Size::Sm => px(16.),
++            Size::Md => px(20.),
++            Size::Lg => px(24.),
++        };
+         let previous_icon = self.previous_icon.unwrap_or_else(|| {
+             gpui::svg()
+                 .size(px(14.))
+@@ -194,6 +208,8 @@ impl RenderOnce for Pagination {
+                     hover_bg: colors.default.hover(),
+                     disabled_opacity: layout.disabled_opacity,
+                     cell,
++                    text_size: cell_text,
++                    line_height: cell_leading,
+                     padding_x: nav_padding,
+                     press_scale,
+                     radius: crate::util::control_radius(cx),
+@@ -228,7 +244,11 @@ impl RenderOnce for Pagination {
                      let mut btn = gpui::div()
                          .id(gpui::ElementId::Name(format!("{base}-page-{n}").into()))
                          .when_some(
@@ -12629,7 +12650,24 @@ index 380beb7a..5578030e 100644
                              |b, handle| b.track_focus(handle),
                          )
                          .flex()
-@@ -294,7 +307,10 @@ impl RenderOnce for Pagination {
+@@ -239,6 +259,7 @@ impl RenderOnce for Pagination {
+                         .min_w(cell)
+                         .h(cell)
+                         .text_size(cell_text)
++                        .line_height(cell_leading)
+                         .rounded(crate::util::control_radius(cx))
+                         .when(!link_disabled, |b| b.cursor_pointer());
+ 
+@@ -265,7 +286,7 @@ impl RenderOnce for Pagination {
+                                 width: None,
+                                 min_width: Some(cell),
+                                 text_size: cell_text,
+-                                line_height: cell_text,
++                                line_height: cell_leading,
+                                 gap: px(0.),
+                                 radius: crate::util::control_radius(cx),
+                                 shrink_x: true,
+@@ -294,7 +315,10 @@ impl RenderOnce for Pagination {
                      // `.pagination__item:focus-visible` is `status-focused`.
                      let btn = crate::util::with_focus_ring(
                          btn,
@@ -12641,7 +12679,72 @@ index 380beb7a..5578030e 100644
                          true,
                          Vec::new(),
                          cx,
-@@ -482,3 +498,47 @@ fn visible_pages(page: usize, total: usize) -> Vec<PageRef> {
+@@ -314,6 +338,7 @@ impl RenderOnce for Pagination {
+                             // text-sm` cell as a page link.
+                             .size(cell)
+                             .text_size(cell_text)
++                            .line_height(cell_leading)
+                             .text_color(colors.muted)
+                             .child("…"),
+                     );
+@@ -336,6 +361,8 @@ impl RenderOnce for Pagination {
+                     hover_bg: colors.default.hover(),
+                     disabled_opacity: layout.disabled_opacity,
+                     cell,
++                    text_size: cell_text,
++                    line_height: cell_leading,
+                     padding_x: nav_padding,
+                     press_scale,
+                     radius: crate::util::control_radius(cx),
+@@ -370,7 +397,8 @@ impl RenderOnce for Pagination {
+                     .items_center()
+                     // `.pagination__summary` is `gap-2 text-sm text-muted`.
+                     .gap(px(8.))
+-                    .text_size(px(14.))
++                    .text_size(cell_text)
++                    .line_height(cell_leading)
+                     .text_color(colors.muted)
+                     .child(text.to_string())
+             }))
+@@ -384,6 +412,8 @@ struct NavStyle {
+     hover_bg: gpui::Hsla,
+     disabled_opacity: f32,
+     cell: gpui::Pixels,
++    text_size: gpui::Pixels,
++    line_height: gpui::Pixels,
+     padding_x: gpui::Pixels,
+     press_scale: f32,
+     /// `.pagination__link` is `rounded-3xl`; `--nav` restates only the width.
+@@ -405,6 +435,8 @@ fn nav_button(
+         hover_bg,
+         disabled_opacity,
+         cell,
++        text_size,
++        line_height,
+         padding_x,
+         press_scale,
+         radius,
+@@ -422,6 +454,8 @@ fn nav_button(
+         // `.pagination__link--nav` is `w-auto gap-1.5 px-2.5`: the height of a
+         // page cell, but as wide as its content needs.
+         .h(cell)
++        .text_size(text_size)
++        .line_height(line_height)
+         .gap(px(6.))
+         .px(padding_x)
+         .rounded(radius)
+@@ -435,8 +469,8 @@ fn nav_button(
+                 padding_x: Some(padding_x),
+                 width: None,
+                 min_width: None,
+-                text_size: px(14.),
+-                line_height: px(14.),
++                text_size,
++                line_height,
+                 gap: px(6.),
+                 radius,
+                 shrink_x: true,
+@@ -482,3 +516,47 @@ fn visible_pages(page: usize, total: usize) -> Vec<PageRef> {
      out.push(PageRef::Num(total));
      out
  }
@@ -18571,6 +18674,66 @@ index 148bd867..8a9e0240 100644
      cx
  }
  
+diff --git a/crates/herogpui-components/tests/nav_deep.rs b/crates/herogpui-components/tests/nav_deep.rs
+index 40d72192..d5f72f76 100644
+--- a/crates/herogpui-components/tests/nav_deep.rs
++++ b/crates/herogpui-components/tests/nav_deep.rs
+@@ -1479,6 +1479,55 @@ fn breadcrumbs_focus_ring_inputs_track_the_input_modality(cx: &mut TestAppContex
+ // exactly the v3 "Controlled"-example arithmetic (siblings = boundaries = 1),
+ // and Tab must walk prev, cells and next.
+ 
++#[gpui::test]
++fn pagination_text_owns_size_specific_line_boxes(cx: &mut TestAppContext) {
++    for (size, leading) in [
++        (herogpui_components::Size::Sm, 16.),
++        (herogpui_components::Size::Md, 20.),
++        (herogpui_components::Size::Lg, 24.),
++    ] {
++        let cx = open_host(cx, move || {
++            gpui::div()
++                .text_size(px(32.))
++                .line_height(px(48.))
++                .child(
++                    gpui::div()
++                        .debug_selector(|| "pagination-box".to_owned())
++                        .child(
++                            Pagination::new("leading-pagination", 2, 3)
++                                .size(size)
++                                .summary("Page\n2 of 3")
++                                .disabled_keys([1])
++                                .link(|page, _| {
++                                    gpui::div()
++                                        .debug_selector(move || format!("page-label-{page}"))
++                                        .child(page.to_string())
++                                        .into_any_element()
++                                })
++                                .previous_icon(
++                                    gpui::div()
++                                        .debug_selector(|| "previous-label".to_owned())
++                                        .child("Previous"),
++                                ),
++                        ),
++                )
++                .into_any_element()
++        });
++        cx.run_until_parked();
++        assert_eq!(
++            cx.debug_bounds("pagination-box").unwrap().size.height,
++            px(leading * 2.)
++        );
++        for selector in ["page-label-1", "page-label-2", "previous-label"] {
++            assert_eq!(
++                cx.debug_bounds(selector).unwrap().size.height,
++                px(leading),
++                "{selector}"
++            );
++        }
++    }
++}
++
+ /// At page 1 the Previous arrow is disabled (v3: `isDisabled` communicates
+ /// "disabled states properly" and React Aria's press never fires for them),
+ /// and at the last page the Next arrow is. Neither disabled arrow is a tab stop
 diff --git a/crates/herogpui-components/tests/pickers_deep.rs b/crates/herogpui-components/tests/pickers_deep.rs
 index 4cf8efaf..b33b00ae 100644
 --- a/crates/herogpui-components/tests/pickers_deep.rs
@@ -23940,7 +24103,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..d4761d50 100644
+index 5eb12cd4..89c8b0e6 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -27798,11 +27961,25 @@ index 5eb12cd4..d4761d50 100644
              ],
              cx,
          )
-@@ -8999,12 +9472,8 @@ impl Gallery {
+@@ -8911,10 +9384,12 @@ impl Gallery {
                  ),
                  (
-                     "Render Props",
-+                    "`link` receives each page number and `isActive`, so custom page content does not have to re-derive the current page.",
+                     "Sizes",
++                    "Summary and link typography scale together and keep their line height in larger text containers.",
+                     col(Size::ALL
+                         .iter()
+                         .map(|sz| {
+                             h::Pagination::new(el_id(format!("pg-{sz:?}")), page, 8).size(*sz)
++                                .summary(format!("Page {page} of 8"))
+                         })
+                         .els()),
+                 ),
+@@ -8998,13 +9473,8 @@ impl Gallery {
+                         .into_any_element()]),
+                 ),
+                 (
+-                    "Render Props",
++                    "Render Props", "`link` receives each page number and `isActive`, so custom page content does not have to re-derive the current page.",
                      col(vec![
 -                        para(
 -                            "`link` receives each page number and `isActive`, so custom page \
@@ -27812,11 +27989,12 @@ index 5eb12cd4..d4761d50 100644
                          h::Pagination::new("pg-render-props", page, 5)
                              .link(|page, is_active| {
                                  gpui::div()
-@@ -9024,12 +9493,8 @@ impl Gallery {
+@@ -9023,13 +9493,8 @@ impl Gallery {
+                     ]),
                  ),
                  (
-                     "Custom Icons",
-+                    "`previous_icon` and `next_icon` replace the built-in chevrons on v3's composed Pagination.PreviousIcon and Pagination.NextIcon parts.",
+-                    "Custom Icons",
++                    "Custom Icons", "`previous_icon` and `next_icon` replace the built-in chevrons on v3's composed Pagination.PreviousIcon and Pagination.NextIcon parts.",
                      col(vec![
 -                        para(
 -                            "`previous_icon` and `next_icon` replace the built-in chevrons on \

@@ -168,6 +168,11 @@ impl RenderOnce for Pagination {
             Size::Lg => px(12.),
         };
         let cell_text = self.size.text_size();
+        let cell_leading = match self.size {
+            Size::Sm => px(16.),
+            Size::Md => px(20.),
+            Size::Lg => px(24.),
+        };
         let previous_icon = self.previous_icon.unwrap_or_else(|| {
             gpui::svg()
                 .size(px(14.))
@@ -203,6 +208,8 @@ impl RenderOnce for Pagination {
                     hover_bg: colors.default.hover(),
                     disabled_opacity: layout.disabled_opacity,
                     cell,
+                    text_size: cell_text,
+                    line_height: cell_leading,
                     padding_x: nav_padding,
                     press_scale,
                     radius: crate::util::control_radius(cx),
@@ -252,6 +259,7 @@ impl RenderOnce for Pagination {
                         .min_w(cell)
                         .h(cell)
                         .text_size(cell_text)
+                        .line_height(cell_leading)
                         .rounded(crate::util::control_radius(cx))
                         .when(!link_disabled, |b| b.cursor_pointer());
 
@@ -278,7 +286,7 @@ impl RenderOnce for Pagination {
                                 width: None,
                                 min_width: Some(cell),
                                 text_size: cell_text,
-                                line_height: cell_text,
+                                line_height: cell_leading,
                                 gap: px(0.),
                                 radius: crate::util::control_radius(cx),
                                 shrink_x: true,
@@ -330,6 +338,7 @@ impl RenderOnce for Pagination {
                             // text-sm` cell as a page link.
                             .size(cell)
                             .text_size(cell_text)
+                            .line_height(cell_leading)
                             .text_color(colors.muted)
                             .child("…"),
                     );
@@ -352,6 +361,8 @@ impl RenderOnce for Pagination {
                     hover_bg: colors.default.hover(),
                     disabled_opacity: layout.disabled_opacity,
                     cell,
+                    text_size: cell_text,
+                    line_height: cell_leading,
                     padding_x: nav_padding,
                     press_scale,
                     radius: crate::util::control_radius(cx),
@@ -386,7 +397,8 @@ impl RenderOnce for Pagination {
                     .items_center()
                     // `.pagination__summary` is `gap-2 text-sm text-muted`.
                     .gap(px(8.))
-                    .text_size(px(14.))
+                    .text_size(cell_text)
+                    .line_height(cell_leading)
                     .text_color(colors.muted)
                     .child(text.to_string())
             }))
@@ -400,6 +412,8 @@ struct NavStyle {
     hover_bg: gpui::Hsla,
     disabled_opacity: f32,
     cell: gpui::Pixels,
+    text_size: gpui::Pixels,
+    line_height: gpui::Pixels,
     padding_x: gpui::Pixels,
     press_scale: f32,
     /// `.pagination__link` is `rounded-3xl`; `--nav` restates only the width.
@@ -421,6 +435,8 @@ fn nav_button(
         hover_bg,
         disabled_opacity,
         cell,
+        text_size,
+        line_height,
         padding_x,
         press_scale,
         radius,
@@ -438,6 +454,8 @@ fn nav_button(
         // `.pagination__link--nav` is `w-auto gap-1.5 px-2.5`: the height of a
         // page cell, but as wide as its content needs.
         .h(cell)
+        .text_size(text_size)
+        .line_height(line_height)
         .gap(px(6.))
         .px(padding_x)
         .rounded(radius)
@@ -451,8 +469,8 @@ fn nav_button(
                 padding_x: Some(padding_x),
                 width: None,
                 min_width: None,
-                text_size: px(14.),
-                line_height: px(14.),
+                text_size,
+                line_height,
                 gap: px(6.),
                 radius,
                 shrink_x: true,

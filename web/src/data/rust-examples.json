@@ -2621,8 +2621,9 @@
     },
     {
       "heading": "Sizes",
+      "description": "Summary and link typography scale together and keep their line height in larger text containers.",
       "imports": "use herogpui::prelude::{Pagination, Size};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(Size::ALL\n        .iter()\n        .map(|sz| {\n            Pagination::new(format!(\"pagination-{sz:?}\"), page, 8).size(*sz)\n        })\n        )"
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(Size::ALL\n        .iter()\n        .map(|sz| {\n            Pagination::new(format!(\"pagination-{sz:?}\"), page, 8).size(*sz)\n                .summary(format!(\"Page {page} of 8\"))\n        })\n        )"
     },
     {
       "heading": "Disabled",
