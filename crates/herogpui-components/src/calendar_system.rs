@@ -128,6 +128,34 @@ impl CalendarSystem {
         )
     }
 
+    /// The (year, month) `delta` months away in this system.
+    ///
+    /// Years do not all hold twelve months -- a lunisolar year gains a leap
+    /// month -- so this steps one month at a time rather than dividing, and
+    /// asks the system how long each year it crosses actually is.
+    pub fn add_months(&self, year: i32, month: u32, delta: i32) -> (i32, u32) {
+        if self.is_gregorian() {
+            return crate::calendar::add_months(year, month, delta);
+        }
+        let (mut year, mut month) = (year, month);
+        for _ in 0..delta.abs() {
+            if delta > 0 {
+                if month >= self.months_in_year(year) {
+                    year += 1;
+                    month = 1;
+                } else {
+                    month += 1;
+                }
+            } else if month <= 1 {
+                year -= 1;
+                month = self.months_in_year(year);
+            } else {
+                month -= 1;
+            }
+        }
+        (year, month)
+    }
+
     fn first_of(&self, year: i32, month: u32) -> Option<IcuDate<Ref<'_, AnyCalendar>>> {
         IcuDate::try_new(
             year.into(),
@@ -244,6 +272,35 @@ mod tests {
         // The Indian calendar's tenth month has 30 days, so the 31st is not a
         // date and must not silently become the 1st of the next one.
         assert_eq!(indian().to_gregorian(1947, 10, 31), None);
+    }
+
+    #[test]
+    fn stepping_months_wraps_each_system_own_year() {
+        let gregorian = CalendarSystem::for_locale("en-US").unwrap();
+        assert_eq!(gregorian.add_months(2026, 12, 1), (2027, 1));
+        assert_eq!(gregorian.add_months(2026, 1, -1), (2025, 12));
+        assert_eq!(gregorian.add_months(2026, 8, 5), (2027, 1));
+
+        // Stepping past the end of an Indian year must land in the next one,
+        // and stepping back out of it must land on that year's last month.
+        let system = indian();
+        let months = system.months_in_year(1947);
+        assert_eq!(system.add_months(1947, months, 1), (1948, 1));
+        assert_eq!(system.add_months(1948, 1, -1), (1947, months));
+    }
+
+    #[test]
+    fn stepping_a_month_moves_a_real_day_by_a_real_month() {
+        // The step is only meaningful if the month it lands on exists: the 1st
+        // of the next month must be a date, and a later one than this month's.
+        let system = indian();
+        let (year, month) = system.add_months(1947, 10, 1);
+        let this = system.to_gregorian(1947, 10, 1).unwrap();
+        let next = system.to_gregorian(year, month, 1).unwrap();
+        assert!(
+            crate::calendar::days_from_civil(&next) > crate::calendar::days_from_civil(&this),
+            "{next:?} must follow {this:?}"
+        );
     }
 
     #[test]

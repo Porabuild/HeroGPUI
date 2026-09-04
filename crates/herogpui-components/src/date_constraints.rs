@@ -247,12 +247,40 @@ impl DateConstraints {
         (first + 7 - self.first_day_of_week.monday_index()) % 7
     }
 
+    /// Blank leading cells before the 1st of a month in `system`.
+    ///
+    /// `(year, month)` are that system's own, not Gregorian ones.
+    pub fn lead_cells_in(
+        &self,
+        system: &crate::calendar_system::CalendarSystem,
+        year: i32,
+        month: u32,
+    ) -> usize {
+        let first = system.first_weekday(year, month);
+        (first + 7 - self.first_day_of_week.monday_index()) % 7
+    }
+
     /// Rows the grid should render for this month.
     pub fn rows(&self, year: i32, month: u32) -> usize {
         if let Some(rows) = self.weeks_in_month.filter(|rows| *rows > 0) {
             return rows;
         }
         let cells = self.lead_cells(year, month) + days_in_month(year, month) as usize;
+        cells.div_ceil(7)
+    }
+
+    /// Rows the grid should render for a month in `system`.
+    pub fn rows_in(
+        &self,
+        system: &crate::calendar_system::CalendarSystem,
+        year: i32,
+        month: u32,
+    ) -> usize {
+        if let Some(rows) = self.weeks_in_month.filter(|rows| *rows > 0) {
+            return rows;
+        }
+        let cells =
+            self.lead_cells_in(system, year, month) + system.days_in_month(year, month) as usize;
         cells.div_ceil(7)
     }
 }
@@ -408,6 +436,31 @@ mod tests {
             let row = start.header_row();
             let unique: std::collections::HashSet<_> = row.iter().collect();
             assert_eq!(unique.len(), 7, "every day appears once in {row:?}");
+        }
+    }
+
+    #[test]
+    fn the_system_aware_grid_matches_the_plain_one_for_gregorian() {
+        let gregorian = crate::calendar_system::CalendarSystem::for_locale("en-US").unwrap();
+        let c = DateConstraints::new();
+        for (y, m) in [(2026, 1), (2026, 2), (2024, 2), (2026, 8), (2027, 5)] {
+            assert_eq!(c.lead_cells_in(&gregorian, y, m), c.lead_cells(y, m));
+            assert_eq!(c.rows_in(&gregorian, y, m), c.rows(y, m));
+        }
+    }
+
+    #[test]
+    fn a_non_gregorian_grid_covers_its_own_month() {
+        let system =
+            crate::calendar_system::CalendarSystem::for_locale("hi-IN-u-ca-indian").unwrap();
+        let c = DateConstraints::new();
+        for month in 1..=12 {
+            let cells =
+                c.lead_cells_in(&system, 1947, month) + system.days_in_month(1947, month) as usize;
+            assert!(
+                c.rows_in(&system, 1947, month) * 7 >= cells,
+                "month {month} needs {cells} cells"
+            );
         }
     }
 
