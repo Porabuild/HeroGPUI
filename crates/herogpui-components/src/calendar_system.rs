@@ -1,0 +1,260 @@
+//! The calendar system a month grid is drawn in.
+//!
+//! v3 does not take the calendar as a prop. It reads it from the locale, which
+//! `I18nProvider` supplies: `locale="hi-IN-u-ca-indian"` draws the Indian
+//! calendar, and its "International Calendars" examples are exactly that. This
+//! port has no provider, so it reads the same `-u-ca-` extension from the
+//! locale the operating system reports -- the same preference chain the month
+//! names and the first weekday already follow.
+//!
+//! [`Date`] stays proleptic-Gregorian throughout. It is the value a caller
+//! selects, submits and reads back, and v3 keeps that ISO too; only the *grid*
+//! moves. So every cell converts to a Gregorian [`Date`] the moment it is
+//! built, and constraints, selection and callbacks never see another system.
+//!
+//! When the resolved system is Gregorian -- the default, and every locale that
+//! names no calendar -- each function short-circuits to the plain arithmetic in
+//! [`crate::calendar`]. That is what keeps the common path free of ICU and its
+//! behaviour bit-for-bit unchanged.
+
+use std::sync::OnceLock;
+
+use icu_calendar::{types, AnyCalendar, AnyCalendarKind, Date as IcuDate, Gregorian, Ref};
+use icu_locale_core::Locale as IcuLocale;
+
+use crate::calendar::{days_in_month, first_weekday_pub, Date};
+
+/// A resolved calendar system, and the ICU data to compute in it.
+pub struct CalendarSystem {
+    kind: AnyCalendarKind,
+    calendar: AnyCalendar,
+}
+
+impl CalendarSystem {
+    /// The system named by one locale tag, or `None` if the tag is unparseable.
+    pub(crate) fn for_locale(tag: &str) -> Option<Self> {
+        let locale = tag.parse::<IcuLocale>().ok()?;
+        let kind = AnyCalendarKind::new((&locale).into());
+        Some(Self {
+            kind,
+            calendar: AnyCalendar::new(kind),
+        })
+    }
+
+    /// Whether this is the plain Gregorian calendar, where every conversion is
+    /// the identity and the arithmetic in [`crate::calendar`] already applies.
+    pub fn is_gregorian(&self) -> bool {
+        self.kind == AnyCalendarKind::Gregorian
+    }
+
+    fn icu(&self, date: Date) -> Option<IcuDate<Ref<'_, AnyCalendar>>> {
+        let month = u8::try_from(date.month).ok()?;
+        let day = u8::try_from(date.day).ok()?;
+        Some(
+            IcuDate::try_new_gregorian(date.year, month, day)
+                .ok()?
+                .to_calendar(Ref(&self.calendar)),
+        )
+    }
+
+    /// The (year, month, day) one Gregorian date has in this system.
+    pub fn from_gregorian(&self, date: Date) -> (i32, u32, u32) {
+        if self.is_gregorian() {
+            return (date.year, date.month, date.day);
+        }
+        self.icu(date)
+            .map_or((date.year, date.month, date.day), |d| {
+                (
+                    d.year().extended_year(),
+                    u32::from(d.month().ordinal),
+                    u32::from(d.day_of_month().0),
+                )
+            })
+    }
+
+    /// The Gregorian date one (year, month, day) in this system names.
+    ///
+    /// `None` when the triple does not exist -- a 31st in a 30-day month, or a
+    /// month this system's year does not have.
+    pub fn to_gregorian(&self, year: i32, month: u32, day: u32) -> Option<Date> {
+        if self.is_gregorian() {
+            return ((1..=12).contains(&month) && day >= 1 && day <= days_in_month(year, month))
+                .then(|| Date::new(year, month, day));
+        }
+        let date = IcuDate::try_new(
+            year.into(),
+            types::Month::new(u8::try_from(month).ok()?),
+            u8::try_from(day).ok()?,
+            Ref(&self.calendar),
+        )
+        .ok()?
+        .to_calendar(Gregorian);
+        Some(Date::new(
+            date.year().extended_year(),
+            u32::from(date.month().ordinal),
+            u32::from(date.day_of_month().0),
+        ))
+    }
+
+    /// Days in one month of this system.
+    pub fn days_in_month(&self, year: i32, month: u32) -> u32 {
+        if self.is_gregorian() {
+            return days_in_month(year, month);
+        }
+        self.first_of(year, month).map_or_else(
+            || days_in_month(year, month),
+            |d| u32::from(d.days_in_month()),
+        )
+    }
+
+    /// Months in one year of this system. Lunisolar years gain a leap month.
+    pub fn months_in_year(&self, year: i32) -> u32 {
+        if self.is_gregorian() {
+            return 12;
+        }
+        self.first_of(year, 1)
+            .map_or(12, |d| u32::from(d.months_in_year()))
+    }
+
+    /// The weekday the 1st of this month falls on, Monday as 0 -- the same
+    /// convention as [`first_weekday_pub`].
+    pub fn first_weekday(&self, year: i32, month: u32) -> usize {
+        if self.is_gregorian() {
+            return first_weekday_pub(year, month);
+        }
+        self.first_of(year, month).map_or_else(
+            || first_weekday_pub(year, month),
+            |d| (d.weekday() as usize + 6) % 7,
+        )
+    }
+
+    fn first_of(&self, year: i32, month: u32) -> Option<IcuDate<Ref<'_, AnyCalendar>>> {
+        IcuDate::try_new(
+            year.into(),
+            types::Month::new(u8::try_from(month).ok()?),
+            1,
+            Ref(&self.calendar),
+        )
+        .ok()
+    }
+}
+
+/// The system the running locale names, resolved once.
+///
+/// Gregorian unless a locale in the platform's date preference chain carries a
+/// `-u-ca-` extension naming another one.
+pub fn system() -> &'static CalendarSystem {
+    static SYSTEM: OnceLock<CalendarSystem> = OnceLock::new();
+    SYSTEM.get_or_init(|| {
+        crate::date_constraints::system_locale_tags()
+            .iter()
+            .find_map(|tag| CalendarSystem::for_locale(tag))
+            .unwrap_or_else(|| {
+                CalendarSystem::for_locale("en-US").expect("en-US is a valid locale")
+            })
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn indian() -> CalendarSystem {
+        CalendarSystem::for_locale("hi-IN-u-ca-indian").unwrap()
+    }
+
+    #[test]
+    fn a_locale_without_an_extension_is_gregorian() {
+        assert!(CalendarSystem::for_locale("en-US").unwrap().is_gregorian());
+        assert!(CalendarSystem::for_locale("de-DE").unwrap().is_gregorian());
+        assert!(!indian().is_gregorian());
+        assert!(!CalendarSystem::for_locale("th-TH-u-ca-buddhist")
+            .unwrap()
+            .is_gregorian());
+    }
+
+    #[test]
+    fn the_gregorian_path_matches_the_plain_arithmetic() {
+        let system = CalendarSystem::for_locale("en-US").unwrap();
+        for (year, month) in [(2026, 1), (2024, 2), (2025, 2), (2026, 4), (2026, 12)] {
+            assert_eq!(
+                system.days_in_month(year, month),
+                days_in_month(year, month)
+            );
+            assert_eq!(
+                system.first_weekday(year, month),
+                first_weekday_pub(year, month)
+            );
+            assert_eq!(system.months_in_year(year), 12);
+        }
+        let date = Date::new(2026, 1, 15);
+        assert_eq!(system.from_gregorian(date), (2026, 1, 15));
+        assert_eq!(system.to_gregorian(2026, 1, 15), Some(date));
+    }
+
+    #[test]
+    fn a_non_gregorian_system_reports_its_own_year_and_month() {
+        // 15 January 2026 is 25 Pausha 1947 in the Indian national calendar,
+        // whose tenth month runs 30 days.
+        let system = indian();
+        assert_eq!(
+            system.from_gregorian(Date::new(2026, 1, 15)),
+            (1947, 10, 25)
+        );
+        assert_eq!(system.days_in_month(1947, 10), 30);
+        assert_eq!(system.months_in_year(1947), 12);
+    }
+
+    #[test]
+    fn conversion_round_trips_through_the_other_system() {
+        let system = indian();
+        for date in [
+            Date::new(2026, 1, 15),
+            Date::new(2026, 3, 22),
+            Date::new(2024, 2, 29),
+            Date::new(1999, 12, 31),
+        ] {
+            let (year, month, day) = system.from_gregorian(date);
+            assert_eq!(
+                system.to_gregorian(year, month, day),
+                Some(date),
+                "{date:?} must survive the trip through the Indian calendar"
+            );
+        }
+    }
+
+    #[test]
+    fn an_impossible_day_reports_nothing_rather_than_clamping() {
+        let gregorian = CalendarSystem::for_locale("en-US").unwrap();
+        assert_eq!(
+            gregorian.to_gregorian(2025, 2, 29),
+            None,
+            "2025 is not a leap year"
+        );
+        assert_eq!(
+            gregorian.to_gregorian(2026, 13, 1),
+            None,
+            "there is no 13th month"
+        );
+        assert_eq!(
+            gregorian.to_gregorian(2026, 4, 31),
+            None,
+            "April has 30 days"
+        );
+        // The Indian calendar's tenth month has 30 days, so the 31st is not a
+        // date and must not silently become the 1st of the next one.
+        assert_eq!(indian().to_gregorian(1947, 10, 31), None);
+    }
+
+    #[test]
+    fn the_first_weekday_is_monday_indexed_in_both_systems() {
+        // 1 Pausha 1947 and its Gregorian equivalent are the same actual day,
+        // so they must report the same weekday whichever system asks.
+        let system = indian();
+        let first = system.to_gregorian(1947, 10, 1).unwrap();
+        assert_eq!(
+            system.first_weekday(1947, 10),
+            crate::calendar::weekday_index(first)
+        );
+    }
+}
