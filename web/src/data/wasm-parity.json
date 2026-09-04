@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "artifactSha256": "119147bbd8a5fd54de44e46fcdf0f8f7d27c2496bf2c8b67179b8c8286723848",
-  "glueSha256": "742d41176f45fc66fabc62e4f7df2d874d6d045f4909a74ee374a276911eb099",
+  "artifactSha256": "a041570d22f9abf8da333ada0620d91ad19e62353313e25701d879f5fdbf8ce9",
+  "glueSha256": "4dbd3f410ab610a51805e8eff64683dfe78727614f91a904f327d249106cc1be",
   "examples": {
     "accordion/Controlled": {
       "nativeCodeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -386,7 +386,6 @@
     },
     "calendar/Heading Offset": {
       "nativeCodeSha256": "f671ec0906db0475c8c9415ac4eb00c850be4678586ff46b2a32b70342a42cb0",
-      "wasmCodeSha256": "c3eb55b8ae618efdc3ce094862fe0c820783bcca76288b5af48ef1fea6ec57ac",
       "descriptionSha256": "6b985b0e615125c832d91558b2f3805a03c6c52a4ea1bc2a90e4f18a59f513d0"
     },
     "calendar/Min and Max Dates": {
@@ -615,7 +614,6 @@
     },
     "color-field/Channel Editing": {
       "nativeCodeSha256": "da4af92a51f24802f7b89c3faf1b9af3af305c1060d834dc65297dd4b2ee44c3",
-      "wasmCodeSha256": "f42247545861553089370be6def2b56463673a79ce791ba2398a66738a707efc",
       "descriptionSha256": "57474e1e7f848d99974e9d4363b4f6625b98c12e54747745bfcd027f535344de"
     },
     "color-field/Controlled": {
@@ -947,7 +945,6 @@
     },
     "date-field/Granularity": {
       "nativeCodeSha256": "b80d86e8705152805b9a597dedf322dcd13edfa6567b3ddc1fb2c0505aec72ff",
-      "wasmCodeSha256": "5744bfbd9f37fa9e732a1da7e22334698a2904d5115edbed71cc2763e915fde8",
       "descriptionSha256": "161c0e83f84bb0751c6658722d003279fda51aa9abb17a31bf45f3b4f37b44c1"
     },
     "date-field/In Surface": {
@@ -1004,7 +1001,6 @@
     },
     "date-picker/Render Function": {
       "nativeCodeSha256": "a65453d017f816b65d6520501ab4684102544250d84b41ff32026d5febe073ff",
-      "wasmCodeSha256": "26bfdabfd0b3996e41cbdc9998408570a9233ba362356d740b5c13112699ca09",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "date-picker/Usage": {
@@ -1041,7 +1037,6 @@
     },
     "date-range-picker/Usage": {
       "nativeCodeSha256": "b11d2075fb17062db991a3917e5084952a11d9b4fb46cb0e6a46636c88425441",
-      "wasmCodeSha256": "c173db6c5b27e239e2891321bedeb087c6543352f3d4c31d8e0a107116aad7de",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "date-range-picker/Validation": {
@@ -1182,7 +1177,6 @@
     },
     "fieldset/In Surface": {
       "nativeCodeSha256": "6ef8b4339da9aa72532c2f5518fefc008e89d4db1243e43dd41012c153a0591a",
-      "wasmCodeSha256": "96f90a5b32320eeabc0268b28990f1fd53205e8f9d8717835f56e91a701a5417",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "fieldset/Usage": {
@@ -1195,7 +1189,6 @@
     },
     "form/Usage": {
       "nativeCodeSha256": "accfc7d01f6446afe4cd9e8610834edecdd88ed16a6dbfe5ead74d524e9511b0",
-      "wasmCodeSha256": "96621b251527fc4ebacff8e8011e53f0ffd3bd588b0bfcf6f90a81850ea777d6",
       "descriptionSha256": "76fa5a5b370b505b233c4271950d3c2300107b43c4cbacdb3c31595a61f193f7"
     },
     "input-group/Addons": {
@@ -1655,7 +1648,6 @@
     },
     "number-field/Usage": {
       "nativeCodeSha256": "e1e50b5296544470ec5e1447b0203967c636a31e93ae0668abb550d586907db7",
-      "wasmCodeSha256": "6978d986b7fb11d1c95af68ea8f6f731d86b3fbf8a569f3c7d3e40dc02fd527a",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "number-field/Validation": {
@@ -1907,7 +1899,6 @@
     },
     "range-calendar/Unavailable Dates": {
       "nativeCodeSha256": "bb822112ef3886c3d57078f97bc93a1149e47491c5632e66abdfd9dee41e951c",
-      "wasmCodeSha256": "17a2ebeaaf5c131ff49a6d4284a44b0ed022102c87e3c4dbb31957ce511bbc29",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "range-calendar/Usage": {
@@ -2234,7 +2225,6 @@
     },
     "surface/With form components": {
       "nativeCodeSha256": "84f905b060c5e3a8310d63141e3a82232863bd0f392e13660b7c63a57f7af41a",
-      "wasmCodeSha256": "d8a14404ccb7930e2fb02e9a104a90a066352ce44a89476e6a318c74ca8bd4b0",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "switch/Controlled": {
@@ -2518,7 +2508,6 @@
     },
     "time-field/24-hour": {
       "nativeCodeSha256": "92d8cfbfaf4fe0ae6c9aa3f09b44b5c2b049653801f03dcd75523453dfbf7640",
-      "wasmCodeSha256": "cc17ea9ee65fef33d3631398ad899c1eca445ec6467af1d5a66cfa819b5d993a",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "time-field/Controlled": {
@@ -2772,8 +2761,6 @@
     "autocomplete/With Description",
     "autocomplete/With Disabled Options",
     "autocomplete/With Sections",
-    "calendar/Heading Offset",
-    "color-field/Channel Editing",
     "combo-box/Allows Custom Value",
     "combo-box/Asynchronous Loading",
     "combo-box/Controlled",
@@ -2797,9 +2784,6 @@
     "combo-box/With Description",
     "combo-box/With Disabled Options",
     "combo-box/With Sections",
-    "date-field/Granularity",
-    "date-picker/Render Function",
-    "date-range-picker/Usage",
     "drawer/Backdrop Variants",
     "drawer/Controlled State",
     "drawer/Navigation Drawer",
@@ -2808,8 +2792,6 @@
     "drawer/Scrollable Content",
     "drawer/Usage",
     "drawer/With Form",
-    "fieldset/In Surface",
-    "form/Usage",
     "input-group/Full Width",
     "input-group/Icon Prefix and Text Suffix",
     "input-group/In Surface",
@@ -2853,7 +2835,6 @@
     "modal/Sizes",
     "modal/Usage",
     "modal/With Form",
-    "number-field/Usage",
     "popover/Custom Styles",
     "popover/Interactive Content",
     "popover/Placement",
@@ -2865,7 +2846,6 @@
     "progress-bar/Sizes",
     "progress-bar/Usage",
     "progress-bar/Without Label",
-    "range-calendar/Unavailable Dates",
     "search-field/Controlled",
     "search-field/Custom Icons",
     "search-field/Disabled State",
@@ -2892,7 +2872,6 @@
     "slider/Range Slider Anatomy",
     "slider/Step & disabled",
     "slider/Usage",
-    "surface/With form components",
     "table/Column Resizing",
     "tag-group/With Remove Button",
     "text-area/Controlled",
@@ -2911,8 +2890,7 @@
     "text-field/Required Field",
     "text-field/TextArea",
     "text-field/Validation",
-    "text-field/With Description",
-    "time-field/24-hour"
+    "text-field/With Description"
   ],
   "descriptionDrift": []
 }
