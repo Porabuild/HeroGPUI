@@ -566,6 +566,11 @@ impl RenderOnce for Modal {
                         el.child(
                             gpui::div()
                                 .text_size(px(16.))
+                                // `.modal__heading` is `text-base`, paired
+                                // with a 24px leading. `Drawer` and
+                                // `AlertDialog` always had the pair; without
+                                // it this inherited the shell's 20px.
+                                .line_height(px(24.))
                                 .font_weight(gpui::FontWeight::MEDIUM)
                                 .child(title.to_string()),
                         )

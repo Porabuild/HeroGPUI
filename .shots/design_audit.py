@@ -145,6 +145,15 @@ def press_scale(name):
     return float(m.group(1)) * 100.0 if m else None
 
 
+def relative_pct(fraction):
+    """`gpui::relative(f)` -> its percentage, to compare with `h-<n>/<m>`.
+
+    v3 sizes a toolbar's separator as a fraction of the bar; the port spells
+    the same thing as a relative length, so the two meet in percent.
+    """
+    return float(fraction) * 100.0
+
+
 def SIZE_XL(name):
     """`SizeXl` variant -> pixels, matching `SizeXl::swatch_px`.
 
@@ -281,6 +290,81 @@ CHECKS = [
     ('separator', '.separator', 'radius', 'Separator -> util::_radius',
      SRC + 'separator.rs',
      r'let radius = crate::util::(\w+_radius)\(cx\)', helper_px),
+    # Anchored on the declaration that builds the half-length mark, so a
+    # reader follows the construction rather than a character window.
+    # v3 declares a heading's leading through the `text-base` pair rather than
+    # a `leading-*` utility, so a port that sets only the size inherits
+    # whatever the host shell says -- 20px in this repository's gallery, four
+    # short. `Drawer` and `AlertDialog` always had the pair; `Modal` and
+    # `Switch` did not, and nothing compared them.
+    ('modal', '.modal__heading', 'leading', 'Modal heading leading', SRC + 'modal.rs',
+     r'`\.modal__heading` is `text-base`[\s\S]{0,400}?'
+     r'\.line_height\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('switch', '.switch__label', 'leading', 'Switch label leading', SRC + 'switch.rs',
+     r'`\.switch__label` is `text-base`[\s\S]{0,400}?'
+     r'\.line_height\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # Meter's track, read off the ProgressBar the component delegates to.
+    ('meter', '.meter .meter__track', 'h', 'Meter md track', SRC + 'progress.rs',
+     r'let \(h, radius\) = match self\.size \{[\s\S]{0,300}?'
+     r'Size::Md => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('meter', '.meter .meter__track', 'radius', 'Meter md radius', SRC + 'progress.rs',
+     r'Size::Md => \(px\(8\.\), crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('meter', '.meter--sm .meter__track', 'h', 'Meter sm track', SRC + 'progress.rs',
+     r'let \(h, radius\) = match self\.size \{[\s\S]{0,300}?'
+     r'Size::Sm => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('meter', '.meter--sm .meter__track', 'radius', 'Meter sm radius', SRC + 'progress.rs',
+     r'Size::Sm => \(px\(4\.\), crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    ('meter', '.meter--lg .meter__track', 'h', 'Meter lg track', SRC + 'progress.rs',
+     r'let \(h, radius\) = match self\.size \{[\s\S]{0,300}?'
+     r'Size::Lg => \(px\((\d+(?:\.\d*)?)\.\)', None),
+    ('meter', '.meter--lg .meter__track', 'radius', 'Meter lg radius', SRC + 'progress.rs',
+     r'Size::Lg => \(px\(12\.\), crate::util::(\w+_radius)\(cx\)\)', helper_px),
+    # ColorSlider's thumb, and the thickness of its horizontal track. The
+    # track's own corner is deliberately not compared: v3 leaves the
+    # horizontal track `rounded-none` and rounds the two overhanging caps
+    # `rounded-*-2xl`, which CSS then clamps to half the 20px cross size. The
+    # port spells the clamped 10 directly, so the declared numbers differ
+    # while the drawn corner does not.
+    ('color-slider',
+     '.color-slider[data-orientation="horizontal"] .color-slider__track', 'h',
+     'ColorSlider track thickness', SRC + 'color_picker.rs',
+     r'let track_h = px\((\d+(?:\.\d*)?)\.\)', None),
+    ('color-slider', '.color-slider__thumb', 'radius', 'ColorSlider thumb radius',
+     SRC + 'color_picker.rs',
+     r'`\.color-slider__thumb` is `size-4`\.[\s\S]{0,120}?'
+     r'\.rounded\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    ('color-slider', '.color-slider__thumb', 'border', 'ColorSlider thumb border',
+     SRC + 'color_picker.rs',
+     r'`\.color-slider__thumb` is `size-4`\.[\s\S]{0,180}?'
+     r'\.border\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # `.color-area` is `w-full max-w-56`: the square never grows past 224.
+    ('color-area', '.color-area', 'max_w', 'ColorArea maximum width',
+     SRC + 'color_picker.rs',
+     r'width: px\((\d+(?:\.\d*)?)\.\),\s*\n\s*height: px\(\d+(?:\.\d*)?\.\),', None),
+    # `.calendar` and `.range-calendar` are both `w-63 max-w-63`, so the width
+    # the port pins is also its ceiling.
+    ('calendar', '.calendar', 'max_w', 'Calendar maximum width', SRC + 'calendar.rs',
+     r'pub const CALENDAR_WIDTH: gpui::Pixels = px\((\d+(?:\.\d*)?)\.\)', None),
+    ('range-calendar', '.range-calendar', 'max_w', 'RangeCalendar maximum width',
+     SRC + 'calendar.rs',
+     r'pub const CALENDAR_WIDTH: gpui::Pixels = px\((\d+(?:\.\d*)?)\.\)', None),
+    # `.textarea`'s `min-height: 38px` floor, which `rows` raises.
+    ('textarea', '.textarea', 'min_h', 'TextArea minimum height', SRC + 'input.rs',
+     r'let multiline_h = self\.min_h\.unwrap_or\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+    # The stepper glyph inside a NumberField button.
+    ('number-field', '[data-slot="number-field-decrement-button-icon"]', 'size',
+     'NumberField stepper icon', SRC + 'number_field.rs',
+     r'\.size\(crate::util::(FIELD_ICON)\)', lambda _: 16.0),
+    ('toolbar', '.toolbar .separator--vertical', 'h_pct',
+     'Toolbar vertical divider length', SRC + 'separator.rs',
+     r'"toolbar-separator-mark"[\s\S]{0,500}?Orientation::Vertical =>'
+     r'[\s\S]{0,260}?\.h\(gpui::relative\((\d(?:\.\d*)?)\)\)',
+     relative_pct),
+    ('toolbar', '.toolbar .separator--horizontal', 'w_pct',
+     'Toolbar horizontal divider length', SRC + 'separator.rs',
+     r'"toolbar-separator-mark"[\s\S]{0,300}?Orientation::Horizontal =>'
+     r'[\s\S]{0,260}?\.w\(gpui::relative\((\d(?:\.\d*)?)\)\)',
+     relative_pct),
     ('toolbar', '.toolbar--attached', 'p', 'Toolbar attached padding',
      SRC + 'toolbar.rs',
      r'`\.toolbar--attached` is `p-1 rounded-3xl bg-surface shadow-overlay`\.'
@@ -1726,6 +1810,25 @@ THEME_FILES = (
 
 
 NESTED_SELECTOR_CHAINS = {
+    # `.toolbar` restyles the separator crossing its flow rather than the
+    # separator sheet doing it, so both rules only exist nested here.
+    ('toolbar', '.toolbar .separator--vertical'): (
+        '.toolbar', '.separator--vertical'),
+    ('toolbar', '.toolbar .separator--horizontal'): (
+        '.toolbar', '.separator--horizontal'),
+    # Meter delegates its bar to `ProgressBar`, so these rows compare
+    # `meter.css`'s own ladder with the shared implementation: if v3 ever gave
+    # the two components different track geometry the delegation would be
+    # wrong, and only a meter-side row would say so.
+    ('meter', '.meter .meter__track'): ('.meter', '.meter__track'),
+    ('meter', '.meter--sm .meter__track'): ('.meter--sm', '.meter__track'),
+    ('meter', '.meter--lg .meter__track'): ('.meter--lg', '.meter__track'),
+    ('color-slider', '.color-slider__thumb'): (
+        '.color-slider', '.color-slider__thumb'),
+    ('color-slider',
+     '.color-slider[data-orientation="horizontal"] .color-slider__track'): (
+        '.color-slider', '&[data-orientation="horizontal"]',
+        '.color-slider__track'),
     ('progress-bar', '.progress-bar__track'): (
         '.progress-bar', '.progress-bar__track'),
     ('progress-bar', '.progress-bar--sm .progress-bar__track'): (
@@ -2266,6 +2369,12 @@ def measure(body, inherited_leading=None):
     # The switch declares `height: 1.25rem` rather than `h-5`, so a rem
     # declaration counts as the same metric. rem is root-relative (16px), not
     # font-relative -- v3's own comments guess otherwise.
+    # `.textarea`'s 38px floor is a plain declaration, not a `min-h-*` step,
+    # because Tailwind's spacing scale has no 9.5. Same metric either way.
+    m = re.search(r'(?<![\w-])min-height:\s*(\d+(?:\.\d*)?)px', body)
+    if m:
+        offer('min_h', float(m.group(1)), '')
+
     for prop, metric in (('height', 'h'), ('width', 'w')):
         m = re.search(
             prop + r':\s*calc\(([\d.]+)rem\s*\+\s*([\d.]+)rem\)',
@@ -2323,11 +2432,21 @@ def measure(body, inherited_leading=None):
                                    ('size-', 'size'), ('min-w-', 'min_w'),
                                    ('mt-', 'mt'), ('ms-', 'ms'), ('min-h-', 'min_h'),
                                    ('ps-', 'ps'), ('leading-', 'leading'),
+                                   ('max-w-', 'max_w'),
                                    ('pt-', 'pt'), ('space-y-', 'gap')):
                 if tok.startswith(prefix):
                     v = px(tok[len(prefix):])
                     if v is not None:
                         offer(metric, v, bp)
+            # A fractional track size (`h-1/2`) is a percentage of the
+            # parent, not a spacing step, so it cannot share the pixel
+            # `h`/`w` metric -- a rule is free to declare both. `.toolbar`'s
+            # separator rules are the only place v3 sizes a part this way,
+            # and the port spells them with `gpui::relative`.
+            m = re.fullmatch(r'([hw])-(\d+)/(\d+)', tok)
+            if m:
+                offer(f'{m.group(1)}_pct',
+                      float(m.group(2)) / float(m.group(3)) * 100.0, bp)
             # A unitless arbitrary leading (`leading-[1.34]`) is a
             # multiplier of the rule's own text size, not a spacing
             # step; it resolves once the text size is known.
@@ -2729,6 +2848,12 @@ FILLS = [
      SRC + 'input_otp.rs', 'colors.field.background'),
     ('tabs', '.tabs__list-container', 'bg-default',
      SRC + 'tabs.rs', 'colors.default.color'),
+    # The one fill v3 dilutes. A skeleton is meant to read as a tint of
+    # whatever it sits on, so the `/70` is part of the token rather than a
+    # detail: painted solid it came out the full tertiary fill, three points
+    # darker than v3 on the light page.
+    ('skeleton', '.skeleton', 'bg-surface-tertiary/70',
+     SRC + 'skeleton.rs', 'colors.surface_tertiary.alpha(0.7)'),
     # Every floating panel is `bg-overlay`, which is a distinct token from
     # `--surface` -- a panel painted with the surface colour is the right shade
     # in light mode and the wrong one in dark.

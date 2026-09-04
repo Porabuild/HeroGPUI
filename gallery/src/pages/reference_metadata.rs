@@ -13137,7 +13137,7 @@ const TOOLBAR_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Toolbar",
         slot: "toolbar",
-        description: "Root container; the orientation is the modifier class.",
+        description: "Root container; set its orientation before separator() to append a centred divider half the bar's cross size.",
         rust_owner: "Toolbar",
         status: ImplementationStatus::Implemented,
     },

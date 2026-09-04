@@ -3,7 +3,10 @@
 //! `variant` pairs with the surrounding [`Surface`](crate::surface::Surface)
 //! prominence so the line stays visible as the container gets more prominent.
 
-use gpui::{div, AnyElement, App, IntoElement, ParentElement, Pixels, RenderOnce, Styled, Window};
+use gpui::{
+    div, AnyElement, App, InteractiveElement, IntoElement, ParentElement, Pixels, RenderOnce,
+    Styled, Window,
+};
 use herogpui_core::Orientation;
 use herogpui_theme::ActiveTheme;
 
@@ -42,6 +45,10 @@ pub struct Separator {
     variant: SeparatorVariant,
     inset_y: Pixels,
     inset_x: Pixels,
+    /// Set by [`Toolbar::separator`](crate::toolbar::Toolbar::separator) for
+    /// `.toolbar`'s own descendant rules, which halve whichever separator
+    /// crosses the bar's flow and centre it. See [`Separator::in_toolbar`].
+    in_toolbar: bool,
     /// v3 composes content *inside* a separator (`<Separator>OR</Separator>`),
     /// which turns it into `.separator__container`: a line, the content, a line.
     content: Vec<AnyElement>,
@@ -54,8 +61,26 @@ impl Separator {
             variant: SeparatorVariant::default(),
             inset_y: gpui::px(0.),
             inset_x: gpui::px(0.),
+            in_toolbar: false,
             content: Vec::new(),
         }
+    }
+
+    /// Applies `.toolbar`'s descendant rules for a separator inside a bar:
+    /// `.separator--vertical` becomes `h-1/2 self-center` and
+    /// `.separator--horizontal` becomes `w-1/2 justify-self-center`, so the
+    /// rule crossing the bar's flow is half its cross size and centred rather
+    /// than running the bar's whole edge.
+    ///
+    /// v3 spells this as a descendant selector, so *any* separator inside a
+    /// toolbar picks it up. A [`Toolbar`](crate::toolbar::Toolbar) holds
+    /// type-erased children and cannot reach into one to restyle it, so the
+    /// bar builds its own separators instead — reach for
+    /// [`Toolbar::separator`](crate::toolbar::Toolbar::separator) rather than
+    /// passing a hand-built `Separator` as a child.
+    pub(crate) fn in_toolbar(mut self) -> Self {
+        self.in_toolbar = true;
+        self
     }
 
     pub fn orientation(mut self, orientation: Orientation) -> Self {
@@ -150,6 +175,43 @@ impl RenderOnce for Separator {
                 )
                 .child(line())
                 .into_any_element();
+        }
+
+        if self.in_toolbar {
+            // `.toolbar` halves the rule that crosses its flow and centres it:
+            // an 18px tick in a 36px bar, not a line down its whole edge.
+            //
+            // The half-length box is positioned inside a transparent full-size
+            // slot rather than sized directly, because a percentage
+            // main/cross size against a bar whose own size comes from its
+            // controls has nothing definite to resolve against. This is the
+            // same construction `ButtonGroup` draws its member separators
+            // with, and the only one in this codebase proven to land on the
+            // measured 25%/50% geometry.
+            let slot = div()
+                .relative()
+                .my(self.inset_y)
+                .mx(self.inset_x)
+                .flex_shrink_0()
+                .debug_selector(|| "toolbar-separator".to_owned());
+            let mark = div()
+                .absolute()
+                .rounded(radius)
+                .bg(color)
+                .debug_selector(|| "toolbar-separator-mark".to_owned());
+            return match self.orientation {
+                Orientation::Horizontal => slot.w_full().h(weight).child(
+                    mark.left(gpui::relative(0.25))
+                        .w(gpui::relative(0.5))
+                        .h(weight),
+                ),
+                Orientation::Vertical => slot.self_stretch().min_h(gpui::px(8.)).w(weight).child(
+                    mark.top(gpui::relative(0.25))
+                        .h(gpui::relative(0.5))
+                        .w(weight),
+                ),
+            }
+            .into_any_element();
         }
 
         let el = div()

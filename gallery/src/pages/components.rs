@@ -8568,10 +8568,9 @@ impl Gallery {
                             h::ToggleButton::new(el_id(format!("tbar-{key}-i"))).label("I"),
                         ),
                 )
-                .child(h::Separator::new().orientation(match orientation {
-                    Orientation::Horizontal => Orientation::Vertical,
-                    Orientation::Vertical => Orientation::Horizontal,
-                }))
+                // The bar crosses its own flow, so the divider needs no
+                // orientation here.
+                .separator()
                 .child(
                     h::ButtonGroup::new()
                         .variant(Variant::Tertiary)
@@ -8623,7 +8622,7 @@ impl Gallery {
                                 .button(h::Button::new("tb-bg-2").label("Center"))
                                 .button(h::Button::new("tb-bg-3").label("Right")),
                         )
-                        .child(h::Separator::new().orientation(Orientation::Vertical))
+                        .separator()
                         .child(
                             h::Button::new("tb-bg-4")
                                 .label("Reset")

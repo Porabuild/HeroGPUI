@@ -698,6 +698,10 @@ impl RenderOnce for Switch {
                 // `.switch__label` is `text-base`, a step larger than the
                 // content around it.
                 .text_size(px(16.))
+                // Tailwind pairs that size with a 24px leading; without the
+                // pair the label inherited the shell's 20px and read tighter
+                // than the `.switch__content` beside it.
+                .line_height(px(24.))
                 .gap(px(4.))
                 .child(label)
                 .when(self.is_required, |r| {

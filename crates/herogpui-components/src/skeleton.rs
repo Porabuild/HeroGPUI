@@ -70,7 +70,11 @@ impl ParentElement for Skeleton {
 impl RenderOnce for Skeleton {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let colors = cx.colors();
-        let base_color = colors.surface_tertiary;
+        // `.skeleton` is `bg-surface-tertiary/70`, not the solid token: the
+        // placeholder is meant to read as a tint of whatever it sits on. This
+        // painted it opaque, so every skeleton came out the full tertiary fill
+        // -- (234,234,235) on the light page against v3's (237,237,238).
+        let base_color = colors.surface_tertiary.alpha(0.7);
         // Reduced motion collapses every animation type to `None`.
         let animation = if ActiveTheme::reduce_motion(cx) {
             SkeletonAnimation::None

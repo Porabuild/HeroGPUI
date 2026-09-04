@@ -2400,8 +2400,8 @@
     },
     {
       "heading": "With ButtonGroup",
-      "imports": "use herogpui::prelude::{Button, ButtonGroup, Orientation, Separator, Size, Toolbar, Variant};\nuse gpui::prelude::*;",
-      "code": "Toolbar::new()\n    .id(\"toolbar-button-group\")\n    .child(\n        ButtonGroup::new()\n            .variant(Variant::Secondary)\n            .size(Size::Sm)\n            .separators(true)\n            .button(Button::new(\"toolbar-bg-1\").label(\"Left\"))\n            .button(Button::new(\"toolbar-bg-2\").label(\"Center\"))\n            .button(Button::new(\"toolbar-bg-3\").label(\"Right\")),\n    )\n    .child(Separator::new().orientation(Orientation::Vertical))\n    .child(\n        Button::new(\"toolbar-bg-4\")\n            .label(\"Reset\")\n            .variant(Variant::Tertiary)\n            .size(Size::Sm),\n    )"
+      "imports": "use herogpui::prelude::{Button, ButtonGroup, Size, Toolbar, Variant};\nuse gpui::prelude::*;",
+      "code": "Toolbar::new()\n    .id(\"toolbar-button-group\")\n    .child(\n        ButtonGroup::new()\n            .variant(Variant::Secondary)\n            .size(Size::Sm)\n            .separators(true)\n            .button(Button::new(\"toolbar-bg-1\").label(\"Left\"))\n            .button(Button::new(\"toolbar-bg-2\").label(\"Center\"))\n            .button(Button::new(\"toolbar-bg-3\").label(\"Right\")),\n    )\n    .separator()\n    .child(\n        Button::new(\"toolbar-bg-4\")\n            .label(\"Reset\")\n            .variant(Variant::Tertiary)\n            .size(Size::Sm),\n    )"
     },
     {
       "heading": "Horizontal",

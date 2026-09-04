@@ -118,6 +118,29 @@ impl Toolbar {
         self.gap = Some(gap.into());
         self
     }
+
+    /// Appends the divider `.toolbar` styles for itself: the rule crossing the
+    /// bar's flow, half its cross size and centred.
+    ///
+    /// The orientation is the bar's own, crossed — a horizontal toolbar is
+    /// divided by a vertical rule — so it is not a parameter. v3 leaves the
+    /// caller to write `orientation` on a `<Separator>` child and applies the
+    /// halving through `.toolbar .separator--vertical`; a type-erased child
+    /// cannot be restyled after the fact here, so the bar builds the divider
+    /// and both facts come from the one place that knows the axis.
+    pub fn separator(mut self) -> Self {
+        let crossed = match self.orientation {
+            Orientation::Horizontal => Orientation::Vertical,
+            Orientation::Vertical => Orientation::Horizontal,
+        };
+        self.children.push(
+            crate::separator::Separator::new()
+                .orientation(crossed)
+                .in_toolbar()
+                .into_any_element(),
+        );
+        self
+    }
 }
 
 impl Default for Toolbar {
