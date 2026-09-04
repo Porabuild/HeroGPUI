@@ -15,8 +15,8 @@ pages, zero warnings.
 | | |
 |---|---|
 | Components | 66 pages across 15 categories |
-| API reference | 61 components, extracted from `gallery/src/pages/reference_metadata.rs` |
-| Rust examples | 637, extracted from `gallery/src/pages/components.rs` |
+| API reference | 66 components, extracted from `gallery/src/pages/reference_metadata.rs` |
+| Rust examples | 643, extracted from `gallery/src/pages/components.rs` |
 | Changelog | 288 commits, from git history |
 | Screenshots | 89, from `.shots/` |
 
@@ -33,13 +33,12 @@ All page content is generated from the Rust workspace by `scripts/*.mjs`. Run
 browser, with its Rust below — the gallery pages, on the web, for people to
 try. Not screenshots, not a recreation in another framework.
 
-**Host side: done.** `src/components/preview/gallery-frame.tsx` renders an
-iframe pointing at `${NEXT_PUBLIC_GALLERY_URL}/?story=<slug>&theme=<theme>`,
-booted lazily by an `IntersectionObserver` so a multi-megabyte download never
-fires on page load, with the host's light/dark passed through. When
-`NEXT_PUBLIC_GALLERY_URL` is unset — the shipped default — it renders nothing
-and the page falls back to the native screenshot. That is deliberate: see
-`DESIGN-NOTES.md` on never filling an empty preview with a placeholder.
+**Host side: done.** `src/components/preview/gallery-frame.tsx` renders one
+iframe for the selected component, booted lazily by an `IntersectionObserver`
+so the multi-megabyte download never fires on page load. The example dropdown
+updates the same running canvas through `herogpui:preview-section` while the
+description and matching Rust code update outside it. Component pages do not
+render native screenshots or instantiate the full gallery shell.
 
 **Gallery side: renders.** The work lives in a separate git worktree at
 `D:\herogpui-wasm` (detached HEAD). Full log in

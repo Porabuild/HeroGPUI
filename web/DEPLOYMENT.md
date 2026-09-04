@@ -131,31 +131,15 @@ Run through these on the production URL:
   trailing slash).
 - `porabuild.com/herogpui/llms.txt` serves `text/plain` — the repo's
   llms.txt, prerendered at build time.
-- A component page (`/herogpui/docs/components/button`) shows its GPUI
-  screenshot; the `<img src>` resolves under `/herogpui/shots/…`.
+- A component page (`/herogpui/docs/components/button`) lazily mounts one live
+  GPUI/WASM canvas. Switching the example dropdown updates that same canvas,
+  description and Rust code without creating another iframe.
 - Navigate Docs → Components → a component page: internal navigation stays
   inside the `/herogpui` prefix (it is one zone, so these are soft
   navigations).
 - View source: canonical/Open Graph URLs begin with
   `https://porabuild.com/herogpui` (that is `NEXT_PUBLIC_SITE_URL` doing
   its job via `metadataBase`).
-
-### Known issue found while verifying the base path
-
-The component pages' native screenshots use `next/image`
-(`src/components/preview/native-shot.tsx`), and under a basePath the
-optimizer URLs it emits do not resolve: `<Image src="/shots/x.png">`
-renders `src="/herogpui/_next/image?url=%2Fshots%2Fx.png&…"` — endpoint
-prefixed, `url` parameter not — and Next 16.3.3's optimizer rejects that
-with 400 `The requested resource isn't a valid image`. The identical
-endpoint answers 200 when the parameter is prefixed
-(`url=%2Fherogpui%2Fshots%2Fx.png`). Verified against a production build
-served by `next start`; whether Vercel's edge optimizer behaves the same
-cannot be confirmed before the first deployment, so check the component
-pages in the list above. The likely fix, for the file's owner to apply, is
-the same `publicUrl()` wrapper the plain `<img>` sites already use — pass
-`publicUrl(component.shot)` to `<Image>` (and keep passing the raw path to
-`pngSize()`) — which works identically when the base path is empty.
 
 ## 6. The live WebAssembly gallery
 
@@ -169,6 +153,14 @@ they live in `public/gallery/` and are served by the same deployment:
 | `index.html` | the hosting page (loading spinner, error UI, boot script; canonical source: `crates/herogpui-web/index.html` in the wasm worktree) |
 | `herogpui_web.js` | `wasm-bindgen` glue |
 | `herogpui_web_bg.wasm` | the application, ~15.7 MiB raw / ~5.0 MiB gzipped |
+
+Keep this as one browser-cached module. A measured Button-only link was
+12,211,369 bytes raw / 4,106,509 bytes gzipped versus the shared artifact's
+16,501,641 bytes raw / 5,209,520 bytes gzipped: about 21% less transfer for one
+page, but repeating the GPUI runtime across 66 checked-in artifacts would
+multiply repository/deployment storage and make navigation download it again.
+The component page instead defers this shared download until its preview nears
+the viewport and keeps one instance alive while examples switch.
 
 `next.config.ts` maps `/gallery` onto `/gallery/index.html` (public/ has no
 directory-index resolution), so `/gallery` is the default. The checked-in
