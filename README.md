@@ -164,28 +164,29 @@ Wayland/X11 dev packages on Linux; nothing extra on Windows).
 ```bash
 cargo build                     # builds library + gallery
 cargo run -p herogpui-gallery   # open the component gallery
-cargo install herogpui-gallery  # install the gallery CLI from crates.io
+cargo install --path gallery --locked  # install the gallery CLI from this checkout
 herogpui-gallery                # launch the installed CLI
 ```
 
 ### Using HeroGPUI in your app
 
-The Rust library will be distributed through crates.io. Until the first
-`v0.1.0` release, clone this repository and use
-`herogpui = { path = "../HeroGPUI/crates/herogpui" }`.
+The library uses GPUI and its platform crate from a pinned Zed git revision.
+That API is not available in the crates.io release, so use this repository as a
+source dependency. Binary gallery releases remain available.
 
 ```bash
-cargo add herogpui
+cargo add herogpui --path ../HeroGPUI/crates/herogpui
 ```
 
 ```toml
 [dependencies]
-gpui = "0.2"
-herogpui = "0.1"
+gpui = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee", features = ["font-kit", "wayland", "x11", "runtime_shaders"] }
+herogpui = { path = "../HeroGPUI/crates/herogpui" }
 ```
 
 1. Register HeroGPUI's embedded icons with
-   `Application::new().with_assets(HeroGpuiAssets)`.
+   `gpui_platform::application().with_assets(HeroGpuiAssets)`.
    Apps with their own assets can use
    `HeroGpuiAssets::with_fallback(MyAppAssets)` instead.
 2. Register the theme provider inside `Application::run` with
@@ -264,7 +265,7 @@ Switch::new("wifi").is_selected(self.wifi_on).on_change(move |v, _w, cx| { /* ..
 
 ## Documentation
 
-- **Gallery:** `cargo run -p herogpui-gallery` or `cargo install herogpui-gallery` — the fifteen v3 categories,
+- **Gallery:** `cargo run -p herogpui-gallery` or `cargo install --path gallery --locked` — the fifteen v3 categories,
   live examples, `HEROGPUI_PAGE` / `HEROGPUI_THEME` env vars for screenshots,
   `.shots/capture2.ps1`
 - **LLM docs:** `llms.txt` at repo root

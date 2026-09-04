@@ -439,7 +439,7 @@ impl RenderOnce for InputOTP {
             );
             if !*done.read(cx) {
                 if !self.is_disabled {
-                    window.focus(&focused_handle);
+                    window.focus(&focused_handle, cx);
                 }
                 done.update(cx, |done, _| *done = true);
             }
@@ -519,7 +519,7 @@ impl RenderOnce for InputOTP {
                     // focused row re-homes it, which is what v3's input-otp
                     // does when a slot is clicked.
                     let was_focused = fh.is_focused(window);
-                    window.focus(&fh);
+                    window.focus(&fh, cx);
                     if !was_focused {
                         return;
                     }

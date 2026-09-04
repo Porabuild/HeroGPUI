@@ -107,6 +107,9 @@ pub fn open_host(
     let (_view, cx) = cx.add_window_view(|_, _| Host {
         content: Box::new(content),
     });
+    // GPUI recomputes hover during layout; start outside the window so a
+    // control at the origin is idle until the test supplies pointer input.
+    cx.simulate_mouse_move(point(px(-100.), px(-100.)), None, Modifiers::none());
     cx
 }
 

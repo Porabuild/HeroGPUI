@@ -711,8 +711,8 @@ impl RenderOnce for Select {
             field = field
                 .track_focus(&focus_handle)
                 .key_context("Select")
-                .on_mouse_down(gpui::MouseButton::Left, move |_, window, _| {
-                    window.focus(&fh);
+                .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                    window.focus(&fh, cx);
                 })
                 .on_key_down(move |event, window, cx| {
                     let key = event.keystroke.key.as_str();
@@ -1377,7 +1377,7 @@ impl RenderOnce for Select {
                                 // on the row and deafen the trigger's key
                                 // handler; the trigger is what holds focus so
                                 // the open list stays keyboard-walkable.
-                                window.focus(&focus_click);
+                                window.focus(&focus_click, cx);
                                 let mut next = current.clone();
                                 // A Shift click extends from the anchor
                                 // through `extendSelection`; an ordinary or
@@ -1499,7 +1499,7 @@ impl RenderOnce for Select {
                                     .collect::<Vec<_>>()
                             },
                         )
-                        .track_scroll(list_scroll_now)
+                        .track_scroll(&list_scroll_now)
                         .h(px(280.))
                         .w_full(),
                     );

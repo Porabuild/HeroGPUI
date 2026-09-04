@@ -470,12 +470,6 @@ impl RenderOnce for AlertDialog {
                 .w_full()
                 .min_h_0()
                 .max_h(body_max_h)
-                // Scrolling here is also why body copy longer than the
-                // dialog is clipped at the edge rather than wrapping: gpui
-                // 0.2.2 measures a scroll container's children on an
-                // unconstrained cross axis, so the text has no width to wrap
-                // against however definite this box is. `Alert` wraps because
-                // nothing between its copy and the panel scrolls.
                 .overflow_y_scroll()
                 // v3 spells the body `flex-1`: inside a `--cover` dialog's
                 // fixed height it stretches and pins the footer to the bottom

@@ -482,8 +482,8 @@ EVIDENCE = {
     # the ends must be known before stepping.
     ('Toolbar', 'toolbar-end-stops'): (
         'toolbar.rs',
-        r'(?s)window\.focus_next\(\);\s*\n\s*let first_stop = window\.focused\(cx\);'
-        r'.*?window\.focus_prev\(\);\s*\n\s*let last_stop = window\.focused\(cx\);'
+        r'(?s)window\.focus_next\([^)]*\);\s*\n\s*let first_stop = window\.focused\(cx\);'
+        r'.*?window\.focus_prev\([^)]*\);\s*\n\s*let last_stop = window\.focused\(cx\);'
         r'.*?at_end',
     ),
     # Tab leaves the entire toolbar in one press, backwards with Shift: the
@@ -500,7 +500,7 @@ EVIDENCE = {
     ('Toolbar', 'toolbar-focus-restore'): (
         'toolbar.rs',
         r'(?s)(?=.*if let Some\(last\) = next\.last_focused\.take\(\))'
-        r'(?=.*window\.focus\(&last\);)'
+        r'(?=.*window\.focus\(&last[^)]*\);)'
         r'(?=.*next\.last_focused = next\.child\.take\(\))',
     ),
     # A nested toolbar binds no management of its own: pinned's
@@ -568,7 +568,7 @@ EVIDENCE = {
     ('Table', 'table-page-up-header'): (
         'table.rs',
         r'(?s)(?=.*if plain_rows && key_name == "pageup")'
-        r'(?=.*window\.focus\(header\))'
+        r'(?=.*window\.focus\(header[^)]*\))'
         r'(?=.*let header_focus: Vec<gpui::FocusHandle>)',
     ),
     ('ListBox', 'listbox-paging'): (
@@ -795,7 +795,7 @@ EVIDENCE = {
     # query field takes the focus as the popover opens -- once per opening, or
     # it would steal the focus back on every frame (a controlled caller typing
     # elsewhere would be robbed of the field).
-    ('Autocomplete', 'panel-focus'): ('autocomplete.rs', r'window\.focus\(&search_focus\)'),
+    ('Autocomplete', 'panel-focus'): ('autocomplete.rs', r'window\.focus\(&search_focus[^)]*\)'),
     # The dialogs claim the focus on open the same way the popover does: Escape
     # has to reach the overlay, and a key event only travels to the focused
     # element and its ancestors. The gate that stops the claim from stealing
@@ -1022,11 +1022,11 @@ EVIDENCE = {
         'tag_group.rs',
         r'(?s)\A(?=.*if window\.default_prevented\(\) \{\s*\n\s*return;)'
         r'(?=.*on_mouse_down\(gpui::MouseButton::Left, move \|_, window, cx\| \{)'
-        r'(?=.*window\.focus\(&focus_for_seat\);)'
+        r'(?=.*window\.focus\(&focus_for_seat[^)]*\);)'
         r'(?=.*window\.prevent_default\(\);)'
         r'(?=.*on_mouse_down\(gpui::MouseButton::Left, \|_, _, cx\| \{\s*\n\s*cx\.stop_propagation\(\);)'
         r'(?=.*on_remove\(&HashSet::from\(\[key\.clone\(\)\]\), window, cx\);)'
-        r'(?=.*window\.focus\(&focus_for_remove\);)'
+        r'(?=.*window\.focus\(&focus_for_remove[^)]*\);)'
         r'(?=.*cursor_for_remove\.update\(cx, \|v, cx\| \{\s*\n\s*\*v = index;)',
     ),
     ('Table', 'resize-bounds'): (
@@ -1059,7 +1059,7 @@ EVIDENCE = {
         r'(?s)\A(?=.*Multiple mode toggles membership)(?=.*if multiple)'
         r'(?=.*selection_own\.clone\(\))(?=.*row_state\.clone\(\))'
         r'(?=.*cursor_for\(&rows, index, Some\(String::new\(\)\)\))'
-        r'(?=.*on_click)(?=.*focus_handle\.focus\(window\))'
+        r'(?=.*on_click)(?=.*focus_handle\.focus\(window[^)]*\))'
         r'(?=.*set_value\(String::new\(\)\))'
         r'(?=.*cursor\.update[^;]*Some\(next_cursor\.clone\(\)\))'
         r'(?=.*toggle_key\(&mut next, &value\))'

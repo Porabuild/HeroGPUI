@@ -142,7 +142,7 @@ fn thumb_motion(
         current.from = current.position.get();
         state.update(cx, |stored, _| *stored = current.clone());
     }
-    if cx.reduce_motion() && (current.position.get() - to).abs() > f32::EPSILON {
+    if ActiveTheme::reduce_motion(cx) && (current.position.get() - to).abs() > f32::EPSILON {
         current.from = to;
         current.position.set(to);
         state.update(cx, |stored, _| *stored = current.clone());
@@ -153,7 +153,7 @@ fn thumb_motion(
         to,
         position: current.position,
         animate: current.generation != 0
-            && !cx.reduce_motion()
+            && !ActiveTheme::reduce_motion(cx)
             && (current.from - to).abs() > f32::EPSILON,
     }
 }
@@ -181,7 +181,7 @@ fn track_motion(
         current.from = current.color.get();
         state.update(cx, |stored, _| *stored = current.clone());
     }
-    let reduce_motion = cx.reduce_motion();
+    let reduce_motion = ActiveTheme::reduce_motion(cx);
     if reduce_motion && current.color.get() != target {
         current.from = target;
         current.color.set(target);
@@ -618,18 +618,21 @@ impl RenderOnce for Switch {
                         offset: gpui::point(px(0.), px(0.)),
                         blur_radius: px(5.),
                         spread_radius: px(0.),
+                        inset: false,
                     },
                     gpui::BoxShadow {
                         color: gpui::black().alpha(0.06),
                         offset: gpui::point(px(0.), px(2.)),
                         blur_radius: px(10.),
                         spread_radius: px(0.),
+                        inset: false,
                     },
                     gpui::BoxShadow {
                         color: gpui::black().alpha(0.3),
                         offset: gpui::point(px(0.), px(0.)),
                         blur_radius: px(1.),
                         spread_radius: px(0.),
+                        inset: false,
                     },
                 ])
         } else {

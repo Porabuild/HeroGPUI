@@ -703,7 +703,7 @@ impl RenderOnce for DatePicker {
                 .track_focus(&trigger_focus)
                 .cursor_pointer()
                 .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
-                    window.focus(&focus_on_press);
+                    window.focus(&focus_on_press, cx);
                     cx.stop_propagation();
                 })
                 .on_click(move |_, window, cx| {
@@ -822,9 +822,9 @@ impl RenderOnce for DatePicker {
                     cb(false, window, cx);
                 }
                 if *restore_part.read(cx) == 1 {
-                    window.focus(&restore_trigger);
+                    window.focus(&restore_trigger, cx);
                 } else {
-                    window.focus(&restore_field);
+                    window.focus(&restore_field, cx);
                 }
             });
 
@@ -1907,7 +1907,7 @@ impl RenderOnce for DateRangePicker {
                 .track_focus(&trigger_focus)
                 .cursor_pointer()
                 .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
-                    window.focus(&focus_on_press);
+                    window.focus(&focus_on_press, cx);
                     cx.stop_propagation();
                 })
                 .on_click(move |_, window, cx| {
@@ -1979,9 +1979,9 @@ impl RenderOnce for DateRangePicker {
                     cb(false, window, cx);
                 }
                 match *restore_part.read(cx) {
-                    1 => window.focus(&restore_end),
-                    2 => window.focus(&restore_trigger),
-                    _ => window.focus(&restore_start),
+                    1 => window.focus(&restore_end, cx),
+                    2 => window.focus(&restore_trigger, cx),
+                    _ => window.focus(&restore_start, cx),
                 }
             });
 
@@ -3178,8 +3178,8 @@ impl RenderOnce for DateField {
             group = group
                 .track_focus(&focus_handle)
                 .key_context("DateField")
-                .on_mouse_down(gpui::MouseButton::Left, move |_, window, _| {
-                    window.focus(&fh);
+                .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                    window.focus(&fh, cx);
                 })
                 .on_key_down(move |event, window, cx| {
                     let key = event.keystroke.key.as_str();

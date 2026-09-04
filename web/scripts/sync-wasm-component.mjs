@@ -6,9 +6,9 @@
 //
 // The website executes the migration build while it documents the native
 // source, so a component that diverges ships behaviour the docs do not
-// describe. The migration targets an older GPUI than this workspace, and the
-// difference is a short, mechanical vocabulary -- signature changes and struct
-// fields, not design. `report` applies that vocabulary to each native file and
+// describe. Both workspaces now pin the same Zed revision. The legacy adapters
+// normalize crates.io GPUI spellings still present in older source snapshots --
+// signature changes and struct fields, not design. `report` applies them and
 // tells ADAPTED (already current) from STALE (genuinely behind); `sync`
 // rewrites one file. The wasm compiler is the gate for anything the
 // vocabulary does not cover.
@@ -38,23 +38,23 @@ const wasmRoot = flag("--wasm-root", "D:/herogpui-wasm");
 const nativeDir = join(repoRoot, "crates", "herogpui-components", "src");
 const wasmDir = join(wasmRoot, "crates", "herogpui-components", "src");
 
-// GPUI 0.2.2 in this workspace against the older GPUI the migration pins.
+// Crates.io GPUI 0.2.2 spellings translated to the pinned Zed APIs.
 const ADAPTATIONS = [
-  // `UniformList::track_scroll` took the handle by value.
+  // Zed borrows the scroll handle.
   [/\.track_scroll\(([a-z_][A-Za-z_0-9]*)\)/g, ".track_scroll(&$1)"],
-  // `flex_grow` and `flex_shrink` took their factor before it defaulted to one.
+  // Zed requires explicit flex factors.
   [/\.flex_grow\(\)/g, ".flex_grow(1.)"],
   [/\.flex_shrink\(\)/g, ".flex_shrink(1.)"],
-  // The rest of the focus surface took the app context too.
+  // Zed focus methods require the app context too.
   [/window\.focus_next\(\)/g, "window.focus_next(cx)"],
   [/window\.focus_prev\(\)/g, "window.focus_prev(cx)"],
   [/window\.blur\(\)/g, "window.blur(cx)"],
   [/\.focus\(window\)/g, ".focus(window, cx)"],
-  // `Styled::text_style` answered the refinement itself, not an Option.
+  // Zed returns the text refinement directly.
   [/\.text_style\(\)\s*\n\s*\.get_or_insert_with\(Default::default\)/g, ".text_style()"],
 ];
 
-// `Window::focus` took the app context before it was threaded through. Rewrite
+// Zed's `Window::focus` requires the app context. Rewrite
 // every call rather than guessing which closures own a `cx`: where one is not
 // in scope the wasm compiler names the line, and that caller needs a real look
 // instead of a silent skip.
@@ -63,7 +63,7 @@ function addFocusContext(source) {
     /window\.focus\(([^;()]*(?:\([^()]*\))?[^;()]*)\)/g,
     (match, argument) => (/,\s*cx\s*$/.test(argument) ? match : `window.focus(${argument}, cx)`),
   );
-  // The context the older signature needs is the parameter the native closure
+  // The context the Zed signature needs is the parameter the legacy closure
   // discards, so a closure that focuses has to name it.
   return focused.replace(
     /\|([^|\n]*\bwindow\b[^|\n]*), _\|(.{0,600}?window\.focus\()/gs,
@@ -71,8 +71,8 @@ function addFocusContext(source) {
   );
 }
 
-// `Entity::update` answered the value itself before it answered a Result, so
-// the native `let Ok(x) = ... else { return };` guard has nothing to unwrap.
+// Zed's `Entity::update` returns the value directly, so a legacy
+// `let Ok(x) = ... else { return };` guard has nothing to unwrap.
 function adaptEntityUpdate(source) {
   return source.replace(
     /let Ok\((\w+)\) = (\w+\.update\(cx, .*?\}\)) else \{\s*return;\s*\};/gs,
@@ -80,7 +80,7 @@ function adaptEntityUpdate(source) {
   );
 }
 
-// A handle read out of an entity borrows the context the older `focus`
+// A handle read out of an entity borrows the context the Zed `focus`
 // signature also needs, so the handle has to be cloned out first.
 function adaptEntityFocus(source) {
   return source.replace(
@@ -89,14 +89,14 @@ function adaptEntityFocus(source) {
   );
 }
 
-// `ScrollHandle::max_offset` answered a `Point` before it answered a `Size`.
+// Zed's `ScrollHandle::max_offset` returns a `Point` rather than a `Size`.
 function adaptScrollMaxOffset(source) {
   if (!source.includes("max_offset()")) return source;
   return source.replace(/\bmax\.width\b/g, "max.x").replace(/\bmax\.height\b/g, "max.y");
 }
 
-// `BoxShadow` gained `inset` after the migration baseline. Brace matching, not
-// a pattern: a shadow literal nests calls, and the older struct rejects both a
+// Zed's `BoxShadow` requires `inset`. Brace matching, not
+// a pattern: a shadow literal nests calls, and the struct rejects both a
 // missing field and a duplicated one.
 function addBoxShadowInset(source) {
   const marker = "BoxShadow {";

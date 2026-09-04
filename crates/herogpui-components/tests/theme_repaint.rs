@@ -102,7 +102,7 @@ fn theme_mutations_repaint_every_open_window(cx: &mut TestAppContext) {
     assert_eq!(seen_a.borrow().as_str(), "dusk");
     assert_eq!(seen_b.borrow().as_str(), "dusk");
     assert!(
-        cx.read(|cx| cx.reduce_motion()),
+        cx.read(ActiveTheme::reduce_motion),
         "the preference itself must be readable app-wide"
     );
 

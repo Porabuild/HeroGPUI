@@ -16,12 +16,8 @@
 //! the pinned hover token — is pinned by the source-shape unit test inside
 //! `autocomplete.rs`, the same split `chip_deep.rs` documents.
 //!
-//! One harness fact shapes the assertions: gpui 0.2.2 never clears the
-//! `debug_bounds` map, so a key's presence only proves it painted *once*.
-//! Freshness therefore rides on the values — the trigger is `full_width`,
-//! and resizing the window mid-cycle moves every probe, so each phase is
-//! identified by the bounds it painted last, never by a key appearing or
-//! vanishing.
+//! GPUI clears debug bounds each frame and recomputes hover after layout,
+//! so the current probe also tracks a stationary pointer when controls move.
 
 mod harness;
 
@@ -98,30 +94,27 @@ fn assert_suppression_cycle(cx: &mut VisualTestContext, base: &str) {
         "the suppressed decision must repaint the same resting trigger box"
     );
 
-    // Widen the window while the pointer is still parked where the clear
-    // button was: no mouse move fires, so the flag legitimately stays set.
-    // This stamps the widened trigger bounds into the map under the
-    // suppressed key — the freshness anchor for the lift below.
+    // Resizing moves the clear button away from the stationary pointer.
     cx.simulate_resize(size(px(2400.), px(800.)));
     flush_frame(cx);
     let clear_wide = cx
         .debug_bounds(clear_probe)
-        .expect("the clear button must follow the widened layout");
+        .expect("clear button follows layout");
     let wide = cx
-        .debug_bounds(suppressed)
-        .expect("the suppressed decision must survive a repaint that did not move the pointer");
-    assert!(
-        wide.size.width > resting.size.width,
-        "the widened suppressed frame must repaint fresh bounds \
-         (wide={wide:?}, resting={resting:?}, clear_wide={clear_wide:?})"
-    );
+        .debug_bounds(unsuppressed)
+        .expect("moving the clear button lifts suppression");
+    assert!(wide.size.width > resting.size.width);
+    assert!(cx.debug_bounds(suppressed).is_none());
 
-    // Back onto the trigger's value area: the lift must repaint the
-    // unsuppressed decision at the widened layout. The stale pre-hover
-    // `unsuppressed` entry carries the narrow bounds, so matching the widened
-    // box can only come from a fresh paint.
     cx.simulate_mouse_move(clear_wide.center(), None::<MouseButton>, Modifiers::none());
     flush_frame(cx);
+    assert!(same_bounds(
+        cx.debug_bounds(suppressed)
+            .expect("the new clear position suppresses hover"),
+        wide
+    ));
+    assert!(cx.debug_bounds(unsuppressed).is_none());
+
     cx.simulate_mouse_move(
         point(px(60.), px(18.)),
         None::<MouseButton>,
@@ -130,17 +123,9 @@ fn assert_suppression_cycle(cx: &mut VisualTestContext, base: &str) {
     flush_frame(cx);
     let lifted = cx
         .debug_bounds(unsuppressed)
-        .expect("leaving the clear button must lift the suppression");
-    assert!(
-        same_bounds(lifted, wide),
-        "the lifted decision must repaint the widened trigger box; stale \
-         narrow bounds would mean the unsuppressed probe never repainted"
-    );
-    let still_suppressed = cx.debug_bounds(suppressed);
-    assert!(
-        still_suppressed.is_none_or(|b| same_bounds(b, wide)),
-        "the suppressed key must not gain a fresh paint after the lift"
-    );
+        .expect("leaving clear lifts suppression");
+    assert!(same_bounds(lifted, wide));
+    assert!(cx.debug_bounds(suppressed).is_none());
 }
 
 fn open_autocomplete(
@@ -250,8 +235,7 @@ fn clearing_then_reselecting_does_not_leak_a_stale_suppression(cx: &mut TestAppC
     );
     flush_frame(cx);
 
-    // Widen: the unsuppressed decision must repaint fresh, and the suppressed
-    // key must still hold only its narrow pre-clear bounds.
+    // Widen: the current frame must show only the unsuppressed decision.
     cx.simulate_resize(size(px(2400.), px(800.)));
     flush_frame(cx);
     let wide = cx
@@ -262,13 +246,9 @@ fn clearing_then_reselecting_does_not_leak_a_stale_suppression(cx: &mut TestAppC
         "the widened unsuppressed frame must repaint fresh bounds \
          (wide={wide:?}, resting={resting:?})"
     );
-    let stale = cx
-        .debug_bounds(suppressed)
-        .expect("the suppressed decision painted during the hover");
     assert!(
-        same_bounds(stale, resting),
-        "the suppression must not survive clear-and-move \
-         (stale={stale:?}, resting={resting:?}, wide={wide:?})"
+        cx.debug_bounds(suppressed).is_none(),
+        "suppression must not survive clear-and-move"
     );
 
     // Reselect through the controlled value: the button re-arms, and the
@@ -284,13 +264,9 @@ fn clearing_then_reselecting_does_not_leak_a_stale_suppression(cx: &mut TestAppC
         "the reselected frame must repaint fresh bounds \
          (narrower={narrower:?}, wide={wide:?})"
     );
-    let resurrected = cx
-        .debug_bounds(suppressed)
-        .expect("the suppressed decision painted during the hover");
     assert!(
-        same_bounds(resurrected, resting),
-        "the suppression must not resurrect when the clear button re-arms \
-         (resurrected={resurrected:?}, resting={resting:?})"
+        cx.debug_bounds(suppressed).is_none(),
+        "suppression must not resurrect when clear re-arms"
     );
 }
 
@@ -537,6 +513,20 @@ fn suppression_is_instance_scoped(cx: &mut TestAppContext) {
     cx.simulate_resize(size(px(2400.), px(800.)));
     flush_frame(cx);
 
+    let moved_clear_a = cx
+        .debug_bounds(clear_a)
+        .expect("A clear button follows layout");
+    assert!(
+        cx.debug_bounds(suppressed_a).is_none(),
+        "resizing moved A away from the pointer"
+    );
+    cx.simulate_mouse_move(
+        moved_clear_a.center(),
+        None::<MouseButton>,
+        Modifiers::none(),
+    );
+    flush_frame(cx);
+
     let wide_a = cx
         .debug_bounds(suppressed_a)
         .expect("hovering A's clear button must suppress A's trigger");
@@ -557,12 +547,8 @@ fn suppression_is_instance_scoped(cx: &mut TestAppContext) {
         cx.debug_bounds(suppressed_b).is_none(),
         "hovering A's clear button must never suppress B's trigger"
     );
-    let stale_a = cx
-        .debug_bounds(unsuppressed_a)
-        .expect("A painted its unsuppressed decision while resting");
     assert!(
-        same_bounds(stale_a, resting_a),
-        "A's unsuppressed decision must stay stale while A is suppressed \
-         (stale={stale_a:?}, resting={resting_a:?})"
+        cx.debug_bounds(unsuppressed_a).is_none(),
+        "A must only paint its suppressed decision while hovered"
     );
 }

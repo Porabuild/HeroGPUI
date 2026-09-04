@@ -224,13 +224,13 @@ impl RenderOnce for ScrollShadow {
         let max = scroll.max_offset();
         let (scrolled, scroll_max) = if horizontal {
             (
-                f32::from(offset.x).clamp(-f32::from(max.width), 0.0),
-                f32::from(max.width),
+                f32::from(offset.x).clamp(-f32::from(max.x), 0.0),
+                f32::from(max.x),
             )
         } else {
             (
-                f32::from(offset.y).clamp(-f32::from(max.height), 0.0),
-                f32::from(max.height),
+                f32::from(offset.y).clamp(-f32::from(max.y), 0.0),
+                f32::from(max.y),
             )
         };
         let (past_start, before_end) = (

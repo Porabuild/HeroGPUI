@@ -320,7 +320,7 @@ fn pressed_with_optional_background(
     background: Option<gpui::Hsla>,
     cx: &App,
 ) -> gpui::Stateful<gpui::Div> {
-    if cx.reduce_motion() {
+    if ActiveTheme::reduce_motion(cx) {
         return match background {
             Some(background) => el.active(move |style| style.bg(background)),
             None => el,
@@ -437,7 +437,7 @@ pub fn entering_zoom<E>(
 where
     E: IntoElement + Styled + 'static,
 {
-    if cx.reduce_motion() {
+    if ActiveTheme::reduce_motion(cx) {
         return el.into_any_element();
     }
 
@@ -498,7 +498,7 @@ pub fn exiting<E>(el: E, id: impl Into<ElementId>, b: ZoomBox, m: Motion, cx: &A
 where
     E: IntoElement + Styled + 'static,
 {
-    if cx.reduce_motion() {
+    if ActiveTheme::reduce_motion(cx) {
         return el.into_any_element();
     }
 
@@ -585,7 +585,7 @@ pub fn hover_fade(
 ) -> gpui::Stateful<gpui::Div> {
     let (idle, hovered) = colors;
     let id = id.into();
-    if cx.reduce_motion() {
+    if ActiveTheme::reduce_motion(cx) {
         return el.bg(idle).hover(move |s: StyleRefinement| s.bg(hovered));
     }
 
@@ -671,7 +671,7 @@ pub fn caret_blink<E>(el: E, id: impl Into<ElementId>, cx: &App) -> AnyElement
 where
     E: IntoElement + Styled + 'static,
 {
-    if cx.reduce_motion() {
+    if ActiveTheme::reduce_motion(cx) {
         return el.into_any_element();
     }
 
@@ -702,7 +702,7 @@ pub fn entering<E>(el: E, id: impl Into<ElementId>, m: Motion, cx: &App) -> AnyE
 where
     E: IntoElement + Styled + 'static,
 {
-    if cx.reduce_motion() {
+    if ActiveTheme::reduce_motion(cx) {
         return el.into_any_element();
     }
 
@@ -730,7 +730,7 @@ pub fn entering_from<E>(
 where
     E: IntoElement + Styled + 'static,
 {
-    if cx.reduce_motion() {
+    if ActiveTheme::reduce_motion(cx) {
         return el.into_any_element();
     }
 
@@ -765,7 +765,7 @@ pub fn exiting_to<E>(
 where
     E: IntoElement + Styled + 'static,
 {
-    if cx.reduce_motion() {
+    if ActiveTheme::reduce_motion(cx) {
         return el.into_any_element();
     }
 

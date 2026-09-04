@@ -551,7 +551,7 @@ fn search_field_clear_button_is_excluded_from_tab_order(cx: &mut TestAppContext)
     // The InputState-owned handle is the one `track_focus` paints on the
     // button. Focusing it, then flushing so paint sees `is_focused`, is the
     // real GPUI Enter/Space click path.
-    cx.update(|window, _| window.focus(&clear_handle));
+    cx.update(|window, cx| window.focus(&clear_handle, cx));
     flush_frame(cx);
     assert!(
         cx.update(|window, _| clear_handle.is_focused(window)),
@@ -573,7 +573,7 @@ fn search_field_clear_button_is_excluded_from_tab_order(cx: &mut TestAppContext)
         cx.notify();
     });
     flush_frame(cx);
-    cx.update(|window, _| window.focus(&clear_handle));
+    cx.update(|window, cx| window.focus(&clear_handle, cx));
     flush_frame(cx);
     assert!(
         cx.update(|window, _| clear_handle.is_focused(window)),

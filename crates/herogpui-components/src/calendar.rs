@@ -1141,7 +1141,7 @@ impl Calendar {
                         if let Some(cb) = &on_open {
                             cb(false, window, cx);
                         }
-                        window.focus(&back_to_trigger);
+                        window.focus(&back_to_trigger, cx);
                     });
                 }
 
@@ -1324,7 +1324,7 @@ impl RenderOnce for Calendar {
         let last_year = years.last().copied().unwrap_or(anchor.year);
         if year_picker_open && !*year_was_open.read(cx) && !self.is_disabled {
             year_cursor.update(cx, |year, _| *year = Some(initial_year));
-            window.focus(&year_focus);
+            window.focus(&year_focus, cx);
         }
         year_was_open.update(cx, |was_open, _| *was_open = year_picker_open);
         let active_year = focused_value
@@ -1732,7 +1732,7 @@ impl RenderOnce for Calendar {
                     if let Some(cb) = &on_open {
                         cb(false, window, cx);
                     }
-                    window.focus(&back_to_trigger);
+                    window.focus(&back_to_trigger, cx);
                     cx.stop_propagation();
                     return;
                 }

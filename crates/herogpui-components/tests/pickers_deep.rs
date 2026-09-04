@@ -174,7 +174,7 @@ fn autocomplete_programmatic_focus_departure_closes_without_refocusing(cx: &mut 
     flush_frame(cx);
     cx.update(|window, cx| {
         let next = next.read(cx).focus_handle(cx);
-        window.focus(&next);
+        window.focus(&next, cx);
     });
     flush_frame(cx);
 
@@ -2330,9 +2330,9 @@ fn combo_box_blur_restores_selected_text_closes_and_keeps_destination_focus(
             .into_any_element()
     });
 
-    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx), cx));
     flush_frame(cx);
-    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx), cx));
     flush_frame(cx);
 
     assert_eq!(
@@ -2380,9 +2380,9 @@ fn combo_box_custom_single_blur_keeps_text_and_clears_selection(cx: &mut TestApp
             .into_any_element()
     });
 
-    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx), cx));
     flush_frame(cx);
-    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx), cx));
     flush_frame(cx);
 
     assert_eq!(
@@ -2432,9 +2432,9 @@ fn combo_box_custom_multiple_blur_preserves_query_and_selection(cx: &mut TestApp
             .into_any_element()
     });
 
-    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx), cx));
     flush_frame(cx);
-    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx), cx));
     flush_frame(cx);
 
     assert_eq!(
@@ -2476,9 +2476,9 @@ fn combo_box_noncustom_multiple_blur_clears_only_the_query(cx: &mut TestAppConte
             .into_any_element()
     });
 
-    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx), cx));
     flush_frame(cx);
-    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx), cx));
     flush_frame(cx);
 
     assert_eq!(combo.read_with(cx, |state, _| state.value().to_owned()), "");
@@ -2519,7 +2519,7 @@ fn combo_box_click_away_commits_and_closes_exactly_once(cx: &mut TestAppContext)
             .into_any_element()
     });
 
-    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx), cx));
     flush_frame(cx);
     click(cx, 60., 354.);
     flush_frame(cx);
@@ -2561,7 +2561,7 @@ fn controlled_combo_box_click_away_reports_one_close(cx: &mut TestAppContext) {
             .into_any_element()
     });
 
-    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx), cx));
     flush_frame(cx);
     click(cx, 60., 354.);
     flush_frame(cx);
@@ -2598,7 +2598,7 @@ fn combo_box_tab_commits_the_highlight_then_moves_focus_on(cx: &mut TestAppConte
             .into_any_element()
     });
 
-    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx), cx));
     flush_frame(cx);
     press(cx, "down");
     press(cx, "tab");
@@ -2644,7 +2644,7 @@ fn combo_box_multiple_tab_adds_the_highlight_then_moves_focus_on(cx: &mut TestAp
             .into_any_element()
     });
 
-    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&combo.read(cx).focus_handle(cx), cx));
     flush_frame(cx);
     press(cx, "down");
     press(cx, "tab");

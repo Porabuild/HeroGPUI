@@ -7,9 +7,7 @@ mod control;
 mod highlight;
 mod pages;
 
-use gpui::{
-    prelude::*, px, size, App, Application, Bounds, TitlebarOptions, WindowBounds, WindowOptions,
-};
+use gpui::{prelude::*, px, size, App, Bounds, TitlebarOptions, WindowBounds, WindowOptions};
 use herogpui_theme::ThemeProvider;
 
 use crate::app::Gallery;
@@ -60,7 +58,7 @@ fn main() {
     let page = initial_page();
     let theme = initial_theme();
 
-    Application::new()
+    gpui_platform::application()
         .with_assets(assets::Assets)
         .run(move |cx: &mut App| {
             ThemeProvider::init_with(theme, cx);

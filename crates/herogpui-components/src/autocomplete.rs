@@ -679,7 +679,7 @@ impl RenderOnce for Autocomplete {
         };
         let search_focus = self.state.read(cx).focus_handle.clone();
         if open && !*autofocused.read(cx) {
-            window.focus(&search_focus);
+            window.focus(&search_focus, cx);
             autofocused.update(cx, |v, _| *v = true);
         } else if !open && *autofocused.read(cx) {
             autofocused.update(cx, |v, _| *v = false);
@@ -1374,7 +1374,7 @@ impl RenderOnce for Autocomplete {
                     cb(false, window, cx);
                 }
                 if let Some(handle) = &escape_focus {
-                    window.focus(handle);
+                    window.focus(handle, cx);
                 }
                 util::DismissResult::Handled
             });
@@ -1623,7 +1623,7 @@ impl RenderOnce for Autocomplete {
                                 cb(false, window, cx);
                             }
                             if let Some(handle) = &trigger_focus {
-                                window.focus(handle);
+                                window.focus(handle, cx);
                             }
                         }
                     });
@@ -1648,7 +1648,7 @@ impl RenderOnce for Autocomplete {
                                     .collect::<Vec<_>>()
                             },
                         )
-                        .track_scroll(list_scroll_now)
+                        .track_scroll(&list_scroll_now)
                         .h(px(320.))
                         .w_full()
                         .p(px(6.)),

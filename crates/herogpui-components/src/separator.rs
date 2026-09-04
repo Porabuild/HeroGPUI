@@ -111,11 +111,11 @@ impl RenderOnce for Separator {
             if horizontal {
                 // `.separator__line` is `shrink-0 grow`, so a line beside
                 // content takes the space the content leaves.
-                el.h(weight).flex_grow()
+                el.h(weight).flex_grow(1.)
             } else {
                 // `.separator--vertical` is `min-h-2`: a vertical rule between
                 // two inline items still draws when its row is shorter.
-                el.w(weight).min_h(gpui::px(8.)).flex_grow()
+                el.w(weight).min_h(gpui::px(8.)).flex_grow(1.)
             }
         };
 

@@ -117,7 +117,7 @@ fn indicator_motion(
         current.from = current.rect.get();
         state.update(cx, |stored, _| *stored = current.clone());
     }
-    if cx.reduce_motion() && current.rect.get() != target {
+    if ActiveTheme::reduce_motion(cx) && current.rect.get() != target {
         current.from = target;
         current.rect.set(target);
         state.update(cx, |stored, _| *stored = current.clone());
@@ -127,7 +127,9 @@ fn indicator_motion(
         from: current.from,
         to: target,
         rect: current.rect,
-        animate: current.generation != 0 && !cx.reduce_motion() && current.from != target,
+        animate: current.generation != 0
+            && !ActiveTheme::reduce_motion(cx)
+            && current.from != target,
     }
 }
 
@@ -286,7 +288,7 @@ fn separator_motion(
         current.from = current.opacity.get();
         state.update(cx, |stored, _| *stored = current.clone());
     }
-    if cx.reduce_motion() && (current.opacity.get() - target).abs() > f32::EPSILON {
+    if ActiveTheme::reduce_motion(cx) && (current.opacity.get() - target).abs() > f32::EPSILON {
         current.from = target;
         current.opacity.set(target);
         state.update(cx, |stored, _| *stored = current.clone());
@@ -297,7 +299,7 @@ fn separator_motion(
         to: target,
         opacity: current.opacity,
         animate: current.generation != 0
-            && !cx.reduce_motion()
+            && !ActiveTheme::reduce_motion(cx)
             && (current.from - target).abs() > f32::EPSILON,
     }
 }
@@ -627,7 +629,7 @@ impl RenderOnce for Tabs {
             .read(cx)
             .clone();
         if recover_replaced_panel_focus {
-            window.focus(&recovery_focus);
+            window.focus(&recovery_focus, cx);
         }
         let has_enabled_tab = !self.is_disabled && self.items.iter().any(|item| !item.is_disabled);
         let mut separator_motions = self
@@ -874,7 +876,7 @@ impl RenderOnce for Tabs {
                         let list_focus_after_pointer = list_focus_for_click.clone();
                         let select: Rc<dyn Fn(&mut Window, &mut App)> =
                             Rc::new(move |window, cx| {
-                                window.focus(&list_focus_for_click);
+                                window.focus(&list_focus_for_click, cx);
                                 focus.update(cx, |state, cx| {
                                     state.key = key.clone();
                                     cx.notify();
@@ -896,7 +898,7 @@ impl RenderOnce for Tabs {
                             .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
                                 pointer_select(window, cx);
                                 let list_focus = list_focus_after_pointer.clone();
-                                window.defer(cx, move |window, _| window.focus(&list_focus));
+                                window.defer(cx, move |window, cx| window.focus(&list_focus, cx));
                             })
                             .on_click(move |event, window, cx| {
                                 if matches!(event, gpui::ClickEvent::Keyboard(_)) {
@@ -1031,7 +1033,7 @@ impl RenderOnce for Tabs {
                         let list_focus_after_pointer = list_focus_for_click.clone();
                         let select: Rc<dyn Fn(&mut Window, &mut App)> =
                             Rc::new(move |window, cx| {
-                                window.focus(&list_focus_for_click);
+                                window.focus(&list_focus_for_click, cx);
                                 focus.update(cx, |state, cx| {
                                     state.key = key.clone();
                                     cx.notify();
@@ -1053,7 +1055,7 @@ impl RenderOnce for Tabs {
                             .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
                                 pointer_select(window, cx);
                                 let list_focus = list_focus_after_pointer.clone();
-                                window.defer(cx, move |window, _| window.focus(&list_focus));
+                                window.defer(cx, move |window, cx| window.focus(&list_focus, cx));
                             })
                             .on_click(move |event, window, cx| {
                                 if matches!(event, gpui::ClickEvent::Keyboard(_)) {
@@ -1087,12 +1089,12 @@ impl RenderOnce for Tabs {
                 // The wrapper is a real stop so reverse traversal can reach a
                 // plain panel. Probe one stop past it: a child stays inside;
                 // otherwise reclaim the wrapper as the correct destination.
-                window.focus_next();
+                window.focus_next(cx);
                 if panel_focus.is_focused(window) {
-                    window.focus_next();
+                    window.focus_next(cx);
                 }
                 if !panel_focus.contains_focused(window, cx) {
-                    window.focus(&panel_focus);
+                    window.focus(&panel_focus, cx);
                 }
             });
         }
@@ -1192,12 +1194,12 @@ impl RenderOnce for Tabs {
                         let next = if vertical {
                             (
                                 f32::from(offset.y) < -0.5,
-                                f32::from(offset.y) - 0.5 > -f32::from(max.height),
+                                f32::from(offset.y) - 0.5 > -f32::from(max.y),
                             )
                         } else {
                             (
                                 f32::from(offset.x) < -0.5,
-                                f32::from(offset.x) - 0.5 > -f32::from(max.width),
+                                f32::from(offset.x) - 0.5 > -f32::from(max.x),
                             )
                         };
                         if *measured.read(cx) != next {
@@ -1286,11 +1288,11 @@ impl RenderOnce for Tabs {
                                 // should land on it when moving backward.
                                 let skip_panel = !panel_focus_for_keys.is_focused(window)
                                     && window.focused(cx).is_some_and(|handle| handle.tab_stop);
-                                window.focus_prev();
+                                window.focus_prev(cx);
                                 if skip_panel && panel_focus_for_keys.is_focused(window) {
-                                    window.focus_prev();
+                                    window.focus_prev(cx);
                                     if has_enabled_tab && !list_focus_for_panel.is_focused(window) {
-                                        window.focus(&list_focus_for_panel);
+                                        window.focus(&list_focus_for_panel, cx);
                                     }
                                 }
                             } else if probe_on_key_up
@@ -1302,13 +1304,13 @@ impl RenderOnce for Tabs {
                                 // the child it stands in for and then one real
                                 // step, skipping the wrapper again on wrap.
                                 cx.stop_propagation();
-                                window.focus_next();
+                                window.focus_next(cx);
                                 if panel_focus_for_keys.contains_focused(window, cx)
                                     && !panel_focus_for_keys.is_focused(window)
                                 {
-                                    window.focus_next();
+                                    window.focus_next(cx);
                                     if panel_focus_for_keys.is_focused(window) {
-                                        window.focus_next();
+                                        window.focus_next(cx);
                                     }
                                 }
                             }
@@ -1324,9 +1326,9 @@ impl RenderOnce for Tabs {
                             // An all-disabled list has no focused tab whose
                             // key-down can run the forward probe. Tab key-up is
                             // delivered to the wrapper it just reached.
-                            window.focus_next();
+                            window.focus_next(cx);
                             if !panel_focus_for_key_up.contains_focused(window, cx) {
-                                window.focus(&panel_focus_for_key_up);
+                                window.focus(&panel_focus_for_key_up, cx);
                             }
                         })
                         .child(content),

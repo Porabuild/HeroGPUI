@@ -439,7 +439,7 @@ impl RenderOnce for Menu {
             let done = window.use_keyed_state(autofocus, cx, |_, _| false);
             done.update(cx, |d, _| *d = false);
         } else if focus_first {
-            window.focus(&focus_handle);
+            window.focus(&focus_handle, cx);
         } else if self.on_back.is_none() {
             crate::util::focus_once(window, cx, autofocus, &focus_handle);
         }
@@ -554,13 +554,6 @@ impl RenderOnce for Menu {
             // `max-w-[48svw]`. Without a ceiling a described row's copy set
             // the menu's width outright, so a long description could widen the
             // popover across half the window.
-            //
-            // Under the ceiling that copy is clipped at the edge rather than
-            // wrapping, which is where this stops short of v3: the panel is the
-            // scroll container, and gpui 0.2.2 measures a scroll container's
-            // children on an unconstrained cross axis, so `text-wrap` has no
-            // width to wrap against. Moving the scroll to an inner layer is the
-            // fix and it is not a comment-sized change.
             .max_w(window.viewport_size().width * 0.48)
             .gap(px(2.))
             .p(px(4.))
@@ -903,7 +896,7 @@ impl RenderOnce for Menu {
                         let pointer_cursor = cursor.clone();
                         let pointer_focus = focus_handle.clone();
                         row = row.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
-                            window.focus(&pointer_focus);
+                            window.focus(&pointer_focus, cx);
                             pointer_cursor.update(cx, |value, cx| {
                                 *value = Some(i);
                                 cx.notify();
@@ -915,7 +908,7 @@ impl RenderOnce for Menu {
                             if crate::util::focus_visible(cx) || *hover_cursor.read(cx) == Some(i) {
                                 return;
                             }
-                            window.focus(&hover_focus);
+                            window.focus(&hover_focus, cx);
                             hover_cursor.update(cx, |value, cx| {
                                 *value = Some(i);
                                 cx.notify();
@@ -998,46 +991,46 @@ impl RenderOnce for Menu {
                     // `children` on `Dropdown.Item` is a render function in
                     // v3, handed the row's state.
                     row = row.child(
-                        gpui::div().flex_1().child(match &self.item_content {
-                            Some(render) => {
-                                // The slot's press is a frame behind the
-                                // pointer, because gpui reports it to a handler
-                                // rather than to the render that draws it. v3's
-                                // `Dropdown.Item` render-props table lists no
-                                // `isHovered`, so the hover the slot also
-                                // tracks is not handed over; a row is focused
-                                // when the keyboard cursor is on it.
-                                let (_, recorded_press) = interaction
-                                    .get(i)
-                                    .map(|slot| *slot.read(cx))
-                                    .unwrap_or_default();
-                                render(
-                                    &key,
-                                    crate::util::InteractiveState {
-                                        is_hovered: false,
-                                        is_pressed: !is_item_disabled && recorded_press,
-                                        is_focused: cursor_at == Some(i),
-                                        is_focus_visible: cursor_at == Some(i)
-                                            && crate::util::focus_visible(cx),
-                                        is_selected,
-                                        is_disabled: is_item_disabled,
-                                        is_pending: false,
-                                        is_indeterminate,
-                                    },
-                                )
-                            }
-                            None => match &description {
-                                // `Label` over `Description`, which is how v3
-                                // composes a described item.
-                                Some(text) => gpui::div()
-                                    .flex()
-                                    .flex_col()
-                                    .flex_1()
-                                    .min_w_0()
-                                    .gap(px(1.))
-                                    .child(gpui::div().child(label.to_string()))
-                                    .child(
-                                        gpui::div()
+                        gpui::div().flex().flex_col().flex_1().min_w_0().child(
+                            match &self.item_content {
+                                Some(render) => {
+                                    // The slot's press is a frame behind the
+                                    // pointer, because gpui reports it to a handler
+                                    // rather than to the render that draws it. v3's
+                                    // `Dropdown.Item` render-props table lists no
+                                    // `isHovered`, so the hover the slot also
+                                    // tracks is not handed over; a row is focused
+                                    // when the keyboard cursor is on it.
+                                    let (_, recorded_press) = interaction
+                                        .get(i)
+                                        .map(|slot| *slot.read(cx))
+                                        .unwrap_or_default();
+                                    render(
+                                        &key,
+                                        crate::util::InteractiveState {
+                                            is_hovered: false,
+                                            is_pressed: !is_item_disabled && recorded_press,
+                                            is_focused: cursor_at == Some(i),
+                                            is_focus_visible: cursor_at == Some(i)
+                                                && crate::util::focus_visible(cx),
+                                            is_selected,
+                                            is_disabled: is_item_disabled,
+                                            is_pending: false,
+                                            is_indeterminate,
+                                        },
+                                    )
+                                }
+                                None => match &description {
+                                    // `Label` over `Description`, which is how v3
+                                    // composes a described item.
+                                    Some(text) => gpui::div()
+                                        .flex()
+                                        .flex_col()
+                                        .min_w_0()
+                                        .gap(px(1.))
+                                        .child(gpui::div().child(label.to_string()))
+                                        .child(
+                                            gpui::div()
                                             // A described row composes a
                                             // `Description`, which is `text-xs`.
                                             .text_size(px(12.))
@@ -1048,11 +1041,12 @@ impl RenderOnce for Menu {
                                             // content's.
                                             .w_full()
                                             .child(text.to_string()),
-                                    )
-                                    .into_any_element(),
-                                None => label.to_string().into_any_element(),
+                                        )
+                                        .into_any_element(),
+                                    None => label.to_string().into_any_element(),
+                                },
                             },
-                        }),
+                        ),
                     );
                     // The slot's hover and press handlers keep the press the
                     // closure reads current. Disabled rows expose idle state.
@@ -1271,7 +1265,7 @@ impl RenderOnce for Menu {
                     cx.notify();
                 });
                 close_focus_state.update(cx, |value, _| *value = false);
-                window.focus(&parent_focus);
+                window.focus(&parent_focus, cx);
             });
             if let Some(cb) = self.on_action.clone() {
                 sub = sub.on_action(move |key, window, cx| cb(key, window, cx));
@@ -1778,7 +1772,7 @@ impl RenderOnce for Dropdown {
                     // would activate the trigger on key up and reopen the menu
                     // -- the keyboard path asks for no refocus for that reason.
                     if refocus {
-                        window.focus(&back_to_trigger);
+                        window.focus(&back_to_trigger, cx);
                     }
                 });
             }

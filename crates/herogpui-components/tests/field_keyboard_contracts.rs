@@ -53,16 +53,16 @@ impl Render for ControlledTimeHost {
             .read(cx)
             .clone();
         if !root.contains_focused(window, cx) {
-            window.focus(&root);
+            window.focus(&root, cx);
         }
 
         let changes = self.changes.clone();
         let rendered = self.rendered.clone();
         gpui::div()
             .track_focus(&root)
-            .on_key_down(|event, window, _| {
+            .on_key_down(|event, window, cx| {
                 if event.keystroke.key == "tab" {
-                    window.focus_next();
+                    window.focus_next(cx);
                 }
             })
             .size_full()

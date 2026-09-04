@@ -765,7 +765,7 @@ impl RenderOnce for Slider {
 
         // thumbs
         let dragging_at = dragging.read(cx).active;
-        let reduce_motion = cx.reduce_motion();
+        let reduce_motion = ActiveTheme::reduce_motion(cx);
         for (index, f) in fractions.iter().copied().enumerate() {
             let mut thumb_el = gpui::div()
                 .absolute()
@@ -971,7 +971,7 @@ impl RenderOnce for Slider {
                     // React Aria focuses and activates the chosen thumb before
                     // it writes the track press, so the following keys and
                     // pointer moves keep that thumb's identity.
-                    window.focus(&focus_for_press);
+                    window.focus(&focus_for_press, cx);
                     active_for_press.update(cx, |active, cx| {
                         *active = index;
                         cx.notify();

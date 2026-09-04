@@ -1638,6 +1638,66 @@ fn alert_dialog_composed_footer_owns_danger_and_pending_confirm(cx: &mut TestApp
 }
 
 #[gpui::test]
+fn alert_dialog_description_wraps_at_the_panel_width(cx: &mut TestAppContext) {
+    still();
+    let description = Rc::new(RefCell::new(String::from("Short description.")));
+    let rendered = description.clone();
+    let cx = open_host(cx, move || {
+        AlertDialog::new("Confirm")
+            .is_open(true)
+            .size(AlertDialogSize::Xs)
+            .description(rendered.borrow().clone())
+            .footer_child(gpui::div().h(px(10.)).debug_selector(|| "body-end".into()))
+            .into_any_element()
+    });
+    let short = cx.debug_bounds("body-end").unwrap();
+    *description.borrow_mut() = "A long description that must wrap inside the dialog instead of disappearing past its right edge. ".repeat(3);
+    cx.update(|window, _| window.refresh());
+    let long = cx.debug_bounds("body-end").unwrap();
+    assert!(
+        long.origin.y > short.origin.y + px(20.),
+        "wrapped description must grow the centered dialog: short={short:?}, long={long:?}"
+    );
+}
+
+#[gpui::test]
+fn menu_description_wraps_at_the_panel_width(cx: &mut TestAppContext) {
+    still();
+    let description = Rc::new(RefCell::new(String::from("Short description.")));
+    let rendered = description.clone();
+    let cx = open_host(cx, move || {
+        gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .child(gpui::div().debug_selector(|| "menu-wrap".into()).child(
+                herogpui_components::Menu::new(
+                    "wrap-menu",
+                    vec![
+                    herogpui_components::MenuItem::new("item", "Label")
+                        .description(rendered.borrow().clone()),
+                ],
+                ),
+            ))
+            .into_any_element()
+    });
+    cx.simulate_resize(size(px(600.), px(600.)));
+    cx.update(|window, _| window.refresh());
+    let short = cx.debug_bounds("menu-wrap").unwrap();
+    *description.borrow_mut() = "A long description that must wrap inside the menu instead of disappearing past its right edge. ".repeat(3);
+    cx.update(|window, _| window.refresh());
+    let long = cx.debug_bounds("menu-wrap").unwrap();
+    assert!(
+        long.size.height > short.size.height + px(20.),
+        "wrapped description must grow the menu: short={short:?}, long={long:?}"
+    );
+    assert!(
+        long.size.width <= px(288.),
+        "menu must respect its viewport width cap: {long:?}"
+    );
+}
+
+#[gpui::test]
 fn alert_dialog_long_body_scrolls_within_a_small_window(cx: &mut TestAppContext) {
     still();
     let hits = events();

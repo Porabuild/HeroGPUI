@@ -7,7 +7,7 @@ use herogpui_theme::ActiveTheme;
 use crate::app::Gallery;
 use crate::pages::{code_block, doc_page, example_frame, para};
 
-const INSTALL_MAIN_RS: &str = r#"use gpui::{prelude::*, px, size, App, Application,
+const INSTALL_MAIN_RS: &str = r#"use gpui::{prelude::*, px, size, App,
     Bounds, Render, Window, WindowBounds, WindowOptions};
 use herogpui::prelude::*;
 
@@ -37,7 +37,7 @@ impl Render for HelloWorld {
 }
 
 fn main() {
-    Application::new().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
+    gpui_platform::application().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
         ThemeProvider::init(cx); // registers light + dark
         let bounds = Bounds::centered(None, size(px(800.), px(600.)), cx);
         cx.open_window(WindowOptions {
@@ -96,8 +96,8 @@ impl Gallery {
     pub fn page_installation(&mut self, cx: &mut Context<'_, Self>) -> gpui::AnyElement {
         doc_page(
             "Installation",
-            "After the first registry release, add HeroGPUI, register its embedded assets and theme provider, then render your first component.",
-            "cargo add herogpui # available with v0.1.0",
+            "Add HeroGPUI from this checkout with its pinned Zed GPUI dependency, then register its embedded assets and theme provider.",
+            "cargo add herogpui --path ../HeroGPUI/crates/herogpui",
             vec![
                 ("Setup GPUI", code_block(INSTALL_MAIN_RS, cx)),
                 (
@@ -290,7 +290,7 @@ pub(super) fn doc_code_blocks() -> Vec<(&'static str, &'static str)> {
         ("Installation/main.rs", INSTALL_MAIN_RS),
         (
             "Installation/import",
-            "cargo add herogpui # available with v0.1.0",
+            "cargo add herogpui --path ../HeroGPUI/crates/herogpui",
         ),
         (
             "Theming/import",

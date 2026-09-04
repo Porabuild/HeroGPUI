@@ -641,7 +641,7 @@ impl RenderOnce for TagGroup {
                             // native child and keyboard continuity needs a
                             // stable roving target. Removal only reports;
                             // the selection is not this click's to change.
-                            window.focus(&focus_for_remove);
+                            window.focus(&focus_for_remove, cx);
                             cursor_for_remove.update(cx, |v, cx| {
                                 *v = index;
                                 cx.notify();
@@ -861,7 +861,7 @@ impl RenderOnce for TagGroup {
                     if window.default_prevented() {
                         return;
                     }
-                    window.focus(&focus_for_seat);
+                    window.focus(&focus_for_seat, cx);
                     window.prevent_default();
                     cursor_for_seat.update(cx, |v, cx| {
                         *v = index;

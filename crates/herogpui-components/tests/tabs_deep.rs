@@ -587,6 +587,7 @@ fn tabs_all_disabled_held_tab_advances_past_the_panel_child(cx: &mut TestAppCont
     cx.simulate_event(KeyDownEvent {
         keystroke: Keystroke::parse("tab").expect("tab is a valid keystroke"),
         is_held: true,
+        prefer_character_input: false,
     });
     press(cx, "enter");
     assert_eq!(

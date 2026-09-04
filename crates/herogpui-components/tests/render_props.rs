@@ -2226,7 +2226,10 @@ fn range_calendar_cell_tracks_anchor_preview_and_range(cx: &mut TestAppContext) 
         five.is_selection_start && five.is_selected,
         "the anchor cell must report the open-ended start"
     );
-    assert!(!five.is_selection_end, "the anchor must not be the end");
+    assert!(
+        five.is_selection_end,
+        "the pointer over the anchor previews a one-day range"
+    );
 
     // Hover day 8: the preview paints the open range — the hovered day is
     // the moving end, the days between turn selected.

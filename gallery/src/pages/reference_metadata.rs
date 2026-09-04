@@ -577,7 +577,8 @@ const DROPDOWN_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Dropdown.Item",
         slot: "menu-item",
-        description: "Focusable action or selectable menu row.",
+        description:
+            "Focusable action or selectable menu row; descriptions wrap within the popover width.",
         rust_owner: "MenuItem",
         status: ImplementationStatus::Implemented,
     },
@@ -13828,7 +13829,7 @@ const ALERT_DIALOG_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "AlertDialog.Body",
         slot: "alert-dialog-body",
-        description: "One scrolling slot holding the description and the composed children, capped under the panel and given flex-1 only when Cover fixes the panel height.",
+        description: "One scrolling slot holding the wrapping description and composed children, capped under the panel and given flex-1 only when Cover fixes the panel height.",
         rust_owner: "AlertDialog",
         status: ImplementationStatus::Implemented,
     },

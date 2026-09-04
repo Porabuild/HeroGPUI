@@ -68,6 +68,16 @@ IMPLEMENTS = {
     'zoom-in-105': 'PANEL_IN',
     'zoom-in-95': 'LIST_IN',
     'motion-reduce': 'reduce_motion',
+}
+
+# `reduce_motion` is reached as a free method on `cx` or as a trait call taking
+# it, depending on the gpui/theme vintage. Which one a file spells is not what
+# any of these checks measure -- they measure that the code consults it at all
+# -- so every reader below matches either. Pinning one spelling made six
+# readers go stale on an API bump while the behaviour was untouched.
+REDUCE_MOTION = r'(?:cx\.reduce_motion\(\)|ActiveTheme::reduce_motion\(cx\))'
+
+_RM_TAIL = {
     '--tooltip-delay': 'tooltip_delay',
     '--tooltip-close-delay': 'tooltip_close_delay',
     '--skeleton-animation': 'skeleton_animation',
@@ -240,7 +250,11 @@ def check_switch_motion():
         < control.group(1).find('motion-reduce:transition-none')
         and thumb.group(1).find('transition:')
         < thumb.group(1).find('motion-reduce:transition-none')
-        and 'let reduce_motion = cx.reduce_motion();' in track_source
+        # Anchored on the binding and the concept rather than the call
+        # path: which module spells `reduce_motion` is a gpui/theme
+        # detail, and pinning it made this read stale on an API bump
+        # while the behaviour it checks had not changed.
+        and re.search(r'let reduce_motion = [^;]*reduce_motion\(', track_source)
         and 'if reduce_motion' in track_source
         and 'let animate = !reduce_motion' in track_source
     )
@@ -332,9 +346,9 @@ def check_color_area_motion():
     )
     reduced = (
         body.find('transition:') < body.find('motion-reduce:transition-none')
-        and 'if cx.reduce_motion()' in src.split('fn color_area_thumb_motion(', 1)[1].split(
-            '/// ColorArea', 1
-        )[0]
+        and re.search('if ' + REDUCE_MOTION,
+                      src.split('fn color_area_thumb_motion(', 1)[1].split(
+                          '/// ColorArea', 1)[0])
     )
     listener_free = (
         '.child(thumb_motion.render(thumb_visual))' in src
@@ -485,17 +499,17 @@ def check_tabs_motion():
         separator.group(1).find('transition:')
         < separator.group(1).find('motion-reduce:transition-none')
         and 'fn separator_motion(' in src
-        and 'if cx.reduce_motion()' in src.split('fn separator_motion(', 1)[1].split(
-            '/// HeroUI Tabs', 1
-        )[0]
+        and re.search('if ' + REDUCE_MOTION,
+                      src.split('fn separator_motion(', 1)[1].split(
+                          '/// HeroUI Tabs', 1)[0])
     )
     indicator_reduced = (
         indicator.group(1).find('transition-duration:')
         < indicator.group(1).find('motion-reduce:transition-none')
         and 'fn indicator_motion(' in src
-        and 'if cx.reduce_motion()' in src.split('fn indicator_motion(', 1)[1].split(
-            '#[derive(Clone, Debug, Default)]', 1
-        )[0]
+        and re.search('if ' + REDUCE_MOTION,
+                      src.split('fn indicator_motion(', 1)[1].split(
+                          '#[derive(Clone, Debug, Default)]', 1)[0])
     )
     properties = (
         'transition-property: translate, width, height' in indicator.group(1)
@@ -839,7 +853,7 @@ def check_progress_circle_motion():
     ))
     reduced = (
         'motion-reduce:animate-none' in css
-        and 'self.is_indeterminate && !cx.reduce_motion()' in progress
+        and re.search(r'self\.is_indeterminate && !' + REDUCE_MOTION, progress)
     )
     linear = 'pub fn progress_circle_spin_turn' in anim
 
@@ -902,7 +916,7 @@ def check_progress_bar_motion():
         css,
     )
     got_geometry = re.search(
-        r'let track = if self\.is_indeterminate\s*&&\s*!cx\.reduce_motion\(\)'
+        r'let track = if self\.is_indeterminate\s*&&\s*!' + REDUCE_MOTION +
         r'[\s\S]{0,900}?'
         r'\.w\(gpui::relative\(([\d.]+)\)\)[\s\S]{0,700}?'
         r'delta\s*\*\s*([\d.]+)\s*([-+])\s*([\d.]+)',
@@ -965,7 +979,7 @@ def check_progress_bar_motion():
         and 'progress_bar_motion(' in progress
         and 'PROGRESS_BAR_FILL_MS' in progress
         and '.with_easing(|t| crate::anim::Curve::Out.at(t))' in progress
-        and '!self.is_indeterminate && !cx.reduce_motion()' in progress
+        and re.search(r'!self\.is_indeterminate && !' + REDUCE_MOTION, progress)
     )
     reversal = (
         'self.from = self.width.get();' in progress

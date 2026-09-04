@@ -97,7 +97,7 @@ pub fn spawn(window: WindowHandle<Gallery>, cx: &mut App) {
             }
             last = text.clone();
             let applied = cx.update(|cx| apply(&text, window, cx));
-            if applied.is_err() {
+            if !applied {
                 break;
             }
             // One more frame, then acknowledge: the driver captures on the ack,
@@ -117,7 +117,7 @@ pub fn spawn(window: WindowHandle<Gallery>, cx: &mut App) {
     .detach();
 }
 
-fn apply(text: &str, window: WindowHandle<Gallery>, cx: &mut App) {
+fn apply(text: &str, window: WindowHandle<Gallery>, cx: &mut App) -> bool {
     let mut page: Option<Page> = None;
     let mut sections = Vec::new();
     let mut dark = false;
@@ -138,11 +138,13 @@ fn apply(text: &str, window: WindowHandle<Gallery>, cx: &mut App) {
     if cx.is_dark_theme() != dark {
         herogpui_theme::toggle_light_dark(cx);
     }
-    let _ = window.update(cx, |gallery, _, cx| {
-        if let Some(page) = page {
-            gallery.set_initial_page(page);
-        }
-        gallery.set_overlays_open(overlays);
-        cx.notify();
-    });
+    window
+        .update(cx, |gallery, _, cx| {
+            if let Some(page) = page {
+                gallery.set_initial_page(page);
+            }
+            gallery.set_overlays_open(overlays);
+            cx.notify();
+        })
+        .is_ok()
 }

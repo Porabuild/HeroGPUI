@@ -1020,7 +1020,7 @@ impl RenderOnce for ComboBox {
                         if let Some(focus_open) = &focus_open {
                             focus_open.update(cx, |v, _| v.can_open = false);
                         }
-                        window.focus(&focus_handle);
+                        window.focus(&focus_handle, cx);
                         cx.stop_propagation();
                     })
                     .on_click(move |_, window, cx| {
@@ -1828,7 +1828,8 @@ impl RenderOnce for ComboBox {
                         let input_change = row_input_change.clone();
                         row = row.on_click(move |_, window, cx| {
                             let had_query = !state.read(cx).value().is_empty();
-                            state.read(cx).focus_handle.focus(window);
+                            let focus_handle = state.read(cx).focus_handle.clone();
+                            focus_handle.focus(window, cx);
                             state.update(cx, |st, cx| {
                                 st.set_value(String::new());
                                 cx.notify();
@@ -1911,7 +1912,7 @@ impl RenderOnce for ComboBox {
                                     .collect::<Vec<_>>()
                             },
                         )
-                        .track_scroll(list_scroll_now)
+                        .track_scroll(&list_scroll_now)
                         .h(px(240.))
                         .w_full(),
                     );

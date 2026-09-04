@@ -1290,8 +1290,8 @@ impl RenderOnce for TimeField {
             group = group
                 .track_focus(&focus_handle)
                 .key_context("TimeField")
-                .on_mouse_down(gpui::MouseButton::Left, move |_, window, _| {
-                    window.focus(&fh);
+                .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
+                    window.focus(&fh, cx);
                 })
                 .on_key_down(move |event, window, cx| {
                     let key = event.keystroke.key.as_str();

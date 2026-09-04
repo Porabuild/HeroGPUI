@@ -466,7 +466,7 @@ impl Render for Gallery {
 
         // v3 exposes reduced motion as an app-level switch that every animated
         // component honours without opt-in.
-        let reduce_motion = cx.reduce_motion();
+        let reduce_motion = ActiveTheme::reduce_motion(&**cx);
         let motion_button = h::Button::new("motion-toggle")
             .variant(if reduce_motion {
                 h::Variant::Secondary

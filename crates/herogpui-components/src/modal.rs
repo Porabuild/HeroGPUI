@@ -143,7 +143,7 @@ pub(crate) fn claim_dialog_focus(
     if previous.is_some() && restore.read(cx).is_none() {
         restore.update(cx, |slot, _| *slot = previous);
     }
-    window.focus(focus_handle);
+    window.focus(focus_handle, cx);
 }
 
 /// Hands the focus back to whatever held it before this dialog opened.
@@ -157,7 +157,7 @@ pub(crate) fn release_dialog_focus(id: &gpui::ElementId, window: &mut Window, cx
     let previous = restore.read(cx).clone();
     if let Some(previous) = previous {
         restore.update(cx, |slot, _| *slot = None);
-        window.focus(&previous);
+        window.focus(&previous, cx);
     }
 }
 

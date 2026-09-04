@@ -77,7 +77,7 @@ fn date_picker_focus_departure_closes_without_refocusing(cx: &mut TestAppContext
     });
 
     cx.update(|window, _| window.refresh());
-    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx), cx));
     cx.update(|window, _| window.refresh());
 
     assert_eq!(opened.borrow().as_slice(), ["open:false"]);
@@ -107,7 +107,7 @@ fn date_range_picker_focus_departure_closes_without_refocusing(cx: &mut TestAppC
     });
 
     cx.update(|window, _| window.refresh());
-    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx), cx));
     cx.update(|window, _| window.refresh());
 
     assert_eq!(opened.borrow().as_slice(), ["open:false"]);

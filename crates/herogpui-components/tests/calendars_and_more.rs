@@ -906,7 +906,7 @@ fn pointer_open_color_picker_closes_when_focus_moves_elsewhere(cx: &mut TestAppC
     click(cx, 60., 12.);
     assert_eq!(opened.borrow().as_slice(), ["open:true"]);
 
-    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx)));
+    cx.update(|window, cx| window.focus(&next.read(cx).focus_handle(cx), cx));
     cx.update(|window, _| window.refresh());
 
     assert_eq!(opened.borrow().as_slice(), ["open:true", "open:false"]);
@@ -3122,6 +3122,7 @@ fn toolbar_held_arrow_repeats_stop_at_ends(cx: &mut TestAppContext) {
             cx.simulate_event(KeyDownEvent {
                 keystroke: Keystroke::parse(key).unwrap(),
                 is_held: true,
+                prefer_character_input: false,
             });
         }
     };

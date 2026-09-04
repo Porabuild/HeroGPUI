@@ -1464,7 +1464,7 @@ impl RenderOnce for Input {
                         let line_h = text * 1.3;
                         let size = text;
                         move |ev: &gpui::MouseDownEvent, window, cx| {
-                            window.focus(&fh);
+                            window.focus(&fh, cx);
                             let shown = displayed_value(st.read(cx), masks);
                             let at = if multiline {
                                 let boxes = paras.read(cx).clone();
@@ -1790,11 +1790,11 @@ impl RenderOnce for Input {
                 })
                 .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
                     cx.stop_propagation();
-                    window.focus(&input_focus_handle);
+                    window.focus(&input_focus_handle, cx);
                     window.prevent_default();
                 })
                 .on_click(move |_, window, cx| {
-                    window.focus(&input_focus_after_clear);
+                    window.focus(&input_focus_after_clear, cx);
                     clear_state.update(cx, |s, cx| {
                         s.value.clear();
                         s.cursor = 0;

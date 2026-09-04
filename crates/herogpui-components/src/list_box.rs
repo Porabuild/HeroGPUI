@@ -548,7 +548,7 @@ impl RenderOnce for ListBox {
             // arrow keys would go nowhere after a pointer selection.
             .on_mouse_down(gpui::MouseButton::Left, {
                 let fh = focus_handle.clone();
-                move |_, window, _| window.focus(&fh)
+                move |_, window, cx| window.focus(&fh, cx)
             });
 
         // A virtualized list scrolls inside `uniform_list`, which owns the
@@ -1130,7 +1130,7 @@ impl RenderOnce for ListBox {
                                 .collect::<Vec<_>>()
                         },
                     )
-                    .track_scroll(list_scroll_now)
+                    .track_scroll(&list_scroll_now)
                     .id(list_id)
                     .h(height)
                     .w_full(),

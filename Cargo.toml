@@ -19,7 +19,8 @@ keywords = ["gpui", "gui", "components", "heroui", "desktop"]
 categories = ["gui"]
 
 [workspace.dependencies]
-gpui = "0.2.2"
+gpui = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee", features = ["font-kit", "wayland", "x11", "runtime_shaders"] }
 icu_calendar = { version = "=2.2.1", default-features = false, features = ["compiled_data"] }
 icu_datetime = { version = "=2.2.0", default-features = false, features = ["compiled_data"] }
 icu_locale_core = "=2.2.0"

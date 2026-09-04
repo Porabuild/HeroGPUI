@@ -440,7 +440,7 @@ fn start_toast_timer(
         loop {
             cx.background_executor().timer(TICK).await;
             let Some(store) = store.upgrade() else { return };
-            let Ok(tick) = store.update(cx, |s, cx| {
+            let tick = store.update(cx, |s, cx| {
                 if !s.toasts.iter().any(|toast| toast.id == id) {
                     s.timer_generations.remove(&id);
                     s.timeouts.remove(&id);
@@ -460,15 +460,13 @@ fn start_toast_timer(
                     return ToastTimerTick::Closed(mine);
                 }
                 ToastTimerTick::Continue
-            }) else {
-                return;
-            };
+            });
             match tick {
                 ToastTimerTick::Continue => {}
                 ToastTimerTick::Closed(mine) => {
                     if mine {
                         if let Some(cb) = on_close {
-                            let _ = cx.update(|cx| cb(cx));
+                            cx.update(|cx| cb(cx));
                         }
                     }
                     return;

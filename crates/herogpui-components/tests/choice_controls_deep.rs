@@ -1576,9 +1576,9 @@ fn toggle_button_group_reverse_tab_restores_last_focused_member(cx: &mut TestApp
                 if event.keystroke.key == "tab" {
                     cx.stop_propagation();
                     if event.keystroke.modifiers.shift {
-                        window.focus_prev();
+                        window.focus_prev(cx);
                     } else {
-                        window.focus_next();
+                        window.focus_next(cx);
                     }
                 }
             })
@@ -1625,9 +1625,9 @@ fn toggle_button_group_reentry_skips_a_now_disabled_last_member(cx: &mut TestApp
                 if event.keystroke.key == "tab" {
                     cx.stop_propagation();
                     if event.keystroke.modifiers.shift {
-                        window.focus_prev();
+                        window.focus_prev(cx);
                     } else {
-                        window.focus_next();
+                        window.focus_next(cx);
                     }
                 }
             })

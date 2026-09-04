@@ -230,7 +230,7 @@ impl RenderOnce for ProgressBar {
         let fill_motion = progress_bar_motion(
             &self.id,
             if self.is_indeterminate { 0.4 } else { fraction },
-            !self.is_indeterminate && !cx.reduce_motion(),
+            !self.is_indeterminate && !ActiveTheme::reduce_motion(cx),
             window,
             cx,
         );
@@ -298,7 +298,7 @@ impl RenderOnce for ProgressBar {
 
         // Indeterminate bars sweep a 40% segment; reduced motion leaves that
         // same segment static so the state is still legible.
-        let track = if self.is_indeterminate && !cx.reduce_motion() {
+        let track = if self.is_indeterminate && !ActiveTheme::reduce_motion(cx) {
             track
                 .child(
                     gpui::div()
@@ -509,7 +509,7 @@ impl RenderOnce for ProgressCircle {
         };
         // v3 uses stroke-width 4 in a 36-unit viewBox.
         let stroke_w = self.size_px / 9.;
-        let spins = self.is_indeterminate && !cx.reduce_motion();
+        let spins = self.is_indeterminate && !ActiveTheme::reduce_motion(cx);
         let rotation = std::rc::Rc::new(std::cell::Cell::new(0.0f32));
         let paint_rotation = rotation.clone();
 

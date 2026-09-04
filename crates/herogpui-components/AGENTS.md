@@ -11,7 +11,7 @@ design, state, or behavior claims, also read
 - Keep component fixes in the owning module and reuse existing `util` helpers.
   Add a shared helper only when multiple real call sites require the same
   contract.
-- Verify GPUI APIs against 0.2.2 source, not Zed `main`.
+- Verify GPUI APIs against the exact Zed git revision in `Cargo.lock`.
 - Preserve controlled/uncontrolled semantics, per-instance keyed state, unique
   ids, disabled tab behavior, and topmost-overlay arbitration.
 - Add or update a focused headless test for logic changes. An audit mapping or

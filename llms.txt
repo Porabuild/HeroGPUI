@@ -16,7 +16,7 @@ macOS and Linux.
 - **Core:** `herogpui-core` — `Color`, `Variant`, `FieldVariant`, `Prominence`,
   `Backdrop`, `Size`, `SizeXl`, `Orientation`, `SelectionMode`, OKLCH math
 - **Components:** `herogpui-components` — one module per `@heroui/*` package
-- **Gallery:** `cargo run -p herogpui-gallery` or `cargo install herogpui-gallery` — living docs, the fifteen v3
+- **Gallery:** `cargo run -p herogpui-gallery` or `cargo install --path gallery --locked` — living docs, the fifteen v3
   categories, theme switcher
 
 **This is v3 only.** v2 names (`content1..4`, numbered 50–900 scales,
@@ -27,12 +27,13 @@ macOS and Linux.
 
 ```toml
 [dependencies]
-gpui = "0.2"
-herogpui = "0.1"
+gpui = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee", features = ["font-kit", "wayland", "x11", "runtime_shaders"] }
+herogpui = { path = "../HeroGPUI/crates/herogpui" }
 ```
 
-The registry release is prepared but not published yet. Before `v0.1.0`, clone
-the repository and use `herogpui = { path = "../HeroGPUI/crates/herogpui" }`.
+Clone the repository for the source dependency above. The matching GPUI API
+is available from the pinned Zed git revision, not its crates.io release.
 
 ```rust
 use gpui::*;
@@ -51,7 +52,7 @@ impl Render for MyRoot {
 }
 
 fn main() {
-    Application::new().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
+    gpui_platform::application().with_assets(HeroGpuiAssets).run(|cx: &mut App| {
         ThemeProvider::init(cx); // light + dark
         // or ThemeProvider::init_with(Theme::dark(), cx);
         let bounds = Bounds::centered(None, size(px(1280.), px(820.)), cx);
@@ -306,6 +307,7 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 
 ### Collections
 - **Dropdown** — `Dropdown::new(trigger, items, is_open).placement(Placement).on_open_change(bool).on_action(&str)`, `MenuItem::new(key,label).shortcut().icon().danger()`, `MenuItem::SectionLabel`, `MenuItem::Separator`
+  Descriptions wrap within the popover width; long menus remain scrollable.
   - selection: `selection_mode(SelectionMode)`, `selected_keys`, `disabled_keys`, `on_selection_change(&[SharedString])`, `on_action(&str)`. Selected items draw a check; disabled ones are muted and inert. The next selection comes from `selection::next_selection`, shared with ToggleButtonGroup and Table.
 - **ListBox** — `ListBox::new(id, items).selection_mode().selected_keys().disabled_keys().escape_key_behavior(EscapeKeyBehavior::{ClearSelection,None}).max_h().on_selection_change().on_action()`, `ListBoxItem::new(key,label).description().icon().shortcut().danger()`, `::section()`, `::separator()`
 - **TagGroup** — `TagGroup::new(id, tags).label().selection_mode().selected_keys().escape_key_behavior(EscapeKeyBehavior::{ClearSelection,None}).size().variant(TagVariant::{Default,Surface}).empty_state().on_remove().on_selection_change()`, `Tag::new(key,label).icon().remove_content(render)`
@@ -408,6 +410,7 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
 
 ### Overlays
 - **AlertDialog** — `AlertDialog::new(title).id().description().is_open().size(AlertDialogSize::{Xs,Sm,Md,Lg,Cover}).backdrop(Backdrop).placement(ModalPlacement).status(Color).is_dismissible(bool).is_keyboard_dismiss_disabled(bool).confirm_label().cancel_label().on_confirm().on_cancel().on_open_change(bool)` plus composed children; `.child(AlertDialogCloseTrigger::new())` composes v3's `AlertDialog.CloseTrigger` X and `.footer_child(Button)` composes the caller-owned footer
+  The description wraps inside the body; overflowing body content scrolls within the panel.
   - every close path — the composed X, the backdrop and Escape — reports through `on_open_change(false)` first; the built-in confirm/cancel stand-in reports through it too, then fires the consumer action. Escape and the backdrop are plain closes and never call `on_cancel`.
   - a composed footer retires the built-in pair: the caller's own `Button`s own their close wiring and the danger/pending spellings (`variant(Variant::Danger)`, `is_pending(true)`), the way v3 composes `slot="close"` buttons.
   - `is_dismissible` and `is_keyboard_dismiss_disabled` default to v3's values (backdrop dismissal off, Escape off), so opting in is explicit. `status` renders the alert glyph in that role's colour and only when set.
@@ -416,7 +419,7 @@ week_start, month_headings, linear_cells, range_heading, year_page}`.
 - **Modal** — `is_open`, `title`, `size(ModalSize::{Xs,Sm,Md,Lg,Cover,Full})`, `backdrop(Backdrop)`, `placement(ModalPlacement::{Auto,Center,Top,Bottom})`, `scroll(ModalScroll::{Inside,Outside})`, `is_dismissible`, `is_keyboard_dismiss_disabled`, `footer_child`, `on_close`, `on_open_change(bool)`; `.child(ModalCloseTrigger::new())` composes v3's `Modal.CloseTrigger` X — the part draws only where composed, like v3
   - every dismissal path reports through **both** `on_close` and `on_open_change(false)`, so either callback alone is sufficient.
   - Escape closes it unless `is_keyboard_dismiss_disabled`. The overlay takes a focus handle and claims focus while nothing inside holds it; keys bubble from the focused descendant, so a text field inside keeps working. Drawer and AlertDialog behave the same way (AlertDialog defaults keyboard dismissal *off*, as v3 does).
-- **Popover** — `Popover::new(trigger).is_open().placement(Placement).offset(px).should_flip(bool).title().show_close_button().on_open_change(bool)`; `.child(PopoverArrow::new())` composes v3's `Popover.Arrow` part — the built-in 12px curve, or a custom child element at the resolved position but without the rotation (upstream rotates it through its `data-slot` placement CSS; GPUI 0.2.2 transforms only `svg()` elements at construction)
+- **Popover** — `Popover::new(trigger).is_open().placement(Placement).offset(px).should_flip(bool).title().show_close_button().on_open_change(bool)`; `.child(PopoverArrow::new())` composes v3's `Popover.Arrow` part — the built-in 12px curve, or a custom child element at the resolved position but without the rotation (upstream rotates it through its `data-slot` placement CSS; The pinned GPUI transforms only `svg()` elements at construction)
   - `should_flip` routes through gpui's `anchored().snap_to_window()`, which slides the panel back inside the viewport rather than mirroring it to the opposite side.
 - **Toast** — `Toast::new(title).description().variant(Color).closable().push(duration, cx)`; `ToastViewport::new().placement(ToastPlacement).gap().max_visible_toasts().width()` is `Toast.Provider`; `toast_store(cx)` global
 - **Tooltip** — `Tooltip::new("tip").placement(TooltipPlacement::{Top,Bottom,Left,Right}).show_arrow(bool).offset(px).delay(ms).close_delay(ms).is_disabled().child(trigger)`
@@ -445,7 +448,7 @@ Screenshots are the visual regression source.
 
 ## Code style
 
-GPUI 0.2.2 notes: `f32::from(px)` for `Pixels`, no `select_none`, `on_click`
+Pinned GPUI notes: `f32::from(px)` for `Pixels`, no `select_none`, `on_click`
 and `.active()` need `.id()`, `svg()` never inherits text color, `Arc` for
 shared callbacks, `.into_any_element()` for branch unification. Theme tokens are
 already `Hsla` — never wrap them in `Hsla::from`. Divs are `Display::Block`, so
@@ -487,12 +490,12 @@ is the gpui equivalent and the single place the timings live.
 - `anim::ENTERING_MS` (150), `EXITING_MS` (100), `TRANSITION_MS` (100),
   `PRESS_MS` (250 — recorded, since gpui's `active` has no timeline to ramp
   along), `PRESSED_SCALE`, `anim::pressed_inset`.
-- **Reduced motion:** `cx.reduce_motion()` gates every animation with no opt-in
+- **Reduced motion:** `ActiveTheme::reduce_motion(cx)` gates every animation with no opt-in
   from the caller. Set it with `theme::set_reduce_motion(bool, cx)` or
   `theme::toggle_reduce_motion(cx)`; `HEROGPUI_REDUCE_MOTION=1` seeds it at
-  startup in place of the OS preference gpui does not expose.
+  startup. This is separate from GPUI's inherent `App::reduce_motion()` state.
 
-**No div transforms.** gpui 0.2.2 plumbs `TransformationMatrix` into
+**No div transforms.** the pinned GPUI plumbs `TransformationMatrix` into
 `paint_svg` alone, so quads and text cannot be scaled or rotated. Two
 consequences — both worked around geometrically rather than left undone:
 

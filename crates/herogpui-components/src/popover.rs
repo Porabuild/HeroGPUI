@@ -729,20 +729,6 @@ impl RenderOnce for Popover {
             ))
             .flex()
             .track_focus(&trigger_focus)
-            .on_key_down({
-                let trigger_focus = trigger_focus.clone();
-                move |event, window, cx| {
-                    if matches!(event.keystroke.key.as_str(), "enter" | "space")
-                        && trigger_focus.contains_focused(window, cx)
-                    {
-                        // A caller's Button owns the real trigger handle. Move
-                        // to this wrapper for the key-up click listener without
-                        // replacing the handle saved for close restoration.
-                        window.focus(&trigger_focus);
-                        cx.stop_propagation();
-                    }
-                }
-            })
             .cursor_pointer();
         if self.on_open_change.is_some() || open_own.is_some() {
             let on_open_change = self.on_open_change.clone();
@@ -750,24 +736,41 @@ impl RenderOnce for Popover {
             let open = is_open;
             let capture_pressed = trigger_pressed.clone();
             let click_pressed = trigger_pressed.clone();
+            let toggle = crate::util::shared(move |window: &mut Window, cx: &mut App| {
+                if let Some(held) = &own {
+                    held.update(cx, |value, cx| {
+                        *value = !open;
+                        cx.notify();
+                    });
+                }
+                if let Some(cb) = &on_open_change {
+                    cb(!open, window, cx);
+                }
+            });
             trigger_wrap = trigger_wrap
                 .capture_any_mouse_down(move |_, _, cx| {
                     capture_pressed.set(true);
                     let clear = capture_pressed.clone();
                     cx.defer(move |_| clear.set(false));
                 })
+                .on_key_down({
+                    let toggle = toggle.clone();
+                    move |event, window, cx| {
+                        if matches!(event.keystroke.key.as_str(), "enter" | "space")
+                            && trigger_focus.contains_focused(window, cx)
+                        {
+                            // Moving focus between key-down and key-up cancels
+                            // GPUI's keyboard click. Activate without transferring it.
+                            if !event.is_held {
+                                toggle(window, cx);
+                            }
+                            window.prevent_default();
+                            cx.stop_propagation();
+                        }
+                    }
+                })
                 .on_click(move |_: &ClickEvent, window, cx| {
-                    // Uncontrolled: flip our own copy, or the trigger would be
-                    // inert without a caller handler.
-                    if let Some(held) = &own {
-                        held.update(cx, |v, cx| {
-                            *v = !open;
-                            cx.notify();
-                        });
-                    }
-                    if let Some(cb) = &on_open_change {
-                        cb(!open, window, cx);
-                    }
+                    toggle(window, cx);
                     click_pressed.set(false);
                 });
         }

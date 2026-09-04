@@ -120,12 +120,9 @@ jobs:
           echo "==> .shots/write_only.py"
           python .shots/write_only.py
 
-  # Packaging is what `cargo install herogpui-gallery` and `cargo publish` do to
-  # a release. Both build from a packaged tarball rather than the worktree, so
-  # they catch a path dependency or a missing include that no workspace build
-  # ever would.
-  package:
-    name: Package & install
+  # Git GPUI is not registry-publishable; validate installation from source.
+  install:
+    name: Source install
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -152,14 +149,5 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      # Packaged together, not one at a time: nothing here is on crates.io yet,
-      # so `cargo package -p herogpui-gallery` alone cannot resolve `herogpui`
-      # and fails before it inspects anything.
-      - name: Inspect the packages, gallery included
-        run: cargo package --workspace --locked --no-verify
-
-      - name: Dry-run the publishable workspace
-        run: cargo publish --workspace --locked --dry-run
-
-      - name: Install the gallery CLI from its package
+      - name: Install the gallery CLI from source
         run: cargo install --path gallery --locked --debug --force

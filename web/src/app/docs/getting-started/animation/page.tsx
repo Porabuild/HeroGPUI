@@ -15,7 +15,7 @@ herogpui::theme::set_reduce_motion(true, cx);
 herogpui::theme::toggle_reduce_motion(cx);
 
 // Read it if your own view animates.
-if cx.reduce_motion() {
+if herogpui::theme::ActiveTheme::reduce_motion(cx) {
     // draw the end state directly
 }`;
 
@@ -46,9 +46,9 @@ export default function AnimationPage() {
       </p>
       <p>
         A <code>RenderOnce</code> component leaves the tree the moment its open flag goes false, so
-        an overlay is held for the exit duration first: the phase reports{" "}
-        <code>Open</code>, <code>Exiting</code> or <code>Closed</code>, and the component picks the
-        animation from it. That is why a dismissed dialog is still on screen for a frame or two.
+        an overlay is held for the exit duration first: the phase reports <code>Open</code>,{" "}
+        <code>Exiting</code> or <code>Closed</code>, and the component picks the animation from it.
+        That is why a dismissed dialog is still on screen for a frame or two.
       </p>
 
       <h2 id="reduced-motion">Reduced motion</h2>
@@ -60,21 +60,20 @@ export default function AnimationPage() {
         <CodeBlock code={REDUCE} lang="rust" />
       </div>
       <p>
-        GPUI does not expose the operating system&apos;s reduced-motion preference, so there is
-        nothing to read it from automatically. Seed it at startup instead:
+        HeroGPUI keeps its own animation preference, separate from GPUI&apos;s App setting. Seed it
+        at startup:
       </p>
       <div className="mt-4">
         <CodeBlock code={ENV} lang="bash" />
       </div>
       <Callout kind="warning" title="Wire this to your own settings">
-        Because the OS preference is unavailable, a user who asked their system for reduced motion
-        gets full motion here unless your application sets the flag. If you expose a settings
-        screen, put it there.
+        Use HeroGPUI&apos;s setter when wiring your application settings so every component observes
+        the same animation preference.
       </Callout>
 
       <h2 id="no-transforms">Why the press is geometric</h2>
       <p>
-        GPUI 0.2.2 plumbs its transformation matrix into SVG painting alone, so quads and text
+        The pinned GPUI plumbs its transformation matrix into SVG painting alone, so quads and text
         cannot be scaled or rotated. v3&apos;s <code>scale(0.97)</code> press and{" "}
         <code>zoom-in-90</code> overlay entry are therefore reproduced by changing geometry rather
         than by transforming: the press scales height, padding, gap, corner radius, minimum width{" "}

@@ -613,7 +613,7 @@ impl RenderOnce for ToggleButtonGroup {
                     if let Some(restored) = members.iter().position(|(key, _)| key == last) {
                         effective = restored;
                         if restored != current {
-                            window.focus(&members[restored].1);
+                            window.focus(&members[restored].1, cx);
                         }
                     }
                 }
@@ -679,7 +679,7 @@ impl RenderOnce for ToggleButtonGroup {
                     index.checked_sub(1)
                 };
                 if let Some(next) = next {
-                    window.focus(&key_focuses[next]);
+                    window.focus(&key_focuses[next], cx);
                 }
                 return;
             }
@@ -707,7 +707,7 @@ impl RenderOnce for ToggleButtonGroup {
                 key_focuses.last()
             };
             if let Some(edge) = edge {
-                window.focus(edge);
+                window.focus(edge, cx);
             }
         });
 

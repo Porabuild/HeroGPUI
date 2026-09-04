@@ -1,8 +1,8 @@
 # HeroGPUI agent guide
 
 HeroGPUI is a native Rust/GPUI port of HeroUI v3.2.4. The repository targets
-Rust 1.98 and GPUI 0.2.2; newer upstream APIs are not evidence that an API is
-available here.
+Rust 1.98 and the Zed GPUI git revision pinned in `Cargo.toml` and `Cargo.lock`.
+Use that exact checkout for API evidence; the crates.io 0.2.2 release differs.
 
 ## Before editing
 
@@ -33,7 +33,7 @@ CI-shaped set for release-facing code changes or an explicit request.
 
 - [Workflow and architecture](docs/agents/workflow.md) — repository map,
   source hierarchy, scope discipline, and change-to-verification matrix.
-- [Component implementation](docs/agents/components.md) — GPUI 0.2.2 state,
+- [Component implementation](docs/agents/components.md) — pinned GPUI state,
   events, focus, overlays, layout, and behavior-test patterns.
 - [Parity and audits](docs/agents/parity.md) — pinned upstream contract,
   audit selection, omission rules, and audit-reader integrity.

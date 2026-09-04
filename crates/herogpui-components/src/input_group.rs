@@ -281,7 +281,7 @@ impl RenderOnce for InputGroup {
             if let Some(focus) = self.input.as_ref().map(|input| input.state_focus(cx)) {
                 group = group.on_mouse_down(MouseButton::Left, move |_, window, cx| {
                     if !window.focused(cx).is_some_and(|held| held == focus) {
-                        window.focus(&focus);
+                        window.focus(&focus, cx);
                     }
                     window.prevent_default();
                 });

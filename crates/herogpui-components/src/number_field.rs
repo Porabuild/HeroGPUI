@@ -968,7 +968,7 @@ fn stepper_btn(
         b = b.cursor_pointer().on_mouse_down(
             gpui::MouseButton::Left,
             move |_: &MouseDownEvent, window, cx| {
-                window.focus(&focus_handle);
+                window.focus(&focus_handle, cx);
                 let generation = press.update(cx, |press, _| {
                     press.active = true;
                     press.generation = press.generation.wrapping_add(1);

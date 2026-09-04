@@ -727,13 +727,17 @@ impl RangeCalendar {
                     s.start.is_some() && s.end.is_none()
                 });
                 if over && selecting {
-                    hover_cursor.update(cx, |focused, cx| {
+                    let focus_changed = hover_cursor.update(cx, |focused, cx| {
+                        let changed = *focused != Some(date);
                         *focused = Some(date);
                         cx.notify();
+                        changed
                     });
                     hover_preview.update(cx, |preview, _| *preview = true);
-                    if let Some(cb) = &hover_focus {
-                        cb(date, window, cx);
+                    if focus_changed {
+                        if let Some(cb) = &hover_focus {
+                            cb(date, window, cx);
+                        }
                     }
                 }
             });
@@ -1008,7 +1012,7 @@ impl RangeCalendar {
                         if let Some(cb) = &on_open {
                             cb(false, window, cx);
                         }
-                        window.focus(&back_to_trigger);
+                        window.focus(&back_to_trigger, cx);
                     });
                 }
                 if is_active {
@@ -1202,7 +1206,7 @@ impl RenderOnce for RangeCalendar {
         let last_year = years.last().copied().unwrap_or(anchor.year);
         if year_picker_open && !*year_was_open.read(cx) && !self.is_disabled {
             year_cursor.update(cx, |year, _| *year = Some(initial_year));
-            window.focus(&year_focus);
+            window.focus(&year_focus, cx);
         }
         year_was_open.update(cx, |was_open, _| *was_open = year_picker_open);
         let active_year = focused_value
@@ -1680,7 +1684,7 @@ impl RenderOnce for RangeCalendar {
                     if let Some(cb) = &on_open {
                         cb(false, window, cx);
                     }
-                    window.focus(&back_to_trigger);
+                    window.focus(&back_to_trigger, cx);
                     cx.stop_propagation();
                     return;
                 }

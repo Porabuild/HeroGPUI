@@ -101,8 +101,8 @@ impl RenderOnce for Label {
             Some((id, handle)) if !self.is_disabled => el
                 .id(id)
                 .cursor_pointer()
-                .on_click(move |_: &gpui::ClickEvent, window: &mut Window, _| {
-                    window.focus(&handle);
+                .on_click(move |_: &gpui::ClickEvent, window: &mut Window, cx| {
+                    window.focus(&handle, cx);
                 })
                 .into_any_element(),
             _ => el.into_any_element(),
@@ -252,8 +252,8 @@ impl RenderOnce for Fieldset {
             .gap(self.gap)
             // `.fieldset` also carries `shrink grow basis-0` so it fills a flex
             // parent like any other section.
-            .flex_shrink()
-            .flex_grow()
+            .flex_shrink(1.)
+            .flex_grow(1.)
             .flex_basis(px(0.))
             .text_color(cx.colors().foreground)
             .children(self.children)

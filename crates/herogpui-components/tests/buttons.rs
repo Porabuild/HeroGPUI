@@ -1149,6 +1149,7 @@ fn button_content_render_prop_sees_keyboard_press(cx: &mut TestAppContext) {
     cx.simulate_event(KeyDownEvent {
         keystroke: Keystroke::parse("space").unwrap(),
         is_held: true,
+        prefer_character_input: false,
     });
     flush_frame(cx);
     assert!(

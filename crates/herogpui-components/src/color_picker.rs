@@ -652,7 +652,7 @@ fn color_area_thumb_motion(
         current.from = current.size.get();
         state.update(cx, |stored, _| *stored = current.clone());
     }
-    if cx.reduce_motion() && (current.size.get() - to).abs() > f32::EPSILON {
+    if ActiveTheme::reduce_motion(cx) && (current.size.get() - to).abs() > f32::EPSILON {
         current.from = to;
         current.size.set(to);
         state.update(cx, |stored, _| *stored = current.clone());
@@ -663,7 +663,7 @@ fn color_area_thumb_motion(
         to,
         size: current.size,
         animate: current.generation != 0
-            && !cx.reduce_motion()
+            && !ActiveTheme::reduce_motion(cx)
             && (current.from - to).abs() > f32::EPSILON,
     }
 }
@@ -1126,7 +1126,7 @@ impl RenderOnce for ColorArea {
                             cx.notify();
                         }
                     });
-                    window.focus(&down_focus);
+                    window.focus(&down_focus, cx);
                     if let Some(next) = area_color_from_pointer(
                         &down_bounds,
                         event.position,
@@ -2087,7 +2087,7 @@ impl RenderOnce for ColorSlider {
                                 cx.notify();
                             }
                         });
-                        window.focus(&focus_for_press);
+                        window.focus(&focus_for_press, cx);
                         if let Some(next) = slider_color_from_pointer(
                             &down_bounds,
                             event.position,
@@ -3468,7 +3468,7 @@ impl RenderOnce for ColorSwatchPicker {
                                 *focused = Some(index);
                                 cx.notify();
                             });
-                            window.focus(&focus);
+                            window.focus(&focus, cx);
                         },
                     );
                 } else {
@@ -3481,7 +3481,7 @@ impl RenderOnce for ColorSwatchPicker {
                             *focused = Some(index);
                             cx.notify();
                         });
-                        window.focus(&focus);
+                        window.focus(&focus, cx);
                     });
                 }
             }
@@ -3785,7 +3785,7 @@ impl RenderOnce for ColorPicker {
             let cb = self.on_open_change.clone();
             let own = open_own;
             move |window: &mut Window, cx: &mut App| -> util::DismissResult {
-                window.focus(&trigger_focus);
+                window.focus(&trigger_focus, cx);
                 if let Some(held) = &own {
                     held.update(cx, |value, cx| {
                         *value = false;

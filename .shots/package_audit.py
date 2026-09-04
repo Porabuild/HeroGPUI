@@ -1,4 +1,4 @@
-"""Audit crates.io packaging and the installable gallery CLI contract."""
+"""Audit source distribution and the installable gallery CLI contract."""
 
 from pathlib import Path
 import sys
@@ -40,6 +40,21 @@ def main():
             errors.append(f"workspace.package.{key} must be {value!r}")
 
     internal = workspace["workspace"]["dependencies"]
+    gpui = internal.get("gpui", {})
+    platform = internal.get("gpui_platform", {})
+    revision = gpui.get("rev", "")
+    repository = "https://github.com/zed-industries/zed"
+    if len(revision) != 40 or any(c not in "0123456789abcdef" for c in revision):
+        errors.append("GPUI must pin a complete Zed git revision")
+    if gpui.get("git") != repository or platform.get("git") != repository:
+        errors.append("GPUI and gpui_platform must come from Zed")
+    if platform.get("rev") != revision:
+        errors.append("GPUI and gpui_platform revisions differ")
+    locked = manifest(ROOT / "Cargo.lock")["package"]
+    for name in ("gpui", "gpui_platform"):
+        sources = [entry.get("source") for entry in locked if entry["name"] == name]
+        if sources != [f"git+{repository}?rev={revision}#{revision}"]:
+            errors.append(f"{name}: lockfile does not match the pinned revision")
     for name in ("herogpui-core", "herogpui-theme", "herogpui-components", "herogpui"):
         dependency = internal.get(name, {})
         if not dependency.get("version") or not dependency.get("path"):
@@ -97,29 +112,21 @@ def main():
 
     ci = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
-    # `cargo package -p herogpui-gallery` is what this asked for and it cannot
-    # work: no crate here is published, so packaging the gallery alone resolves
-    # `herogpui` against the registry and fails. The workspace form packages
-    # every member together, gallery included, which is what was meant.
-    if "cargo package --workspace" not in ci:
-        errors.append("CI does not inspect the gallery package")
     if "cargo install --path gallery" not in ci:
         errors.append("CI does not exercise Cargo installation of the gallery CLI")
-    if "cargo publish --workspace" not in ci or "--exclude herogpui-gallery" in ci:
-        errors.append("CI does not dry-run the complete publishable workspace")
-    if "cargo publish --workspace --locked" not in release:
-        errors.append("release workflow does not publish the workspace")
-    if "--exclude herogpui-gallery" in release:
-        errors.append("release workflow still excludes the gallery")
+    if "cargo package" in ci or "cargo publish" in ci or "cargo publish" in release:
+        errors.append("git GPUI dependencies cannot be packaged for crates.io")
+    if "cargo build --locked --release -p herogpui-gallery" not in release:
+        errors.append("release workflow does not build the gallery binary")
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    for command in ("cargo add herogpui", "cargo install herogpui-gallery"):
+    for command in ("cargo add herogpui --path", "cargo install --path gallery --locked"):
         if command not in readme:
             errors.append(f"README does not document {command}")
 
-    print(f"publishable packages : {len(PACKAGES)}")
-    print("library install      : cargo add herogpui")
-    print("gallery install      : cargo install herogpui-gallery")
+    print(f"source packages      : {len(PACKAGES)}")
+    print("library install      : cargo add herogpui --path <checkout>/crates/herogpui")
+    print("gallery install      : cargo install --path gallery --locked")
     print("license contract     : Apache-2.0 + NOTICE")
     print(f"PACKAGING ERRORS     : {len(errors)}")
     for error in errors:

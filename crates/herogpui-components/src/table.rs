@@ -1735,7 +1735,7 @@ impl RenderOnce for Table {
                             )
                             .cursor(gpui::CursorStyle::ResizeLeftRight)
                             .on_mouse_down(gpui::MouseButton::Left, move |ev, window, cx| {
-                                window.focus(&focus_for_mouse);
+                                window.focus(&focus_for_mouse, cx);
                                 if let Some(active_column) = *keyboard_for_pointer.read(cx) {
                                     let current = final_column_widths(
                                         &columns_for_pointer,
@@ -2507,7 +2507,7 @@ impl RenderOnce for Table {
                     // stopping at its first row.
                     if plain_rows && key_name == "pageup" {
                         if let Some(header) = &page_up_header {
-                            window.focus(header);
+                            window.focus(header, cx);
                             cx.stop_propagation();
                             return;
                         }
@@ -2773,7 +2773,7 @@ impl RenderOnce for Table {
                             .collect::<Vec<_>>()
                     },
                 )
-                .track_scroll(virtual_scroll_now)
+                .track_scroll(&virtual_scroll_now)
                 .h(height)
                 .w_full(),
             );
@@ -3183,7 +3183,7 @@ impl RowCtx {
                                     next.push(key.clone());
                                 }
                                 cb(&next, window, cx);
-                                window.focus(&focus);
+                                window.focus(&focus, cx);
                                 cursor.update(cx, |value, cx| {
                                     *value = Some(key.clone());
                                     cx.notify();
@@ -3251,7 +3251,7 @@ impl RowCtx {
                     if window.default_prevented() {
                         return;
                     }
-                    window.focus(&focus);
+                    window.focus(&focus, cx);
                     moved.update(cx, |value, cx| {
                         *value = Some(key_for_cursor.clone());
                         cx.notify();

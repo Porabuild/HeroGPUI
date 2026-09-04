@@ -72,7 +72,7 @@ impl RenderOnce for Skeleton {
         let colors = cx.colors();
         let base_color = colors.surface_tertiary;
         // Reduced motion collapses every animation type to `None`.
-        let animation = if cx.reduce_motion() {
+        let animation = if ActiveTheme::reduce_motion(cx) {
             SkeletonAnimation::None
         } else {
             self.animation_type

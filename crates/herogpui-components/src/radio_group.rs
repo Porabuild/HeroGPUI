@@ -654,7 +654,7 @@ impl RenderOnce for RadioGroup {
                 let click_focus = group_focus.clone();
                 let click_form_state = self.form_state.clone();
                 row = row.on_click(move |_, window, cx| {
-                    window.focus(&click_focus);
+                    window.focus(&click_focus, cx);
                     click_cursor.update(cx, |v, cx| {
                         *v = i;
                         cx.notify();
