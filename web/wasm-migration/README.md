@@ -12,9 +12,9 @@ vendors the exact recipe:
 - `source.json` — the baseline commit of this repository the migration starts
   from, plus SHA256 pins for the patch, the compiled `.wasm` and the
   `wasm-bindgen` glue.
-- `wasm-migration.patch` — `git diff` of the migration checkout against that
-  baseline. This is the wasm32 adaptation: the pinned toolchain, `.cargo`
-  flags, and the component/gallery changes the older GPUI needs.
+- `wasm-migration.patch` — the migration checkout's tracked changes and new
+  crate/gallery sources against that baseline, including bundled OFL fonts.
+  This includes the pinned toolchain, `.cargo` flags, and wasm32 adaptations.
 
 ## Reproducing the artifact
 
@@ -44,9 +44,11 @@ Refresh the patch whenever the migration source changes, in the same commit as
 the artifact it produced:
 
 ```powershell
-cd D:\herogpui-wasm
-git diff > <repo>\web\wasm-migration\wasm-migration.patch
+cd <repo>\web
+pnpm run wasm:vendor
+pnpm run wasm:vendor:check
 ```
 
-then regenerate `source.json`'s hashes. `.shots/parity-loop.ps1` does both as
-part of each component slice.
+The vendor command updates `source.json` with the patch and artifact hashes.
+It uses a temporary index so staged and untracked build sources are included
+without changing the migration checkout's staging area.

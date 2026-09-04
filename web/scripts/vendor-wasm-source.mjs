@@ -12,9 +12,10 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { tmpdir } from "node:os";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const outDir = join(repoRoot, "web", "wasm-migration");
@@ -29,60 +30,85 @@ function flag(name, fallback) {
   return !value || value.startsWith("--") ? true : value;
 }
 
-const wasmRoot = flag("--wasm-root", "D:/herogpui-wasm");
-const check = flag("--check", false) === true;
-
-if (!existsSync(join(wasmRoot, ".git"))) {
-  throw new Error(`${wasmRoot} is not a git checkout; pass --wasm-root`);
+export function sourcePatch(wasmRoot) {
+  const temporary = mkdtempSync(join(tmpdir(), "herogpui-vendor-"));
+  const env = { ...process.env, GIT_INDEX_FILE: join(temporary, "index") };
+  const git = (...args) =>
+    execFileSync("git", ["-C", wasmRoot, "-c", "core.autocrlf=false", ...args], {
+      env,
+      encoding: "utf8",
+      maxBuffer: 1 << 28,
+    });
+  try {
+    // An isolated index includes staged edits and new build sources without
+    // changing the migration checkout's real staging area.
+    git("read-tree", "HEAD");
+    git("add", "-u");
+    git("add", "--", "crates", "gallery");
+    return git("diff", "--cached", "--binary", "HEAD");
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
 }
 
-const git = (...args) =>
-  execFileSync("git", ["-C", wasmRoot, ...args], { encoding: "utf8", maxBuffer: 1 << 28 });
+function run() {
+  const wasmRoot = flag("--wasm-root", "D:/herogpui-wasm");
+  const check = flag("--check", false) === true;
 
-const baselineCommit = git("rev-parse", "HEAD").trim();
-// Line endings differ between the two checkouts; a literal diff keeps the
-// patch appliable and its hash stable across machines.
-const patch = git("-c", "core.autocrlf=false", "diff");
+  if (!existsSync(join(wasmRoot, ".git"))) {
+    throw new Error(`${wasmRoot} is not a git checkout; pass --wasm-root`);
+  }
 
-const sha = (buffer) => createHash("sha256").update(buffer).digest("hex");
-const parity = JSON.parse(readFileSync(parityPath, "utf8"));
-const meta = {
-  baselineCommit,
-  patch: "wasm-migration.patch",
-  patchSha256: sha(Buffer.from(patch, "utf8")),
-  artifactSha256: parity.artifactSha256,
-  glueSha256: parity.glueSha256,
-};
+  const git = (...args) =>
+    execFileSync("git", ["-C", wasmRoot, ...args], { encoding: "utf8", maxBuffer: 1 << 28 });
 
-if (check) {
-  const failures = [];
-  if (!existsSync(patchPath) || !existsSync(metaPath)) {
-    failures.push("web/wasm-migration is missing; run vendor-wasm-source.mjs");
+  const baselineCommit = git("rev-parse", "HEAD").trim();
+  // Line endings differ between the two checkouts; a literal diff keeps the
+  // patch appliable and its hash stable across machines.
+  const patch = sourcePatch(wasmRoot);
+
+  const sha = (buffer) => createHash("sha256").update(buffer).digest("hex");
+  const parity = JSON.parse(readFileSync(parityPath, "utf8"));
+  const meta = {
+    baselineCommit,
+    patch: "wasm-migration.patch",
+    patchSha256: sha(Buffer.from(patch, "utf8")),
+    artifactSha256: parity.artifactSha256,
+    glueSha256: parity.glueSha256,
+  };
+
+  if (check) {
+    const failures = [];
+    if (!existsSync(patchPath) || !existsSync(metaPath)) {
+      failures.push("web/wasm-migration is missing; run vendor-wasm-source.mjs");
+    } else {
+      const vendored = JSON.parse(readFileSync(metaPath, "utf8"));
+      const onDisk = sha(readFileSync(patchPath));
+      if (vendored.baselineCommit !== baselineCommit) {
+        failures.push(`baseline ${vendored.baselineCommit} != checkout ${baselineCommit}`);
+      }
+      if (vendored.patchSha256 !== meta.patchSha256) {
+        failures.push("vendored patch is stale against the live migration checkout");
+      }
+      if (onDisk !== vendored.patchSha256) {
+        failures.push("wasm-migration.patch does not match its recorded hash");
+      }
+      for (const key of ["artifactSha256", "glueSha256"]) {
+        if (vendored[key] !== meta[key]) failures.push(`${key} does not match wasm-parity.json`);
+      }
+    }
+    if (failures.length) {
+      for (const failure of failures) console.error(`FAIL ${failure}`);
+      process.exit(1);
+    }
+    console.log(`vendored wasm source matches ${baselineCommit.slice(0, 8)} + patch`);
   } else {
-    const vendored = JSON.parse(readFileSync(metaPath, "utf8"));
-    const onDisk = sha(readFileSync(patchPath));
-    if (vendored.baselineCommit !== baselineCommit) {
-      failures.push(`baseline ${vendored.baselineCommit} != checkout ${baselineCommit}`);
-    }
-    if (vendored.patchSha256 !== meta.patchSha256) {
-      failures.push("vendored patch is stale against the live migration checkout");
-    }
-    if (onDisk !== vendored.patchSha256) {
-      failures.push("wasm-migration.patch does not match its recorded hash");
-    }
-    for (const key of ["artifactSha256", "glueSha256"]) {
-      if (vendored[key] !== meta[key]) failures.push(`${key} does not match wasm-parity.json`);
-    }
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(patchPath, patch);
+    writeFileSync(metaPath, `${JSON.stringify(meta, null, 2)}\n`);
+    const lines = patch.split("\n").length;
+    console.log(`vendored ${baselineCommit.slice(0, 8)} + ${lines} patch lines`);
   }
-  if (failures.length) {
-    for (const failure of failures) console.error(`FAIL ${failure}`);
-    process.exit(1);
-  }
-  console.log(`vendored wasm source matches ${baselineCommit.slice(0, 8)} + patch`);
-} else {
-  mkdirSync(outDir, { recursive: true });
-  writeFileSync(patchPath, patch);
-  writeFileSync(metaPath, `${JSON.stringify(meta, null, 2)}\n`);
-  const lines = patch.split("\n").length;
-  console.log(`vendored ${baselineCommit.slice(0, 8)} + ${lines} patch lines`);
 }
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) run();

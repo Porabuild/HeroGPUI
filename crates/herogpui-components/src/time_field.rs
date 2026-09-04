@@ -1263,7 +1263,7 @@ impl RenderOnce for TimeField {
             .h(util::FIELD_HEIGHT)
             .rounded(util::field_radius(cx))
             .text_size(util::FIELD_TEXT)
-            .font_family("Consolas")
+            .font_family(util::MONO_FONT)
             .text_color(colors.field.foreground);
 
         group = util::apply_field_chrome(

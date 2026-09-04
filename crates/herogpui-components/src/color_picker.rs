@@ -3897,7 +3897,7 @@ impl RenderOnce for ColorPicker {
         panel = panel.child(
             div()
                 .text_size(px(12.))
-                .font_family("Consolas")
+                .font_family(util::MONO_FONT)
                 .text_color(colors.muted)
                 .child(self.value.to_hex()),
         );

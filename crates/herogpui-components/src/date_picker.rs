@@ -3148,7 +3148,7 @@ impl RenderOnce for DateField {
             .items_center()
             .gap(px(2.))
             .text_size(crate::util::FIELD_TEXT)
-            .font_family("Consolas")
+            .font_family(crate::util::MONO_FONT)
             .text_color(colors.field.foreground)
             .when(!self.bare, |el| {
                 // `.date-input-group` is `h-9 items-center overflow-hidden`

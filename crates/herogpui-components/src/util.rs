@@ -4,6 +4,13 @@ use gpui::{App, BorrowAppContext, Div, Hsla, ParentElement, Pixels, Styled};
 use herogpui_core::{FieldVariant, Prominence};
 use herogpui_theme::ActiveTheme;
 
+// Browser hosts register the bundled mono family before opening a window.
+pub(crate) const MONO_FONT: &str = if cfg!(target_family = "wasm") {
+    "JetBrains Mono"
+} else {
+    "Consolas"
+};
+
 /// The one height every v3 form field has: `.date-input-group` and
 /// `.color-input-group` are `h-9`, and `.input`'s `py-2` plus its line box comes
 /// to the same 36px. v3 removed `size` from the field
