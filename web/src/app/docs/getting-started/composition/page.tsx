@@ -46,9 +46,9 @@ export default function CompositionPage() {
 
       <p>
         HeroUI v3 is a compound-component library: a card is a <code>Card.Root</code> holding a{" "}
-        <code>Card.Header</code> holding a <code>Card.Title</code>. There is no JSX here, so the same
-        shape is expressed three ways depending on what the part actually is. Telling them apart is
-        most of learning the API.
+        <code>Card.Header</code> holding a <code>Card.Title</code>. There is no JSX here, so the
+        same shape is expressed three ways depending on what the part actually is. Telling them
+        apart is most of learning the API.
       </p>
 
       <h2 id="builders">Every component is a builder</h2>
@@ -64,8 +64,8 @@ export default function CompositionPage() {
       <h2 id="parts">Parts are components too</h2>
       <p>
         Where v3 nests a named part, this port exports it as its own builder and you nest it the
-        same way. The parent keeps the padding and the geometry; the parts carry only their own
-        text styling:
+        same way. The parent keeps the padding and the geometry; the parts carry only their own text
+        styling:
       </p>
       <div className="mt-4">
         <CodeBlock code={PARTS} lang="rust" />
@@ -73,9 +73,9 @@ export default function CompositionPage() {
       <Callout kind="note" title="Composed parts draw only where composed">
         A part that v3 renders conditionally behaves the same here. A modal draws its close X only
         if you compose one, so omitting it is how you get a modal without one — <code>Modal</code>{" "}
-        has no boolean for it. <code>Popover</code> does take{" "}
-        <code>show_close_button</code>, because v3 gives it one; the port follows v3 per component
-        rather than imposing one rule on both.
+        has no boolean for it. <code>Popover</code> does take <code>show_close_button</code>,
+        because v3 gives it one; the port follows v3 per component rather than imposing one rule on
+        both.
       </Callout>
       <div className="mt-4">
         <CodeBlock code={COMPOSED_PART} lang="rust" />
@@ -83,10 +83,11 @@ export default function CompositionPage() {
 
       <h2 id="render-props">Render props are inverted, not dropped</h2>
       <p>
-        v3 passes values <em>into</em> a child render function — <code>Table.SortableColumnHeader</code>{" "}
-        receives <code>sortDirection</code>, <code>Pagination.Link</code> receives{" "}
-        <code>isActive</code>. A monolithic builder already computes those values, so instead of
-        asking you to supply the part, it hands the values to a closure:
+        v3 passes values <em>into</em> a child render function —{" "}
+        <code>Table.SortableColumnHeader</code> receives <code>sortDirection</code>,{" "}
+        <code>Pagination.Link</code> receives <code>isActive</code>. A monolithic builder already
+        computes those values, so instead of asking you to supply the part, it hands the values to a
+        closure:
       </p>
       <div className="mt-4">
         <CodeBlock code={RENDER_PROP} lang="rust" />

@@ -58,21 +58,21 @@ export default function StatePage() {
         <CodeBlock code={SEED} lang="rust" />
       </div>
       <p>
-        Where the controlled prop is itself an <code>Option</code> — <code>RadioGroup::value(None)</code>{" "}
-        — supplying it at all is what makes the component controlled. The pairs are{" "}
-        <code>is_selected</code>/<code>default_selected</code>, <code>is_open</code>/
-        <code>default_open</code>, <code>selected_key</code>/<code>default_selected_key</code>,{" "}
-        <code>expanded_keys</code>/<code>default_expanded_keys</code>, and <code>value</code>/
-        <code>default_value</code>. The full list per component is in{" "}
-        <Link href="/llms.txt">llms.txt</Link>.
+        Where the controlled prop is itself an <code>Option</code> —{" "}
+        <code>RadioGroup::value(None)</code> — supplying it at all is what makes the component
+        controlled. The pairs are <code>is_selected</code>/<code>default_selected</code>,{" "}
+        <code>is_open</code>/<code>default_open</code>, <code>selected_key</code>/
+        <code>default_selected_key</code>, <code>expanded_keys</code>/
+        <code>default_expanded_keys</code>, and <code>value</code>/<code>default_value</code>. The
+        full list per component is in <Link href="/llms.txt">llms.txt</Link>.
       </p>
 
       <h2 id="ids-are-the-keyed-state">An uncontrolled value lives under the id</h2>
       <p>
-        Uncontrolled state lives in <code>Window::use_keyed_state</code>, keyed on the component&apos;s
-        id. That is why <code>Popover</code>, <code>Accordion</code> and <code>Tooltip</code> take an{" "}
-        <code>id</code> even though they render no label from it: it is what tells two instances
-        apart.
+        Uncontrolled state lives in <code>Window::use_keyed_state</code>, keyed on the
+        component&apos;s id. That is why <code>Popover</code>, <code>Accordion</code> and{" "}
+        <code>Tooltip</code> take an <code>id</code> even though they render no label from it: it is
+        what tells two instances apart.
       </p>
       <div className="mt-4">
         <CodeBlock code={IDS} lang="rust" />
@@ -109,9 +109,9 @@ export default function StatePage() {
         <CodeBlock code={SEEDED} lang="rust" />
       </div>
       <p>
-        The others are <code>NumberState::with_value</code>, <code>CalendarState::with_selected</code>,{" "}
-        <code>DateRangeState::with_range</code> and <code>TimeState::with_value</code>. Read the
-        current value back through the entity:
+        The others are <code>NumberState::with_value</code>,{" "}
+        <code>CalendarState::with_selected</code>, <code>DateRangeState::with_range</code> and{" "}
+        <code>TimeState::with_value</code>. Read the current value back through the entity:
       </p>
       <div className="mt-4">
         <CodeBlock code={READ} lang="rust" />
@@ -121,8 +121,8 @@ export default function StatePage() {
       <p>
         Change callbacks take the new value, the window and the app:{" "}
         <code>Fn(&amp;T, &amp;mut Window, &amp;mut App)</code>. Anything captured by one must be{" "}
-        <code>Arc</code>-cloned, which is GPUI&apos;s constraint rather than this
-        library&apos;s — a callback outlives the frame that built it.
+        <code>Arc</code>-cloned, which is GPUI&apos;s constraint rather than this library&apos;s — a
+        callback outlives the frame that built it.
       </p>
       <p>
         The verbs follow v3 exactly rather than being regularised: <code>on_press</code> on the

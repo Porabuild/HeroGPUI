@@ -68,8 +68,14 @@ function loadSections(source) {
 }
 
 function diffLines(wasmCode, nativeCode) {
-  const removed = wasmCode.split("\n").map((line) => line.trim()).filter(Boolean);
-  const nativeLines = nativeCode.split("\n").map((line) => line.trim()).filter(Boolean);
+  const removed = wasmCode
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const nativeLines = nativeCode
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
   const removedSet = new Set(removed);
   const nativeSet = new Set(nativeLines);
   return {
@@ -93,7 +99,9 @@ function driftKeys(parity, slug) {
 
 const [mode, slug] = process.argv.slice(2);
 if (!mode || !slug || mode.startsWith("--") || slug.startsWith("--")) {
-  throw new Error("usage: sync-parity-component.mjs (plan|sync) <slug> [--composition-only] [--keys a,b] [--native-source p] [--wasm-source p]");
+  throw new Error(
+    "usage: sync-parity-component.mjs (plan|sync) <slug> [--composition-only] [--keys a,b] [--native-source p] [--wasm-source p]",
+  );
 }
 const nativePath = flag("--native-source", NATIVE_DEFAULT);
 const wasmPath = flag("--wasm-source", WASM_DEFAULT);
@@ -124,7 +132,9 @@ if (mode === "plan") {
       ? process.argv[keysIndex + 1]
       : null;
   const wanted = onlyKeys
-    ? String(onlyKeys).split(",").map((key) => (key.includes("/") ? key : `${slug}/${key}`))
+    ? String(onlyKeys)
+        .split(",")
+        .map((key) => (key.includes("/") ? key : `${slug}/${key}`))
     : keys;
   const compositionOnly = flag("--composition-only", false);
   let done = 0;

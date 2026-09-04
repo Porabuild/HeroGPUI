@@ -564,7 +564,9 @@ body {
    Strictly NO underlines. */
 .site-nav > a {
   border-radius: 0.375rem;
-  transition: color 0.15s ease, background-color 0.15s ease;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
 }
 
 .site-nav > a:hover {
