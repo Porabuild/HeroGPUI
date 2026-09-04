@@ -128,7 +128,14 @@ impl RoleColor {
         match self.soft_foreground {
             SoftForeground::RoleForeground => self.foreground,
             SoftForeground::Mix { color, foreground } => {
-                mix_oklab(self.color, page_foreground, color / (color + foreground))
+                // `mix_oklab`'s `t` is the weight of its *second* argument, so
+                // the page foreground's normalised share goes here — passing the
+                // role's share paints the text as `F%` role over `C%` ink.
+                mix_oklab(
+                    self.color,
+                    page_foreground,
+                    foreground / (color + foreground),
+                )
             }
         }
     }
@@ -449,6 +456,15 @@ impl ThemeColors {
 mod tests {
     use super::*;
 
+    fn rgb8(c: Hsla) -> (u8, u8, u8) {
+        let r = gpui::Rgba::from(c);
+        (
+            (r.r * 255.0).round() as u8,
+            (r.g * 255.0).round() as u8,
+            (r.b * 255.0).round() as u8,
+        )
+    }
+
     #[test]
     fn accent_soft_is_fifteen_percent_accent() {
         let c = ThemeColors::light();
@@ -499,7 +515,7 @@ mod tests {
             match foreground {
                 Some((color, page)) => assert_eq!(
                     role.soft_foreground(colors.foreground),
-                    mix_oklab(role.color, colors.foreground, color / (color + page)),
+                    mix_oklab(role.color, colors.foreground, page / (color + page)),
                     "{role_name} soft-foreground mix"
                 ),
                 None => assert_eq!(
@@ -508,6 +524,113 @@ mod tests {
                     "{role_name} soft-foreground follows the role"
                 ),
             }
+        }
+    }
+
+    /// Every semantic token, resolved the way a browser resolves it on
+    /// heroui.com at v3.2.4 — light and dark. A weight-for-weight comparison
+    /// against the same formula cannot catch a formula that is wrong, so these
+    /// are the pixels themselves.
+    #[test]
+    fn every_token_resolves_to_the_stylesheets_own_pixels() {
+        type Pick = fn(&ThemeColors) -> Hsla;
+        /// `(name, accessor, light sRGB+alpha, dark sRGB+alpha)`.
+        type Row = (&'static str, Pick, (u8, u8, u8, f32), (u8, u8, u8, f32));
+        #[rustfmt::skip]
+        let table: &[Row] = &[
+            ("accent", |c| c.accent.color, (4, 133, 247, 1.00), (4, 133, 247, 1.00)),
+            ("accent_foreground", |c| c.accent.foreground, (252, 252, 252, 1.00), (252, 252, 252, 1.00)),
+            ("accent_hover", |c| c.accent.hover(), (53, 146, 249, 1.00), (53, 146, 249, 1.00)),
+            ("accent_soft", |c| c.accent.soft(), (4, 133, 247, 0.15), (4, 133, 247, 0.12)),
+            ("accent_soft_foreground", |c| c.accent.soft_foreground(c.foreground), (30, 99, 174, 1.00), (97, 168, 251, 1.00)),
+            ("backdrop", |c| c.backdrop, (0, 0, 0, 0.50), (0, 0, 0, 0.60)),
+            ("background", |c| c.background, (245, 245, 245, 1.00), (6, 6, 7, 1.00)),
+            ("background_inverse", |c| c.background_inverse(), (24, 24, 27, 1.00), (252, 252, 252, 1.00)),
+            ("background_secondary", |c| c.background_secondary(), (235, 235, 235, 1.00), (12, 12, 14, 1.00)),
+            ("background_tertiary", |c| c.background_tertiary(), (225, 225, 225, 1.00), (19, 19, 22, 1.00)),
+            ("border", |c| c.border, (221, 222, 224, 1.00), (40, 40, 44, 1.00)),
+            ("border_secondary", |c| c.border_secondary(), (198, 198, 199, 1.00), (67, 67, 69, 1.00)),
+            ("border_tertiary", |c| c.border_tertiary(), (168, 168, 169, 1.00), (92, 92, 95, 1.00)),
+            ("danger", |c| c.danger.color, (255, 56, 60, 1.00), (219, 59, 62, 1.00)),
+            ("danger_foreground", |c| c.danger.foreground, (252, 252, 252, 1.00), (252, 252, 252, 1.00)),
+            ("danger_hover", |c| c.danger.hover(), (255, 85, 81, 1.00), (225, 84, 81, 1.00)),
+            ("danger_soft", |c| c.danger.soft(), (255, 56, 60, 0.15), (219, 59, 62, 0.15)),
+            ("danger_soft_foreground", |c| c.danger.soft_foreground(c.foreground), (164, 53, 51, 1.00), (235, 120, 114, 1.00)),
+            ("default", |c| c.default.color, (235, 235, 236, 1.00), (39, 39, 42, 1.00)),
+            ("default_foreground", |c| c.default.foreground, (24, 24, 27, 1.00), (252, 252, 252, 1.00)),
+            ("default_hover", |c| c.default.hover(), (225, 225, 226, 1.00), (46, 46, 49, 1.00)),
+            ("default_soft", |c| c.default.soft(), (235, 235, 235, 0.50), (39, 39, 42, 0.50)),
+            ("default_soft_foreground", |c| c.default.soft_foreground(c.foreground), (24, 24, 27, 1.00), (252, 252, 252, 1.00)),
+            ("field_background", |c| c.field.background, (255, 255, 255, 1.00), (24, 24, 27, 1.00)),
+            ("field_foreground", |c| c.field.foreground, (24, 24, 27, 1.00), (252, 252, 252, 1.00)),
+            ("field_placeholder", |c| c.field.placeholder, (113, 113, 122, 1.00), (159, 159, 169, 1.00)),
+            ("focus", |c| c.focus, (4, 133, 247, 1.00), (4, 133, 247, 1.00)),
+            ("foreground", |c| c.foreground, (24, 24, 27, 1.00), (252, 252, 252, 1.00)),
+            ("link", |c| c.link, (24, 24, 27, 1.00), (252, 252, 252, 1.00)),
+            ("muted", |c| c.muted, (113, 113, 122, 1.00), (159, 159, 169, 1.00)),
+            ("overlay", |c| c.overlay.background, (255, 255, 255, 1.00), (24, 24, 27, 1.00)),
+            ("overlay_foreground", |c| c.overlay.foreground, (24, 24, 27, 1.00), (252, 252, 252, 1.00)),
+            ("scrollbar", |c| c.scrollbar, (24, 24, 27, 0.15), (255, 255, 255, 0.15)),
+            ("segment", |c| c.segment.background, (255, 255, 255, 1.00), (70, 70, 76, 1.00)),
+            ("segment_foreground", |c| c.segment.foreground, (24, 24, 27, 1.00), (252, 252, 252, 1.00)),
+            ("separator", |c| c.separator, (228, 228, 231, 1.00), (33, 33, 36, 1.00)),
+            ("separator_secondary", |c| c.separator_secondary(), (216, 216, 216, 1.00), (52, 52, 55, 1.00)),
+            ("separator_tertiary", |c| c.separator_tertiary(), (205, 205, 206, 1.00), (60, 60, 63, 1.00)),
+            ("success", |c| c.success.color, (23, 201, 100, 1.00), (23, 201, 100, 1.00)),
+            ("success_foreground", |c| c.success.foreground, (24, 24, 27, 1.00), (24, 24, 27, 1.00)),
+            ("success_hover", |c| c.success.hover(), (33, 181, 93, 1.00), (33, 181, 93, 1.00)),
+            ("success_soft", |c| c.success.soft(), (23, 201, 100, 0.15), (23, 201, 100, 0.12)),
+            ("success_soft_foreground", |c| c.success.soft_foreground(c.foreground), (43, 119, 69, 1.00), (116, 216, 143, 1.00)),
+            ("surface", |c| c.surface.background, (255, 255, 255, 1.00), (24, 24, 27, 1.00)),
+            ("surface_foreground", |c| c.surface.foreground, (24, 24, 27, 1.00), (252, 252, 252, 1.00)),
+            ("surface_hover", |c| c.surface.hover(), (234, 234, 234, 1.00), (39, 39, 42, 1.00)),
+            ("surface_secondary", |c| c.surface_secondary, (239, 239, 240, 1.00), (35, 35, 37, 1.00)),
+            ("surface_tertiary", |c| c.surface_tertiary, (234, 234, 235, 1.00), (38, 39, 40, 1.00)),
+            ("warning", |c| c.warning.color, (245, 165, 36, 1.00), (247, 183, 80, 1.00)),
+            ("warning_foreground", |c| c.warning.foreground, (24, 24, 27, 1.00), (24, 24, 27, 1.00)),
+            ("warning_hover", |c| c.warning.hover(), (220, 150, 42, 1.00), (222, 165, 76, 1.00)),
+            ("warning_soft", |c| c.warning.soft(), (245, 165, 36, 0.15), (247, 183, 80, 0.12)),
+            ("warning_soft_foreground", |c| c.warning.soft_foreground(c.foreground), (133, 95, 46, 1.00), (249, 203, 134, 1.00)),
+        ];
+        for (name, pick, light, dark) in table {
+            for (mode, c, want) in [
+                ("light", ThemeColors::light(), light),
+                ("dark", ThemeColors::dark(), dark),
+            ] {
+                let got = pick(&c);
+                let (r, g, b) = rgb8(got);
+                // The reference was read back from a premultiplied surface, so
+                // a translucent token's channels carry `1/alpha` of rounding.
+                let slack = (2.0 / want.3).ceil() as i32;
+                let near = |a: u8, b: u8| (a as i32 - b as i32).abs() <= slack;
+                assert!(
+                    near(r, want.0) && near(g, want.1) && near(b, want.2)
+                        && (got.a - want.3).abs() < 0.011,
+                    "{name} ({mode}) resolved to ({r}, {g}, {b}, {:.3}),                      upstream resolves ({}, {}, {}, {:.3})",
+                    got.a, want.0, want.1, want.2, want.3
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn soft_foreground_resolves_to_the_stylesheets_own_pixels() {
+        // The weights alone cannot catch an inverted mix, so pin what a browser
+        // resolves `--color-<role>-soft-foreground` to at v3.2.4 in light mode.
+        // A soft label reads as a tinted version of its role, not as body ink.
+        let c = ThemeColors::light();
+        for (role_name, expected) in [
+            ("accent", (30, 99, 174)),
+            ("success", (43, 119, 69)),
+            ("warning", (133, 95, 46)),
+            ("danger", (164, 53, 51)),
+        ] {
+            let got = rgb8(c.role(role_name).soft_foreground(c.foreground));
+            let near = |a: u8, b: u8| (a as i32 - b as i32).abs() <= 2;
+            assert!(
+                near(got.0, expected.0) && near(got.1, expected.1) && near(got.2, expected.2),
+                "{role_name} soft-foreground was {got:?}, expected {expected:?}"
+            );
         }
     }
 
@@ -522,7 +645,7 @@ mod tests {
         // `ThemeBuilder::foreground` override flows through at render time.
         assert_eq!(
             custom.accent.soft_foreground(custom.foreground),
-            mix_oklab(custom.accent.color, custom.foreground, 0.70)
+            mix_oklab(custom.accent.color, custom.foreground, 0.30)
         );
         assert_ne!(
             custom.accent.soft_foreground(custom.foreground),

@@ -301,7 +301,7 @@ mod tests {
             mix_oklab(
                 theme.colors.success.color,
                 theme.colors.foreground,
-                80.0 / 140.0
+                60.0 / 140.0
             )
         );
     }
