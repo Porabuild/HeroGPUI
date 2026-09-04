@@ -151,7 +151,10 @@ every breakpoint. A labelled button has no minimum width: it hugs its content, a
 `currency_sign`, `unit_display`, `minimum_fraction_digits`,
 `maximum_fraction_digits` and `use_grouping`. Taken by `Meter`, `NumberField`,
 `ProgressBar`, `ProgressCircle` and `Slider`. `locale` is not offered: choosing
-separators and currency placement per locale needs CLDR data.
+separators, digit systems and currency placement per locale needs CLDR *number*
+data, and `herogpui-core`, where `NumberFormat` lives, carries no ICU
+dependency. The date components do carry one, which is why a calendar follows
+the reader's locale and a formatted number does not.
 
 v3 replaced v2's `variant` × `color` matrix with distinct enums:
 
@@ -333,7 +336,7 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
   - `empty_state(el)` for `renderEmptyState`; `is_pending(bool)` + `on_load_more(fn)` for the scroll-intersection load-more sentinel.
 
 ### Date and Time
-- **DateConstraints** — shared by all five: `min_value`, `max_value`, `is_date_unavailable(fn)`, `first_day_of_week(Weekday)`, `weeks_in_month`. Each component takes them individually, or a whole set via `.constraints(..)`. The default first weekday comes from the operating system's regional date preferences and ICU4X's compiled CLDR week data; invalid or unavailable preferences fall back to Sunday, and `first_day_of_week` remains an explicit override.
+- **DateConstraints** — shared by all five: `min_value`, `max_value`, `is_date_unavailable(fn)`, `first_day_of_week(Weekday)`, `weeks_in_month`. Each component takes them individually, or a whole set via `.constraints(..)`. The default first weekday comes from the operating system's regional date preferences and ICU4X's compiled CLDR week data; invalid or unavailable preferences fall back to Sunday, and `first_day_of_week` remains an explicit override. The month grid's own text follows the same preference: the month and weekday names, and the order of the year-and-month heading, come from ICU4X's compiled CLDR (a Japanese reader gets a year-first heading, not a translated template), falling back to English when CLDR does not know the reported locale. On `wasm32-unknown-unknown` there is no operating system to ask -- the browser exposes no locale to `locale_config` -- so a calendar compiled for the web always draws that English fallback, whatever the visitor's browser language.
 - **Calendar** — `CalendarState::new(cx)`, `Calendar::new(state).value(..).is_disabled().is_read_only().is_invalid().focused_value().on_focus_change().on_change(Option<Date>)` plus the constraints
 - **DateField** — three editable date segments in the operating system's regional order and separators, plus optional time segments in the regional order, separators, padding, and localized day-period names, with click-to-focus, arrow steppers that roll over month and year correctly, and the `segment(|FieldSegment, text|)` render prop. The ISO text stays in the bound `InputState`, so `name`, `FormField::text` and `on_change` are unchanged. `DateField::new(InputState).label().full_width().is_required().is_invalid().variant().placeholder_value().should_force_leading_zeros(true).value(Option<Date>, cx).on_change(Option<Date>)`; month, day and hour padding can be forced to two digits.
   - constraints: `min_value`, `max_value`, `is_date_unavailable`, or `constraints(DateConstraints)`. The three ways a typed date can be wrong — unparseable, out of range, unavailable — report as distinct messages, and `on_change` yields `None` for a date the constraints reject, so a caller never receives a value it said it would not accept.
