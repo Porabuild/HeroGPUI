@@ -5,24 +5,20 @@ import { useEffect, useRef, useState } from "react";
 import { publicUrl } from "@/lib/public-url";
 
 /**
- * One embedded instance of the HeroGPUI desktop gallery — the real Rust/GPUI
- * application, compiled to WebAssembly — showing every example for one
- * component. Not a screenshot and not a recreation in React.
+ * One embedded HeroGPUI example — the real Rust/GPUI component, compiled to
+ * WebAssembly. Not a screenshot and not a recreation in React.
  *
  * GPUI's web target attaches a single canvas to `document.body` and supports
  * one top-level window per process, so a page can only ever host one of
  * these, never one per example. The `story` query parameter selects which
- * component the shared gallery module renders; the module itself is cached
- * across navigations by the browser.
+ * component the shared module renders, while `section` selects its one example.
+ * The module itself is cached across navigations by the browser.
  *
- * Renders nothing when `NEXT_PUBLIC_GALLERY_URL` is unset — the wasm
- * artifact is not hosted yet, and an empty preview is the honest state until
- * it is. Callers that need the existing screenshot fallback in that case
- * (see the component detail page) check the same env var themselves rather
- * than relying on this returning null.
+ * The checked-in artifact is served from `/gallery` by default. Deployments
+ * may override `NEXT_PUBLIC_GALLERY_URL` when the artifact is hosted elsewhere.
  */
 
-const GALLERY_BASE = process.env.NEXT_PUBLIC_GALLERY_URL ?? "";
+const GALLERY_BASE = process.env.NEXT_PUBLIC_GALLERY_URL || "/gallery";
 
 const ABSOLUTE_URL_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
 
@@ -42,9 +38,14 @@ function galleryOrigin(base: string): string {
   return ABSOLUTE_URL_RE.test(base) ? base : publicUrl(base);
 }
 
-function embedUrl(slug: string, theme: "light" | "dark"): string {
+function embedUrl(slug: string, section: string, theme: "light" | "dark"): string {
   const base = galleryOrigin(GALLERY_BASE).replace(/\/+$/, "");
-  const query = new URLSearchParams({ story: slug, theme }).toString();
+  const query = new URLSearchParams({
+    preview: "component",
+    section,
+    story: slug,
+    theme,
+  }).toString();
   // Point at the real file so relative imports resolve to
   // /gallery/herogpui_web.js. The bare "/gallery/?story=…" form 308s to
   // "/gallery?story=…" (Next strips the trailing slash), and the module
@@ -57,6 +58,8 @@ export interface GalleryFrameProps {
   slug: string;
   /** Component title, used to build an honest, specific iframe title. */
   title: string;
+  /** Exact native gallery section rendered as the live specimen. */
+  section: string;
   className?: string;
   /**
    * Render the window bar and viewport without the outer card border and
@@ -66,7 +69,7 @@ export interface GalleryFrameProps {
   bare?: boolean;
 }
 
-export function GalleryFrame({ slug, title, className, bare = false }: GalleryFrameProps) {
+export function GalleryFrame({ slug, title, section, className, bare = false }: GalleryFrameProps) {
   const [visible, setVisible] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -76,7 +79,6 @@ export function GalleryFrame({ slug, title, className, bare = false }: GalleryFr
   // here (post-mount), never during render, so server and first-paint
   // client markup match exactly.
   useEffect(() => {
-    if (!GALLERY_BASE) return;
     setTheme(readTheme());
     const observer = new MutationObserver(() => setTheme(readTheme()));
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
@@ -87,7 +89,6 @@ export function GalleryFrame({ slug, title, className, bare = false }: GalleryFr
   // near the viewport, so the multi-megabyte wasm module never loads on
   // page view alone. Disconnects itself on first intersection.
   useEffect(() => {
-    if (!GALLERY_BASE) return;
     const node = viewportRef.current;
     if (!node) return;
     const observer = new IntersectionObserver(
@@ -102,8 +103,6 @@ export function GalleryFrame({ slug, title, className, bare = false }: GalleryFr
     return () => observer.disconnect();
   }, []);
 
-  if (!GALLERY_BASE) return null;
-
   const frame = (
     <>
       <div aria-hidden="true" className="window-bar">
@@ -116,14 +115,14 @@ export function GalleryFrame({ slug, title, className, bare = false }: GalleryFr
         <span className="shot-window-status">Live</span>
       </div>
       <div
-        className="relative h-[380px] bg-surface-secondary sm:h-[480px] lg:h-[600px]"
+        className="relative h-[320px] bg-surface-secondary sm:h-[360px] lg:h-[400px]"
         ref={viewportRef}
       >
         {visible ? (
           <iframe
             className="absolute inset-0 h-full w-full border-0"
-            src={embedUrl(slug, theme)}
-            title={`${title}, rendered live by HeroGPUI compiled to WebAssembly`}
+            src={embedUrl(slug, section, theme)}
+            title={`${title} ${section}, rendered live by HeroGPUI compiled to WebAssembly`}
           />
         ) : (
           <div aria-hidden="true" className="absolute inset-0" />
@@ -142,7 +141,10 @@ export function GalleryFrame({ slug, title, className, bare = false }: GalleryFr
         {frame}
       </div>
       <figcaption className="mt-3 flex items-center gap-2 text-xs text-muted">
-        <span aria-hidden="true" className="shot-window-dot size-1.5 shrink-0 rounded-full bg-accent" />
+        <span
+          aria-hidden="true"
+          className="shot-window-dot size-1.5 shrink-0 rounded-full bg-accent"
+        />
         HeroGPUI itself, compiled to WebAssembly and running in this frame. Not a screenshot, not a
         recreation.
       </figcaption>

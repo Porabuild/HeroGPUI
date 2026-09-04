@@ -32,6 +32,19 @@ macro_rules! component_doc_section {
     };
 }
 
+macro_rules! component_preview_section {
+    (($heading:expr, $body:expr $(,)?), $cx:expr) => {
+        if crate::control::section_wanted($heading, $cx) {
+            return ($body).into_any_element();
+        }
+    };
+    (($heading:expr, $description:literal, $body:expr $(,)?), $cx:expr) => {
+        if crate::control::section_wanted($heading, $cx) {
+            return ($body).into_any_element();
+        }
+    };
+}
+
 macro_rules! component_doc_page {
     (
         $title:expr,
@@ -40,13 +53,18 @@ macro_rules! component_doc_page {
         vec![$($section:tt),* $(,)?],
         $cx:expr $(,)?
     ) => {
-        crate::pages::component_doc_page(
-            $title,
-            $description,
-            $import_line,
-            vec![$(component_doc_section!($section)),*],
-            $cx,
-        )
+        if crate::control::preview_only($cx) {
+            $(component_preview_section!($section, $cx);)*
+            gpui::div().into_any_element()
+        } else {
+            crate::pages::component_doc_page(
+                $title,
+                $description,
+                $import_line,
+                vec![$(component_doc_section!($section)),*],
+                $cx,
+            )
+        }
     };
 }
 

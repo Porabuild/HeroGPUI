@@ -427,6 +427,21 @@ impl Render for Gallery {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<'_, Self>) -> impl IntoElement {
         let colors = cx.colors().clone();
 
+        if crate::control::preview_only(cx) {
+            return h::util::app_focus_root(gpui::div(), _window, cx)
+                .size_full()
+                .flex()
+                .items_center()
+                .justify_center()
+                .p(px(32.))
+                .bg(colors.background)
+                .text_color(colors.foreground)
+                .font_family(FONT_FAMILY)
+                .text_size(px(14.))
+                .line_height(px(20.))
+                .child(self.render_current_page(cx));
+        }
+
         // ---- top navbar ----------------------------------------------------
         let is_dark = cx.is_dark_theme();
         let theme_button = h::Button::new("theme-toggle")

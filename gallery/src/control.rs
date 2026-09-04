@@ -35,10 +35,28 @@ pub struct SectionFilter(pub Vec<String>);
 
 impl Global for SectionFilter {}
 
+#[derive(Default)]
+pub struct PreviewOnly(pub bool);
+
+impl Global for PreviewOnly {}
+
 /// `HEROGPUI_SECTION` seeds it; the control file replaces it.
 pub fn init_section_filter(cx: &mut App) {
     let raw = std::env::var("HEROGPUI_SECTION").unwrap_or_default();
-    cx.set_global(SectionFilter(parse_sections(&raw)));
+    set_section_filter(&raw, cx);
+}
+
+pub fn set_section_filter(raw: &str, cx: &mut App) {
+    cx.set_global(SectionFilter(parse_sections(raw)));
+}
+
+pub fn set_preview_only(preview: bool, cx: &mut App) {
+    cx.set_global(PreviewOnly(preview));
+}
+
+pub fn preview_only(cx: &App) -> bool {
+    cx.try_global::<PreviewOnly>()
+        .is_some_and(|preview| preview.0)
 }
 
 fn parse_sections(raw: &str) -> Vec<String> {

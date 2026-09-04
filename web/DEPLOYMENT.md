@@ -168,26 +168,29 @@ they live in `public/gallery/` and are served by the same deployment:
 |---|---|
 | `index.html` | the hosting page (loading spinner, error UI, boot script; canonical source: `crates/herogpui-web/index.html` in the wasm worktree) |
 | `herogpui_web.js` | `wasm-bindgen` glue |
-| `herogpui_web_bg.wasm` | the application, ~26 MB raw / ~7 MB gzipped |
+| `herogpui_web_bg.wasm` | the application, ~27.3 MiB raw / ~7.3 MiB gzipped |
 
 `next.config.ts` maps `/gallery` onto `/gallery/index.html` (public/ has no
-directory-index resolution), so `NEXT_PUBLIC_GALLERY_URL=/gallery` is the
-intended value. It is a build-time variable: setting or changing it takes
-effect on the next deployment. It is unset by default — without the artifact
-at that path, previews render nothing and pages fall back to the native
-screenshot, which is the honest state.
+directory-index resolution), so `/gallery` is the default. The checked-in
+artifact therefore renders without environment configuration.
+`NEXT_PUBLIC_GALLERY_URL` is an optional build-time override for hosting the
+artifact at another path or origin; changing it takes effect on the next
+deployment.
 
 The three files are **tracked in git** (alongside `public/shots/`): remote
 builds run `next build` alone — no Rust toolchain, no capture rig — so the
-artifact and the screenshots must ship in the tree. The 26 MB binary only
+artifact and the screenshots must ship in the tree. The wasm binary only
 changes when the wasm build is regenerated; rebuilding it means running
 the commands below and committing the result.
 
-Because the artifact lives under the same origin, the embedded gallery
+Because the artifact lives under the same origin, the embedded component
 follows the site's live light/dark toggle (`GalleryFrame` also passes
-`?theme=` at boot for the first paint). Deep links ride the query string:
-`/gallery/index.html?story=button&theme=dark` opens the Button page in dark —
-the same slug the component URLs use, resolved by the wasm itself.
+`?theme=` at boot for the first paint). Component previews use
+`?story=button&preview=component&section=Usage&theme=dark`: `story` selects the
+component and `section` selects its one example. Preview mode omits the gallery
+shell and does not construct unrelated examples. The shared wasm binary is
+still downloaded once, lazily when the preview nears the viewport, and then
+cached across component-page navigation.
 
 Known issue fixed: the embed used to point at the bare `/gallery/?story=…`
 form. Production answers that with `308 → /gallery?story=…` (Next strips the

@@ -24,10 +24,11 @@ description, then the bordered example. Keep explanatory prose outside the
 example surface on both sites; component-owned labels, helper text, values, and
 composed content remain inside the demonstrated component.
 
-Keep each component on one page, in HeroUI v3 docs order: `Usage` (the live
-preview frame stacked above the first example's code in one bordered card),
-`Anatomy` (required parts plus the parts table), `Examples` (every remaining
-example as its own card), `Styling` (styling tokens, then an h3 `States`),
-`API reference` (the props table), and `Related components` (same catalog
-category). New gallery pages must add checked-in reference metadata so the
+Keep each component on one page in HeroUI v3 docs order: `Usage` (one live
+GPUI/WASM component example stacked above its code), compact `Anatomy`,
+`Examples` (every remaining generated example), `Customization`, `API
+reference` (Props, Parts and slots, then States), and `Related components`.
+Never substitute a checked-in screenshot or embed the full gallery shell on a
+component page. The preview query must select and construct only the requested
+example. New gallery pages must add checked-in reference metadata so the
 website does not ship an examples-only component page.

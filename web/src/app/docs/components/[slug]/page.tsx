@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { GalleryFrame } from "@/components/preview/gallery-frame";
-import { NativeShot } from "@/components/preview/native-shot";
 import { Callout } from "@/components/ui/callout";
 import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
@@ -82,10 +81,6 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
   const usage = pickUsageSection(sections);
   const rest = usage ? sections.filter((section) => section !== usage) : [];
   const importLine = component.importLine || reference?.importLine || "";
-  // Both variables are NEXT_PUBLIC_, build-time-inlined, so this check runs
-  // identically on the server and in the client bundle. Unset is the
-  // shipped default until the wasm artifact is hosted (see .env.example).
-  const galleryConfigured = Boolean(process.env.NEXT_PUBLIC_GALLERY_URL);
   // Siblings in the same catalog category, the way getComponentSidebarGroups
   // groups components: one group per category, in catalog order.
   const category = catalog.categories.find((entry) => entry.components.includes(slug));
@@ -101,45 +96,35 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
         title={component.title}
       />
 
-      {usage || galleryConfigured || component.shot ? (
+      {usage ? (
         <section aria-labelledby="usage">
           <h2 id="usage">Usage</h2>
           {usage?.rust.description ? (
             <p className="mt-2 text-sm leading-6 text-muted">{usage.rust.description}</p>
           ) : null}
           <div className="mt-4 overflow-hidden rounded-xl border border-separator bg-surface">
-            {galleryConfigured ? (
-              <GalleryFrame bare slug={component.slug} title={component.title} />
-            ) : component.shot ? (
-              <div className="border-b border-separator bg-surface-secondary p-4">
-                <NativeShot
-                  alt={`${component.title} rendered natively by GPUI`}
-                  shot={component.shot}
-                  shotDark={component.shotDark}
-                />
-              </div>
-            ) : null}
-            {usage ? (
-              <div className="border-t border-separator">
-                <CodeBlock
-                  className="rounded-none border-0 bg-transparent"
-                  code={exampleCode(usage.rust)}
-                  id={`${usage.id}-code`}
-                  lang="rust"
-                />
-              </div>
-            ) : null}
-          </div>
-          {galleryConfigured ? (
-            <p className="mt-3 flex items-center gap-2 text-xs text-muted">
-              <span
-                aria-hidden="true"
-                className="shot-window-dot size-1.5 shrink-0 rounded-full bg-accent"
+            <GalleryFrame
+              bare
+              section={usage.heading}
+              slug={component.slug}
+              title={component.title}
+            />
+            <div className="border-t border-separator">
+              <CodeBlock
+                className="rounded-none border-0 bg-transparent"
+                code={exampleCode(usage.rust)}
+                id={`${usage.id}-code`}
+                lang="rust"
               />
-              HeroGPUI itself, compiled to WebAssembly and running in this frame. Not a
-              screenshot, not a recreation.
-            </p>
-          ) : null}
+            </div>
+          </div>
+          <p className="mt-3 flex items-center gap-2 text-xs text-muted">
+            <span
+              aria-hidden="true"
+              className="shot-window-dot size-1.5 shrink-0 rounded-full bg-accent"
+            />
+            Live HeroGPUI compiled to WebAssembly. Interact with this component directly.
+          </p>
         </section>
       ) : null}
 
@@ -158,9 +143,10 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
               </div>
             </div>
           ) : null}
-          <div className="mt-4">
-            <PartsTable rows={reference.parts} title={component.title} />
-          </div>
+          <p className="mt-4 text-sm leading-6 text-muted">
+            {component.title} composes these parts into one native GPUI control. Detailed slot
+            support is listed in the API reference below.
+          </p>
         </section>
       ) : null}
 
@@ -184,18 +170,14 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
       ) : null}
 
       {reference ? (
-        <section aria-labelledby="styling">
-          <h2 id="styling">Styling</h2>
+        <section aria-labelledby="customization">
+          <h2 id="customization">Customization</h2>
           <p className="mt-2 text-sm text-muted">
             Theme tokens for {component.title} and their HeroGPUI equivalents.
           </p>
+          <h3 id="styling-reference">Styling reference</h3>
           <div className="mt-4">
             <StylingTable rows={reference.styling} title={component.title} />
-          </div>
-
-          <h3 id="states">States</h3>
-          <div className="mt-4">
-            <StatesTable rows={reference.states} title={component.title} />
           </div>
         </section>
       ) : null}
@@ -203,8 +185,19 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
       {reference ? (
         <section aria-labelledby="api-reference">
           <h2 id="api-reference">API reference</h2>
+          <h3 id="props">Props</h3>
           <div className="mt-4">
             <PropsTable label={`${component.title} props`} rows={reference.api} />
+          </div>
+
+          <h3 id="parts">Parts and slots</h3>
+          <div className="mt-4">
+            <PartsTable rows={reference.parts} title={component.title} />
+          </div>
+
+          <h3 id="states">States</h3>
+          <div className="mt-4">
+            <StatesTable rows={reference.states} title={component.title} />
           </div>
         </section>
       ) : (

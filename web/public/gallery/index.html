@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HeroGPUI Gallery</title>
+    <title>HeroGPUI</title>
     <style>
       * {
         margin: 0;
@@ -101,7 +101,7 @@
   <body>
     <div id="loading">
       <div class="spinner"></div>
-      <p>Loading HeroGPUI Gallery...</p>
+      <p>Loading HeroGPUI...</p>
     </div>
     <script type="module">
       // Resolve sibling assets (herogpui_web.js, and the .wasm it loads)
@@ -169,13 +169,14 @@
           );
           await init();
           // `undefined` lets the wasm side resolve the page from the query
-          // string (?story=<slug> or ?page=<Nav Title>), which is the same
-          // path a plain deep link to this page uses.
+          // string (?story=<slug> or ?page=<Nav Title>). Component docs also
+          // pass ?preview=component&section=<heading> so GPUI constructs only
+          // that example without the gallery shell.
           run(undefined, parentDark() ?? queryDark());
           followParentTheme();
           loading?.remove();
         } catch (error) {
-          console.error('Failed to initialize the HeroGPUI gallery:', error);
+          console.error('Failed to initialize HeroGPUI:', error);
           if (loading) {
             loading.innerHTML = `
               <div class="error">

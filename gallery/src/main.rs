@@ -65,6 +65,10 @@ fn main() {
         .run(move |cx: &mut App| {
             ThemeProvider::init_with(theme, cx);
             control::init_section_filter(cx);
+            control::set_preview_only(
+                std::env::var("HEROGPUI_PREVIEW").as_deref() == Ok("component"),
+                cx,
+            );
 
             // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
             // A capture is one PrintWindow of the whole window, so a taller
