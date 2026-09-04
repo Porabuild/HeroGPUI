@@ -227,14 +227,27 @@ pub fn aligned_anchor(
 
 /// The `(year, month)` heading of each month grid in a month view.
 pub fn month_headings(duration: VisibleDuration, anchor: Date) -> Vec<(i32, u32)> {
+    month_headings_in(crate::calendar_system::system(), duration, anchor)
+}
+
+/// The visible months, in `system`'s own year and month numbering.
+///
+/// The anchor stays Gregorian -- it is the caller's state -- and is converted
+/// here, so a grid drawn in another calendar never leaks that system into
+/// `CalendarState`.
+pub fn month_headings_in(
+    system: &crate::calendar_system::CalendarSystem,
+    duration: VisibleDuration,
+    anchor: Date,
+) -> Vec<(i32, u32)> {
     if !duration.is_month_view() {
         return Vec::new();
     }
     let mut out = Vec::with_capacity(duration.count());
-    let (mut y, mut m) = (anchor.year, anchor.month);
+    let (mut y, mut m, _) = system.from_gregorian(anchor);
     for _ in 0..duration.count() {
         out.push((y, m));
-        let (ny, nm) = bump_month(y, m, 1);
+        let (ny, nm) = system.add_months(y, m, 1);
         y = ny;
         m = nm;
     }

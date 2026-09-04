@@ -417,6 +417,9 @@ pub struct Calendar {
     /// Set by a picker: take the focus as the panel opens. See
     /// [`Calendar::autofocus_grid`].
     autofocus_grid: bool,
+    /// The calendar system the grid is drawn in, when the caller names one.
+    /// `None` follows the operating system's locale, which is v3's default.
+    calendar_system: Option<crate::calendar_system::CalendarSystem>,
     /// `Calendar.CellIndicator` — whether a day carries a mark. v3 uses it for
     /// event dots; the closure is handed the date.
     cell_indicator: Option<Box<dyn Fn(Date) -> bool + 'static>>,
@@ -448,6 +451,26 @@ pub struct Calendar {
 }
 
 impl Calendar {
+    /// The locale whose calendar system this grid is drawn in.
+    ///
+    /// v3 has no prop for this: it wraps the calendar in an `I18nProvider`
+    /// whose locale carries the Unicode `-u-ca-` extension, and its
+    /// "International Calendars" example is exactly that. gpui has no subtree
+    /// context to put a provider in, so the locale is named on the component
+    /// the provider would have wrapped. Omit it and the operating system's
+    /// locale decides, which is what v3 does by default.
+    pub fn locale(mut self, tag: impl AsRef<str>) -> Self {
+        self.calendar_system = crate::calendar_system::CalendarSystem::for_locale(tag.as_ref());
+        self
+    }
+
+    /// The system this grid measures in: the caller's, else the platform's.
+    fn system(&self) -> &crate::calendar_system::CalendarSystem {
+        self.calendar_system
+            .as_ref()
+            .unwrap_or_else(|| crate::calendar_system::system())
+    }
+
     /// `focusedValue` — the date carrying the focus ring, independent of the
     /// selection.
     pub fn focused_value(mut self, date: Date) -> Self {
@@ -492,6 +515,7 @@ impl Calendar {
             is_disabled: false,
             is_read_only: false,
             autofocus_grid: false,
+            calendar_system: None,
             cell_indicator: None,
             cell: None,
             nav_icons: None,
@@ -883,14 +907,14 @@ impl Calendar {
             .child(match &self.cell {
                 Some(render) => circle.child(render(CalendarCellState {
                     date,
-                    formatted_date: date.day.to_string().into(),
+                    formatted_date: self.day_label(date).into(),
                     is_selected: is_sel,
                     is_unavailable: unavailable,
                     is_outside_month: outside_month,
                     is_today,
                     is_disabled: disabled,
                 })),
-                None => circle.child(date.day.to_string()),
+                None => circle.child(self.day_label(date)),
             })
             .when(marked, |cell| {
                 cell.child(
@@ -933,11 +957,57 @@ impl Calendar {
             }))
     }
 
+    /// The heading over one visible month, named in the view calendar.
+    ///
+    /// `(year, month)` are the view calendar's. ICU formats an ISO date in
+    /// whatever calendar the locale names, so the month is converted back to a
+    /// Gregorian day and handed over with that locale: an Indian grid heads
+    /// itself in Pausha 1947, not January 2026.
+    fn month_heading_text(&self, year: i32, month: u32) -> String {
+        let system = self.system();
+        let (year, month) = system.add_months(year, month, self.year_heading_offset_months);
+        let Some(date) = system.to_gregorian(year, month, 1) else {
+            return String::new();
+        };
+        month_heading_for_locale(system.locale(), date.year, date.month)
+            .unwrap_or_else(|| month_year_heading(date.year, date.month))
+    }
+
+    /// The number a cell prints: the day of the month in the *view* calendar.
+    ///
+    /// v3 hands `Calendar.Cell` a `formattedDate` in the calendar the grid is
+    /// drawn in, so a date's Gregorian day is the wrong label whenever the two
+    /// systems differ.
+    fn day_label(&self, date: Date) -> String {
+        self.system().from_gregorian(date).2.to_string()
+    }
+
+    /// One grid cell whose date the calendar system may not have.
+    ///
+    /// Every cell is addressed in the view calendar and converted back to a
+    /// Gregorian [`Date`] here, so the rest of the component -- constraints,
+    /// selection, callbacks -- only ever sees Gregorian. A triple the system
+    /// does not have draws a blank rather than a wrong day.
+    fn spill_cell(
+        &self,
+        date: Option<Date>,
+        outside_month: bool,
+        frame: &Frame<'_>,
+        key: String,
+        cx: &App,
+    ) -> gpui::AnyElement {
+        match date {
+            Some(date) => self.day_cell(date, outside_month, frame, key, cx),
+            None => gpui::div().size(px(36.)).into_any_element(),
+        }
+    }
+
     /// The 7-column grid for a single month, including both adjacent months.
     fn month_grid(&self, y: i32, m: u32, frame: &Frame<'_>, cx: &App) -> gpui::AnyElement {
-        let lead = self.constraints.lead_cells(y, m);
-        let dim = days_in_month(y, m) as usize;
-        let rows = self.constraints.rows(y, m);
+        let system = self.system();
+        let lead = self.constraints.lead_cells_in(system, y, m);
+        let dim = system.days_in_month(y, m) as usize;
+        let rows = self.constraints.rows_in(system, y, m);
 
         // `.calendar__grid` holds the header and `.calendar__grid-body`, whose
         // children are `.calendar__grid-row`s of cells.
@@ -947,10 +1017,10 @@ impl Calendar {
             for c in 0..7 {
                 let idx = r * 7 + c;
                 let slot: gpui::AnyElement = if idx < lead {
-                    let (py, pm) = add_months(y, m, -1);
-                    let day = days_in_month(py, pm) as usize - lead + idx + 1;
-                    self.day_cell(
-                        Date::new(py, pm, day as u32),
+                    let (py, pm) = system.add_months(y, m, -1);
+                    let day = system.days_in_month(py, pm) as usize - lead + idx + 1;
+                    self.spill_cell(
+                        system.to_gregorian(py, pm, day as u32),
                         true,
                         frame,
                         format!("{}-{y}-{m}-outside-{py}-{pm}-d{day}", frame.base),
@@ -966,17 +1036,17 @@ impl Calendar {
                         // render prop a real `CalendarDate`, and the closure is
                         // the only identity a caller has.
                         let nd = day_num - dim;
-                        let (ny, nm) = next_month(y, m);
-                        self.day_cell(
-                            Date::new(ny, nm, nd as u32),
+                        let (ny, nm) = system.add_months(y, m, 1);
+                        self.spill_cell(
+                            system.to_gregorian(ny, nm, nd as u32),
                             true,
                             frame,
                             format!("{}-{y}-{m}-outside-{ny}-{nm}-d{nd}", frame.base),
                             cx,
                         )
                     } else {
-                        self.day_cell(
-                            Date::new(y, m, day_num as u32),
+                        self.spill_cell(
+                            system.to_gregorian(y, m, day_num as u32),
                             false,
                             frame,
                             format!("{}-{y}-{m}-d{day_num}", frame.base),
@@ -1710,11 +1780,10 @@ impl RenderOnce for Calendar {
                     .px(px(2.))
                     .child(gpui::div().size(px(24.)))
                     .child(heading(
-                        calendar_view::month_heading(
-                            anchor.year,
-                            anchor.month,
-                            self.year_heading_offset_months,
-                        ),
+                        {
+                            let (ay, am, _) = self.system().from_gregorian(anchor);
+                            self.month_heading_text(ay, am)
+                        },
                         format!("{base}-yheading"),
                         &active_heading_focus,
                         active_heading_index,
@@ -1763,11 +1832,7 @@ impl RenderOnce for Calendar {
                             spacer()
                         })
                         .child(heading(
-                            calendar_view::month_heading(
-                                y,
-                                m,
-                                self.year_heading_offset_months,
-                            ),
+                            self.month_heading_text(y, m),
                             format!("{base}-heading{i}"),
                             &heading_focuses[i],
                             i,
@@ -1867,6 +1932,46 @@ impl RenderOnce for Calendar {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_locale_extension_moves_the_grid_into_that_calendar() {
+        use crate::calendar_system::CalendarSystem;
+        let system = CalendarSystem::for_locale("hi-IN-u-ca-indian").unwrap();
+
+        // The anchor stays Gregorian -- it is the caller's state -- and the
+        // grid is addressed in the Indian calendar it converts to.
+        let anchor = Date::new(2026, 1, 15);
+        let months = calendar_view::month_headings_in(&system, VisibleDuration::Months(1), anchor);
+        assert_eq!(months, vec![(1947, 10)], "January 2026 is Pausha 1947");
+
+        // Every cell of that month converts back to a real Gregorian date,
+        // which is what selection and the constraints see.
+        let days = system.days_in_month(1947, 10);
+        assert_eq!(days, 30);
+        for day in 1..=days {
+            assert!(
+                system.to_gregorian(1947, 10, day).is_some(),
+                "Pausha {day} must be a date"
+            );
+        }
+        assert_eq!(system.to_gregorian(1947, 10, 25), Some(anchor));
+    }
+
+    #[test]
+    fn the_heading_names_the_view_calendars_month() {
+        // ICU formats an ISO date in whatever calendar the locale names, so the
+        // Indian heading is the Indian month and its Saka year.
+        let heading = month_heading_for_locale("hi-IN-u-ca-indian", 2026, 1).unwrap();
+        assert!(
+            heading.contains("1947"),
+            "an Indian heading names the Saka year, got {heading:?}"
+        );
+        assert_ne!(
+            heading,
+            month_heading_for_locale("en-US", 2026, 1).unwrap(),
+            "the two calendars must not head the same month identically"
+        );
+    }
 
     #[test]
     fn month_names_follow_the_locale() {

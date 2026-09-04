@@ -28,6 +28,9 @@ use crate::calendar::{days_in_month, first_weekday_pub, Date};
 pub struct CalendarSystem {
     kind: AnyCalendarKind,
     calendar: AnyCalendar,
+    /// The tag this system was resolved from, so a heading can be formatted in
+    /// the same locale that chose the calendar.
+    locale: String,
 }
 
 impl CalendarSystem {
@@ -38,7 +41,13 @@ impl CalendarSystem {
         Some(Self {
             kind,
             calendar: AnyCalendar::new(kind),
+            locale: tag.to_owned(),
         })
+    }
+
+    /// The locale tag this system came from.
+    pub fn locale(&self) -> &str {
+        &self.locale
     }
 
     /// Whether this is the plain Gregorian calendar, where every conversion is

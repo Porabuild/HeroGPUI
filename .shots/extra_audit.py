@@ -494,6 +494,14 @@ EXTRA_OK_SCOPED = {
     # HeroUI forwards React Aria Row's inherited `textValue`; cells are opaque
     # in gpui, so the row must expose that searchable text explicitly.
     'Table.text_value': 'react-aria-inherited',
+    # v3 chooses a calendar system with `<I18nProvider locale="hi-IN-u-ca-indian">`
+    # around the calendar -- its own "International Calendars" example -- so the
+    # capability is documented while the prop is not. gpui has no subtree
+    # context to hold a provider, so the locale is named on the component the
+    # provider would have wrapped. Recorded explicitly rather than left to the
+    # sibling rule: v3's `locale` on NumberField chooses number separators, and
+    # sharing a spelling with it is a coincidence, not a reason.
+    'Calendar.locale': 'no-i18n-provider',
     # React Aria 3.51.0's `useSelectableCollection` takes `escapeKeyBehavior`
     # to choose whether an unmodified Escape clears the selection. HeroUI
     # inherits it on every selectable collection and re-documents it on none,
