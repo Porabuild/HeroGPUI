@@ -259,11 +259,6 @@ PROSE_WONT_DO = {
     ('Popover', 'focus'): 'panel-holds-focus',
     # No prop can disable a table, so nothing can put it in that state.
     ('Table', 'disabled'): 'no-disabled-prop',
-    # v3's pressed rule is on `.checkbox__control` and only for the
-    # indeterminate box, whose fill it takes to `bg-accent-hover`. gpui needs a
-    # stateful element for `.active`, and the box is a plain div drawn inside a
-    # row that already carries the id -- a second id there would collide with it.
-    ('Checkbox', 'pressed'): 'no-id-to-press',
 }
 
 # A state drawn by a component this one composes.

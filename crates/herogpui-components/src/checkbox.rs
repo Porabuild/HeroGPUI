@@ -371,7 +371,13 @@ impl RenderOnce for Checkbox {
             is_required: self.is_required,
         };
 
+        // Stateful because `.active` needs it: v3's `/* Indeterminate + Pressed */`
+        // rule styles this box. The id derives from the row's, the same way the
+        // checked and focus slots derive theirs, so nothing collides.
         let mut boxel = gpui::div()
+            .id(gpui::ElementId::Name(
+                format!("{:?}-control", self.id).into(),
+            ))
             .flex()
             .items_center()
             .justify_center()
@@ -402,9 +408,18 @@ impl RenderOnce for Checkbox {
         // `bg-accent` (or `bg-danger` when invalid, which `sem` already is).
         if active {
             // `.checkbox__control::before` -- the fill -- goes to
-            // `bg-accent-hover` while the box is hovered or pressed.
+            // `bg-accent-hover` while the box is hovered.
             let hovered = sem.hover();
             boxel = boxel.bg(sem.color).hover(move |s| s.bg(hovered));
+            // v3's plain `/* Pressed */` block for the control is empty; only
+            // `/* Indeterminate + Pressed */` declares anything, and it is the
+            // same `bg-accent-hover`. `.active` needs a stateful element, so
+            // the box takes an id derived from the row's -- the same way the
+            // checked and focus slots already derive theirs, so nothing
+            // collides.
+            if self.is_indeterminate {
+                boxel = boxel.active(move |s| s.bg(hovered));
+            }
         } else {
             boxel = boxel.bg(match self.variant {
                 herogpui_core::FieldVariant::Primary => colors.field.background,
