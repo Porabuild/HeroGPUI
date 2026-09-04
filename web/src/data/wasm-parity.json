@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "artifactSha256": "314898ce5f6a809de1a6aec6195a68c59ae4e116dd4edf1a49d07ac7797ae045",
-  "glueSha256": "3b2de2228413c33ef20dc8772fbb4108c3d290d41e2773445c911655f259b7d6",
+  "artifactSha256": "7bb662728f890d56b3dd557af93d6a1e5e514e06a6c64f7a4b8d6865b6eb7fe2",
+  "glueSha256": "512c9f6f2c16687698d8f7faead7616ffef3461b9bb5d6fd39ccd6c2b123b8c9",
   "examples": {
     "accordion/Controlled": {
       "nativeCodeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -2270,7 +2270,6 @@
     },
     "tag-group/With Remove Button": {
       "nativeCodeSha256": "b990c85afa2adb1d4d616ebaaf43c22db548828a3e5fae538d69650e727f91bf",
-      "wasmCodeSha256": "fbde90a22333ce52b5aaa2bcfd79e32797d46fc2f441fe7e2c5171ee9568a99c",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-area/Controlled": {
@@ -2575,8 +2574,7 @@
   ],
   "extra": [],
   "codeDrift": [
-    "table/Column Resizing",
-    "tag-group/With Remove Button"
+    "table/Column Resizing"
   ],
   "descriptionDrift": []
 }
