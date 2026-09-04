@@ -19,7 +19,7 @@ import glob
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bundle import resolve as _resolve_bundle
+from bundle import css_cache as _css_cache, resolve as _resolve_bundle
 
 # The pinned v3.2.4 bundle. See .shots/bundle.py: reading upstream live would
 # measure this port against whatever HeroUI shipped most recently.
@@ -29,6 +29,11 @@ THEME = 'crates/herogpui-theme/src/'
 # The v3 stylesheets `design_audit.py --fetch` caches. Motion lives in the CSS,
 # not the docs bundle, so the per-overlay checks read from here.
 CACHE = os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-css')
+# An empty cache is not a clean motion report: without the stylesheets this
+# audit measured every timing against nothing and called 22 of them wrong.
+if not _css_cache():
+    sys.stderr.write('anim_audit: no v3 stylesheets; run design_audit.py --fetch\n')
+    raise SystemExit(2)
 
 # v3 animation -> the symbol implementing it. The symbol must exist in the
 # source, or this entry is stale.

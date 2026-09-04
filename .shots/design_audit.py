@@ -35,6 +35,10 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 CACHE = os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-css')
 COMPONENTS = ('https://raw.githubusercontent.com/heroui-inc/heroui/v3.2.4'
               '/packages/styles/components/%s.css')
+# The same stylesheets are vendored (47KB) so the audit needs no network and
+# every run measures the same v3.2.4 tag. `--fetch` still refreshes upstream.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bundle import css_cache as unpack
 
 # v3's own scales, from themes/shared/theme.css and themes/default/variables.css.
 SPACING = 4.0            # --spacing: 0.25rem
@@ -3445,7 +3449,7 @@ def main():
     if '--coverage' in sys.argv:
         coverage()
         return
-    if not os.path.isdir(CACHE):
+    if not unpack():
         print('no cache: run `python .shots/design_audit.py --fetch` first')
         sys.exit(2)
 

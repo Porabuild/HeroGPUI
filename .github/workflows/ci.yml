@@ -44,6 +44,22 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
+      # The website gates run from the same checkout: extract:check compares the
+      # generated component data against the Rust gallery, so it needs both.
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Install website dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
       - name: Install cargo-deny
         uses: taiki-e/install-action@v2
         with:
@@ -54,7 +70,14 @@ jobs:
 
       - name: Component gallery sync
         working-directory: web
-        run: npm run extract:check
+        run: pnpm run extract:check
+
+      - name: Website typecheck, lint and production build
+        working-directory: web
+        run: |
+          pnpm run typecheck
+          pnpm run lint
+          pnpm run build
 
       - name: Lint gate (workspace lints, clippy -D warnings, cargo-deny)
         shell: pwsh
@@ -67,3 +90,68 @@ jobs:
         env:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --workspace --no-deps --locked
+
+  # The parity contract. These read the pinned v3.2.4 bundle checked in at
+  # .shots/heroui-bundle.txt.gz, so they need no network and no Rust build --
+  # they read the Rust sources as text. Kept off the Check job so a parity
+  # regression and a compile error report separately.
+  parity:
+    name: HeroUI v3.2.4 parity audits
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Audit set
+        run: |
+          set -euo pipefail
+          for audit in .shots/*audit.py; do
+            echo "==> $audit"
+            python "$audit"
+          done
+          echo "==> .shots/write_only.py"
+          python .shots/write_only.py
+
+  # Packaging is what `cargo install herogpui-gallery` and `cargo publish` do to
+  # a release. Both build from a packaged tarball rather than the worktree, so
+  # they catch a path dependency or a missing include that no workspace build
+  # ever would.
+  package:
+    name: Package & install
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            pkg-config \
+            libvulkan-dev \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libx11-dev \
+            libxcb1-dev \
+            libx11-xcb-dev \
+            libxcb-render0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libfontconfig-dev \
+            libfreetype-dev
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Inspect the gallery package
+        run: cargo package -p herogpui-gallery --locked --no-verify
+
+      - name: Dry-run the publishable workspace
+        run: cargo publish --workspace --locked --dry-run
+
+      - name: Install the gallery CLI from its package
+        run: cargo install --path gallery --locked --debug --force

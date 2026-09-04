@@ -25,6 +25,7 @@ import os
 import re
 import shutil
 import sys
+import tarfile
 
 PINNED_RELEASE = 'v3.2.4'
 
@@ -87,3 +88,23 @@ def resolve():
 def read():
     """The pinned bundle's full text."""
     return io.open(resolve(), encoding='utf-8', errors='replace').read()
+
+
+# The v3.2.4 component stylesheets, vendored the same way and for the same
+# reason: design_audit, anim_audit and anatomy_audit all read them, and an
+# empty cache does not read as "no findings" in any of the three -- anim_audit
+# reported 22 phantom motion mismatches against one.
+CSS_ARCHIVE = os.path.join(_HERE, 'heroui-css-v3.2.4.tar.gz')
+CSS_CACHE = os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-css')
+
+
+def css_cache():
+    """Restore the vendored stylesheet cache. Returns whether it now exists."""
+    if os.path.isdir(CSS_CACHE):
+        return True
+    if not os.path.exists(CSS_ARCHIVE):
+        return False
+    os.makedirs(CSS_CACHE, exist_ok=True)
+    with tarfile.open(CSS_ARCHIVE, 'r:gz') as archive:
+        archive.extractall(CSS_CACHE)
+    return True
