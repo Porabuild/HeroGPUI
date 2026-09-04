@@ -5656,18 +5656,6 @@ index a9a7079..79889c5 100644
          }
  
          let colors = cx.colors();
-diff --git a/crates/herogpui-components/src/anim.rs b/crates/herogpui-components/src/anim.rs
-index 03f0c94..a02128b 100644
---- a/crates/herogpui-components/src/anim.rs
-+++ b/crates/herogpui-components/src/anim.rs
-@@ -15,7 +15,6 @@ use gpui::{
-     AnimationExt, AnyElement, App, ElementId, InteractiveElement, IntoElement, ParentElement,
-     StatefulInteractiveElement, StyleRefinement, Styled,
- };
--use herogpui_theme::ActiveTheme;
- 
- /// `[data-entering]` duration for the common case — most overlays are
- /// `duration-150`. Panels and `Autocomplete` are 250; see [`Motion`].
 diff --git a/crates/herogpui-components/src/autocomplete.rs b/crates/herogpui-components/src/autocomplete.rs
 index debe035..5167281 100644
 --- a/crates/herogpui-components/src/autocomplete.rs
@@ -6377,6 +6365,32 @@ index 87d98a7..f89fd58 100644
                      cx.stop_propagation();
                      return;
                  }
+diff --git a/crates/herogpui-components/src/calendar_view.rs b/crates/herogpui-components/src/calendar_view.rs
+index db7d3f7..acda055 100644
+--- a/crates/herogpui-components/src/calendar_view.rs
++++ b/crates/herogpui-components/src/calendar_view.rs
+@@ -161,9 +161,9 @@ pub fn focus_section(
+ pub fn section_start(duration: VisibleDuration, visible_start: Date, focused: Date) -> Date {
+     match duration {
+         VisibleDuration::Days(_) => visible_start,
+-        // This port's fixed locale is en-US. React Stately deliberately uses
+-        // the locale week here rather than the grid's firstDayOfWeek override.
+-        VisibleDuration::Weeks(_) => week_start(focused, Weekday::Sun),
++        // React Stately deliberately uses the locale week here rather than
++        // the grid's firstDayOfWeek override.
++        VisibleDuration::Weeks(_) => week_start(focused, Weekday::default()),
+         VisibleDuration::Months(_) => Date::new(focused.year, focused.month, 1),
+     }
+ }
+@@ -172,7 +172,7 @@ pub fn section_start(duration: VisibleDuration, visible_start: Date, focused: Da
+ pub fn section_end(duration: VisibleDuration, visible_end: Date, focused: Date) -> Date {
+     match duration {
+         VisibleDuration::Days(_) => visible_end,
+-        VisibleDuration::Weeks(_) => add_days(&week_start(focused, Weekday::Sun), 6),
++        VisibleDuration::Weeks(_) => add_days(&week_start(focused, Weekday::default()), 6),
+         VisibleDuration::Months(_) => Date::new(
+             focused.year,
+             focused.month,
 diff --git a/crates/herogpui-components/src/color_picker.rs b/crates/herogpui-components/src/color_picker.rs
 index f9e6947..a011306 100644
 --- a/crates/herogpui-components/src/color_picker.rs
@@ -6761,6 +6775,18 @@ index a623b5a..be12b50 100644
                      if !was_focused {
                          return;
                      }
+diff --git a/crates/herogpui-components/src/lib.rs b/crates/herogpui-components/src/lib.rs
+index 3ac09a8..0787e3a 100644
+--- a/crates/herogpui-components/src/lib.rs
++++ b/crates/herogpui-components/src/lib.rs
+@@ -39,6 +39,7 @@ pub mod kbd;
+ pub mod link;
+ pub mod list_box;
+ pub mod list_nav;
++mod matches;
+ pub mod meter;
+ pub mod modal;
+ pub mod number_field;
 diff --git a/crates/herogpui-components/src/link.rs b/crates/herogpui-components/src/link.rs
 index ada6b89..b9e7308 100644
 --- a/crates/herogpui-components/src/link.rs
@@ -8372,7 +8398,7 @@ index 04bbd81..b239c09 100644
                          })
                          .child(content),
 diff --git a/crates/herogpui-components/src/tag_group.rs b/crates/herogpui-components/src/tag_group.rs
-index 57ca147..37fd56c 100644
+index 57ca147..b36e1f3 100644
 --- a/crates/herogpui-components/src/tag_group.rs
 +++ b/crates/herogpui-components/src/tag_group.rs
 @@ -14,7 +14,7 @@ use gpui::{
@@ -8384,20 +8410,24 @@ index 57ca147..37fd56c 100644
  
  /// Visual variant of the tags in a group.
  #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-@@ -44,6 +44,7 @@ pub struct Tag {
+@@ -43,6 +43,7 @@ pub struct Tag {
+     key: SharedString,
      label: SharedString,
      icon: Option<SharedString>,
-     is_disabled: bool,
 +    remove_content: Option<Arc<dyn Fn() -> AnyElement + 'static>>,
+     is_disabled: bool,
  }
  
- impl Tag {
-@@ -53,9 +54,16 @@ impl Tag {
+@@ -52,6 +53,7 @@ impl Tag {
+             key: key.into(),
              label: label.into(),
              icon: None,
-             is_disabled: false,
 +            remove_content: None,
+             is_disabled: false,
          }
+     }
+@@ -61,6 +63,12 @@ impl Tag {
+         self
      }
  
 +    /// `Tag.RemoveButton` children, replacing the default close glyph.
@@ -8406,8 +8436,8 @@ index 57ca147..37fd56c 100644
 +        self
 +    }
 +
-     pub fn icon(mut self, path: impl Into<SharedString>) -> Self {
-         self.icon = Some(path.into());
+     pub fn is_disabled(mut self, v: bool) -> Self {
+         self.is_disabled = v;
          self
 @@ -180,6 +188,7 @@ pub struct TagGroup {
      default_selected_keys: HashSet<SharedString>,
@@ -8442,7 +8472,7 @@ index 57ca147..37fd56c 100644
                  slot.update(cx, |state, _| *state = (false, false));
              }
          }
-+        let remove_focus_handles: Vec<_> = if self.on_remove.is_some() {
++        let remove_focus_handles = if self.on_remove.is_some() {
 +            self.tags
 +                .iter()
 +                .map(|tag| {
@@ -8478,10 +8508,11 @@ index 57ca147..37fd56c 100644
                  let mut close = div()
                      .id(ElementId::Name(
                          format!("{:?}-tag-{index}-remove", self.id).into(),
-@@ -564,19 +606,23 @@ impl RenderOnce for TagGroup {
+@@ -563,20 +605,23 @@ impl RenderOnce for TagGroup {
+                     .size(px(12.))
                      .rounded_full()
                      .flex_shrink_0()
-                     // gpui svgs need an explicit color; they do not inherit.
+-                    // gpui svgs need an explicit color; they do not inherit.
 -                    .child(
 -                        gpui::svg()
 -                            .size(px(12.))
@@ -8508,7 +8539,7 @@ index 57ca147..37fd56c 100644
                          // The press belongs to the button. Stopping it here
                          // keeps the tag body's mouse-down -- which seats the
                          // group's focus and cursor -- out of a remove press.
-@@ -596,12 +642,20 @@ impl RenderOnce for TagGroup {
+@@ -596,12 +641,20 @@ impl RenderOnce for TagGroup {
                              // native child and keyboard continuity needs a
                              // stable roving target. Removal only reports;
                              // the selection is not this click's to change.
@@ -8530,7 +8561,7 @@ index 57ca147..37fd56c 100644
                  }
                  chip = chip.child(close);
              }
-@@ -616,6 +670,7 @@ impl RenderOnce for TagGroup {
+@@ -616,6 +669,7 @@ impl RenderOnce for TagGroup {
                  let key_for_remove = tag.key.clone();
                  let mode = self.selection_mode;
                  let disallow_empty = self.disallow_empty_selection;
@@ -8538,7 +8569,7 @@ index 57ca147..37fd56c 100644
                  let selected_now = self.selected_keys.clone();
                  let selectable_keys = enabled_keys.clone();
                  let collection_for_keys = collection_keys.clone();
-@@ -671,6 +726,7 @@ impl RenderOnce for TagGroup {
+@@ -671,6 +725,7 @@ impl RenderOnce for TagGroup {
                      // selection on unmodified Escape by default.
                      if key_name == "escape"
                          && !event.keystroke.modifiers.modified()
@@ -8546,7 +8577,7 @@ index 57ca147..37fd56c 100644
                          && crate::selection::reports_changes(mode)
                          && !disallow_empty
                          && !selected_now.is_empty()
-@@ -806,7 +862,7 @@ impl RenderOnce for TagGroup {
+@@ -806,7 +861,7 @@ impl RenderOnce for TagGroup {
                      if window.default_prevented() {
                          return;
                      }
