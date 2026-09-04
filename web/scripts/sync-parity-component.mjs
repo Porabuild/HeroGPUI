@@ -128,6 +128,11 @@ if (mode === "plan") {
     if (!keys.includes(key)) throw new Error(`${key} is not a known drift key`);
     const nativeCode = native.get(key).code;
     const wasmCode = wasm.get(key).code;
+    if (wasmCode === nativeCode) {
+      console.log(`already synced ${key}`);
+      done += 1;
+      continue;
+    }
     if (compositionOnly) {
       const result = verdict(diffLines(wasmCode, nativeCode).added);
       if (result.kind !== "COMPOSITION-ONLY") {
@@ -136,15 +141,7 @@ if (mode === "plan") {
       }
     }
     const occurrences = wasmSource.split(wasmCode).length - 1;
-    if (occurrences !== 1) {
-      if (wasmSource.includes(nativeCode)) {
-        console.log(`already synced ${key}`);
-        done += 1;
-        continue;
-      }
-      throw new Error(`${key}: wasm body occurs ${occurrences}x, refusing`);
-    }
-    if (wasmSource.includes(nativeCode)) throw new Error(`${key}: native body already present`);
+    if (occurrences !== 1) throw new Error(`${key}: wasm body occurs ${occurrences}x, refusing`);
     wasmSource = wasmSource.replace(wasmCode, nativeCode);
     done += 1;
     console.log(`transplanted ${key}`);
