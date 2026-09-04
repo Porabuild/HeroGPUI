@@ -190,7 +190,9 @@ follows the site's live light/dark toggle (`GalleryFrame` also passes
 component and `section` selects its one example. Preview mode omits the gallery
 shell and does not construct unrelated examples. The shared wasm binary is
 still downloaded once, lazily when the preview nears the viewport, and then
-cached across component-page navigation.
+cached across component-page navigation. The host then switches examples over
+the `herogpui:preview-section` message bridge, so one page keeps one wasm
+application alive rather than creating an iframe per example.
 
 Known issue fixed: the embed used to point at the bare `/gallery/?story=…`
 form. Production answers that with `308 → /gallery?story=…` (Next strips the
@@ -209,16 +211,22 @@ From the wasm worktree `D:\herogpui-wasm` (full log: its
 
 ```powershell
 $env:CARGO_TARGET_DIR='D:/herogpui-wasm-target'; $env:CARGO_HOME='D:/cargo-home'
+node <this repo>\web\scripts\lift-wasm-descriptions.mjs `
+  D:\herogpui-wasm\gallery\src\pages\components.rs
 cargo build --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web
 D:\cargo-home\bin\wasm-bindgen.exe `
   D:\herogpui-wasm-target\wasm32-unknown-unknown\wasm-release\herogpui_web.wasm `
   --out-dir <this repo>\web\public\gallery --target web --no-typescript
+node <this repo>\web\scripts\extract-wasm-sections.mjs `
+  --source D:\herogpui-wasm\gallery\src\pages\components.rs
 ```
 
 Copy `index.html` from `crates/herogpui-web/` alongside (the bindgen output
 only produces the two `herogpui_web.*` files). The `wasm-bindgen` CLI
 version must match the `wasm-bindgen` crate in `Cargo.lock` exactly
 (0.2.127 when written) — a mismatched CLI refuses the binary.
+The description lift is idempotent and keeps explanatory copy outside the
+component canvas while retaining it in the full native-style gallery page.
 
 Two load-bearing details on the Rust side, both verified empirically:
 

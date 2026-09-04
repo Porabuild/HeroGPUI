@@ -1,15 +1,14 @@
 import { Chip, Link } from "@heroui/react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import type { ReactNode } from "react";
-import { GalleryFrame } from "@/components/preview/gallery-frame";
+import { ComponentExampleBrowser } from "@/components/preview/gallery-frame";
 import { Callout } from "@/components/ui/callout";
 import { CodeBlock } from "@/components/ui/code-block";
 import { PageHeader } from "@/components/ui/page-header";
 import { PropsTable } from "@/components/ui/props-table";
 import { getCatalog } from "@/lib/catalog";
-import { getComponentReference, getRustExamples, type RustExample } from "./data";
-import { buildExampleSections, type ExampleSection } from "./examples";
+import { getComponentReference, getRustExamples, getWasmSections, type RustExample } from "./data";
+import { buildExampleSections } from "./examples";
 import { PartsTable, StatesTable, StylingTable } from "./reference-tables";
 
 interface ComponentPageProps {
@@ -27,45 +26,9 @@ export async function generateMetadata({ params }: ComponentPageProps): Promise<
   return { title: component.title, description: component.description };
 }
 
-interface ExampleCardProps {
-  id: string;
-  heading: string;
-  description?: string;
-  code: string;
-  preview?: ReactNode;
-}
-
-function ExampleCard({ id, heading, description, code, preview }: ExampleCardProps) {
-  return (
-    <section aria-labelledby={id} className="mt-10">
-      <h3 className="text-xl font-semibold text-foreground" id={id}>
-        {heading}
-      </h3>
-      {description ? <p className="mt-2 text-sm leading-6 text-muted">{description}</p> : null}
-      <div className="mt-4 overflow-hidden rounded-xl border border-separator bg-surface">
-        {preview ? (
-          <div className="border-b border-separator bg-surface-secondary p-4">{preview}</div>
-        ) : null}
-        <CodeBlock
-          className="rounded-none border-0 bg-transparent"
-          code={code}
-          id={`${id}-code`}
-          lang="rust"
-        />
-      </div>
-    </section>
-  );
-}
-
 function exampleCode(example: RustExample): string {
   const imports = example.imports?.trim();
   return imports ? `${imports}\n\n${example.code}` : example.code;
-}
-
-/** The Usage card shows this example's code; prefer the section the gallery
-    calls "Usage", otherwise the first section. */
-function pickUsageSection(sections: ExampleSection[]): ExampleSection | undefined {
-  return sections.find((section) => section.heading.toLowerCase() === "usage") ?? sections[0];
 }
 
 export default async function ComponentPage({ params }: ComponentPageProps) {
@@ -78,8 +41,8 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
   const reference = getComponentReference(slug);
   const rustExamples = getRustExamples(slug);
   const sections = buildExampleSections(rustExamples);
-  const usage = pickUsageSection(sections);
-  const rest = usage ? sections.filter((section) => section !== usage) : [];
+  const wasmSections = new Set(getWasmSections(slug));
+  const liveSections = sections.filter((section) => wasmSections.has(section.heading));
   const importLine = component.importLine || reference?.importLine || "";
   // Siblings in the same catalog category, the way getComponentSidebarGroups
   // groups components: one group per category, in catalog order.
@@ -96,36 +59,25 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
         title={component.title}
       />
 
-      {usage ? (
-        <section aria-labelledby="usage">
-          <h2 id="usage">Usage</h2>
-          {usage?.rust.description ? (
-            <p className="mt-2 text-sm leading-6 text-muted">{usage.rust.description}</p>
-          ) : null}
-          <div className="mt-4 overflow-hidden rounded-xl border border-separator bg-surface">
-            <GalleryFrame
-              bare
-              section={usage.heading}
-              slug={component.slug}
-              title={component.title}
-            />
-            <div className="border-t border-separator">
+      {liveSections.length > 0 ? (
+        <ComponentExampleBrowser
+          examples={liveSections.map((section) => ({
+            code: (
               <CodeBlock
                 className="rounded-none border-0 bg-transparent"
-                code={exampleCode(usage.rust)}
-                id={`${usage.id}-code`}
+                code={exampleCode(section.rust)}
+                id={`${section.id}-live-code`}
                 lang="rust"
               />
-            </div>
-          </div>
-          <p className="mt-3 flex items-center gap-2 text-xs text-muted">
-            <span
-              aria-hidden="true"
-              className="shot-window-dot size-1.5 shrink-0 rounded-full bg-accent"
-            />
-            Live HeroGPUI compiled to WebAssembly. Interact with this component directly.
-          </p>
-        </section>
+            ),
+            description: section.rust.description,
+            heading: section.heading,
+            id: section.id,
+          }))}
+          key={component.slug}
+          slug={component.slug}
+          title={component.title}
+        />
       ) : null}
 
       {reference ? (
@@ -148,25 +100,6 @@ export default async function ComponentPage({ params }: ComponentPageProps) {
             support is listed in the API reference below.
           </p>
         </section>
-      ) : null}
-
-      {rest.length > 0 ? (
-        <>
-          <h2 id="examples">Examples</h2>
-          <p className="mt-2 text-sm text-muted">
-            These examples are the Rust builders used by the HeroGPUI desktop gallery.
-          </p>
-
-          {rest.map((section) => (
-            <ExampleCard
-              code={exampleCode(section.rust)}
-              description={section.rust.description}
-              heading={section.heading}
-              id={section.id}
-              key={section.id}
-            />
-          ))}
-        </>
       ) : null}
 
       {reference ? (

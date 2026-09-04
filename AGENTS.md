@@ -57,3 +57,8 @@ changes, update the complete affected surface in the same change:
 
 Regenerate both website datasets from `web/` with `pnpm run extract`, then
 verify both with `pnpm run extract:check`. Do not hand-edit those JSON outputs.
+
+When rebuilding `web/public/gallery/herogpui_web*`, also regenerate
+`web/src/data/wasm-sections.json` from the exact gallery source compiled into
+that artifact. The website uses this manifest to offer only live examples the
+WASM build can render.

@@ -101,7 +101,11 @@ the host page's live theme toggle.
   `date-picker`) — the slug scheme the site already generates — or
   `?page=<Nav Title>` as the native-parity alias.
 - **One lazily loaded instance per page.** Preview mode constructs only the
-  selected example and omits the gallery shell.
+  selected example and omits the gallery shell. The host switches examples by
+  posting `herogpui:preview-section`; the wasm application stays alive.
+- **No documentation prose in the canvas.** The artifact build runs
+  `lift-wasm-descriptions.mjs` so legacy static paragraphs become section
+  descriptions rendered by the website above the live component.
 - **Theme**: `?theme=` sets the boot theme; if the frame can read the parent
   document (same origin), it follows the host's live `<html>` class changes
   via the exported `set_theme(dark)` — no reload.

@@ -181,6 +181,7 @@ export function getComponentReference(slug: string): ComponentReference | null {
 }
 
 let examplesFile: Record<string, unknown> | null = null;
+let wasmSectionsFile: Record<string, unknown> | null = null;
 
 function exampleData(): Record<string, unknown> {
   examplesFile ??= (() => {
@@ -202,11 +203,24 @@ export function getRustExamples(slug: string): RustExample[] {
     isRecord(row)
       ? {
           heading: asString(row.heading),
-          description:
-            typeof row.description === "string" ? row.description : undefined,
+          description: typeof row.description === "string" ? row.description : undefined,
           code: asString(row.code),
           imports: typeof row.imports === "string" ? row.imports : undefined,
         }
       : null,
   );
+}
+
+/** Examples present in the separately built wasm migration artifact. */
+export function getWasmSections(slug: string): string[] {
+  wasmSectionsFile ??= (() => {
+    try {
+      const file = path.join(process.cwd(), "src", "data", "wasm-sections.json");
+      const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
+      return isRecord(parsed) ? parsed : {};
+    } catch {
+      return {};
+    }
+  })();
+  return asStringArray(wasmSectionsFile[slug]);
 }

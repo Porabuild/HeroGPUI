@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import test from "node:test";
 
 import {
@@ -8,6 +10,7 @@ import {
   parseInvocation,
   separateExampleDescription,
 } from "./extract-rust-examples.mjs";
+import { liftDescriptions } from "./lift-wasm-descriptions.mjs";
 
 test("documentationParity keeps component examples and reference metadata in sync", () => {
   assert.deepEqual(documentationParity(["button", "date-field"], ["button", "date-field"]), {
@@ -18,6 +21,65 @@ test("documentationParity keeps component examples and reference metadata in syn
     missingReference: ["new-page"],
     missingExamples: ["old-page"],
   });
+});
+
+test("wasm section manifest only advertises generated component examples", () => {
+  const examples = JSON.parse(
+    readFileSync(resolve(import.meta.dirname, "../src/data/rust-examples.json"), "utf8"),
+  );
+  const wasmSections = JSON.parse(
+    readFileSync(resolve(import.meta.dirname, "../src/data/wasm-sections.json"), "utf8"),
+  );
+
+  assert.deepEqual(Object.keys(wasmSections).sort(), Object.keys(examples).sort());
+
+  for (const [slug, headings] of Object.entries(wasmSections)) {
+    const documented = new Set(examples[slug]?.map((example) => example.heading) ?? []);
+    assert.ok(documented.size > 0, `${slug} has wasm examples but no component documentation`);
+    for (const heading of headings) {
+      assert.ok(documented.has(heading), `${slug}/${heading} is not generated documentation`);
+    }
+  }
+});
+
+test("liftDescriptions moves static copy outside the wasm specimen", () => {
+  const source = `component_doc_page!(
+    "Button",
+    "Press an action.",
+    "use herogpui::Button;",
+    vec![(
+      "Usage",
+      col(vec![
+        para("Choose an action before continuing.", cx),
+        Button::new("save").label("Save").into_any_element(),
+      ]),
+    )],
+    cx,
+  )`;
+
+  const first = liftDescriptions(source);
+  assert.equal(first.lifted, 1);
+  assert.match(first.output, /"Usage",\s+"Choose an action before continuing\.",/);
+  assert.doesNotMatch(first.output, /para\(/);
+  assert.equal(liftDescriptions(first.output).lifted, 0);
+});
+
+test("liftDescriptions rejects setup blocks that need explicit migration", () => {
+  const source = `component_doc_page!(
+    "Form",
+    "Submit fields.",
+    "use herogpui::Form;",
+    vec![("Server Errors", {
+      let form = Form::new();
+      col(vec![para("Server errors stay visible.", cx), form.into_any_element()])
+    })],
+    cx,
+  )`;
+
+  assert.throws(
+    () => liftDescriptions(source),
+    /Form\/Server Errors has prose inside a setup block/,
+  );
 });
 
 test("parseInvocation reads explicit section descriptions", () => {

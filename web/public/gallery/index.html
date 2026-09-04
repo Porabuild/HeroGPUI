@@ -123,6 +123,28 @@
       function queryDark() {
         return new URLSearchParams(window.location.search).get('theme') === 'dark';
       }
+
+      let wasmSetPreviewSection;
+      let wasmSetTheme;
+      let pendingPreviewSection;
+
+      window.addEventListener('message', (event) => {
+        if (event.source !== window.parent) return;
+        const message = event.data;
+        if (
+          !message ||
+          message.type !== 'herogpui:preview-section' ||
+          typeof message.section !== 'string'
+        ) {
+          return;
+        }
+        if (wasmSetPreviewSection) {
+          wasmSetPreviewSection(message.section);
+        } else {
+          pendingPreviewSection = message.section;
+        }
+      });
+
       function parentDark() {
         if (window.parent === window) return null;
         try {
@@ -153,7 +175,7 @@
           const dark = parentRoot.classList.contains('dark');
           if (dark !== previous) {
             previous = dark;
-            set_theme(dark);
+            wasmSetTheme?.(dark);
           }
         }).observe(parentRoot, { attributes: true, attributeFilter: ['class'] });
       }
@@ -164,15 +186,21 @@
         try {
           // Dynamic import: the URL form serving this page varies (see
           // assetUrl), so the module URL is computed at boot time.
-          const { default: init, run, set_theme } = await import(
+          const { default: init, run, set_preview_section, set_theme } = await import(
             assetUrl('herogpui_web.js')
           );
           await init();
+          wasmSetPreviewSection = set_preview_section;
+          wasmSetTheme = set_theme;
           // `undefined` lets the wasm side resolve the page from the query
           // string (?story=<slug> or ?page=<Nav Title>). Component docs also
           // pass ?preview=component&section=<heading> so GPUI constructs only
           // that example without the gallery shell.
           run(undefined, parentDark() ?? queryDark());
+          if (pendingPreviewSection) {
+            wasmSetPreviewSection(pendingPreviewSection);
+            pendingPreviewSection = undefined;
+          }
           followParentTheme();
           loading?.remove();
         } catch (error) {

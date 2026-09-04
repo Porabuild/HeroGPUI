@@ -1,7 +1,8 @@
 "use client";
 
 import { cn } from "@heroui/react";
-import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { publicUrl } from "@/lib/public-url";
 
 /**
@@ -9,10 +10,11 @@ import { publicUrl } from "@/lib/public-url";
  * WebAssembly. Not a screenshot and not a recreation in React.
  *
  * GPUI's web target attaches a single canvas to `document.body` and supports
- * one top-level window per process, so a page can only ever host one of
- * these, never one per example. The `story` query parameter selects which
- * component the shared module renders, while `section` selects its one example.
- * The module itself is cached across navigations by the browser.
+ * one top-level window per process. The docs intentionally keep one iframe
+ * alive instead of instantiating wasm for every example. The `story` query
+ * parameter selects the component, while `section` selects its first example;
+ * later selections use the message bridge. The module is cached across
+ * navigations by the browser.
  *
  * The checked-in artifact is served from `/gallery` by default. Deployments
  * may override `NEXT_PUBLIC_GALLERY_URL` when the artifact is hosted elsewhere.
@@ -70,31 +72,21 @@ export interface GalleryFrameProps {
 }
 
 export function GalleryFrame({ slug, title, section, className, bare = false }: GalleryFrameProps) {
-  const [visible, setVisible] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [frameTheme, setFrameTheme] = useState<"light" | "dark" | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const initialSection = useRef(section).current;
   const viewportRef = useRef<HTMLDivElement | null>(null);
 
-  // Keep the embedded theme in sync with the host's, including a toggle
-  // after the frame has already booted. Reading `document` only happens
-  // here (post-mount), never during render, so server and first-paint
-  // client markup match exactly.
-  useEffect(() => {
-    setTheme(readTheme());
-    const observer = new MutationObserver(() => setTheme(readTheme()));
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
-
   // Boot lazily: the iframe itself is not created until the frame scrolls
-  // near the viewport, so the multi-megabyte wasm module never loads on
-  // page view alone. Disconnects itself on first intersection.
+  // near the viewport. Capture the boot theme at that moment; the embedded
+  // runtime follows later same-origin theme changes without reloading wasm.
   useEffect(() => {
     const node = viewportRef.current;
     if (!node) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries.some((entry) => entry.isIntersecting)) return;
-        setVisible(true);
+        setFrameTheme(readTheme());
         observer.disconnect();
       },
       { rootMargin: ROOT_MARGIN },
@@ -102,6 +94,15 @@ export function GalleryFrame({ slug, title, section, className, bare = false }: 
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
+
+  const selectSection = useCallback(() => {
+    const target = iframeRef.current?.contentWindow;
+    if (!target) return;
+    const origin = new URL(galleryOrigin(GALLERY_BASE), window.location.href).origin;
+    target.postMessage({ type: "herogpui:preview-section", section }, origin);
+  }, [section]);
+
+  useEffect(selectSection, [selectSection]);
 
   const frame = (
     <>
@@ -118,10 +119,12 @@ export function GalleryFrame({ slug, title, section, className, bare = false }: 
         className="relative h-[320px] bg-surface-secondary sm:h-[360px] lg:h-[400px]"
         ref={viewportRef}
       >
-        {visible ? (
+        {frameTheme ? (
           <iframe
             className="absolute inset-0 h-full w-full border-0"
-            src={embedUrl(slug, section, theme)}
+            onLoad={selectSection}
+            ref={iframeRef}
+            src={embedUrl(slug, initialSection, frameTheme)}
             title={`${title} ${section}, rendered live by HeroGPUI compiled to WebAssembly`}
           />
         ) : (
@@ -149,5 +152,61 @@ export function GalleryFrame({ slug, title, section, className, bare = false }: 
         recreation.
       </figcaption>
     </figure>
+  );
+}
+
+export interface ComponentPreviewExample {
+  id: string;
+  heading: string;
+  description?: string;
+  code: ReactNode;
+}
+
+interface ComponentExampleBrowserProps {
+  slug: string;
+  title: string;
+  examples: ComponentPreviewExample[];
+}
+
+export function ComponentExampleBrowser({ slug, title, examples }: ComponentExampleBrowserProps) {
+  const [selectedId, setSelectedId] = useState(examples[0]?.id ?? "");
+  const selected = examples.find((example) => example.id === selectedId) ?? examples[0];
+  if (!selected) return null;
+
+  return (
+    <section aria-labelledby="usage">
+      <h2 id="usage">Usage</h2>
+      {selected.description ? (
+        <p className="mt-2 text-sm leading-6 text-muted">{selected.description}</p>
+      ) : null}
+      {examples.length > 1 ? (
+        <label className="mt-4 flex flex-col gap-2 text-sm font-medium text-foreground sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+          Live example
+          <select
+            className="w-full rounded-lg border border-separator bg-surface px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-accent sm:w-auto sm:min-w-48"
+            onChange={(event) => setSelectedId(event.currentTarget.value)}
+            value={selected.id}
+          >
+            {examples.map((example) => (
+              <option key={example.id} value={example.id}>
+                {example.heading}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      <div className="mt-4 overflow-hidden rounded-xl border border-separator bg-surface">
+        <GalleryFrame bare section={selected.heading} slug={slug} title={title} />
+        <div className="border-t border-separator">{selected.code}</div>
+      </div>
+      <p className="mt-3 flex items-center gap-2 text-xs text-muted">
+        <span
+          aria-hidden="true"
+          className="shot-window-dot size-1.5 shrink-0 rounded-full bg-accent"
+        />
+        Live HeroGPUI compiled to WebAssembly. Select any example without loading another WASM
+        instance.
+      </p>
+    </section>
   );
 }

@@ -24,11 +24,18 @@ description, then the bordered example. Keep explanatory prose outside the
 example surface on both sites; component-owned labels, helper text, values, and
 composed content remain inside the demonstrated component.
 
-Keep each component on one page in HeroUI v3 docs order: `Usage` (one live
-GPUI/WASM component example stacked above its code), compact `Anatomy`,
-`Examples` (every remaining generated example), `Customization`, `API
-reference` (Props, Parts and slots, then States), and `Related components`.
+Keep each component on one page: `Usage` (one lazy GPUI/WASM instance that
+switches among every generated example, description, and matching code),
+compact `Anatomy`, `Customization`, `API reference` (Props, Parts and slots,
+then States), and `Related components`.
 Never substitute a checked-in screenshot or embed the full gallery shell on a
-component page. The preview query must select and construct only the requested
-example. New gallery pages must add checked-in reference metadata so the
-website does not ship an examples-only component page.
+component page. The preview query and message bridge must select and construct
+only one requested example at a time. New gallery pages must add checked-in
+reference metadata so the website does not ship an examples-only component page.
+
+When regenerating `public/gallery/herogpui_web*`, also regenerate
+`src/data/wasm-sections.json` from that build's `gallery/src/pages/components.rs`
+with `node scripts/extract-wasm-sections.mjs --source <components.rs>`. This
+keeps the live selector from advertising examples absent from the wasm artifact.
+Run `node scripts/lift-wasm-descriptions.mjs <components.rs>` before the build;
+it idempotently moves legacy static prose out of the live component canvas.
