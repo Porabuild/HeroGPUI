@@ -65,6 +65,10 @@ function Invoke-Slug([string]$Name, [string]$CommitMessage) {
 
   $env:CARGO_TARGET_DIR = "D:/herogpui-wasm-target"
   $env:CARGO_HOME = "D:/cargo-home"
+  # An aborted build can leave fingerprints newer than the synced source, so
+  # cargo wrongly reports "fresh" and the old binary ships under a new
+  # manifest. Touching the source forces a real recompile every iteration.
+  (Get-Item $wasmSource).LastWriteTime = Get-Date
   Push-Location "D:/herogpui-wasm"
   try {
     Invoke-Step "cargo build --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web"
