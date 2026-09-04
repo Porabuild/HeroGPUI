@@ -60,7 +60,12 @@ function Invoke-Slug([string]$Name, [string]$CommitMessage) {
 
   $env:CARGO_TARGET_DIR = "D:/herogpui-wasm-target"
   $env:CARGO_HOME = "D:/cargo-home"
-  Invoke-Step "cargo build --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web"
+  Push-Location "D:/herogpui-wasm"
+  try {
+    Invoke-Step "cargo build --target wasm32-unknown-unknown --profile wasm-release -p herogpui-web"
+  } finally {
+    Pop-Location
+  }
   Invoke-Step "D:/cargo-home/bin/wasm-bindgen.exe D:/herogpui-wasm-target/wasm32-unknown-unknown/wasm-release/herogpui_web.wasm --out-dir '$root/web/public/gallery' --target web --no-typescript"
   Invoke-Step "node web/scripts/extract-wasm-sections.mjs --source '$wasmSource'"
 
