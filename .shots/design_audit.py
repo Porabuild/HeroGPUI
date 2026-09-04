@@ -490,10 +490,11 @@ CHECKS = [
      r'`md:min-w-55`[\s\S]{0,160}?\.min_w\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('dropdown', '.dropdown__menu', 'gap', 'Dropdown menu gap',
      SRC + 'dropdown.rs',
-     r'`gap-0\.5 p-1`[\s\S]{0,160}?\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.max_w\(window\.viewport_size\(\)\.width \* 0\.48\)\s*'
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('dropdown', '.dropdown__menu', 'p', 'Dropdown menu padding',
      SRC + 'dropdown.rs',
-     r'`gap-0\.5 p-1`[\s\S]{0,200}?\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.gap\(px\(2\.\)\)\s*\.p\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('dropdown', '.dropdown__popover [data-slot="dropdown-menu"]', 'p',
      'Dropdown contextual menu padding', SRC + 'dropdown.rs', None, None),
     ('color-swatch', '.color-swatch--xs', 'size', 'ColorSwatch Xs', CORE,
@@ -1066,9 +1067,8 @@ CHECKS = [
     # Anchor the menu metrics to the row's own construction chain. A fixed
     # window was outrun when the row gained a bounds-recording canvas.
     ('menu-item', '.menu-item', 'radius', 'Menu row -> util::_radius', SRC + 'dropdown.rs',
-     r'let mut row = gpui::div\(\)[\s\S]*?\.relative\(\)\s*\.flex\(\)\s*'
-     r'\.items_center\(\)\s*\.gap\(px\(12\.\)\)\s*\.px\(px\(8\.\)\)\s*'
-     r'\.rounded\(crate::util::(\w+_radius)\(cx\)\)', helper_px),
+     r'\.px\(px\(8\.\)\)\s*\.rounded\(crate::util::(\w+_radius)\(cx\)\)',
+     helper_px),
     ('menu-item', '.menu-item', 'px', 'Menu row padding_x', SRC + 'dropdown.rs',
      r'\.px\(px\((\d+(?:\.\d*)?)\)\)\s+\.rounded\(crate::util::\w+_radius\(cx\)\)',
      None),
@@ -1408,8 +1408,7 @@ CHECKS = [
 
     # --- a menu row ----------------------------------------------------------
     ('menu-item', '.menu-item', 'gap', 'Menu item gap', SRC + 'dropdown.rs',
-     r'let mut row = gpui::div\(\)[\s\S]*?\.relative\(\)\s*\.flex\(\)\s*'
-     r'\.items_center\(\)\s*\.gap\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.gap\(px\((\d+(?:\.\d*)?)\.\)\)\s*\.px\(px\(8\.\)\)', None),
     ('menu-item', '.menu-item', 'min_h', 'Menu item min height', SRC + 'dropdown.rs',
      r'`\.menu-item` is `min-h-9 py-1\.5`[\s\S]{0,160}?'
      r'\.min_h\(px\((\d+(?:\.\d*)?)\.\)\)', None),
@@ -1497,7 +1496,8 @@ CHECKS = [
      'Autocomplete popover row text -> FIELD_TEXT', SRC + 'autocomplete.rs',
      r'\.text_size\(util::(FIELD_TEXT)\)', lambda _: 14.0),
     ('dropdown', '.dropdown__popover', 'text', 'Dropdown row text', SRC + 'dropdown.rs',
-     r'let mut row = gpui::div\(\)[\s\S]{0,420}?\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
+     r'\.rounded\(crate::util::soft_radius\(cx\)\)\s*'
+     r'\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)', None),
     ('alert-dialog', '.alert-dialog__body', 'text', 'AlertDialog body text',
      SRC + 'alert_dialog.rs',
      r'\.when\(self\.size == AlertDialogSize::Cover, \|e\| e\.flex_1\(\)\)\s*\n\s*\.text_size\(px\((\d+(?:\.\d*)?)\.\)\)',

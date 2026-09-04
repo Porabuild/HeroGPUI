@@ -1310,6 +1310,9 @@ impl ListBox {
                             .flex()
                             .flex_col()
                             .flex_1()
+                            // `[data-slot="description"]` is `text-wrap`, which
+                            // needs a column that can shrink below its content.
+                            .min_w_0()
                             .child(div().child(label.to_string()))
                             .when_some(description.clone(), |el, d| {
                                 el.child(

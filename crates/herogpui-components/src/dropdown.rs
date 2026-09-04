@@ -551,6 +551,17 @@ impl RenderOnce for Menu {
             // it is `gap-0.5 p-1` -- `.dropdown__menu` overrides `.menu`'s
             // `gap-1` with half a step.
             .min_w(px(220.))
+            // `max-w-[48svw]`. Without a ceiling a described row's copy set
+            // the menu's width outright, so a long description could widen the
+            // popover across half the window.
+            //
+            // Under the ceiling that copy is clipped at the edge rather than
+            // wrapping, which is where this stops short of v3: the panel is the
+            // scroll container, and gpui 0.2.2 measures a scroll container's
+            // children on an unconstrained cross axis, so `text-wrap` has no
+            // width to wrap against. Moving the scroll to an inner layer is the
+            // fix and it is not a comment-sized change.
+            .max_w(window.viewport_size().width * 0.48)
             .gap(px(2.))
             .p(px(4.))
             .bg(colors.overlay.background)
@@ -824,6 +835,9 @@ impl RenderOnce for Menu {
                         .id(gpui::ElementId::Name(format!("{base}-item-{i}").into()))
                         .relative()
                         .flex()
+                        // `.menu-item` is `w-full`: the row takes the menu's
+                        // width rather than its own content's.
+                        .w_full()
                         .items_center()
                         .gap(px(12.))
                         .px(px(8.))
@@ -1018,6 +1032,8 @@ impl RenderOnce for Menu {
                                 Some(text) => gpui::div()
                                     .flex()
                                     .flex_col()
+                                    .flex_1()
+                                    .min_w_0()
                                     .gap(px(1.))
                                     .child(gpui::div().child(label.to_string()))
                                     .child(
@@ -1026,6 +1042,11 @@ impl RenderOnce for Menu {
                                             // `Description`, which is `text-xs`.
                                             .text_size(px(12.))
                                             .text_color(colors.muted)
+                                            // `[data-slot="description"]` is
+                                            // `text-wrap`, so its box is the
+                                            // column's width, not its own
+                                            // content's.
+                                            .w_full()
                                             .child(text.to_string()),
                                     )
                                     .into_any_element(),
