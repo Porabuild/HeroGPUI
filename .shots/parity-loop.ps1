@@ -48,13 +48,18 @@ function Invoke-Slug([string]$Name, [string]$CommitMessage) {
   node web/scripts/sync-parity-component.mjs plan $Name
   if ($LASTEXITCODE -ne 0) { throw "plan failed for $Name" }
 
-  $syncOut = node web/scripts/sync-parity-component.mjs sync $Name --composition-only 2>&1
-  if ($LASTEXITCODE -ne 0) { $syncOut; throw "sync failed for $Name" }
-  $syncOut
-  if ($syncOut -match "0 transplanted") {
-    Write-Host "no composition-only examples on $Name; needs a component port first" -ForegroundColor Yellow
-    return
-  }
+  $backup = Join-Path ([System.IO.Path]::GetTempPath()) "parity-components-backup.rs"
+  Copy-Item $wasmSource $backup -Force
+  $extracted = $false
+
+  try {
+    $syncOut = node web/scripts/sync-parity-component.mjs sync $Name --composition-only 2>&1
+    if ($LASTEXITCODE -ne 0) { $syncOut; throw "sync failed for $Name" }
+    $syncOut
+    if ($syncOut -match "0 transplanted" -and -not ($syncOut -match "already synced")) {
+      Write-Host "no composition-only examples on $Name; needs a component port first" -ForegroundColor Yellow
+      return
+    }
 
   Invoke-Step "node web/scripts/lift-wasm-descriptions.mjs '$wasmSource'"
 
@@ -68,6 +73,7 @@ function Invoke-Slug([string]$Name, [string]$CommitMessage) {
   }
   Invoke-Step "D:/cargo-home/bin/wasm-bindgen.exe D:/herogpui-wasm-target/wasm32-unknown-unknown/wasm-release/herogpui_web.wasm --out-dir '$root/web/public/gallery' --target web --no-typescript"
   Invoke-Step "node web/scripts/extract-wasm-sections.mjs --source '$wasmSource'"
+  $extracted = $true
 
   $after = (Get-Content web/src/data/wasm-parity.json -Raw | ConvertFrom-Json).codeDrift.Count
   Write-Host "drift: $before -> $after" -ForegroundColor Green
@@ -93,6 +99,10 @@ function Invoke-Slug([string]$Name, [string]$CommitMessage) {
   git commit -m $CommitMessage
   if ($LASTEXITCODE -ne 0) { throw "commit failed for $Name" }
   Write-Host "committed $Name ($before -> $after)" -ForegroundColor Green
+  } catch {
+    if (-not $extracted) { Copy-Item $backup $wasmSource -Force }
+    throw "loop failed for $Name (source restored: $(-not $extracted)): $_"
+  }
 }
 
 if ($All) {
