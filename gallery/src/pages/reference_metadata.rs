@@ -180,7 +180,7 @@ const DROPDOWN_API: &[ApiDoc] = &[
         prop: "placement",
         ty: "PopoverPlacement",
         default: "\"bottom\"",
-        description: "Placement of the popover relative to the trigger.",
+        description: "Placement relative to the trigger. Top/bottom menus shift horizontally to a 12px viewport inset; left/right menus do not yet flip at edges.",
         rust_owner: "Dropdown",
         rust: "placement(DropdownPlacement)",
         status: ImplementationStatus::Implemented,

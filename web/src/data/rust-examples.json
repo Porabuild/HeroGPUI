@@ -209,8 +209,8 @@
     },
     {
       "heading": "With Descriptions",
-      "imports": "use herogpui::prelude::{Button, Dropdown, MenuItem, Variant};",
-      "code": "Dropdown::uncontrolled(\n    \"dd-desc-dd\",\n    Button::new(\"dropdown-desc\")\n        .label(\"Merge\")\n        .variant(Variant::Secondary),\n    vec![\n        MenuItem::new(\"merge\", \"Create a merge commit\").description(\n            \"All commits from this branch are added to the base branch\",\n        ),\n        MenuItem::new(\"squash\", \"Squash and merge\")\n            .description(\"The commits are combined into one\"),\n        MenuItem::new(\"rebase\", \"Rebase and merge\")\n            .description(\"The commits are rebased onto the base branch\"),\n    ],\n)\n.id(\"dropdown-desc-dd\")"
+      "imports": "use herogpui::prelude::{Button, Dropdown, MenuItem, Placement, Variant};",
+      "code": "Dropdown::uncontrolled(\n    \"dd-desc-dd\",\n    Button::new(\"dropdown-desc\")\n        .label(\"Merge\")\n        .variant(Variant::Secondary),\n    vec![\n        MenuItem::new(\"merge\", \"Create a merge commit\").description(\n            \"All commits from this branch are added to the base branch\",\n        ),\n        MenuItem::new(\"squash\", \"Squash and merge\")\n            .description(\"The commits are combined into one\"),\n        MenuItem::new(\"rebase\", \"Rebase and merge\")\n            .description(\"The commits are rebased onto the base branch\"),\n    ],\n)\n.id(\"dropdown-desc-dd\")\n.placement(Placement::BottomStart)"
     },
     {
       "heading": "With Disabled Items",

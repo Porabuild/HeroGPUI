@@ -1292,6 +1292,7 @@ impl Gallery {
                         ],
                     )
                     .id("dd-desc-dd")
+                    .placement(h::Placement::BottomStart)
                     .into_any_element()]),
                 ),
                 (

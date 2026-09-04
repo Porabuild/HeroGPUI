@@ -103,7 +103,7 @@
         "prop": "placement",
         "type": "PopoverPlacement",
         "default": "\"bottom\"",
-        "description": "Placement of the popover relative to the trigger.",
+        "description": "Placement relative to the trigger. Top/bottom menus shift horizontally to a 12px viewport inset; left/right menus do not yet flip at edges.",
         "rustOwner": "Dropdown",
         "rust": "placement(DropdownPlacement)",
         "status": "implemented"

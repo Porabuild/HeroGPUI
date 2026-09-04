@@ -1776,12 +1776,77 @@ impl RenderOnce for Dropdown {
                     }
                 });
             }
-            let anchor = crate::util::placed_panel(self.placement, px(6.));
-            root = root.child(anchor.child(menu));
+            // Measure the menu and its submenu siblings, not the centered
+            // anchor's trigger-width span. Subtract the previous shift so a
+            // correction does not undo itself on the next frame.
+            let shifts = !matches!(
+                self.placement,
+                herogpui_core::Placement::Left | herogpui_core::Placement::Right
+            );
+            let shift_state = window.use_keyed_state(
+                gpui::ElementId::Name(format!("{wrap_base}-viewport-shift").into()),
+                cx,
+                |_, _| px(0.),
+            );
+            let shift = if shifts {
+                *shift_state.read(cx)
+            } else {
+                px(0.)
+            };
+            let viewport_width = window.viewport_size().width;
+            let mut measured = gpui::div()
+                .debug_selector(|| "dropdown-menu".to_owned())
+                .child(menu);
+            if shifts {
+                measured = measured.child(
+                    gpui::canvas(
+                        move |bounds, _, cx| {
+                            let next = viewport_shift(
+                                bounds.origin.x - shift,
+                                bounds.size.width,
+                                viewport_width,
+                            );
+                            // Half a pixel of slack: layout rounds, and an
+                            // unconditional write would notify every frame.
+                            if f32::from(next - shift).abs() > 0.5 {
+                                shift_state.update(cx, |value, cx| {
+                                    *value = next;
+                                    cx.notify();
+                                });
+                            }
+                            bounds
+                        },
+                        |_, _, _, _| {},
+                    )
+                    .absolute()
+                    .inset_0(),
+                );
+            }
+            let mut anchor = crate::util::placed_panel(self.placement, px(6.));
+            if shifts {
+                anchor = match self.placement.align() {
+                    herogpui_core::PlacementAlign::Start => anchor.left(shift),
+                    herogpui_core::PlacementAlign::End => anchor.right(-shift),
+                    herogpui_core::PlacementAlign::Center => anchor.left(shift).right(-shift),
+                };
+            }
+            root = root.child(anchor.child(measured));
         }
 
         root
     }
+}
+
+// React Aria 3.51.0 useOverlayPosition defaults containerPadding to 12px.
+const OVERLAY_VIEWPORT_INSET: Pixels = px(12.);
+
+// Cross-axis getDelta: preserve alignment when fitting, otherwise clamp to
+// the inset. If the menu is wider than the viewport, the start edge wins.
+fn viewport_shift(left: Pixels, width: Pixels, viewport_width: Pixels) -> Pixels {
+    let lo = OVERLAY_VIEWPORT_INSET;
+    let hi = viewport_width - OVERLAY_VIEWPORT_INSET - width;
+    let target = if hi < lo { lo } else { left.max(lo).min(hi) };
+    target - left
 }
 
 // The pinned `.menu-item:hover` fills with `bg-default`, the full token.
@@ -1805,5 +1870,72 @@ mod hover_tokens {
             !source.contains("colors.default.soft()"),
             "no menu surface may hover a soft token"
         );
+    }
+}
+
+/// `viewport_shift` is react-aria's cross-axis `getDelta`, so these cases are
+/// that function's branches: inside the boundary, past either edge, and wider
+/// than the boundary can hold.
+#[cfg(test)]
+mod viewport_shift_tests {
+    use super::{viewport_shift, OVERLAY_VIEWPORT_INSET};
+    use gpui::px;
+
+    /// The inset the pinned react-aria (3.51.0) defaults `containerPadding` to.
+    #[test]
+    fn the_inset_is_the_pinned_container_padding() {
+        assert_eq!(OVERLAY_VIEWPORT_INSET, px(12.));
+    }
+
+    #[test]
+    fn a_panel_inside_the_boundary_is_not_moved() {
+        assert_eq!(viewport_shift(px(100.), px(220.), px(600.)), px(0.));
+        // Exactly on both insets still counts as fitting.
+        assert_eq!(viewport_shift(px(12.), px(576.), px(600.)), px(0.));
+    }
+
+    #[test]
+    fn a_panel_past_the_end_edge_slides_back_to_the_inset() {
+        // 500 + 220 = 720, which is 132 past a 600-wide window's 588 edge.
+        assert_eq!(viewport_shift(px(500.), px(220.), px(600.)), px(-132.));
+        // The result puts the right edge exactly on the inset.
+        let shift = viewport_shift(px(500.), px(220.), px(600.));
+        assert_eq!(
+            px(500.) + shift + px(220.),
+            px(600.) - OVERLAY_VIEWPORT_INSET
+        );
+    }
+
+    #[test]
+    fn a_panel_past_the_start_edge_slides_forward_to_the_inset() {
+        assert_eq!(viewport_shift(px(-40.), px(220.), px(600.)), px(52.));
+        let shift = viewport_shift(px(-40.), px(220.), px(600.));
+        assert_eq!(px(-40.) + shift, OVERLAY_VIEWPORT_INSET);
+    }
+
+    /// Upstream's `Math.max(endTerm, startTerm)` resolves to the start term
+    /// when the overlay cannot fit, so the start edge wins and the overflow is
+    /// left at the end.
+    #[test]
+    fn a_panel_wider_than_the_boundary_aligns_to_the_start_inset() {
+        let shift = viewport_shift(px(200.), px(900.), px(600.));
+        assert_eq!(px(200.) + shift, OVERLAY_VIEWPORT_INSET);
+    }
+
+    /// The property the dropdown relies on to settle in one frame: feeding the
+    /// corrected geometry back in asks for no further correction.
+    #[test]
+    fn the_shift_is_a_fixed_point() {
+        for left in [-80., -1., 0., 37., 260., 500., 900.] {
+            for width in [80., 220., 288., 590.] {
+                let first = viewport_shift(px(left), px(width), px(600.));
+                let again = viewport_shift(px(left) + first, px(width), px(600.));
+                assert_eq!(
+                    again,
+                    px(0.),
+                    "left={left} width={width} shifted by {first:?} then wanted {again:?}"
+                );
+            }
+        }
     }
 }
