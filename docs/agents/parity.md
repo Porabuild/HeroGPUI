@@ -52,20 +52,31 @@ an all-green mapped subset is not proof that every upstream metric is covered.
 
 ## Running the audit set
 
-The prop and several documentation audits read the downloaded HeroUI bundle.
-The design and demo audits maintain their own tagged/cached inputs.
+Every input is checked in, so the set needs no network and measures the same
+v3.2.4 contract on every machine. `.shots/heroui-bundle.txt.gz` is the docs
+bundle the prop and prose audits read; `.shots/heroui-css-v3.2.4.tar.gz` is the
+component stylesheets the design, motion and anatomy audits read. Both unpack
+themselves on first use.
 
 ```powershell
-Invoke-WebRequest https://heroui.com/react/llms-full.txt `
-  -OutFile (Join-Path $env:TEMP 'heroui-full.txt')
-python .shots/design_audit.py --fetch
-python .shots/demo_audit.py --fetch
-
 Get-ChildItem .shots/*audit.py | ForEach-Object {
     python $_.FullName
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 python .shots/write_only.py
+```
+
+CI runs exactly this set, so a local pass is the same evidence CI produces.
+
+Refreshing either pin is deliberate, never a side effect of a run. The bundle
+audits refuse any copy whose latest release is not `PINNED_RELEASE` in
+`.shots/bundle.py`; point `HEROUI_BUNDLE` at another file and set
+`HEROUI_BUNDLE_UNPINNED=1` to read a different release on purpose. To move the
+pin, refresh the archive and `PINNED_RELEASE` together and re-run the set:
+
+```powershell
+curl -sL https://heroui.com/react/llms-full.txt | gzip -9 > .shots/heroui-bundle.txt.gz
+python .shots/design_audit.py --fetch   # then re-pack heroui-css-v3.2.4.tar.gz
 ```
 
 Run focused scripts while iterating. Run the set when a broad parity claim,
