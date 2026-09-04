@@ -34,11 +34,11 @@ const WASM_DEFAULT = "D:/herogpui-wasm/gallery/src/pages/components.rs";
 // specimen-width wrappers, status prose, placeholders, and builder props the
 // WASM migration already supports (proven by prior transplant batches).
 const COMPOSITION_RE =
-  /placeholder|field_col|demo_field|fixed_demo|para\(|into_any_element|gpui::div|\.flex\(|\.gap\(|items_start|\.children\(|\.child\(|w\(px\(|variant\(|description\(|label\(|error_message|is_required|is_disabled|is_clearable|input_type|full_width|row_height|show_value|selection_mode|SelectionMode|format_options|NumberFormat|\.color\(|\.size\(|default_value|\.value\(|padding\(|FieldVariant|el_id|opt_usize_cb|demo_text|validate\(|\.on_selection_change|selected|select_lang|notify\(\)|\.els\(\)|\.map\(|\.iter\(|languages\(\)|virtual_names\(\)|\.into\(\)|\.input\(|\.text_area\(|\.rows\(|"/;
+  /placeholder|field_col|demo_field|fixed_demo|para\(|into_any_element|gpui::div|\.flex\(|\.gap\(|items_start|\.children\(|\.child\(|w\(px\(|variant\(|description\(|label\(|error_message|is_required|is_disabled|is_clearable|input_type|full_width|row_height|show_value|selection_mode|SelectionMode|format_options|NumberFormat|\.color\(|\.size\(|default_value|\.value\(|padding\(|FieldVariant|el_id|opt_usize_cb|demo_text|validate\(|\.on_selection_change|selected|select_lang|notify\(\)|\.els\(\)|\.map\(|\.iter\(|languages\(\)|virtual_names\(\)|\.into\(\)|\.input\(|\.text_area\(|\.rows\(|remove_content|spec\(|"/;
 
 // Added lines that always need a real component port first.
 const API_GAP_RE =
-  /fn |struct |impl |set_demo_value|set_demo_text_value|demo_value\(|demo_text_value\(|on_resize|remove_content|\.width\(px|allows_resizing|escape|render_fn|render-prop|RenderProp/;
+  /fn |struct |impl |set_demo_value|set_demo_text_value|demo_value\(|demo_text_value\(|on_resize|\.width\(px|allows_resizing|escape|render_fn|render-prop|RenderProp/;
 
 // Bare closers and dimension literals carry no API meaning.
 const NOISE_RE = /^[\s()[\]{},.\d_"']+$/;
