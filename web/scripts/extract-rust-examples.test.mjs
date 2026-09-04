@@ -23,7 +23,7 @@ test("documentationParity keeps component examples and reference metadata in syn
   });
 });
 
-test("wasm section manifest only advertises generated component examples", () => {
+test("wasm section manifest matches generated component examples", () => {
   const examples = JSON.parse(
     readFileSync(resolve(import.meta.dirname, "../src/data/rust-examples.json"), "utf8"),
   );
@@ -33,13 +33,21 @@ test("wasm section manifest only advertises generated component examples", () =>
 
   assert.deepEqual(Object.keys(wasmSections).sort(), Object.keys(examples).sort());
 
+  const missing = [];
   for (const [slug, headings] of Object.entries(wasmSections)) {
     const documented = new Set(examples[slug]?.map((example) => example.heading) ?? []);
+    const live = new Set(headings);
     assert.ok(documented.size > 0, `${slug} has wasm examples but no component documentation`);
     for (const heading of headings) {
       assert.ok(documented.has(heading), `${slug}/${heading} is not generated documentation`);
     }
+    for (const heading of documented) {
+      if (!live.has(heading)) missing.push(`${slug}/${heading}`);
+    }
   }
+
+  // Remove an entry as soon as the migration artifact gains the required API.
+  assert.deepEqual(missing.sort(), ["avatar/Custom Image Component", "popover/Render Function"]);
 });
 
 test("liftDescriptions moves static copy outside the wasm specimen", () => {
