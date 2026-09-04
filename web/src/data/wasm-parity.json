@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "artifactSha256": "342e9c9e3d2442246f48e35637bb9616379162f048dc3707508cc3f4d117759a",
-  "glueSha256": "f92f396e90eb7a66a0d2bffadfa08dcd0866d0e29bd47663814e46a61639d0d3",
+  "artifactSha256": "77c43b10504c7a38fb77ff107b8a7716a1c01ba4cf2fc1b91d0f8438e317206e",
+  "glueSha256": "8e34e12d86714b4440c6ea6e4bf274913b3a74236e9dde08dc532cbdcc1d4052",
   "examples": {
     "accordion/Controlled": {
       "nativeCodeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -1730,32 +1730,26 @@
     },
     "progress-bar/Colors": {
       "nativeCodeSha256": "de45a6c64a648217369bb541b1ae34b8ddf559ca6cceb40b653da4588ca33a70",
-      "wasmCodeSha256": "a80b2a8705664fb584997c65f880eba0afd8dec741c253aebd7e699212810f8c",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "progress-bar/Custom Value Scale": {
       "nativeCodeSha256": "d4e73e51af0b7d175ed21d38f8ef3ddfdf38994f402bf587b3e3dc08433c3c0f",
-      "wasmCodeSha256": "9cc526e48046d38dc400185ba4cb0a695e01d074f5630cbe77f54d157e254157",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "progress-bar/Indeterminate": {
       "nativeCodeSha256": "f3bfba427a931132953f7dae8be90244c5da6422a2f4676353b2c017f0696f9a",
-      "wasmCodeSha256": "841e7b2f70a77f8760ef00a8b610c73e13e8494841438fe4748e81c03789c6cf",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "progress-bar/Sizes": {
       "nativeCodeSha256": "b207a61a89b0868759a4d99aad30d85ae27598cad424238447d9f6d5f695aa7a",
-      "wasmCodeSha256": "412911445ea79fe0c8189d7643934ae863c5877640dc6526ef02bc44d7b5be88",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "progress-bar/Usage": {
       "nativeCodeSha256": "c442fc98dcb48dc543ad7ea7760fac1c61a09c143ed12be9318b30456161e4a0",
-      "wasmCodeSha256": "43fa614752a6dd7aab01353ceb1fc3bc03f456234318c720eea6313a13ed47cc",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "progress-bar/Without Label": {
       "nativeCodeSha256": "ff72c0a1167350dc04a2fbb353133e17968ae1b893cc9c664573f514ec91f299",
-      "wasmCodeSha256": "bfc427b0fad5ab8f905a8e1da36a211221b9871b9b0e2e24184836e8d69f84ff",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "progress-circle/Colors": {
@@ -2781,12 +2775,6 @@
     "popover/Placement",
     "popover/Usage",
     "popover/With Arrow",
-    "progress-bar/Colors",
-    "progress-bar/Custom Value Scale",
-    "progress-bar/Indeterminate",
-    "progress-bar/Sizes",
-    "progress-bar/Usage",
-    "progress-bar/Without Label",
     "search-field/Controlled",
     "search-field/Custom Icons",
     "search-field/Disabled State",
