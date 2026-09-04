@@ -55,7 +55,7 @@ fn chip_variants_share_one_borderless_box(cx: &mut TestAppContext) {
             .children(ChipVariant::ALL.map(|variant| {
                 div()
                     .flex()
-                    .debug_selector(move || variant.label().to_owned())
+                    .debug_selector(move || format!("{variant:?}"))
                     .child(
                         Chip::new()
                             .child(ChipLabel::new().child("Tag"))
@@ -112,7 +112,7 @@ fn chip_sizes_step_by_their_paddings(cx: &mut TestAppContext) {
             .children(Size::ALL.map(|size| {
                 div()
                     .flex()
-                    .debug_selector(move || size.label().to_owned())
+                    .debug_selector(move || format!("{size:?}"))
                     .child(Chip::new().child(ChipLabel::new().child("Tag")).size(size))
             }))
             .into_any_element()

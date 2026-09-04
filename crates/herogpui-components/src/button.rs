@@ -333,6 +333,40 @@ fn apply_variant(
     }
 }
 
+/// Button's own type and spacing ladder, from `button.css`.
+///
+/// Only three things move across the sizes. `.button` sets `px-4 gap-2 text-sm`
+/// for every size; `.button--sm` narrows the padding to `px-3` and `.button--lg`
+/// steps the type up to `text-base` — neither touches the gap, and `--sm` does
+/// not touch the type. Reading a generic sm/md/lg ladder instead made the small
+/// button's label a step too small and the large button's padding and gap a
+/// step too wide.
+fn button_metrics(size: Size) -> ButtonMetrics {
+    let (text, line_height) = match size {
+        // `text-sm` / `text-base`, with Tailwind's paired line heights.
+        Size::Sm | Size::Md => (gpui::px(14.), gpui::px(20.)),
+        Size::Lg => (gpui::px(16.), gpui::px(24.)),
+    };
+    ButtonMetrics {
+        text,
+        line_height,
+        // `px-3` on `--sm`, `px-4` everywhere else.
+        padding_x: match size {
+            Size::Sm => gpui::px(12.),
+            Size::Md | Size::Lg => gpui::px(16.),
+        },
+        // `gap-2`, never overridden.
+        gap: gpui::px(8.),
+    }
+}
+
+struct ButtonMetrics {
+    text: gpui::Pixels,
+    line_height: gpui::Pixels,
+    padding_x: gpui::Pixels,
+    gap: gpui::Pixels,
+}
+
 /// The text colour `variant` paints, for child svgs that cannot inherit
 /// `text_color` from their parent.
 pub fn button_foreground(variant: Variant, cx: &App) -> gpui::Hsla {
@@ -487,6 +521,7 @@ impl RenderOnce for Button {
             .then(|| button_hover_colors(self.variant, cx))
             .flatten();
 
+        let metrics = button_metrics(self.size);
         let mut el = div()
             .id(self.id.clone())
             .flex()
@@ -494,18 +529,21 @@ impl RenderOnce for Button {
             .items_center()
             .justify_center()
             .flex_shrink_0()
-            .overflow_hidden()
+            // `button.css` declares no `overflow`: a label too long for the
+            // button spills, it is not cut. Clipping it here also gave the row
+            // an automatic minimum size of zero, which let the label collapse
+            // instead of overflowing.
             .whitespace_nowrap()
             .font_weight(gpui::FontWeight::MEDIUM)
             .map(|e| group_radius(e, self.group_edge, util::control_radius(cx)))
-            .text_size(self.size.text_size())
-            .line_height(self.size.line_height())
+            .text_size(metrics.text)
+            .line_height(metrics.line_height)
             .h(self.size.control_height());
 
         el = if self.is_icon_only {
             el.w(self.size.icon_control_size())
         } else {
-            el.px(self.size.padding_x()).gap(self.size.gap())
+            el.px(metrics.padding_x).gap(metrics.gap)
         };
 
         if self.full_width {
@@ -605,14 +643,14 @@ impl RenderOnce for Button {
                 el,
                 crate::anim::PressBox {
                     height: self.size.control_height(),
-                    padding_x: (!self.is_icon_only).then(|| self.size.padding_x()),
+                    padding_x: (!self.is_icon_only).then_some(metrics.padding_x),
                     width: self.is_icon_only.then(|| self.size.icon_control_size()),
                     // v3's `.button` is `w-fit` with no minimum, so a press has
                     // no floor to scale.
                     min_width: None,
-                    text_size: self.size.text_size(),
-                    line_height: self.size.line_height(),
-                    gap: self.size.gap(),
+                    text_size: metrics.text,
+                    line_height: metrics.line_height,
+                    gap: metrics.gap,
                     radius: util::control_radius(cx),
                     shrink_x: !self.full_width,
                     scale: press_scale,
