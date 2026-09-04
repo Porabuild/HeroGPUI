@@ -5628,8 +5628,8 @@ const INPUT_OTP_API: &[ApiDoc] = &[
         default: "—",
         description: "Placeholder text for empty slots.",
         rust_owner: "InputOTP",
-        rust: "placeholder(char)",
-        status: ImplementationStatus::Partial,
+        rust: "placeholder(impl Into<SharedString>)",
+        status: ImplementationStatus::Implemented,
     },
     ApiDoc {
         owner: "InputOTP",

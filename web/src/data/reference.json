@@ -9967,8 +9967,8 @@
         "default": "—",
         "description": "Placeholder text for empty slots.",
         "rustOwner": "InputOTP",
-        "rust": "placeholder(char)",
-        "status": "partial"
+        "rust": "placeholder(impl Into<SharedString>)",
+        "status": "implemented"
       },
       {
         "owner": "InputOTP",

@@ -249,7 +249,7 @@ pub struct InputOTP {
     /// `pasteTransformer` — rewrites pasted text before the slots take it.
     paste_transformer: Option<std::sync::Arc<dyn Fn(&str) -> String + 'static>>,
     is_invalid: bool,
-    placeholder: char,
+    placeholder: Option<SharedString>,
     pattern: OtpPattern,
     on_change: Option<std::sync::Arc<dyn Fn(&str, &mut Window, &mut App) + 'static>>,
     state: Entity<OtpState>,
@@ -277,7 +277,7 @@ impl InputOTP {
             auto_focus: false,
             paste_transformer: None,
             is_invalid: false,
-            placeholder: '-',
+            placeholder: None,
             pattern: OtpPattern::Digits,
             on_change: None,
             state,
@@ -374,9 +374,14 @@ impl InputOTP {
         self
     }
 
-    /// `placeholder` — the glyph shown in an empty cell.
-    pub fn placeholder(mut self, ch: char) -> Self {
-        self.placeholder = ch;
+    /// `placeholder` — the text shown in an empty cell.
+    ///
+    /// v3 documents no default: `input-otp.css` gives an empty slot nothing to
+    /// draw. This port used to default it to `'-'`, which is what the docs
+    /// table prints in its *Default* column to mean "none" — so every unfilled
+    /// cell showed a dash upstream leaves blank.
+    pub fn placeholder(mut self, text: impl Into<SharedString>) -> Self {
+        self.placeholder = Some(text.into());
         self
     }
 
@@ -653,11 +658,9 @@ impl RenderOnce for InputOTP {
                     ),
                     cx,
                 ));
-            } else {
+            } else if let Some(placeholder) = &self.placeholder {
                 // `placeholder` fills the empty, unfocused cells.
-                cell = cell
-                    .text_color(colors.muted)
-                    .child(self.placeholder.to_string());
+                cell = cell.text_color(colors.muted).child(placeholder.clone());
             }
 
             row = row.child(cell);
