@@ -420,19 +420,27 @@ WONT_PORT = {
     # no abbreviation to hide.
     'hideTimeZone': 'no-time-zones',
 
-    # Choosing separators, digit systems and currency placement per locale needs
-    # CLDR data; a partial table would be worse than not offering the prop.
-    # `formatOptions` itself is implemented -- see `core/src/format.rs`.
-    'locale': 'no-intl',
+    # NumberField's `locale`. Choosing separators, digit systems and currency
+    # placement per locale needs CLDR *number* data. The date components carry
+    # `icu_datetime`, `icu_calendar` and `icu_locale_core`, which is why the
+    # calendar heads itself in the reader's locale, but `herogpui-core` -- where
+    # `format.rs` implements `formatOptions` -- depends on no ICU crate at all,
+    # and a hand-written separator table would be worse than not offering the
+    # prop.
+    'locale': 'no-intl-numbers',
     # The year-picker heading `format` is `DateFormatterOptions`, i.e.
-    # `Intl.DateTimeFormatOptions`. Its two rows document `{month: 'short'}`
-    # and `{year: 'numeric'}`, but the type also carries `era`, a `calendar`
-    # identifier and the state's timeZone, and honoring those needs the same
-    # locale-aware `Intl` data as `locale` above -- CLDR data this port does
-    # not carry. It can emit a fixed ISO date (`Date::format_iso`) but not
-    # honor the options object.
-    'Calendar.format': 'no-intl',
-    'RangeCalendar.format': 'no-intl',
+    # `Intl.DateTimeFormatOptions`. Its two documented rows, `{month: 'short'}`
+    # and `{year: 'numeric'}`, are answerable now that the crate carries CLDR:
+    # `calendar.rs`'s `month_heading_for_locale` already asks `icu_datetime` for
+    # exactly that. The type is wider than its rows, and the rest is what blocks
+    # it -- `era` and a `calendar` identifier select a calendar *system*, and
+    # this port's `Date` is a plain proleptic-Gregorian triple with no era and
+    # no other system to switch to. Answering half an options object is the
+    # partial implementation this file exists to refuse; closing it means
+    # modelling non-Gregorian calendars, which is also what the four
+    # `International Calendars` examples in `example_audit.py` wait on.
+    'Calendar.format': 'gregorian-only-date',
+    'RangeCalendar.format': 'gregorian-only-date',
     # There is no browser to navigate or post to. `action` is the exception:
     # v3's type is `string | FormHTMLAttributes['action']`, and the function half
     # of that union -- the one handed the form data -- is `on_submit`, so it is
