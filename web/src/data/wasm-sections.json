@@ -24,6 +24,7 @@
   "close-button": [
     "Usage",
     "With Custom Icon",
+    "Render Function",
     "Interactive",
     "Disabled"
   ],
@@ -238,6 +239,7 @@
   ],
   "date-field": [
     "Granularity",
+    "Forced Leading Zeros",
     "Usage",
     "With Icons",
     "Variants",
@@ -296,6 +298,7 @@
   "time-field": [
     "24-hour",
     "12-hour with seconds",
+    "Forced Leading Zeros",
     "Usage",
     "With Icons",
     "On Surface",
@@ -648,6 +651,7 @@
     "With Arrow",
     "Interactive Content",
     "Placement",
+    "Custom Styles",
     "Usage"
   ],
   "toast": [

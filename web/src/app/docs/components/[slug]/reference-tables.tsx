@@ -66,9 +66,9 @@ export function ReferenceTable<Row>({
       className={className}
       columns={columns.map(({ id, header, isRowHeader }) => ({ header, id, isRowHeader }))}
       label={label}
-      rows={rows.map((row) => ({
+      rows={rows.map((row, index) => ({
         cells: columns.map((column) => column.cell(row)),
-        id: rowId(row),
+        id: `${rowId(row)}-${index}`,
       }))}
     />
   );

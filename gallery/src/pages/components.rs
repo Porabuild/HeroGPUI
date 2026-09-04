@@ -816,11 +816,12 @@ impl Gallery {
                         cx,
                     ),]),
                 ),
-                ("Render Function", {
-                    let muted = cx.colors().muted;
-                    let foreground = cx.colors().foreground;
-                    col(vec![
-                        h::CloseButton::new("cb-render-state")
+                (
+                    "Render Function", "Hover, focus, or press the button to drive the custom icon from its live render state.",
+                    {
+                        let muted = cx.colors().muted;
+                        let foreground = cx.colors().foreground;
+                        col(vec![h::CloseButton::new("cb-render-state")
                             .content(move |state| {
                                 gpui::svg()
                                     .size(px(16.))
@@ -838,16 +839,9 @@ impl Gallery {
                                     })
                                     .into_any_element()
                             })
-                            .into_any_element(),
-                        gpui::div()
-                            .text_size(px(13.))
-                            .text_color(muted)
-                            .child(
-                                "Hover, focus, or press the button to drive the custom icon from its live render state.",
-                            )
-                            .into_any_element(),
-                    ])
-                }),
+                            .into_any_element()])
+                    }
+                ),
                 (
                     "Disabled",
                     row(vec![h::CloseButton::new("cb-disabled")
