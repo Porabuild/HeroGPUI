@@ -13,7 +13,7 @@ use gpui::{
 use herogpui_theme::ActiveTheme;
 
 use crate::{
-    calendar::{add_days, add_months, days_from_civil, days_in_month, weekday_index, Date},
+    calendar::{add_days, days_from_civil, days_in_month, weekday_index, Date},
     calendar_view::{self, PageBehavior, SelectionAlignment, VisibleDuration},
     date_constraints::{DateConstraints, Weekday},
     date_picker::DateRangeState,
@@ -37,6 +37,9 @@ pub struct RangeCalendar {
     /// Set by a picker: take the focus as the panel opens. See
     /// [`RangeCalendar::autofocus_grid`].
     autofocus_grid: bool,
+    /// The calendar system the grid is drawn in, when the caller names one.
+    /// `None` follows the operating system's locale, which is v3's default.
+    calendar_system: Option<crate::calendar_system::CalendarSystem>,
     is_invalid: bool,
     focused_value: Option<Date>,
     duration: VisibleDuration,
@@ -89,6 +92,23 @@ pub struct RangeCalendarCellState {
 }
 
 impl RangeCalendar {
+    /// The locale whose calendar system this grid is drawn in.
+    ///
+    /// The same override [`crate::Calendar::locale`] takes, and for the same
+    /// reason: v3 wraps the calendar in an `I18nProvider` and gpui has no
+    /// subtree context to put one in.
+    pub fn locale(mut self, tag: impl AsRef<str>) -> Self {
+        self.calendar_system = crate::calendar_system::CalendarSystem::for_locale(tag.as_ref());
+        self
+    }
+
+    /// The system this grid measures in: the caller's, else the platform's.
+    fn system(&self) -> &crate::calendar_system::CalendarSystem {
+        self.calendar_system
+            .as_ref()
+            .unwrap_or_else(|| crate::calendar_system::system())
+    }
+
     /// `focusedValue` — the date carrying the focus ring, independent of the
     /// selection.
     pub fn focused_value(mut self, date: Date) -> Self {
@@ -121,6 +141,7 @@ impl RangeCalendar {
             state,
             constraints: DateConstraints::new().with_hero_calendar_bounds(),
             range_date_unavailable: None,
+            calendar_system: None,
             is_disabled: false,
             is_read_only: false,
             autofocus_grid: false,
@@ -592,7 +613,7 @@ impl RangeCalendar {
             .child(match &self.cell {
                 Some(render) => render(RangeCalendarCellState {
                     date,
-                    formatted_date: date.day.to_string().into(),
+                    formatted_date: self.day_label(date).into(),
                     is_selected,
                     is_selection_start: is_start,
                     is_selection_end: is_end,
@@ -601,7 +622,7 @@ impl RangeCalendar {
                     is_today,
                     is_disabled: disabled,
                 }),
-                None => date.day.to_string().into_any_element(),
+                None => self.day_label(date).into_any_element(),
             });
 
         if draw_start || draw_end {
@@ -810,11 +831,46 @@ impl RangeCalendar {
         row
     }
 
+    /// The heading over one visible month, named in the view calendar.
+    fn month_heading_text(&self, year: i32, month: u32) -> String {
+        let system = self.system();
+        let (year, month) = system.add_months(year, month, self.year_heading_offset_months);
+        let Some(date) = system.to_gregorian(year, month, 1) else {
+            return String::new();
+        };
+        crate::calendar::month_heading_for_locale(system.locale(), date.year, date.month)
+            .unwrap_or_else(|| crate::calendar::month_year_heading(date.year, date.month))
+    }
+
+    /// The number a cell prints: the day of the month in the *view* calendar.
+    fn day_label(&self, date: Date) -> String {
+        self.system().from_gregorian(date).2.to_string()
+    }
+
+    /// One cell whose date the calendar system may not have; a triple it does
+    /// not hold draws a blank rather than a wrong day.
+    #[allow(clippy::too_many_arguments)]
+    fn range_spill_cell(
+        &self,
+        date: Option<Date>,
+        outside_month: bool,
+        frame: &Frame<'_>,
+        key: String,
+        slot: CellSlot,
+        cx: &App,
+    ) -> gpui::AnyElement {
+        match date {
+            Some(date) => self.range_cell(date, outside_month, frame, key, slot, cx),
+            None => div().size(px(36.)).into_any_element(),
+        }
+    }
+
     /// The 7-column grid for one month.
     fn month_grid(&self, y: i32, m: u32, frame: &Frame<'_>, cx: &App) -> gpui::AnyElement {
-        let lead = self.constraints.lead_cells(y, m);
-        let total = days_in_month(y, m) as usize;
-        let rows = self.constraints.rows(y, m);
+        let system = self.system();
+        let lead = self.constraints.lead_cells_in(system, y, m);
+        let total = system.days_in_month(y, m) as usize;
+        let rows = self.constraints.rows_in(system, y, m);
 
         // The pinned cells carry `my-[2px]` margins, so two rows sit 4px
         // apart vertically while the seven 36px columns touch horizontally.
@@ -824,11 +880,12 @@ impl RangeCalendar {
             for column in 0..7 {
                 let index = row_index * 7 + column;
                 let cell = if index < lead {
-                    let (previous_year, previous_month) = add_months(y, m, -1);
-                    let day =
-                        days_in_month(previous_year, previous_month) as usize - lead + index + 1;
-                    self.range_cell(
-                        Date::new(previous_year, previous_month, day as u32),
+                    let (previous_year, previous_month) = system.add_months(y, m, -1);
+                    let day = system.days_in_month(previous_year, previous_month) as usize - lead
+                        + index
+                        + 1;
+                    self.range_spill_cell(
+                        system.to_gregorian(previous_year, previous_month, day as u32),
                         true,
                         frame,
                         format!(
@@ -841,8 +898,8 @@ impl RangeCalendar {
                 } else {
                     let day = index - lead + 1;
                     if day <= total {
-                        self.range_cell(
-                            Date::new(y, m, day as u32),
+                        self.range_spill_cell(
+                            system.to_gregorian(y, m, day as u32),
                             false,
                             frame,
                             format!("{}-{y}-{m}-day-{day}", frame.base),
@@ -850,10 +907,10 @@ impl RangeCalendar {
                             cx,
                         )
                     } else {
-                        let (next_year, next_month) = add_months(y, m, 1);
+                        let (next_year, next_month) = system.add_months(y, m, 1);
                         let next_day = day - total;
-                        self.range_cell(
-                            Date::new(next_year, next_month, next_day as u32),
+                        self.range_spill_cell(
+                            system.to_gregorian(next_year, next_month, next_day as u32),
                             true,
                             frame,
                             format!(
@@ -1174,7 +1231,7 @@ impl RenderOnce for RangeCalendar {
             focused: ring_at,
         };
 
-        let months = calendar_view::month_headings(self.duration, anchor);
+        let months = calendar_view::month_headings_in(self.system(), self.duration, anchor);
         let linear = calendar_view::linear_cells(self.duration, first_day, anchor);
         let columns = months.len().max(1);
         let mut heading_focuses = Vec::with_capacity(columns);
@@ -1191,8 +1248,15 @@ impl RenderOnce for RangeCalendar {
         let colors = cx.colors();
         let layout = cx.layout();
 
-        let nav_target =
-            |dir: i32| calendar_view::page(self.duration, self.page_behavior, anchor, dir);
+        let nav_target = |dir: i32| {
+            calendar_view::page_in(
+                self.system(),
+                self.duration,
+                self.page_behavior,
+                anchor,
+                dir,
+            )
+        };
         let (visible_start, visible_end) =
             calendar_view::visible_range(self.duration, first_day, anchor);
         // React Stately checks only the day immediately outside the visible
@@ -1671,11 +1735,10 @@ impl RenderOnce for RangeCalendar {
                     .px(px(2.))
                     .child(div().size(px(24.)))
                     .child(heading(
-                        calendar_view::month_heading(
-                            anchor.year,
-                            anchor.month,
-                            self.year_heading_offset_months,
-                        ),
+                        {
+                            let (ay, am, _) = self.system().from_gregorian(anchor);
+                            self.month_heading_text(ay, am)
+                        },
                         format!("{base}-yheading"),
                         &active_heading_focus,
                         active_heading_index,
@@ -1726,11 +1789,7 @@ impl RenderOnce for RangeCalendar {
                             spacer()
                         })
                         .child(heading(
-                            calendar_view::month_heading(
-                                y,
-                                m,
-                                self.year_heading_offset_months,
-                            ),
+                            self.month_heading_text(y, m),
                             format!("{base}-heading{i}"),
                             &heading_focuses[i],
                             i,

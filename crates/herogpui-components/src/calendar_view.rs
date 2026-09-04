@@ -6,7 +6,7 @@
 //! anchor date; everything below is pure so the geometry can be tested without
 //! a window.
 
-use crate::calendar::{add_days, add_months, bump_month, days_from_civil, days_in_month, Date};
+use crate::calendar::{add_days, bump_month, days_from_civil, days_in_month, Date};
 use crate::date_constraints::Weekday;
 
 /// `visibleDuration` — how much time one calendar shows at once.
@@ -399,13 +399,6 @@ pub(crate) struct YearGridView<'a> {
     pub(crate) base: &'a str,
 }
 
-/// A year-picker trigger heading shifted from its calendar month's start.
-/// React Aria's `offset={{months: n}}` adds the duration before formatting.
-pub(crate) fn month_heading(year: i32, month: u32, offset_months: i32) -> String {
-    let (year, month) = add_months(year, month, offset_months);
-    crate::calendar::month_year_heading(year, month)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -670,10 +663,18 @@ mod tests {
         );
     }
 
+    /// React Aria's `offset={months: n}` adds the duration before formatting.
+    /// Each calendar now applies that offset in its own view system, so this
+    /// pins the pair the components compose: step, then name the month.
     #[test]
     fn month_heading_offset_crosses_the_year() {
-        assert_eq!(month_heading(2026, 8, 0), "August 2026");
-        assert_eq!(month_heading(2026, 12, 2), "February 2027");
-        assert_eq!(month_heading(2026, 1, -2), "November 2025");
+        let system = crate::calendar_system::CalendarSystem::for_locale("en-US").unwrap();
+        let heading = |year: i32, month: u32, offset: i32| {
+            let (year, month) = system.add_months(year, month, offset);
+            crate::calendar::month_heading_for_locale(system.locale(), year, month).unwrap()
+        };
+        assert_eq!(heading(2026, 8, 0), "August 2026");
+        assert_eq!(heading(2026, 12, 2), "February 2027");
+        assert_eq!(heading(2026, 1, -2), "November 2025");
     }
 }
