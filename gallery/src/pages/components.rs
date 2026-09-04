@@ -9042,10 +9042,12 @@ impl Gallery {
                     .child(gpui::div().child("Ships in 2-4 business days."))
                     .into_any_element()]),
                 ),
-                ("Render Function", {
-                    let render_expanded = self.demo_flag("disclosure-render", true);
-                    col(vec![
-                        h::Disclosure::new("disclosure-render", "Account details")
+                (
+                    "Render Function",
+                    "The body is built from the Disclosure's current expanded and disabled state.",
+                    {
+                        let render_expanded = self.demo_flag("disclosure-render", true);
+                        col(vec![h::Disclosure::new("disclosure-render", "Account details")
                             .is_expanded(render_expanded)
                             .on_expanded_change(bool_cb(cx.listener(
                                 |this, value: &bool, _, cx| {
@@ -9061,16 +9063,9 @@ impl Gallery {
                                     ))
                                     .into_any_element()
                             })
-                            .into_any_element(),
-                        para(
-                            &format!(
-                                "Current controlled state: {}.",
-                                if render_expanded { "expanded" } else { "collapsed" }
-                            ),
-                            cx,
-                        ),
-                        ])
-                },),
+                            .into_any_element()])
+                    }
+                ),
                 (
                     "Controlled",
                     col(vec![

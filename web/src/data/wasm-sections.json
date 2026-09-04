@@ -73,7 +73,8 @@
     "Virtualization",
     "Custom Check Icon",
     "Single selection",
-    "Multiple selection"
+    "Multiple selection",
+    "Escape Key Behavior"
   ],
   "tag-group": [
     "Usage",
@@ -87,7 +88,8 @@
     "With Remove Button",
     "Removable",
     "Selectable",
-    "Variants & sizes"
+    "Variants & sizes",
+    "Escape Key Behavior"
   ],
   "color-area": [
     "Usage",
@@ -576,6 +578,7 @@
   ],
   "disclosure": [
     "Usage",
+    "Render Function",
     "Controlled",
     "Single",
     "Group",
@@ -585,7 +588,8 @@
     "Usage",
     "Icon Placement",
     "Text Decoration",
-    "Custom Icon"
+    "Custom Icon",
+    "Render Function"
   ],
   "pagination": [
     "Usage",
