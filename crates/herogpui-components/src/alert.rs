@@ -121,7 +121,16 @@ impl RenderOnce for Alert {
         // `.alert__content` is the column that holds the title and the
         // description, beside the indicator. It carries no gap: the pinned
         // rule is only `flex h-full grow flex-col items-start`.
-        let mut text_col = gpui::div().flex().flex_col().items_start().flex_1();
+        // `min_w_0` is what lets the description wrap. A flex item's automatic
+        // minimum size is its content's, and gpui measures a text child's
+        // minimum as the whole string, so `grow` alone pushed the column --
+        // and the copy -- straight out through the alert's right edge.
+        let mut text_col = gpui::div()
+            .flex()
+            .flex_col()
+            .items_start()
+            .flex_1()
+            .min_w_0();
         text_col = text_col.child(
             gpui::div()
                 .text_size(px(14.)) // `.alert__title` is `text-sm leading-6 font-medium`.
