@@ -14,10 +14,12 @@ import sys
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
-BUNDLE = os.environ.get(
-    'HEROUI_BUNDLE',
-    os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-full.txt'),
-)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bundle import resolve as _resolve_bundle
+
+# The pinned v3.2.4 bundle. See .shots/bundle.py: reading upstream live would
+# measure this port against whatever HeroUI shipped most recently.
+BUNDLE = _resolve_bundle()
 
 
 def page_body(text, name):

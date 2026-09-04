@@ -15,10 +15,12 @@ import os
 
 # Download once:
 #   curl -sL -o heroui-full.txt https://heroui.com/react/llms-full.txt
-BUNDLE = os.environ.get(
-    'HEROUI_BUNDLE',
-    os.path.join(os.environ.get('TEMP', '/tmp'), 'heroui-full.txt'),
-)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from bundle import resolve as _resolve_bundle
+
+# The pinned v3.2.4 bundle. See .shots/bundle.py: reading upstream live would
+# measure this port against whatever HeroUI shipped most recently.
+BUNDLE = _resolve_bundle()
 SRC = 'crates/herogpui-components/src/'
 
 # React prop -> our builder name, where they legitimately differ.
