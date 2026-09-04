@@ -115,8 +115,7 @@
     "Form Example",
     "Hex value",
     "Read-only display",
-    "Single channel",
-    "Variants"
+    "Single channel"
   ],
   "color-picker": [
     "Usage",
@@ -293,7 +292,6 @@
     "Read Only",
     "Invalid",
     "Focused Value",
-    "Cell Indicators",
     "Real-World Example",
     "Usage"
   ],

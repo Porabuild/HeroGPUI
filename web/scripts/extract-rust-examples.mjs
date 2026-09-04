@@ -947,6 +947,12 @@ export function run({ check = false } = {}) {
           reason: "no sections with literal headings could be read",
         });
       }
+      const headings = result.sections.map((section) => section.heading);
+      const existingHeadings = new Set(pages.get(slug).map((section) => section.heading));
+      const duplicate = headings.find(
+        (heading, at) => existingHeadings.has(heading) || headings.indexOf(heading) !== at,
+      );
+      if (duplicate) throw new Error(`${slug} has duplicate example heading ${duplicate}`);
       for (const section of result.sections) {
         const separated = section.description
           ? { description: section.description, code: section.code }

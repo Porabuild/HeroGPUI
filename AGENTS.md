@@ -56,9 +56,9 @@ changes, update the complete affected surface in the same change:
   `web/src/data/rust-examples.json`.
 
 Regenerate both website datasets from `web/` with `pnpm run extract`, then
-verify both with `pnpm run extract:check`. Do not hand-edit those JSON outputs.
-
+verify them with `pnpm run extract:check`. Do not hand-edit generated JSON.
 When rebuilding `web/public/gallery/herogpui_web*`, also regenerate
-`web/src/data/wasm-sections.json` from the exact gallery source compiled into
-that artifact. The website uses this manifest to offer only live examples the
-WASM build can render.
+`web/src/data/wasm-sections.json` and `web/src/data/wasm-parity.json` from the
+exact migration source after `wasm-bindgen`. These manifests limit the selector
+to compiled examples, pin the native examples and artifact, and reject new
+native/WASM drift by default.

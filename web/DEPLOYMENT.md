@@ -217,6 +217,9 @@ Copy `index.html` from `crates/herogpui-web/` alongside (the bindgen output
 only produces the two `herogpui_web.*` files). The `wasm-bindgen` CLI
 version must match the `wasm-bindgen` crate in `Cargo.lock` exactly
 (0.2.127 when written) — a mismatched CLI refuses the binary.
+The extraction command writes both `wasm-sections.json` and
+`wasm-parity.json`. It fails if descriptions diverge or a new code-drift key
+appears; `--accept-drift` is reserved for a reviewed GPUI-version adaptation.
 The description lift is idempotent and keeps explanatory copy outside the
 component canvas while retaining it in the full native-style gallery page.
 

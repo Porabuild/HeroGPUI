@@ -528,11 +528,6 @@
       "heading": "Single channel",
       "imports": "use herogpui::prelude::{ColorChannel, ColorField};\nuse gpui::prelude::*;",
       "code": "row(vec![\n    ColorField::new(\"color-field-hue\", value)\n        .channel(ColorChannel::Hue)\n        .label(\"Hue\")\n        .into_any_element(),\n    ColorField::new(\"color-field-red\", value)\n        .channel(ColorChannel::Red)\n        .label(\"Red\")\n        .into_any_element(),\n])"
-    },
-    {
-      "heading": "Variants",
-      "imports": "use herogpui::prelude::{ColorField, FieldVariant};\nuse gpui::prelude::*;",
-      "code": "row(vec![\n    ColorField::new(\"color-field-primary\", value)\n        .label(\"Primary\")\n        .into_any_element(),\n    ColorField::new(\"color-field-secondary\", value)\n        .label(\"Secondary\")\n        .variant(FieldVariant::Secondary)\n        .into_any_element(),\n])"
     }
   ],
   "color-picker": [
@@ -1328,12 +1323,6 @@
       "heading": "Focused Value",
       "imports": "use herogpui::prelude::{Date, RangeCalendar};",
       "code": "RangeCalendar::new(\n    self.demo_range(\"rc-focused\", cx),\n)\n.focused_value(focused)\n.on_focus_change(date_cb(cx.listener(|this, date: &Date, _, cx| {\n    this.range_calendar_focus = *date;\n    cx.notify();\n},)))"
-    },
-    {
-      "heading": "Cell Indicators",
-      "description": "A `RangeCalendar` marks its own days: the range's ends and every day between them.",
-      "imports": "use herogpui::prelude::{Date, RangeCalendar};",
-      "code": "RangeCalendar::new(self.demo_range(\"rc-indicators\", cx))\n    .default_value((Date::new(2025, 12, 8), Date::new(2025, 12, 14)))"
     },
     {
       "heading": "Real-World Example",

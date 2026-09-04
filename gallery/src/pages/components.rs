@@ -2326,18 +2326,6 @@ impl Gallery {
                             .into_any_element(),
                     ]),
                 ),
-                (
-                    "Variants",
-                    row(vec![
-                        h::ColorField::new("cf-primary", value)
-                            .label("Primary")
-                            .into_any_element(),
-                        h::ColorField::new("cf-secondary", value)
-                            .label("Secondary")
-                            .variant(FieldVariant::Secondary)
-                            .into_any_element(),
-                    ]),
-                ),
             ],
             cx,
         )
@@ -5139,14 +5127,6 @@ impl Gallery {
                         cx.notify();
                     },)))
                     .into_any_element()]),
-                ),
-                (
-                    "Cell Indicators", "A `RangeCalendar` marks its own days: the range's ends and every day between them.",
-                    col(vec![
-                        h::RangeCalendar::new(self.demo_range("rc-indicators", cx))
-                            .default_value((h::Date::new(2025, 12, 8), h::Date::new(2025, 12, 14)))
-                            .into_any_element(),
-                    ]),
                 ),
                 (
                     "Real-World Example",

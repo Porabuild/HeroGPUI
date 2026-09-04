@@ -34,8 +34,12 @@ only one requested example at a time. New gallery pages must add checked-in
 reference metadata so the website does not ship an examples-only component page.
 
 When regenerating `public/gallery/herogpui_web*`, also regenerate
-`src/data/wasm-sections.json` from that build's `gallery/src/pages/components.rs`
-with `node scripts/extract-wasm-sections.mjs --source <components.rs>`. This
-keeps the live selector from advertising examples absent from the wasm artifact.
+`src/data/wasm-sections.json` and `src/data/wasm-parity.json` from that build's
+`gallery/src/pages/components.rs` with
+`node scripts/extract-wasm-sections.mjs --source <components.rs>`. This keeps
+the live selector from advertising examples absent from the wasm artifact,
+pins the native source and artifact hash, requires descriptions to match, and
+rejects newly introduced native/WASM code drift. Use `--accept-drift` only for
+a reviewed GPUI-version adaptation that cannot share the native source.
 Run `node scripts/lift-wasm-descriptions.mjs <components.rs>` before the build;
 it idempotently moves legacy static prose out of the live component canvas.
