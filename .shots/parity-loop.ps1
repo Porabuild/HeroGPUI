@@ -77,6 +77,9 @@ function Invoke-Slug([string]$Name, [string]$CommitMessage) {
   }
   Invoke-Step "D:/cargo-home/bin/wasm-bindgen.exe D:/herogpui-wasm-target/wasm32-unknown-unknown/wasm-release/herogpui_web.wasm --out-dir '$root/web/public/gallery' --target web --no-typescript"
   Invoke-Step "node web/scripts/extract-wasm-sections.mjs --source '$wasmSource'"
+  # The artifact is built from a separate checkout. Vendoring its baseline and
+  # working diff in the same commit keeps the shipped binary reviewable.
+  Invoke-Step "node web/scripts/vendor-wasm-source.mjs"
   $extracted = $true
 
   $after = (Get-Content web/src/data/wasm-parity.json -Raw | ConvertFrom-Json).codeDrift.Count
@@ -89,14 +92,16 @@ function Invoke-Slug([string]$Name, [string]$CommitMessage) {
   Invoke-Step "pnpm run build"
 
   Set-Location $root
-  git add web/public/gallery/herogpui_web.js web/public/gallery/herogpui_web_bg.wasm web/src/data/wasm-sections.json web/src/data/wasm-parity.json
+  git add web/public/gallery/herogpui_web.js web/public/gallery/herogpui_web_bg.wasm web/src/data/wasm-sections.json web/src/data/wasm-parity.json web/wasm-migration/source.json web/wasm-migration/wasm-migration.patch
   $staged = git diff --cached --name-only
   if (-not $staged) { throw "nothing staged after $Name; refusing empty commit" }
   $unexpected = $staged | Where-Object { $_ -notin @(
     "web/public/gallery/herogpui_web.js",
     "web/public/gallery/herogpui_web_bg.wasm",
     "web/src/data/wasm-sections.json",
-    "web/src/data/wasm-parity.json"
+    "web/src/data/wasm-parity.json",
+    "web/wasm-migration/source.json",
+    "web/wasm-migration/wasm-migration.patch"
   ) }
   if ($unexpected) { throw "unexpected staged files: $unexpected" }
   if ([string]::IsNullOrWhiteSpace($CommitMessage)) { $CommitMessage = "feat: sync $Name wasm examples with native" }

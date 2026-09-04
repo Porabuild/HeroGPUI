@@ -15,6 +15,8 @@
     "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check",
     "extract": "node scripts/extract-reference.mjs && node scripts/extract-rust-examples.mjs",
     "extract:check": "node --test scripts/extract-rust-examples.test.mjs && node scripts/extract-reference.mjs --check && node scripts/extract-rust-examples.mjs --check",
+    "wasm:vendor": "node scripts/vendor-wasm-source.mjs",
+    "wasm:vendor:check": "node scripts/vendor-wasm-source.mjs --check",
     "brand:sync": "node scripts/sync-porabuild-brand.mjs",
     "brand:check": "node scripts/sync-porabuild-brand.mjs --check"
   },

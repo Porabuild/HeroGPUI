@@ -61,4 +61,7 @@ When rebuilding `web/public/gallery/herogpui_web*`, also regenerate
 `web/src/data/wasm-sections.json` and `web/src/data/wasm-parity.json` from the
 exact migration source after `wasm-bindgen`. These manifests limit the selector
 to compiled examples, pin the native examples and artifact, and reject new
-native/WASM drift by default.
+native/WASM drift by default. In the same commit, refresh the vendored
+migration source with `pnpm run wasm:vendor`: the artifact is built from a
+separate checkout, so `web/wasm-migration/` carries that checkout's baseline
+commit and working diff and is what makes a committed binary reviewable.
