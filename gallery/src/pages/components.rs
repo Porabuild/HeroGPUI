@@ -20,7 +20,7 @@ use herogpui_core::{Color, FieldVariant, Orientation, SelectionMode, Size, SizeX
 use herogpui_theme::ActiveTheme;
 
 use crate::app::Gallery;
-use crate::pages::para;
+use crate::pages::{muted_para, para};
 
 thread_local! {
     /// The Form "Server Errors" demo's current `validationErrors` record.
@@ -531,17 +531,22 @@ impl Gallery {
                     "With icons",
                     row(vec![
                         h::Button::new("btn-i-1")
-                            .child(icon(h::icons::SEARCH, cx))
+                            .child(icon(h::icons::GLOBE, cx))
                             .child("Search")
                             .into_any_element(),
                         h::Button::new("btn-i-2")
                             .variant(Variant::Secondary)
                             .child(icon(h::icons::PLUS, cx))
-                            .child("Add member")
+                            .child("Add Member")
                             .into_any_element(),
                         h::Button::new("btn-i-3")
+                            .variant(Variant::Tertiary)
+                            .child(icon(h::icons::MAIL, cx))
+                            .child("Email")
+                            .into_any_element(),
+                        h::Button::new("btn-i-4")
                             .variant(Variant::Danger)
-                            .child(icon(h::icons::CLOSE, cx))
+                            .child(icon(h::icons::TRASH, cx))
                             .child("Delete")
                             .into_any_element(),
                     ]),
@@ -557,12 +562,12 @@ impl Gallery {
                         h::Button::new("btn-io-2")
                             .is_icon_only(true)
                             .variant(Variant::Secondary)
-                            .child(icon(h::icons::PLUS, cx))
+                            .child(icon(h::icons::GEAR, cx))
                             .into_any_element(),
                         h::Button::new("btn-io-3")
                             .is_icon_only(true)
                             .variant(Variant::Danger)
-                            .child(icon(h::icons::CLOSE, cx))
+                            .child(icon(h::icons::TRASH, cx))
                             .into_any_element(),
                     ]),
                 ),
@@ -599,9 +604,25 @@ impl Gallery {
                 ),
                 (
                     "Full width",
-                    col(vec![h::Button::new("btn-full")
-                        .label("Continue")
-                        .full_width(true)
+                    // v3 stretches two `fullWidth` buttons inside a 400px
+                    // column; `full_width` resolves against its container, so
+                    // the container is what has to be definite.
+                    col(vec![gpui::div()
+                        .flex()
+                        .flex_col()
+                        .w(px(400.))
+                        .gap(px(12.))
+                        .child(
+                            h::Button::new("btn-full")
+                                .label("Primary Button")
+                                .full_width(true),
+                        )
+                        .child(
+                            h::Button::new("btn-full-icon")
+                                .full_width(true)
+                                .child(icon(h::icons::PLUS, cx))
+                                .child("With Icon"),
+                        )
                         .into_any_element()]),
                 ),
                 (
@@ -7069,21 +7090,32 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    // v3 labels the field, explains where the code went, and
+                    // splits the six slots into two groups around a separator.
                     col(vec![
+                        h::Label::new("Verify account").into_any_element(),
+                        muted_para("We've sent a code to a****@gmail.com", cx),
                         h::InputOTP::new(self.otp.clone())
+                            .separator()
                             .on_complete(cx.listener(|this, code: &str, _, cx| {
                                 this.otp_done = code.to_owned();
                                 cx.notify();
                             }))
                             .into_any_element(),
-                        para(
-                            &if done.is_empty() {
-                                "Enter six digits".to_owned()
-                            } else {
-                                format!("Complete: {done}")
-                            },
-                            cx,
-                        ),
+                        gpui::div()
+                            .flex()
+                            .items_center()
+                            .gap(px(5.))
+                            .child(muted_para(
+                                &if done.is_empty() {
+                                    "Didn't receive a code?".to_owned()
+                                } else {
+                                    format!("Complete: {done}")
+                                },
+                                cx,
+                            ))
+                            .child(h::Link::new("otp-resend").label("Resend").href("#"))
+                            .into_any_element(),
                     ]),
                 ),
                 (

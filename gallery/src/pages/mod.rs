@@ -1243,6 +1243,19 @@ fn code_hash(code: &str) -> u64 {
 }
 
 /// A paragraph of body text.
+/// A muted `text-sm` paragraph, for the supporting copy a v3 example composes
+/// *inside* its preview (`<p className="text-sm text-muted">`). [`para`] is the
+/// gallery's own prose voice and belongs outside the bordered preview.
+pub fn muted_para(text: &str, cx: &App) -> gpui::AnyElement {
+    let colors = cx.colors();
+    gpui::div()
+        .text_size(px(14.))
+        .line_height(px(20.))
+        .text_color(colors.muted)
+        .child(text.to_owned())
+        .into_any_element()
+}
+
 pub fn para(text: &str, cx: &App) -> gpui::AnyElement {
     let colors = cx.colors();
     gpui::div()

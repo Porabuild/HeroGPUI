@@ -18,12 +18,12 @@
     {
       "heading": "With icons",
       "imports": "use herogpui::prelude::{ActiveTheme, Button, Size, Variant, icons};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "row(vec![\n    Button::new(\"button-1\")\n        .child(gpui::svg()\n                   .size(px(16.))\n                   .path(icons::SEARCH)\n                   .text_color(cx.colors().foreground))\n        .child(\"Search\")\n        .into_any_element(),\n    Button::new(\"button-2\")\n        .variant(Variant::Secondary)\n        .child(gpui::svg()\n                   .size(px(16.))\n                   .path(icons::PLUS)\n                   .text_color(cx.colors().foreground))\n        .child(\"Add member\")\n        .into_any_element(),\n    Button::new(\"button-3\")\n        .variant(Variant::Danger)\n        .child(gpui::svg()\n                   .size(px(16.))\n                   .path(icons::CLOSE)\n                   .text_color(cx.colors().foreground))\n        .child(\"Delete\")\n        .into_any_element(),\n])"
+      "code": "row(vec![\n    Button::new(\"button-1\")\n        .child(gpui::svg()\n                   .size(px(16.))\n                   .path(icons::GLOBE)\n                   .text_color(cx.colors().foreground))\n        .child(\"Search\")\n        .into_any_element(),\n    Button::new(\"button-2\")\n        .variant(Variant::Secondary)\n        .child(gpui::svg()\n                   .size(px(16.))\n                   .path(icons::PLUS)\n                   .text_color(cx.colors().foreground))\n        .child(\"Add Member\")\n        .into_any_element(),\n    Button::new(\"button-3\")\n        .variant(Variant::Tertiary)\n        .child(gpui::svg()\n                   .size(px(16.))\n                   .path(icons::MAIL)\n                   .text_color(cx.colors().foreground))\n        .child(\"Email\")\n        .into_any_element(),\n    Button::new(\"button-4\")\n        .variant(Variant::Danger)\n        .child(gpui::svg()\n                   .size(px(16.))\n                   .path(icons::TRASH)\n                   .text_color(cx.colors().foreground))\n        .child(\"Delete\")\n        .into_any_element(),\n])"
     },
     {
       "heading": "Icon only",
       "imports": "use herogpui::prelude::{ActiveTheme, Button, Size, Variant, icons};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "row(vec![\n    Button::new(\"button-1\")\n        .is_icon_only(true)\n        .variant(Variant::Tertiary)\n        .child(gpui::svg()\n                   .size(px(16.))\n                   .path(icons::ELLIPSIS)\n                   .text_color(cx.colors().foreground))\n        .into_any_element(),\n    Button::new(\"button-2\")\n        .is_icon_only(true)\n        .variant(Variant::Secondary)\n        .child(gpui::svg()\n                   .size(px(16.))\n                   .path(icons::PLUS)\n                   .text_color(cx.colors().foreground))\n        .into_any_element(),\n    Button::new(\"button-3\")\n        .is_icon_only(true)\n        .variant(Variant::Danger)\n        .child(gpui::svg()\n                   .size(px(16.))\n                   .path(icons::CLOSE)\n                   .text_color(cx.colors().foreground))\n        .into_any_element(),\n])"
+      "code": "row(vec![\n    Button::new(\"button-1\")\n        .is_icon_only(true)\n        .variant(Variant::Tertiary)\n        .child(gpui::svg()\n                   .size(px(16.))\n                   .path(icons::ELLIPSIS)\n                   .text_color(cx.colors().foreground))\n        .into_any_element(),\n    Button::new(\"button-2\")\n        .is_icon_only(true)\n        .variant(Variant::Secondary)\n        .child(gpui::svg()\n                   .size(px(16.))\n                   .path(icons::GEAR)\n                   .text_color(cx.colors().foreground))\n        .into_any_element(),\n    Button::new(\"button-3\")\n        .is_icon_only(true)\n        .variant(Variant::Danger)\n        .child(gpui::svg()\n                   .size(px(16.))\n                   .path(icons::TRASH)\n                   .text_color(cx.colors().foreground))\n        .into_any_element(),\n])"
     },
     {
       "heading": "Pending & disabled",
@@ -32,8 +32,8 @@
     },
     {
       "heading": "Full width",
-      "imports": "use herogpui::prelude::{Button, Size, Variant};",
-      "code": "Button::new(\"button-full\")\n    .label(\"Continue\")\n    .full_width(true)"
+      "imports": "use herogpui::prelude::{ActiveTheme, Button, Size, Variant, icons};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .w(px(400.))\n    .gap(px(12.))\n    .child(\n        Button::new(\"button-full\")\n            .label(\"Primary Button\")\n            .full_width(true),\n    )\n    .child(\n        Button::new(\"button-full-icon\")\n            .full_width(true)\n            .child(gpui::svg()\n                       .size(px(16.))\n                       .path(icons::PLUS)\n                       .text_color(cx.colors().foreground))\n            .child(\"With Icon\"),\n    )"
     },
     {
       "heading": "Social Buttons",
@@ -1959,8 +1959,8 @@
   "input-otp": [
     {
       "heading": "Usage",
-      "imports": "use herogpui::prelude::{InputOTP, OtpState};\nuse gpui::prelude::*;\nuse gpui::px;",
-      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        InputOTP::new(self.otp.clone())\n            .on_complete(cx.listener(|this, code: &str, _, cx| {\n                this.otp_done = code.to_owned();\n                cx.notify();\n            }))\n            .into_any_element(),\n        para(\n            &if done.is_empty() {\n                \"Enter six digits\".to_owned()\n            } else {\n                format!(\"Complete: {done}\")\n            },\n            cx,\n        ),\n    ])"
+      "imports": "use herogpui::prelude::{InputOTP, Label, Link, OtpState};\nuse gpui::prelude::*;\nuse gpui::px;",
+      "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Label::new(\"Verify account\").into_any_element(),\n        muted_para(\"We've sent a code to a****@gmail.com\", cx),\n        InputOTP::new(self.otp.clone())\n            .separator()\n            .on_complete(cx.listener(|this, code: &str, _, cx| {\n                this.otp_done = code.to_owned();\n                cx.notify();\n            }))\n            .into_any_element(),\n        gpui::div()\n            .flex()\n            .items_center()\n            .gap(px(5.))\n            .child(muted_para(\n                &if done.is_empty() {\n                    \"Didn't receive a code?\".to_owned()\n                } else {\n                    format!(\"Complete: {done}\")\n                },\n                cx,\n            ))\n            .child(Link::new(\"input-otp-resend\").label(\"Resend\").href(\"#\"))\n            .into_any_element(),\n    ])"
     },
     {
       "heading": "Variants",
