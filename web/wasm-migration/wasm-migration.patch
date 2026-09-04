@@ -5643,6 +5643,187 @@ index 50d8738..e98dea4 100644
 +lto = "fat"
 +codegen-units = 1
 +strip = "symbols"
+diff --git a/crates/herogpui-components/src/alert.rs b/crates/herogpui-components/src/alert.rs
+index 93eefc9..2aef184 100644
+--- a/crates/herogpui-components/src/alert.rs
++++ b/crates/herogpui-components/src/alert.rs
+@@ -1,7 +1,8 @@
+ //! Alert — port of `@heroui/alert`.
+ 
+ use gpui::{
+-    px, AnyElement, App, IntoElement, ParentElement, RenderOnce, SharedString, Styled, Window,
++    px, AnyElement, App, InteractiveElement, IntoElement, ParentElement, RenderOnce, SharedString,
++    Styled, Window,
+ };
+ use herogpui_core::Color;
+ use herogpui_theme::ActiveTheme;
+@@ -36,7 +37,7 @@ impl Alert {
+         Self {
+             title: title.into(),
+             description: None,
+-            color: Color::Accent,
++            color: Color::Default,
+             children: Vec::new(),
+         }
+     }
+@@ -58,6 +59,7 @@ impl RenderOnce for Alert {
+     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+         let sem = cx.role(self.color);
+         let colors = cx.colors();
++        let layout = cx.layout();
+ 
+         // v3 dropped Alert's `variant`: the color role is the only axis.
+         // `.alert` is `bg-surface` for every status -- the role never paints
+@@ -71,49 +73,74 @@ impl RenderOnce for Alert {
+         } else {
+             sem.soft_foreground(colors.foreground)
+         };
+-        let title_color = role_fg;
++
++        // `alert.tsx`'s `getDefaultIcon`: accent and the `default` fall-through
++        // both draw the Info glyph; success the circled check (the pinned
++        // `SuccessIcon`), warning the triangle, danger the circle-exclamation.
++        let glyph = match self.color {
++            Color::Default | Color::Accent => icons::INFO_CIRCLE,
++            Color::Success => icons::CHECK_CIRCLE,
++            Color::Warning => icons::WARNING_TRIANGLE,
++            Color::Danger => icons::CIRCLE_EXCLAMATION,
++        };
+ 
+         let mut alert = gpui::div()
+             .flex()
+             .items_start()
++            .justify_start()
+             .gap(px(16.))
+             .w_full()
+             .px(px(16.))
+             .py(px(12.))
+             .rounded(crate::util::control_radius(cx))
+             .bg(bg)
+-            .text_color(fg);
+-
+-        // icon dot
+-        let icon_color = role_fg;
+-        // `.alert__indicator` is a `p-1` box around the glyph, not the glyph on
+-        // its own.
++            .text_color(fg)
++            .debug_selector(|| "alert-root".to_owned());
++        // `shadow-surface` is the surface elevation token; dark mode leaves
++        // the token empty, and GPUI 0.2.2 paints an empty shadow list as
++        // nothing, so the token is applied unconditionally.
++        alert = alert.shadow(layout.surface_shadow.clone());
++
++        let indicator_glyph = gpui::svg()
++            .size(px(16.))
++            .path(glyph)
++            .text_color(role_fg)
++            .flex_shrink_0();
+         alert = alert.child(
+-            gpui::div().p(px(4.)).flex_shrink_0().child(
+-                gpui::svg()
+-                    .size(px(18.))
+-                    .path(icons::ELLIPSIS)
+-                    .text_color(icon_color)
+-                    .flex_shrink_0(),
+-            ),
++            // `.alert__indicator` is a `p-1` box around the 16px glyph, centered.
++            gpui::div()
++                .p(px(4.))
++                .flex()
++                .items_center()
++                .justify_center()
++                .flex_shrink_0()
++                .debug_selector(|| "alert-indicator".to_owned())
++                .child(indicator_glyph),
+         );
+ 
+         // `.alert__content` is the column that holds the title and the
+-        // description, beside the indicator.
+-        let mut text_col = gpui::div().flex().flex_col().gap(px(2.)).flex_1();
++        // description, beside the indicator. It carries no gap: the pinned
++        // rule is only `flex h-full grow flex-col items-start`.
++        let mut text_col = gpui::div().flex().flex_col().items_start().flex_1();
+         text_col = text_col.child(
+             gpui::div()
+-                .text_size(px(14.))
+-                .font_weight(gpui::FontWeight::SEMIBOLD)
+-                .text_color(title_color)
++                .text_size(px(14.)) // `.alert__title` is `text-sm leading-6 font-medium`.
++                .line_height(px(24.))
++                .font_weight(gpui::FontWeight::MEDIUM)
++                .text_color(role_fg)
++                .debug_selector(|| "alert-title".to_owned())
+                 .child(self.title.to_string()),
+         );
++        text_col = text_col.debug_selector(|| "alert-content".to_owned());
+         if let Some(desc) = self.description {
+             text_col = text_col.child(
+                 gpui::div()
+                     // `.alert__description` is `text-sm`.
+                     .text_size(px(14.))
++                    // `text-sm`'s own line height is 20px.
+                     .line_height(px(20.))
++                    .text_color(colors.muted)
++                    .debug_selector(|| "alert-description".to_owned())
+                     .child(desc.to_string()),
+             );
+         }
+@@ -130,14 +157,17 @@ impl RenderOnce for Alert {
+ // indicator and the title only, never the container. A soft wash looks
+ // plausible on screen, so the check is mechanical.
+ #[cfg(test)]
+-mod hover_tokens {
+-    #[test]
+-    fn the_alert_container_is_always_surface() {
+-        // Scan the implementation only.
+-        let source = include_str!("alert.rs")
++mod painted_tokens {
++    fn implementation() -> &'static str {
++        include_str!("alert.rs")
+             .split("#[cfg(test)]")
+             .next()
+-            .expect("the implementation section is always present");
++            .expect("the implementation section is always present")
++    }
++
++    #[test]
++    fn the_alert_container_is_always_surface() {
++        let source = implementation();
+         assert!(
+             source.contains("let bg = colors.surface.background;"),
+             "every status must paint `bg-surface` (pinned `.alert`)"
+@@ -150,19 +180,25 @@ mod hover_tokens {
+ 
+     #[test]
+     fn the_indicator_follows_the_status_soft_foreground() {
+-        // Scan the implementation only.
+-        let source = include_str!("alert.rs")
+-            .split("#[cfg(test)]")
++        let source = implementation();
++        // The glyph's own `let` declaration is the structural unit: everything
++        // between `let indicator_glyph = gpui::svg()` and the statement's
++        // terminating `;` is the full builder chain that paints the glyph.
++        let chain = source
++            .split("let indicator_glyph = gpui::svg()")
++            .nth(1)
++            .expect("the indicator must paint the glyph as a declared svg element")
++            .split(';')
+             .next()
+-            .expect("the implementation section is always present");
++            .expect("the declaration must terminate");
+         assert!(
+-            source.contains("let icon_color = role_fg;"),
++            chain.contains(".text_color(role_fg)"),
+             "the indicator must paint the same token as the title: \
+              `text-foreground` on default, `text-{{role}}-soft-foreground` \
+              otherwise (pinned `.alert__indicator`)"
+         );
+         assert!(
+-            !source.contains("let icon_color = colors.muted"),
++            !chain.contains("colors.muted"),
+             "the default indicator is `text-foreground`, not the muted tone"
+         );
+     }
 diff --git a/crates/herogpui-components/src/alert_dialog.rs b/crates/herogpui-components/src/alert_dialog.rs
 index a9a7079..79889c5 100644
 --- a/crates/herogpui-components/src/alert_dialog.rs
@@ -5657,10 +5838,65 @@ index a9a7079..79889c5 100644
  
          let colors = cx.colors();
 diff --git a/crates/herogpui-components/src/autocomplete.rs b/crates/herogpui-components/src/autocomplete.rs
-index debe035..5167281 100644
+index debe035..3c60d5f 100644
 --- a/crates/herogpui-components/src/autocomplete.rs
 +++ b/crates/herogpui-components/src/autocomplete.rs
-@@ -645,7 +645,7 @@ impl RenderOnce for Autocomplete {
+@@ -43,6 +43,7 @@ use herogpui_theme::ActiveTheme;
+ use crate::{
+     icons,
+     input::{InputState, SearchField},
++    matches::{empty_matches, MatchesCache},
+     picker_item::PickerItem,
+     selection::{normalize_selection, toggle_key},
+     util,
+@@ -79,6 +80,36 @@ fn form_selection_value(selected: &[SharedString]) -> crate::form::FormValue {
+     crate::form::FormValue::Keys(selected.to_vec())
+ }
+ 
++/// The rows the popover's list shows for `query`: the custom filter's own
++/// decision — including what an empty query means — or the default
++/// case-insensitive substring match. Filtering reads the items' labels, never
++/// their keys.
++fn compute_matches(
++    items: &[PickerItem],
++    query: &str,
++    max_items: usize,
++    filter: Option<&std::sync::Arc<dyn Fn(&str, &str) -> bool + 'static>>,
++) -> Vec<PickerItem> {
++    if let Some(filter) = filter {
++        return items
++            .iter()
++            .filter(|item| filter(item.label(), query))
++            .take(max_items)
++            .cloned()
++            .collect();
++    }
++    if query.is_empty() {
++        return items.iter().take(max_items).cloned().collect();
++    }
++    let lowered = query.to_lowercase();
++    items
++        .iter()
++        .filter(|it| it.label().to_lowercase().contains(&lowered))
++        .take(max_items)
++        .cloned()
++        .collect()
++}
++
+ fn sync_form_state(
+     state: &AutocompleteFormState,
+     selected: &[SharedString],
+@@ -502,6 +533,9 @@ fn el_name(s: String) -> gpui::ElementId {
+ 
+ impl RenderOnce for Autocomplete {
+     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
++        // One shared collection for the frame: the `'static` panel and event
++        // closures clone the `Rc`, never the rows.
++        let items: Rc<[PickerItem]> = self.items.into();
+         let base = format!("autocomplete-{}", self.state.entity_id().as_u64());
+         // `Autocomplete.Filter.inputValue` is controlled state. Keep the bound
+         // search field on the owner's value while still reporting proposed
+@@ -645,7 +679,7 @@ impl RenderOnce for Autocomplete {
          };
          let search_focus = self.state.read(cx).focus_handle.clone();
          if open && !*autofocused.read(cx) {
@@ -5669,7 +5905,86 @@ index debe035..5167281 100644
              autofocused.update(cx, |v, _| *v = true);
          } else if !open && *autofocused.read(cx) {
              autofocused.update(cx, |v, _| *v = false);
-@@ -1330,7 +1330,7 @@ impl RenderOnce for Autocomplete {
+@@ -656,24 +690,39 @@ impl RenderOnce for Autocomplete {
+             Some(v) => v.clone(),
+             None => self.state.read(cx).value().to_owned(),
+         };
+-        let query = raw_query.to_lowercase();
+ 
+         // The list starts unfiltered: v3's popover shows the whole collection
+-        // until something is typed into the search field. Filtering reads the
+-        // items' labels, never their keys.
+-        let custom = self.filter.clone();
+-        let matches: Vec<PickerItem> = self
+-            .items
+-            .iter()
+-            .filter(|it| match &custom {
+-                // A custom filter owns the whole decision, including what an
+-                // empty query means.
+-                Some(f) => f(it.label(), &raw_query),
+-                None => query.is_empty() || it.label().to_lowercase().contains(&query),
+-            })
+-            .take(self.max_items)
+-            .cloned()
+-            .collect();
++        // until something is typed into the search field. Closed and idle
++        // frames draw no rows, so they skip the match work entirely; a
++        // consuming frame with a typed query shares one cached list until the
++        // query, the collection or the cap changes. An empty query copies the
++        // capped prefix directly: no per-row matching runs for it, so the
++        // cache's element-by-element key comparison would cost more than the
++        // work it saves. A custom filter owns the whole decision, including
++        // what an empty query means, and its configuration cannot join a
++        // cache key — its results are never cached and it only runs while the
++        // matches are consumed.
++        let matches_cache =
++            window.use_keyed_state(el_name(format!("{base}-matches")), cx, |_, _| {
++                MatchesCache::default()
++            });
++        let consume_matches = overlay_active || query_edit.read(cx).is_some();
++        let matches: Rc<[PickerItem]> = if !consume_matches {
++            empty_matches()
++        } else {
++            let filter = self.filter.clone();
++            match &filter {
++                Some(f) => Rc::from(compute_matches(&items, &raw_query, self.max_items, Some(f))),
++                None if raw_query.is_empty() => {
++                    Rc::from(compute_matches(&items, &raw_query, self.max_items, None))
++                }
++                None => matches_cache.update(cx, |cache, _| {
++                    cache.get(items.clone(), raw_query.as_str(), self.max_items, |items| {
++                        compute_matches(items, &raw_query, self.max_items, None)
++                    })
++                }),
++            }
++        };
+         // The stored cursor is the focused item's key; the row it lands on is
+         // wherever that key sits in the filtered collection now.
+         let cursor_at = cursor
+@@ -763,7 +812,7 @@ impl RenderOnce for Autocomplete {
+         // `allowsEmptyCollection` lets the autocomplete function with no
+         // items. This is the *unfiltered* collection: a query that prunes an
+         // open popover to zero never reaches this gate.
+-        let toggle_allowed = self.allows_empty_collection || !self.items.is_empty();
++        let toggle_allowed = self.allows_empty_collection || !items.is_empty();
+ 
+         // --- the trigger ----------------------------------------------------
+         // Whether the pointer went down on the trigger (or on the clear
+@@ -837,12 +886,7 @@ impl RenderOnce for Autocomplete {
+         let mut selected_items: Vec<SharedString> = Vec::new();
+         let mut selected_indices: Vec<usize> = Vec::new();
+         for key in &self.selected_keys {
+-            if let Some((index, item)) = self
+-                .items
+-                .iter()
+-                .enumerate()
+-                .find(|(_, it)| it.key() == key)
+-            {
++            if let Some((index, item)) = items.iter().enumerate().find(|(_, it)| it.key() == key) {
+                 selected_items.push(item.label().clone());
+                 selected_indices.push(index);
+             }
+@@ -1330,7 +1374,7 @@ impl RenderOnce for Autocomplete {
                      cb(false, window, cx);
                  }
                  if let Some(handle) = &escape_focus {
@@ -5678,7 +5993,7 @@ index debe035..5167281 100644
                  }
                  util::DismissResult::Handled
              });
-@@ -1579,7 +1579,7 @@ impl RenderOnce for Autocomplete {
+@@ -1579,7 +1623,7 @@ impl RenderOnce for Autocomplete {
                                  cb(false, window, cx);
                              }
                              if let Some(handle) = &trigger_focus {
@@ -5687,7 +6002,7 @@ index debe035..5167281 100644
                              }
                          }
                      });
-@@ -1604,7 +1604,7 @@ impl RenderOnce for Autocomplete {
+@@ -1604,7 +1648,7 @@ impl RenderOnce for Autocomplete {
                                      .collect::<Vec<_>>()
                              },
                          )
@@ -6391,11 +6706,93 @@ index db7d3f7..acda055 100644
          VisibleDuration::Months(_) => Date::new(
              focused.year,
              focused.month,
+diff --git a/crates/herogpui-components/src/close_button.rs b/crates/herogpui-components/src/close_button.rs
+index 2992b3b..317899a 100644
+--- a/crates/herogpui-components/src/close_button.rs
++++ b/crates/herogpui-components/src/close_button.rs
+@@ -111,6 +111,10 @@ impl RenderOnce for CloseButton {
+ 
+         let mut el = div()
+             .id(self.id.clone())
++            .debug_selector({
++                let id = self.id.clone();
++                move || format!("{id:?}")
++            })
+             .flex()
+             .items_center()
+             .justify_center()
+@@ -124,10 +128,26 @@ impl RenderOnce for CloseButton {
+         if self.is_disabled {
+             el = el.opacity(layout.disabled_opacity);
+         } else {
+-            el = el
+-                .cursor_pointer()
+-                .hover(move |s| s.bg(hover_bg))
+-                .active(|s| s.opacity(0.7));
++            el = el.cursor_pointer().hover(move |s| s.bg(hover_bg));
++            // `.close-button--default:active, &[data-pressed="true"]` is
++            // `transform: scale(0.93)`. gpui 0.2.2 has no div-level scale, so
++            // the press shrinks the 24px box about its centre and the leftover
++            // becomes margin — the same geometry `anim::pressed` uses.
++            // `.active` is an instant style swap, matching
++            // `motion-reduce:transition-none` while preserving the transform.
++            const PRESS_SCALE: f32 = 0.93;
++            let inset = px(f32::from(box_size) * (1.0 - PRESS_SCALE) / 2.0);
++            let pressed = px(f32::from(box_size) * PRESS_SCALE);
++            let radius = px(f32::from(crate::util::small_radius(cx)) * PRESS_SCALE);
++            el = el.active(move |s| {
++                s.h(pressed)
++                    .w(pressed)
++                    .mt(inset)
++                    .mb(inset)
++                    .ml(inset)
++                    .mr(inset)
++                    .rounded(radius)
++            });
+         }
+ 
+         el = match (self.content.clone(), self.icon) {
+@@ -151,7 +171,18 @@ impl RenderOnce for CloseButton {
+             (None, Some(icon)) => el.child(icon),
+             (None, None) => el.child(
+                 gpui::svg()
++                    .debug_selector({
++                        let id = self.id.clone();
++                        move || format!("{id:?}-icon")
++                    })
+                     .size(icon_size)
++                    .flex_shrink_0()
++                    // `.close-button svg` is `-mx-0.5 my-0.5` (2px at the 16px
++                    // root). Symmetric margins on a centred 16px child in the
++                    // 16px `p-1` content box cancel, but they are representable
++                    // on `svg()` through Styled and belong on the default glyph.
++                    .mx(px(-2.))
++                    .my(px(2.))
+                     .path(icons::CLOSE)
+                     .text_color(colors.muted),
+             ),
 diff --git a/crates/herogpui-components/src/color_picker.rs b/crates/herogpui-components/src/color_picker.rs
-index f9e6947..a011306 100644
+index f9e6947..7e61d4e 100644
 --- a/crates/herogpui-components/src/color_picker.rs
 +++ b/crates/herogpui-components/src/color_picker.rs
-@@ -1106,7 +1106,7 @@ impl RenderOnce for ColorArea {
+@@ -427,6 +427,16 @@ fn normalize_hue(hue: f32) -> f32 {
+ 
+ type OnColorChange = Arc<dyn Fn(PickerColor, &mut Window, &mut App) + 'static>;
+ 
++fn color_swatch_indicator_color(swatch: PickerColor) -> Hsla {
++    let (r, g, b) = swatch.to_rgb();
++    let luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
++    if luminance > 0.5 {
++        gpui::black()
++    } else {
++        gpui::white()
++    }
++}
++
+ /// `ColorField`'s `onChange`, which reports `None` when the text is not a
+ /// colour -- v3 types it `(color: Color | null) => void`.
+ type OnColorFieldChange = Arc<dyn Fn(Option<PickerColor>, &mut Window, &mut App) + 'static>;
+@@ -1106,7 +1116,7 @@ impl RenderOnce for ColorArea {
                              cx.notify();
                          }
                      });
@@ -6404,7 +6801,7 @@ index f9e6947..a011306 100644
                      if let Some(next) = area_color_from_pointer(
                          &down_bounds,
                          event.position,
-@@ -2067,7 +2067,7 @@ impl RenderOnce for ColorSlider {
+@@ -2067,7 +2077,7 @@ impl RenderOnce for ColorSlider {
                                  cx.notify();
                              }
                          });
@@ -6413,7 +6810,20 @@ index f9e6947..a011306 100644
                          if let Some(next) = slider_color_from_pointer(
                              &down_bounds,
                              event.position,
-@@ -3452,7 +3452,7 @@ impl RenderOnce for ColorSwatchPicker {
+@@ -3392,11 +3402,7 @@ impl RenderOnce for ColorSwatchPicker {
+                                 gpui::svg()
+                                     .size(px(f32::from(item_edge) / 3.))
+                                     .path(crate::icons::CHECK)
+-                                    .text_color(if swatch.brightness > 0.7 {
+-                                        gpui::black()
+-                                    } else {
+-                                        gpui::white()
+-                                    }),
++                                    .text_color(color_swatch_indicator_color(*swatch)),
+                             ),
+                     );
+                 }
+@@ -3452,7 +3458,7 @@ impl RenderOnce for ColorSwatchPicker {
                                  *focused = Some(index);
                                  cx.notify();
                              });
@@ -6422,7 +6832,7 @@ index f9e6947..a011306 100644
                          },
                      );
                  } else {
-@@ -3465,7 +3465,7 @@ impl RenderOnce for ColorSwatchPicker {
+@@ -3465,7 +3471,7 @@ impl RenderOnce for ColorSwatchPicker {
                              *focused = Some(index);
                              cx.notify();
                          });
@@ -6431,7 +6841,7 @@ index f9e6947..a011306 100644
                      });
                  }
              }
-@@ -3769,7 +3769,7 @@ impl RenderOnce for ColorPicker {
+@@ -3769,7 +3775,7 @@ impl RenderOnce for ColorPicker {
              let cb = self.on_open_change.clone();
              let own = open_own;
              move |window: &mut Window, cx: &mut App| -> util::DismissResult {
@@ -6440,11 +6850,213 @@ index f9e6947..a011306 100644
                  if let Some(held) = &own {
                      held.update(cx, |value, cx| {
                          *value = false;
+@@ -4086,4 +4092,16 @@ mod tests {
+         let next = c.with_channel(ColorChannel::Green, 128.0);
+         assert!((next.channel(ColorChannel::Green) - 128.0).abs() < 1.0);
+     }
++
++    #[test]
++    fn dark_saturated_blue_uses_a_white_selected_indicator() {
++        let blue = PickerColor::from_hex("#0000FF").unwrap();
++        assert_eq!(color_swatch_indicator_color(blue), gpui::white());
++    }
++
++    #[test]
++    fn mid_gray_uses_a_black_selected_indicator() {
++        let gray = PickerColor::from_hex("#808080").unwrap();
++        assert_eq!(color_swatch_indicator_color(gray), gpui::black());
++    }
+ }
 diff --git a/crates/herogpui-components/src/combo_box.rs b/crates/herogpui-components/src/combo_box.rs
-index 82400fc..70ac6df 100644
+index 82400fc..b8c2b52 100644
 --- a/crates/herogpui-components/src/combo_box.rs
 +++ b/crates/herogpui-components/src/combo_box.rs
-@@ -946,7 +946,7 @@ impl RenderOnce for ComboBox {
+@@ -45,6 +45,7 @@ use herogpui_theme::ActiveTheme;
+ use crate::{
+     icons,
+     input::{Input, InputState},
++    matches::{empty_matches, MatchesCache},
+     picker_item::PickerItem,
+     selection::{normalize_selection, toggle_key},
+     util,
+@@ -159,6 +160,41 @@ fn label_of_key<'a>(items: &'a [PickerItem], key: &SharedString) -> Option<&'a S
+         .map(|item| item.label())
+ }
+ 
++/// The rows the panel shows for `query`: the full collection under the
++/// full-collection flag (which owns the frame, so no filter runs), otherwise
++/// the custom `defaultFilter`'s decision — including what an empty query
++/// means — or the default case-insensitive substring match. Filtering reads
++/// the items' labels, never their keys.
++fn compute_matches(
++    items: &[PickerItem],
++    query: &str,
++    max_items: usize,
++    full: bool,
++    filter: Option<&Arc<dyn Fn(&str, &str) -> bool + 'static>>,
++) -> Vec<PickerItem> {
++    if full {
++        return items.iter().take(max_items).cloned().collect();
++    }
++    if let Some(filter) = filter {
++        return items
++            .iter()
++            .filter(|item| filter(item.label(), query))
++            .take(max_items)
++            .cloned()
++            .collect();
++    }
++    if query.is_empty() {
++        return items.iter().take(max_items).cloned().collect();
++    }
++    let lowered = query.to_lowercase();
++    items
++        .iter()
++        .filter(|item| item.label().to_lowercase().contains(&lowered))
++        .take(max_items)
++        .cloned()
++        .collect()
++}
++
+ /// HeroUI ComboBox (controlled open state).
+ #[derive(IntoElement)]
+ pub struct ComboBox {
+@@ -612,6 +648,10 @@ impl ComboBox {
+ 
+ impl RenderOnce for ComboBox {
+     fn render(mut self, window: &mut Window, cx: &mut App) -> impl IntoElement {
++        // One shared collection for the frame: the `'static` panel and event
++        // closures clone the `Rc`, never the rows.
++        let items: Rc<[PickerItem]> = self.items.into();
++
+         // `defaultInputValue` seeds the text once, before anything reads it.
+         if let Some(text) = self.default_input_value.clone() {
+             let state = self.state.clone();
+@@ -696,7 +736,6 @@ impl RenderOnce for ComboBox {
+             }
+         });
+         let raw_query = self.state.read(cx).value().to_owned();
+-        let query = raw_query.to_lowercase();
+         let is_invalid = self.is_invalid || self.error_message.is_some();
+         let focus_handle = self.state.read(cx).focus_handle.clone();
+ 
+@@ -736,7 +775,7 @@ impl RenderOnce for ComboBox {
+                 // the first application must leave the seeded default text in
+                 // place; later key changes still move their labels in.
+                 if !(first_apply && self.default_input_value.is_some()) {
+-                    let label = label_of_key(&self.items, &owned_key)
++                    let label = label_of_key(&items, &owned_key)
+                         .cloned()
+                         .unwrap_or_default();
+                     self.state.update(cx, |state, cx| {
+@@ -756,7 +795,7 @@ impl RenderOnce for ComboBox {
+         let restore_own = selection_own.clone();
+         let restore_state = self.form_state.clone();
+         let restore_input = self.state.clone();
+-        let restore_items = self.items.clone();
++        let restore_items = items.clone();
+         let restore_default = default_selection;
+         let restore_input_change = self.on_input_change.clone();
+         let restore_all = self.on_selection_change_all.clone();
+@@ -810,30 +849,65 @@ impl RenderOnce for ComboBox {
+         let display_full_collection =
+             *show_all_items.read(cx) || (self.menu_trigger == MenuTrigger::Manual && !open_state);
+ 
+-        // Focus and manual-action opens show the full collection until the
+-        // next edit. A custom `defaultFilter` owns the filtering decision,
+-        // including an empty query. Filtering reads the items' labels, never
+-        // their keys.
+-        let custom = self.filter.clone();
+-        let matches: Vec<PickerItem> = match &custom {
+-            _ if display_full_collection => {
+-                self.items.iter().take(self.max_items).cloned().collect()
++        // Which suggestion the keyboard is on. Input edits clear it, matching
++        // React Stately's focused-key reset before the filtered list changes.
++        // Created ahead of the matches: the idle gate below reads it.
++        let cursor = window.use_keyed_state(
++            gpui::ElementId::Name(format!("combobox-{entity_id}-cursor").into()),
++            cx,
++            |_, _| None::<ComboCursor>,
++        );
++
++        // Closed and idle frames draw no rows, so they skip the match work
++        // entirely; a consuming filtered frame shares one cached list until
++        // the query, collection or cap changes. Full-collection and
++        // empty-query frames copy their capped prefix directly: no per-row
++        // matching runs for them, so the cache's element-by-element key
++        // comparison would cost more than the work it saves. A custom
++        // `defaultFilter` owns the whole filtering decision, including an
++        // empty query, and its configuration cannot join a cache key — its
++        // results are never cached and it only runs while the matches are
++        // consumed.
++        let matches_cache = window.use_keyed_state(
++            gpui::ElementId::Name(format!("combobox-{entity_id}-matches").into()),
++            cx,
++            |_, _| MatchesCache::default(),
++        );
++        let consume_matches = overlay_active
++            || cursor.read(cx).is_some()
++            || (self.allows_custom_value && !raw_query.is_empty());
++        let matches: Rc<[PickerItem]> = if !consume_matches {
++            empty_matches()
++        } else {
++            let filter = self.filter.clone();
++            match &filter {
++                Some(f) => Rc::from(compute_matches(
++                    &items,
++                    &raw_query,
++                    self.max_items,
++                    display_full_collection,
++                    Some(f),
++                )),
++                None if display_full_collection => Rc::from(compute_matches(
++                    &items,
++                    &raw_query,
++                    self.max_items,
++                    true,
++                    None,
++                )),
++                None if raw_query.is_empty() => Rc::from(compute_matches(
++                    &items,
++                    &raw_query,
++                    self.max_items,
++                    false,
++                    None,
++                )),
++                None => matches_cache.update(cx, |cache, _| {
++                    cache.get(items.clone(), raw_query.as_str(), self.max_items, |items| {
++                        compute_matches(items, &raw_query, self.max_items, false, None)
++                    })
++                }),
+             }
+-            Some(f) => self
+-                .items
+-                .iter()
+-                .filter(|item| f(item.label(), &raw_query))
+-                .take(self.max_items)
+-                .cloned()
+-                .collect(),
+-            _ if query.is_empty() => self.items.iter().take(self.max_items).cloned().collect(),
+-            _ => self
+-                .items
+-                .iter()
+-                .filter(|item| item.label().to_lowercase().contains(&query))
+-                .take(self.max_items)
+-                .cloned()
+-                .collect(),
+         };
+ 
+         // `MenuTrigger::Focus` opens the list when the field takes focus. The
+@@ -868,7 +942,7 @@ impl RenderOnce for ComboBox {
+                 // A fresh focus session: the field taking focus is the
+                 // gesture, when there is something to show -- the panel's own
+                 // gate of a non-empty result or an allowed empty state.
+-                let can_show = !self.items.is_empty() || self.allows_empty_collection;
++                let can_show = !items.is_empty() || self.allows_empty_collection;
+                 if can_show {
+                     show_all_items.update(cx, |v, _| *v = true);
+                     // Opening from focus writes both halves, the way the
+@@ -946,7 +1020,7 @@ impl RenderOnce for ComboBox {
                          if let Some(focus_open) = &focus_open {
                              focus_open.update(cx, |v, _| v.can_open = false);
                          }
@@ -6453,7 +7065,199 @@ index 82400fc..70ac6df 100644
                          cx.stop_propagation();
                      })
                      .on_click(move |_, window, cx| {
-@@ -1759,7 +1759,8 @@ impl RenderOnce for ComboBox {
+@@ -968,13 +1042,6 @@ impl RenderOnce for ComboBox {
+             }
+         }
+ 
+-        // Which suggestion the keyboard is on. Input edits clear it, matching
+-        // React Stately's focused-key reset before the filtered list changes.
+-        let cursor = window.use_keyed_state(
+-            gpui::ElementId::Name(format!("combobox-{entity_id}-cursor").into()),
+-            cx,
+-            |_, _| None::<ComboCursor>,
+-        );
+         let cursor_on_change = cursor.clone();
+         let validate = self.validate.clone();
+         let mut input = Input::new(self.state.clone())
+@@ -996,7 +1063,7 @@ impl RenderOnce for ComboBox {
+         let open_change_cb = self.on_open_change.clone();
+         let focus_open_on_change = focus_open.clone();
+         let show_all_items_on_change = show_all_items.clone();
+-        let items_on_change = self.items.clone();
++        let items_on_change = items.clone();
+         let filter_on_change = self.filter.clone();
+         let menu_trigger_on_change = self.menu_trigger;
+         let allows_empty_collection = self.allows_empty_collection;
+@@ -1029,13 +1096,15 @@ impl RenderOnce for ComboBox {
+                 }
+             }
+ 
+-            let query = text.to_lowercase();
+             let has_matches = match &filter_on_change {
+                 Some(f) => items_on_change.iter().any(|item| f(item.label(), text)),
+-                None if query.is_empty() => !items_on_change.is_empty(),
+-                None => items_on_change
+-                    .iter()
+-                    .any(|item| item.label().to_lowercase().contains(&query)),
++                None if text.is_empty() => !items_on_change.is_empty(),
++                None => {
++                    let query = text.to_lowercase();
++                    items_on_change
++                        .iter()
++                        .any(|item| item.label().to_lowercase().contains(&query))
++                }
+             };
+             let can_show = has_matches || allows_empty_collection;
+             let is_open = open_own_on_change
+@@ -1088,7 +1157,7 @@ impl RenderOnce for ComboBox {
+         let stale_cursor = cursor.read(cx).as_ref().is_some_and(|focused| {
+             let visible = cursor_position(&matches, focused).is_some();
+             let retained_hidden = focused.hidden_query.as_deref() == Some(raw_query.as_str())
+-                && self.items.iter().any(|item| item.key() == &focused.key);
++                && items.iter().any(|item| item.key() == &focused.key);
+             self.disabled_keys.contains(&focused.key) || (!visible && !retained_hidden)
+         });
+         if stale_cursor {
+@@ -1120,7 +1189,7 @@ impl RenderOnce for ComboBox {
+             let state = self.state.clone();
+             let selection_own = selection_own.clone();
+             let selected = self.selected_keys.clone();
+-            let items = self.items.clone();
++            let items = items.clone();
+             let selection_change = self.on_selection_change_all.clone();
+             let input_change = self.on_input_change.clone();
+             let allows_custom = self.allows_custom_value;
+@@ -1209,20 +1278,17 @@ impl RenderOnce for ComboBox {
+         // item now sits; a key with no item renders nothing.
+         let mut value_content = None;
+         if let Some(render) = self.value_content.take() {
+-            let mut items: Vec<SharedString> = Vec::new();
++            let mut labels: Vec<SharedString> = Vec::new();
+             let mut indices: Vec<usize> = Vec::new();
+             for key in &self.selected_keys {
+-                if let Some((index, item)) = self
+-                    .items
+-                    .iter()
+-                    .enumerate()
+-                    .find(|(_, it)| it.key() == key)
++                if let Some((index, item)) =
++                    items.iter().enumerate().find(|(_, it)| it.key() == key)
+                 {
+-                    items.push(item.label().clone());
++                    labels.push(item.label().clone());
+                     indices.push(index);
+                 }
+             }
+-            let text = items
++            let text = labels
+                 .iter()
+                 .map(ToString::to_string)
+                 .collect::<Vec<_>>()
+@@ -1233,11 +1299,11 @@ impl RenderOnce for ComboBox {
+                 .child(text.clone())
+                 .into_any_element();
+             value_content = Some(render(util::SelectionValue {
+-                selected_items: &items,
++                selected_items: &labels,
+                 selected_indices: &indices,
+                 selected_keys: Some(&self.selected_keys),
+                 selected_text: &text,
+-                is_placeholder: items.is_empty(),
++                is_placeholder: labels.is_empty(),
+                 default_children,
+             }));
+         }
+@@ -1248,11 +1314,17 @@ impl RenderOnce for ComboBox {
+         // Up, down, Home, End and Enter walk the suggestions; the inner input
+         // keeps left and right for the caret.
+         if !self.is_disabled && !self.is_read_only {
+-            let key_rows = if open_state || (self.allows_custom_value && !raw_query.is_empty()) {
+-                matches.clone()
+-            } else {
+-                self.items.iter().take(self.max_items).cloned().collect()
+-            };
++            let key_rows: Rc<[PickerItem]> =
++                if open_state || (self.allows_custom_value && !raw_query.is_empty()) {
++                    Rc::clone(&matches)
++                } else {
++                    items
++                        .iter()
++                        .take(self.max_items)
++                        .cloned()
++                        .collect::<Vec<_>>()
++                        .into()
++                };
+             let stops: Vec<usize> = (0..key_rows.len())
+                 .filter(|i| {
+                     key_rows
+@@ -1275,7 +1347,8 @@ impl RenderOnce for ComboBox {
+             let on_input_change = self.on_input_change.clone();
+             let selected_now = self.selected_keys.clone();
+             let key_query = raw_query.clone();
+-            let key_items = self.items.clone();
++            let key_display_full = display_full_collection;
++            let key_items = items.clone();
+             let key_filter = self.filter.clone();
+             let key_max_items = self.max_items;
+             let key_disabled = self.disabled_keys.clone();
+@@ -1293,34 +1366,30 @@ impl RenderOnce for ComboBox {
+                     .map_or(was_open, |held| *held.read(cx));
+                 let stale_cursor = held.read(cx).as_ref().is_some_and(|focused| {
+                     let current_query = state.read(cx).value().to_owned();
+-                    let lowered = current_query.to_lowercase();
+-                    let display_full = current_query == key_query && *show_all_items.read(cx)
++                    let display_full = (current_query == key_query && *show_all_items.read(cx))
+                         || (key_menu_trigger == MenuTrigger::Manual && !is_open);
+-                    let current_matches: Vec<PickerItem> = match &key_filter {
+-                        _ if display_full => {
+-                            key_items.iter().take(key_max_items).cloned().collect()
+-                        }
+-                        Some(filter) => key_items
+-                            .iter()
+-                            .filter(|item| filter(item.label(), &current_query))
+-                            .take(key_max_items)
+-                            .cloned()
+-                            .collect(),
+-                        None if lowered.is_empty() => {
+-                            key_items.iter().take(key_max_items).cloned().collect()
+-                        }
+-                        None => key_items
+-                            .iter()
+-                            .filter(|item| item.label().to_lowercase().contains(&lowered))
+-                            .take(key_max_items)
+-                            .cloned()
+-                            .collect(),
+-                    };
+-                    let current_rows =
+-                        if is_open || (allows_custom_value && !current_query.is_empty()) {
+-                            current_matches
++                    let current_rows: Rc<[PickerItem]> =
++                        if !(is_open || (allows_custom_value && !current_query.is_empty())) {
++                            key_items
++                                .iter()
++                                .take(key_max_items)
++                                .cloned()
++                                .collect::<Vec<_>>()
++                                .into()
++                        } else if current_query == key_query
++                            && is_open == was_open
++                            && display_full == key_display_full
++                        {
++                            Rc::clone(&rows)
+                         } else {
+-                            key_items.iter().take(key_max_items).cloned().collect()
++                            compute_matches(
++                                &key_items,
++                                &current_query,
++                                key_max_items,
++                                display_full,
++                                key_filter.as_ref(),
++                            )
++                            .into()
+                         };
+                     let visible = cursor_position(&current_rows, focused).is_some();
+                     let retained_hidden = focused.hidden_query.as_deref()
+@@ -1759,7 +1828,8 @@ impl RenderOnce for ComboBox {
                          let input_change = row_input_change.clone();
                          row = row.on_click(move |_, window, cx| {
                              let had_query = !state.read(cx).value().is_empty();
@@ -6463,7 +7267,7 @@ index 82400fc..70ac6df 100644
                              state.update(cx, |st, cx| {
                                  st.set_value(String::new());
                                  cx.notify();
-@@ -1842,7 +1843,7 @@ impl RenderOnce for ComboBox {
+@@ -1842,7 +1912,7 @@ impl RenderOnce for ComboBox {
                                      .collect::<Vec<_>>()
                              },
                          )
@@ -6620,7 +7424,7 @@ index eda7685..cbb5f7d 100644
  
          // A drag in progress: where it started along the dismissal axis, and how
 diff --git a/crates/herogpui-components/src/dropdown.rs b/crates/herogpui-components/src/dropdown.rs
-index d8df485..009725c 100644
+index d8df485..77b1063 100644
 --- a/crates/herogpui-components/src/dropdown.rs
 +++ b/crates/herogpui-components/src/dropdown.rs
 @@ -439,7 +439,7 @@ impl RenderOnce for Menu {
@@ -6632,7 +7436,23 @@ index d8df485..009725c 100644
          } else if self.on_back.is_none() {
              crate::util::focus_once(window, cx, autofocus, &focus_handle);
          }
-@@ -880,7 +880,7 @@ impl RenderOnce for Menu {
+@@ -530,6 +530,15 @@ impl RenderOnce for Menu {
+             .panel_bounds
+             .clone()
+             .unwrap_or_else(|| std::rc::Rc::new(std::cell::RefCell::new(Vec::new())));
++        // The union Vec's lifetime is one frame by construction: the top-level
++        // menu allocates it here, in its own render, and gpui re-renders every
++        // frame the panel is mounted. Both canvases below push once per frame
++        // and the outside-press listener captured in this same render reads it,
++        // so the union is always exactly this frame's composite panels -- no
++        // stale bounds can outlive the frame that drew them. Never hoist this
++        // Rc into keyed state: a Vec that survived frames would accumulate
++        // every panel position it ever had and swallow outside presses near
++        // old panel locations.
+ 
+         let colors = cx.colors();
+         let dropdown_composition = self.dropdown_composition;
+@@ -880,7 +889,7 @@ impl RenderOnce for Menu {
                          let pointer_cursor = cursor.clone();
                          let pointer_focus = focus_handle.clone();
                          row = row.on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
@@ -6641,7 +7461,7 @@ index d8df485..009725c 100644
                              pointer_cursor.update(cx, |value, cx| {
                                  *value = Some(i);
                                  cx.notify();
-@@ -892,7 +892,7 @@ impl RenderOnce for Menu {
+@@ -892,7 +901,7 @@ impl RenderOnce for Menu {
                              if crate::util::focus_visible(cx) || *hover_cursor.read(cx) == Some(i) {
                                  return;
                              }
@@ -6650,7 +7470,7 @@ index d8df485..009725c 100644
                              hover_cursor.update(cx, |value, cx| {
                                  *value = Some(i);
                                  cx.notify();
-@@ -1241,7 +1241,7 @@ impl RenderOnce for Menu {
+@@ -1241,7 +1250,7 @@ impl RenderOnce for Menu {
                      cx.notify();
                  });
                  close_focus_state.update(cx, |value, _| *value = false);
@@ -6659,7 +7479,7 @@ index d8df485..009725c 100644
              });
              if let Some(cb) = self.on_action.clone() {
                  sub = sub.on_action(move |key, window, cx| cb(key, window, cx));
-@@ -1748,7 +1748,7 @@ impl RenderOnce for Dropdown {
+@@ -1748,7 +1757,7 @@ impl RenderOnce for Dropdown {
                      // would activate the trigger on key up and reopen the menu
                      // -- the keyboard path asks for no refocus for that reason.
                      if refocus {
@@ -6669,10 +7489,24 @@ index d8df485..009725c 100644
                  });
              }
 diff --git a/crates/herogpui-components/src/field.rs b/crates/herogpui-components/src/field.rs
-index c3f870e..3711ed9 100644
+index c3f870e..58319ec 100644
 --- a/crates/herogpui-components/src/field.rs
 +++ b/crates/herogpui-components/src/field.rs
-@@ -94,8 +94,8 @@ impl RenderOnce for Label {
+@@ -4,6 +4,13 @@
+ //! These are the composition-friendly slots that HeroUI v3 field components
+ //! assemble internally, exposed here so applications can build custom fields
+ //! with the same typography and states.
++//!
++//! `FieldsetRoot` in v3.2.4 also accepts the native `disabled` attribute and
++//! forwards it to descendants through React Aria contexts. GPUI has no
++//! ancestor context propagation and no DOM attribute graph, so this port
++//! deliberately ships no disabled state on [`Fieldset`]: a field composed
++//! inside one keeps every interaction
++//! (`text_fields::fieldset_disabled_disables_its_children` proves it).
+ 
+ use gpui::{
+     div, px, AnyElement, App, InteractiveElement, IntoElement, ParentElement, Pixels, RenderOnce,
+@@ -94,8 +101,8 @@ impl RenderOnce for Label {
              Some((id, handle)) if !self.is_disabled => el
                  .id(id)
                  .cursor_pointer()
@@ -6683,6 +7517,37 @@ index c3f870e..3711ed9 100644
                  })
                  .into_any_element(),
              _ => el.into_any_element(),
+@@ -243,6 +250,11 @@ impl RenderOnce for Fieldset {
+             .flex()
+             .flex_col()
+             .gap(self.gap)
++            // `.fieldset` also carries `shrink grow basis-0` so it fills a flex
++            // parent like any other section.
++            .flex_shrink(1.)
++            .flex_grow(1.)
++            .flex_basis(px(0.))
+             .text_color(cx.colors().foreground)
+             .children(self.children)
+     }
+@@ -265,7 +277,8 @@ impl RenderOnce for FieldsetLegend {
+         div()
+             .text_size(px(16.))
+             .line_height(px(24.))
+-            .font_weight(gpui::FontWeight::SEMIBOLD)
++            // `.fieldset__legend` is `text-base font-medium`, not semibold.
++            .font_weight(gpui::FontWeight::MEDIUM)
+             .text_color(cx.colors().foreground)
+             .child(self.text.to_string())
+     }
+@@ -356,6 +369,8 @@ impl RenderOnce for FieldsetActions {
+             .flex()
+             .flex_row()
+             .items_center()
++            // `.fieldset__actions` is `gap-2 pt-1`.
++            .pt(px(4.))
+             .gap(self.gap)
+             .children(self.children)
+     }
 diff --git a/crates/herogpui-components/src/form.rs b/crates/herogpui-components/src/form.rs
 index 44336bc..bf7b065 100644
 --- a/crates/herogpui-components/src/form.rs
@@ -6728,10 +7593,41 @@ index 44336bc..bf7b065 100644
              })),
              // A live field belongs to a rendered non-text control — a switch,
 diff --git a/crates/herogpui-components/src/input.rs b/crates/herogpui-components/src/input.rs
-index 89fec17..8392884 100644
+index 89fec17..3965e23 100644
 --- a/crates/herogpui-components/src/input.rs
 +++ b/crates/herogpui-components/src/input.rs
-@@ -1339,7 +1339,7 @@ impl RenderOnce for Input {
+@@ -18,6 +18,9 @@ pub struct InputState {
+     /// Selection anchor in char indices; `None` when the caret is collapsed.
+     anchor: Option<usize>,
+     pub(crate) focus_handle: FocusHandle,
++    /// Clear-button handle. Created without `tab_stop`, matching pinned
++    /// `useSearchField` `excludeFromTabOrder: true`. Never a `tab_stop_handle`.
++    pub(crate) clear_focus_handle: FocusHandle,
+     /// `name` — what this field submits under, written in by the component's
+     /// `name` builder. The state carries it because gpui gives a child no way
+     /// to reach its `Form`; `FormField::text` reads it back out.
+@@ -67,6 +70,8 @@ impl InputState {
+             anchor: None,
+             // A field is a tab stop: the handle carries that, not the element.
+             focus_handle: cx.focus_handle().tab_stop(true),
++            // Plain handle: Tab never seats on the clear button.
++            clear_focus_handle: cx.focus_handle(),
+             name: None,
+             validation_behavior: crate::form::ValidationBehavior::Native,
+             validity: crate::validation::Validity::default(),
+@@ -182,6 +187,11 @@ impl InputState {
+         self.value.is_empty()
+     }
+ 
++    /// The clear affordance's focus handle. It is not a tab stop.
++    pub fn clear_focus_handle(&self) -> FocusHandle {
++        self.clear_focus_handle.clone()
++    }
++
+     /// Normalized `(start, end)` char range of the active selection.
+     pub fn selection(&self) -> Option<(usize, usize)> {
+         let a = self.anchor?;
+@@ -1339,7 +1349,7 @@ impl RenderOnce for Input {
                          let multiline = self.multiline;
                          let size = text;
                          move |ev: &gpui::MouseDownEvent, window, cx| {
@@ -6740,6 +7636,164 @@ index 89fec17..8392884 100644
                              // A wrapped, multi-line body has no single line to
                              // measure against; its caret still moves by key.
                              if multiline {
+@@ -1563,6 +1573,7 @@ impl RenderOnce for Input {
+         field = field.child(row);
+         // isClearable — show X when has value and not disabled/readonly
+         if self.is_clearable && !is_empty && !self.is_disabled && !self.is_read_only {
++            let clear_focus_handle = self.state.read(cx).clear_focus_handle.clone();
+             let clear_content = match self.clear_content {
+                 Some(content) => content,
+                 None => gpui::svg()
+@@ -1582,56 +1593,100 @@ impl RenderOnce for Input {
+             // `.close-button:hover` fills `bg-default-hover` -- not a
+             // hand-mixed wash.
+             let clear_hover_bg = colors.default.hover();
+-            field = field.child(
+-                gpui::div()
+-                    .id(gpui::ElementId::Name(
+-                        format!("input-clear-{}", self.state.entity_id().as_u64()).into(),
+-                    ))
+-                    .flex()
+-                    .items_center()
+-                    .justify_center()
+-                    // (`rounded-xl p-1 text-muted`), sized
+-                    // down by the search field's own rule: `size-5` with a
+-                    // `size-3` glyph.
+-                    .size(px(20.))
+-                    .p(px(4.))
+-                    .rounded(crate::util::small_radius(cx))
+-                    .cursor_pointer()
+-                    .text_color(colors.muted)
+-                    .hover(move |s| s.bg(clear_hover_bg))
+-                    .active(|s| s.opacity(0.7))
+-                    .on_click(move |_, window, cx| {
+-                        clear_state.update(cx, |s, cx| {
+-                            s.value.clear();
+-                            s.cursor = 0;
+-                            s.anchor = None;
+-                            // The clear affordance is a user modification:
+-                            // it suppresses the routed server errors too.
+-                            s.clear_routed_errors();
+-                            cx.notify();
+-                        });
+-                        // The emptied value is the mirror's too, before any
+-                        // callback can observe the field: a synchronous
+-                        // submit inside `on_change` must not be blocked by
+-                        // the routed error this click just answered.
+-                        refresh_stored_validity(
+-                            &clear_state,
+-                            edit_is_invalid,
+-                            &clear_validation_errors,
+-                            clear_validate.as_ref(),
+-                            clear_error_message.clone(),
+-                            &clear_native,
+-                            cx,
+-                        );
+-                        if let Some(cb) = &clear_on_change {
+-                            cb("", window, cx);
+-                        }
+-                        if let Some(cb) = &on_clear {
+-                            cb(window, cx);
+-                        }
+-                    })
+-                    .child(clear_content),
++            let clear_box = px(20.);
++            let clear_radius = crate::util::small_radius(cx);
++            let clear_selector = format!("input-clear-{}", self.state.entity_id().as_u64());
++            let input_focus_after_clear = focus_handle.clone();
++            let input_focus_handle = focus_handle;
++            let mut clear = gpui::div()
++                .id(gpui::ElementId::Name(
++                    clear_selector.clone().into(),
++                ))
++                .debug_selector(move || clear_selector)
++                .flex()
++                .items_center()
++                .justify_center()
++                .size(clear_box)
++                .p(px(4.))
++                .rounded(clear_radius)
++                .cursor_pointer()
++                .text_color(colors.muted)
++                .hover(move |s| s.bg(clear_hover_bg))
++                .active({
++                    // GPUI 0.2.2 has no div transform; use the same centred
++                    // geometry as CloseButton's scale(0.93). The active style
++                    // is an instant swap, including under reduced motion.
++                    const PRESS_SCALE: f32 = 0.93;
++                    let inset = px(f32::from(clear_box) * (1.0 - PRESS_SCALE) / 2.0);
++                    let pressed = px(f32::from(clear_box) * PRESS_SCALE);
++                    let radius = px(f32::from(clear_radius) * PRESS_SCALE);
++                    move |s| {
++                        s.h(pressed)
++                            .w(pressed)
++                            .mt(inset)
++                            .mb(inset)
++                            .ml(inset)
++                            .mr(inset)
++                            .rounded(radius)
++                    }
++                })
++                // Pinned `useSearchField` `excludeFromTabOrder: true` (the
++                // InputState-owned handle is not a tab stop) and
++                // `preventFocusOnPress: true`. Pointer presses keep focus on
++                // the input. Keys on the button must not bubble into the
++                // field except Tab, which still walks to the next stop.
++                .track_focus(&clear_focus_handle)
++                .on_key_down(|event, _, cx| {
++                    if event.keystroke.key != "tab" {
++                        cx.stop_propagation();
++                    }
++                })
++                .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
++                    cx.stop_propagation();
++                    window.focus(&input_focus_handle, cx);
++                    window.prevent_default();
++                })
++                .on_click(move |_, window, cx| {
++                    window.focus(&input_focus_after_clear, cx);
++                    clear_state.update(cx, |s, cx| {
++                        s.value.clear();
++                        s.cursor = 0;
++                        s.anchor = None;
++                        // The clear affordance is a user modification:
++                        // it suppresses the routed server errors too.
++                        s.clear_routed_errors();
++                        cx.notify();
++                    });
++                    // The emptied value is the mirror's too, before any
++                    // callback can observe the field: a synchronous
++                    // submit inside `on_change` must not be blocked by
++                    // the routed error this click just answered.
++                    refresh_stored_validity(
++                        &clear_state,
++                        edit_is_invalid,
++                        &clear_validation_errors,
++                        clear_validate.as_ref(),
++                        clear_error_message.clone(),
++                        &clear_native,
++                        cx,
++                    );
++                    if let Some(cb) = &clear_on_change {
++                        cb("", window, cx);
++                    }
++                    if let Some(cb) = &on_clear {
++                        cb(window, cx);
++                    }
++                })
++                .child(clear_content);
++            clear = crate::util::ring_if_focused(
++                clear,
++                &clear_focus_handle,
++                true,
++                Vec::new(),
++                window,
++                cx,
+             );
++            field = field.child(clear);
+         }
+         field = field.children(self.end_content);
+ 
 diff --git a/crates/herogpui-components/src/input_group.rs b/crates/herogpui-components/src/input_group.rs
 index 3c18ea0..2a9975e 100644
 --- a/crates/herogpui-components/src/input_group.rs
@@ -6788,27 +7842,86 @@ index 3ac09a8..0787e3a 100644
  pub mod modal;
  pub mod number_field;
 diff --git a/crates/herogpui-components/src/link.rs b/crates/herogpui-components/src/link.rs
-index ada6b89..b9e7308 100644
+index ada6b89..62af657 100644
 --- a/crates/herogpui-components/src/link.rs
 +++ b/crates/herogpui-components/src/link.rs
-@@ -13,6 +13,7 @@ use herogpui_theme::ActiveTheme;
- /// A press handler. `Arc` rather than `Box` because it is bound twice: the
+@@ -1,12 +1,17 @@
+ //! Link — port of `@heroui/link` (v3).
+ //!
+-//! Mirrors the React API: `href`, `target`, `rel`, `download`, `isDisabled`.
+-//! Links draw with the `--link` token (which defaults to `--foreground`), not a
+-//! colour role — v3 removed the `color` prop.
++//! Mirrors the React API: `href`, `isDisabled`, `autoFocus`, `onPress`, and
++//! the documented `render` function. Links draw with the `--link` token
++//! (which defaults to `--foreground`) — v3 removed the `color` prop — and
++//! `link.css` keeps the text colour fixed across every state: hover and press
++//! change only the underline decoration (`decoration-muted/50`, then
++//! `decoration-muted`), never the text. `href` opens through the OS handler
++//! (`App::open_url`), so v3's anchor-only `target` / `rel` / `download` have
++//! no meaning here and are not offered.
+ 
+ use gpui::{
+-    div, prelude::*, px, App, ClickEvent, ElementId, InteractiveElement, IntoElement, RenderOnce,
+-    SharedString, Styled, Window,
++    div, prelude::*, px, App, ClickEvent, ElementId, Hsla, InteractiveElement, IntoElement,
++    RenderOnce, SharedString, StyleRefinement, Styled, UnderlineStyle, Window,
+ };
+ use herogpui_theme::ActiveTheme;
+ 
+@@ -14,6 +19,42 @@ use herogpui_theme::ActiveTheme;
  /// pointer's `on_click` and the keyboard's Enter/Space both run it.
  type OnPress = std::sync::Arc<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
-+type Render = std::sync::Arc<dyn Fn(crate::util::InteractiveState) -> gpui::AnyElement + 'static>;
  
++/// v3's `render` — a function of the link's interactive render-props state.
++type Render = std::sync::Arc<dyn Fn(crate::util::InteractiveState) -> gpui::AnyElement + 'static>;
++
++/// The underline v3 turns on for hover and press: `decoration-[1.5px]`, with
++/// only the decoration colour differing between the two states.
++fn underline(color: Hsla) -> UnderlineStyle {
++    UnderlineStyle {
++        thickness: px(1.5),
++        color: Some(color),
++        wavy: false,
++    }
++}
++
++/// The pinned `.link__icon` slot: a centered, muted 0.75em icon. The
++/// childless default-arrow margin is deliberately not part of this wrapper.
++fn icon_slot(
++    icon: gpui::AnyElement,
++    id: ElementId,
++    is_focus_visible: bool,
++    link_color: Hsla,
++) -> gpui::AnyElement {
++    div()
++        .id(id)
++        .flex()
++        .items_center()
++        .justify_center()
++        .size(px(12.))
++        .flex_shrink_0()
++        .text_color(link_color)
++        .opacity(if is_focus_visible { 1.0 } else { 0.6 })
++        .hover(|s| s.opacity(1.0))
++        .active(|s| s.opacity(1.0))
++        .child(icon)
++        .into_any_element()
++}
++
  /// HeroUI Link.
  #[derive(IntoElement)]
-@@ -29,6 +30,8 @@ pub struct Link {
+ pub struct Link {
+@@ -29,6 +70,9 @@ pub struct Link {
      /// Whether the icon comes first. v3 gets this from where `Link.Icon` sits
      /// among the link's children.
      icon_first: bool,
-+    /// `render` — replaces the label and icon with caller-built content.
++    /// `render` — draws the link's content in place of the label and icon,
++    /// handed the interactive state v3 passes its render functions.
 +    render: Option<Render>,
      on_press: Option<OnPress>,
  }
  
-@@ -42,6 +45,7 @@ impl Link {
+@@ -42,12 +86,16 @@ impl Link {
              auto_focus: false,
              icon: None,
              icon_first: false,
@@ -6816,12 +7929,28 @@ index ada6b89..b9e7308 100644
              on_press: None,
          }
      }
-@@ -82,6 +86,16 @@ impl Link {
+ 
+-    /// `Link.Icon` (`.link__icon`) — the glyph beside the label. Pass
+-    /// `icons::EXTERNAL_LINK` for the one v3 draws by default.
++    /// `Link.Icon` (`.link__icon`) with a caller-supplied child — the
++    /// arbitrary-children path, never v3's childless `<Link.Icon />`: upstream
++    /// derives `data-default-icon` from `!children`, and the pinned `ms-1
++    /// pb-1.5` applies only to that built-in arrow, which this port does not
++    /// draw. `.link` has no gap of its own, so a custom icon sits flush.
+     pub fn icon(mut self, el: impl IntoElement) -> Self {
+         self.icon = Some(el.into_any_element());
+         self
+@@ -82,6 +130,21 @@ impl Link {
          self
      }
  
-+    /// `render` — draws the link content from its interactive state while the
-+    /// root retains href, press, focus, and disabled behavior.
++    /// `render` — v3's render function receives the DOM props plus the link's
++    /// interactive state and renders whatever element it returns. GPUI has no
++    /// DOM props to spread onto a caller-built element, so the closure
++    /// receives the interactive half alone
++    /// (`{isHovered, isPressed, isFocused, isFocusVisible, isDisabled}`) and
++    /// draws the content; the root keeps the `href`, `onPress`, focus, and
++    /// disabled wiring either way.
 +    pub fn render(
 +        mut self,
 +        render: impl Fn(crate::util::InteractiveState) -> gpui::AnyElement + 'static,
@@ -6833,10 +7962,22 @@ index ada6b89..b9e7308 100644
      /// `onPress` — extra behaviour, in addition to opening `href`.
      pub fn on_press(
          mut self,
-@@ -118,6 +132,21 @@ impl RenderOnce for Link {
+@@ -118,21 +181,42 @@ impl RenderOnce for Link {
              );
          }
  
+-        let colors = cx.colors();
+-        let color = colors.link;
++        // Tokens are `Copy`, so take them before the `cx`-mutating state calls
++        // below.
++        let link_color = cx.colors().link;
++        let disabled_opacity = cx.layout().disabled_opacity;
++        let hover_decoration = cx.colors().muted.alpha(0.5);
++        let pressed_decoration = cx.colors().muted;
++
++        // One hover/press slot per link, for a `render` closure. The tracking
++        // handlers cost a listener and a frame of lag; without the closure
++        // nothing observes the states, so nothing tracks them.
 +        let interaction = if self.render.is_some() {
 +            Some(crate::util::interaction(
 +                ElementId::Name(format!("{:?}-link-interaction", self.id).into()),
@@ -6851,40 +7992,104 @@ index ada6b89..b9e7308 100644
 +                slot.update(cx, |state, _| *state = (false, false));
 +            }
 +        }
-+
-         let colors = cx.colors();
-         let color = colors.link;
  
-@@ -167,21 +196,41 @@ impl RenderOnce for Link {
+         let mut el = div()
+             .id(self.id.clone())
+             .flex()
+             .items_center()
+-            .gap(px(3.))
+             .w_auto()
+-            .text_color(color)
+-            // `.link { @apply font-semibold no-underline hover:underline; }`
++            // `.link` is `font-medium text-link` — the docs' Global CSS
++            // snippet still says `font-semibold`, but the stylesheet is the
++            // contract, and the text colour never changes state.
++            .text_color(link_color)
+             .font_weight(gpui::FontWeight::MEDIUM)
+-            .rounded(crate::util::small_radius(cx))
+-            .border_color(color)
+-            .pb(px(1.));
++            .rounded(crate::util::small_radius(cx));
+         if interactive {
+             el = crate::util::ring_if_focused(
+                 el.track_focus(&focus),
+@@ -145,42 +229,78 @@ impl RenderOnce for Link {
+         }
+ 
+         if self.is_disabled {
+-            el = el.opacity(cx.layout().disabled_opacity);
++            // `.link[aria-disabled="true"]` is `status-disabled`: the disabled
++            // opacity, no pointer reach, and no tab stop.
++            el = el.opacity(disabled_opacity);
+         } else {
+-            // gpui panics on a second `hover` call, so the underline and the
+-            // colour shift have to share one closure.
+-            let hover_color = colors.accent.color;
++            // `&:hover` draws `underline decoration-muted/50` and `&:active`
++            // takes the decoration to full `decoration-muted`; neither touches
++            // the text colour. gpui panics on a second `hover` call, so each
++            // closure owns its state's whole underline.
+             el = el
+                 .cursor_pointer()
+-                .hover(move |s| {
+-                    s.text_color(hover_color)
+-                        .border_color(hover_color)
+-                        .border_b_1()
++                .hover(move |mut s: StyleRefinement| {
++                    s.text_style()
++                        .underline = Some(underline(hover_decoration));
++                    s
+                 })
+-                // `.link[data-pressed]` keeps the underline and takes the muted
+-                // decoration to full strength.
+-                .active(move |s| {
+-                    s.text_color(hover_color)
+-                        .border_color(hover_color)
+-                        .border_b_1()
+-                        .opacity(0.85)
++                .active(move |mut s: StyleRefinement| {
++                    s.text_style()
++                        .underline = Some(underline(pressed_decoration));
++                    s
                  });
          }
  
--        // v3 orders `Link.Icon` among the children, so the icon can lead or
+         // v3 orders `Link.Icon` among the children, so the icon can lead or
 -        // trail the label.
 -        if self.icon_first {
 -            if let Some(icon) = self.icon.take() {
 -                el = el.child(icon);
++        // trail the label. A `render` closure replaces that content and is
++        // handed the state the slot tracked one frame ago.
++        let icon_focus_visible =
++            interactive && focus.is_focused(window) && crate::util::focus_visible(cx);
 +        if let Some(render) = &self.render {
 +            let (is_hovered, is_pressed) = interaction
 +                .as_ref()
 +                .map_or((false, false), |slot| *slot.read(cx));
-+            let is_focused = interactive && focus.is_focused(window);
-+            el = el.child(render(crate::util::InteractiveState {
++            let focused = interactive && focus.is_focused(window);
++            let state = crate::util::InteractiveState {
 +                is_hovered,
 +                is_pressed,
-+                is_focused,
-+                is_focus_visible: is_focused && crate::util::focus_visible(cx),
-+                is_selected: false,
++                is_focused: focused,
++                is_focus_visible: focused && crate::util::focus_visible(cx),
 +                is_disabled: self.is_disabled,
-+                is_pending: false,
-+                is_indeterminate: false,
-+            }));
++                ..Default::default()
++            };
++            el = el.child(render(state));
 +        } else {
-+            // v3 orders `Link.Icon` among the children, so the icon can lead or
-+            // trail the label.
++            // `.link` has no gap, and the pinned `ms-1 pb-1.5` belongs only
++            // to `[data-default-icon="true"]` — the built-in arrow drawn by a
++            // childless `<Link.Icon />`, which this port does not render. A
++            // caller icon sits flush against the label on either side.
 +            if self.icon_first {
 +                if let Some(icon) = self.icon.take() {
-+                    el = el.child(icon);
++                    el = el.child(icon_slot(
++                        icon,
++                        ElementId::Name(format!("{:?}-link-icon", self.id).into()),
++                        icon_focus_visible,
++                        link_color,
++                    ));
 +                }
              }
 -        }
@@ -6896,24 +8101,37 @@ index ada6b89..b9e7308 100644
 -                el = el.child(icon);
 +            if let Some(label) = self.label.clone() {
 +                el = el.child(label.to_string());
-+            }
+             }
 +            if !self.icon_first {
 +                if let Some(icon) = self.icon.take() {
-+                    el = el.child(icon);
++                    el = el.child(icon_slot(
++                        icon,
++                        ElementId::Name(format!("{:?}-link-icon", self.id).into()),
++                        icon_focus_visible,
++                        link_color,
++                    ));
 +                }
-             }
-         }
++            }
++        }
 +        if let Some(slot) = &interaction {
 +            el = crate::util::track_interaction(el, slot);
-+        }
+         }
  
          if !self.is_disabled {
-             let href = self.href.clone();
 diff --git a/crates/herogpui-components/src/list_box.rs b/crates/herogpui-components/src/list_box.rs
-index 81d4e2e..0c65bcb 100644
+index 81d4e2e..23b9037 100644
 --- a/crates/herogpui-components/src/list_box.rs
 +++ b/crates/herogpui-components/src/list_box.rs
-@@ -15,7 +15,7 @@ use gpui::{
+@@ -1,6 +1,7 @@
+ //! ListBox — port of `@heroui/list-box` (v3).
+ //!
+-//! A selectable list of options. Mirrors the React API: `selectionMode`,
++//! A list of options, nonselecting by default: the pinned `useListState`
++//! defaults `selectionMode` to `none`. Mirrors the React API: `selectionMode`,
+ //! `selectedKeys`, `disabledKeys`, `onSelectionChange`, `onAction`, and the
+ //! `default | danger` item variant. Sections are expressed with
+ //! [`ListBoxItem::section`] headers and [`ListBoxItem::separator`].
+@@ -15,7 +16,7 @@ use gpui::{
  use herogpui_core::SelectionMode;
  use herogpui_theme::ActiveTheme;
  
@@ -6922,7 +8140,7 @@ index 81d4e2e..0c65bcb 100644
  
  /// Visual variant of a list item.
  #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-@@ -205,6 +205,7 @@ pub struct ListBox {
+@@ -205,6 +206,7 @@ pub struct ListBox {
      default_selected_keys: HashSet<SharedString>,
      is_controlled: bool,
      disallow_empty_selection: bool,
@@ -6930,7 +8148,17 @@ index 81d4e2e..0c65bcb 100644
      disabled_keys: HashSet<SharedString>,
      /// Applies to every item unless the item overrides it.
      variant: ListBoxItemVariant,
-@@ -244,6 +245,7 @@ impl ListBox {
+@@ -239,11 +241,16 @@ impl ListBox {
+         Self {
+             id: id.into(),
+             items,
+-            selection_mode: SelectionMode::Single,
++            // Pinned `useListState` (`useMultipleSelectionState`) defaults
++            // `selectionMode` to `none`; HeroUI's v3 ListBox wrapper forwards
++            // props to React Aria untouched, so a plain list is nonselecting.
++            // Enable single or multiple selection with `selection_mode`.
++            selection_mode: SelectionMode::None,
+             selected_keys: HashSet::new(),
              default_selected_keys: HashSet::new(),
              is_controlled: false,
              disallow_empty_selection: false,
@@ -6938,7 +8166,17 @@ index 81d4e2e..0c65bcb 100644
              disabled_keys: HashSet::new(),
              variant: ListBoxItemVariant::Default,
              should_focus_wrap: false,
-@@ -291,6 +293,12 @@ impl ListBox {
+@@ -272,7 +279,8 @@ impl ListBox {
+         self
+     }
+ 
+-    /// Convenience for `selectionMode="single"`.
++    /// Controlled single-key convenience. Does not change the selection mode:
++    /// pair with `selection_mode(SelectionMode::Single)` for interactive picks.
+     pub fn selected_key(mut self, key: impl Into<SharedString>) -> Self {
+         self.selected_keys = HashSet::from([key.into()]);
+         self.is_controlled = true;
+@@ -291,6 +299,12 @@ impl ListBox {
          self
      }
  
@@ -6951,7 +8189,7 @@ index 81d4e2e..0c65bcb 100644
      pub fn disabled_keys(mut self, keys: impl IntoIterator<Item = SharedString>) -> Self {
          self.disabled_keys = keys.into_iter().collect();
          self
-@@ -534,7 +542,7 @@ impl RenderOnce for ListBox {
+@@ -534,7 +548,7 @@ impl RenderOnce for ListBox {
              // arrow keys would go nowhere after a pointer selection.
              .on_mouse_down(gpui::MouseButton::Left, {
                  let fh = focus_handle.clone();
@@ -6960,7 +8198,7 @@ index 81d4e2e..0c65bcb 100644
              });
  
          // A virtualized list scrolls inside `uniform_list`, which owns the
-@@ -635,6 +643,7 @@ impl RenderOnce for ListBox {
+@@ -635,6 +649,7 @@ impl RenderOnce for ListBox {
              let typed_keys = typed;
              let mode = self.selection_mode;
              let disallow_empty = self.disallow_empty_selection;
@@ -6968,7 +8206,7 @@ index 81d4e2e..0c65bcb 100644
              let selected_now = self.selected_keys.clone();
              let on_selection_change = self.on_selection_change.clone();
              let on_action = self.on_action.clone();
-@@ -691,6 +700,7 @@ impl RenderOnce for ListBox {
+@@ -691,6 +706,7 @@ impl RenderOnce for ListBox {
                  // on Escape by default and leaves an empty collection alone.
                  if key_name == "escape"
                      && !event.keystroke.modifiers.modified()
@@ -6976,7 +8214,7 @@ index 81d4e2e..0c65bcb 100644
                      && crate::selection::reports_changes(mode)
                      && !disallow_empty
                      && !selected_now.is_empty()
-@@ -1114,7 +1124,7 @@ impl RenderOnce for ListBox {
+@@ -1114,7 +1130,7 @@ impl RenderOnce for ListBox {
                                  .collect::<Vec<_>>()
                          },
                      )
@@ -7011,6 +8249,126 @@ index e24642f..12b93bf 100644
                  let generation = press.update(cx, |press, _| {
                      press.active = true;
                      press.generation = press.generation.wrapping_add(1);
+diff --git a/crates/herogpui-components/src/pagination.rs b/crates/herogpui-components/src/pagination.rs
+index 380beb7..5578030 100644
+--- a/crates/herogpui-components/src/pagination.rs
++++ b/crates/herogpui-components/src/pagination.rs
+@@ -114,13 +114,23 @@ impl RenderOnce for Pagination {
+         // first: `use_keyed_state` takes `cx` mutably and the theme is borrowed
+         // for the rest of the render.
+         let base_id = format!("{:?}", self.id);
+-        let page_focus: Vec<gpui::FocusHandle> = (0..=self.total)
+-            .map(|n| {
+-                crate::util::tab_stop_handle(
+-                    gpui::ElementId::Name(format!("{base_id}-page-{n}-focus").into()),
+-                    window,
+-                    cx,
+-                )
++        let pages = visible_pages(self.page, self.total);
++        // Only the page cells that are actually rendered need a tab stop.
++        // Minting a keyed handle for every page in `0..=total` on every frame
++        // grew with the collection even though `visible_pages` shows at most
++        // a handful of them.
++        let page_focus: Vec<(usize, gpui::FocusHandle)> = pages
++            .iter()
++            .filter_map(|page| match page {
++                PageRef::Num(n) => Some((
++                    *n,
++                    crate::util::tab_stop_handle(
++                        gpui::ElementId::Name(format!("{base_id}-page-{n}-focus").into()),
++                        window,
++                        cx,
++                    ),
++                )),
++                PageRef::Ellipsis => None,
+             })
+             .collect();
+         let prev_focus = crate::util::tab_stop_handle(
+@@ -137,10 +147,9 @@ impl RenderOnce for Pagination {
+ 
+         let colors = cx.colors();
+         let layout = cx.layout();
+-        let base = format!("{:?}", self.id);
++        let base = base_id;
+ 
+         let self_on_change: Option<OnChange> = self.on_change.clone();
+-        let pages = visible_pages(self.page, self.total);
+ 
+         // v3 sizes the items; the nav buttons and page cells share it.
+         let cell = match self.size {
+@@ -228,7 +237,11 @@ impl RenderOnce for Pagination {
+                     let mut btn = gpui::div()
+                         .id(gpui::ElementId::Name(format!("{base}-page-{n}").into()))
+                         .when_some(
+-                            page_focus.get(n).filter(|_| !link_disabled),
++                            page_focus
++                                .iter()
++                                .find(|(p, _)| *p == n)
++                                .map(|(_, handle)| handle)
++                                .filter(|_| !link_disabled),
+                             |b, handle| b.track_focus(handle),
+                         )
+                         .flex()
+@@ -294,7 +307,10 @@ impl RenderOnce for Pagination {
+                     // `.pagination__item:focus-visible` is `status-focused`.
+                     let btn = crate::util::with_focus_ring(
+                         btn,
+-                        ring_visible && page_focus.get(n).is_some_and(|h| h.is_focused(window)),
++                        ring_visible
++                            && page_focus
++                                .iter()
++                                .any(|(p, handle)| *p == n && handle.is_focused(window)),
+                         true,
+                         Vec::new(),
+                         cx,
+@@ -482,3 +498,47 @@ fn visible_pages(page: usize, total: usize) -> Vec<PageRef> {
+     out.push(PageRef::Num(total));
+     out
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    /// `visible_pages` is the window `page_focus` is minted from. The bound is
++    /// `2 * siblings + 5` with `siblings` fixed at 1, so a large `total` still
++    /// produces a handful of slots — the allocation the render used to spend
++    /// per page in `0..=total`.
++    #[test]
++    fn visible_page_window_is_bounded_for_a_large_total() {
++        let cap = 7;
++        for total in [8, 50, 2000, 10_000] {
++            for page in [1, total / 2, total] {
++                let pages = visible_pages(page.max(1), total);
++                assert!(
++                    pages.len() <= cap,
++                    "page {page} of {total} showed {} slots, cap {cap}",
++                    pages.len()
++                );
++            }
++        }
++        assert!(
++            visible_pages(1, 5).len() <= cap,
++            "a collection that fits in the window is still within the cap"
++        );
++    }
++
++    #[test]
++    fn page_focus_is_minted_from_the_visible_window() {
++        let source = include_str!("pagination.rs")
++            .split("#[cfg(test)]")
++            .next()
++            .expect("the implementation section is always present");
++        assert!(
++            source.contains("let page_focus: Vec<(usize, gpui::FocusHandle)> = pages"),
++            "page-cell focus handles must be minted from visible_pages"
++        );
++        assert!(
++            !source.contains("(0..=self.total)"),
++            "minting a handle per page in 0..=total grew with the collection"
++        );
++    }
++}
 diff --git a/crates/herogpui-components/src/popover.rs b/crates/herogpui-components/src/popover.rs
 index c47881a..4a002da 100644
 --- a/crates/herogpui-components/src/popover.rs
@@ -7025,10 +8383,107 @@ index c47881a..4a002da 100644
                      }
                  }
 diff --git a/crates/herogpui-components/src/radio_group.rs b/crates/herogpui-components/src/radio_group.rs
-index ebaa04a..958953f 100644
+index ebaa04a..4e9b05c 100644
 --- a/crates/herogpui-components/src/radio_group.rs
 +++ b/crates/herogpui-components/src/radio_group.rs
-@@ -650,7 +650,7 @@ impl RenderOnce for RadioGroup {
+@@ -378,8 +378,11 @@ impl RenderOnce for RadioGroup {
+         // done by flipping a handle's `tab_stop`, since that is fixed where the
+         // handle is made. `use_keyed_state` takes `cx` mutably, so it precedes
+         // the theme.
++        // Every per-option id is prefixed with this one rendering of the group
++        // id; formatting `{id:?}` per option per frame was O(n) allocations.
++        let id_prefix = element_id_name(&self.id);
+         let group_focus = crate::util::tab_stop_handle(
+-            gpui::ElementId::Name(format!("{}-focus", element_id_name(&self.id)).into()),
++            gpui::ElementId::Name(format!("{id_prefix}-focus").into()),
+             window,
+             cx,
+         );
+@@ -399,9 +402,13 @@ impl RenderOnce for RadioGroup {
+         // by Tab, on the first *enabled* option. With every option disabled
+         // `stops` is empty, no row tracks the handle, and the group leaves the
+         // tab order exactly as the group-wide `is_disabled` does.
+-        let stops: Vec<usize> = (0..self.options.len())
+-            .filter(|i| !self.options[*i].is_disabled)
+-            .collect();
++        // `Arc` because every enabled option's key handler captures the whole
++        // list: a plain clone per option was O(n^2) per frame.
++        let stops: std::sync::Arc<Vec<usize>> = std::sync::Arc::new(
++            (0..self.options.len())
++                .filter(|i| !self.options[*i].is_disabled)
++                .collect(),
++        );
+         let initial_focus_index = selected
+             .filter(|i| stops.contains(i))
+             .or_else(|| stops.first().copied())
+@@ -412,7 +419,7 @@ impl RenderOnce for RadioGroup {
+         // from `selected`, keyed by the component id so two groups cannot
+         // share it.
+         let cursor = window.use_keyed_state(
+-            gpui::ElementId::Name(format!("{}-cursor", element_id_name(&self.id)).into()),
++            gpui::ElementId::Name(format!("{id_prefix}-cursor").into()),
+             cx,
+             move |_, _| initial_focus_index,
+         );
+@@ -428,9 +435,7 @@ impl RenderOnce for RadioGroup {
+         let interaction: Vec<crate::util::Interaction> = (0..self.options.len())
+             .map(|i| {
+                 crate::util::interaction(
+-                    gpui::ElementId::Name(
+-                        format!("{}-opt-{i}-interaction", element_id_name(&self.id)).into(),
+-                    ),
++                    gpui::ElementId::Name(format!("{id_prefix}-opt-{i}-interaction").into()),
+                     window,
+                     cx,
+                 )
+@@ -465,11 +470,12 @@ impl RenderOnce for RadioGroup {
+             && !layout.field_shadow.is_empty())
+         .then(|| layout.field_shadow.clone());
+ 
+-        let option_values = self
+-            .options
+-            .iter()
+-            .map(|option| option.value.clone())
+-            .collect::<Vec<_>>();
++        let option_values: std::sync::Arc<Vec<SharedString>> = std::sync::Arc::new(
++            self.options
++                .iter()
++                .map(|option| option.value.clone())
++                .collect(),
++        );
+         for (i, option) in self.options.into_iter().enumerate() {
+             let label = option.label;
+             let value = option.value;
+@@ -503,7 +509,7 @@ impl RenderOnce for RadioGroup {
+             // 6px `bg-accent-foreground` dot (`scale: 0.4286` of 16px).
+             let mut circle_el = gpui::div()
+                 .id(gpui::ElementId::Name(
+-                    format!("{}-opt-{i}-control", element_id_name(&self.id)).into(),
++                    format!("{id_prefix}-opt-{i}-control").into(),
+                 ))
+                 .flex()
+                 .items_center()
+@@ -575,9 +581,7 @@ impl RenderOnce for RadioGroup {
+             };
+ 
+             let mut row = gpui::div()
+-                .id(gpui::ElementId::Name(
+-                    format!("{}-opt-{i}", element_id_name(&self.id)).into(),
+-                ))
++                .id(gpui::ElementId::Name(format!("{id_prefix}-opt-{i}").into()))
+                 .when(!row_disabled && i == cursor_index, |r| {
+                     r.track_focus(&group_focus)
+                 })
+@@ -592,7 +596,7 @@ impl RenderOnce for RadioGroup {
+                 .child(circle_el)
+                 .child(match &self.option_content {
+                     Some(render) => render(&label, option_state),
+-                    None => label.to_string().into_any_element(),
++                    None => label.into_any_element(),
+                 });
+             if !row_disabled && !self.is_read_only {
+                 if let Some(slot) = interaction.get(i) {
+@@ -650,7 +654,7 @@ impl RenderOnce for RadioGroup {
                  let click_focus = group_focus.clone();
                  let click_form_state = self.form_state.clone();
                  row = row.on_click(move |_, window, cx| {
@@ -7037,11 +8492,241 @@ index ebaa04a..958953f 100644
                      click_cursor.update(cx, |v, cx| {
                          *v = i;
                          cx.notify();
+@@ -732,3 +736,47 @@ impl RenderOnce for RadioGroup {
+ fn element_id_name(id: &gpui::ElementId) -> String {
+     format!("{id:?}").trim_matches('"').to_owned()
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    /// Render wraps the walk list and the value list in `Arc` so every enabled
++    /// option's key handler clones the pointer, not the Vec.
++    #[test]
++    fn option_key_handlers_share_walk_and_value_lists() {
++        let source = include_str!("radio_group.rs")
++            .split("#[cfg(test)]")
++            .next()
++            .expect("the implementation section is always present");
++        assert!(
++            source.contains("let stops: std::sync::Arc<Vec<usize>> = std::sync::Arc::new("),
++            "the walk list must be one Arc shared by every enabled option"
++        );
++        assert!(
++            source.contains(
++                "let option_values: std::sync::Arc<Vec<SharedString>> = std::sync::Arc::new("
++            ),
++            "the value list must be one Arc shared by every enabled option"
++        );
++        assert!(
++            source.contains("let key_stops = stops.clone();"),
++            "each enabled option must clone the shared walk list"
++        );
++        assert!(
++            source.contains("let key_values = option_values.clone();"),
++            "each enabled option must clone the shared value list"
++        );
++
++        // The clones above are `Arc::clone`: two handles to one allocation.
++        let stops: std::sync::Arc<Vec<usize>> = std::sync::Arc::new(vec![0, 1, 2]);
++        let values: std::sync::Arc<Vec<SharedString>> =
++            std::sync::Arc::new(vec![SharedString::from("v0")]);
++        let walk = std::sync::Arc::clone(&stops);
++        let list = std::sync::Arc::clone(&values);
++        assert!(
++            std::sync::Arc::ptr_eq(&walk, &stops) && std::sync::Arc::ptr_eq(&list, &values),
++            "Arc clones of the walk and value lists must share pointer identity"
++        );
++    }
++}
 diff --git a/crates/herogpui-components/src/range_calendar.rs b/crates/herogpui-components/src/range_calendar.rs
-index 59f7766..fd8845d 100644
+index 59f7766..f431015 100644
 --- a/crates/herogpui-components/src/range_calendar.rs
 +++ b/crates/herogpui-components/src/range_calendar.rs
-@@ -917,7 +917,7 @@ impl RangeCalendar {
+@@ -311,16 +311,15 @@ impl RangeCalendar {
+ }
+ 
+ /// Resolves one range selection through the same constraint path for clicks
+-/// and keyboard activation. While selecting the second endpoint, min/max clamp
+-/// the requested date first; unless non-contiguous ranges are enabled, the
+-/// first unavailable day then clamps it toward the anchor.
++/// and keyboard activation. The effective constraints already include the
++/// anchor-derived range bounds, so the requested endpoint only needs clamping
++/// and an availability check here.
+ fn resolve_pick(
+     start: Option<Date>,
+     end: Option<Date>,
+     requested: Date,
+     constraints: &DateConstraints,
+     range_date_unavailable: Option<&RangeDateUnavailable>,
+-    allows_non_contiguous_ranges: bool,
+ ) -> Option<(Date, Option<Date>)> {
+     if start.is_none() || end.is_some() {
+         return range_allows(constraints, range_date_unavailable, requested, None)
+@@ -328,42 +327,10 @@ fn resolve_pick(
+     }
+ 
+     let anchor = start?;
+-    if range_is_unavailable(constraints, range_date_unavailable, requested, Some(anchor)) {
++    let target = constraints.constrain(requested);
++    if range_is_unavailable(constraints, range_date_unavailable, target, Some(anchor)) {
+         return None;
+     }
+-    let mut target = requested;
+-    if let Some(min) = constraints.min_value {
+-        if days_from_civil(&target) < days_from_civil(&min) {
+-            target = min;
+-        }
+-    }
+-    if let Some(max) = constraints.max_value {
+-        if days_from_civil(&target) > days_from_civil(&max) {
+-            target = max;
+-        }
+-    }
+-
+-    if allows_non_contiguous_ranges {
+-        if range_is_unavailable(constraints, range_date_unavailable, target, Some(anchor)) {
+-            return None;
+-        }
+-    } else {
+-        let direction = days_from_civil(&target).cmp(&days_from_civil(&anchor));
+-        let step = match direction {
+-            std::cmp::Ordering::Less => -1,
+-            std::cmp::Ordering::Equal => 0,
+-            std::cmp::Ordering::Greater => 1,
+-        };
+-        let mut resolved = anchor;
+-        while resolved != target {
+-            let next = add_days(&resolved, step);
+-            if range_is_unavailable(constraints, range_date_unavailable, next, Some(anchor)) {
+-                break;
+-            }
+-            resolved = next;
+-        }
+-        target = resolved;
+-    }
+ 
+     if days_from_civil(&target) < days_from_civil(&anchor) {
+         Some((target, Some(anchor)))
+@@ -394,6 +361,74 @@ fn range_allows(
+         && !range_is_unavailable(constraints, range_date_unavailable, date, anchor)
+ }
+ 
++/// Pinned React Stately searches through one visible duration on either side
++/// of the active anchor, then probes the next sentinel day. The last available
++/// neighbour becomes a temporary min/max bound for cells, focus and navigation.
++fn unavailable_range_boundary(
++    anchor: Date,
++    direction: i32,
++    duration: VisibleDuration,
++    constraints: &DateConstraints,
++    range_date_unavailable: Option<&RangeDateUnavailable>,
++) -> Option<Date> {
++    let limit = calendar_view::page(duration, PageBehavior::Visible, anchor, direction);
++    let mut next = add_days(&anchor, i64::from(direction));
++    let within_limit = |date: Date| {
++        if direction < 0 {
++            days_from_civil(&date) >= days_from_civil(&limit)
++        } else {
++            days_from_civil(&date) <= days_from_civil(&limit)
++        }
++    };
++
++    while within_limit(next) {
++        if range_is_unavailable(constraints, range_date_unavailable, next, Some(anchor)) {
++            return Some(add_days(&next, -i64::from(direction)));
++        }
++        next = add_days(&next, i64::from(direction));
++    }
++
++    range_is_unavailable(constraints, range_date_unavailable, next, Some(anchor))
++        .then(|| add_days(&next, -i64::from(direction)))
++}
++
++fn effective_range_constraints(
++    anchor: Option<Date>,
++    duration: VisibleDuration,
++    constraints: &DateConstraints,
++    range_date_unavailable: Option<&RangeDateUnavailable>,
++    allows_non_contiguous_ranges: bool,
++) -> DateConstraints {
++    let mut effective = constraints.clone();
++    let Some(anchor) = anchor else {
++        return effective;
++    };
++    if allows_non_contiguous_ranges
++        || (range_date_unavailable.is_none() && constraints.is_date_unavailable.is_none())
++    {
++        return effective;
++    }
++
++    if let Some(boundary) =
++        unavailable_range_boundary(anchor, -1, duration, constraints, range_date_unavailable)
++    {
++        effective.min_value = Some(match effective.min_value {
++            Some(min) if days_from_civil(&min) > days_from_civil(&boundary) => min,
++            _ => boundary,
++        });
++    }
++    if let Some(boundary) =
++        unavailable_range_boundary(anchor, 1, duration, constraints, range_date_unavailable)
++    {
++        effective.max_value = Some(match effective.max_value {
++            Some(max) if days_from_civil(&max) < days_from_civil(&boundary) => max,
++            _ => boundary,
++        });
++    }
++
++    effective
++}
++
+ /// Where pinned React Stately moves focus after the first keyboard endpoint:
+ /// prefer tomorrow, fall back to yesterday, and stay put if neither is valid.
+ fn keyboard_range_focus(
+@@ -422,6 +457,7 @@ struct Frame<'a> {
+     start: Option<Date>,
+     preview_end: Option<Date>,
+     unavailable_anchor: Option<Date>,
++    constraints: &'a DateConstraints,
+     today: Date,
+     cursor: &'a Entity<Option<Date>>,
+     focus_preview: &'a Entity<bool>,
+@@ -472,12 +508,12 @@ impl RangeCalendar {
+         let start_day = frame.start.map(|d| days_from_civil(&d));
+         let end_day = frame.preview_end.map(|d| days_from_civil(&d));
+         let unavailable = range_is_unavailable(
+-            &self.constraints,
++            frame.constraints,
+             self.range_date_unavailable.as_ref(),
+             date,
+             frame.unavailable_anchor,
+         );
+-        let disabled = outside_month || self.is_disabled || self.constraints.out_of_range(date);
++        let disabled = outside_month || self.is_disabled || frame.constraints.out_of_range(date);
+         let eligible = !disabled && !unavailable;
+         let selectable = eligible && !self.is_read_only;
+ 
+@@ -684,9 +720,8 @@ impl RangeCalendar {
+             let state = self.state.clone();
+             let on_change = self.on_change.clone();
+             let on_focus = self.on_focus_change.clone();
+-            let constraints = self.constraints.clone();
++            let constraints = frame.constraints.clone();
+             let range_date_unavailable = self.range_date_unavailable.clone();
+-            let allows_non_contiguous_ranges = self.allows_non_contiguous_ranges;
+             let cursor = frame.cursor.clone();
+             let focus_preview = frame.focus_preview.clone();
+             let selection_before_anchor = frame.selection_before_anchor.clone();
+@@ -702,7 +737,6 @@ impl RangeCalendar {
+                         date,
+                         &constraints,
+                         range_date_unavailable.as_ref(),
+-                        allows_non_contiguous_ranges,
+                     );
+                     if let Some((start, end)) = next {
+                         s.start = Some(start);
+@@ -917,7 +951,7 @@ impl RangeCalendar {
                          if let Some(cb) = &on_open {
                              cb(false, window, cx);
                          }
@@ -7050,7 +8735,53 @@ index 59f7766..fd8845d 100644
                      });
                  }
                  if is_active {
-@@ -1106,7 +1106,7 @@ impl RenderOnce for RangeCalendar {
+@@ -1030,24 +1064,29 @@ impl RenderOnce for RangeCalendar {
+         let cursor_at = *cursor.read(cx);
+         let focus_preview_at = *focus_preview.read(cx);
+ 
+-        let first_day = self.constraints.first_day_of_week;
+-        let focused_value = self
+-            .focused_value
+-            .map(|date| self.constraints.constrain(date));
+-
+         let (stored_anchor, selection_start, selection_end, hovered, navigated) = {
+             let st = self.state.read(cx);
+             (st.anchor(), st.start, st.end, st.hovered, st.user_navigated)
+         };
++        let effective_constraints = effective_range_constraints(
++            selection_start.filter(|_| selection_end.is_none()),
++            self.duration,
++            &self.constraints,
++            self.range_date_unavailable.as_ref(),
++            self.allows_non_contiguous_ranges,
++        );
++        let first_day = effective_constraints.first_day_of_week;
++        let focused_value = self
++            .focused_value
++            .map(|date| effective_constraints.constrain(date));
+         let active_preview = hovered.or(focus_preview_at.then_some(cursor_at).flatten());
+         let (paint_start, preview_end) = match (selection_start, selection_end, active_preview) {
+             (Some(start), None, Some(preview)) => resolve_pick(
+                 Some(start),
+                 None,
+                 preview,
+-                &self.constraints,
++                &effective_constraints,
+                 self.range_date_unavailable.as_ref(),
+-                self.allows_non_contiguous_ranges,
+             )
+             .map_or((Some(start), None), |(start, end)| (Some(start), end)),
+             _ => (selection_start, selection_end),
+@@ -1099,14 +1138,14 @@ impl RenderOnce for RangeCalendar {
+         let years = calendar_view::year_window(
+             initial_year,
+             self.visible_years,
+-            self.constraints.min_value,
+-            self.constraints.max_value,
++            effective_constraints.min_value,
++            effective_constraints.max_value,
+         );
+         let first_year = years.first().copied().unwrap_or(anchor.year);
          let last_year = years.last().copied().unwrap_or(anchor.year);
          if year_picker_open && !*year_was_open.read(cx) && !self.is_disabled {
              year_cursor.update(cx, |year, _| *year = Some(initial_year));
@@ -7059,7 +8790,58 @@ index 59f7766..fd8845d 100644
          }
          year_was_open.update(cx, |was_open, _| *was_open = year_picker_open);
          let active_year = focused_value
-@@ -1575,7 +1575,7 @@ impl RenderOnce for RangeCalendar {
+@@ -1126,6 +1165,7 @@ impl RenderOnce for RangeCalendar {
+             start: paint_start,
+             preview_end,
+             unavailable_anchor: selection_start.filter(|_| selection_end.is_none()),
++            constraints: &effective_constraints,
+             today: Date::today(),
+             cursor: &cursor,
+             focus_preview: &focus_preview,
+@@ -1156,12 +1196,13 @@ impl RenderOnce for RangeCalendar {
+         let (visible_start, visible_end) =
+             calendar_view::visible_range(self.duration, first_day, anchor);
+         // React Stately checks only the day immediately outside the visible
+-        // range against minValue/maxValue. Unavailable dates do not block
+-        // paging, and readOnly prevents selection without preventing paging.
++        // range against minValue/maxValue. A raw unavailable date does not
++        // block paging, but an open contiguous range promotes the nearest
++        // barrier to an effective bound above. Read-only still permits paging.
+         let previous_disabled =
+-            self.is_disabled || self.constraints.out_of_range(add_days(&visible_start, -1));
++            self.is_disabled || effective_constraints.out_of_range(add_days(&visible_start, -1));
+         let next_disabled =
+-            self.is_disabled || self.constraints.out_of_range(add_days(&visible_end, 1));
++            self.is_disabled || effective_constraints.out_of_range(add_days(&visible_end, 1));
+         let state_for_nav = self.state.clone();
+         let nav_btn = |icon: &'static str,
+                        target: Date,
+@@ -1363,7 +1404,7 @@ impl RenderOnce for RangeCalendar {
+             let state = self.state.clone();
+             let on_change = self.on_change.clone();
+             let on_focus = self.on_focus_change.clone();
+-            let constraints = self.constraints.clone();
++            let constraints = effective_constraints.clone();
+             let range_date_unavailable = self.range_date_unavailable.clone();
+             let allows_non_contiguous_ranges = self.allows_non_contiguous_ranges;
+             let read_only = self.is_read_only;
+@@ -1416,7 +1457,6 @@ impl RenderOnce for RangeCalendar {
+                             at,
+                             &constraints,
+                             range_date_unavailable.as_ref(),
+-                            allows_non_contiguous_ranges,
+                         );
+                         if let Some((start, end)) = next {
+                             s.start = Some(start);
+@@ -1487,6 +1527,7 @@ impl RenderOnce for RangeCalendar {
+                     "end" => calendar_view::section_end(duration, visible_end, at),
+                     _ => return,
+                 };
++                let next = constraints.constrain(next);
+                 if controlled_focus.is_none() {
+                     held.update(cx, |v, cx| {
+                         *v = Some(next);
+@@ -1575,7 +1616,7 @@ impl RenderOnce for RangeCalendar {
                      if let Some(cb) = &on_open {
                          cb(false, window, cx);
                      }
@@ -7163,10 +8945,129 @@ index 31805c0..e5982c4 100644
          };
  
 diff --git a/crates/herogpui-components/src/slider.rs b/crates/herogpui-components/src/slider.rs
-index 770d5ef..c30abad 100644
+index 770d5ef..f8efbd7 100644
 --- a/crates/herogpui-components/src/slider.rs
 +++ b/crates/herogpui-components/src/slider.rs
-@@ -888,7 +888,7 @@ impl RenderOnce for Slider {
+@@ -662,21 +662,103 @@ impl RenderOnce for Slider {
+             .inset_0(),
+         );
+ 
++        // v3's track keeps transparent 12px borders along the slider axis
++        // (`border-x-[0.75rem]` horizontal, `border-y-[0.75rem]` vertical —
++        // half the 24px inner thumb), so the full border box is the pointer
++        // range while the fill and the thumb percentages resolve against the
++        // content box that border leaves. The end borders turn accent when
++        // the fill reaches that end (`data-fill-start`/`data-fill-end`).
++        let axis_inset = px(12.);
++        let fill_start = fill_reaches_start(thumbs.len(), fill_from, fill_to);
++        let fill_end = fill_reaches_end(fill_to);
++        let track_radius = crate::util::small_radius(cx);
++        track = track
++            .when(fill_start && !vertical, |t| {
++                t.child(
++                    gpui::div()
++                        .absolute()
++                        .left(px(0.))
++                        .top(px(0.))
++                        .bottom(px(0.))
++                        .w(axis_inset)
++                        .bg(sem.color)
++                        .rounded_tl(track_radius)
++                        .rounded_bl(track_radius),
++                )
++            })
++            .when(fill_start && vertical, |t| {
++                t.child(
++                    gpui::div()
++                        .absolute()
++                        .bottom(px(0.))
++                        .left(px(0.))
++                        .right(px(0.))
++                        .h(axis_inset)
++                        .bg(sem.color)
++                        .rounded_bl(track_radius)
++                        .rounded_br(track_radius),
++                )
++            })
++            .when(fill_end && !vertical, |t| {
++                t.child(
++                    gpui::div()
++                        .absolute()
++                        .right(px(0.))
++                        .top(px(0.))
++                        .bottom(px(0.))
++                        .w(axis_inset)
++                        .bg(sem.color)
++                        .rounded_tr(track_radius)
++                        .rounded_br(track_radius),
++                )
++            })
++            .when(fill_end && vertical, |t| {
++                t.child(
++                    gpui::div()
++                        .absolute()
++                        .top(px(0.))
++                        .left(px(0.))
++                        .right(px(0.))
++                        .h(axis_inset)
++                        .bg(sem.color)
++                        .rounded_tl(track_radius)
++                        .rounded_tr(track_radius),
++                )
++            });
++
++        // The box the fill and thumbs position against: the track inset by
++        // 12px per axis edge, which is where the transparent border leaves
++        // its background — the same containing block the browser gives v3's
++        // percentage-positioned fill and thumb.
++        let mut content = gpui::div().absolute();
++        content = if vertical {
++            content
++                .top(axis_inset)
++                .bottom(axis_inset)
++                .left(px(0.))
++                .right(px(0.))
++        } else {
++            content
++                .left(axis_inset)
++                .right(axis_inset)
++                .top(px(0.))
++                .bottom(px(0.))
++        };
++
+         // `.slider__fill` is `pointer-events-none absolute bg-accent`.
+         let fill_span = (fill_to - fill_from).max(0.0);
+-        track = track.child(
++        content = content.child(
+             gpui::div()
+                 .absolute()
+-                .rounded(crate::util::small_radius(cx))
+                 .bg(sem.color)
+                 .when(vertical, |f| {
+                     f.bottom(gpui::relative(fill_from))
+-                        .w(track_cross)
++                        .w_full()
+                         .h(gpui::relative(fill_span))
+                 })
+                 .when(!vertical, |f| {
+                     f.left(gpui::relative(fill_from))
+-                        .h(track_cross)
++                        .h_full()
+                         .w(gpui::relative(fill_span))
+                 }),
+         );
+@@ -746,8 +828,9 @@ impl RenderOnce for Slider {
+                     cx,
+                 );
+             }
+-            track = track.child(thumb_el);
++            content = content.child(thumb_el);
+         }
++        track = track.child(content);
+ 
+         // v3 drives a slider from the keyboard: the arrows step it, Home and End
+         // jump to the ends, and Page Up/Down move by a tenth of the range --
+@@ -888,7 +971,7 @@ impl RenderOnce for Slider {
                      // React Aria focuses and activates the chosen thumb before
                      // it writes the track press, so the following keys and
                      // pointer moves keep that thumb's identity.
@@ -7175,6 +9076,63 @@ index 770d5ef..c30abad 100644
                      active_for_press.update(cx, |active, cx| {
                          *active = index;
                          cx.notify();
+@@ -1225,6 +1308,25 @@ fn round_to_step_precision(value: f32, step: f32) -> f32 {
+     (value * scale).round() / scale
+ }
+ 
++/// `data-fill-start`: whether the fill's low end sits at the range's start,
++/// which paints the track's start border accent. A single thumb fills from
++/// the low end as soon as its value is above min; a range fills from its
++/// outermost thumbs, so it starts at the very beginning only when one of
++/// them rests on min.
++fn fill_reaches_start(thumb_count: usize, fill_from: f32, fill_to: f32) -> bool {
++    if thumb_count > 1 {
++        fill_from == 0.0
++    } else {
++        fill_to > 0.0
++    }
++}
++
++/// `data-fill-end`: whether the fill's high end sits at the range's end,
++/// which paints the track's end border accent.
++fn fill_reaches_end(fill_to: f32) -> bool {
++    fill_to >= 1.0
++}
++
+ /// Where the pointer sits along the slider's own axis, as a 0..1 fraction of
+ /// the track.
+ ///
+@@ -1252,7 +1354,7 @@ fn axis_fraction(pos: gpui::Point<gpui::Pixels>, bounds: Bounds<f32>, vertical:
+ 
+ #[cfg(test)]
+ mod tests {
+-    use super::{default_output, format_value_labels};
++    use super::{default_output, fill_reaches_end, fill_reaches_start, format_value_labels};
+ 
+     #[test]
+     fn range_output_formats_every_thumb_and_joins_the_labels() {
+@@ -1260,4 +1362,21 @@ mod tests {
+         let labels = format_value_labels(&[20., 80.], Some(&format));
+         assert_eq!(default_output(&labels), "$20.00 \u{2013} $80.00");
+     }
++
++    // The `data-fill-start` / `data-fill-end` rules of v3.2.4's SliderTrack:
++    // a single thumb's fill grows from the low end (`fillWidth > 0`), and
++    // either form ends when its fill reaches 100%.
++    #[test]
++    fn fill_start_follows_single_and_range_track_rules() {
++        assert!(!fill_reaches_start(1, 0.0, 0.0));
++        assert!(fill_reaches_start(1, 0.0, 0.25));
++        assert!(!fill_reaches_start(2, 0.25, 0.75));
++        assert!(fill_reaches_start(2, 0.0, 0.75));
++    }
++
++    #[test]
++    fn fill_end_requires_the_full_range() {
++        assert!(!fill_reaches_end(0.99));
++        assert!(fill_reaches_end(1.0));
++    }
+ }
 diff --git a/crates/herogpui-components/src/switch.rs b/crates/herogpui-components/src/switch.rs
 index 76d363c..ad01177 100644
 --- a/crates/herogpui-components/src/switch.rs
@@ -8602,7 +10560,7 @@ index 4833fa7..4698b42 100644
                  .on_key_down(move |event, window, cx| {
                      let key = event.keystroke.key.as_str();
 diff --git a/crates/herogpui-components/src/toast.rs b/crates/herogpui-components/src/toast.rs
-index 565eba5..fa98456 100644
+index 565eba5..f463eab 100644
 --- a/crates/herogpui-components/src/toast.rs
 +++ b/crates/herogpui-components/src/toast.rs
 @@ -440,7 +440,7 @@ fn start_toast_timer(
@@ -8625,6 +10583,208 @@ index 565eba5..fa98456 100644
              match tick {
                  ToastTimerTick::Continue => {}
                  ToastTimerTick::Closed(mine) => {
+@@ -673,6 +671,12 @@ impl RenderOnce for ToastCardEl {
+                 sem.soft_foreground(colors.foreground)
+             }
+         };
++        let indicator_color = match self.t.color {
++            Color::Default | Color::Accent => colors.overlay.foreground,
++            Color::Success | Color::Warning | Color::Danger => {
++                sem.soft_foreground(colors.foreground)
++            }
++        };
+ 
+         let mut card = gpui::div()
+             .w(self.width)
+@@ -684,24 +688,22 @@ impl RenderOnce for ToastCardEl {
+             .rounded(crate::util::container_radius(cx))
+             .bg(colors.surface.background)
+             .text_color(colors.overlay.foreground)
+-            .border(cx.layout().border_width)
+-            .border_color(colors.border)
+             .when(!cx.layout().overlay_shadow.is_empty(), |c| {
+                 c.shadow(cx.layout().overlay_shadow.clone())
+             })
+             .overflow_hidden();
+ 
+         // `.toast__indicator` — `flex shrink-0 items-center justify-center p-1`
+-        // at `size-4`, in the variant's soft foreground. v3 draws a glyph here;
+-        // this port used to draw a coloured bar, which is not in the stylesheet
+-        // at all.
++        // at `size-4`. v3 uses the overlay foreground for default/accent and a
++        // status role's soft foreground for success/warning/danger.
+         if self.t.is_loading {
+             card = card.child(
+                 gpui::div().flex().flex_shrink_0().p(px(4.)).child(
+                     crate::spinner::Spinner::new(gpui::ElementId::Name(
+                         format!("toast-spinner-{}", self.t.id).into(),
+                     ))
+-                    .size(herogpui_core::Size::Sm),
++                    .size(herogpui_core::Size::Sm)
++                    .current_color(indicator_color),
+                 ),
+             );
+         } else if let Some(icon) = self.t.indicator.clone().or_else(|| {
+@@ -724,14 +726,14 @@ impl RenderOnce for ToastCardEl {
+                         gpui::svg()
+                             .size(px(16.))
+                             .path(icon)
+-                            .text_color(sem.soft_foreground(colors.foreground)),
++                            .text_color(indicator_color),
+                     ),
+             );
+         }
+ 
+         // `.toast__content` -- the title and description column, beside the
+         // indicator and inside the card.
+-        let mut text_col = gpui::div().flex().flex_col().gap(px(2.)).flex_1().min_w_0();
++        let mut text_col = gpui::div().flex().flex_col().flex_1().min_w_0();
+         text_col = text_col.child(
+             gpui::div()
+                 // `.toast__title` is `text-sm leading-5 font-medium`.
+@@ -843,11 +845,10 @@ impl RenderOnce for ToastCardEl {
+ /// `.toast--<variant> .toast__indicator`.
+ fn default_indicator(color: Color) -> Option<&'static str> {
+     match color {
+-        Color::Accent => Some(icons::INFO_CIRCLE),
+-        Color::Success => Some(icons::CHECK),
+-        Color::Warning => Some(icons::ALERT_TRIANGLE),
+-        Color::Danger => Some(icons::CLOSE_CIRCLE),
+-        Color::Default => None,
++        Color::Default | Color::Accent => Some(icons::INFO_CIRCLE),
++        Color::Success => Some(icons::CHECK_CIRCLE),
++        Color::Warning => Some(icons::WARNING_TRIANGLE),
++        Color::Danger => Some(icons::CIRCLE_EXCLAMATION),
+     }
+ }
+ 
+@@ -855,11 +856,114 @@ fn default_indicator(color: Color) -> Option<&'static str> {
+ mod tests {
+     use super::*;
+ 
++    fn implementation_source() -> &'static str {
++        include_str!("toast.rs")
++            .split("#[cfg(test)]")
++            .next()
++            .expect("the implementation section is always present")
++    }
++
++    #[test]
++    fn default_uses_info_indicator() {
++        assert_eq!(default_indicator(Color::Default), Some(icons::INFO_CIRCLE));
++    }
++
+     #[test]
+     fn accent_uses_the_pinned_info_indicator() {
+         assert_eq!(default_indicator(Color::Accent), Some(icons::INFO_CIRCLE));
+     }
+ 
++    #[test]
++    fn success_uses_check_circle_indicator() {
++        assert_eq!(default_indicator(Color::Success), Some(icons::CHECK_CIRCLE));
++    }
++
++    #[test]
++    fn warning_uses_warning_triangle_indicator() {
++        assert_eq!(
++            default_indicator(Color::Warning),
++            Some(icons::WARNING_TRIANGLE)
++        );
++    }
++
++    #[test]
++    fn danger_uses_circle_exclamation_indicator() {
++        assert_eq!(
++            default_indicator(Color::Danger),
++            Some(icons::CIRCLE_EXCLAMATION)
++        );
++    }
++
++    #[test]
++    fn neutral_indicators_use_the_overlay_foreground_token() {
++        let indicator = implementation_source()
++            .split("let indicator_color = match self.t.color")
++            .nth(1)
++            .expect("the indicator color implementation is present")
++            .split("let mut card =")
++            .next()
++            .expect("the card implementation follows the indicator color");
++        assert!(
++            indicator.contains("Color::Default | Color::Accent => colors.overlay.foreground"),
++            "default and accent indicators must use `text-overlay-foreground`"
++        );
++    }
++
++    #[test]
++    fn semantic_indicators_use_their_soft_foreground_tokens() {
++        let indicator = implementation_source()
++            .split("let indicator_color = match self.t.color")
++            .nth(1)
++            .expect("the indicator color implementation is present")
++            .split("let mut card =")
++            .next()
++            .expect("the card implementation follows the indicator color");
++        assert!(
++            indicator.contains("Color::Success | Color::Warning | Color::Danger =>"),
++            "status indicators must branch separately from neutral indicators"
++        );
++    }
++
++    #[test]
++    fn loading_indicator_inherits_the_status_indicator_color() {
++        let loading = implementation_source()
++            .split("if self.t.is_loading {")
++            .nth(1)
++            .expect("the loading indicator implementation is present")
++            .split("} else if let Some(icon)")
++            .next()
++            .expect("the custom indicator implementation follows loading");
++        assert!(
++            loading.contains(".current_color(indicator_color)"),
++            "the loading spinner must inherit the toast indicator color"
++        );
++    }
++
++    #[test]
++    fn toast_card_does_not_add_a_border() {
++        let card = implementation_source()
++            .split("let mut card =")
++            .nth(1)
++            .expect("the card implementation is present")
++            .split("// `.toast__indicator`")
++            .next()
++            .expect("the indicator implementation follows the card");
++        assert!(!card.contains(".border(cx.layout().border_width)"));
++        assert!(!card.contains(".border_color(colors.border)"));
++    }
++
++    #[test]
++    fn toast_content_does_not_add_an_extra_gap() {
++        let content = implementation_source()
++            .split("let mut text_col =")
++            .nth(1)
++            .expect("the content implementation is present")
++            .split("// `.toast__action`")
++            .next()
++            .expect("the action implementation follows the content");
++        assert!(!content.contains(".gap(px(2.))"));
++    }
++
+     // The pinned `.toast__close-button:hover` fills with `bg-default`, the
+     // full token -- the composed CloseButton's own `--default-hover`
+     // refinement is overridden, and no soft token survives here.
+@@ -867,10 +971,7 @@ mod tests {
+     fn the_close_button_hovers_the_full_default() {
+         // Scan the implementation only; this test's own text names the
+         // forbidden accessor.
+-        let source = include_str!("toast.rs")
+-            .split("#[cfg(test)]")
+-            .next()
+-            .expect("the implementation section is always present");
++        let source = implementation_source();
+         assert!(
+             source.contains("let hover_bg = colors.default.color;"),
+             "the toast close button must hover `bg-default` \
 diff --git a/crates/herogpui-components/src/toggle_button.rs b/crates/herogpui-components/src/toggle_button.rs
 index 8576915..c257430 100644
 --- a/crates/herogpui-components/src/toggle_button.rs
@@ -8735,19 +10895,230 @@ index 3de7163..0d30a88 100644
                  }
                  if !scope.contains_focused(window, cx) {
                      return;
+diff --git a/crates/herogpui-components/src/tooltip.rs b/crates/herogpui-components/src/tooltip.rs
+index a0213ec..4c2fef6 100644
+--- a/crates/herogpui-components/src/tooltip.rs
++++ b/crates/herogpui-components/src/tooltip.rs
+@@ -401,104 +401,6 @@ impl RenderOnce for Tooltip {
+             TooltipTrigger::Focus => focus_open,
+         };
+ 
+-        let colors = cx.colors();
+-        let layout = cx.layout();
+-        // v3 pushes the tip further out when the arrow needs room.
+-        let offset = self
+-            .offset
+-            .unwrap_or(if self.show_arrow { px(7.) } else { px(3.) });
+-        // CSS gives an absolutely positioned tooltip max-content width capped
+-        // at 320px. GPUI otherwise resolves normal wrapping to min-content,
+-        // making even "With an arrow" one word wide, so shape the single line
+-        // and pin the same max-content result explicitly.
+-        let content = self.content.to_string();
+-        let run = gpui::TextRun {
+-            len: content.len(),
+-            font: window.text_style().font(),
+-            color: gpui::black(),
+-            background_color: None,
+-            underline: None,
+-            strikethrough: None,
+-        };
+-        let line = window
+-            .text_system()
+-            .shape_line(content.clone().into(), px(12.), &[run], None);
+-        let hairline_width = if layout.overlay_hairline.is_some() {
+-            layout.border_width * 2.
+-        } else {
+-            px(0.)
+-        };
+-        let intrinsic_width = line.width + px(16.) + hairline_width;
+-        let tooltip_width = if intrinsic_width < px(320.) {
+-            intrinsic_width
+-        } else {
+-            px(320.)
+-        };
+-
+-        let mut tip = gpui::div()
+-            .absolute()
+-            // `.tooltip` is `p-2` all round, not a wider-than-tall pill.
+-            .p(px(8.))
+-            .w(tooltip_width)
+-            .rounded(util::small_radius(cx))
+-            .bg(colors.overlay.background)
+-            .text_color(colors.overlay.foreground)
+-            .text_size(px(12.))
+-            .line_height(px(16.))
+-            .when_some(layout.overlay_hairline, |el, hairline| {
+-                el.border(layout.border_width).border_color(hairline)
+-            })
+-            .shadow(layout.overlay_shadow.clone())
+-            .child(content);
+-
+-        tip = match self.placement {
+-            TooltipPlacement::Top => tip.bottom_full().mb(offset),
+-            TooltipPlacement::Bottom => tip.top_full().mt(offset),
+-            TooltipPlacement::Left => tip.right_full().mr(offset),
+-            TooltipPlacement::Right => tip.left_full().ml(offset),
+-        };
+-
+-        if self.show_arrow {
+-            let mut arrow = gpui::div().absolute().child(
+-                gpui::svg()
+-                    .size(px(12.))
+-                    .path(icons::TOOLTIP_ARROW)
+-                    // svg() never inherits text colour; the arrow has to be
+-                    // tinted to match the tip body explicitly.
+-                    .text_color(colors.overlay.background)
+-                    .with_transformation(gpui::Transformation::rotate(gpui::radians(
+-                        self.placement.arrow_rotation(),
+-                    ))),
+-            );
+-            arrow = match self.placement {
+-                TooltipPlacement::Top => arrow
+-                    .top_full()
+-                    .left(px(0.))
+-                    .right(px(0.))
+-                    .flex()
+-                    .justify_center(),
+-                TooltipPlacement::Bottom => arrow
+-                    .bottom_full()
+-                    .left(px(0.))
+-                    .right(px(0.))
+-                    .flex()
+-                    .justify_center(),
+-                TooltipPlacement::Left => arrow
+-                    .left_full()
+-                    .top(px(0.))
+-                    .bottom(px(0.))
+-                    .flex()
+-                    .items_center(),
+-                TooltipPlacement::Right => arrow
+-                    .right_full()
+-                    .top(px(0.))
+-                    .bottom(px(0.))
+-                    .flex()
+-                    .items_center(),
+-            };
+-            tip = tip.child(arrow);
+-        }
+-
+         let hover_state = state.clone();
+         let dismiss_current = current_tooltip.clone();
+         let dismiss_tooltip = util::shared(move |cx: &mut App| {
+@@ -621,7 +523,109 @@ impl RenderOnce for Tooltip {
+         // A tooltip leaves the way every other overlay does: `overlay_scope`
+         // keeps it for its exit run, which is what `[data-exiting]` needs to
+         // have something to play and gives Escape a stack position.
++        //
++        // The tip — and the max-content line shaping it is sized from — is
++        // only built while it is visible: `shape_line` is the most expensive
++        // call in this render, and a closed tooltip has no surface to size.
+         if phase != util::OverlayPhase::Closed {
++            let colors = cx.colors();
++            let layout = cx.layout();
++            // v3 pushes the tip further out when the arrow needs room.
++            let offset = self
++                .offset
++                .unwrap_or(if self.show_arrow { px(7.) } else { px(3.) });
++            // CSS gives an absolutely positioned tooltip max-content width capped
++            // at 320px. GPUI otherwise resolves normal wrapping to min-content,
++            // making even "With an arrow" one word wide, so shape the single line
++            // and pin the same max-content result explicitly.
++            let content = self.content.clone();
++            let run = gpui::TextRun {
++                len: content.len(),
++                font: window.text_style().font(),
++                color: gpui::black(),
++                background_color: None,
++                underline: None,
++                strikethrough: None,
++            };
++            let line = window
++                .text_system()
++                .shape_line(content.clone(), px(12.), &[run], None);
++            let hairline_width = if layout.overlay_hairline.is_some() {
++                layout.border_width * 2.
++            } else {
++                px(0.)
++            };
++            let intrinsic_width = line.width + px(16.) + hairline_width;
++            let tooltip_width = if intrinsic_width < px(320.) {
++                intrinsic_width
++            } else {
++                px(320.)
++            };
++
++            let mut tip = gpui::div()
++                .absolute()
++                // `.tooltip` is `p-2` all round, not a wider-than-tall pill.
++                .p(px(8.))
++                .w(tooltip_width)
++                .rounded(util::small_radius(cx))
++                .bg(colors.overlay.background)
++                .text_color(colors.overlay.foreground)
++                .text_size(px(12.))
++                .line_height(px(16.))
++                .when_some(layout.overlay_hairline, |el, hairline| {
++                    el.border(layout.border_width).border_color(hairline)
++                })
++                .shadow(layout.overlay_shadow.clone())
++                .child(content);
++
++            tip = match self.placement {
++                TooltipPlacement::Top => tip.bottom_full().mb(offset),
++                TooltipPlacement::Bottom => tip.top_full().mt(offset),
++                TooltipPlacement::Left => tip.right_full().mr(offset),
++                TooltipPlacement::Right => tip.left_full().ml(offset),
++            };
++
++            if self.show_arrow {
++                let mut arrow = gpui::div().absolute().child(
++                    gpui::svg()
++                        .size(px(12.))
++                        .path(icons::TOOLTIP_ARROW)
++                        // svg() never inherits text colour; the arrow has to be
++                        // tinted to match the tip body explicitly.
++                        .text_color(colors.overlay.background)
++                        .with_transformation(gpui::Transformation::rotate(gpui::radians(
++                            self.placement.arrow_rotation(),
++                        ))),
++                );
++                arrow = match self.placement {
++                    TooltipPlacement::Top => arrow
++                        .top_full()
++                        .left(px(0.))
++                        .right(px(0.))
++                        .flex()
++                        .justify_center(),
++                    TooltipPlacement::Bottom => arrow
++                        .bottom_full()
++                        .left(px(0.))
++                        .right(px(0.))
++                        .flex()
++                        .justify_center(),
++                    TooltipPlacement::Left => arrow
++                        .left_full()
++                        .top(px(0.))
++                        .bottom(px(0.))
++                        .flex()
++                        .items_center(),
++                    TooltipPlacement::Right => arrow
++                        .right_full()
++                        .top(px(0.))
++                        .bottom(px(0.))
++                        .flex()
++                        .items_center(),
++                };
++                tip = tip.child(arrow);
++            }
++
+             // `absolute` does not lift the tip above later siblings in the page,
+             // so it has to paint last.
+             let zoom = anim::ZoomBox::panel(px(8.), util::small_radius(cx)).padding_x(px(8.));
 diff --git a/crates/herogpui-components/src/util.rs b/crates/herogpui-components/src/util.rs
-index 4c44b4a..6ff7d49 100644
+index 4c44b4a..8e8169a 100644
 --- a/crates/herogpui-components/src/util.rs
 +++ b/crates/herogpui-components/src/util.rs
-@@ -1,5 +1,7 @@
- //! Shared render helpers for HeroGPUI components.
- 
-+use std::rc::Rc;
-+
- use gpui::{App, BorrowAppContext, Div, Hsla, ParentElement, Pixels, Styled};
- use herogpui_core::{FieldVariant, Prominence};
- use herogpui_theme::ActiveTheme;
-@@ -132,6 +134,7 @@ pub fn apply_field_chrome<T: Styled>(
+@@ -132,6 +132,7 @@ pub fn apply_field_chrome<T: Styled>(
                  offset: gpui::point(gpui::px(0.), gpui::px(0.)),
                  blur_radius: gpui::px(1.),
                  spread_radius: gpui::px(2.),
@@ -8755,7 +11126,7 @@ index 4c44b4a..6ff7d49 100644
              });
          } else {
              el = el
-@@ -458,7 +461,7 @@ pub fn panel_focus(
+@@ -458,7 +459,7 @@ pub fn panel_focus(
              .filter(|focused| focused.tab_stop)
              .map(|focused| focused.downgrade())
              .or_else(|| Some(trigger.downgrade()));
@@ -8764,7 +11135,7 @@ index 4c44b4a..6ff7d49 100644
          state.update(cx, |state, _| {
              state.was_open = true;
              state.restore = restore;
-@@ -466,7 +469,7 @@ pub fn panel_focus(
+@@ -466,7 +467,7 @@ pub fn panel_focus(
      } else if !open && current.was_open {
          if handle.contains_focused(window, cx) {
              if let Some(restore) = current.restore.and_then(|handle| handle.upgrade()) {
@@ -8773,25 +11144,7 @@ index 4c44b4a..6ff7d49 100644
              }
          }
          state.update(cx, |state, _| {
-@@ -548,7 +551,7 @@ pub fn on_focus_leave(
-     let armed = subscription.read(cx).is_some();
-     // Both observation legs hand the same closer out; gpui runs single-threaded,
-     // so an `Rc` shares it without asking the closure to be `Clone`.
--    let leave = std::rc::Rc::new(leave);
-+    let leave = Rc::new(leave);
- 
-     // The frame-end half (real, focused windows): the guard reads the shared
-     // edge so a render that got there first leaves this nothing to do, and
-@@ -558,7 +561,7 @@ pub fn on_focus_leave(
-         // that would otherwise retain an unmounted open component forever.
-         let disarmer = subscription.downgrade();
-         let edge = state.downgrade();
--        let leave = std::rc::Rc::clone(&leave);
-+        let leave = Rc::clone(&leave);
-         let listener = window.on_focus_out(&scope, cx, move |_, window, cx| {
-             let Some(edge) = edge.upgrade() else {
-                 return;
-@@ -692,7 +695,7 @@ pub fn focus_once(
+@@ -692,7 +693,7 @@ pub fn focus_once(
  ) {
      let done = window.use_keyed_state(key.into(), cx, |_, _| false);
      if !*done.read(cx) {
@@ -8800,39 +11153,21 @@ index 4c44b4a..6ff7d49 100644
          done.update(cx, |d, _| *d = true);
      }
  }
-@@ -1109,6 +1112,7 @@ where
-     T: gpui::StatefulInteractiveElement + ParentElement,
- {
-     let hover = slot.clone();
-+    let mouse_move_hover = slot.clone();
-     let down = slot.clone();
-     let up = slot.clone();
+@@ -1114,6 +1115,13 @@ where
      let key_down = slot.clone();
-@@ -1143,6 +1147,23 @@ where
-             }
-         });
-     })
-+    .on_mouse_move(move |_, window, cx| {
-+        mouse_move_hover.update(cx, |state, cx| {
-+            if !state.0 {
-+                state.0 = true;
-+                cx.notify();
-+            }
-+        });
-+        let mouse_move_hover = mouse_move_hover.clone();
-+        window.defer(cx, move |_, cx| {
-+            mouse_move_hover.update(cx, |state, cx| {
-+                if !state.0 {
-+                    state.0 = true;
-+                    cx.notify();
-+                }
-+            });
-+        });
-+    })
-     .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
-         down.update(cx, |state, cx| {
-             if !state.1 {
-@@ -1215,7 +1236,7 @@ where
+     let key_up = slot.clone();
+     let outside_up = slot.clone();
++    // This listener is deliberately unconditional, not armed while the slot is
++    // pressed: `Window::on_mouse_event` is `debug_assert_paint`-only, so a
++    // press-armed registration could not exist until the frame *after* the
++    // mouse down, and a release dispatched before that frame completes -- a
++    // fast click, or a press dragged outside -- would be missed and leave the
++    // slot stuck pressed. gpui 0.2.2 has no pointer capture; the per-frame
++    // re-registration is what makes any outside release observable at all.
+     let release = gpui::canvas(
+         |bounds, _, _| bounds,
+         move |_, _, window, _| {
+@@ -1215,7 +1223,7 @@ where
          .read(cx)
          .clone();
      if !root.contains_focused(window, cx) {
@@ -8841,7 +11176,7 @@ index 4c44b4a..6ff7d49 100644
      }
      el.track_focus(&root)
          .capture_any_mouse_down(|_, _, cx| set_focus_visible(false, cx))
-@@ -1227,8 +1248,8 @@ where
+@@ -1227,8 +1235,8 @@ where
          .on_key_down(|event, window, cx| {
              set_focus_visible(true, cx);
              match event.keystroke.key.as_str() {
@@ -8852,7 +11187,16 @@ index 4c44b4a..6ff7d49 100644
                  _ => {}
              }
          })
-@@ -1314,6 +1335,7 @@ pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
+@@ -1272,7 +1280,7 @@ where
+ /// gpui registers a tab stop from the **handle's** own `tab_stop` flag; the
+ /// element's `tab_index` builder only configures a handle the element creates
+ /// for itself, which a component that has to read its own focus state cannot
+-/// use. Marking the handle is what makes `window.focus_next()` see it.
++/// use. Marking the handle is what makes `window.focus_next(cx)` see it.
+ pub fn tab_stop_handle(
+     id: gpui::ElementId,
+     window: &mut gpui::Window,
+@@ -1314,6 +1322,7 @@ pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
          offset: gpui::point(gpui::px(0.), gpui::px(0.)),
          blur_radius: blur,
          spread_radius: gap + ring,
@@ -8860,7 +11204,7 @@ index 4c44b4a..6ff7d49 100644
      }];
      if gap > gpui::px(0.) {
          shadows.push(gpui::BoxShadow {
-@@ -1321,6 +1343,7 @@ pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
+@@ -1321,6 +1330,7 @@ pub fn focus_ring_shadows(offset: bool, cx: &App) -> Vec<gpui::BoxShadow> {
              offset: gpui::point(gpui::px(0.), gpui::px(0.)),
              blur_radius: blur,
              spread_radius: gap,
@@ -8868,7 +11212,7 @@ index 4c44b4a..6ff7d49 100644
          });
      }
      shadows
-@@ -1351,24 +1374,24 @@ pub fn trap_tab<T: gpui::InteractiveElement>(el: T, scope: &gpui::FocusHandle) -
+@@ -1351,24 +1361,24 @@ pub fn trap_tab<T: gpui::InteractiveElement>(el: T, scope: &gpui::FocusHandle) -
          set_focus_visible(true, cx);
          let back = event.keystroke.modifiers.shift;
          if back {

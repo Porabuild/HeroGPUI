@@ -26,6 +26,17 @@ function flag(name, fallback) {
   return !value || value.startsWith("--") ? true : value;
 }
 
+// Components the migration cannot take from native as-is. The reason is a
+// dependency the migration workspace does not carry, not a GPUI version
+// difference the vocabulary below can absorb, so syncing them only produces an
+// unresolved-crate build. Removing an entry means adding those dependencies to
+// the migration workspace and proving they build for wasm32.
+const BLOCKED = {
+  "date_constraints.rs": "needs icu_calendar and icu_locale_core",
+  "date_picker.rs": "needs icu_datetime, icu_locale_core and locale_config",
+  "time_field.rs": "needs icu_datetime, icu_locale_core and locale_config",
+};
+
 const wasmRoot = flag("--wasm-root", "D:/herogpui-wasm");
 const nativeDir = join(repoRoot, "crates", "herogpui-components", "src");
 const wasmDir = join(wasmRoot, "crates", "herogpui-components", "src");
@@ -34,8 +45,16 @@ const wasmDir = join(wasmRoot, "crates", "herogpui-components", "src");
 const ADAPTATIONS = [
   // `UniformList::track_scroll` took the handle by value.
   [/\.track_scroll\(([a-z_][A-Za-z_0-9]*)\)/g, ".track_scroll(&$1)"],
-  // `flex_grow` took its factor before it defaulted to one.
+  // `flex_grow` and `flex_shrink` took their factor before it defaulted to one.
   [/\.flex_grow\(\)/g, ".flex_grow(1.)"],
+  [/\.flex_shrink\(\)/g, ".flex_shrink(1.)"],
+  // The rest of the focus surface took the app context too.
+  [/window\.focus_next\(\)/g, "window.focus_next(cx)"],
+  [/window\.focus_prev\(\)/g, "window.focus_prev(cx)"],
+  [/window\.blur\(\)/g, "window.blur(cx)"],
+  [/\.focus\(window\)/g, ".focus(window, cx)"],
+  // `Styled::text_style` answered the refinement itself, not an Option.
+  [/\.text_style\(\)\s*\n\s*\.get_or_insert_with\(Default::default\)/g, ".text_style()"],
 ];
 
 // `Window::focus` took the app context before it was threaded through. Rewrite
@@ -43,14 +62,33 @@ const ADAPTATIONS = [
 // in scope the wasm compiler names the line, and that caller needs a real look
 // instead of a silent skip.
 function addFocusContext(source) {
-  const focused = source.replace(/window\.focus\(([^;()]*(?:\([^()]*\))?[^;()]*)\);/g, (match, argument) =>
-    /,\s*cx\s*$/.test(argument) ? match : `window.focus(${argument}, cx);`,
+  const focused = source.replace(
+    /window\.focus\(([^;()]*(?:\([^()]*\))?[^;()]*)\)/g,
+    (match, argument) => (/,\s*cx\s*$/.test(argument) ? match : `window.focus(${argument}, cx)`),
   );
   // The context the older signature needs is the parameter the native closure
   // discards, so a closure that focuses has to name it.
   return focused.replace(
-    /\|([^|\n]*)window, _\|(.{0,600}?window\.focus\()/gs,
-    "|$1window, cx|$2",
+    /\|([^|\n]*\bwindow\b[^|\n]*), _\|(.{0,600}?window\.focus\()/gs,
+    "|$1, cx|$2",
+  );
+}
+
+// `Entity::update` answered the value itself before it answered a Result, so
+// the native `let Ok(x) = ... else { return };` guard has nothing to unwrap.
+function adaptEntityUpdate(source) {
+  return source.replace(
+    /let Ok\((\w+)\) = (\w+\.update\(cx, .*?\}\)) else \{\s*return;\s*\};/gs,
+    "let $1 = $2;",
+  );
+}
+
+// A handle read out of an entity borrows the context the older `focus`
+// signature also needs, so the handle has to be cloned out first.
+function adaptEntityFocus(source) {
+  return source.replace(
+    /^([ \t]*)(\w+)\.read\(cx\)\.(\w+)\.focus\(window, cx\);[ \t]*\r?$/gm,
+    "$1let focus_handle = $2.read(cx).$3.clone();\r\n$1focus_handle.focus(window, cx);",
   );
 }
 
@@ -96,7 +134,9 @@ function adapt(source) {
     (text, [pattern, replacement]) => text.replace(pattern, replacement),
     source,
   );
-  return adaptScrollMaxOffset(addBoxShadowInset(addFocusContext(rewritten)));
+  return adaptEntityUpdate(
+    adaptEntityFocus(adaptScrollMaxOffset(addBoxShadowInset(addFocusContext(rewritten)))),
+  );
 }
 
 const [mode, file] = process.argv.slice(2);
@@ -119,6 +159,10 @@ if (mode === "report") {
       rows.push([0, "ADAPTED", name]);
       continue;
     }
+    if (BLOCKED[name]) {
+      rows.push([Number.POSITIVE_INFINITY, "BLOCKED", name]);
+      continue;
+    }
     // Lines the migration is missing once the vocabulary is applied.
     const wasmLines = new Set(wasm.split("\n").map((line) => line.trim()));
     const behind = adapt(native)
@@ -133,15 +177,20 @@ if (mode === "report") {
     counts[kind] = (counts[kind] ?? 0) + 1;
     if (kind === "STALE") console.log(`${String(behind).padStart(5)}  ${kind}  ${name}`);
     if (kind === "ABSENT") console.log(`    -  ${kind}  ${name}`);
+    if (kind === "BLOCKED") console.log(`    -  ${kind}  ${name} -- ${BLOCKED[name]}`);
   }
   console.log(
     `\n${counts.IDENTICAL ?? 0} identical, ${counts.ADAPTED ?? 0} adapted, ` +
-      `${counts.STALE ?? 0} stale, ${counts.ABSENT ?? 0} absent`,
+      `${counts.STALE ?? 0} stale, ${counts.BLOCKED ?? 0} blocked, ` +
+      `${counts.ABSENT ?? 0} absent`,
   );
 } else if (mode === "sync") {
   if (!file) throw new Error("usage: sync-wasm-component.mjs sync <file.rs>");
   const nativePath = join(nativeDir, file);
   if (!existsSync(nativePath)) throw new Error(`${nativePath} does not exist`);
+  if (BLOCKED[file] && !flag("--force", false)) {
+    throw new Error(`${file} is blocked: ${BLOCKED[file]}. Pass --force once that is resolved.`);
+  }
   const adapted = adapt(readFileSync(nativePath, "utf8"));
   const wasmPath = join(wasmDir, file);
   const before = existsSync(wasmPath) ? readFileSync(wasmPath, "utf8") : "";
