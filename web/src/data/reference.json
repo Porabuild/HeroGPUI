@@ -18472,7 +18472,7 @@
     "styling": [
       {
         "token": ".spinner",
-        "description": "The default indicator is 24px and rotates continuously; duration_ms provides the gallery's speed customization point.",
+        "description": "The default indicator keeps its 24px diameter in flex layouts and rotates while motion is enabled; duration_ms provides the gallery's speed customization point.",
         "rust": "SpinnerSize::Md + duration_ms(u64) + repeated rotation",
         "status": "implemented"
       },

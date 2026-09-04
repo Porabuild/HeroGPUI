@@ -16811,7 +16811,7 @@ const SPINNER_STATES: &[StateDoc] = &[StateDoc {
 }];
 
 const SPINNER_STYLING: &[StyleDoc] = &[
-    StyleDoc { class_or_token: ".spinner", value: "size-6 animate-spin", description: "The default indicator is 24px and rotates continuously; duration_ms provides the gallery's speed customization point.", rust: "SpinnerSize::Md + duration_ms(u64) + repeated rotation", status: ImplementationStatus::Implemented },
+    StyleDoc { class_or_token: ".spinner", value: "size-6 animate-spin", description: "The default indicator keeps its 24px diameter in flex layouts and rotates while motion is enabled; duration_ms provides the gallery's speed customization point.", rust: "SpinnerSize::Md + duration_ms(u64) + repeated rotation", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".spinner--sm / --md / --lg / --xl", value: "16px / 24px / 32px / 40px", description: "All four documented diameters map directly.", rust: "SpinnerSize::px", status: ImplementationStatus::Implemented },
     StyleDoc { class_or_token: ".spinner--current / semantic colors", value: "currentColor or semantic role", description: "GPUI SVGs require current text color to be resolved by the caller; semantic roles resolve from the active theme.", rust: "current_color(Hsla) / color(Color)", status: ImplementationStatus::Partial },
 ];

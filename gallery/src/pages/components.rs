@@ -5896,6 +5896,7 @@ impl Gallery {
             vec![
                 (
                     "Usage",
+                    "The indicator keeps its diameter in flex layouts. Turn Motion off to stop rotation.",
                     row(vec![h::Spinner::new("sp-usage").into_any_element()]),
                 ),
                 (

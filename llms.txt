@@ -362,7 +362,7 @@ ProgressBar, ProgressCircle, Spinner and Typography; elsewhere `variant` (or
 - **ProgressBar** — `ProgressBar::new(id)`, then `value`, `min_value`, `max_value`, `value_label`, `is_indeterminate`, `size`, `color`, `label`, `show_value_label`, `format_options(NumberFormat)`
 - **ProgressCircle** — `value`, `min_value`, `max_value`, `is_indeterminate`, `color`, `size(Size)` (32/48/64px), `show_value_label`. The ring weight is 10% of the diameter, as v3 scales it with `size`.
 - **Skeleton** — `id`, `w`, `h`, `animation_type(SkeletonAnimation::{Shimmer,Pulse,None})` (defaults to `--skeleton-animation`). v3 renders the skeleton *or* the content, so there is no `isLoaded`.
-- **Spinner** — `size(SpinnerSize::{Sm,Md,Lg,Xl})`, `color`, `current_color(Hsla)` for `color="current"` (gpui svgs do not inherit text colour)
+- **Spinner** — `size(SpinnerSize::{Sm,Md,Lg,Xl})`, `color`, `current_color(Hsla)` for `color="current"` (gpui svgs do not inherit text colour). The diameter does not shrink in flex layouts; the app reduced-motion preference stops rotation.
 
 ### Calendar view model (`calendar_view`)
 

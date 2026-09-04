@@ -1137,6 +1137,53 @@ fn spinner_renders_every_documented_size_and_color(cx: &mut TestAppContext) {
     });
 }
 
+#[gpui::test]
+fn spinner_stops_scheduling_frames_when_motion_is_disabled(cx: &mut TestAppContext) {
+    still();
+    let cx = open_host(cx, || Spinner::new("motion-spinner").into_any_element());
+    assert_eq!(cx.update(|window, cx| window.simulate_next_frame(cx)), 0);
+    cx.update(|_, cx| herogpui_theme::set_reduce_motion(false, cx));
+    flush_frame(cx);
+    assert!(cx.update(|window, cx| window.simulate_next_frame(cx)) > 0);
+    cx.update(|_, cx| herogpui_theme::set_reduce_motion(true, cx));
+    flush_frame(cx);
+    // A previously queued frame may still run once after the preference changes.
+    cx.update(|window, cx| window.simulate_next_frame(cx));
+    assert_eq!(cx.update(|window, cx| window.simulate_next_frame(cx)), 0);
+}
+
+#[gpui::test]
+fn spinner_keeps_its_diameter_when_a_flex_parent_is_smaller(cx: &mut TestAppContext) {
+    for vertical in [false, true] {
+        let measured = Rc::new(RefCell::new(None));
+        let captured = measured.clone();
+        open_host(cx, move || {
+            let captured = captured.clone();
+            gpui::div()
+                .flex()
+                .when(vertical, |row| row.flex_col())
+                .size(px(8.))
+                .child(Spinner::new("constrained-spinner"))
+                .child(
+                    canvas(
+                        move |bounds, _, _| *captured.borrow_mut() = Some(bounds),
+                        |_, _, _, _| {},
+                    )
+                    .size(px(1.))
+                    .flex_shrink_0(),
+                )
+                .into_any_element()
+        });
+        let bounds = measured.borrow().expect("following marker must render");
+        let offset = if vertical {
+            bounds.origin.y
+        } else {
+            bounds.origin.x
+        };
+        assert_eq!(offset, px(24.), "Spinner must keep its 24px diameter");
+    }
+}
+
 /// Skeleton's v3 table is `animationType` plus `className` — no callback and
 /// no state, so the only behavioural claim is renderability: the default
 /// (deferred to the `--skeleton-animation` token), `none`, `pulse` and

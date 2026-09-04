@@ -1580,6 +1580,7 @@
   "spinner": [
     {
       "heading": "Usage",
+      "description": "The indicator keeps its diameter in flex layouts. Turn Motion off to stop rotation.",
       "imports": "use herogpui::prelude::Spinner;",
       "code": "Spinner::new(\"spinner\")"
     },
