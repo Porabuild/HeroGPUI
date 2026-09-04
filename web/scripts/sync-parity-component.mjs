@@ -118,7 +118,11 @@ if (mode === "plan") {
     for (const line of result.evidence.slice(0, 8)) console.log(`    | ${line.slice(0, 140)}`);
   }
 } else if (mode === "sync") {
-  const onlyKeys = flag("--keys", null);
+  const keysIndex = process.argv.indexOf("--keys");
+  const onlyKeys =
+    keysIndex !== -1 && process.argv[keysIndex + 1] && !process.argv[keysIndex + 1].startsWith("--")
+      ? process.argv[keysIndex + 1]
+      : null;
   const wanted = onlyKeys
     ? String(onlyKeys).split(",").map((key) => (key.includes("/") ? key : `${slug}/${key}`))
     : keys;
