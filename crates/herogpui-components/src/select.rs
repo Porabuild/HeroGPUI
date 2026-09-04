@@ -749,7 +749,7 @@ impl RenderOnce for Select {
                         if !crate::list_nav::is_typeahead_key(key) {
                             return;
                         }
-                        let now = std::time::Instant::now();
+                        let now = web_time::Instant::now();
                         let (query, repeat) = typed.update(cx, |t, _| {
                             let query = t.push(key, now);
                             (query, t.is_repeat())
@@ -1010,7 +1010,7 @@ impl RenderOnce for Select {
                             if !crate::list_nav::is_typeahead_key(key) {
                                 return;
                             }
-                            let now = std::time::Instant::now();
+                            let now = web_time::Instant::now();
                             let (query, repeat) = typed.update(cx, |t, _| {
                                 let query = t.push(key, now);
                                 (query, t.is_repeat())

@@ -23,7 +23,7 @@ index 7569f185..e516c921 100644
 +[target.wasm32-unknown-unknown]
 +rustflags = []
 diff --git a/Cargo.lock b/Cargo.lock
-index 427e72d3..7327b172 100644
+index 427e72d3..077457b6 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -2,6 +2,86 @@
@@ -2049,7 +2049,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "heck"
  version = "0.4.1"
-@@ -2480,7 +2503,11 @@ dependencies = [
+@@ -2480,7 +2503,12 @@ dependencies = [
   "gpui",
   "herogpui-core",
   "herogpui-theme",
@@ -2058,10 +2058,11 @@ index 427e72d3..7327b172 100644
 + "icu_locale_core",
   "jiff",
 + "locale_config",
++ "web-time",
  ]
  
  [[package]]
-@@ -2495,6 +2522,7 @@ name = "herogpui-gallery"
+@@ -2495,6 +2523,7 @@ name = "herogpui-gallery"
  version = "0.1.0"
  dependencies = [
   "gpui",
@@ -2069,7 +2070,7 @@ index 427e72d3..7327b172 100644
   "herogpui",
   "herogpui-components",
   "herogpui-core",
-@@ -2509,6 +2537,21 @@ dependencies = [
+@@ -2509,6 +2538,21 @@ dependencies = [
   "herogpui-core",
  ]
  
@@ -2091,7 +2092,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "hex"
  version = "0.4.3"
-@@ -2521,17 +2564,6 @@ version = "0.2.1"
+@@ -2521,17 +2565,6 @@ version = "0.2.1"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
  
@@ -2109,7 +2110,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "hkdf"
  version = "0.12.4"
-@@ -2547,16 +2579,7 @@ version = "0.12.1"
+@@ -2547,16 +2580,7 @@ version = "0.12.1"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
  dependencies = [
@@ -2127,7 +2128,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -2580,122 +2603,177 @@ dependencies = [
+@@ -2580,122 +2604,177 @@ dependencies = [
  ]
  
  [[package]]
@@ -2370,7 +2371,7 @@ index 427e72d3..7327b172 100644
  dependencies = [
   "icu_collections",
   "icu_normalizer_data",
-@@ -2707,17 +2785,48 @@ dependencies = [
+@@ -2707,17 +2786,48 @@ dependencies = [
  
  [[package]]
  name = "icu_normalizer_data"
@@ -2424,7 +2425,7 @@ index 427e72d3..7327b172 100644
   "icu_collections",
   "icu_locale_core",
   "icu_properties_data",
-@@ -2728,18 +2837,20 @@ dependencies = [
+@@ -2728,18 +2838,20 @@ dependencies = [
  
  [[package]]
  name = "icu_properties_data"
@@ -2449,7 +2450,7 @@ index 427e72d3..7327b172 100644
   "writeable",
   "yoke",
   "zerofrom",
-@@ -2747,6 +2858,29 @@ dependencies = [
+@@ -2747,6 +2859,29 @@ dependencies = [
   "zerovec",
  ]
  
@@ -2479,7 +2480,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "idna"
  version = "1.1.0"
-@@ -2786,7 +2920,6 @@ dependencies = [
+@@ -2786,7 +2921,6 @@ dependencies = [
   "qoi",
   "ravif",
   "rayon",
@@ -2487,7 +2488,7 @@ index 427e72d3..7327b172 100644
   "tiff",
   "zune-core",
   "zune-jpeg",
-@@ -2799,14 +2932,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -2799,14 +2933,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "525e9ff3e1a4be2fbea1fdf0e98686a6d98b4d8f937e1bf7402245af1909e8c3"
  dependencies = [
   "byteorder-lite",
@@ -2505,7 +2506,7 @@ index 427e72d3..7327b172 100644
  
  [[package]]
  name = "imgref"
-@@ -2828,21 +2961,12 @@ dependencies = [
+@@ -2828,21 +2962,12 @@ dependencies = [
  
  [[package]]
  name = "inout"
@@ -2531,7 +2532,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -2877,12 +3001,6 @@ dependencies = [
+@@ -2877,12 +3002,6 @@ dependencies = [
   "leaky-cow",
  ]
  
@@ -2544,7 +2545,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "is-docker"
  version = "0.2.0"
-@@ -2936,10 +3054,12 @@ dependencies = [
+@@ -2936,10 +3055,12 @@ dependencies = [
   "jiff-core",
   "jiff-static",
   "jiff-tzdb-platform",
@@ -2557,7 +2558,7 @@ index 427e72d3..7327b172 100644
   "windows-link 0.2.1",
  ]
  
-@@ -2979,6 +3099,34 @@ dependencies = [
+@@ -2979,6 +3100,34 @@ dependencies = [
   "jiff-tzdb",
  ]
  
@@ -2592,7 +2593,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "jobserver"
  version = "0.1.35"
-@@ -3008,36 +3156,32 @@ checksum = "6aae1df220ece3c0ada96b8153459b67eebe9ae9212258bb0134ae60416fdf76"
+@@ -3008,36 +3157,32 @@ checksum = "6aae1df220ece3c0ada96b8153459b67eebe9ae9212258bb0134ae60416fdf76"
  dependencies = [
   "libc",
   "libloading",
@@ -2639,7 +2640,7 @@ index 427e72d3..7327b172 100644
  
  [[package]]
  name = "leak"
-@@ -3060,6 +3204,12 @@ version = "0.5.3"
+@@ -3060,6 +3205,12 @@ version = "0.5.3"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "7a79a3332a6609480d7d0c9eab957bca6b455b91bb84e66d19f5ff66294b85b8"
  
@@ -2652,7 +2653,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "libc"
  version = "0.2.189"
-@@ -3076,18 +3226,6 @@ dependencies = [
+@@ -3076,18 +3227,6 @@ dependencies = [
   "cc",
  ]
  
@@ -2671,7 +2672,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "libloading"
  version = "0.8.9"
-@@ -3114,22 +3252,22 @@ dependencies = [
+@@ -3114,22 +3253,22 @@ dependencies = [
  ]
  
  [[package]]
@@ -2706,7 +2707,7 @@ index 427e72d3..7327b172 100644
  
  [[package]]
  name = "linux-raw-sys"
-@@ -3143,6 +3281,25 @@ version = "0.8.3"
+@@ -3143,6 +3282,25 @@ version = "0.8.3"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
  
@@ -2732,7 +2733,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "lock_api"
  version = "0.4.14"
-@@ -3171,12 +3328,6 @@ dependencies = [
+@@ -3171,12 +3329,6 @@ dependencies = [
   "imgref",
  ]
  
@@ -2745,7 +2746,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "lyon"
  version = "1.0.19"
-@@ -3230,10 +3381,27 @@ dependencies = [
+@@ -3230,10 +3382,27 @@ dependencies = [
  ]
  
  [[package]]
@@ -2776,7 +2777,7 @@ index 427e72d3..7327b172 100644
  
  [[package]]
  name = "malloc_buf"
-@@ -3261,7 +3429,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -3261,7 +3430,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "d89e7ee0cfbedfc4da3340218492196241d89eefb6dab27de5df917a6d2e78cf"
  dependencies = [
   "cfg-if",
@@ -2799,7 +2800,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -3290,35 +3472,19 @@ dependencies = [
+@@ -3290,35 +3473,19 @@ dependencies = [
  
  [[package]]
  name = "metal"
@@ -2838,7 +2839,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "minimal-lexical"
  version = "0.2.1"
-@@ -3335,23 +3501,6 @@ dependencies = [
+@@ -3335,23 +3502,6 @@ dependencies = [
   "simd-adler32",
  ]
  
@@ -2862,7 +2863,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "moxcms"
  version = "0.8.1"
-@@ -3364,36 +3513,37 @@ dependencies = [
+@@ -3364,36 +3514,37 @@ dependencies = [
  
  [[package]]
  name = "naga"
@@ -2909,7 +2910,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -3402,30 +3552,6 @@ version = "1.0.6"
+@@ -3402,30 +3553,6 @@ version = "1.0.6"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
  
@@ -2940,7 +2941,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "no_std_io2"
  version = "0.9.4"
-@@ -3460,6 +3586,20 @@ version = "0.3.0"
+@@ -3460,6 +3587,20 @@ version = "0.3.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "0676bb32a98c1a483ce53e500a81ad9c3d5b3f7c920c28c24e9cb0980d0b5bc8"
  
@@ -2961,7 +2962,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "ntapi"
  version = "0.4.3"
-@@ -3469,6 +3609,15 @@ dependencies = [
+@@ -3469,6 +3610,15 @@ dependencies = [
   "winapi",
  ]
  
@@ -2977,7 +2978,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "num"
  version = "0.4.3"
-@@ -3495,16 +3644,16 @@ dependencies = [
+@@ -3495,16 +3645,16 @@ dependencies = [
  
  [[package]]
  name = "num-bigint-dig"
@@ -2998,7 +2999,7 @@ index 427e72d3..7327b172 100644
   "serde",
   "smallvec",
   "zeroize",
-@@ -3520,6 +3669,12 @@ dependencies = [
+@@ -3520,6 +3670,12 @@ dependencies = [
   "num-traits",
  ]
  
@@ -3011,7 +3012,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "num-derive"
  version = "0.4.2"
-@@ -3602,6 +3757,22 @@ dependencies = [
+@@ -3602,6 +3758,22 @@ dependencies = [
   "objc_id",
  ]
  
@@ -3034,7 +3035,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "objc2"
  version = "0.6.4"
-@@ -3611,6 +3782,22 @@ dependencies = [
+@@ -3611,6 +3783,22 @@ dependencies = [
   "objc2-encode",
  ]
  
@@ -3057,7 +3058,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "objc2-app-kit"
  version = "0.3.2"
-@@ -3618,50 +3805,123 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -3618,50 +3806,123 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "d49e936b501e5c5bf01fda3a9452ff86dc3ea98ad5f283e1455153142d97518c"
  dependencies = [
   "bitflags 2.13.1",
@@ -3205,7 +3206,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -3671,23 +3931,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -3671,23 +3932,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "96c1358452b371bf9f104e21ec536d37a650eb10f7ee379fff67d2e08d537f1f"
  dependencies = [
   "bitflags 2.13.1",
@@ -3238,7 +3239,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -3717,15 +3977,6 @@ dependencies = [
+@@ -3717,15 +3978,6 @@ dependencies = [
   "memchr",
  ]
  
@@ -3254,7 +3255,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "once_cell"
  version = "1.21.4"
-@@ -3734,32 +3985,32 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+@@ -3734,32 +3986,32 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
  
  [[package]]
  name = "oo7"
@@ -3295,7 +3296,7 @@ index 427e72d3..7327b172 100644
   "subtle",
   "zbus",
   "zbus_macros",
-@@ -3777,18 +4028,21 @@ dependencies = [
+@@ -3777,18 +4029,21 @@ dependencies = [
   "libc",
  ]
  
@@ -3323,7 +3324,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "ordered-stream"
  version = "0.2.0"
-@@ -3823,7 +4077,7 @@ checksum = "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1"
+@@ -3823,7 +4078,7 @@ checksum = "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1"
  dependencies = [
   "cfg-if",
   "libc",
@@ -3332,7 +3333,7 @@ index 427e72d3..7327b172 100644
   "smallvec",
   "windows-link 0.2.1",
  ]
-@@ -3865,7 +4119,7 @@ version = "0.12.2"
+@@ -3865,7 +4120,7 @@ version = "0.12.2"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
  dependencies = [
@@ -3341,7 +3342,7 @@ index 427e72d3..7327b172 100644
   "hmac",
  ]
  
-@@ -3875,6 +4129,59 @@ version = "2.3.2"
+@@ -3875,6 +4130,59 @@ version = "2.3.2"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
  
@@ -3401,7 +3402,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "pico-args"
  version = "0.5.0"
-@@ -3907,12 +4214,6 @@ version = "0.2.17"
+@@ -3907,12 +4215,6 @@ version = "0.2.17"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
  
@@ -3414,7 +3415,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "piper"
  version = "0.2.5"
-@@ -3920,7 +4221,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -3920,7 +4222,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "c835479a4443ded371d6c535cbfd8d31ad92c5d23ae9770a61bc155e4992a3c1"
  dependencies = [
   "atomic-waker",
@@ -3423,7 +3424,7 @@ index 427e72d3..7327b172 100644
   "futures-io",
  ]
  
-@@ -3966,7 +4267,7 @@ dependencies = [
+@@ -3966,7 +4268,7 @@ dependencies = [
   "concurrent-queue",
   "hermit-abi",
   "pin-project-lite",
@@ -3432,7 +3433,7 @@ index 427e72d3..7327b172 100644
   "windows-sys 0.61.2",
  ]
  
-@@ -3976,6 +4277,21 @@ version = "0.2.5"
+@@ -3976,6 +4278,21 @@ version = "0.2.5"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "5da3b0203fd7ee5720aa0b5e790b591aa5d3f41c3ed2c34a3a393382198af2f7"
  
@@ -3454,7 +3455,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "portable-atomic"
  version = "1.15.0"
-@@ -4003,7 +4319,7 @@ dependencies = [
+@@ -4003,7 +4320,7 @@ dependencies = [
   "log",
   "parking_lot",
   "pin-project",
@@ -3463,7 +3464,7 @@ index 427e72d3..7327b172 100644
   "static_assertions",
   "thiserror 1.0.69",
  ]
-@@ -4014,9 +4330,17 @@ version = "0.1.6"
+@@ -4014,9 +4331,17 @@ version = "0.1.6"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "d83eb9bc6d8e5cf568e7a1101d60ee05e81ed50ea106026f3d18deeb046d7661"
  dependencies = [
@@ -3481,7 +3482,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "ppv-lite86"
  version = "0.2.21"
-@@ -4026,6 +4350,12 @@ dependencies = [
+@@ -4026,6 +4351,12 @@ dependencies = [
   "zerocopy",
  ]
  
@@ -3494,7 +3495,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "prettyplease"
  version = "0.2.37"
-@@ -4045,28 +4375,6 @@ dependencies = [
+@@ -4045,28 +4376,6 @@ dependencies = [
   "toml_edit 0.25.13+spec-1.1.0",
  ]
  
@@ -3523,7 +3524,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "proc-macro2"
  version = "1.0.107"
-@@ -4096,13 +4404,33 @@ dependencies = [
+@@ -4096,13 +4405,33 @@ dependencies = [
  ]
  
  [[package]]
@@ -3563,7 +3564,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -4143,6 +4471,12 @@ dependencies = [
+@@ -4143,6 +4472,12 @@ dependencies = [
   "bytemuck",
  ]
  
@@ -3576,7 +3577,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "quick-error"
  version = "2.0.1"
-@@ -4158,62 +4492,6 @@ dependencies = [
+@@ -4158,62 +4493,6 @@ dependencies = [
   "memchr",
  ]
  
@@ -3639,7 +3640,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "quote"
  version = "1.0.47"
-@@ -4256,17 +4534,6 @@ dependencies = [
+@@ -4256,17 +4535,6 @@ dependencies = [
   "rand_core 0.9.5",
  ]
  
@@ -3657,7 +3658,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "rand_chacha"
  version = "0.3.1"
-@@ -4306,19 +4573,19 @@ dependencies = [
+@@ -4306,19 +4574,19 @@ dependencies = [
  ]
  
  [[package]]
@@ -3686,7 +3687,7 @@ index 427e72d3..7327b172 100644
  
  [[package]]
  name = "rangemap"
-@@ -4370,7 +4637,7 @@ dependencies = [
+@@ -4370,7 +4638,7 @@ dependencies = [
   "avif-serialize",
   "imgref",
   "loop9",
@@ -3695,7 +3696,7 @@ index 427e72d3..7327b172 100644
   "rav1e",
   "rayon",
   "rgb",
-@@ -4393,14 +4660,14 @@ checksum = "20675572f6f24e9e76ef639bc5552774ed45f1c30e2951e1e99c59888861c539"
+@@ -4393,14 +4661,14 @@ checksum = "20675572f6f24e9e76ef639bc5552774ed45f1c30e2951e1e99c59888861c539"
  
  [[package]]
  name = "raw-window-metal"
@@ -3716,7 +3717,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -4423,6 +4690,17 @@ dependencies = [
+@@ -4423,6 +4691,17 @@ dependencies = [
   "crossbeam-utils",
  ]
  
@@ -3734,7 +3735,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "read-fonts"
  version = "0.41.0"
-@@ -4430,7 +4708,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -4430,7 +4709,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "046a7d674daf459825b32f5062056d6882db0d2f5a479fbd76ccfc870ac18709"
  dependencies = [
   "bytemuck",
@@ -3743,7 +3744,7 @@ index 427e72d3..7327b172 100644
   "once_cell",
  ]
  
-@@ -4440,15 +4718,6 @@ version = "0.5.5"
+@@ -4440,15 +4719,6 @@ version = "0.5.5"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "03251193000f4bd3b042892be858ee50e8b3719f2b08e5833ac4353724632430"
  
@@ -3759,7 +3760,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "redox_syscall"
  version = "0.5.18"
-@@ -4460,13 +4729,13 @@ dependencies = [
+@@ -4460,13 +4730,13 @@ dependencies = [
  
  [[package]]
  name = "redox_users"
@@ -3776,7 +3777,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -4489,6 +4758,14 @@ dependencies = [
+@@ -4489,6 +4759,14 @@ dependencies = [
   "syn 3.0.3",
  ]
  
@@ -3791,7 +3792,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "regex"
  version = "1.13.1"
-@@ -4518,83 +4795,51 @@ version = "0.8.11"
+@@ -4518,83 +4796,51 @@ version = "0.8.11"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
  
@@ -3899,7 +3900,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -4624,19 +4869,6 @@ dependencies = [
+@@ -4624,19 +4870,6 @@ dependencies = [
   "semver",
  ]
  
@@ -3919,7 +3920,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "rustix"
  version = "1.1.4"
-@@ -4646,66 +4878,10 @@ dependencies = [
+@@ -4646,66 +4879,10 @@ dependencies = [
   "bitflags 2.13.1",
   "errno",
   "libc",
@@ -3987,7 +3988,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "rustversion"
  version = "1.0.23"
-@@ -4713,20 +4889,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -4713,20 +4890,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
  
  [[package]]
@@ -4015,7 +4016,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -4740,9 +4911,9 @@ dependencies = [
+@@ -4740,9 +4912,9 @@ dependencies = [
   "core_maths",
   "log",
   "smallvec",
@@ -4028,7 +4029,7 @@ index 427e72d3..7327b172 100644
   "unicode-properties",
   "unicode-script",
  ]
-@@ -4763,12 +4934,19 @@ dependencies = [
+@@ -4763,12 +4935,19 @@ dependencies = [
  ]
  
  [[package]]
@@ -4053,7 +4054,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -4838,29 +5016,6 @@ version = "4.1.0"
+@@ -4838,29 +5017,6 @@ version = "4.1.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "1c107b6f4780854c8b126e228ea8869f4d7b71260f962fefb57b996b8959ba6b"
  
@@ -4083,7 +4084,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "self_cell"
  version = "1.3.0"
-@@ -4872,6 +5027,10 @@ name = "semver"
+@@ -4872,6 +5028,10 @@ name = "semver"
  version = "1.0.28"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
@@ -4094,7 +4095,7 @@ index 427e72d3..7327b172 100644
  
  [[package]]
  name = "serde"
-@@ -4883,6 +5042,16 @@ dependencies = [
+@@ -4883,6 +5043,16 @@ dependencies = [
   "serde_derive",
  ]
  
@@ -4111,7 +4112,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "serde_core"
  version = "1.0.229"
-@@ -4937,19 +5106,6 @@ dependencies = [
+@@ -4937,19 +5107,6 @@ dependencies = [
   "zmij",
  ]
  
@@ -4131,7 +4132,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "serde_repr"
  version = "0.1.21"
-@@ -5004,19 +5160,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -5004,19 +5161,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
  dependencies = [
   "cfg-if",
@@ -4157,7 +4158,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -5071,6 +5225,16 @@ version = "1.0.3"
+@@ -5071,6 +5226,16 @@ version = "1.0.3"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "8ee5873ec9cce0195efcb7a4e9507a04cd49aec9c83d0389df45b1ef7ba2e649"
  
@@ -4174,7 +4175,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "skrifa"
  version = "0.44.0"
-@@ -5078,7 +5242,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -5078,7 +5243,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "819ab7d62b1d3e72d9d9dea5650bac30424f9111364bb94928dbf5ecad1baa68"
  dependencies = [
   "bytemuck",
@@ -4183,7 +4184,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -5108,7 +5272,7 @@ version = "2.0.2"
+@@ -5108,7 +5273,7 @@ version = "2.0.2"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "a33bd3e260892199c3ccfc487c88b2da2265080acb316cd920da72fdfd7c599f"
  dependencies = [
@@ -4192,7 +4193,7 @@ index 427e72d3..7327b172 100644
   "async-executor",
   "async-fs",
   "async-io",
-@@ -5116,39 +5280,42 @@ dependencies = [
+@@ -5116,39 +5281,42 @@ dependencies = [
   "async-net",
   "async-process",
   "blocking",
@@ -4247,7 +4248,7 @@ index 427e72d3..7327b172 100644
  dependencies = [
   "bitflags 2.13.1",
  ]
-@@ -5159,40 +5326,6 @@ version = "1.2.1"
+@@ -5159,40 +5327,6 @@ version = "1.2.1"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
  
@@ -4288,7 +4289,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "static_assertions"
  version = "1.1.0"
-@@ -5210,40 +5343,18 @@ dependencies = [
+@@ -5210,40 +5344,18 @@ dependencies = [
  
  [[package]]
  name = "strum"
@@ -4334,7 +4335,7 @@ index 427e72d3..7327b172 100644
  dependencies = [
   "heck 0.5.0",
   "proc-macro2",
-@@ -5257,6 +5368,18 @@ version = "2.6.1"
+@@ -5257,6 +5369,18 @@ version = "2.6.1"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
  
@@ -4353,7 +4354,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "sval"
  version = "2.21.1"
-@@ -5344,9 +5467,9 @@ checksum = "0193cc4331cfd2f3d2011ef287590868599a2f33c3e69bc22c1a3d3acf9e02fb"
+@@ -5344,9 +5468,9 @@ checksum = "0193cc4331cfd2f3d2011ef287590868599a2f33c3e69bc22c1a3d3acf9e02fb"
  
  [[package]]
  name = "svgtypes"
@@ -4365,7 +4366,7 @@ index 427e72d3..7327b172 100644
  dependencies = [
   "kurbo",
   "siphasher",
-@@ -5358,22 +5481,11 @@ version = "0.2.10"
+@@ -5358,22 +5482,11 @@ version = "0.2.10"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "6c2499c2d826531388872b2268718aed907a39bd785ab0dcfe57fab26283f92e"
  dependencies = [
@@ -4389,7 +4390,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "syn"
  version = "2.0.119"
-@@ -5396,15 +5508,6 @@ dependencies = [
+@@ -5396,15 +5509,6 @@ dependencies = [
   "unicode-ident",
  ]
  
@@ -4405,7 +4406,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "synstructure"
  version = "0.13.2"
-@@ -5439,45 +5542,18 @@ dependencies = [
+@@ -5439,45 +5543,18 @@ dependencies = [
   "windows 0.57.0",
  ]
  
@@ -4454,7 +4455,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "tao-core-video-sys"
  version = "0.2.0"
-@@ -5490,30 +5566,30 @@ dependencies = [
+@@ -5490,30 +5567,30 @@ dependencies = [
   "objc",
  ]
  
@@ -4498,7 +4499,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "termcolor"
  version = "1.4.1"
-@@ -5563,6 +5639,15 @@ dependencies = [
+@@ -5563,6 +5640,15 @@ dependencies = [
   "syn 3.0.3",
  ]
  
@@ -4514,7 +4515,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "tiff"
  version = "0.11.3"
-@@ -5572,11 +5657,30 @@ dependencies = [
+@@ -5572,11 +5658,30 @@ dependencies = [
   "fax",
   "flate2",
   "half",
@@ -4546,7 +4547,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "tiny-keccak"
  version = "2.0.2"
-@@ -5619,6 +5723,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -5619,6 +5724,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "b1e27c91459209c2986af3dcf603a5a74a4368754ce37414f59acc971167f643"
  dependencies = [
   "displaydoc",
@@ -4554,7 +4555,7 @@ index 427e72d3..7327b172 100644
   "zerovec",
  ]
  
-@@ -5637,56 +5742,6 @@ version = "0.1.1"
+@@ -5637,56 +5743,6 @@ version = "0.1.1"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
  
@@ -4611,7 +4612,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "toml"
  version = "0.8.23"
-@@ -5779,39 +5834,13 @@ version = "1.1.2+spec-1.1.0"
+@@ -5779,39 +5835,13 @@ version = "1.1.2+spec-1.1.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
  
@@ -4652,7 +4653,7 @@ index 427e72d3..7327b172 100644
   "pin-project-lite",
   "tracing-attributes",
   "tracing-core",
-@@ -5835,25 +5864,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -5835,25 +5865,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
  dependencies = [
   "once_cell",
@@ -4698,7 +4699,7 @@ index 427e72d3..7327b172 100644
  
  [[package]]
  name = "ttf-parser"
-@@ -5888,10 +5925,10 @@ dependencies = [
+@@ -5888,10 +5926,10 @@ dependencies = [
  ]
  
  [[package]]
@@ -4712,7 +4713,7 @@ index 427e72d3..7327b172 100644
  
  [[package]]
  name = "unicode-bidi"
-@@ -5899,24 +5936,12 @@ version = "0.3.18"
+@@ -5899,24 +5937,12 @@ version = "0.3.18"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5"
  
@@ -4737,7 +4738,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "unicode-ccc"
  version = "0.4.0"
-@@ -5966,10 +5991,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -5966,10 +5992,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254"
  
  [[package]]
@@ -4751,7 +4752,7 @@ index 427e72d3..7327b172 100644
  
  [[package]]
  name = "url"
-@@ -5981,25 +6006,24 @@ dependencies = [
+@@ -5981,25 +6007,24 @@ dependencies = [
   "idna",
   "percent-encoding",
   "serde",
@@ -4782,7 +4783,7 @@ index 427e72d3..7327b172 100644
   "simplecss",
   "siphasher",
   "strict-num",
-@@ -6011,18 +6035,22 @@ dependencies = [
+@@ -6011,18 +6036,22 @@ dependencies = [
   "xmlwriter",
  ]
  
@@ -4811,7 +4812,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "uuid"
  version = "1.24.1"
-@@ -6047,6 +6075,12 @@ dependencies = [
+@@ -6047,6 +6076,12 @@ dependencies = [
   "wasm-bindgen",
  ]
  
@@ -4824,7 +4825,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "value-bag"
  version = "1.13.2"
-@@ -6083,12 +6117,6 @@ dependencies = [
+@@ -6083,12 +6118,6 @@ dependencies = [
   "sval_serde",
  ]
  
@@ -4837,7 +4838,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "version_check"
  version = "0.9.5"
-@@ -6115,6 +6143,15 @@ dependencies = [
+@@ -6115,6 +6144,15 @@ dependencies = [
   "libc",
  ]
  
@@ -4853,7 +4854,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "waker-fn"
  version = "1.2.0"
-@@ -6131,15 +6168,6 @@ dependencies = [
+@@ -6131,15 +6169,6 @@ dependencies = [
   "winapi-util",
  ]
  
@@ -4869,7 +4870,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "wasi"
  version = "0.11.1+wasi-snapshot-preview1"
-@@ -6211,15 +6239,13 @@ dependencies = [
+@@ -6211,15 +6240,13 @@ dependencies = [
  ]
  
  [[package]]
@@ -4889,7 +4890,7 @@ index 427e72d3..7327b172 100644
   "web-sys",
  ]
  
-@@ -6231,7 +6257,8 @@ checksum = "38a91b4eaddff87b1cd1074985e3713da4af2c49742d1b356b2c01670a67a078"
+@@ -6231,7 +6258,8 @@ checksum = "38a91b4eaddff87b1cd1074985e3713da4af2c49742d1b356b2c01670a67a078"
  dependencies = [
   "cc",
   "downcast-rs",
@@ -4899,7 +4900,7 @@ index 427e72d3..7327b172 100644
   "scoped-tls",
   "smallvec",
   "wayland-sys",
-@@ -6244,7 +6271,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -6244,7 +6272,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "e3c36a0f861ad76d0901f2800b46321410d9f73f2ea88aac0650d86c32688073"
  dependencies = [
   "bitflags 2.13.1",
@@ -4908,7 +4909,7 @@ index 427e72d3..7327b172 100644
   "wayland-backend",
   "wayland-scanner",
  ]
-@@ -6255,16 +6282,16 @@ version = "0.31.14"
+@@ -6255,16 +6283,16 @@ version = "0.31.14"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "4a52d18780be9b1314328a3de5f930b73d2200112e3849ca6cb11822793fb34d"
  dependencies = [
@@ -4928,7 +4929,7 @@ index 427e72d3..7327b172 100644
  dependencies = [
   "bitflags 2.13.1",
   "wayland-backend",
-@@ -6273,27 +6300,28 @@ dependencies = [
+@@ -6273,27 +6301,28 @@ dependencies = [
  ]
  
  [[package]]
@@ -4964,7 +4965,7 @@ index 427e72d3..7327b172 100644
   "wayland-scanner",
  ]
  
-@@ -6321,41 +6349,216 @@ dependencies = [
+@@ -6321,41 +6350,216 @@ dependencies = [
  ]
  
  [[package]]
@@ -5202,7 +5203,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -6396,7 +6599,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -6396,7 +6600,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "12342cb4d8e3b046f3d80effd474a7a02447231330ef77d71daa6fbc40681143"
  dependencies = [
   "windows-core 0.57.0",
@@ -5211,7 +5212,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -6405,11 +6608,23 @@ version = "0.61.3"
+@@ -6405,11 +6609,23 @@ version = "0.61.3"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "9babd3a767a4c1aef6900409f85f5d53ce2544ccdfaa86dad48c91782c6d6893"
  dependencies = [
@@ -5238,7 +5239,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -6422,7 +6637,7 @@ dependencies = [
+@@ -6422,7 +6638,7 @@ dependencies = [
   "rayon",
   "thiserror 2.0.20",
   "windows 0.61.3",
@@ -5247,7 +5248,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -6434,6 +6649,15 @@ dependencies = [
+@@ -6434,6 +6650,15 @@ dependencies = [
   "windows-core 0.61.2",
  ]
  
@@ -5263,7 +5264,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "windows-core"
  version = "0.57.0"
-@@ -6443,7 +6667,7 @@ dependencies = [
+@@ -6443,7 +6668,7 @@ dependencies = [
   "windows-implement 0.57.0",
   "windows-interface 0.57.0",
   "windows-result 0.1.2",
@@ -5272,7 +5273,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -6459,6 +6683,19 @@ dependencies = [
+@@ -6459,6 +6684,19 @@ dependencies = [
   "windows-strings 0.4.2",
  ]
  
@@ -5292,7 +5293,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "windows-future"
  version = "0.2.1"
-@@ -6467,7 +6704,18 @@ checksum = "fc6a41e98427b19fe4b73c550f060b59fa592d7d686537eebf9385621bfbad8e"
+@@ -6467,7 +6705,18 @@ checksum = "fc6a41e98427b19fe4b73c550f060b59fa592d7d686537eebf9385621bfbad8e"
  dependencies = [
   "windows-core 0.61.2",
   "windows-link 0.1.3",
@@ -5312,7 +5313,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -6537,25 +6785,24 @@ dependencies = [
+@@ -6537,25 +6786,24 @@ dependencies = [
  ]
  
  [[package]]
@@ -5348,7 +5349,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -6564,7 +6811,7 @@ version = "0.1.2"
+@@ -6564,7 +6812,7 @@ version = "0.1.2"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "5e383302e8ec8515204254685643de10811af0ed97ea37210dc26fb0032647f8"
  dependencies = [
@@ -5357,7 +5358,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -6577,12 +6824,12 @@ dependencies = [
+@@ -6577,12 +6825,12 @@ dependencies = [
  ]
  
  [[package]]
@@ -5374,7 +5375,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -6595,21 +6842,12 @@ dependencies = [
+@@ -6595,21 +6843,12 @@ dependencies = [
  ]
  
  [[package]]
@@ -5400,7 +5401,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -6618,7 +6856,7 @@ version = "0.59.0"
+@@ -6618,7 +6857,7 @@ version = "0.59.0"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "1e38bc4d79ed67fd075bcc251a1c39b32a1776bbe92e5bef1f0bf1f8c531853b"
  dependencies = [
@@ -5409,7 +5410,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -6630,68 +6868,48 @@ dependencies = [
+@@ -6630,68 +6869,48 @@ dependencies = [
   "windows-link 0.2.1",
  ]
  
@@ -5499,7 +5500,7 @@ index 427e72d3..7327b172 100644
  
  [[package]]
  name = "windows_aarch64_gnullvm"
-@@ -6699,132 +6917,48 @@ version = "0.52.6"
+@@ -6699,132 +6918,48 @@ version = "0.52.6"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "32a4622180e7a0ec044bb555404c800bc9fd9ec262ec147edd5989ccd0c02cd3"
  
@@ -5632,7 +5633,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "winnow"
  version = "0.7.15"
-@@ -6853,12 +6987,6 @@ dependencies = [
+@@ -6853,12 +6988,6 @@ dependencies = [
   "windows-sys 0.59.0",
  ]
  
@@ -5645,7 +5646,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "wio"
  version = "0.2.2"
-@@ -6879,6 +7007,9 @@ name = "writeable"
+@@ -6879,6 +7008,9 @@ name = "writeable"
  version = "0.6.4"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
@@ -5655,7 +5656,7 @@ index 427e72d3..7327b172 100644
  
  [[package]]
  name = "x11"
-@@ -6909,7 +7040,7 @@ dependencies = [
+@@ -6909,7 +7041,7 @@ dependencies = [
   "as-raw-xcb-connection",
   "gethostname",
   "libc",
@@ -5664,7 +5665,7 @@ index 427e72d3..7327b172 100644
   "x11rb-protocol",
   "xcursor",
  ]
-@@ -6920,15 +7051,6 @@ version = "0.13.2"
+@@ -6920,15 +7052,6 @@ version = "0.13.2"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "ea6fc2961e4ef194dcbfe56bb845534d0dc8098940c7e5c012a258bfec6701bd"
  
@@ -5680,7 +5681,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "xcb"
  version = "1.7.1"
-@@ -6950,17 +7072,15 @@ checksum = "163b33ed8786455e2fa5d72f554057ce3f3182425434f756cd39c99839d88e23"
+@@ -6950,17 +7073,15 @@ checksum = "163b33ed8786455e2fa5d72f554057ce3f3182425434f756cd39c99839d88e23"
  [[package]]
  name = "xim-ctext"
  version = "0.3.0"
@@ -5701,7 +5702,7 @@ index 427e72d3..7327b172 100644
  dependencies = [
   "bitflags 2.13.1",
  ]
-@@ -6983,6 +7103,12 @@ version = "0.2.1"
+@@ -6983,6 +7104,12 @@ version = "0.2.1"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "b9cc00251562a284751c9973bace760d86c0276c471b4be569fe6b068ee97a56"
  
@@ -5714,7 +5715,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "xmlwriter"
  version = "0.1.0"
-@@ -7051,13 +7177,13 @@ dependencies = [
+@@ -7051,13 +7178,13 @@ dependencies = [
   "async-trait",
   "blocking",
   "enumflags2",
@@ -5731,7 +5732,7 @@ index 427e72d3..7327b172 100644
   "serde",
   "serde_repr",
   "tracing",
-@@ -7070,6 +7196,30 @@ dependencies = [
+@@ -7070,6 +7197,30 @@ dependencies = [
   "zvariant",
  ]
  
@@ -5762,7 +5763,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "zbus_macros"
  version = "5.19.0"
-@@ -7097,40 +7247,37 @@ dependencies = [
+@@ -7097,40 +7248,37 @@ dependencies = [
  ]
  
  [[package]]
@@ -5815,7 +5816,7 @@ index 427e72d3..7327b172 100644
   "dwrote",
   "float-ord",
   "freetype-sys",
-@@ -7144,61 +7291,10 @@ dependencies = [
+@@ -7144,61 +7292,10 @@ dependencies = [
   "yeslogic-fontconfig-sys",
  ]
  
@@ -5878,7 +5879,7 @@ index 427e72d3..7327b172 100644
  dependencies = [
   "anyhow",
   "cocoa 0.25.0",
-@@ -7219,8 +7315,7 @@ dependencies = [
+@@ -7219,8 +7316,7 @@ dependencies = [
  [[package]]
  name = "zed-xim"
  version = "0.4.0-zed"
@@ -5888,7 +5889,7 @@ index 427e72d3..7327b172 100644
  dependencies = [
   "ahash",
   "hashbrown 0.14.5",
-@@ -7306,6 +7401,7 @@ dependencies = [
+@@ -7306,6 +7402,7 @@ dependencies = [
   "displaydoc",
   "yoke",
   "zerofrom",
@@ -5896,7 +5897,7 @@ index 427e72d3..7327b172 100644
  ]
  
  [[package]]
-@@ -7314,6 +7410,7 @@ version = "0.11.8"
+@@ -7314,6 +7411,7 @@ version = "0.11.8"
  source = "registry+https://github.com/rust-lang/crates.io-index"
  checksum = "bb0464e17806c1d976d5cba29399c7f08e516e279e2ba493f63123b5fca67dd8"
  dependencies = [
@@ -5904,7 +5905,7 @@ index 427e72d3..7327b172 100644
   "yoke",
   "zerofrom",
   "zerovec-derive",
-@@ -7330,12 +7427,39 @@ dependencies = [
+@@ -7330,12 +7428,39 @@ dependencies = [
   "syn 3.0.3",
  ]
  
@@ -5944,7 +5945,7 @@ index 427e72d3..7327b172 100644
  [[package]]
  name = "zune-core"
  version = "0.5.3"
-@@ -7369,7 +7493,7 @@ dependencies = [
+@@ -7369,7 +7494,7 @@ dependencies = [
   "endi",
   "enumflags2",
   "serde",
@@ -5954,7 +5955,7 @@ index 427e72d3..7327b172 100644
   "zcheapstr",
   "zvariant_derive",
 diff --git a/Cargo.toml b/Cargo.toml
-index 50d8738d..37237a13 100644
+index 50d8738d..51aa4f67 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -5,6 +5,7 @@ members = [
@@ -5965,7 +5966,7 @@ index 50d8738d..37237a13 100644
      "gallery",
  ]
  
-@@ -19,12 +20,26 @@ keywords = ["gpui", "gui", "components", "heroui", "desktop"]
+@@ -19,12 +20,27 @@ keywords = ["gpui", "gui", "components", "heroui", "desktop"]
  categories = ["gui"]
  
  [workspace.dependencies]
@@ -5975,6 +5976,7 @@ index 50d8738d..37237a13 100644
 +icu_datetime = { version = "=2.2.0", default-features = false, features = ["compiled_data"] }
 +icu_locale_core = "=2.2.0"
 +locale_config = "=0.3.0"
++web-time = "=1.1.0"
 +gpui = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee" }
 +gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "ee3b5558c581429633937e458fad8d109f29e9ee", features = ["font-kit", "x11", "wayland", "runtime_shaders"] }
 +# "js" is required on wasm32-unknown-unknown: without it, any current-time
@@ -5994,7 +5996,7 @@ index 50d8738d..37237a13 100644
  
  # Lint policy lives here so every crate gets the same one via
  # `lints.workspace = true`; a crate that forgets that line is the only way to
-@@ -95,3 +110,10 @@ incremental = false
+@@ -95,3 +111,10 @@ incremental = false
  
  [profile.dev.package."*"]
  opt-level = 3
@@ -6006,10 +6008,10 @@ index 50d8738d..37237a13 100644
 +codegen-units = 1
 +strip = "symbols"
 diff --git a/crates/herogpui-components/Cargo.toml b/crates/herogpui-components/Cargo.toml
-index 181a5756..0906e7e0 100644
+index 181a5756..ef770ed1 100644
 --- a/crates/herogpui-components/Cargo.toml
 +++ b/crates/herogpui-components/Cargo.toml
-@@ -19,6 +19,10 @@ herogpui-core.workspace = true
+@@ -19,6 +19,11 @@ herogpui-core.workspace = true
  herogpui-theme.workspace = true
  # Local-timezone civil dates for `Date::today` (v3's `today(getLocalTimeZone())`).
  jiff.workspace = true
@@ -6017,6 +6019,7 @@ index 181a5756..0906e7e0 100644
 +icu_datetime.workspace = true
 +icu_locale_core.workspace = true
 +locale_config.workspace = true
++web-time.workspace = true
  
  # `test-support` is what gives the tests a headless platform, a
  # `VisualTestContext` and simulated input -- the only way to assert that a
@@ -9288,9 +9291,18 @@ index c213dd06..7e684f57 100644
                      crate::anim::Motion::DISCLOSURE,
                      cx,
 diff --git a/crates/herogpui-components/src/drawer.rs b/crates/herogpui-components/src/drawer.rs
-index eda76857..f0c010f4 100644
+index eda76857..6eb7b305 100644
 --- a/crates/herogpui-components/src/drawer.rs
 +++ b/crates/herogpui-components/src/drawer.rs
+@@ -8,7 +8,7 @@ use gpui::{
+     SharedString, Styled, Window,
+ };
+ use herogpui_theme::ActiveTheme;
+-use std::time::Instant;
++use web_time::Instant;
+ 
+ use herogpui_core::Backdrop;
+ 
 @@ -199,6 +199,9 @@ impl RenderOnce for Drawer {
              crate::anim::Motion::DRAWER_OUT.ms,
          );
@@ -9313,7 +9325,7 @@ index eda76857..f0c010f4 100644
          // A drag in progress: where it started along the dismissal axis, and how
          // far it has come. `use_keyed_state` takes `cx` mutably, so it precedes
 diff --git a/crates/herogpui-components/src/dropdown.rs b/crates/herogpui-components/src/dropdown.rs
-index d8df4852..1df4d63d 100644
+index d8df4852..da2748a8 100644
 --- a/crates/herogpui-components/src/dropdown.rs
 +++ b/crates/herogpui-components/src/dropdown.rs
 @@ -439,7 +439,7 @@ impl RenderOnce for Menu {
@@ -9352,6 +9364,15 @@ index d8df4852..1df4d63d 100644
              .gap(px(2.))
              .p(px(4.))
              .bg(colors.overlay.background)
+@@ -743,7 +756,7 @@ impl RenderOnce for Menu {
+                         if !crate::list_nav::is_typeahead_key(key) {
+                             return;
+                         }
+-                        let now = std::time::Instant::now();
++                        let now = web_time::Instant::now();
+                         let (query, repeat) = typed_keys.update(cx, |t, _| {
+                             let query = t.push(key, now);
+                             (query, t.is_repeat())
 @@ -815,6 +828,9 @@ impl RenderOnce for Menu {
                          .id(gpui::ElementId::Name(format!("{base}-item-{i}").into()))
                          .relative()
@@ -10302,7 +10323,7 @@ index 3ac09a82..0787e3a9 100644
  pub mod modal;
  pub mod number_field;
 diff --git a/crates/herogpui-components/src/link.rs b/crates/herogpui-components/src/link.rs
-index ada6b895..62af6573 100644
+index ada6b895..cb0cd2f9 100644
 --- a/crates/herogpui-components/src/link.rs
 +++ b/crates/herogpui-components/src/link.rs
 @@ -1,12 +1,17 @@
@@ -10473,7 +10494,7 @@ index ada6b895..62af6573 100644
          if interactive {
              el = crate::util::ring_if_focused(
                  el.track_focus(&focus),
-@@ -145,42 +229,78 @@ impl RenderOnce for Link {
+@@ -145,42 +229,76 @@ impl RenderOnce for Link {
          }
  
          if self.is_disabled {
@@ -10496,8 +10517,7 @@ index ada6b895..62af6573 100644
 -                        .border_color(hover_color)
 -                        .border_b_1()
 +                .hover(move |mut s: StyleRefinement| {
-+                    s.text_style()
-+                        .underline = Some(underline(hover_decoration));
++                    s.text_style().underline = Some(underline(hover_decoration));
 +                    s
                  })
 -                // `.link[data-pressed]` keeps the underline and takes the muted
@@ -10508,8 +10528,7 @@ index ada6b895..62af6573 100644
 -                        .border_b_1()
 -                        .opacity(0.85)
 +                .active(move |mut s: StyleRefinement| {
-+                    s.text_style()
-+                        .underline = Some(underline(pressed_decoration));
++                    s.text_style().underline = Some(underline(pressed_decoration));
 +                    s
                  });
          }
@@ -10579,7 +10598,7 @@ index ada6b895..62af6573 100644
  
          if !self.is_disabled {
 diff --git a/crates/herogpui-components/src/list_box.rs b/crates/herogpui-components/src/list_box.rs
-index 81d4e2e9..8a38d440 100644
+index 81d4e2e9..c6631aef 100644
 --- a/crates/herogpui-components/src/list_box.rs
 +++ b/crates/herogpui-components/src/list_box.rs
 @@ -1,6 +1,7 @@
@@ -10674,6 +10693,15 @@ index 81d4e2e9..8a38d440 100644
                      && crate::selection::reports_changes(mode)
                      && !disallow_empty
                      && !selected_now.is_empty()
+@@ -998,7 +1014,7 @@ impl RenderOnce for ListBox {
+                         if !crate::list_nav::is_typeahead_key(key) {
+                             return;
+                         }
+-                        let now = std::time::Instant::now();
++                        let now = web_time::Instant::now();
+                         let (query, repeat) = typed_keys.update(cx, |t, _| {
+                             let query = t.push(key, now);
+                             (query, t.is_repeat())
 @@ -1114,7 +1130,7 @@ impl RenderOnce for ListBox {
                                  .collect::<Vec<_>>()
                          },
@@ -10693,6 +10721,46 @@ index 81d4e2e9..8a38d440 100644
                              .child(div().child(label.to_string()))
                              .when_some(description.clone(), |el, d| {
                                  el.child(
+diff --git a/crates/herogpui-components/src/list_nav.rs b/crates/herogpui-components/src/list_nav.rs
+index dfd83ee0..fdca42d3 100644
+--- a/crates/herogpui-components/src/list_nav.rs
++++ b/crates/herogpui-components/src/list_nav.rs
+@@ -86,7 +86,7 @@ pub const TYPEAHEAD_TIMEOUT: std::time::Duration = std::time::Duration::from_mil
+ #[derive(Clone, Debug, Default)]
+ pub struct Typeahead {
+     query: String,
+-    last: Option<std::time::Instant>,
++    last: Option<web_time::Instant>,
+ }
+ 
+ impl Typeahead {
+@@ -95,7 +95,7 @@ impl Typeahead {
+     /// Repeating one letter is not a two-letter search: React Aria treats
+     /// `aa` as "the next row starting with a", which is how a list of names is
+     /// walked by initial.
+-    pub fn push(&mut self, key: &str, now: std::time::Instant) -> String {
++    pub fn push(&mut self, key: &str, now: web_time::Instant) -> String {
+         let stale = self
+             .last
+             .is_none_or(|last| now.duration_since(last) > TYPEAHEAD_TIMEOUT);
+@@ -264,7 +264,7 @@ mod tests {
+     #[test]
+     fn the_buffer_clears_after_the_timeout() {
+         let mut ta = Typeahead::default();
+-        let t0 = std::time::Instant::now();
++        let t0 = web_time::Instant::now();
+         assert_eq!(ta.push("d", t0), "d");
+         assert_eq!(
+             ta.push("e", t0 + std::time::Duration::from_millis(200)),
+@@ -277,7 +277,7 @@ mod tests {
+     #[test]
+     fn a_repeated_letter_is_not_a_two_letter_search() {
+         let mut ta = Typeahead::default();
+-        let t0 = std::time::Instant::now();
++        let t0 = web_time::Instant::now();
+         assert_eq!(ta.push("b", t0), "b");
+         assert_eq!(
+             ta.push("b", t0 + std::time::Duration::from_millis(100)),
 diff --git a/crates/herogpui-components/src/matches.rs b/crates/herogpui-components/src/matches.rs
 new file mode 100644
 index 00000000..afdca727
@@ -11699,7 +11767,7 @@ index 4525f723..87a522e0 100644
          };
          let (past_start, before_end) = (
 diff --git a/crates/herogpui-components/src/select.rs b/crates/herogpui-components/src/select.rs
-index 753f8e92..571166c3 100644
+index 753f8e92..fbe4f573 100644
 --- a/crates/herogpui-components/src/select.rs
 +++ b/crates/herogpui-components/src/select.rs
 @@ -711,8 +711,8 @@ impl RenderOnce for Select {
@@ -11713,6 +11781,24 @@ index 753f8e92..571166c3 100644
                  })
                  .on_key_down(move |event, window, cx| {
                      let key = event.keystroke.key.as_str();
+@@ -749,7 +749,7 @@ impl RenderOnce for Select {
+                         if !crate::list_nav::is_typeahead_key(key) {
+                             return;
+                         }
+-                        let now = std::time::Instant::now();
++                        let now = web_time::Instant::now();
+                         let (query, repeat) = typed.update(cx, |t, _| {
+                             let query = t.push(key, now);
+                             (query, t.is_repeat())
+@@ -1010,7 +1010,7 @@ impl RenderOnce for Select {
+                             if !crate::list_nav::is_typeahead_key(key) {
+                                 return;
+                             }
+-                            let now = std::time::Instant::now();
++                            let now = web_time::Instant::now();
+                             let (query, repeat) = typed.update(cx, |t, _| {
+                                 let query = t.push(key, now);
+                                 (query, t.is_repeat())
 @@ -1377,7 +1377,7 @@ impl RenderOnce for Select {
                                  // on the row and deafen the trigger's key
                                  // handler; the trigger is what holds focus so
@@ -12148,7 +12234,7 @@ index 76d363c8..d890e556 100644
                  .child(label)
                  .when(self.is_required, |r| {
 diff --git a/crates/herogpui-components/src/table.rs b/crates/herogpui-components/src/table.rs
-index a97e013d..16818848 100644
+index a97e013d..c2235767 100644
 --- a/crates/herogpui-components/src/table.rs
 +++ b/crates/herogpui-components/src/table.rs
 @@ -21,6 +21,7 @@ type OnRowClick = std::sync::Arc<dyn Fn(usize, &ClickEvent, &mut Window, &mut Ap
@@ -12194,6 +12280,41 @@ index a97e013d..16818848 100644
          self.width = Some(width.into());
          self
      }
+@@ -267,7 +277,7 @@ enum RowIntent {
+ #[derive(Clone, Debug, Default)]
+ struct TableTypeahead {
+     query: String,
+-    last: Option<std::time::Instant>,
++    last: Option<web_time::Instant>,
+ }
+ 
+ #[derive(Clone, Debug, Default)]
+@@ -278,14 +288,14 @@ struct TableSelectionRange {
+ }
+ 
+ impl TableTypeahead {
+-    fn is_active(&self, now: std::time::Instant) -> bool {
++    fn is_active(&self, now: web_time::Instant) -> bool {
+         !self.query.is_empty()
+             && self
+                 .last
+                 .is_some_and(|last| now.duration_since(last) <= crate::list_nav::TYPEAHEAD_TIMEOUT)
+     }
+ 
+-    fn push(&mut self, key: &str, now: std::time::Instant) -> String {
++    fn push(&mut self, key: &str, now: web_time::Instant) -> String {
+         if self
+             .last
+             .is_none_or(|last| now.duration_since(last) > crate::list_nav::TYPEAHEAD_TIMEOUT)
+@@ -321,7 +331,7 @@ impl TableTypeaheadNavigation {
+     fn push(
+         &self,
+         character: &str,
+-        now: std::time::Instant,
++        now: web_time::Instant,
+         clear_on_failure: bool,
+         cx: &mut App,
+     ) -> bool {
 @@ -550,6 +560,9 @@ pub struct Table {
      on_selection_change: Option<OnSelectionChange>,
      on_sort_change: Option<OnSortChange>,
@@ -12537,7 +12658,53 @@ index a97e013d..16818848 100644
                  .iter()
                  .map(|(_, key, _)| key.clone())
                  .collect::<Vec<_>>()
-@@ -1123,11 +1358,13 @@ impl RenderOnce for Table {
+@@ -1055,27 +1290,31 @@ impl RenderOnce for Table {
+         // matters. Created before the theme: `use_keyed_state` takes `cx`
+         // mutably and `cx.colors()` holds a borrow.
+         let sortable = self.on_sort_change.is_some();
+-        let sort_focus: Vec<Option<gpui::FocusHandle>> = self
++        // Every column header is focusable, not just the sortable ones: v3's
++        // PageUp leaves the body for the first column header whatever it is.
++        // Only a sortable header is a *tab stop*, though -- it has to be, so
++        // Enter and Space can sort it -- which keeps every table's Tab order
++        // exactly as it was while giving the keyboard somewhere to land.
++        let header_focus: Vec<gpui::FocusHandle> = self
+             .columns
+             .iter()
+-            .map(|c| c.allows_sorting && sortable)
+-            .collect::<Vec<_>>()
+-            .into_iter()
+             .enumerate()
+-            .map(|(i, is_sortable)| {
+-                is_sortable.then(|| {
+-                    crate::util::tab_stop_handle(
+-                        gpui::ElementId::Name(format!("{}-sort-{i}-focus", self.id).into()),
+-                        window,
+-                        cx,
+-                    )
+-                })
++            .map(|(i, column)| {
++                let id = gpui::ElementId::Name(format!("{}-sort-{i}-focus", self.id).into());
++                if column.allows_sorting && sortable {
++                    crate::util::tab_stop_handle(id, window, cx)
++                } else {
++                    window
++                        .use_keyed_state(id, cx, |_, cx| cx.focus_handle())
++                        .read(cx)
++                        .clone()
++                }
+             })
+             .collect();
+         let ring_visible = crate::util::focus_visible(cx);
+-        let sort_focused: Vec<bool> = sort_focus
++        let header_focused: Vec<bool> = header_focus
+             .iter()
+-            .map(|h| h.as_ref().is_some_and(|h| h.is_focused(window)) && ring_visible)
++            .map(|h| h.is_focused(window) && ring_visible)
+             .collect();
+         let resize_focus: Vec<Option<gpui::FocusHandle>> = self
+             .columns
+@@ -1123,11 +1362,13 @@ impl RenderOnce for Table {
              .iter()
              .enumerate()
              .map(|(column_index, column)| {
@@ -12556,7 +12723,7 @@ index a97e013d..16818848 100644
                  if column.allows_resizing {
                      let (min, max) = resize_limits[column_index];
                      width.map(|width| px(f32::from(width).floor().min(max).max(min)))
-@@ -1152,24 +1389,39 @@ impl RenderOnce for Table {
+@@ -1152,24 +1393,39 @@ impl RenderOnce for Table {
                  }
              })
              .collect();
@@ -12603,7 +12770,7 @@ index a97e013d..16818848 100644
          };
  
          let mut wrapper = gpui::div()
-@@ -1214,7 +1466,7 @@ impl RenderOnce for Table {
+@@ -1214,7 +1470,7 @@ impl RenderOnce for Table {
          let mut header = gpui::div()
              .flex()
              .border_b_1()
@@ -12612,7 +12779,7 @@ index a97e013d..16818848 100644
              .when(!secondary, |h| h.bg(colors.surface_secondary));
  
          if selectable {
-@@ -1229,8 +1481,12 @@ impl RenderOnce for Table {
+@@ -1229,8 +1485,12 @@ impl RenderOnce for Table {
              if self.selection_mode == SelectionMode::Multiple {
                  // The `Mod+A` keydown handler reads the same set, so it gets a
                  // clone rather than the variable itself.
@@ -12627,7 +12794,7 @@ index a97e013d..16818848 100644
                  let mut box_el = Checkbox::new(gpui::ElementId::Name(
                      format!("{}-select-all", self.id).into(),
                  ))
-@@ -1245,7 +1501,7 @@ impl RenderOnce for Table {
+@@ -1245,7 +1505,7 @@ impl RenderOnce for Table {
                          let next: Vec<SharedString> = if all_selected {
                              Vec::new()
                          } else {
@@ -12636,7 +12803,7 @@ index a97e013d..16818848 100644
                          };
                          if let Some(held) = &selection_own {
                              held.update(cx, |value, cx| {
-@@ -1293,13 +1549,13 @@ impl RenderOnce for Table {
+@@ -1293,13 +1553,13 @@ impl RenderOnce for Table {
                  .px(px(16.))
                  .py(px(10.))
                  .text_size(px(12.))
@@ -12652,7 +12819,44 @@ index a97e013d..16818848 100644
  
              if let Some(descriptor) = sorted {
                  if self.show_indicator {
-@@ -1367,8 +1623,12 @@ impl RenderOnce for Table {
+@@ -1338,9 +1598,7 @@ impl RenderOnce for Table {
+                         .cursor_pointer()
+                         // The focus is what makes Enter and Space sort: gpui
+                         // fires a *focused* element's click listeners for them.
+-                        .when_some(sort_focus[column_index].as_ref(), |c, handle| {
+-                            c.track_focus(handle)
+-                        })
++                        .track_focus(&header_focus[column_index])
+                         .on_click(move |_, window, cx| cb(next.clone(), window, cx))
+                         .child(cell.group_hover(sort_group, |s| s.text_color(colors.foreground)));
+                     // `.table__column` rings *inside* itself: the next column
+@@ -1348,12 +1606,23 @@ impl RenderOnce for Table {
+                     // through the transparent cell and filled it.
+                     header_cell
+                         .relative()
+-                        .when(sort_focused[column_index], |c| {
++                        .when(header_focused[column_index], |c| {
+                             c.child(crate::util::inset_focus_ring(cx))
+                         })
+                         .into_any_element()
+                 }
+-                _ => cell.into_any_element(),
++                // Not sortable, so nothing to press -- but still focusable, so
++                // PageUp has a header to land on, and it rings when it does.
++                _ => cell
++                    .id(gpui::ElementId::Name(
++                        format!("table-header-{column_index}").into(),
++                    ))
++                    .track_focus(&header_focus[column_index])
++                    .relative()
++                    .when(header_focused[column_index], |c| {
++                        c.child(crate::util::inset_focus_ring(cx))
++                    })
++                    .into_any_element(),
+             };
+ 
+             // `allowsResizing` puts a handle on the column's trailing edge. The
+@@ -1367,8 +1636,12 @@ impl RenderOnce for Table {
                      .unwrap_or(px(160.));
                  let keyboard = keyboard_resizing.clone();
                  let keyboard_out = keyboard.clone();
@@ -12665,7 +12869,7 @@ index a97e013d..16818848 100644
                  let focus_for_mouse = resize_focus[column_index]
                      .as_ref()
                      .expect("resizable columns have a focus handle")
-@@ -1379,6 +1639,18 @@ impl RenderOnce for Table {
+@@ -1379,6 +1652,18 @@ impl RenderOnce for Table {
                  let is_resizing = drag_now.is_some_and(|(index, _, _)| index == column_index)
                      || keyboard_resize_now == Some(column_index);
                  let measured = measured_widths.clone();
@@ -12684,7 +12888,7 @@ index a97e013d..16818848 100644
                  gpui::div()
                      .relative()
                      .when(effective.is_none(), flex_cell)
-@@ -1447,43 +1719,136 @@ impl RenderOnce for Table {
+@@ -1447,43 +1732,136 @@ impl RenderOnce for Table {
                              )
                              .cursor(gpui::CursorStyle::ResizeLeftRight)
                              .on_mouse_down(gpui::MouseButton::Left, move |ev, window, cx| {
@@ -12836,7 +13040,7 @@ index a97e013d..16818848 100644
                                          cx.stop_propagation();
                                      }
                                      "right" | "up" | "left" | "down" if editing => {
-@@ -1492,18 +1857,33 @@ impl RenderOnce for Table {
+@@ -1492,18 +1870,33 @@ impl RenderOnce for Table {
                                          } else {
                                              -10.
                                          };
@@ -12872,7 +13076,7 @@ index a97e013d..16818848 100644
                                          cx.stop_propagation();
                                      }
                                      _ => {}
-@@ -1528,34 +1908,106 @@ impl RenderOnce for Table {
+@@ -1528,34 +1921,106 @@ impl RenderOnce for Table {
                  .overflow_hidden();
          }
  
@@ -13003,7 +13207,7 @@ index a97e013d..16818848 100644
          }
          // ---- rows --------------------------------------------------------
          // Depth-first, and only through the parents that are open: a nested row
-@@ -1598,8 +2050,9 @@ impl RenderOnce for Table {
+@@ -1598,8 +2063,9 @@ impl RenderOnce for Table {
                      .map(|(_, _, has_children, _, parent)| (*has_children, parent.clone()))
                      .collect()
              },
@@ -13015,7 +13219,7 @@ index a97e013d..16818848 100644
                      .iter()
                      .map(|(_, _, metadata)| (metadata.has_children, metadata.parent_key.clone()))
                      .collect()
-@@ -1620,8 +2073,9 @@ impl RenderOnce for Table {
+@@ -1620,8 +2086,9 @@ impl RenderOnce for Table {
              },
              |_| Vec::new(),
          );
@@ -13027,7 +13231,7 @@ index a97e013d..16818848 100644
                  .iter()
                  .map(|(source_index, _, _)| *source_index)
                  .collect::<Vec<_>>()
-@@ -1654,7 +2108,12 @@ impl RenderOnce for Table {
+@@ -1654,7 +2121,12 @@ impl RenderOnce for Table {
          // keeps its cells flush, rather than reserving a chevron's width.
          let tree_column_has_children = virtual_projection.as_ref().map_or_else(
              || flat.iter().any(|(_, _, has, _, _)| *has),
@@ -13041,7 +13245,45 @@ index a97e013d..16818848 100644
          );
          let expanded_keys = std::rc::Rc::new(std::mem::take(&mut self.expanded_keys));
  
-@@ -1836,16 +2295,21 @@ impl RenderOnce for Table {
+@@ -1757,7 +2229,7 @@ impl RenderOnce for Table {
+                     let key_name = event.keystroke.key.as_str();
+                     let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
+                     let modifiers = &event.keystroke.modifiers;
+-                    let now = std::time::Instant::now();
++                    let now = web_time::Instant::now();
+                     let is_space = key_name == "space" || typed == " ";
+                     if is_space
+                         && capture_typeahead.state.read(cx).is_active(now)
+@@ -1781,7 +2253,7 @@ impl RenderOnce for Table {
+                         && capture_typeahead_up
+                             .state
+                             .read(cx)
+-                            .is_active(std::time::Instant::now())
++                            .is_active(web_time::Instant::now())
+                         && !modifiers.control
+                         && !modifiers.platform
+                         && !modifiers.alt
+@@ -1790,6 +2262,10 @@ impl RenderOnce for Table {
+                     }
+                 });
+                 let key_typeahead = typeahead_navigation;
++                // The header PageUp hands the focus to. Cloned out because the
++                // handler outlives this frame's `header_focus`.
++                let page_up_header = header_focus.first().cloned();
++                let headers_for_keys = header_focus;
+                 wrapper = wrapper.on_key_down(move |event, window, cx| {
+                     if !table_focus_for_keys.contains_focused(window, cx) {
+                         return;
+@@ -1805,7 +2281,7 @@ impl RenderOnce for Table {
+                     let key_name = event.keystroke.key.as_str();
+                     let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
+                     let modifiers = &event.keystroke.modifiers;
+-                    let now = std::time::Instant::now();
++                    let now = web_time::Instant::now();
+                     let is_space = key_name == "space" || typed == " ";
+                     let is_character = {
+                         let mut chars = key_name.chars();
+@@ -1836,16 +2312,21 @@ impl RenderOnce for Table {
                          }
                          && mode == SelectionMode::Multiple
                      {
@@ -13066,7 +13308,58 @@ index a97e013d..16818848 100644
                              if let Some(held) = &selection_own_for_keys {
                                  held.update(cx, |value, cx| {
                                      *value = next.clone();
-@@ -2096,7 +2560,10 @@ impl RenderOnce for Table {
+@@ -1868,6 +2349,26 @@ impl RenderOnce for Table {
+                     // Other collection keys belong only to the body's roving
+                     // focus stop. A nested cell action must keep its own Enter
+                     // and Space handling even though Mod+A bubbles to the root.
++                    if plain_rows
++                        && headers_for_keys
++                            .iter()
++                            .any(|header| header.is_focused(window))
++                    {
++                        let next = match key_name {
++                            "down" => stops.first(),
++                            "pagedown" => stops.last(),
++                            _ => None,
++                        };
++                        if let Some(next) = next {
++                            held.update(cx, |value, cx| {
++                                *value = Some(keys[*next].clone());
++                                cx.notify();
++                            });
++                            window.focus(&table_focus_for_keys, cx);
++                            cx.stop_propagation();
++                        }
++                        return;
++                    }
+                     if !table_focus_for_keys.is_focused(window) {
+                         return;
+                     }
+@@ -2018,12 +2519,20 @@ impl RenderOnce for Table {
+                     let is_variable_page =
+                         fixed_page_move.is_none() && variable_page_move.is_some();
+                     // Pinned TableKeyboardDelegate sends PageDown to the last
+-                    // enabled row. Its PageUp enters the first column header;
+-                    // this split focus model falls back to the first row.
++                    // enabled row, and PageUp out of the body entirely, into
++                    // the first column header. The header is focusable whether
++                    // or not it sorts, so this leaves the body rather than
++                    // stopping at its first row.
++                    if plain_rows && key_name == "pageup" {
++                        if let Some(header) = &page_up_header {
++                            window.focus(header, cx);
++                            cx.stop_propagation();
++                            return;
++                        }
++                    }
+                     let plain_page_move =
+                         from.filter(|_| plain_rows).and_then(|_| match key_name {
+                             "pagedown" => stops.last().copied(),
+-                            "pageup" => stops.first().copied(),
+                             _ => None,
+                         });
+                     let page_move = fixed_page_move
+@@ -2096,7 +2605,10 @@ impl RenderOnce for Table {
                                      let next_selection = extend_selection_range(
                                          &selected_now,
                                          &keys,
@@ -13078,7 +13371,7 @@ index a97e013d..16818848 100644
                                          &range,
                                          target,
                                      );
-@@ -2169,7 +2636,10 @@ impl RenderOnce for Table {
+@@ -2169,7 +2681,10 @@ impl RenderOnce for Table {
                                              extend_selection_range(
                                                  &selected_now,
                                                  &keys,
@@ -13090,7 +13383,7 @@ index a97e013d..16818848 100644
                                                  &range,
                                                  key,
                                              )
-@@ -2239,7 +2709,7 @@ impl RenderOnce for Table {
+@@ -2239,7 +2754,7 @@ impl RenderOnce for Table {
          };
          let virtual_projection = std::rc::Rc::new(
              virtual_projection
@@ -13099,7 +13392,7 @@ index a97e013d..16818848 100644
                  .unwrap_or_default(),
          );
  
-@@ -2276,7 +2746,7 @@ impl RenderOnce for Table {
+@@ -2276,7 +2791,7 @@ impl RenderOnce for Table {
                              .collect::<Vec<_>>()
                      },
                  )
@@ -13108,7 +13401,7 @@ index a97e013d..16818848 100644
                  .h(height)
                  .w_full(),
              );
-@@ -2524,7 +2994,8 @@ impl RowCtx {
+@@ -2524,7 +3039,8 @@ impl RowCtx {
      /// from.
      #[allow(clippy::too_many_arguments)]
      /// One `.table__row`: `relative h-full` with a `border-separator/50`
@@ -13118,7 +13411,7 @@ index a97e013d..16818848 100644
      fn row(
          &self,
          i: usize,
-@@ -2551,9 +3022,10 @@ impl RowCtx {
+@@ -2551,9 +3067,10 @@ impl RowCtx {
              // is true of both virtual paths, so it is not conditional on the
              // fixed height any more -- `gpui::list`'s rows have none.
              .w_full()
@@ -13132,7 +13425,7 @@ index a97e013d..16818848 100644
  
          if self.selectable {
              let mut cell = gpui::div()
-@@ -2684,7 +3156,7 @@ impl RowCtx {
+@@ -2684,7 +3201,7 @@ impl RowCtx {
                                      next.push(key.clone());
                                  }
                                  cb(&next, window, cx);
@@ -13141,7 +13434,7 @@ index a97e013d..16818848 100644
                                  cursor.update(cx, |value, cx| {
                                      *value = Some(key.clone());
                                      cx.notify();
-@@ -2752,7 +3224,7 @@ impl RowCtx {
+@@ -2752,7 +3269,7 @@ impl RowCtx {
                      if window.default_prevented() {
                          return;
                      }
@@ -13150,7 +13443,7 @@ index a97e013d..16818848 100644
                      moved.update(cx, |value, cx| {
                          *value = Some(key_for_cursor.clone());
                          cx.notify();
-@@ -3086,4 +3558,68 @@ mod tests {
+@@ -3086,4 +3603,68 @@ mod tests {
              "the selected row must not paint a role soft wash"
          );
      }
@@ -13220,7 +13513,7 @@ index a97e013d..16818848 100644
 +    }
  }
 diff --git a/crates/herogpui-components/src/tabs.rs b/crates/herogpui-components/src/tabs.rs
-index 04bbd81e..0af0af3a 100644
+index 04bbd81e..ec2d9a62 100644
 --- a/crates/herogpui-components/src/tabs.rs
 +++ b/crates/herogpui-components/src/tabs.rs
 @@ -117,7 +117,7 @@ fn indicator_motion(
@@ -13232,16 +13525,18 @@ index 04bbd81e..0af0af3a 100644
          current.from = target;
          current.rect.set(target);
          state.update(cx, |stored, _| *stored = current.clone());
-@@ -127,7 +127,7 @@ fn indicator_motion(
+@@ -127,7 +127,9 @@ fn indicator_motion(
          from: current.from,
          to: target,
          rect: current.rect,
 -        animate: current.generation != 0 && !cx.reduce_motion() && current.from != target,
-+        animate: current.generation != 0 && !ActiveTheme::reduce_motion(cx) && current.from != target,
++        animate: current.generation != 0
++            && !ActiveTheme::reduce_motion(cx)
++            && current.from != target,
      }
  }
  
-@@ -286,7 +286,7 @@ fn separator_motion(
+@@ -286,7 +288,7 @@ fn separator_motion(
          current.from = current.opacity.get();
          state.update(cx, |stored, _| *stored = current.clone());
      }
@@ -13250,7 +13545,7 @@ index 04bbd81e..0af0af3a 100644
          current.from = target;
          current.opacity.set(target);
          state.update(cx, |stored, _| *stored = current.clone());
-@@ -297,7 +297,7 @@ fn separator_motion(
+@@ -297,7 +299,7 @@ fn separator_motion(
          to: target,
          opacity: current.opacity,
          animate: current.generation != 0
@@ -13259,7 +13554,7 @@ index 04bbd81e..0af0af3a 100644
              && (current.from - target).abs() > f32::EPSILON,
      }
  }
-@@ -627,7 +627,7 @@ impl RenderOnce for Tabs {
+@@ -627,7 +629,7 @@ impl RenderOnce for Tabs {
              .read(cx)
              .clone();
          if recover_replaced_panel_focus {
@@ -13268,7 +13563,7 @@ index 04bbd81e..0af0af3a 100644
          }
          let has_enabled_tab = !self.is_disabled && self.items.iter().any(|item| !item.is_disabled);
          let mut separator_motions = self
-@@ -874,7 +874,7 @@ impl RenderOnce for Tabs {
+@@ -874,7 +876,7 @@ impl RenderOnce for Tabs {
                          let list_focus_after_pointer = list_focus_for_click.clone();
                          let select: Rc<dyn Fn(&mut Window, &mut App)> =
                              Rc::new(move |window, cx| {
@@ -13277,7 +13572,7 @@ index 04bbd81e..0af0af3a 100644
                                  focus.update(cx, |state, cx| {
                                      state.key = key.clone();
                                      cx.notify();
-@@ -896,7 +896,7 @@ impl RenderOnce for Tabs {
+@@ -896,7 +898,7 @@ impl RenderOnce for Tabs {
                              .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
                                  pointer_select(window, cx);
                                  let list_focus = list_focus_after_pointer.clone();
@@ -13286,7 +13581,7 @@ index 04bbd81e..0af0af3a 100644
                              })
                              .on_click(move |event, window, cx| {
                                  if matches!(event, gpui::ClickEvent::Keyboard(_)) {
-@@ -1031,7 +1031,7 @@ impl RenderOnce for Tabs {
+@@ -1031,7 +1033,7 @@ impl RenderOnce for Tabs {
                          let list_focus_after_pointer = list_focus_for_click.clone();
                          let select: Rc<dyn Fn(&mut Window, &mut App)> =
                              Rc::new(move |window, cx| {
@@ -13295,7 +13590,7 @@ index 04bbd81e..0af0af3a 100644
                                  focus.update(cx, |state, cx| {
                                      state.key = key.clone();
                                      cx.notify();
-@@ -1053,7 +1053,7 @@ impl RenderOnce for Tabs {
+@@ -1053,7 +1055,7 @@ impl RenderOnce for Tabs {
                              .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
                                  pointer_select(window, cx);
                                  let list_focus = list_focus_after_pointer.clone();
@@ -13304,7 +13599,7 @@ index 04bbd81e..0af0af3a 100644
                              })
                              .on_click(move |event, window, cx| {
                                  if matches!(event, gpui::ClickEvent::Keyboard(_)) {
-@@ -1087,12 +1087,12 @@ impl RenderOnce for Tabs {
+@@ -1087,12 +1089,12 @@ impl RenderOnce for Tabs {
                  // The wrapper is a real stop so reverse traversal can reach a
                  // plain panel. Probe one stop past it: a child stays inside;
                  // otherwise reclaim the wrapper as the correct destination.
@@ -13320,7 +13615,7 @@ index 04bbd81e..0af0af3a 100644
                  }
              });
          }
-@@ -1192,12 +1192,12 @@ impl RenderOnce for Tabs {
+@@ -1192,12 +1194,12 @@ impl RenderOnce for Tabs {
                          let next = if vertical {
                              (
                                  f32::from(offset.y) < -0.5,
@@ -13335,7 +13630,7 @@ index 04bbd81e..0af0af3a 100644
                              )
                          };
                          if *measured.read(cx) != next {
-@@ -1286,11 +1286,11 @@ impl RenderOnce for Tabs {
+@@ -1286,11 +1288,11 @@ impl RenderOnce for Tabs {
                                  // should land on it when moving backward.
                                  let skip_panel = !panel_focus_for_keys.is_focused(window)
                                      && window.focused(cx).is_some_and(|handle| handle.tab_stop);
@@ -13350,7 +13645,7 @@ index 04bbd81e..0af0af3a 100644
                                      }
                                  }
                              } else if probe_on_key_up
-@@ -1302,13 +1302,13 @@ impl RenderOnce for Tabs {
+@@ -1302,13 +1304,13 @@ impl RenderOnce for Tabs {
                                  // the child it stands in for and then one real
                                  // step, skipping the wrapper again on wrap.
                                  cx.stop_propagation();
@@ -13367,7 +13662,7 @@ index 04bbd81e..0af0af3a 100644
                                      }
                                  }
                              }
-@@ -1324,9 +1324,9 @@ impl RenderOnce for Tabs {
+@@ -1324,9 +1326,9 @@ impl RenderOnce for Tabs {
                              // An all-disabled list has no focused tab whose
                              // key-down can run the forward probe. Tab key-up is
                              // delivered to the wrapper it just reached.
@@ -15739,6 +16034,90 @@ index 4cf8efaf..60906967 100644
      flush_frame(cx);
      press(cx, "down");
      press(cx, "tab");
+diff --git a/crates/herogpui-components/tests/table_tabs_accordion.rs b/crates/herogpui-components/tests/table_tabs_accordion.rs
+index 7446367b..6fa09fa1 100644
+--- a/crates/herogpui-components/tests/table_tabs_accordion.rs
++++ b/crates/herogpui-components/tests/table_tabs_accordion.rs
+@@ -211,8 +211,11 @@ fn table_keyboard_rows_rove_and_activate(cx: &mut TestAppContext) {
+ }
+ 
+ /// Pinned React Aria 3.51's Table delegate sends PageDown to the last enabled
+-/// row. Its PageUp enters the first column header; this port's split header/body
+-/// focus model falls back to the first enabled row instead.
++/// row, and PageUp out of the body into the first column header.
++///
++/// The header is focusable whether or not it sorts, so PageUp leaves the body
++/// rather than stopping at its first row: the cursor stays where PageDown put
++/// it, and Enter no longer reaches the body at all.
+ #[gpui::test]
+ fn table_page_keys_rove_a_plain_body_to_its_ends(cx: &mut TestAppContext) {
+     let recorded = events();
+@@ -235,15 +238,63 @@ fn table_page_keys_rove_a_plain_body_to_its_ends(cx: &mut TestAppContext) {
+     press(cx, "down");
+     press(cx, "pagedown");
+     press(cx, "enter");
++    assert_eq!(
++        recorded.borrow().as_slice(),
++        ["row:2"],
++        "PageDown must reach the last enabled row of a plain Table body"
++    );
++
++    // PageUp leaves the body. The proof is that Enter no longer activates a
++    // row: the focus is on the header, not on the cursor it left behind.
+     press(cx, "pageup");
+     press(cx, "enter");
+     assert_eq!(
+         recorded.borrow().as_slice(),
+-        ["row:2", "row:1"],
+-        "PageDown and PageUp must reach the enabled ends of a plain Table body"
++        ["row:2"],
++        "PageUp must move the focus into the first column header, so Enter no          longer reaches the row the cursor was left on"
++    );
++    press(cx, "pagedown");
++    press(cx, "enter");
++    press(cx, "pageup");
++    press(cx, "down");
++    press(cx, "enter");
++    assert_eq!(
++        recorded.borrow().as_slice(),
++        ["row:2", "row:2", "row:1"],
++        "PageDown and Down from a header must reach the last and first enabled body rows"
+     );
+ }
+ 
++#[gpui::test]
++fn table_focusable_header_preserves_fixed_column_width(cx: &mut TestAppContext) {
++    let recorded = events();
++    let for_view = recorded.clone();
++    let cx = open_host(cx, move || {
++        let recorded = for_view.clone();
++        gpui::div()
++            .w(px(800.))
++            .child(
++                Table::new(vec![])
++                    .id("tbl-header-width")
++                    .column(TableColumn::new("Name").default_width(px(100.)))
++                    .column(
++                        TableColumn::new("Role")
++                            .default_width(px(300.))
++                            .allows_sorting(true),
++                    )
++                    .row(vec![tall_cell("Alpha"), tall_cell("Developer")])
++                    .on_sort_change(move |sort, _, _| {
++                        recorded.borrow_mut().push(sort.column.to_string());
++                    }),
++            )
++            .into_any_element()
++    });
++    // The first fixed column ends at x=100 even when the host has spare width.
++    // Its focus target must not move the second header away from its body cell.
++    click(cx, 140., 18.);
++    assert_eq!(recorded.borrow().as_slice(), ["Role"]);
++}
++
+ /// A sortable header is its own tab stop (the port's reading of "one stop per
+ /// sortable column"), and gpui fires a *focused* element's click listeners on
+ /// Enter and Space. The descriptor reported by the keys must be exactly the
 diff --git a/crates/herogpui-components/tests/tabs_deep.rs b/crates/herogpui-components/tests/tabs_deep.rs
 index 11656b22..4f8cf9ca 100644
 --- a/crates/herogpui-components/tests/tabs_deep.rs
@@ -20805,7 +21184,7 @@ index 723274b0..f4c6f34d 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd4..90500dad 100644
+index 5eb12cd4..356e1201 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -22161,7 +22540,15 @@ index 5eb12cd4..90500dad 100644
                              .child(
                                  h::Badge::new()
                                      .placement(h::BadgePlacement::TopLeft)
-@@ -3690,14 +3895,8 @@ impl Gallery {
+@@ -3647,6 +3852,7 @@ impl Gallery {
+                 ),
+                 (
+                     "Sorting",
++                    "In a non-virtual table, PageUp moves from the body to the first header. Enter sorts a sortable header; Down or PageDown returns to the first or last enabled row.",
+                     col(vec![
+                         {
+                             let mut sortable = h::Table::new(vec![])
+@@ -3690,14 +3896,8 @@ impl Gallery {
                  ),
                  (
                      "Virtualization",
@@ -22177,7 +22564,7 @@ index 5eb12cd4..90500dad 100644
                          h::Table::new(vec![])
                              .id("tbl-virtualization")
                              .column(h::TableColumn::new("Name").is_row_header(true))
-@@ -3760,10 +3959,23 @@ impl Gallery {
+@@ -3760,10 +3960,23 @@ impl Gallery {
                  ),
                  (
                      "Column Resizing",
@@ -22203,7 +22590,7 @@ index 5eb12cd4..90500dad 100644
                              cx,
                          ),
                          h::Table::new(vec![])
-@@ -3771,15 +3983,15 @@ impl Gallery {
+@@ -3771,15 +3984,15 @@ impl Gallery {
                              .column(
                                  h::TableColumn::new("Name")
                                      .allows_resizing(true)
@@ -22222,7 +22609,7 @@ index 5eb12cd4..90500dad 100644
                              .row(vec![
                                  gpui::div().child("Tony Reichert").into_any_element(),
                                  gpui::div().child("CEO").into_any_element(),
-@@ -3790,19 +4002,43 @@ impl Gallery {
+@@ -3790,19 +4003,43 @@ impl Gallery {
                                  gpui::div().child("Tech Lead").into_any_element(),
                                  gpui::div().child("Paused").into_any_element(),
                              ])
@@ -22274,7 +22661,7 @@ index 5eb12cd4..90500dad 100644
                          {
                              let cell = |text: &str| gpui::div().child(text.to_owned());
                              h::Table::new(vec!["Title".into(), "Type".into(), "Modified".into()])
-@@ -3879,12 +4115,8 @@ impl Gallery {
+@@ -3879,12 +4116,8 @@ impl Gallery {
                  ),
                  (
                      "Async Loading",
@@ -22288,7 +22675,7 @@ index 5eb12cd4..90500dad 100644
                          build("tbl-async-loading")
                              .is_pending(true)
                              .on_load_more(|_, _| {})
-@@ -3946,7 +4178,7 @@ impl Gallery {
+@@ -3946,7 +4179,7 @@ impl Gallery {
                              .flex()
                              .items_center()
                              .gap(px(10.))
@@ -22297,7 +22684,7 @@ index 5eb12cd4..90500dad 100644
                              .child(
                                  gpui::div()
                                      .flex()
-@@ -3973,7 +4205,7 @@ impl Gallery {
+@@ -3973,7 +4206,7 @@ impl Gallery {
                              .flex()
                              .items_center()
                              .gap(px(10.))
@@ -22306,7 +22693,7 @@ index 5eb12cd4..90500dad 100644
                              .child(
                                  gpui::div()
                                      .flex()
-@@ -4144,8 +4376,8 @@ impl Gallery {
+@@ -4144,8 +4377,8 @@ impl Gallery {
                  ),
                  (
                      "Cell Indicators",
@@ -22316,7 +22703,7 @@ index 5eb12cd4..90500dad 100644
                          h::Calendar::new(self.demo_calendar("cal-indicators", cx))
                              .cell_indicator(|date| {
                                  [3, 7, 12, 15, 21, 28].contains(&date.day)
-@@ -4181,22 +4413,19 @@ impl Gallery {
+@@ -4181,22 +4414,19 @@ impl Gallery {
                  ),
                  (
                      "Constraints",
@@ -22341,7 +22728,7 @@ index 5eb12cd4..90500dad 100644
                          .weeks_in_month(6)
                          .into_any_element()]),
                  ),
-@@ -4244,19 +4473,20 @@ impl Gallery {
+@@ -4244,19 +4474,20 @@ impl Gallery {
                  ),
                  (
                      "Heading Offset",
@@ -22364,7 +22751,7 @@ index 5eb12cd4..90500dad 100644
                                      h::Calendar::new(self.demo_calendar("cal-heading-offset", cx))
                                          .default_value(august)
                                          .offset(1)
-@@ -4264,13 +4494,6 @@ impl Gallery {
+@@ -4264,13 +4495,6 @@ impl Gallery {
                                      cx,
                                  ),
                              ]),
@@ -22378,7 +22765,7 @@ index 5eb12cd4..90500dad 100644
                          ]
                      }),
                  ),
-@@ -4288,36 +4511,32 @@ impl Gallery {
+@@ -4288,36 +4512,32 @@ impl Gallery {
              vec![
                  (
                      "Granularity",
@@ -22439,7 +22826,7 @@ index 5eb12cd4..90500dad 100644
                          h::DateField::new(self.demo_text("df-gran-12h", "2025-02-03T20:45", cx))
                              .label("Twelve-hour clock")
                              .granularity(h::Granularity::Minute)
-@@ -4325,9 +4544,33 @@ impl Gallery {
+@@ -4325,9 +4545,33 @@ impl Gallery {
                              .into_any_element(),
                      ]),
                  ),
@@ -22474,7 +22861,7 @@ index 5eb12cd4..90500dad 100644
                          h::DateField::new(self.date_input.clone())
                              // v3's Usage seeds the field with `defaultValue`.
                              .default_value(h::Date::new(2025, 12, 25))
-@@ -4352,7 +4595,7 @@ impl Gallery {
+@@ -4352,7 +4596,7 @@ impl Gallery {
                  ),
                  (
                      "With Icons",
@@ -22483,7 +22870,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Date")
                          .prefix(icon(h::icons::MOON, cx))
                          .into_any_element()]),
-@@ -4383,21 +4626,21 @@ impl Gallery {
+@@ -4383,21 +4627,21 @@ impl Gallery {
                  ),
                  (
                      "With Description",
@@ -22508,7 +22895,7 @@ index 5eb12cd4..90500dad 100644
                          "df-dis",
                          "2025-12-25",
                          cx,
-@@ -4415,7 +4658,7 @@ impl Gallery {
+@@ -4415,7 +4659,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -22517,7 +22904,7 @@ index 5eb12cd4..90500dad 100644
                          "df-invalid",
                          "",
                          cx,
-@@ -4449,7 +4692,7 @@ impl Gallery {
+@@ -4449,7 +4693,7 @@ impl Gallery {
                  ),
                  (
                      "With Validation",
@@ -22526,7 +22913,7 @@ index 5eb12cd4..90500dad 100644
                          "df-validate",
                          "",
                          cx,
-@@ -4490,7 +4733,7 @@ impl Gallery {
+@@ -4490,7 +4734,7 @@ impl Gallery {
              vec![
                  (
                      "Disabled",
@@ -22535,7 +22922,7 @@ index 5eb12cd4..90500dad 100644
                          self.demo_calendar("dp-disabled", cx),
                      )
                      .label("Date")
-@@ -4520,7 +4763,7 @@ impl Gallery {
+@@ -4520,7 +4764,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -22544,7 +22931,7 @@ index 5eb12cd4..90500dad 100644
                          self.demo_calendar("dp-invalid", cx),
                      )
                      .label("Date")
-@@ -4533,12 +4776,8 @@ impl Gallery {
+@@ -4533,12 +4777,8 @@ impl Gallery {
                  ),
                  (
                      "Format Options",
@@ -22558,7 +22945,7 @@ index 5eb12cd4..90500dad 100644
                          h::DatePicker::new(self.demo_calendar("dp-format", cx))
                              .label("Date")
                              .into_any_element(),
-@@ -4556,12 +4795,8 @@ impl Gallery {
+@@ -4556,12 +4796,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -22572,7 +22959,7 @@ index 5eb12cd4..90500dad 100644
                          h::DatePicker::new(self.demo_calendar("dp-indicator", cx))
                              .label("Date")
                              .trigger_indicator(icon(h::icons::CHECK, cx))
-@@ -4570,7 +4805,7 @@ impl Gallery {
+@@ -4570,7 +4806,7 @@ impl Gallery {
                  ),
                  (
                      "Render Function",
@@ -22581,7 +22968,7 @@ index 5eb12cd4..90500dad 100644
                          self.demo_calendar("dp-render-props", cx)
                      )
                      .is_open(is_open)
-@@ -4611,7 +4846,7 @@ impl Gallery {
+@@ -4611,7 +4847,7 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -22590,7 +22977,7 @@ index 5eb12cd4..90500dad 100644
                          // v3's Usage seeds the picker with `defaultValue`.
                          .default_value(h::Date::new(2025, 12, 25))
                          .label("Due date")
-@@ -4644,7 +4879,7 @@ impl Gallery {
+@@ -4644,7 +4880,7 @@ impl Gallery {
              vec![
                  (
                      "Disabled",
@@ -22599,7 +22986,7 @@ index 5eb12cd4..90500dad 100644
                          self.demo_range("drp-disabled", cx),
                      )
                      .label("Stay")
-@@ -4653,8 +4888,8 @@ impl Gallery {
+@@ -4653,8 +4889,8 @@ impl Gallery {
                  ),
                  (
                      "Controlled",
@@ -22609,7 +22996,7 @@ index 5eb12cd4..90500dad 100644
                          {
                              // `value` writes the caller's copy back in, and
                              // `on_change` is how the caller gets one: a range
-@@ -4697,7 +4932,7 @@ impl Gallery {
+@@ -4697,7 +4933,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -22618,7 +23005,7 @@ index 5eb12cd4..90500dad 100644
                          self.demo_range("drp-invalid", cx),
                      )
                      .label("Stay")
-@@ -4706,12 +4941,8 @@ impl Gallery {
+@@ -4706,12 +4942,8 @@ impl Gallery {
                  ),
                  (
                      "Format Options",
@@ -22632,7 +23019,7 @@ index 5eb12cd4..90500dad 100644
                          h::DateRangePicker::new(self.demo_range("drp-format", cx))
                              .label("Stay")
                              .into_any_element(),
-@@ -4732,12 +4963,8 @@ impl Gallery {
+@@ -4732,12 +4964,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -22646,7 +23033,7 @@ index 5eb12cd4..90500dad 100644
                          h::DateRangePicker::new(self.demo_range("drp-indicator", cx))
                              .label("Stay")
                              .trigger_indicator(icon(h::icons::CHECK, cx))
-@@ -4787,17 +5014,26 @@ impl Gallery {
+@@ -4787,17 +5015,26 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -22684,7 +23071,7 @@ index 5eb12cd4..90500dad 100644
                          .into_any_element()]),
                  ),
              ],
-@@ -4839,6 +5075,7 @@ impl Gallery {
+@@ -4839,6 +5076,7 @@ impl Gallery {
                  ),
                  (
                      "Heading Offset",
@@ -22692,7 +23079,7 @@ index 5eb12cd4..90500dad 100644
                      col({
                          let august = (h::Date::new(2026, 8, 10), h::Date::new(2026, 8, 16));
                          vec![
-@@ -4859,13 +5096,6 @@ impl Gallery {
+@@ -4859,13 +5097,6 @@ impl Gallery {
                                      cx,
                                  ),
                              ]),
@@ -22706,7 +23093,7 @@ index 5eb12cd4..90500dad 100644
                          ]
                      }),
                  ),
-@@ -4879,8 +5109,8 @@ impl Gallery {
+@@ -4879,8 +5110,8 @@ impl Gallery {
                  ),
                  (
                      "Controlled",
@@ -22716,7 +23103,7 @@ index 5eb12cd4..90500dad 100644
                          h::RangeCalendar::new(self.date_range.clone())
                              .value(
                                  Some(h::Date::new(2025, 12, 8)),
-@@ -4905,23 +5135,33 @@ impl Gallery {
+@@ -4905,23 +5136,33 @@ impl Gallery {
                  ),
                  (
                      "Unavailable Dates",
@@ -22763,7 +23150,7 @@ index 5eb12cd4..90500dad 100644
                          h::RangeCalendar::new(self.demo_range("rc-anchor", cx))
                              .is_date_unavailable(|date, anchor| {
                                  anchor.is_some_and(|anchor| {
-@@ -5001,19 +5241,6 @@ impl Gallery {
+@@ -5001,19 +5242,6 @@ impl Gallery {
                      },)))
                      .into_any_element()]),
                  ),
@@ -22783,7 +23170,7 @@ index 5eb12cd4..90500dad 100644
                  (
                      "Real-World Example",
                      col(vec![h::Surface::new()
-@@ -5047,8 +5274,9 @@ impl Gallery {
+@@ -5047,8 +5275,9 @@ impl Gallery {
              vec![
                  (
                      "24-hour",
@@ -22794,7 +23181,7 @@ index 5eb12cd4..90500dad 100644
                          .description("Click a segment, then use the steppers.")
                          .on_change(opt_time_cb(
                              cx.listener(|_, _t: &Option<h::Time>, _, cx| cx.notify()),
-@@ -5057,7 +5285,7 @@ impl Gallery {
+@@ -5057,7 +5286,7 @@ impl Gallery {
                  ),
                  (
                      "12-hour with seconds",
@@ -22803,7 +23190,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Reminder")
                          .hour_cycle(h::HourCycle::H12)
                          .show_seconds(true)
-@@ -5066,15 +5294,34 @@ impl Gallery {
+@@ -5066,15 +5295,34 @@ impl Gallery {
                          ))
                          .into_any_element()]),
                  ),
@@ -22842,7 +23229,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Time")
                          .prefix(icon(h::icons::SUN, cx))
                          .into_any_element()]),
-@@ -5093,21 +5340,21 @@ impl Gallery {
+@@ -5093,21 +5341,21 @@ impl Gallery {
                  ),
                  (
                      "With Description",
@@ -22867,7 +23254,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Time")
                          .is_disabled(true)
                          .into_any_element()]),
-@@ -5121,7 +5368,7 @@ impl Gallery {
+@@ -5121,7 +5369,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -22876,7 +23263,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Time")
                          // `minValue`/`maxValue` clamp what the segments accept.
                          .min_value(h::Time::new(9, 0))
-@@ -5133,22 +5380,17 @@ impl Gallery {
+@@ -5133,22 +5381,17 @@ impl Gallery {
                  ),
                  (
                      "Controlled",
@@ -22909,7 +23296,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Meeting time")
                          .description("Office hours are 09:00 to 17:00")
                          .validate(|value| {
-@@ -5189,13 +5431,13 @@ impl Gallery {
+@@ -5189,13 +5432,13 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -22926,7 +23313,7 @@ index 5eb12cd4..90500dad 100644
                          .iter()
                          .map(|c| {
                              h::Alert::new(format!("{} alert", c.label()))
-@@ -5206,12 +5448,8 @@ impl Gallery {
+@@ -5206,12 +5449,8 @@ impl Gallery {
                  ),
                  (
                      "Closable",
@@ -22941,7 +23328,7 @@ index 5eb12cd4..90500dad 100644
                          if self.alert_visible {
                              h::Alert::new("Saved")
                                  .description("Your changes are live.")
-@@ -5250,9 +5488,13 @@ impl Gallery {
+@@ -5250,9 +5489,13 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -22958,7 +23345,7 @@ index 5eb12cd4..90500dad 100644
                          .into_any_element()]),
                  ),
                  (
-@@ -5260,7 +5502,9 @@ impl Gallery {
+@@ -5260,7 +5503,9 @@ impl Gallery {
                      col(Color::ALL
                          .iter()
                          .enumerate()
@@ -22969,7 +23356,7 @@ index 5eb12cd4..90500dad 100644
                          .els()),
                  ),
                  (
-@@ -5268,24 +5512,29 @@ impl Gallery {
+@@ -5268,24 +5513,29 @@ impl Gallery {
                      col(Size::ALL
                          .iter()
                          .enumerate()
@@ -23010,7 +23397,7 @@ index 5eb12cd4..90500dad 100644
                  ),
              ],
              cx,
-@@ -5300,10 +5549,14 @@ impl Gallery {
+@@ -5300,10 +5550,14 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -23029,7 +23416,7 @@ index 5eb12cd4..90500dad 100644
                          .into_any_element()]),
                  ),
                  (
-@@ -5312,52 +5565,66 @@ impl Gallery {
+@@ -5312,52 +5566,66 @@ impl Gallery {
                          .iter()
                          .enumerate()
                          .map(|(index, c)| {
@@ -23126,7 +23513,7 @@ index 5eb12cd4..90500dad 100644
                  ),
              ],
              cx,
-@@ -5392,13 +5659,8 @@ impl Gallery {
+@@ -5392,13 +5660,8 @@ impl Gallery {
                  ),
                  (
                      "Custom SVG Props",
@@ -23141,7 +23528,7 @@ index 5eb12cd4..90500dad 100644
                          row(Size::ALL
                              .iter()
                              .map(|sz| {
-@@ -5542,12 +5804,8 @@ impl Gallery {
+@@ -5542,12 +5805,8 @@ impl Gallery {
                  ),
                  (
                      "Single Shimmer",
@@ -23155,7 +23542,7 @@ index 5eb12cd4..90500dad 100644
                          gpui::div()
                              .flex()
                              .gap(px(16.))
-@@ -5905,12 +6163,8 @@ impl Gallery {
+@@ -5905,12 +6164,8 @@ impl Gallery {
                  ),
                  (
                      "Indeterminate",
@@ -23169,7 +23556,7 @@ index 5eb12cd4..90500dad 100644
                          h::Checkbox::new("cbg-all")
                              .is_selected(selected.len() == 3)
                              .is_indeterminate(!selected.is_empty() && selected.len() < 3)
-@@ -5969,12 +6223,8 @@ impl Gallery {
+@@ -5969,12 +6224,8 @@ impl Gallery {
                  ),
                  (
                      "With Custom Indicator",
@@ -23183,7 +23570,7 @@ index 5eb12cd4..90500dad 100644
                          h::Checkbox::new("cbg-ci-1")
                              .default_selected(true)
                              .indicator(move |state| {
-@@ -6051,7 +6301,7 @@ impl Gallery {
+@@ -6051,7 +6302,7 @@ impl Gallery {
              vec![
                  (
                      "In Surface",
@@ -23192,7 +23579,7 @@ index 5eb12cd4..90500dad 100644
                          .padding(px(24.))
                          .gap(px(16.))
                          .child(
-@@ -6062,11 +6312,13 @@ impl Gallery {
+@@ -6062,11 +6313,13 @@ impl Gallery {
                                          .child(
                                              h::TextField::new(self.demo_text("fset-name", "", cx))
                                                  .label("Name")
@@ -23206,7 +23593,7 @@ index 5eb12cd4..90500dad 100644
                                                  .variant(FieldVariant::Secondary),
                                          ),
                                  )
-@@ -6078,7 +6330,7 @@ impl Gallery {
+@@ -6078,7 +6331,7 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -23215,7 +23602,7 @@ index 5eb12cd4..90500dad 100644
                          .child(h::FieldsetLegend::new("Shipping address"))
                          .child(
                              h::FieldGroup::new()
-@@ -6143,39 +6395,38 @@ impl Gallery {
+@@ -6143,39 +6396,38 @@ impl Gallery {
                  ),
                  (
                      "With Form Fields",
@@ -23265,7 +23652,7 @@ index 5eb12cd4..90500dad 100644
                      .input_type(h::InputType::Password)
                      .is_required(true)
                      .validate(|value| {
-@@ -6185,13 +6436,8 @@ impl Gallery {
+@@ -6185,13 +6437,8 @@ impl Gallery {
                  ),
                  (
                      "With Dynamic Messages",
@@ -23280,7 +23667,7 @@ index 5eb12cd4..90500dad 100644
                          h::TextField::new(self.demo_text("fs-dynamic", "abc", cx))
                              .label("Password")
                              .is_invalid(true)
-@@ -6241,11 +6487,11 @@ impl Gallery {
+@@ -6241,11 +6488,11 @@ impl Gallery {
                  ),
                  (
                      "FieldError",
@@ -23293,7 +23680,7 @@ index 5eb12cd4..90500dad 100644
                          h::FieldError::new().into_any_element(),
                      ]),
                  ),
-@@ -6263,13 +6509,8 @@ impl Gallery {
+@@ -6263,13 +6510,8 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -23308,7 +23695,7 @@ index 5eb12cd4..90500dad 100644
                          {
                              // `name` rides on each field's state, so the form finds
                              // it without the call site repeating the name.
-@@ -6310,12 +6551,14 @@ impl Gallery {
+@@ -6310,12 +6552,14 @@ impl Gallery {
                                  h::TextField::new(self.input_name.clone())
                                      .name("name")
                                      .label("Name")
@@ -23323,7 +23710,7 @@ index 5eb12cd4..90500dad 100644
                                      .description("We reply within a day."),
                              )
                              .child(
-@@ -6346,7 +6589,7 @@ impl Gallery {
+@@ -6346,7 +6590,7 @@ impl Gallery {
                          ),
                      ]),
                  ),
@@ -23332,7 +23719,7 @@ index 5eb12cd4..90500dad 100644
                      let email = self.demo_text("form-srv-email", "ada@example.com", cx);
                      let name = self.demo_text("form-srv-name", "Ada", cx);
                      let report = self.demo_text_value("form-srv-report");
-@@ -6385,17 +6628,6 @@ impl Gallery {
+@@ -6385,17 +6629,6 @@ impl Gallery {
                      let submit = form.submit_handler();
                      let reset = form.reset_handler();
                      col(vec![
@@ -23350,7 +23737,7 @@ index 5eb12cd4..90500dad 100644
                          form.child(
                              h::TextField::new(email)
                                  .name("email")
-@@ -6465,34 +6697,35 @@ impl Gallery {
+@@ -6465,34 +6698,35 @@ impl Gallery {
              vec![
                  (
                      "Variants",
@@ -23392,7 +23779,7 @@ index 5eb12cd4..90500dad 100644
                                  .variant(FieldVariant::Secondary)
                                  .description("The lower-emphasis variant, for use on a surface"),
                          )
-@@ -6502,12 +6735,13 @@ impl Gallery {
+@@ -6502,12 +6736,13 @@ impl Gallery {
                      "Full Width",
                      col(vec![h::Input::new(self.demo_text("in-full", "", cx))
                          .label("Name")
@@ -23407,7 +23794,7 @@ index 5eb12cd4..90500dad 100644
                          h::Input::new(self.demo_text("in-pw", "", cx))
                              .label("Password")
                              .input_type(h::InputType::Password)
-@@ -6542,30 +6776,36 @@ impl Gallery {
+@@ -6542,30 +6777,36 @@ impl Gallery {
                  (
                      "Controlled",
                      col(vec![
@@ -23449,7 +23836,7 @@ index 5eb12cd4..90500dad 100644
                              .is_clearable(true)
                              .into_any_element(),
                      ]),
-@@ -6584,7 +6824,7 @@ impl Gallery {
+@@ -6584,7 +6825,7 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -23458,7 +23845,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Website")
                          .prefix(h::InputAddon::new("https://"))
                          .input(
-@@ -6599,36 +6839,45 @@ impl Gallery {
+@@ -6599,36 +6840,45 @@ impl Gallery {
                  ),
                  (
                      "Variants",
@@ -23510,7 +23897,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Checking availability")
                          .input(h::Input::new(self.demo_text("ig-loading", "heroui", cx)))
                          .suffix(
-@@ -6640,16 +6889,19 @@ impl Gallery {
+@@ -6640,16 +6890,19 @@ impl Gallery {
                  ),
                  (
                      "Required Field",
@@ -23533,7 +23920,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Website")
                          .is_disabled(true)
                          .prefix(h::InputAddon::new("https://"))
-@@ -6665,34 +6917,46 @@ impl Gallery {
+@@ -6665,34 +6918,46 @@ impl Gallery {
                          .label("Website")
                          .full_width(true)
                          .prefix(h::InputAddon::new("https://"))
@@ -23588,7 +23975,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Website")
                          .input(h::Input::new(self.demo_text("ig-copy", "heroui.com", cx)))
                          .suffix(
-@@ -6708,7 +6972,7 @@ impl Gallery {
+@@ -6708,7 +6973,7 @@ impl Gallery {
                  ),
                  (
                      "Icon Prefix and Copy Button",
@@ -23597,7 +23984,7 @@ index 5eb12cd4..90500dad 100644
                          .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::KEY, cx)))
                          .input(h::Input::new(self.demo_text(
                              "ig-key",
-@@ -6728,7 +6992,7 @@ impl Gallery {
+@@ -6728,7 +6993,7 @@ impl Gallery {
                  ),
                  (
                      "Password Toggle",
@@ -23606,7 +23993,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Password")
                          .input(
                              h::Input::new(self.demo_text("ig-pw", "correct horse", cx)).input_type(
-@@ -6763,7 +7027,7 @@ impl Gallery {
+@@ -6763,7 +7028,7 @@ impl Gallery {
                  ),
                  (
                      "Keyboard Shortcut",
@@ -23615,7 +24002,7 @@ index 5eb12cd4..90500dad 100644
                          .prefix(gpui::div().pl(px(12.)).child(icon(h::icons::SEARCH, cx)))
                          .input(
                              h::Input::new(self.demo_text("ig-kbd", "", cx)).placeholder("Search"),
-@@ -6780,7 +7044,7 @@ impl Gallery {
+@@ -6780,7 +7045,7 @@ impl Gallery {
                  ),
                  (
                      "Badge Suffix",
@@ -23624,7 +24011,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Plan")
                          .input(h::Input::new(self.demo_text("ig-badge", "Pro", cx)))
                          .suffix(
-@@ -6796,7 +7060,7 @@ impl Gallery {
+@@ -6796,7 +7061,7 @@ impl Gallery {
                  ),
                  (
                      "Validation",
@@ -23633,7 +24020,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Website")
                          .is_required(true)
                          .is_invalid(true)
-@@ -6807,29 +7071,38 @@ impl Gallery {
+@@ -6807,29 +7072,38 @@ impl Gallery {
                  ),
                  (
                      "With Prefix Icon",
@@ -23679,7 +24066,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Note")
                          .prefix(
                              // The group's `:has(textarea)` rule owns the 8px
-@@ -6838,12 +7111,16 @@ impl Gallery {
+@@ -6838,12 +7112,16 @@ impl Gallery {
                              // addon slot.
                              gpui::div().pl(px(12.)).child(icon(h::icons::COPY, cx)),
                          )
@@ -23698,7 +24085,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Amount")
                          .description("Billed in US dollars.")
                          .prefix(h::InputAddon::new("$"))
-@@ -6855,15 +7132,19 @@ impl Gallery {
+@@ -6855,15 +7133,19 @@ impl Gallery {
                  ),
                  (
                      "TextArea Usage Example",
@@ -23721,7 +24108,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Amount")
                          .description("Charged monthly.")
                          .prefix(h::InputAddon::new("$"))
-@@ -6873,7 +7154,7 @@ impl Gallery {
+@@ -6873,7 +7155,7 @@ impl Gallery {
                  ),
                  (
                      "With a trailing action",
@@ -23730,7 +24117,7 @@ index 5eb12cd4..90500dad 100644
                          .variant(FieldVariant::Secondary)
                          .input(h::Input::new(self.input_email.clone()).placeholder("Email"))
                          .suffix(
-@@ -6899,21 +7180,32 @@ impl Gallery {
+@@ -6899,21 +7181,32 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -23771,7 +24158,7 @@ index 5eb12cd4..90500dad 100644
                      ]),
                  ),
                  (
-@@ -6990,24 +7282,23 @@ impl Gallery {
+@@ -6990,24 +7283,23 @@ impl Gallery {
                  ),
                  (
                      "Custom Slots",
@@ -23813,7 +24200,7 @@ index 5eb12cd4..90500dad 100644
                  ),
                  (
                      "Form Example",
-@@ -7075,12 +7366,21 @@ impl Gallery {
+@@ -7075,12 +7367,21 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -23841,7 +24228,7 @@ index 5eb12cd4..90500dad 100644
                  ),
                  (
                      "Without steppers",
-@@ -7384,12 +7684,8 @@ impl Gallery {
+@@ -7384,12 +7685,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -23855,7 +24242,7 @@ index 5eb12cd4..90500dad 100644
                          h::RadioGroup::new("rg-indicator", plans())
                              .default_value("Enterprise")
                              .indicator(move |_, state| {
-@@ -7496,14 +7792,15 @@ impl Gallery {
+@@ -7496,14 +7793,15 @@ impl Gallery {
                  (
                      "Usage",
                      col(vec![
@@ -23879,7 +24266,7 @@ index 5eb12cd4..90500dad 100644
                          para(
                              &if query.is_empty() {
                                  "Type to search".to_owned()
-@@ -7516,24 +7813,27 @@ impl Gallery {
+@@ -7516,24 +7814,27 @@ impl Gallery {
                  ),
                  (
                      "Variants",
@@ -23909,7 +24296,7 @@ index 5eb12cd4..90500dad 100644
                                  .variant(FieldVariant::Secondary)
                                  .description("Enter keywords to search"),
                          )
-@@ -7541,22 +7841,25 @@ impl Gallery {
+@@ -7541,22 +7842,25 @@ impl Gallery {
                  ),
                  (
                      "With Description",
@@ -23938,7 +24325,7 @@ index 5eb12cd4..90500dad 100644
                          .is_disabled(true)
                          .into_any_element()]),
                  ),
-@@ -7564,13 +7867,15 @@ impl Gallery {
+@@ -7564,13 +7868,15 @@ impl Gallery {
                      "Full Width",
                      col(vec![h::SearchField::new(full)
                          .label("Search")
@@ -23955,7 +24342,7 @@ index 5eb12cd4..90500dad 100644
                          .is_required(true)
                          .is_invalid(true)
                          .validation_errors(["Search query must be at least 3 characters"])
-@@ -7579,15 +7884,17 @@ impl Gallery {
+@@ -7579,15 +7885,17 @@ impl Gallery {
                  (
                      "Controlled",
                      col(vec![
@@ -23982,7 +24369,7 @@ index 5eb12cd4..90500dad 100644
                          para(
                              &if controlled_text.is_empty() {
                                  "Empty".to_owned()
-@@ -7600,7 +7907,7 @@ impl Gallery {
+@@ -7600,7 +7908,7 @@ impl Gallery {
                  ),
                  (
                      "Render Props",
@@ -23991,7 +24378,7 @@ index 5eb12cd4..90500dad 100644
                          let parts = render_props.clone();
                          h::SearchField::new(render_props)
                              .content(move |state| {
-@@ -7623,28 +7930,28 @@ impl Gallery {
+@@ -7623,28 +7931,28 @@ impl Gallery {
                  ),
                  (
                      "With Validation",
@@ -24034,7 +24421,7 @@ index 5eb12cd4..90500dad 100644
                              .name("query")
                              .is_required(true)
                              .validate(|value| {
-@@ -7660,16 +7967,18 @@ impl Gallery {
+@@ -7660,16 +7968,18 @@ impl Gallery {
                  ),
                  (
                      "Custom Icons",
@@ -24055,7 +24442,7 @@ index 5eb12cd4..90500dad 100644
                          .end_content(h::Kbd::new().child("Shift S"))
                          .description("Press Shift+S to focus")
                          .into_any_element()]),
-@@ -7692,21 +8001,26 @@ impl Gallery {
+@@ -7692,21 +8002,26 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -24088,7 +24475,7 @@ index 5eb12cd4..90500dad 100644
                              .variant(FieldVariant::Secondary)
                              .rows(3)
                              .into_any_element(),
-@@ -7714,12 +8028,13 @@ impl Gallery {
+@@ -7714,12 +8029,13 @@ impl Gallery {
                  ),
                  (
                      "In Surface",
@@ -24103,7 +24490,7 @@ index 5eb12cd4..90500dad 100644
                                  .variant(FieldVariant::Secondary)
                                  .rows(3),
                          )
-@@ -7729,6 +8044,7 @@ impl Gallery {
+@@ -7729,6 +8045,7 @@ impl Gallery {
                      "Full Width",
                      col(vec![h::TextArea::new(self.demo_text("ta-full", "", cx))
                          .label("Notes")
@@ -24111,7 +24498,7 @@ index 5eb12cd4..90500dad 100644
                          .rows(3)
                          .full_width()
                          .into_any_element()]),
-@@ -7736,18 +8052,21 @@ impl Gallery {
+@@ -7736,18 +8053,21 @@ impl Gallery {
                  (
                      "Controlled",
                      col(vec![
@@ -24139,7 +24526,7 @@ index 5eb12cd4..90500dad 100644
                          .rows(6)
                          .into_any_element()]),
                  ),
-@@ -7770,7 +8089,7 @@ impl Gallery {
+@@ -7770,7 +8090,7 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -24148,7 +24535,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Full name")
                          .placeholder("Ada Lovelace")
                          .description("As it appears on your ID.")
-@@ -7778,12 +8097,13 @@ impl Gallery {
+@@ -7778,12 +8098,13 @@ impl Gallery {
                  ),
                  (
                      "In Surface",
@@ -24163,7 +24550,7 @@ index 5eb12cd4..90500dad 100644
                                  .variant(FieldVariant::Secondary)
                                  .description("Use the secondary variant on a surface"),
                          )
-@@ -7791,26 +8111,29 @@ impl Gallery {
+@@ -7791,26 +8112,29 @@ impl Gallery {
                  ),
                  (
                      "With Description",
@@ -24196,7 +24583,7 @@ index 5eb12cd4..90500dad 100644
                      .is_disabled(true)
                      .into_any_element()]),
                  ),
-@@ -7818,14 +8141,16 @@ impl Gallery {
+@@ -7818,14 +8142,16 @@ impl Gallery {
                      "Full Width",
                      col(vec![h::TextField::new(self.demo_text("tf-full", "", cx))
                          .label("Full name")
@@ -24214,7 +24601,7 @@ index 5eb12cd4..90500dad 100644
                              .is_required(true)
                              .validate(|value| value
                                  .trim()
-@@ -7834,6 +8159,7 @@ impl Gallery {
+@@ -7834,6 +8160,7 @@ impl Gallery {
                              .into_any_element(),
                          h::TextField::new(self.demo_text("tf-invalid", "", cx))
                          .label("Full name")
@@ -24222,7 +24609,7 @@ index 5eb12cd4..90500dad 100644
                          // `isInvalid` marks it invalid from the outside, which is
                          // what a server-side error looks like.
                          .is_invalid(true)
-@@ -7844,16 +8170,18 @@ impl Gallery {
+@@ -7844,16 +8171,18 @@ impl Gallery {
                  (
                      "Controlled",
                      col(vec![
@@ -24246,7 +24633,7 @@ index 5eb12cd4..90500dad 100644
                          let field = tf_render_props.clone();
                          h::TextField::new(tf_render_props)
                              .content(move |state| {
-@@ -7872,6 +8200,7 @@ impl Gallery {
+@@ -7872,6 +8201,7 @@ impl Gallery {
                                              "unfocused"
                                          },
                                      ))
@@ -24254,7 +24641,7 @@ index 5eb12cd4..90500dad 100644
                                      .is_required(true)
                                      .into_any_element()
                              })
-@@ -7881,29 +8210,33 @@ impl Gallery {
+@@ -7881,29 +8211,33 @@ impl Gallery {
                  ),
                  (
                      "Error Message",
@@ -24291,7 +24678,7 @@ index 5eb12cd4..90500dad 100644
                              .input_type(h::InputType::Email)
                              .into_any_element(),
                      ]),
-@@ -7944,16 +8277,36 @@ impl Gallery {
+@@ -7944,16 +8278,36 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -24332,7 +24719,7 @@ index 5eb12cd4..90500dad 100644
                          .into_any_element()]),
                  ),
                  (
-@@ -8011,7 +8364,7 @@ impl Gallery {
+@@ -8011,7 +8365,7 @@ impl Gallery {
                          )
                          .child(
                              h::CardFooter::new()
@@ -24341,7 +24728,7 @@ index 5eb12cd4..90500dad 100644
                                  .child("By Martha"),
                          )
                          .into_any_element()]),
-@@ -8181,7 +8534,7 @@ impl Gallery {
+@@ -8181,7 +8535,7 @@ impl Gallery {
                  ),
                  (
                      "With form components",
@@ -24350,7 +24737,7 @@ index 5eb12cd4..90500dad 100644
                          // Same as the variants panel: upstream adds its
                          // `p-6` + `gap-4` through className; these explicit
                          // paddings/gaps exercise the port's own layout
-@@ -8195,7 +8548,8 @@ impl Gallery {
+@@ -8195,7 +8549,8 @@ impl Gallery {
                          )
                          .child(
                              h::TextArea::new(self.input_bio.clone())
@@ -24360,7 +24747,7 @@ index 5eb12cd4..90500dad 100644
                          )
                          .into_any_element()]),
                  ),
-@@ -8223,10 +8577,9 @@ impl Gallery {
+@@ -8223,10 +8578,9 @@ impl Gallery {
                              h::ToggleButton::new(el_id(format!("tbar-{key}-i"))).label("I"),
                          ),
                  )
@@ -24374,7 +24761,7 @@ index 5eb12cd4..90500dad 100644
                  .child(
                      h::ButtonGroup::new()
                          .variant(Variant::Tertiary)
-@@ -8278,7 +8631,7 @@ impl Gallery {
+@@ -8278,7 +8632,7 @@ impl Gallery {
                                  .button(h::Button::new("tb-bg-2").label("Center"))
                                  .button(h::Button::new("tb-bg-3").label("Right")),
                          )
@@ -24383,7 +24770,7 @@ index 5eb12cd4..90500dad 100644
                          .child(
                              h::Button::new("tb-bg-4")
                                  .label("Reset")
-@@ -8341,7 +8694,7 @@ impl Gallery {
+@@ -8341,7 +8695,7 @@ impl Gallery {
              .take(3)
              .enumerate()
              .map(|(i, n)| {
@@ -24392,7 +24779,7 @@ index 5eb12cd4..90500dad 100644
                  if i == 0 {
                      d.into_any_element()
                  } else {
-@@ -8369,40 +8722,61 @@ impl Gallery {
+@@ -8369,40 +8723,61 @@ impl Gallery {
              vec![
                  (
                      "Usage",
@@ -24464,7 +24851,7 @@ index 5eb12cd4..90500dad 100644
                                  cx,
                              )
                          })
-@@ -8412,17 +8786,22 @@ impl Gallery {
+@@ -8412,17 +8787,22 @@ impl Gallery {
                      "Colors",
                      row(Color::ALL
                          .iter()
@@ -24491,7 +24878,7 @@ index 5eb12cd4..90500dad 100644
                                  cx,
                              )
                          })
-@@ -8440,7 +8819,8 @@ impl Gallery {
+@@ -8440,7 +8820,8 @@ impl Gallery {
                              gpui::div()
                                  .flex()
                                  .children(names.iter().take(4).enumerate().map(|(i, n)| {
@@ -24501,7 +24888,7 @@ index 5eb12cd4..90500dad 100644
                                      if i == 0 {
                                          d.into_any_element()
                                      } else {
-@@ -8455,8 +8835,26 @@ impl Gallery {
+@@ -8455,8 +8836,26 @@ impl Gallery {
                          )
                          .into_any_element()]),
                  ),
@@ -24530,7 +24917,7 @@ index 5eb12cd4..90500dad 100644
          )
      }
  
-@@ -8774,6 +9172,30 @@ impl Gallery {
+@@ -8774,6 +9173,30 @@ impl Gallery {
                      .child(gpui::div().child("Ships in 2-4 business days."))
                      .into_any_element()]),
                  ),
@@ -24561,7 +24948,7 @@ index 5eb12cd4..90500dad 100644
                  (
                      "Controlled",
                      col(vec![
-@@ -8866,14 +9288,8 @@ impl Gallery {
+@@ -8866,14 +9289,8 @@ impl Gallery {
                  ),
                  (
                      "Text Decoration",
@@ -24577,7 +24964,7 @@ index 5eb12cd4..90500dad 100644
                          h::Link::new("ln-decor")
                              .label("Underlined on hover")
                              .href("#")
-@@ -8888,6 +9304,37 @@ impl Gallery {
+@@ -8888,6 +9305,37 @@ impl Gallery {
                          .href("#")
                          .into_any_element()]),
                  ),
@@ -24615,7 +25002,7 @@ index 5eb12cd4..90500dad 100644
              ],
              cx,
          )
-@@ -8999,12 +9446,8 @@ impl Gallery {
+@@ -8999,12 +9447,8 @@ impl Gallery {
                  ),
                  (
                      "Render Props",
@@ -24629,7 +25016,7 @@ index 5eb12cd4..90500dad 100644
                          h::Pagination::new("pg-render-props", page, 5)
                              .link(|page, is_active| {
                                  gpui::div()
-@@ -9024,12 +9467,8 @@ impl Gallery {
+@@ -9024,12 +9468,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Icons",
@@ -24643,7 +25030,7 @@ index 5eb12cd4..90500dad 100644
                          h::Pagination::new("pg-custom", page, 5)
                              .previous_icon(icon(h::icons::ARROW_LEFT, cx))
                              .next_icon(icon(h::icons::ARROW_RIGHT, cx))
-@@ -9104,8 +9543,8 @@ impl Gallery {
+@@ -9104,8 +9544,8 @@ impl Gallery {
                  ),
                  (
                      "Overflow",
@@ -24653,7 +25040,7 @@ index 5eb12cd4..90500dad 100644
                          para("Horizontal", cx),
                          // The list only overflows inside a bounded box, which is
                          // how v3's own example frames it.
-@@ -9226,7 +9665,7 @@ impl Gallery {
+@@ -9226,7 +9666,7 @@ impl Gallery {
              vec![
                  (
                      "Sizes",
@@ -24662,7 +25049,7 @@ index 5eb12cd4..90500dad 100644
                          ("ad-size-xs", "Xs", h::AlertDialogSize::Xs),
                          ("ad-size-sm", "Sm", h::AlertDialogSize::Sm),
                          ("ad-size-md", "Md", h::AlertDialogSize::Md),
-@@ -9237,6 +9676,7 @@ impl Gallery {
+@@ -9237,6 +9677,7 @@ impl Gallery {
                      .map(|(key, label, size)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -24670,7 +25057,7 @@ index 5eb12cd4..90500dad 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("Size: {label}")).id(key)
-@@ -9258,7 +9698,7 @@ impl Gallery {
+@@ -9258,7 +9699,7 @@ impl Gallery {
                  ),
                  (
                      "Statuses",
@@ -24679,7 +25066,7 @@ index 5eb12cd4..90500dad 100644
                          ("ad-st-default", "Default", Color::Default),
                          ("ad-st-accent", "Accent", Color::Accent),
                          ("ad-st-success", "Success", Color::Success),
-@@ -9269,6 +9709,7 @@ impl Gallery {
+@@ -9269,6 +9710,7 @@ impl Gallery {
                      .map(|(key, label, status)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -24687,7 +25074,7 @@ index 5eb12cd4..90500dad 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("{label} status")).id(key)
-@@ -9290,7 +9731,7 @@ impl Gallery {
+@@ -9290,7 +9732,7 @@ impl Gallery {
                  ),
                  (
                      "Placements",
@@ -24696,7 +25083,7 @@ index 5eb12cd4..90500dad 100644
                          ("ad-pl-auto", "Auto", h::ModalPlacement::Auto),
                          ("ad-pl-center", "Center", h::ModalPlacement::Center),
                          ("ad-pl-top", "Top", h::ModalPlacement::Top),
-@@ -9300,6 +9741,7 @@ impl Gallery {
+@@ -9300,6 +9742,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -24704,7 +25091,7 @@ index 5eb12cd4..90500dad 100644
                              key,
                              label,
                              h::AlertDialog::new(format!("Placement: {label}")).id(key)
-@@ -9321,7 +9763,7 @@ impl Gallery {
+@@ -9321,7 +9764,7 @@ impl Gallery {
                  ),
                  (
                      "Backdrop Variants",
@@ -24713,7 +25100,7 @@ index 5eb12cd4..90500dad 100644
                          .iter()
                          .map(|backdrop| {
                              let key: &'static str = match backdrop {
-@@ -9331,6 +9773,7 @@ impl Gallery {
+@@ -9331,6 +9774,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -24721,7 +25108,7 @@ index 5eb12cd4..90500dad 100644
                                  key,
                                  backdrop.label(),
                                  h::AlertDialog::new(format!("Backdrop: {}", backdrop.label())).id(key)
-@@ -9352,7 +9795,8 @@ impl Gallery {
+@@ -9352,7 +9796,8 @@ impl Gallery {
                  ),
                  (
                      "Controlled State",
@@ -24731,7 +25118,7 @@ index 5eb12cd4..90500dad 100644
                          "ad-controlled",
                          "Open (controlled)",
                          h::AlertDialog::new("Controlled").id("ad-controlled")
-@@ -9369,7 +9813,8 @@ impl Gallery {
+@@ -9369,7 +9814,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Icon",
@@ -24741,7 +25128,7 @@ index 5eb12cd4..90500dad 100644
                          "ad-icon",
                          "Open with a status icon",
                          h::AlertDialog::new("Heads up").id("ad-icon")
-@@ -9387,7 +9832,8 @@ impl Gallery {
+@@ -9387,7 +9833,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Backdrop",
@@ -24751,7 +25138,7 @@ index 5eb12cd4..90500dad 100644
                          "ad-custom-bd",
                          "Open with a blurred backdrop",
                          h::AlertDialog::new("Blurred").id("ad-custom-bd")
-@@ -9405,7 +9851,8 @@ impl Gallery {
+@@ -9405,7 +9852,8 @@ impl Gallery {
                  ),
                  (
                      "Dismiss Behavior",
@@ -24761,7 +25148,7 @@ index 5eb12cd4..90500dad 100644
                          "ad-dismiss",
                          "Open a non-dismissable dialog",
                          h::AlertDialog::new("Confirm first").id("ad-dismiss")
-@@ -9424,12 +9871,13 @@ impl Gallery {
+@@ -9424,12 +9872,13 @@ impl Gallery {
                  ),
                  (
                      "Close Methods",
@@ -24777,7 +25164,7 @@ index 5eb12cd4..90500dad 100644
                                  .is_open(self.demo_overlay("ad-close"))
                                  .footer_child(
                                      h::Button::new("ad-close-cancel")
-@@ -9457,6 +9905,7 @@ impl Gallery {
+@@ -9457,6 +9906,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -24785,7 +25172,7 @@ index 5eb12cd4..90500dad 100644
                              "ad-pending",
                              "Open (pending confirm)",
                              h::AlertDialog::new("Deploying").id("ad-pending")
-@@ -9487,7 +9936,8 @@ impl Gallery {
+@@ -9487,7 +9937,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Animations",
@@ -24795,7 +25182,7 @@ index 5eb12cd4..90500dad 100644
                          "ad-anim",
                          "Open and watch the panel",
                          h::AlertDialog::new("Animated").id("ad-anim")
-@@ -9504,13 +9954,18 @@ impl Gallery {
+@@ -9504,13 +9955,18 @@ impl Gallery {
                  ),
                  (
                      "Custom Trigger",
@@ -24821,7 +25208,7 @@ index 5eb12cd4..90500dad 100644
                          .child(
                              gpui::div()
                                  .id("ad-custom-trigger")
-@@ -9529,7 +9984,7 @@ impl Gallery {
+@@ -9529,7 +9985,7 @@ impl Gallery {
                          .child(
                              h::AlertDialog::new("Delete this account?").id("ad-custom")
                                  .description("Any element can open an alert dialog; a composed CloseTrigger draws the corner X and a composed footer owns the danger confirm.")
@@ -24830,7 +25217,7 @@ index 5eb12cd4..90500dad 100644
                                  .child(h::AlertDialogCloseTrigger::new())
                                  .footer_child(
                                      h::Button::new("ad-custom-cancel")
-@@ -9554,58 +10009,64 @@ impl Gallery {
+@@ -9554,58 +10010,64 @@ impl Gallery {
                                      cx.notify();
                                  })))
                          )
@@ -24944,7 +25331,7 @@ index 5eb12cd4..90500dad 100644
              )],
              cx,
          )
-@@ -9620,7 +10081,7 @@ impl Gallery {
+@@ -9620,7 +10082,7 @@ impl Gallery {
              vec![
                  (
                      "Placement",
@@ -24953,7 +25340,7 @@ index 5eb12cd4..90500dad 100644
                          ("dr-left", "Left", h::DrawerPlacement::Left),
                          ("dr-right", "Right", h::DrawerPlacement::Right),
                          ("dr-top", "Top", h::DrawerPlacement::Top),
-@@ -9630,6 +10091,7 @@ impl Gallery {
+@@ -9630,6 +10092,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -24961,7 +25348,7 @@ index 5eb12cd4..90500dad 100644
                              key,
                              label,
                              h::Drawer::new()
-@@ -9654,7 +10116,8 @@ impl Gallery {
+@@ -9654,7 +10117,8 @@ impl Gallery {
                  ),
                  (
                      "Non-Dismissable",
@@ -24971,7 +25358,7 @@ index 5eb12cd4..90500dad 100644
                          "dr-no-dismiss",
                          "Open a non-dismissable drawer",
                          h::Drawer::new()
-@@ -9682,7 +10145,8 @@ impl Gallery {
+@@ -9682,7 +10146,8 @@ impl Gallery {
                  ),
                  (
                      "Scrollable Content",
@@ -24981,7 +25368,7 @@ index 5eb12cd4..90500dad 100644
                          "dr-scroll",
                          "Open a long drawer",
                          h::Drawer::new()
-@@ -9706,7 +10170,7 @@ impl Gallery {
+@@ -9706,7 +10171,7 @@ impl Gallery {
                  ),
                  (
                      "Controlled State",
@@ -24990,7 +25377,7 @@ index 5eb12cd4..90500dad 100644
                          para(
                              &format!(
                                  "The flag lives with the caller: {}",
-@@ -9719,6 +10183,7 @@ impl Gallery {
+@@ -9719,6 +10184,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -24998,7 +25385,7 @@ index 5eb12cd4..90500dad 100644
                              "dr-controlled",
                              "Open (controlled)",
                              h::Drawer::new()
-@@ -9739,7 +10204,8 @@ impl Gallery {
+@@ -9739,7 +10205,8 @@ impl Gallery {
                  ),
                  (
                      "With Form",
@@ -25008,7 +25395,7 @@ index 5eb12cd4..90500dad 100644
                          "dr-form",
                          "Open a form drawer",
                          h::Drawer::new()
-@@ -9779,7 +10245,8 @@ impl Gallery {
+@@ -9779,7 +10246,8 @@ impl Gallery {
                  ),
                  (
                      "Navigation Drawer",
@@ -25018,7 +25405,7 @@ index 5eb12cd4..90500dad 100644
                          "dr-nav",
                          "Open the navigation",
                          h::Drawer::new()
-@@ -9809,7 +10276,7 @@ impl Gallery {
+@@ -9809,7 +10277,7 @@ impl Gallery {
                  ),
                  (
                      "Backdrop Variants",
@@ -25027,7 +25414,7 @@ index 5eb12cd4..90500dad 100644
                          .iter()
                          .map(|backdrop| {
                              let key: &'static str = match backdrop {
-@@ -9819,6 +10286,7 @@ impl Gallery {
+@@ -9819,6 +10287,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -25035,7 +25422,7 @@ index 5eb12cd4..90500dad 100644
                                  key,
                                  backdrop.label(),
                                  h::Drawer::new()
-@@ -9843,39 +10311,44 @@ impl Gallery {
+@@ -9843,39 +10312,44 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -25109,7 +25496,7 @@ index 5eb12cd4..90500dad 100644
                  ),
              ],
              cx,
-@@ -9898,7 +10371,7 @@ impl Gallery {
+@@ -9898,7 +10372,7 @@ impl Gallery {
              vec![
                  (
                      "Sizes",
@@ -25118,7 +25505,7 @@ index 5eb12cd4..90500dad 100644
                          ("md-size-xs", "Xs", h::ModalSize::Xs),
                          ("md-size-sm", "Sm", h::ModalSize::Sm),
                          ("md-size-md", "Md", h::ModalSize::Md),
-@@ -9910,6 +10383,7 @@ impl Gallery {
+@@ -9910,6 +10384,7 @@ impl Gallery {
                      .map(|(key, label, size)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -25126,7 +25513,7 @@ index 5eb12cd4..90500dad 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -9934,7 +10408,7 @@ impl Gallery {
+@@ -9934,7 +10409,7 @@ impl Gallery {
                  ),
                  (
                      "Placement",
@@ -25135,7 +25522,7 @@ index 5eb12cd4..90500dad 100644
                          ("md-place-auto", "Auto", h::ModalPlacement::Auto),
                          ("md-place-center", "Center", h::ModalPlacement::Center),
                          ("md-place-top", "Top", h::ModalPlacement::Top),
-@@ -9944,6 +10418,7 @@ impl Gallery {
+@@ -9944,6 +10419,7 @@ impl Gallery {
                      .map(|(key, label, placement)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -25143,7 +25530,7 @@ index 5eb12cd4..90500dad 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -9968,7 +10443,7 @@ impl Gallery {
+@@ -9968,7 +10444,7 @@ impl Gallery {
                  ),
                  (
                      "Scroll Behavior",
@@ -25152,7 +25539,7 @@ index 5eb12cd4..90500dad 100644
                          ("md-scroll-inside", "Inside", h::ModalScroll::Inside),
                          ("md-scroll-outside", "Outside", h::ModalScroll::Outside),
                      ]
-@@ -9976,6 +10451,7 @@ impl Gallery {
+@@ -9976,6 +10452,7 @@ impl Gallery {
                      .map(|(key, label, scroll)| {
                          let open = self.demo_overlay(key);
                          overlay_demo(
@@ -25160,7 +25547,7 @@ index 5eb12cd4..90500dad 100644
                              key,
                              label,
                              h::Modal::new()
-@@ -10004,7 +10480,7 @@ impl Gallery {
+@@ -10004,7 +10481,7 @@ impl Gallery {
                  ),
                  (
                      "Controlled State",
@@ -25169,7 +25556,7 @@ index 5eb12cd4..90500dad 100644
                          para(
                              &format!(
                                  "The flag lives with the caller: {}",
-@@ -10013,6 +10489,7 @@ impl Gallery {
+@@ -10013,6 +10490,7 @@ impl Gallery {
                              cx,
                          ),
                          overlay_demo(
@@ -25177,7 +25564,7 @@ index 5eb12cd4..90500dad 100644
                              "md-controlled",
                              "Open (controlled)",
                              h::Modal::new()
-@@ -10033,7 +10510,8 @@ impl Gallery {
+@@ -10033,7 +10511,8 @@ impl Gallery {
                  ),
                  (
                      "With Form",
@@ -25187,7 +25574,7 @@ index 5eb12cd4..90500dad 100644
                          "md-form",
                          "Open form modal",
                          h::Modal::new()
-@@ -10075,18 +10553,21 @@ impl Gallery {
+@@ -10075,18 +10554,21 @@ impl Gallery {
                  ),
                  (
                      "Custom Trigger",
@@ -25217,7 +25604,7 @@ index 5eb12cd4..90500dad 100644
                                  .on_click(cx.listener(|this, _, _, cx| {
                                      this.set_demo_flag("md-custom", true);
                                      cx.notify();
-@@ -10109,7 +10590,7 @@ impl Gallery {
+@@ -10109,7 +10591,7 @@ impl Gallery {
                  ),
                  (
                      "Backdrop Variants",
@@ -25226,7 +25613,7 @@ index 5eb12cd4..90500dad 100644
                          .iter()
                          .map(|backdrop| {
                              let key: &'static str = match backdrop {
-@@ -10119,6 +10600,7 @@ impl Gallery {
+@@ -10119,6 +10601,7 @@ impl Gallery {
                              };
                              let open = self.demo_overlay(key);
                              overlay_demo(
@@ -25234,7 +25621,7 @@ index 5eb12cd4..90500dad 100644
                                  key,
                                  backdrop.label(),
                                  h::Modal::new()
-@@ -10143,14 +10625,10 @@ impl Gallery {
+@@ -10143,14 +10626,10 @@ impl Gallery {
                  ),
                  (
                      "Custom Backdrop",
@@ -25252,7 +25639,7 @@ index 5eb12cd4..90500dad 100644
                              "md-bd-custom",
                              "Open with a blurred backdrop",
                              h::Modal::new()
-@@ -10172,13 +10650,10 @@ impl Gallery {
+@@ -10172,13 +10651,10 @@ impl Gallery {
                  ),
                  (
                      "Dismiss Behavior",
@@ -25269,7 +25656,7 @@ index 5eb12cd4..90500dad 100644
                              "md-no-dismiss",
                              "Open a non-dismissable modal",
                              h::Modal::new()
-@@ -10210,15 +10685,10 @@ impl Gallery {
+@@ -10210,15 +10686,10 @@ impl Gallery {
                  ),
                  (
                      "Close Methods",
@@ -25288,7 +25675,7 @@ index 5eb12cd4..90500dad 100644
                              "md-close",
                              "Open (no close trigger)",
                              h::Modal::new()
-@@ -10250,16 +10720,10 @@ impl Gallery {
+@@ -10250,16 +10721,10 @@ impl Gallery {
                  ),
                  (
                      "Custom Animations",
@@ -25308,7 +25695,7 @@ index 5eb12cd4..90500dad 100644
                              "md-anim",
                              "Open and watch the panel",
                              h::Modal::new()
-@@ -10280,13 +10744,17 @@ impl Gallery {
+@@ -10280,13 +10745,17 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -25333,7 +25720,7 @@ index 5eb12cd4..90500dad 100644
                          .child(
                              h::Button::new("md-open")
                                  .label("Open modal")
-@@ -10325,7 +10793,8 @@ impl Gallery {
+@@ -10325,7 +10794,8 @@ impl Gallery {
                                      cx.notify();
                                  })),
                          )
@@ -25343,7 +25730,7 @@ index 5eb12cd4..90500dad 100644
                  ),
              ],
              cx,
-@@ -10335,6 +10804,20 @@ impl Gallery {
+@@ -10335,6 +10805,20 @@ impl Gallery {
      pub fn page_popover(&mut self, cx: &mut Context<'_, Self>) -> AnyElement {
          let is_open = self.popover_open;
          let po_following = self.demo_flag("po-following", false);
@@ -25364,7 +25751,7 @@ index 5eb12cd4..90500dad 100644
          component_doc_page!(
              "Popover",
              crate::pages::Page::Popover.description(),
-@@ -10342,79 +10825,121 @@ impl Gallery {
+@@ -10342,79 +10826,121 @@ impl Gallery {
              vec![
                  (
                      "With Arrow",
@@ -25520,7 +25907,7 @@ index 5eb12cd4..90500dad 100644
                              .title("Sarah Johnson")
                              .child(
                                  gpui::div()
-@@ -10442,16 +10967,16 @@ impl Gallery {
+@@ -10442,16 +10968,16 @@ impl Gallery {
                                      ),
                              ),
                          )
@@ -25543,7 +25930,7 @@ index 5eb12cd4..90500dad 100644
                          .children(
                              [
                                  ("po-pl-top", "Top", h::PopoverPlacement::Top),
-@@ -10461,7 +10986,24 @@ impl Gallery {
+@@ -10461,7 +10987,24 @@ impl Gallery {
                              ]
                              .into_iter()
                              .map(|(id, label, placement)| {
@@ -25569,7 +25956,7 @@ index 5eb12cd4..90500dad 100644
                                      h::Popover::new(
                                          h::Button::new(el_id(format!("{id}-trigger")))
                                              .label(label)
-@@ -10469,30 +11011,220 @@ impl Gallery {
+@@ -10469,30 +11012,220 @@ impl Gallery {
                                              .size(Size::Sm),
                                      )
                                      .id(id)
@@ -25805,7 +26192,7 @@ index 5eb12cd4..90500dad 100644
                  ),
              ],
              cx,
-@@ -10541,13 +11273,8 @@ impl Gallery {
+@@ -10541,13 +11274,8 @@ impl Gallery {
                  ),
                  (
                      "Placements",
@@ -25820,7 +26207,7 @@ index 5eb12cd4..90500dad 100644
                          row([
                              ("TopStart", h::ToastPlacement::TopStart),
                              ("Top", h::ToastPlacement::Top),
-@@ -10592,13 +11319,8 @@ impl Gallery {
+@@ -10592,13 +11320,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicators",
@@ -25835,7 +26222,7 @@ index 5eb12cd4..90500dad 100644
                          row(vec![
                              h::Button::new("toast-ind-success")
                                  .label("Success")
-@@ -10646,13 +11368,8 @@ impl Gallery {
+@@ -10646,13 +11369,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Toast Rendering",
@@ -25850,7 +26237,7 @@ index 5eb12cd4..90500dad 100644
                          row(vec![h::Button::new("toast-custom")
                              .label("Push a two-line toast")
                              .variant(Variant::Secondary)
-@@ -10669,13 +11386,8 @@ impl Gallery {
+@@ -10669,13 +11387,8 @@ impl Gallery {
                  ),
                  (
                      "Promise & Loading",
@@ -25865,7 +26252,7 @@ index 5eb12cd4..90500dad 100644
                          row(vec![h::Button::new("toast-promise")
                              .label("Upload a file")
                              .variant(Variant::Secondary)
-@@ -10708,13 +11420,9 @@ impl Gallery {
+@@ -10708,13 +11421,9 @@ impl Gallery {
                  ),
                  (
                      "Callbacks",
@@ -25880,7 +26267,7 @@ index 5eb12cd4..90500dad 100644
                          row(vec![h::Button::new("toast-callback")
                              .label("Push a closable toast")
                              .variant(Variant::Secondary)
-@@ -10731,12 +11439,8 @@ impl Gallery {
+@@ -10731,12 +11440,8 @@ impl Gallery {
                  ),
                  (
                      "Custom Queues",
@@ -25894,7 +26281,7 @@ index 5eb12cd4..90500dad 100644
                          row(vec![h::Button::new("toast-queue")
                              .label("Push four")
                              .variant(Variant::Secondary)
-@@ -10753,12 +11457,8 @@ impl Gallery {
+@@ -10753,12 +11458,8 @@ impl Gallery {
                  ),
                  (
                      "Setup",
@@ -25908,7 +26295,7 @@ index 5eb12cd4..90500dad 100644
                          crate::pages::code_block(TOAST_SETUP, cx),
                      ]),
                  ),
-@@ -10822,7 +11522,7 @@ impl Gallery {
+@@ -10822,7 +11523,7 @@ impl Gallery {
                          h::Tooltip::new("Jane Doe")
                              .delay(0)
                              .show_arrow(true)
@@ -25917,7 +26304,7 @@ index 5eb12cd4..90500dad 100644
                              .into_any_element(),
                          h::Tooltip::new("Verified account")
                              .delay(0)
-@@ -10928,110 +11628,120 @@ impl Gallery {
+@@ -10928,110 +11629,120 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -26065,7 +26452,7 @@ index 5eb12cd4..90500dad 100644
                          self.demo_text("ac-sections", "", cx),
                          vec![
                              h::PickerItem::new("rust", "Rust"),
-@@ -11041,6 +11751,7 @@ impl Gallery {
+@@ -11041,6 +11752,7 @@ impl Gallery {
                          ],
                      )
                      .label("Language")
@@ -26073,7 +26460,7 @@ index 5eb12cd4..90500dad 100644
                      .section_before("rust", "Systems")
                      .section_before("typescript", "Scripting")
                      .default_open(true)
-@@ -11048,11 +11759,12 @@ impl Gallery {
+@@ -11048,11 +11760,12 @@ impl Gallery {
                  ),
                  (
                      "Multiple Select",
@@ -26087,7 +26474,7 @@ index 5eb12cd4..90500dad 100644
                      .selection_mode(SelectionMode::Multiple)
                      // `defaultValue` is `Key | Key[]`: the uncontrolled
                      // selection, seeded once, by key.
-@@ -11065,6 +11777,7 @@ impl Gallery {
+@@ -11065,6 +11778,7 @@ impl Gallery {
                      col(vec![
                          h::Autocomplete::new(self.demo_text("ac-controlled", "", cx), language_items())
                              .label("Language")
@@ -26095,7 +26482,7 @@ index 5eb12cd4..90500dad 100644
                              .input_value(ac_typed)
                              .on_input_change(cx.listener(|this, text: &str, _, cx| {
                                  this.set_demo_text_value("ac-typed", text.to_owned());
-@@ -11087,11 +11800,12 @@ impl Gallery {
+@@ -11087,11 +11801,12 @@ impl Gallery {
                  ),
                  (
                      "Controlled Multiple",
@@ -26109,7 +26496,7 @@ index 5eb12cd4..90500dad 100644
                      .selection_mode(SelectionMode::Multiple)
                      .selected_keys(ac_multi.iter().cloned())
                      .on_selection_change_all(cx.listener(|this, keys: &[SharedString], _, cx| {
-@@ -11117,6 +11831,7 @@ impl Gallery {
+@@ -11117,6 +11832,7 @@ impl Gallery {
                          ]),
                          h::Autocomplete::new(self.demo_text("ac-open", "", cx), language_items())
                              .label("Language")
@@ -26117,7 +26504,7 @@ index 5eb12cd4..90500dad 100644
                              .is_open(ac_open)
                              .on_open_change(bool_cb(cx.listener(|this, v: &bool, _, cx| {
                                  this.set_demo_flag("ac-open", *v);
-@@ -11127,16 +11842,12 @@ impl Gallery {
+@@ -11127,16 +11843,12 @@ impl Gallery {
                  ),
                  (
                      "Asynchronous Filtering",
@@ -26136,7 +26523,7 @@ index 5eb12cd4..90500dad 100644
                                  // `useFilter({sensitivity: "base"}).contains`:
                                  // case and accents both ignored, so "cafe"
                                  // finds "Café". The closure receives
-@@ -11153,11 +11864,12 @@ impl Gallery {
+@@ -11153,11 +11865,12 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -26150,7 +26537,7 @@ index 5eb12cd4..90500dad 100644
                      .default_open(true)
                      .indicator(|is_open| {
                          gpui::div()
-@@ -11169,17 +11881,11 @@ impl Gallery {
+@@ -11169,17 +11882,11 @@ impl Gallery {
                  ),
                  (
                      "Custom Value",
@@ -26170,7 +26557,7 @@ index 5eb12cd4..90500dad 100644
                              .selection_mode(SelectionMode::Multiple)
                              .default_value(["rust", "go"])
                              .value_content(|value| {
-@@ -11205,7 +11911,7 @@ impl Gallery {
+@@ -11205,7 +11912,7 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -26179,7 +26566,7 @@ index 5eb12cd4..90500dad 100644
                          self.ac_entity.clone(),
                          language_items(),
                      )
-@@ -11235,94 +11941,105 @@ impl Gallery {
+@@ -11235,94 +11942,105 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -26308,7 +26695,7 @@ index 5eb12cd4..90500dad 100644
                          self.demo_text("cb-sections", "", cx),
                          vec![
                              h::PickerItem::new("rust", "Rust"),
-@@ -11332,6 +12049,7 @@ impl Gallery {
+@@ -11332,6 +12050,7 @@ impl Gallery {
                          ],
                      )
                      .label("Language")
@@ -26316,7 +26703,7 @@ index 5eb12cd4..90500dad 100644
                      .section_before("rust", "Systems")
                      .section_before("typescript", "Scripting")
                      .default_open(true)
-@@ -11342,6 +12060,7 @@ impl Gallery {
+@@ -11342,6 +12061,7 @@ impl Gallery {
                      col(vec![
                          h::ComboBox::new(self.demo_text("cb-controlled", "", cx), language_items())
                              .label("Language")
@@ -26324,7 +26711,7 @@ index 5eb12cd4..90500dad 100644
                              // `selectedKey` is the controlled selection key
                              // (empty string is v3's `null`); the input shows
                              // that key's label and `inputValue` holds the
-@@ -11371,6 +12090,7 @@ impl Gallery {
+@@ -11371,6 +12091,7 @@ impl Gallery {
                      col(vec![
                          h::ComboBox::new(self.demo_text("cb-input", "", cx), language_items())
                              .label("Language")
@@ -26332,7 +26719,7 @@ index 5eb12cd4..90500dad 100644
                              .on_input_change(cx.listener(|this, text: &str, _, cx| {
                                  this.set_demo_text_value("cb-typed", text.to_owned());
                                  cx.notify();
-@@ -11381,11 +12101,12 @@ impl Gallery {
+@@ -11381,11 +12102,12 @@ impl Gallery {
                  ),
                  (
                      "Controlled Selection",
@@ -26346,7 +26733,7 @@ index 5eb12cd4..90500dad 100644
                      .selection_mode(SelectionMode::Multiple)
                      .selected_keys(cb_multi.iter().cloned())
                      .on_selection_change_all(cx.listener(|this, keys: &[SharedString], _, cx| {
-@@ -11396,22 +12117,24 @@ impl Gallery {
+@@ -11396,22 +12118,24 @@ impl Gallery {
                  ),
                  (
                      "Multiple Selection",
@@ -26373,7 +26760,7 @@ index 5eb12cd4..90500dad 100644
                      .selected_keys(cb_value.iter().cloned())
                      .on_selection_change_all(cx.listener(
                          |this, keys: &[SharedString], _, cx| {
-@@ -11433,36 +12156,34 @@ impl Gallery {
+@@ -11433,36 +12157,34 @@ impl Gallery {
                  ),
                  (
                      "Default Selected Key",
@@ -26417,7 +26804,7 @@ index 5eb12cd4..90500dad 100644
                                  .allows_empty_collection(true)
                                  // v3 pairs the flag with async loading: type a
                                  // query nothing matches and the panel stays up
-@@ -11479,11 +12200,12 @@ impl Gallery {
+@@ -11479,11 +12201,12 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -26431,7 +26818,7 @@ index 5eb12cd4..90500dad 100644
                      .selection_mode(SelectionMode::Multiple)
                      .default_open(true)
                      .indicator(|is_selected| {
-@@ -11496,14 +12218,11 @@ impl Gallery {
+@@ -11496,14 +12219,11 @@ impl Gallery {
                  ),
                  (
                      "Custom Filtering",
@@ -26448,7 +26835,7 @@ index 5eb12cd4..90500dad 100644
                              .filter(|item, input| {
                                  h::Filter::new(h::Sensitivity::Base).starts_with(item, input)
                              })
-@@ -11518,6 +12237,7 @@ impl Gallery {
+@@ -11518,6 +12238,7 @@ impl Gallery {
                              "Input (opens as you type)",
                              h::ComboBox::new(self.demo_text("cb-mt-input", "", cx), language_items())
                                  .label("Language")
@@ -26456,7 +26843,7 @@ index 5eb12cd4..90500dad 100644
                                  .menu_trigger(h::MenuTrigger::Input),
                              cx,
                          ),
-@@ -11525,6 +12245,7 @@ impl Gallery {
+@@ -11525,6 +12246,7 @@ impl Gallery {
                              "Manual (only the chevron opens it)",
                              h::ComboBox::new(self.demo_text("cb-mt-manual", "", cx), language_items())
                                  .label("Language")
@@ -26464,7 +26851,7 @@ index 5eb12cd4..90500dad 100644
                                  .menu_trigger(h::MenuTrigger::Manual),
                              cx,
                          ),
-@@ -11532,21 +12253,15 @@ impl Gallery {
+@@ -11532,21 +12254,15 @@ impl Gallery {
                  ),
                  (
                      "Form Value",
@@ -26488,7 +26875,7 @@ index 5eb12cd4..90500dad 100644
                              .name("language")
                              .is_required(true);
                              h::Form::new()
-@@ -11580,6 +12295,7 @@ impl Gallery {
+@@ -11580,6 +12296,7 @@ impl Gallery {
                                  language_items(),
                              )
                              .label("Language")
@@ -26496,7 +26883,7 @@ index 5eb12cd4..90500dad 100644
                              .name("custom-language")
                              .allows_custom_value(true)
                              .form_value(h::ComboBoxFormValue::Text),
-@@ -11594,6 +12310,7 @@ impl Gallery {
+@@ -11594,6 +12311,7 @@ impl Gallery {
                              "Native (blocks the submit)",
                              h::ComboBox::new(self.demo_text("cb-vb-native", "", cx), language_items())
                                  .label("Language")
@@ -26504,7 +26891,7 @@ index 5eb12cd4..90500dad 100644
                                  .is_required(true)
                                  .validation_behavior(h::ValidationBehavior::Native),
                              cx,
-@@ -11602,6 +12319,7 @@ impl Gallery {
+@@ -11602,6 +12320,7 @@ impl Gallery {
                              "Allow (shows the message, submits anyway)",
                              h::ComboBox::new(self.demo_text("cb-vb-allow", "", cx), language_items())
                                  .label("Language")
@@ -26512,7 +26899,7 @@ index 5eb12cd4..90500dad 100644
                                  .is_required(true)
                                  .validation_behavior(h::ValidationBehavior::Allow),
                              cx,
-@@ -11610,7 +12328,7 @@ impl Gallery {
+@@ -11610,7 +12329,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Validation",
@@ -26521,7 +26908,7 @@ index 5eb12cd4..90500dad 100644
                          self.demo_text("cb-validate", "Zig", cx),
                          language_items(),
                      )
-@@ -11624,7 +12342,7 @@ impl Gallery {
+@@ -11624,7 +12343,7 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -26530,7 +26917,7 @@ index 5eb12cd4..90500dad 100644
                          self.combo_state.clone(),
                          language_items(),
                      )
-@@ -11643,11 +12361,12 @@ impl Gallery {
+@@ -11643,11 +12362,12 @@ impl Gallery {
                  ),
                  (
                      "Custom values allowed",
@@ -26544,7 +26931,7 @@ index 5eb12cd4..90500dad 100644
                      .allows_custom_value(true)
                      .is_open(is_open)
                      .on_open_change(bool_cb(cx.listener(|this, open: &bool, _, cx| {
-@@ -11672,23 +12391,19 @@ impl Gallery {
+@@ -11672,23 +12392,19 @@ impl Gallery {
              vec![
                  (
                      "Virtualization",
@@ -26575,7 +26962,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .description("Used for spell-checking")
-@@ -11696,7 +12411,7 @@ impl Gallery {
+@@ -11696,7 +12412,7 @@ impl Gallery {
                  ),
                  (
                      "Required",
@@ -26584,7 +26971,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .is_required(true)
-@@ -11704,7 +12419,7 @@ impl Gallery {
+@@ -11704,7 +12420,7 @@ impl Gallery {
                  ),
                  (
                      "Disabled",
@@ -26593,7 +26980,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .is_disabled(true)
-@@ -11712,7 +12427,7 @@ impl Gallery {
+@@ -11712,7 +12428,7 @@ impl Gallery {
                  ),
                  (
                      "With Disabled Options",
@@ -26602,7 +26989,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .disabled_keys([1, 3])
-@@ -11721,7 +12436,7 @@ impl Gallery {
+@@ -11721,7 +12437,7 @@ impl Gallery {
                  ),
                  (
                      "With Sections",
@@ -26611,7 +26998,7 @@ index 5eb12cd4..90500dad 100644
                          "sel-sections",
                          vec![
                              "United States".into(),
-@@ -11796,13 +12511,8 @@ impl Gallery {
+@@ -11796,13 +12512,8 @@ impl Gallery {
                  ),
                  (
                      "Asynchronous Loading",
@@ -26626,7 +27013,7 @@ index 5eb12cd4..90500dad 100644
                          row(vec![
                              h::Select::new("sel-async", languages())
                                  .label("Language")
-@@ -11816,7 +12526,7 @@ impl Gallery {
+@@ -11816,7 +12527,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Indicator",
@@ -26635,7 +27022,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11837,7 +12547,7 @@ impl Gallery {
+@@ -11837,7 +12548,7 @@ impl Gallery {
                  ),
                  (
                      "Custom Value",
@@ -26644,7 +27031,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11868,7 +12578,7 @@ impl Gallery {
+@@ -11868,7 +12579,7 @@ impl Gallery {
                  ),
                  (
                      "Usage",
@@ -26653,7 +27040,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Language")
                          .placeholder("Choose one")
                          .value(selected)
-@@ -11888,18 +12598,20 @@ impl Gallery {
+@@ -11888,18 +12599,20 @@ impl Gallery {
                  ),
                  (
                      "Uncontrolled",
@@ -26676,7 +27063,7 @@ index 5eb12cd4..90500dad 100644
                                  .value(selected)
                                  .on_selection_change(opt_usize_cb(cx.listener(
                                      |this, i: &Option<usize>, _, cx| {
-@@ -11913,21 +12625,26 @@ impl Gallery {
+@@ -11913,21 +12626,26 @@ impl Gallery {
                  ),
                  (
                      "Full width",
@@ -26714,7 +27101,7 @@ index 5eb12cd4..90500dad 100644
                          .label("Languages")
                          .placeholder("Pick several")
                          .selection_mode(SelectionMode::Multiple)
-@@ -12050,14 +12767,8 @@ impl Gallery {
+@@ -12050,14 +12768,8 @@ impl Gallery {
                  ),
                  (
                      "Render Props",
@@ -26730,7 +27117,7 @@ index 5eb12cd4..90500dad 100644
                          h::Prose::new()
                              .child(h::Typography::paragraph(
                                  h::ParagraphSize::Base,
-@@ -12265,12 +12976,8 @@ impl Gallery {
+@@ -12265,12 +12977,8 @@ impl Gallery {
                  ),
                  (
                      "Hide Scroll Bar",
@@ -26744,7 +27131,7 @@ index 5eb12cd4..90500dad 100644
                          h::ScrollShadow::new("ss-no-bar")
                              .max_h(px(140.))
                              .children(
-@@ -12385,13 +13092,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
+@@ -12385,13 +13093,45 @@ fn icon(path: &'static str, cx: &gpui::App) -> AnyElement {
          .into_any_element()
  }
  

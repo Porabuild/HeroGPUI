@@ -8,7 +8,7 @@ use gpui::{
     SharedString, Styled, Window,
 };
 use herogpui_theme::ActiveTheme;
-use std::time::Instant;
+use web_time::Instant;
 
 use herogpui_core::Backdrop;
 

@@ -756,7 +756,7 @@ impl RenderOnce for Menu {
                         if !crate::list_nav::is_typeahead_key(key) {
                             return;
                         }
-                        let now = std::time::Instant::now();
+                        let now = web_time::Instant::now();
                         let (query, repeat) = typed_keys.update(cx, |t, _| {
                             let query = t.push(key, now);
                             (query, t.is_repeat())

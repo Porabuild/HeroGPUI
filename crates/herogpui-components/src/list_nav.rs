@@ -86,7 +86,7 @@ pub const TYPEAHEAD_TIMEOUT: std::time::Duration = std::time::Duration::from_mil
 #[derive(Clone, Debug, Default)]
 pub struct Typeahead {
     query: String,
-    last: Option<std::time::Instant>,
+    last: Option<web_time::Instant>,
 }
 
 impl Typeahead {
@@ -95,7 +95,7 @@ impl Typeahead {
     /// Repeating one letter is not a two-letter search: React Aria treats
     /// `aa` as "the next row starting with a", which is how a list of names is
     /// walked by initial.
-    pub fn push(&mut self, key: &str, now: std::time::Instant) -> String {
+    pub fn push(&mut self, key: &str, now: web_time::Instant) -> String {
         let stale = self
             .last
             .is_none_or(|last| now.duration_since(last) > TYPEAHEAD_TIMEOUT);
@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn the_buffer_clears_after_the_timeout() {
         let mut ta = Typeahead::default();
-        let t0 = std::time::Instant::now();
+        let t0 = web_time::Instant::now();
         assert_eq!(ta.push("d", t0), "d");
         assert_eq!(
             ta.push("e", t0 + std::time::Duration::from_millis(200)),
@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn a_repeated_letter_is_not_a_two_letter_search() {
         let mut ta = Typeahead::default();
-        let t0 = std::time::Instant::now();
+        let t0 = web_time::Instant::now();
         assert_eq!(ta.push("b", t0), "b");
         assert_eq!(
             ta.push("b", t0 + std::time::Duration::from_millis(100)),

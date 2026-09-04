@@ -253,6 +253,46 @@ fn table_page_keys_rove_a_plain_body_to_its_ends(cx: &mut TestAppContext) {
         ["row:2"],
         "PageUp must move the focus into the first column header, so Enter no          longer reaches the row the cursor was left on"
     );
+    press(cx, "pagedown");
+    press(cx, "enter");
+    press(cx, "pageup");
+    press(cx, "down");
+    press(cx, "enter");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["row:2", "row:2", "row:1"],
+        "PageDown and Down from a header must reach the last and first enabled body rows"
+    );
+}
+
+#[gpui::test]
+fn table_focusable_header_preserves_fixed_column_width(cx: &mut TestAppContext) {
+    let recorded = events();
+    let for_view = recorded.clone();
+    let cx = open_host(cx, move || {
+        let recorded = for_view.clone();
+        gpui::div()
+            .w(px(800.))
+            .child(
+                Table::new(vec![])
+                    .id("tbl-header-width")
+                    .column(TableColumn::new("Name").default_width(px(100.)))
+                    .column(
+                        TableColumn::new("Role")
+                            .default_width(px(300.))
+                            .allows_sorting(true),
+                    )
+                    .row(vec![tall_cell("Alpha"), tall_cell("Developer")])
+                    .on_sort_change(move |sort, _, _| {
+                        recorded.borrow_mut().push(sort.column.to_string());
+                    }),
+            )
+            .into_any_element()
+    });
+    // The first fixed column ends at x=100 even when the host has spare width.
+    // Its focus target must not move the second header away from its body cell.
+    click(cx, 140., 18.);
+    assert_eq!(recorded.borrow().as_slice(), ["Role"]);
 }
 
 /// A sortable header is its own tab stop (the port's reading of "one stop per

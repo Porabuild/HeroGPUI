@@ -2508,6 +2508,7 @@ dependencies = [
  "icu_locale_core",
  "jiff",
  "locale_config",
+ "web-time",
 ]
 
 [[package]]

@@ -277,7 +277,7 @@ enum RowIntent {
 #[derive(Clone, Debug, Default)]
 struct TableTypeahead {
     query: String,
-    last: Option<std::time::Instant>,
+    last: Option<web_time::Instant>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -288,14 +288,14 @@ struct TableSelectionRange {
 }
 
 impl TableTypeahead {
-    fn is_active(&self, now: std::time::Instant) -> bool {
+    fn is_active(&self, now: web_time::Instant) -> bool {
         !self.query.is_empty()
             && self
                 .last
                 .is_some_and(|last| now.duration_since(last) <= crate::list_nav::TYPEAHEAD_TIMEOUT)
     }
 
-    fn push(&mut self, key: &str, now: std::time::Instant) -> String {
+    fn push(&mut self, key: &str, now: web_time::Instant) -> String {
         if self
             .last
             .is_none_or(|last| now.duration_since(last) > crate::list_nav::TYPEAHEAD_TIMEOUT)
@@ -331,7 +331,7 @@ impl TableTypeaheadNavigation {
     fn push(
         &self,
         character: &str,
-        now: std::time::Instant,
+        now: web_time::Instant,
         clear_on_failure: bool,
         cx: &mut App,
     ) -> bool {
@@ -1613,15 +1613,12 @@ impl RenderOnce for Table {
                 }
                 // Not sortable, so nothing to press -- but still focusable, so
                 // PageUp has a header to land on, and it rings when it does.
-                _ => gpui::div()
+                _ => cell
                     .id(gpui::ElementId::Name(
                         format!("table-header-{column_index}").into(),
                     ))
                     .track_focus(&header_focus[column_index])
                     .relative()
-                    .flex_1()
-                    .flex()
-                    .child(cell)
                     .when(header_focused[column_index], |c| {
                         c.child(crate::util::inset_focus_ring(cx))
                     })
@@ -2232,7 +2229,7 @@ impl RenderOnce for Table {
                     let key_name = event.keystroke.key.as_str();
                     let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
                     let modifiers = &event.keystroke.modifiers;
-                    let now = std::time::Instant::now();
+                    let now = web_time::Instant::now();
                     let is_space = key_name == "space" || typed == " ";
                     if is_space
                         && capture_typeahead.state.read(cx).is_active(now)
@@ -2256,7 +2253,7 @@ impl RenderOnce for Table {
                         && capture_typeahead_up
                             .state
                             .read(cx)
-                            .is_active(std::time::Instant::now())
+                            .is_active(web_time::Instant::now())
                         && !modifiers.control
                         && !modifiers.platform
                         && !modifiers.alt
@@ -2268,6 +2265,7 @@ impl RenderOnce for Table {
                 // The header PageUp hands the focus to. Cloned out because the
                 // handler outlives this frame's `header_focus`.
                 let page_up_header = header_focus.first().cloned();
+                let headers_for_keys = header_focus;
                 wrapper = wrapper.on_key_down(move |event, window, cx| {
                     if !table_focus_for_keys.contains_focused(window, cx) {
                         return;
@@ -2283,7 +2281,7 @@ impl RenderOnce for Table {
                     let key_name = event.keystroke.key.as_str();
                     let typed = event.keystroke.key_char.as_deref().unwrap_or(key_name);
                     let modifiers = &event.keystroke.modifiers;
-                    let now = std::time::Instant::now();
+                    let now = web_time::Instant::now();
                     let is_space = key_name == "space" || typed == " ";
                     let is_character = {
                         let mut chars = key_name.chars();
@@ -2351,6 +2349,26 @@ impl RenderOnce for Table {
                     // Other collection keys belong only to the body's roving
                     // focus stop. A nested cell action must keep its own Enter
                     // and Space handling even though Mod+A bubbles to the root.
+                    if plain_rows
+                        && headers_for_keys
+                            .iter()
+                            .any(|header| header.is_focused(window))
+                    {
+                        let next = match key_name {
+                            "down" => stops.first(),
+                            "pagedown" => stops.last(),
+                            _ => None,
+                        };
+                        if let Some(next) = next {
+                            held.update(cx, |value, cx| {
+                                *value = Some(keys[*next].clone());
+                                cx.notify();
+                            });
+                            window.focus(&table_focus_for_keys, cx);
+                            cx.stop_propagation();
+                        }
+                        return;
+                    }
                     if !table_focus_for_keys.is_focused(window) {
                         return;
                     }

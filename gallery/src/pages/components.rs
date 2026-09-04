@@ -3873,6 +3873,7 @@ impl Gallery {
                 ),
                 (
                     "Sorting",
+                    "In a non-virtual table, PageUp moves from the body to the first header. Enter sorts a sortable header; Down or PageDown returns to the first or last enabled row.",
                     col(vec![
                         {
                             let mut sortable = h::Table::new(vec![])

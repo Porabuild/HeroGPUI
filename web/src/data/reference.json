@@ -20894,7 +20894,7 @@
       {
         "state": "Focus visible",
         "selector": ":focus-visible / [data-focus-visible=\"true\"]",
-        "description": "Inset focus ring on the focused row, sortable header and resizer; one overlay stands in for v3's per-cell split ring.",
+        "description": "Inset focus ring on the focused row, column header and resizer; one overlay stands in for v3's per-cell split ring. In a non-virtual table, PageUp enters the first header; Down and PageDown return to the first and last enabled body rows.",
         "rust": "inset_focus_ring",
         "status": "partial"
       },
