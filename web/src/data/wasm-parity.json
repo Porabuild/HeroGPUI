@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "artifactSha256": "ae5bfc80637c4c6f39e3e4ef875df4ea7ff83f6f8739d75134e05c56fddd7944",
+  "artifactSha256": "ef2cfe160b841c12d67c4af75281eea411991a63cfbb8df5f2346a6795570924",
   "glueSha256": "f92f396e90eb7a66a0d2bffadfa08dcd0866d0e29bd47663814e46a61639d0d3",
   "examples": {
     "accordion/Controlled": {
@@ -2422,47 +2422,38 @@
     },
     "text-field/Controlled": {
       "nativeCodeSha256": "24525f137fa81f29a2aa7f57b5a19031725dc5bf8d1393bf5fe6e3340693dcc0",
-      "wasmCodeSha256": "866a74adec32e36f25014b6e1c0a26d359ec3106c586f7939480680bd21770d4",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-field/Disabled State": {
       "nativeCodeSha256": "ebd427360d003fef3bd04f7900693fefa6998f5afa44904488fe0daf7cba0a7e",
-      "wasmCodeSha256": "ecb8ebdb51df0d9708b794f40711b3c674f127bf56277077f5c8a09a1abbb88a",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-field/Error Message": {
       "nativeCodeSha256": "763bf8199d137e14845dc118452e53d7d90cd9ec483314c4e041100836490b81",
-      "wasmCodeSha256": "116f167d5f27306d359ad9cabe91a421ed34fbefd2bc1661bdb6365dfc64e753",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-field/Full Width": {
       "nativeCodeSha256": "fa1822647ebb3d52a4cfe0bcc98464c227f962fc94051640fbc84fa9b90eeca4",
-      "wasmCodeSha256": "b469912a0851041f32c51ffdfadbc35031c18d206257c8f8d2ad62ac11d78781",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-field/In Surface": {
       "nativeCodeSha256": "55b15df4d9aee91b947177fa7b5de65b1596178259b1632613b64096e36b8b9b",
-      "wasmCodeSha256": "bc12b1f6caa9ae1d0a4ff7d1a0a3cfc1fc3c1d41182e1d4ec3bcca60d1f93f1d",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-field/Input Types": {
       "nativeCodeSha256": "c4246508b3e79b0c67bcb218d4ed30fe9ae63e639fe6409f5bea699446a15af0",
-      "wasmCodeSha256": "aa9a56d71af848b88537d6821f5fa0c7c576054ae54d1dd108a06fc39ed71631",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-field/Render Props": {
       "nativeCodeSha256": "63c9347aeff9896ff6a425bc007e5c89891420b2ed06f1cff36b0dd1e72a9efd",
-      "wasmCodeSha256": "8c956dde71b61149a6aba8841ee43a1fcfb43da6d48bb0eaf1c08ffb4b2240b8",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-field/Required Field": {
       "nativeCodeSha256": "008a3c911f8163d44603d793070b842082200feabe4d03a0a4421e9b2351ecce",
-      "wasmCodeSha256": "6cdc521af357d1a53d7fd4a8e89841469c4f041af095fe6366357c9d2918573b",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-field/TextArea": {
       "nativeCodeSha256": "d8743bae047f1aec1b9346b170b9a5448d6be19a06b558e6accd7899f490ce47",
-      "wasmCodeSha256": "82bda0f9a2025f24b78e2564b0b106aae114034b036243544253db14a80bb122",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-field/Usage": {
@@ -2471,12 +2462,10 @@
     },
     "text-field/Validation": {
       "nativeCodeSha256": "b2a02cb04dde9f361ec11f1bc3c0d94ed45055bc2ab73eed2994186280d909a2",
-      "wasmCodeSha256": "c47866d169903120bfee6e0f5db7c81b1de91b3fadaf10cc5206db4baf1cf605",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "text-field/With Description": {
       "nativeCodeSha256": "f0434f28abc05d3026c3ff6aa2b5e1616dcc44ed86c2be1a8f00e272df99b7f7",
-      "wasmCodeSha256": "dc76f9db57f6d618198e85ef5fecb3809ed656b9daf333b69de5639252280fdb",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "time-field/12-hour with seconds": {
@@ -2833,18 +2822,7 @@
     "slider/Step & disabled",
     "slider/Usage",
     "table/Column Resizing",
-    "tag-group/With Remove Button",
-    "text-field/Controlled",
-    "text-field/Disabled State",
-    "text-field/Error Message",
-    "text-field/Full Width",
-    "text-field/In Surface",
-    "text-field/Input Types",
-    "text-field/Render Props",
-    "text-field/Required Field",
-    "text-field/TextArea",
-    "text-field/Validation",
-    "text-field/With Description"
+    "tag-group/With Remove Button"
   ],
   "descriptionDrift": []
 }
