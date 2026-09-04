@@ -8706,7 +8706,7 @@ impl Gallery {
                         .into_any_element()]),
                 ),
                 (
-                    "Custom Image Component", "v3 composes a custom image element with `asChild` on `Avatar.Image`. The port's equivalent is a custom gpui `ImageSource` — the loader below supplies the embedded sample image itself — with `on_load` firing once the image is ready and replaces the fallback.",
+                    "Custom Image Component", "v3 composes a custom image element with `asChild` on `Avatar.Image`. The port's equivalent is a custom gpui `ImageSource`: the loader below supplies the embedded sample image itself, and `on_load` fires once the image is ready and replaces the fallback.",
                     col(vec![
                         spec(
                             "Custom loader",

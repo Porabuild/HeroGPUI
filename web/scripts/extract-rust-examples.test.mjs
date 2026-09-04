@@ -47,7 +47,7 @@ test("wasm section manifest matches generated component examples", () => {
   }
 
   // Remove an entry as soon as the migration artifact gains the required API.
-  assert.deepEqual(missing.sort(), ["avatar/Custom Image Component", "popover/Render Function"]);
+  assert.deepEqual(missing.sort(), ["popover/Render Function"]);
 });
 
 test("liftDescriptions moves static copy outside the wasm specimen", () => {

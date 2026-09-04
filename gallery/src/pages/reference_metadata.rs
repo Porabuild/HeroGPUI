@@ -15803,7 +15803,7 @@ const AVATAR_PARTS: &[PartDoc] = &[
     PartDoc {
         name: "Avatar.Image",
         slot: "avatar__image",
-        description: "`absolute inset-0 aspect-square size-full` image with an opacity transition. The port draws the loaded image directly inside the root (`img(data).size_full()`), replacing the fallback instead of overlaying it, and does not animate the swap.",
+        description: "`absolute inset-0 aspect-square size-full` image with an opacity transition. The port draws the loaded image directly inside the root (`img(data).size_full().rounded(radius)`), applying the root radius to keep the image inside the Avatar boundary, and does not animate the swap.",
         rust_owner: "Avatar",
         status: ImplementationStatus::Partial,
     },
@@ -15852,8 +15852,8 @@ const AVATAR_STYLING: &[StyleDoc] = &[
     StyleDoc {
         class_or_token: ".avatar__image",
         value: "absolute inset-0 aspect-square size-full; transition-opacity duration-250 motion-reduce:transition-none",
-        description: "The port draws the loaded image as the root's child (`img(data).size_full()`) instead of an absolutely positioned overlay, and the swap is not interpolated.",
-        rust: "img(data).size_full()",
+        description: "The port draws the loaded image as the root's child, applies the same radius so every renderer clips it to the Avatar boundary, and does not interpolate the swap.",
+        rust: "img(data).size_full().rounded(radius)",
         status: ImplementationStatus::Partial,
     },
     StyleDoc {

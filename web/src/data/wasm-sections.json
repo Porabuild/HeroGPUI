@@ -555,7 +555,8 @@
     "Sizes",
     "Colors",
     "Variants",
-    "Group"
+    "Group",
+    "Custom Image Component"
   ],
   "accordion": [
     "Usage",

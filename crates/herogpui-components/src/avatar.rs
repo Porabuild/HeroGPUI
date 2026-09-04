@@ -284,6 +284,11 @@ impl RenderOnce for Avatar {
         // `.avatar__fallback` is `text-sm`; `.avatar--lg .avatar__fallback`
         // steps the fallback text up to `text-base`.
         let font = if self.large { px(16.) } else { px(14.) };
+        let radius = if self.small {
+            crate::util::soft_radius(cx)
+        } else {
+            crate::util::control_radius(cx)
+        };
 
         let el = gpui::div()
             .relative()
@@ -291,11 +296,7 @@ impl RenderOnce for Avatar {
             .items_center()
             .justify_center()
             .size(self.size_px)
-            .rounded(if self.small {
-                crate::util::soft_radius(cx)
-            } else {
-                crate::util::control_radius(cx)
-            })
+            .rounded(radius)
             .bg(bg)
             .text_color(soft_fg)
             .text_size(font)
@@ -450,7 +451,13 @@ impl RenderOnce for Avatar {
                 match got {
                     // Success: the image replaces the fallback inside the
                     // `.avatar__image` box.
-                    Some(Ok(data)) => el.child(gpui::img(data).absolute().inset_0().size_full()),
+                    Some(Ok(data)) => el.child(
+                        gpui::img(data)
+                            .absolute()
+                            .inset_0()
+                            .size_full()
+                            .rounded(radius),
+                    ),
                     // Pending and error both keep the fallback box; with a
                     // `delay_ms` window still running the box stays empty.
                     Some(Err(_)) | None => {
@@ -504,6 +511,12 @@ mod fill_tokens {
             source.contains(".size_full()") && source.contains(".bg(fallback_bg)"),
             "the fallback must be the pinned full-size fallback slot, not a \
              raw child of the root"
+        );
+        let compact: String = source.split_whitespace().collect();
+        assert!(
+            compact.contains("gpui::img(data).absolute().inset_0().size_full().rounded(radius)"),
+            "the loaded image must carry the avatar radius because not every \
+             renderer clips image content at a rounded parent"
         );
         assert!(
             !source.contains("colors().muted"),

@@ -2463,7 +2463,7 @@
     },
     {
       "heading": "Custom Image Component",
-      "description": "v3 composes a custom image element with `asChild` on `Avatar.Image`. The port's equivalent is a custom gpui `ImageSource` — the loader below supplies the embedded sample image itself — with `on_load` firing once the image is ready and replaces the fallback.",
+      "description": "v3 composes a custom image element with `asChild` on `Avatar.Image`. The port's equivalent is a custom gpui `ImageSource`: the loader below supplies the embedded sample image itself, and `on_load` fires once the image is ready and replaces the fallback.",
       "imports": "use herogpui::prelude::{Avatar, Toast};\nuse std::time::Duration;",
       "code": "Avatar::new(\"avatar-loader-avatar\")\n    .name(\"JD\")\n    .src(sample_avatar_source())\n    .fallback(\"JD\")\n    .on_load(|_, cx| {\n        Toast::new(\"Avatar image loaded\")\n            .description(\"on_load fired once for the custom source.\")\n            .push(Some(std::time::Duration::from_secs(3)), cx);\n    })"
     }
