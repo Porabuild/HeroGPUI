@@ -1,5 +1,5 @@
 diff --git a/.cargo/config.toml b/.cargo/config.toml
-index 7569f18..e516c92 100644
+index 7569f185..e516c921 100644
 --- a/.cargo/config.toml
 +++ b/.cargo/config.toml
 @@ -3,3 +3,19 @@ linker = "rust-lld"
@@ -23,7 +23,7 @@ index 7569f18..e516c92 100644
 +[target.wasm32-unknown-unknown]
 +rustflags = []
 diff --git a/Cargo.lock b/Cargo.lock
-index 427e72d..2bf246b 100644
+index 427e72d3..2bf246b3 100644
 --- a/Cargo.lock
 +++ b/Cargo.lock
 @@ -2,6 +2,106 @@
@@ -5941,7 +5941,7 @@ index 427e72d..2bf246b 100644
   "zcheapstr",
   "zvariant_derive",
 diff --git a/Cargo.toml b/Cargo.toml
-index 50d8738..9b9135d 100644
+index 50d8738d..9b9135da 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -5,6 +5,7 @@ members = [
@@ -5993,7 +5993,7 @@ index 50d8738..9b9135d 100644
 +codegen-units = 1
 +strip = "symbols"
 diff --git a/crates/herogpui-components/Cargo.toml b/crates/herogpui-components/Cargo.toml
-index 181a575..0906e7e 100644
+index 181a5756..0906e7e0 100644
 --- a/crates/herogpui-components/Cargo.toml
 +++ b/crates/herogpui-components/Cargo.toml
 @@ -19,6 +19,10 @@ herogpui-core.workspace = true
@@ -6008,7 +6008,7 @@ index 181a575..0906e7e 100644
  # `test-support` is what gives the tests a headless platform, a
  # `VisualTestContext` and simulated input -- the only way to assert that a
 diff --git a/crates/herogpui-components/src/alert.rs b/crates/herogpui-components/src/alert.rs
-index 93eefc9..2aef184 100644
+index 93eefc95..2aef1845 100644
 --- a/crates/herogpui-components/src/alert.rs
 +++ b/crates/herogpui-components/src/alert.rs
 @@ -1,7 +1,8 @@
@@ -6189,20 +6189,32 @@ index 93eefc9..2aef184 100644
          );
      }
 diff --git a/crates/herogpui-components/src/alert_dialog.rs b/crates/herogpui-components/src/alert_dialog.rs
-index a9a7079..79889c5 100644
+index a9a7079c..f548459e 100644
 --- a/crates/herogpui-components/src/alert_dialog.rs
 +++ b/crates/herogpui-components/src/alert_dialog.rs
-@@ -335,7 +335,7 @@ impl RenderOnce for AlertDialog {
+@@ -321,6 +321,9 @@ impl RenderOnce for AlertDialog {
+             true,
+         );
+         if phase == util::OverlayPhase::Closed {
++            // Every close path lands here, including a caller flipping
++            // `is_open`, so the focus goes back from one place.
++            crate::modal::release_dialog_focus(&self.id, window, cx);
+             return div().into_any_element();
+         }
+         let exiting = phase == util::OverlayPhase::Exiting;
+@@ -334,9 +337,7 @@ impl RenderOnce for AlertDialog {
+                 cx.focus_handle()
              });
          let focus_handle = focus.read(cx).clone();
-         if !focus_handle.contains_focused(window, cx) {
+-        if !focus_handle.contains_focused(window, cx) {
 -            window.focus(&focus_handle);
-+            window.focus(&focus_handle, cx);
-         }
+-        }
++        crate::modal::claim_dialog_focus(&self.id, &focus_handle, window, cx);
  
          let colors = cx.colors();
+         let layout = cx.layout();
 diff --git a/crates/herogpui-components/src/autocomplete.rs b/crates/herogpui-components/src/autocomplete.rs
-index debe035..3c60d5f 100644
+index debe0354..3c60d5fc 100644
 --- a/crates/herogpui-components/src/autocomplete.rs
 +++ b/crates/herogpui-components/src/autocomplete.rs
 @@ -43,6 +43,7 @@ use herogpui_theme::ActiveTheme;
@@ -6376,7 +6388,7 @@ index debe035..3c60d5f 100644
                          .w_full()
                          .p(px(6.)),
 diff --git a/crates/herogpui-components/src/avatar.rs b/crates/herogpui-components/src/avatar.rs
-index da3c0c9..8193e7e 100644
+index da3c0c96..8193e7e1 100644
 --- a/crates/herogpui-components/src/avatar.rs
 +++ b/crates/herogpui-components/src/avatar.rs
 @@ -1,11 +1,11 @@
@@ -7014,10 +7026,161 @@ index da3c0c9..8193e7e 100644
          );
      }
 diff --git a/crates/herogpui-components/src/calendar.rs b/crates/herogpui-components/src/calendar.rs
-index 87d98a7..f89fd58 100644
+index 87d98a71..301cbf1f 100644
 --- a/crates/herogpui-components/src/calendar.rs
 +++ b/crates/herogpui-components/src/calendar.rs
-@@ -964,7 +964,7 @@ impl Calendar {
+@@ -5,6 +5,8 @@ use gpui::{
+     prelude::*, px, App, Entity, IntoElement, RenderOnce, SharedString, StatefulInteractiveElement,
+     Styled, Window,
+ };
++use std::sync::OnceLock;
++
+ use herogpui_theme::ActiveTheme;
+ 
+ use crate::calendar_view::{self, PageBehavior, SelectionAlignment, VisibleDuration};
+@@ -72,9 +74,13 @@ pub fn weekday_index(date: Date) -> usize {
+     (days_from_civil(&date) + 3).rem_euclid(7) as usize
+ }
+ 
+-/// Three-letter month name for 1-12.
++/// The running locale's abbreviated month name for 1-12.
++///
++/// CLDR is asked for the abbreviation rather than the first three bytes of the
++/// full name: `"Januar"[..3]` happens to read well in German and would panic
++/// outright on a Japanese month name whose first character is three bytes wide.
+ pub fn month_abbr(month: u32) -> &'static str {
+-    &MONTH_NAMES[(month.clamp(1, 12) - 1) as usize][..3]
++    &system_month_abbrs()[(month.clamp(1, 12) - 1) as usize]
+ }
+ 
+ /// Days-from-civil for `date` (epoch day number).
+@@ -114,7 +120,9 @@ fn first_weekday(year: i32, month: u32) -> usize {
+ /// exactly seven 36px cells.
+ pub const CALENDAR_WIDTH: gpui::Pixels = px(252.);
+ 
+-const MONTH_NAMES: [&str; 12] = [
++/// The English month names, used when CLDR has nothing to say for the running
++/// locale. A calendar with no heading is worse than one headed in English.
++const FALLBACK_MONTH_NAMES: [&str; 12] = [
+     "January",
+     "February",
+     "March",
+@@ -129,6 +137,105 @@ const MONTH_NAMES: [&str; 12] = [
+     "December",
+ ];
+ 
++/// The month names CLDR gives for one locale, in calendar order.
++///
++/// v3 renders the heading through `Intl.DateTimeFormat`, so the names follow
++/// the reader's locale rather than the source language. The ICU data is
++/// compiled into the binary, so this asks CLDR the same question `Intl` does.
++pub(crate) fn month_names_for_locale(locale: &str) -> Option<[String; 12]> {
++    month_labels_for_locale(locale, icu_datetime::fieldsets::M::long())
++}
++
++/// The twelve month labels one `M` field set prints for one locale.
++fn month_labels_for_locale(
++    locale: &str,
++    fieldset: icu_datetime::fieldsets::M,
++) -> Option<[String; 12]> {
++    use icu_datetime::{input::Date as IcuDate, DateTimeFormatter};
++    use icu_locale_core::Locale as IcuLocale;
++
++    let locale = locale.parse::<IcuLocale>().ok()?;
++    let formatter = DateTimeFormatter::try_new(locale.into(), fieldset).ok()?;
++    let mut labels: Vec<String> = Vec::with_capacity(12);
++    for month in 1..=12u8 {
++        // Any year and day work: the `M` field set prints the month alone.
++        let date = IcuDate::try_new_iso(2000, month, 1).ok()?;
++        labels.push(formatter.format(&date).to_string());
++    }
++    labels.try_into().ok()
++}
++
++/// The abbreviated month names CLDR gives for one locale, in calendar order.
++pub(crate) fn month_abbrs_for_locale(locale: &str) -> Option<[String; 12]> {
++    month_labels_for_locale(locale, icu_datetime::fieldsets::M::medium())
++}
++
++/// The running locale's month names, resolved once.
++fn system_month_names() -> &'static [String; 12] {
++    static SYSTEM_MONTH_NAMES: OnceLock<[String; 12]> = OnceLock::new();
++    SYSTEM_MONTH_NAMES.get_or_init(|| {
++        crate::date_constraints::system_locale_tags()
++            .iter()
++            .find_map(|tag| month_names_for_locale(tag))
++            .unwrap_or_else(|| FALLBACK_MONTH_NAMES.map(str::to_owned))
++    })
++}
++
++/// The heading CLDR gives one locale for a year and month.
++///
++/// The order is the locale's, not a template's: `"January 2026"` in English and
++/// a year-first heading in Japanese, which no `"{month} {year}"` format string
++/// can produce.
++pub(crate) fn month_heading_for_locale(locale: &str, year: i32, month: u32) -> Option<String> {
++    use icu_datetime::{fieldsets, input::Date as IcuDate, options::YearStyle, DateTimeFormatter};
++    use icu_locale_core::Locale as IcuLocale;
++
++    let locale = locale.parse::<IcuLocale>().ok()?;
++    let formatter = DateTimeFormatter::try_new(
++        locale.into(),
++        fieldsets::YM::long().with_year_style(YearStyle::Full),
++    )
++    .ok()?;
++    let month = u8::try_from(month.clamp(1, 12)).ok()?;
++    Some(
++        formatter
++            .format(&IcuDate::try_new_iso(year, month, 1).ok()?)
++            .to_string(),
++    )
++}
++
++/// The running locale's year-and-month heading locale, resolved once.
++fn system_month_heading_locale() -> Option<&'static String> {
++    static SYSTEM_HEADING_LOCALE: OnceLock<Option<String>> = OnceLock::new();
++    SYSTEM_HEADING_LOCALE
++        .get_or_init(|| {
++            crate::date_constraints::system_locale_tags()
++                .into_iter()
++                .find(|tag| month_heading_for_locale(tag, 2000, 1).is_some())
++        })
++        .as_ref()
++}
++
++/// The heading for a year and month, in the running locale.
++pub fn month_year_heading(year: i32, month: u32) -> String {
++    system_month_heading_locale()
++        .and_then(|locale| month_heading_for_locale(locale, year, month))
++        .unwrap_or_else(|| format!("{} {year}", month_name(month)))
++}
++
++/// The running locale's abbreviated month names, resolved once.
++fn system_month_abbrs() -> &'static [String; 12] {
++    static SYSTEM_MONTH_ABBRS: OnceLock<[String; 12]> = OnceLock::new();
++    SYSTEM_MONTH_ABBRS.get_or_init(|| {
++        crate::date_constraints::system_locale_tags()
++            .iter()
++            .find_map(|tag| month_abbrs_for_locale(tag))
++            .unwrap_or_else(|| {
++                FALLBACK_MONTH_NAMES.map(|name| name.chars().take(3).collect::<String>())
++            })
++    })
++}
++
+ fn next_month(y: i32, m: u32) -> (i32, u32) {
+     if m == 12 {
+         (y + 1, 1)
+@@ -171,7 +278,7 @@ pub fn add_months(year: i32, month: u32, delta: i32) -> (i32, u32) {
+ 
+ /// English month name for 1–12.
+ pub fn month_name(month: u32) -> &'static str {
+-    MONTH_NAMES[(month.clamp(1, 12) - 1) as usize]
++    &system_month_names()[(month.clamp(1, 12) - 1) as usize]
+ }
+ 
+ /// Public wrapper over `first_weekday`.
+@@ -964,7 +1071,7 @@ impl Calendar {
                          if let Some(cb) = &on_open {
                              cb(false, window, cx);
                          }
@@ -7026,7 +7189,7 @@ index 87d98a7..f89fd58 100644
                      });
                  }
  
-@@ -1147,7 +1147,7 @@ impl RenderOnce for Calendar {
+@@ -1147,7 +1254,7 @@ impl RenderOnce for Calendar {
          let last_year = years.last().copied().unwrap_or(anchor.year);
          if year_picker_open && !*year_was_open.read(cx) && !self.is_disabled {
              year_cursor.update(cx, |year, _| *year = Some(initial_year));
@@ -7035,7 +7198,7 @@ index 87d98a7..f89fd58 100644
          }
          year_was_open.update(cx, |was_open, _| *was_open = year_picker_open);
          let active_year = focused_value
-@@ -1548,7 +1548,7 @@ impl RenderOnce for Calendar {
+@@ -1548,7 +1655,7 @@ impl RenderOnce for Calendar {
                      if let Some(cb) = &on_open {
                          cb(false, window, cx);
                      }
@@ -7044,11 +7207,68 @@ index 87d98a7..f89fd58 100644
                      cx.stop_propagation();
                      return;
                  }
+@@ -1760,6 +1867,45 @@ impl RenderOnce for Calendar {
+ 
+ #[cfg(test)]
+ mod tests {
++
++    #[test]
++    fn month_names_follow_the_locale() {
++        assert_eq!(month_names_for_locale("en-US").unwrap()[0], "January");
++        assert_eq!(month_names_for_locale("de-DE").unwrap()[0], "Januar");
++        assert_eq!(month_names_for_locale("fr-FR").unwrap()[0], "janvier");
++    }
++
++    #[test]
++    fn month_abbreviations_come_from_cldr_not_a_byte_slice() {
++        assert_eq!(month_abbrs_for_locale("en-US").unwrap()[0], "Jan");
++        // The first three *bytes* of this name are one character, so the old
++        // `[..3]` slice would have panicked rather than abbreviated.
++        let japanese = month_abbrs_for_locale("ja-JP").unwrap();
++        assert!(japanese[0].chars().count() < japanese[0].len());
++    }
++
++    #[test]
++    fn the_heading_takes_its_field_order_from_the_locale() {
++        let english = month_heading_for_locale("en-US", 2026, 1).unwrap();
++        assert_eq!(english, "January 2026");
++        assert_eq!(
++            month_heading_for_locale("de-DE", 2026, 1).unwrap(),
++            "Januar 2026"
++        );
++        // Japanese writes the year first, which a "{month} {year}" template
++        // cannot reproduce whatever names it is given.
++        let japanese = month_heading_for_locale("ja-JP", 2026, 1).unwrap();
++        assert!(
++            japanese.starts_with("2026"),
++            "expected a year-first heading, got {japanese}"
++        );
++    }
++
++    #[test]
++    fn an_unknown_locale_reports_nothing_rather_than_guessing() {
++        assert!(month_names_for_locale("not a locale").is_none());
++        assert!(month_heading_for_locale("not a locale", 2026, 1).is_none());
++    }
+     use super::*;
+ 
+     #[test]
 diff --git a/crates/herogpui-components/src/calendar_view.rs b/crates/herogpui-components/src/calendar_view.rs
-index db7d3f7..acda055 100644
+index db7d3f78..f348aac4 100644
 --- a/crates/herogpui-components/src/calendar_view.rs
 +++ b/crates/herogpui-components/src/calendar_view.rs
-@@ -161,9 +161,9 @@ pub fn focus_section(
+@@ -6,9 +6,7 @@
+ //! anchor date; everything below is pure so the geometry can be tested without
+ //! a window.
+ 
+-use crate::calendar::{
+-    add_days, add_months, bump_month, days_from_civil, days_in_month, month_name, Date,
+-};
++use crate::calendar::{add_days, add_months, bump_month, days_from_civil, days_in_month, Date};
+ use crate::date_constraints::Weekday;
+ 
+ /// `visibleDuration` — how much time one calendar shows at once.
+@@ -161,9 +159,9 @@ pub fn focus_section(
  pub fn section_start(duration: VisibleDuration, visible_start: Date, focused: Date) -> Date {
      match duration {
          VisibleDuration::Days(_) => visible_start,
@@ -7061,7 +7281,7 @@ index db7d3f7..acda055 100644
          VisibleDuration::Months(_) => Date::new(focused.year, focused.month, 1),
      }
  }
-@@ -172,7 +172,7 @@ pub fn section_start(duration: VisibleDuration, visible_start: Date, focused: Da
+@@ -172,7 +170,7 @@ pub fn section_start(duration: VisibleDuration, visible_start: Date, focused: Da
  pub fn section_end(duration: VisibleDuration, visible_end: Date, focused: Date) -> Date {
      match duration {
          VisibleDuration::Days(_) => visible_end,
@@ -7070,8 +7290,55 @@ index db7d3f7..acda055 100644
          VisibleDuration::Months(_) => Date::new(
              focused.year,
              focused.month,
+@@ -363,7 +361,7 @@ pub(crate) struct YearGridView<'a> {
+ /// React Aria's `offset={{months: n}}` adds the duration before formatting.
+ pub(crate) fn month_heading(year: i32, month: u32, offset_months: i32) -> String {
+     let (year, month) = add_months(year, month, offset_months);
+-    format!("{} {year}", month_name(month))
++    crate::calendar::month_year_heading(year, month)
+ }
+ 
+ #[cfg(test)]
+diff --git a/crates/herogpui-components/src/checkbox.rs b/crates/herogpui-components/src/checkbox.rs
+index aef0b564..bbacde28 100644
+--- a/crates/herogpui-components/src/checkbox.rs
++++ b/crates/herogpui-components/src/checkbox.rs
+@@ -371,7 +371,13 @@ impl RenderOnce for Checkbox {
+             is_required: self.is_required,
+         };
+ 
++        // Stateful because `.active` needs it: v3's `/* Indeterminate + Pressed */`
++        // rule styles this box. The id derives from the row's, the same way the
++        // checked and focus slots derive theirs, so nothing collides.
+         let mut boxel = gpui::div()
++            .id(gpui::ElementId::Name(
++                format!("{:?}-control", self.id).into(),
++            ))
+             .flex()
+             .items_center()
+             .justify_center()
+@@ -402,9 +408,18 @@ impl RenderOnce for Checkbox {
+         // `bg-accent` (or `bg-danger` when invalid, which `sem` already is).
+         if active {
+             // `.checkbox__control::before` -- the fill -- goes to
+-            // `bg-accent-hover` while the box is hovered or pressed.
++            // `bg-accent-hover` while the box is hovered.
+             let hovered = sem.hover();
+             boxel = boxel.bg(sem.color).hover(move |s| s.bg(hovered));
++            // v3's plain `/* Pressed */` block for the control is empty; only
++            // `/* Indeterminate + Pressed */` declares anything, and it is the
++            // same `bg-accent-hover`. `.active` needs a stateful element, so
++            // the box takes an id derived from the row's -- the same way the
++            // checked and focus slots already derive theirs, so nothing
++            // collides.
++            if self.is_indeterminate {
++                boxel = boxel.active(move |s| s.bg(hovered));
++            }
+         } else {
+             boxel = boxel.bg(match self.variant {
+                 herogpui_core::FieldVariant::Primary => colors.field.background,
 diff --git a/crates/herogpui-components/src/close_button.rs b/crates/herogpui-components/src/close_button.rs
-index 2992b3b..317899a 100644
+index 2992b3ba..317899ab 100644
 --- a/crates/herogpui-components/src/close_button.rs
 +++ b/crates/herogpui-components/src/close_button.rs
 @@ -111,6 +111,10 @@ impl RenderOnce for CloseButton {
@@ -7136,7 +7403,7 @@ index 2992b3b..317899a 100644
                      .text_color(colors.muted),
              ),
 diff --git a/crates/herogpui-components/src/color_picker.rs b/crates/herogpui-components/src/color_picker.rs
-index f9e6947..7e61d4e 100644
+index f9e6947d..7e61d4e5 100644
 --- a/crates/herogpui-components/src/color_picker.rs
 +++ b/crates/herogpui-components/src/color_picker.rs
 @@ -427,6 +427,16 @@ fn normalize_hue(hue: f32) -> f32 {
@@ -7232,7 +7499,7 @@ index f9e6947..7e61d4e 100644
 +    }
  }
 diff --git a/crates/herogpui-components/src/combo_box.rs b/crates/herogpui-components/src/combo_box.rs
-index 82400fc..b8c2b52 100644
+index 82400fcf..b8c2b52d 100644
 --- a/crates/herogpui-components/src/combo_box.rs
 +++ b/crates/herogpui-components/src/combo_box.rs
 @@ -45,6 +45,7 @@ use herogpui_theme::ActiveTheme;
@@ -7641,10 +7908,10 @@ index 82400fc..b8c2b52 100644
                          .w_full(),
                      );
 diff --git a/crates/herogpui-components/src/date_constraints.rs b/crates/herogpui-components/src/date_constraints.rs
-index c871359..cdf82cf 100644
+index c8713596..574fd928 100644
 --- a/crates/herogpui-components/src/date_constraints.rs
 +++ b/crates/herogpui-components/src/date_constraints.rs
-@@ -5,15 +5,17 @@
+@@ -5,15 +5,65 @@
  //! `firstDayOfWeek` and `weeksInMonth`. Modelling them once keeps the five
  //! components from drifting apart.
  
@@ -7656,6 +7923,54 @@ index c871359..cdf82cf 100644
  
  use crate::calendar::{days_from_civil, days_in_month, first_weekday_pub, Date};
  
++/// The locale tags the system prefers for dates and times, most preferred
++/// first.
++///
++/// `locale_config` reads the platform's own preference chain, and the "time"
++/// category is the one that decides date and time presentation -- a reader can
++/// run an English interface and still expect German dates. Callers try each tag
++/// in turn because CLDR may know a region the platform reports but not the
++/// exact tag spelling.
++pub(crate) fn system_locale_tags() -> Vec<String> {
++    locale_config::Locale::user_default()
++        .tags_for("time")
++        .map(|tag| tag.as_ref().to_owned())
++        .collect()
++}
++
++/// The seven weekday labels CLDR gives for one locale, Monday first.
++pub(crate) fn weekday_labels_for_locale(locale: &str) -> Option<[String; 7]> {
++    use icu_datetime::{fieldsets, DateTimeFormatter};
++
++    let locale = locale.parse::<IcuLocale>().ok()?;
++    let formatter = DateTimeFormatter::try_new(locale.into(), fieldsets::E::short()).ok()?;
++    let ordered = [
++        IcuWeekday::Monday,
++        IcuWeekday::Tuesday,
++        IcuWeekday::Wednesday,
++        IcuWeekday::Thursday,
++        IcuWeekday::Friday,
++        IcuWeekday::Saturday,
++        IcuWeekday::Sunday,
++    ];
++    let labels: Vec<String> = ordered
++        .iter()
++        .map(|day| formatter.format(day).to_string())
++        .collect();
++    labels.try_into().ok()
++}
++
++/// The running locale's weekday labels, Monday first, resolved once.
++fn system_weekday_labels() -> &'static [String; 7] {
++    static SYSTEM_WEEKDAY_LABELS: OnceLock<[String; 7]> = OnceLock::new();
++    SYSTEM_WEEKDAY_LABELS.get_or_init(|| {
++        system_locale_tags()
++            .iter()
++            .find_map(|tag| weekday_labels_for_locale(tag))
++            .unwrap_or_else(|| Weekday::ALL.map(|day| day.fallback_short_label().to_owned()))
++    })
++}
++
  /// The first column of a month grid (`firstDayOfWeek`).
 -#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 +#[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -7665,7 +7980,7 @@ index c871359..cdf82cf 100644
      Mon,
      Tue,
      Wed,
-@@ -22,6 +24,15 @@ pub enum Weekday {
+@@ -22,6 +72,15 @@ pub enum Weekday {
      Sat,
  }
  
@@ -7681,7 +7996,7 @@ index c871359..cdf82cf 100644
  impl Weekday {
      /// In Monday-first order, matching [`first_weekday_pub`].
      pub const ALL: [Weekday; 7] = [
-@@ -34,6 +45,28 @@ impl Weekday {
+@@ -34,6 +93,28 @@ impl Weekday {
          Weekday::Sun,
      ];
  
@@ -7710,7 +8025,33 @@ index c871359..cdf82cf 100644
      /// Index with Monday as 0.
      pub fn monday_index(self) -> usize {
          match self {
-@@ -263,14 +296,31 @@ mod tests {
+@@ -47,7 +128,9 @@ impl Weekday {
+         }
+     }
+ 
+-    pub fn short_label(self) -> &'static str {
++    /// The English two-letter label, used when CLDR has nothing to say for the
++    /// running locale.
++    fn fallback_short_label(self) -> &'static str {
+         match self {
+             Weekday::Sun => "Su",
+             Weekday::Mon => "Mo",
+@@ -59,6 +142,14 @@ impl Weekday {
+         }
+     }
+ 
++    /// The running locale's column label for this day.
++    ///
++    /// v3 heads its grid through `Intl.DateTimeFormat`, so a German reader sees
++    /// `Mo Di Mi`, not `Mo Tu We`.
++    pub fn short_label(self) -> &'static str {
++        &system_weekday_labels()[self.monday_index()]
++    }
++
+     /// The seven column headers, starting from this day.
+     pub fn header_row(self) -> [&'static str; 7] {
+         let start = self.monday_index();
+@@ -263,30 +354,61 @@ mod tests {
      #[test]
      fn first_day_of_week_shifts_the_lead() {
          // 2026-03-01 is a Sunday: Monday-start needs six blanks, Sunday none.
@@ -7742,10 +8083,52 @@ index c871359..cdf82cf 100644
 +    fn first_day_of_week_prefers_the_system_time_category() {
 +        let locale = locale_config::Locale::new("en-US,time=de-DE").unwrap();
 +        assert_eq!(Weekday::for_preferences(&locale), Some(Weekday::Mon));
++    }
++
++    #[test]
++    fn weekday_labels_follow_the_locale() {
++        let english = weekday_labels_for_locale("en-US").unwrap();
++        assert_eq!(english[0], "Mon");
++        let german = weekday_labels_for_locale("de-DE").unwrap();
++        assert_eq!(german[0], "Mo");
++        assert_eq!(german[1], "Di", "German Tuesday is Di, not Tu");
++        assert!(weekday_labels_for_locale("not a locale").is_none());
      }
  
      #[test]
-@@ -318,6 +368,7 @@ mod tests {
+     fn header_row_starts_on_the_configured_day() {
+-        assert_eq!(
+-            Weekday::Mon.header_row(),
+-            ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
+-        );
+-        assert_eq!(
+-            Weekday::Sun.header_row(),
+-            ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+-        );
+-        assert_eq!(
+-            Weekday::Sat.header_row(),
+-            ["Sa", "Su", "Mo", "Tu", "We", "Th", "Fr"]
+-        );
++        // The labels themselves are the running locale's, so this pins the
++        // rotation rather than the spelling: whatever Monday is called, a
++        // Monday-first row starts with it and a Sunday-first row ends with it.
++        let monday = Weekday::Mon.short_label();
++        let sunday = Weekday::Sun.short_label();
++        assert_eq!(Weekday::Mon.header_row()[0], monday);
++        assert_eq!(Weekday::Mon.header_row()[6], sunday);
++        assert_eq!(Weekday::Sun.header_row()[0], sunday);
++        assert_eq!(Weekday::Sun.header_row()[1], monday);
++        assert_eq!(Weekday::Sat.header_row()[1], sunday);
++        assert_eq!(Weekday::Sat.header_row()[2], monday);
++        for start in Weekday::ALL {
++            let row = start.header_row();
++            let unique: std::collections::HashSet<_> = row.iter().collect();
++            assert_eq!(unique.len(), 7, "every day appears once in {row:?}");
++        }
+     }
+ 
+     #[test]
+@@ -318,6 +440,7 @@ mod tests {
  
          let locale_default = DateConstraints {
              weeks_in_month: Some(0),
@@ -7754,7 +8137,7 @@ index c871359..cdf82cf 100644
          };
          assert_eq!(locale_default.rows(2026, 2), 5);
 diff --git a/crates/herogpui-components/src/date_picker.rs b/crates/herogpui-components/src/date_picker.rs
-index 9cc8ae0..08968d3 100644
+index 9cc8ae0e..08968d36 100644
 --- a/crates/herogpui-components/src/date_picker.rs
 +++ b/crates/herogpui-components/src/date_picker.rs
 @@ -13,6 +13,7 @@ use std::{
@@ -8465,7 +8848,7 @@ index 9cc8ae0..08968d3 100644
      }
  }
 diff --git a/crates/herogpui-components/src/disclosure.rs b/crates/herogpui-components/src/disclosure.rs
-index c213dd0..7e684f5 100644
+index c213dd06..7e684f57 100644
 --- a/crates/herogpui-components/src/disclosure.rs
 +++ b/crates/herogpui-components/src/disclosure.rs
 @@ -13,6 +13,15 @@ use gpui::{
@@ -8541,20 +8924,32 @@ index c213dd0..7e684f5 100644
                      crate::anim::Motion::DISCLOSURE,
                      cx,
 diff --git a/crates/herogpui-components/src/drawer.rs b/crates/herogpui-components/src/drawer.rs
-index eda7685..cbb5f7d 100644
+index eda76857..f0c010f4 100644
 --- a/crates/herogpui-components/src/drawer.rs
 +++ b/crates/herogpui-components/src/drawer.rs
-@@ -213,7 +213,7 @@ impl RenderOnce for Drawer {
+@@ -199,6 +199,9 @@ impl RenderOnce for Drawer {
+             crate::anim::Motion::DRAWER_OUT.ms,
+         );
+         if phase == crate::util::OverlayPhase::Closed {
++            // Every close path lands here, including a caller flipping
++            // `is_open`, so the focus goes back from one place.
++            crate::modal::release_dialog_focus(&self.id, window, cx);
+             return gpui::div().into_any_element();
+         }
+         let exiting = phase == crate::util::OverlayPhase::Exiting;
+@@ -212,9 +215,7 @@ impl RenderOnce for Drawer {
+                 cx.focus_handle()
              });
          let focus_handle = focus.read(cx).clone();
-         if !focus_handle.contains_focused(window, cx) {
+-        if !focus_handle.contains_focused(window, cx) {
 -            window.focus(&focus_handle);
-+            window.focus(&focus_handle, cx);
-         }
+-        }
++        crate::modal::claim_dialog_focus(&self.id, &focus_handle, window, cx);
  
          // A drag in progress: where it started along the dismissal axis, and how
+         // far it has come. `use_keyed_state` takes `cx` mutably, so it precedes
 diff --git a/crates/herogpui-components/src/dropdown.rs b/crates/herogpui-components/src/dropdown.rs
-index d8df485..77b1063 100644
+index d8df4852..77b1063e 100644
 --- a/crates/herogpui-components/src/dropdown.rs
 +++ b/crates/herogpui-components/src/dropdown.rs
 @@ -439,7 +439,7 @@ impl RenderOnce for Menu {
@@ -8619,7 +9014,7 @@ index d8df485..77b1063 100644
                  });
              }
 diff --git a/crates/herogpui-components/src/field.rs b/crates/herogpui-components/src/field.rs
-index c3f870e..58319ec 100644
+index c3f870ea..58319ec9 100644
 --- a/crates/herogpui-components/src/field.rs
 +++ b/crates/herogpui-components/src/field.rs
 @@ -4,6 +4,13 @@
@@ -8679,7 +9074,7 @@ index c3f870e..58319ec 100644
              .children(self.children)
      }
 diff --git a/crates/herogpui-components/src/form.rs b/crates/herogpui-components/src/form.rs
-index 44336bc..bf7b065 100644
+index 44336bc2..bf7b065b 100644
 --- a/crates/herogpui-components/src/form.rs
 +++ b/crates/herogpui-components/src/form.rs
 @@ -346,7 +346,7 @@ impl FormField {
@@ -8723,7 +9118,7 @@ index 44336bc..bf7b065 100644
              })),
              // A live field belongs to a rendered non-text control — a switch,
 diff --git a/crates/herogpui-components/src/input.rs b/crates/herogpui-components/src/input.rs
-index 89fec17..3965e23 100644
+index 89fec17e..85b14c9b 100644
 --- a/crates/herogpui-components/src/input.rs
 +++ b/crates/herogpui-components/src/input.rs
 @@ -18,6 +18,9 @@ pub struct InputState {
@@ -8757,16 +9152,252 @@ index 89fec17..3965e23 100644
      /// Normalized `(start, end)` char range of the active selection.
      pub fn selection(&self) -> Option<(usize, usize)> {
          let a = self.anchor?;
-@@ -1339,7 +1349,7 @@ impl RenderOnce for Input {
+@@ -515,6 +525,79 @@ fn char_at_x(
+     value[..byte.min(value.len())].chars().count()
+ }
+ 
++/// The char offset a click lands on inside a wrapped, multi-line body.
++///
++/// The paragraph is found by the bounds it was painted with, then gpui shapes
++/// that paragraph at the width it was given and reports the closest character
++/// boundary to the point -- `WrappedLine` derefs to the layout that answers it,
++/// so a wrapped line does have a position after all. Returns `None` when no
++/// paragraph has been laid out yet, which is any frame before the first paint.
++fn char_at_point(
++    value: &str,
++    point: gpui::Point<gpui::Pixels>,
++    paragraphs: &[gpui::Bounds<gpui::Pixels>],
++    font: &gpui::Font,
++    font_size: gpui::Pixels,
++    line_height: gpui::Pixels,
++    window: &mut Window,
++) -> Option<usize> {
++    let lines: Vec<&str> = value.split('\n').collect();
++    let usable = paragraphs.len().min(lines.len());
++    if usable == 0 {
++        return None;
++    }
++
++    // The paragraph the click is inside, else the nearest one vertically: a
++    // click in the padding below the last line belongs to the last line.
++    let index = (0..usable)
++        .find(|&i| {
++            let b = paragraphs[i];
++            point.y >= b.origin.y && point.y < b.origin.y + b.size.height.max(line_height)
++        })
++        .unwrap_or_else(|| {
++            (0..usable)
++                .min_by_key(|&i| {
++                    let b = paragraphs[i];
++                    let mid = b.origin.y + b.size.height.max(line_height) / 2.;
++                    (f32::from(point.y - mid)).abs() as i64
++                })
++                .unwrap_or(0)
++        });
++
++    let offset: usize = lines[..index].iter().map(|l| l.chars().count() + 1).sum();
++    let line = lines[index];
++    if line.is_empty() {
++        return Some(offset);
++    }
++
++    let bounds = paragraphs[index];
++    let run = gpui::TextRun {
++        len: line.len(),
++        font: font.clone(),
++        // Shaping needs a colour and does not use it.
++        color: gpui::black(),
++        background_color: None,
++        underline: None,
++        strikethrough: None,
++    };
++    let shaped = window
++        .text_system()
++        .shape_text(
++            SharedString::from(line.to_owned()),
++            font_size,
++            &[run],
++            Some(bounds.size.width.max(px(1.))),
++            None,
++        )
++        .ok()?;
++    let wrapped = shaped.first()?;
++    let local = gpui::point(point.x - bounds.origin.x, point.y - bounds.origin.y);
++    let byte = match wrapped.closest_index_for_position(local, line_height) {
++        Ok(byte) | Err(byte) => byte,
++    };
++    Some(offset + line[..byte.min(line.len())].chars().count())
++}
++
+ /// The char indices bounding the line the caret is on, newlines excluded.
+ fn line_bounds(value: &str, cursor: usize) -> (usize, usize) {
+     let chars: Vec<char> = value.chars().collect();
+@@ -531,8 +614,11 @@ fn line_bounds(value: &str, cursor: usize) -> (usize, usize) {
+ 
+ /// Where Up / Down lands in a multiline field, keeping the column where it can.
+ ///
+-/// The lines are the *logical* ones: a wrapped line has no position gpui will
+-/// report, and `Enter` is what puts a newline in.
++/// The lines are the *logical* ones -- the ones `Enter` puts in. Up and Down
++/// keeping to those rather than to visual rows is a deliberate difference from
++/// the pointer, which lands on the visual row it was clicked on
++/// (`char_at_point`); moving the keyboard caret to visual rows would need the
++/// same shaping on every keystroke.
+ fn vertical_target(value: &str, cursor: usize, down: bool) -> usize {
+     let (start, end) = line_bounds(value, cursor);
+     let column = cursor - start;
+@@ -654,6 +740,9 @@ struct MultilineBody<'a> {
+     /// The caret's element id, height and colour.
+     caret: (gpui::ElementId, gpui::Pixels, gpui::Hsla),
+     selection_bg: gpui::Hsla,
++    /// Where each paragraph was painted, filled in during layout so a click can
++    /// be measured against the text it actually landed on.
++    paragraphs: Entity<Vec<gpui::Bounds<gpui::Pixels>>>,
+ }
+ 
+ /// One paragraph per newline, each wrapping, with the caret and selection
+@@ -682,6 +771,30 @@ fn multiline_body(b: MultilineBody<'_>, cx: &App) -> gpui::AnyElement {
+             .w_full()
+             .min_w_0();
+ 
++        // A zero-size probe at the head of the paragraph: `canvas` is the only
++        // element told its own bounds, and a click in a wrapped paragraph has
++        // to be measured against where that paragraph was actually laid out.
++        para = para.child(
++            gpui::canvas(
++                {
++                    let sink = b.paragraphs.clone();
++                    move |bounds: gpui::Bounds<gpui::Pixels>, _window, cx| {
++                        sink.update(cx, |slots, _| {
++                            if slots.len() <= i {
++                                slots.resize(i + 1, gpui::Bounds::default());
++                            }
++                            slots[i] = bounds;
++                        });
++                        bounds
++                    }
++                },
++                |_, _, _, _| {},
++            )
++            .w_full()
++            .h(px(0.))
++            .flex_shrink_0(),
++        );
++
+         // The selection, clipped to this line.
+         let local_sel = b.selection.and_then(|(lo, hi)| {
+             let lo = lo.max(start);
+@@ -1243,6 +1356,14 @@ impl RenderOnce for Input {
+             cx,
+             |_, _| None::<gpui::Pixels>,
+         );
++        // The same trick for a wrapped body, one entry per paragraph.
++        let paragraph_bounds = window.use_keyed_state(
++            gpui::ElementId::Name(
++                format!("input-paragraphs-{}", self.state.entity_id().as_u64()).into(),
++            ),
++            cx,
++            |_, _| Vec::<gpui::Bounds<gpui::Pixels>>::new(),
++        );
+         // The font the field draws with, captured here: at event time the text
+         // style stack is empty and the shaping would use the wrong face.
+         let text_font = window.text_style().font();
+@@ -1337,19 +1458,34 @@ impl RenderOnce for Input {
+                         let font = text_font.clone();
+                         let masks = self.input_type.masks();
                          let multiline = self.multiline;
++                        let paras = paragraph_bounds.clone();
++                        // The caret is drawn at 1.3x the font size; the rows a wrapped
++                        // paragraph is measured in are the same height.
++                        let line_h = text * 1.3;
                          let size = text;
                          move |ev: &gpui::MouseDownEvent, window, cx| {
 -                            window.focus(&fh);
+-                            // A wrapped, multi-line body has no single line to
+-                            // measure against; its caret still moves by key.
+-                            if multiline {
+-                                return;
+-                            }
+-                            let Some(left) = *origin.read(cx) else {
+-                                return;
+-                            };
 +                            window.focus(&fh, cx);
-                             // A wrapped, multi-line body has no single line to
-                             // measure against; its caret still moves by key.
-                             if multiline {
-@@ -1563,6 +1573,7 @@ impl RenderOnce for Input {
+                             let shown = displayed_value(st.read(cx), masks);
+-                            let at = char_at_x(&shown, ev.position.x - left, &font, size, window);
++                            let at = if multiline {
++                                let boxes = paras.read(cx).clone();
++                                let Some(at) = char_at_point(
++                                    &shown,
++                                    ev.position,
++                                    &boxes,
++                                    &font,
++                                    size,
++                                    line_h,
++                                    window,
++                                ) else {
++                                    return;
++                                };
++                                at
++                            } else {
++                                let Some(left) = *origin.read(cx) else {
++                                    return;
++                                };
++                                char_at_x(&shown, ev.position.x - left, &font, size, window)
++                            };
+                             st.update(cx, |s, cx| {
+                                 s.cursor = at;
+                                 s.anchor = None;
+@@ -1374,16 +1510,36 @@ impl RenderOnce for Input {
+                         let font = text_font.clone();
+                         let masks = self.input_type.masks();
+                         let multiline = self.multiline;
++                        let paras = paragraph_bounds.clone();
++                        // The caret is drawn at 1.3x the font size; the rows a wrapped
++                        // paragraph is measured in are the same height.
++                        let line_h = text * 1.3;
+                         let size = text;
+                         move |ev: &gpui::MouseMoveEvent, window, cx| {
+-                            if multiline || ev.pressed_button != Some(gpui::MouseButton::Left) {
++                            if ev.pressed_button != Some(gpui::MouseButton::Left) {
+                                 return;
+                             }
+-                            let Some(left) = *origin.read(cx) else {
+-                                return;
+-                            };
+                             let shown = displayed_value(st.read(cx), masks);
+-                            let at = char_at_x(&shown, ev.position.x - left, &font, size, window);
++                            let at = if multiline {
++                                let boxes = paras.read(cx).clone();
++                                let Some(at) = char_at_point(
++                                    &shown,
++                                    ev.position,
++                                    &boxes,
++                                    &font,
++                                    size,
++                                    line_h,
++                                    window,
++                                ) else {
++                                    return;
++                                };
++                                at
++                            } else {
++                                let Some(left) = *origin.read(cx) else {
++                                    return;
++                                };
++                                char_at_x(&shown, ev.position.x - left, &font, size, window)
++                            };
+                             st.update(cx, |s, cx| {
+                                 if s.anchor.is_none() {
+                                     s.anchor = Some(s.cursor);
+@@ -1463,6 +1619,7 @@ impl RenderOnce for Input {
+                 gpui::ElementId::Name(format!("caret-{}", self.state.entity_id().as_u64()).into());
+             row = row.child(multiline_body(
+                 MultilineBody {
++                    paragraphs: paragraph_bounds,
+                     value: &value,
+                     cursor,
+                     selection,
+@@ -1563,6 +1720,7 @@ impl RenderOnce for Input {
          field = field.child(row);
          // isClearable — show X when has value and not disabled/readonly
          if self.is_clearable && !is_empty && !self.is_disabled && !self.is_read_only {
@@ -8774,7 +9405,7 @@ index 89fec17..3965e23 100644
              let clear_content = match self.clear_content {
                  Some(content) => content,
                  None => gpui::svg()
-@@ -1582,56 +1593,100 @@ impl RenderOnce for Input {
+@@ -1582,56 +1740,100 @@ impl RenderOnce for Input {
              // `.close-button:hover` fills `bg-default-hover` -- not a
              // hand-mixed wash.
              let clear_hover_bg = colors.default.hover();
@@ -8925,7 +9556,7 @@ index 89fec17..3965e23 100644
          field = field.children(self.end_content);
  
 diff --git a/crates/herogpui-components/src/input_group.rs b/crates/herogpui-components/src/input_group.rs
-index 3c18ea0..2a9975e 100644
+index 3c18ea0a..2a9975ec 100644
 --- a/crates/herogpui-components/src/input_group.rs
 +++ b/crates/herogpui-components/src/input_group.rs
 @@ -281,7 +281,7 @@ impl RenderOnce for InputGroup {
@@ -8938,7 +9569,7 @@ index 3c18ea0..2a9975e 100644
                      window.prevent_default();
                  });
 diff --git a/crates/herogpui-components/src/input_otp.rs b/crates/herogpui-components/src/input_otp.rs
-index a623b5a..be12b50 100644
+index a623b5ae..be12b50d 100644
 --- a/crates/herogpui-components/src/input_otp.rs
 +++ b/crates/herogpui-components/src/input_otp.rs
 @@ -434,7 +434,7 @@ impl RenderOnce for InputOTP {
@@ -8960,7 +9591,7 @@ index a623b5a..be12b50 100644
                          return;
                      }
 diff --git a/crates/herogpui-components/src/lib.rs b/crates/herogpui-components/src/lib.rs
-index 3ac09a8..0787e3a 100644
+index 3ac09a82..0787e3a9 100644
 --- a/crates/herogpui-components/src/lib.rs
 +++ b/crates/herogpui-components/src/lib.rs
 @@ -39,6 +39,7 @@ pub mod kbd;
@@ -8972,7 +9603,7 @@ index 3ac09a8..0787e3a 100644
  pub mod modal;
  pub mod number_field;
 diff --git a/crates/herogpui-components/src/link.rs b/crates/herogpui-components/src/link.rs
-index ada6b89..62af657 100644
+index ada6b895..62af6573 100644
 --- a/crates/herogpui-components/src/link.rs
 +++ b/crates/herogpui-components/src/link.rs
 @@ -1,12 +1,17 @@
@@ -9249,7 +9880,7 @@ index ada6b89..62af657 100644
  
          if !self.is_disabled {
 diff --git a/crates/herogpui-components/src/list_box.rs b/crates/herogpui-components/src/list_box.rs
-index 81d4e2e..23b9037 100644
+index 81d4e2e9..23b9037c 100644
 --- a/crates/herogpui-components/src/list_box.rs
 +++ b/crates/herogpui-components/src/list_box.rs
 @@ -1,6 +1,7 @@
@@ -9354,20 +9985,87 @@ index 81d4e2e..23b9037 100644
                      .h(height)
                      .w_full(),
 diff --git a/crates/herogpui-components/src/modal.rs b/crates/herogpui-components/src/modal.rs
-index 70e84e5..a6acaac 100644
+index 70e84e5d..673abb17 100644
 --- a/crates/herogpui-components/src/modal.rs
 +++ b/crates/herogpui-components/src/modal.rs
-@@ -441,7 +441,7 @@ impl RenderOnce for Modal {
+@@ -114,6 +114,53 @@ pub(crate) fn dialog_key(id: &gpui::ElementId, part: &str) -> gpui::ElementId {
+     gpui::ElementId::Name(format!("{id:?}-{part}").into())
+ }
+ 
++/// Claims the focus for an open dialog, remembering what held it before.
++///
++/// v3 restores the focus when a dialog closes. The trigger is the caller's
++/// element, rendered outside the component, so the dialog cannot reach it --
++/// but it does not need to: whatever held the focus when the dialog opened is
++/// what has to get it back, trigger or not. `Window::focused` names it, and the
++/// handle is parked in the dialog's own keyed state until it closes.
++///
++/// Claiming only while nothing inside already holds the focus is what makes
++/// Escape reach the overlay on the first frame without stealing the ring from a
++/// field the user has since moved into.
++pub(crate) fn claim_dialog_focus(
++    id: &gpui::ElementId,
++    focus_handle: &gpui::FocusHandle,
++    window: &mut Window,
++    cx: &mut App,
++) {
++    let restore = window.use_keyed_state(dialog_key(id, "focus-return"), cx, |_, _| {
++        None::<gpui::FocusHandle>
++    });
++    if focus_handle.contains_focused(window, cx) {
++        return;
++    }
++    // The frame the dialog takes the focus is the only one that can still see
++    // who had it; every later frame would report the dialog itself.
++    let previous = window.focused(cx).filter(|held| held != focus_handle);
++    if previous.is_some() && restore.read(cx).is_none() {
++        restore.update(cx, |slot, _| *slot = previous);
++    }
++    window.focus(focus_handle, cx);
++}
++
++/// Hands the focus back to whatever held it before this dialog opened.
++///
++/// Called from every dismissal path. Does nothing when the dialog never took
++/// the focus from anything, which is the controlled-open case.
++pub(crate) fn release_dialog_focus(id: &gpui::ElementId, window: &mut Window, cx: &mut App) {
++    let restore = window.use_keyed_state(dialog_key(id, "focus-return"), cx, |_, _| {
++        None::<gpui::FocusHandle>
++    });
++    let previous = restore.read(cx).clone();
++    if let Some(previous) = previous {
++        restore.update(cx, |slot, _| *slot = None);
++        window.focus(&previous, cx);
++    }
++}
++
+ /// The one contract every dialog's close-trigger part implements so the
+ /// composing dialog can hand it the dismissal path through an `AnyElement`.
+ ///
+@@ -429,6 +476,10 @@ impl RenderOnce for Modal {
+             true,
+         );
+         if phase == crate::util::OverlayPhase::Closed {
++            // Every close path lands here -- a dismissal callback, Escape, a
++            // backdrop press, or a caller flipping `is_open` -- so this is the
++            // one place that can hand the focus back whatever closed it.
++            release_dialog_focus(&self.id, window, cx);
+             return gpui::div().into_any_element();
+         }
+         let exiting = phase == crate::util::OverlayPhase::Exiting;
+@@ -440,9 +491,7 @@ impl RenderOnce for Modal {
+         let focus =
              window.use_keyed_state(dialog_key(&self.id, "focus"), cx, |_, cx| cx.focus_handle());
          let focus_handle = focus.read(cx).clone();
-         if !focus_handle.contains_focused(window, cx) {
+-        if !focus_handle.contains_focused(window, cx) {
 -            window.focus(&focus_handle);
-+            window.focus(&focus_handle, cx);
-         }
+-        }
++        claim_dialog_focus(&self.id, &focus_handle, window, cx);
  
          let colors = cx.colors();
+ 
 diff --git a/crates/herogpui-components/src/number_field.rs b/crates/herogpui-components/src/number_field.rs
-index e24642f..12b93bf 100644
+index e24642fd..12b93bfe 100644
 --- a/crates/herogpui-components/src/number_field.rs
 +++ b/crates/herogpui-components/src/number_field.rs
 @@ -968,7 +968,7 @@ fn stepper_btn(
@@ -9380,7 +10078,7 @@ index e24642f..12b93bf 100644
                      press.active = true;
                      press.generation = press.generation.wrapping_add(1);
 diff --git a/crates/herogpui-components/src/pagination.rs b/crates/herogpui-components/src/pagination.rs
-index 380beb7..5578030 100644
+index 380beb7a..5578030e 100644
 --- a/crates/herogpui-components/src/pagination.rs
 +++ b/crates/herogpui-components/src/pagination.rs
 @@ -114,13 +114,23 @@ impl RenderOnce for Pagination {
@@ -9500,7 +10198,7 @@ index 380beb7..5578030 100644
 +    }
 +}
 diff --git a/crates/herogpui-components/src/popover.rs b/crates/herogpui-components/src/popover.rs
-index c47881a..4a002da 100644
+index c47881af..4a002dad 100644
 --- a/crates/herogpui-components/src/popover.rs
 +++ b/crates/herogpui-components/src/popover.rs
 @@ -738,7 +738,7 @@ impl RenderOnce for Popover {
@@ -9513,7 +10211,7 @@ index c47881a..4a002da 100644
                      }
                  }
 diff --git a/crates/herogpui-components/src/radio_group.rs b/crates/herogpui-components/src/radio_group.rs
-index ebaa04a..4e9b05c 100644
+index ebaa04a1..4e9b05ce 100644
 --- a/crates/herogpui-components/src/radio_group.rs
 +++ b/crates/herogpui-components/src/radio_group.rs
 @@ -378,8 +378,11 @@ impl RenderOnce for RadioGroup {
@@ -9671,7 +10369,7 @@ index ebaa04a..4e9b05c 100644
 +    }
 +}
 diff --git a/crates/herogpui-components/src/range_calendar.rs b/crates/herogpui-components/src/range_calendar.rs
-index 59f7766..f431015 100644
+index 59f7766e..f431015e 100644
 --- a/crates/herogpui-components/src/range_calendar.rs
 +++ b/crates/herogpui-components/src/range_calendar.rs
 @@ -311,16 +311,15 @@ impl RangeCalendar {
@@ -9981,7 +10679,7 @@ index 59f7766..f431015 100644
                      return;
                  }
 diff --git a/crates/herogpui-components/src/scroll_shadow.rs b/crates/herogpui-components/src/scroll_shadow.rs
-index 4525f72..87a522e 100644
+index 4525f723..87a522e0 100644
 --- a/crates/herogpui-components/src/scroll_shadow.rs
 +++ b/crates/herogpui-components/src/scroll_shadow.rs
 @@ -224,13 +224,13 @@ impl RenderOnce for ScrollShadow {
@@ -10003,7 +10701,7 @@ index 4525f72..87a522e 100644
          };
          let (past_start, before_end) = (
 diff --git a/crates/herogpui-components/src/select.rs b/crates/herogpui-components/src/select.rs
-index 753f8e9..571166c 100644
+index 753f8e92..571166c3 100644
 --- a/crates/herogpui-components/src/select.rs
 +++ b/crates/herogpui-components/src/select.rs
 @@ -711,8 +711,8 @@ impl RenderOnce for Select {
@@ -10036,7 +10734,7 @@ index 753f8e9..571166c 100644
                          .w_full(),
                      );
 diff --git a/crates/herogpui-components/src/selection.rs b/crates/herogpui-components/src/selection.rs
-index 752fd94..fd2e595 100644
+index 752fd945..fd2e595c 100644
 --- a/crates/herogpui-components/src/selection.rs
 +++ b/crates/herogpui-components/src/selection.rs
 @@ -7,6 +7,16 @@
@@ -10057,7 +10755,7 @@ index 752fd94..fd2e595 100644
  pub(crate) fn reports_changes(mode: SelectionMode) -> bool {
      mode != SelectionMode::None
 diff --git a/crates/herogpui-components/src/separator.rs b/crates/herogpui-components/src/separator.rs
-index 31805c0..e5982c4 100644
+index 31805c08..e5982c47 100644
 --- a/crates/herogpui-components/src/separator.rs
 +++ b/crates/herogpui-components/src/separator.rs
 @@ -111,11 +111,11 @@ impl RenderOnce for Separator {
@@ -10075,7 +10773,7 @@ index 31805c0..e5982c4 100644
          };
  
 diff --git a/crates/herogpui-components/src/slider.rs b/crates/herogpui-components/src/slider.rs
-index 770d5ef..f8efbd7 100644
+index 770d5efd..f8efbd78 100644
 --- a/crates/herogpui-components/src/slider.rs
 +++ b/crates/herogpui-components/src/slider.rs
 @@ -662,21 +662,103 @@ impl RenderOnce for Slider {
@@ -10264,7 +10962,7 @@ index 770d5ef..f8efbd7 100644
 +    }
  }
 diff --git a/crates/herogpui-components/src/switch.rs b/crates/herogpui-components/src/switch.rs
-index 76d363c..ad01177 100644
+index 76d363c8..ad011771 100644
 --- a/crates/herogpui-components/src/switch.rs
 +++ b/crates/herogpui-components/src/switch.rs
 @@ -618,18 +618,21 @@ impl RenderOnce for Switch {
@@ -10290,7 +10988,7 @@ index 76d363c..ad01177 100644
                  ])
          } else {
 diff --git a/crates/herogpui-components/src/table.rs b/crates/herogpui-components/src/table.rs
-index a97e013..1681884 100644
+index a97e013d..16818848 100644
 --- a/crates/herogpui-components/src/table.rs
 +++ b/crates/herogpui-components/src/table.rs
 @@ -21,6 +21,7 @@ type OnRowClick = std::sync::Arc<dyn Fn(usize, &ClickEvent, &mut Window, &mut Ap
@@ -11362,7 +12060,7 @@ index a97e013..1681884 100644
 +    }
  }
 diff --git a/crates/herogpui-components/src/tabs.rs b/crates/herogpui-components/src/tabs.rs
-index 04bbd81..b239c09 100644
+index 04bbd81e..b239c097 100644
 --- a/crates/herogpui-components/src/tabs.rs
 +++ b/crates/herogpui-components/src/tabs.rs
 @@ -627,7 +627,7 @@ impl RenderOnce for Tabs {
@@ -11486,7 +12184,7 @@ index 04bbd81..b239c09 100644
                          })
                          .child(content),
 diff --git a/crates/herogpui-components/src/tag_group.rs b/crates/herogpui-components/src/tag_group.rs
-index 57ca147..b36e1f3 100644
+index 57ca147b..b36e1f3f 100644
 --- a/crates/herogpui-components/src/tag_group.rs
 +++ b/crates/herogpui-components/src/tag_group.rs
 @@ -14,7 +14,7 @@ use gpui::{
@@ -11675,7 +12373,7 @@ index 57ca147..b36e1f3 100644
                      cursor_for_seat.update(cx, |v, cx| {
                          *v = index;
 diff --git a/crates/herogpui-components/src/time_field.rs b/crates/herogpui-components/src/time_field.rs
-index 4833fa7..5a65a88 100644
+index 4833fa7d..5a65a88f 100644
 --- a/crates/herogpui-components/src/time_field.rs
 +++ b/crates/herogpui-components/src/time_field.rs
 @@ -3,7 +3,12 @@
@@ -12457,7 +13155,7 @@ index 4833fa7..5a65a88 100644
      fn constructors_clamp() {
          assert_eq!(Time::new(99, 99).hour, 23);
 diff --git a/crates/herogpui-components/src/toast.rs b/crates/herogpui-components/src/toast.rs
-index 565eba5..f463eab 100644
+index 565eba58..f463eabc 100644
 --- a/crates/herogpui-components/src/toast.rs
 +++ b/crates/herogpui-components/src/toast.rs
 @@ -440,7 +440,7 @@ fn start_toast_timer(
@@ -12683,7 +13381,7 @@ index 565eba5..f463eab 100644
              source.contains("let hover_bg = colors.default.color;"),
              "the toast close button must hover `bg-default` \
 diff --git a/crates/herogpui-components/src/toggle_button.rs b/crates/herogpui-components/src/toggle_button.rs
-index 8576915..c257430 100644
+index 8576915e..c2574300 100644
 --- a/crates/herogpui-components/src/toggle_button.rs
 +++ b/crates/herogpui-components/src/toggle_button.rs
 @@ -613,7 +613,7 @@ impl RenderOnce for ToggleButtonGroup {
@@ -12714,7 +13412,7 @@ index 8576915..c257430 100644
          });
  
 diff --git a/crates/herogpui-components/src/toolbar.rs b/crates/herogpui-components/src/toolbar.rs
-index 3de7163..0d30a88 100644
+index 3de71633..0d30a88a 100644
 --- a/crates/herogpui-components/src/toolbar.rs
 +++ b/crates/herogpui-components/src/toolbar.rs
 @@ -192,7 +192,7 @@ impl RenderOnce for Toolbar {
@@ -12793,7 +13491,7 @@ index 3de7163..0d30a88 100644
                  if !scope.contains_focused(window, cx) {
                      return;
 diff --git a/crates/herogpui-components/src/tooltip.rs b/crates/herogpui-components/src/tooltip.rs
-index a0213ec..4c2fef6 100644
+index a0213ec1..4c2fef64 100644
 --- a/crates/herogpui-components/src/tooltip.rs
 +++ b/crates/herogpui-components/src/tooltip.rs
 @@ -401,104 +401,6 @@ impl RenderOnce for Tooltip {
@@ -13012,7 +13710,7 @@ index a0213ec..4c2fef6 100644
              // so it has to paint last.
              let zoom = anim::ZoomBox::panel(px(8.), util::small_radius(cx)).padding_x(px(8.));
 diff --git a/crates/herogpui-components/src/util.rs b/crates/herogpui-components/src/util.rs
-index 4c44b4a..8e8169a 100644
+index 4c44b4a3..8e8169a1 100644
 --- a/crates/herogpui-components/src/util.rs
 +++ b/crates/herogpui-components/src/util.rs
 @@ -132,6 +132,7 @@ pub fn apply_field_chrome<T: Styled>(
@@ -13141,7 +13839,7 @@ index 4c44b4a..8e8169a 100644
              }
          }
 diff --git a/crates/herogpui-components/tests/autocomplete_hover_deep.rs b/crates/herogpui-components/tests/autocomplete_hover_deep.rs
-index 0b54a3c..9e005f7 100644
+index 0b54a3cc..9e005f7b 100644
 --- a/crates/herogpui-components/tests/autocomplete_hover_deep.rs
 +++ b/crates/herogpui-components/tests/autocomplete_hover_deep.rs
 @@ -16,12 +16,10 @@
@@ -13338,7 +14036,7 @@ index 0b54a3c..9e005f7 100644
      );
  }
 diff --git a/crates/herogpui-components/tests/buttons.rs b/crates/herogpui-components/tests/buttons.rs
-index b483c9a..37a06b1 100644
+index b483c9a0..37a06b1f 100644
 --- a/crates/herogpui-components/tests/buttons.rs
 +++ b/crates/herogpui-components/tests/buttons.rs
 @@ -1149,6 +1149,7 @@ fn button_content_render_prop_sees_keyboard_press(cx: &mut TestAppContext) {
@@ -13350,7 +14048,7 @@ index b483c9a..37a06b1 100644
      flush_frame(cx);
      assert!(
 diff --git a/crates/herogpui-components/tests/calendars_and_more.rs b/crates/herogpui-components/tests/calendars_and_more.rs
-index 1da3874..63a66af 100644
+index 1da38740..63a66afe 100644
 --- a/crates/herogpui-components/tests/calendars_and_more.rs
 +++ b/crates/herogpui-components/tests/calendars_and_more.rs
 @@ -793,7 +793,10 @@ fn pointer_open_color_picker_closes_when_focus_moves_elsewhere(cx: &mut TestAppC
@@ -13374,7 +14072,7 @@ index 1da3874..63a66af 100644
          }
      };
 diff --git a/crates/herogpui-components/tests/choice_controls_deep.rs b/crates/herogpui-components/tests/choice_controls_deep.rs
-index 125a457..6cc78c5 100644
+index 125a457a..6cc78c55 100644
 --- a/crates/herogpui-components/tests/choice_controls_deep.rs
 +++ b/crates/herogpui-components/tests/choice_controls_deep.rs
 @@ -1517,9 +1517,9 @@ fn toggle_button_group_reverse_tab_restores_last_focused_member(cx: &mut TestApp
@@ -13402,7 +14100,7 @@ index 125a457..6cc78c5 100644
                  }
              })
 diff --git a/crates/herogpui-components/tests/date_picker_close.rs b/crates/herogpui-components/tests/date_picker_close.rs
-index 67d316a..89db81a 100644
+index 67d316a9..89db81a7 100644
 --- a/crates/herogpui-components/tests/date_picker_close.rs
 +++ b/crates/herogpui-components/tests/date_picker_close.rs
 @@ -77,7 +77,10 @@ fn date_picker_focus_departure_closes_without_refocusing(cx: &mut TestAppContext
@@ -13430,7 +14128,7 @@ index 67d316a..89db81a 100644
  
      assert_eq!(opened.borrow().as_slice(), ["open:false"]);
 diff --git a/crates/herogpui-components/tests/feedback.rs b/crates/herogpui-components/tests/feedback.rs
-index 6ab6e33..a5aa2fb 100644
+index 6ab6e33a..a5aa2fb3 100644
 --- a/crates/herogpui-components/tests/feedback.rs
 +++ b/crates/herogpui-components/tests/feedback.rs
 @@ -1449,23 +1449,23 @@ fn badge_anchor_keeps_its_width_in_an_overflowing_row(cx: &mut TestAppContext) {
@@ -13463,7 +14161,7 @@ index 6ab6e33..a5aa2fb 100644
              .size(Size::Sm)
              .src("fb-avatar-missing.png");
 diff --git a/crates/herogpui-components/tests/feedback_compose.rs b/crates/herogpui-components/tests/feedback_compose.rs
-index 8affa64..1eb1c6e 100644
+index 8affa649..1eb1c6e6 100644
 --- a/crates/herogpui-components/tests/feedback_compose.rs
 +++ b/crates/herogpui-components/tests/feedback_compose.rs
 @@ -96,7 +96,7 @@ fn avatar_src_failure_fires_on_error_once(cx: &mut TestAppContext) {
@@ -13485,7 +14183,7 @@ index 8affa64..1eb1c6e 100644
              .src("images/avatar-broken.png")
              .delay_ms(600)
 diff --git a/crates/herogpui-components/tests/field_keyboard_contracts.rs b/crates/herogpui-components/tests/field_keyboard_contracts.rs
-index 02ce644..908854c 100644
+index 02ce6446..908854c8 100644
 --- a/crates/herogpui-components/tests/field_keyboard_contracts.rs
 +++ b/crates/herogpui-components/tests/field_keyboard_contracts.rs
 @@ -52,16 +52,16 @@ impl Render for ControlledTimeHost {
@@ -13509,7 +14207,7 @@ index 02ce644..908854c 100644
              })
              .size_full()
 diff --git a/crates/herogpui-components/tests/harness/mod.rs b/crates/herogpui-components/tests/harness/mod.rs
-index 148bd86..8a9e024 100644
+index 148bd867..8a9e0240 100644
 --- a/crates/herogpui-components/tests/harness/mod.rs
 +++ b/crates/herogpui-components/tests/harness/mod.rs
 @@ -27,8 +27,8 @@ use std::cell::{Cell, RefCell};
@@ -13546,7 +14244,7 @@ index 148bd86..8a9e024 100644
  }
  
 diff --git a/crates/herogpui-components/tests/pickers_deep.rs b/crates/herogpui-components/tests/pickers_deep.rs
-index 4cf8efa..6090696 100644
+index 4cf8efaf..60906967 100644
 --- a/crates/herogpui-components/tests/pickers_deep.rs
 +++ b/crates/herogpui-components/tests/pickers_deep.rs
 @@ -174,7 +174,7 @@ fn autocomplete_programmatic_focus_departure_closes_without_refocusing(cx: &mut
@@ -13679,7 +14377,7 @@ index 4cf8efa..6090696 100644
      press(cx, "down");
      press(cx, "tab");
 diff --git a/crates/herogpui-components/tests/tabs_deep.rs b/crates/herogpui-components/tests/tabs_deep.rs
-index 11656b2..4f8cf9c 100644
+index 11656b22..4f8cf9ca 100644
 --- a/crates/herogpui-components/tests/tabs_deep.rs
 +++ b/crates/herogpui-components/tests/tabs_deep.rs
 @@ -587,6 +587,7 @@ fn tabs_all_disabled_held_tab_advances_past_the_panel_child(cx: &mut TestAppCont
@@ -13691,7 +14389,7 @@ index 11656b2..4f8cf9c 100644
      press(cx, "enter");
      assert_eq!(
 diff --git a/crates/herogpui-theme/src/layout.rs b/crates/herogpui-theme/src/layout.rs
-index 9e6f491..4c38ee9 100644
+index 9e6f4917..4c38ee9f 100644
 --- a/crates/herogpui-theme/src/layout.rs
 +++ b/crates/herogpui-theme/src/layout.rs
 @@ -179,5 +179,6 @@ fn shadow(x: f32, y: f32, blur: f32, alpha: f32) -> BoxShadow {
@@ -13702,7 +14400,7 @@ index 9e6f491..4c38ee9 100644
      }
  }
 diff --git a/gallery/Cargo.toml b/gallery/Cargo.toml
-index 029a41e..982182a 100644
+index 029a41e1..982182ab 100644
 --- a/gallery/Cargo.toml
 +++ b/gallery/Cargo.toml
 @@ -10,12 +10,17 @@ repository.workspace = true
@@ -13724,7 +14422,7 @@ index 029a41e..982182a 100644
  herogpui-theme.workspace = true
  herogpui-components = { workspace = true, features = ["gallery-source"] }
 diff --git a/gallery/src/app.rs b/gallery/src/app.rs
-index 9515ca1..ce887e0 100644
+index 9515ca17..ce887e0d 100644
 --- a/gallery/src/app.rs
 +++ b/gallery/src/app.rs
 @@ -427,6 +427,21 @@ impl Render for Gallery {
@@ -13750,7 +14448,7 @@ index 9515ca1..ce887e0 100644
          let is_dark = cx.is_dark_theme();
          let theme_button = h::Button::new("theme-toggle")
 diff --git a/gallery/src/control.rs b/gallery/src/control.rs
-index 1719fed..920d006 100644
+index 1719fedb..920d006f 100644
 --- a/gallery/src/control.rs
 +++ b/gallery/src/control.rs
 @@ -35,10 +35,28 @@ pub struct SectionFilter(pub Vec<String>);
@@ -13807,7 +14505,7 @@ index 1719fed..920d006 100644
 +    })
  }
 diff --git a/gallery/src/main.rs b/gallery/src/main.rs
-index 723274b..f4c6f34 100644
+index 723274b0..f4c6f34d 100644
 --- a/gallery/src/main.rs
 +++ b/gallery/src/main.rs
 @@ -1,26 +1,16 @@
@@ -13892,7 +14590,7 @@ index 723274b..f4c6f34 100644
              // `HEROGPUI_WINDOW_SIZE=1200x2000` opens the window at that size.
              // A capture is one PrintWindow of the whole window, so a taller
 diff --git a/gallery/src/pages/components.rs b/gallery/src/pages/components.rs
-index 5eb12cd..46126a4 100644
+index 5eb12cd4..46126a44 100644
 --- a/gallery/src/pages/components.rs
 +++ b/gallery/src/pages/components.rs
 @@ -1,7 +1,7 @@
@@ -19368,7 +20066,7 @@ index 5eb12cd..46126a4 100644
  fn avatar_box(cx: &gpui::App) -> AnyElement {
      gpui::div()
 diff --git a/gallery/src/pages/docs.rs b/gallery/src/pages/docs.rs
-index 083dc34..995ef20 100644
+index 083dc343..995ef20e 100644
 --- a/gallery/src/pages/docs.rs
 +++ b/gallery/src/pages/docs.rs
 @@ -45,7 +45,7 @@ impl Gallery {
@@ -19390,7 +20088,7 @@ index 083dc34..995ef20 100644
          let bounds = Bounds::centered(None, size(px(800.), px(600.)), cx);
          cx.open_window(WindowOptions {
 diff --git a/gallery/src/pages/docs_guides.rs b/gallery/src/pages/docs_guides.rs
-index 370f94d..222b984 100644
+index 370f94d2..222b9844 100644
 --- a/gallery/src/pages/docs_guides.rs
 +++ b/gallery/src/pages/docs_guides.rs
 @@ -495,7 +495,7 @@ Button::new("go").label("Submitting").is_pending(true)"#;
@@ -19403,7 +20101,7 @@ index 370f94d..222b984 100644
  // And one callback shape everywhere.
  .on_change(|value: &str, _window, _cx| { /* ... */ })"#;
 diff --git a/gallery/src/pages/mod.rs b/gallery/src/pages/mod.rs
-index f01f824..d82d8ab 100644
+index f01f8245..d82d8ab8 100644
 --- a/gallery/src/pages/mod.rs
 +++ b/gallery/src/pages/mod.rs
 @@ -746,20 +746,21 @@ pub fn component_doc_page(
@@ -19435,7 +20133,7 @@ index f01f824..d82d8ab 100644
  
      for (heading, body) in references {
 diff --git a/gallery/src/pages/reference.rs b/gallery/src/pages/reference.rs
-index 6452b2b..4d9957c 100644
+index 6452b2b7..4d9957c3 100644
 --- a/gallery/src/pages/reference.rs
 +++ b/gallery/src/pages/reference.rs
 @@ -17,7 +17,7 @@ struct ApiMethod {
@@ -19457,7 +20155,7 @@ index 6452b2b..4d9957c 100644
      if methods.is_empty() {
          return Vec::new();
 diff --git a/rust-toolchain.toml b/rust-toolchain.toml
-index a9c6adc..318dd9a 100644
+index a9c6adca..318dd9ad 100644
 --- a/rust-toolchain.toml
 +++ b/rust-toolchain.toml
 @@ -1,8 +1,25 @@
