@@ -25,6 +25,7 @@ use icu_locale_core::Locale as IcuLocale;
 use crate::calendar::{days_in_month, first_weekday_pub, Date};
 
 /// A resolved calendar system, and the ICU data to compute in it.
+#[derive(Clone)]
 pub struct CalendarSystem {
     kind: AnyCalendarKind,
     calendar: AnyCalendar,
@@ -90,14 +91,7 @@ impl CalendarSystem {
             return ((1..=12).contains(&month) && day >= 1 && day <= days_in_month(year, month))
                 .then(|| Date::new(year, month, day));
         }
-        let date = IcuDate::try_new(
-            year.into(),
-            types::Month::new(u8::try_from(month).ok()?),
-            u8::try_from(day).ok()?,
-            Ref(&self.calendar),
-        )
-        .ok()?
-        .to_calendar(Gregorian);
+        let date = self.date_in(year, month, day)?.to_calendar(Gregorian);
         Some(Date::new(
             date.year().extended_year(),
             u32::from(date.month().ordinal),
@@ -110,7 +104,7 @@ impl CalendarSystem {
         if self.is_gregorian() {
             return days_in_month(year, month);
         }
-        self.first_of(year, month).map_or_else(
+        self.date_in(year, month, 1).map_or_else(
             || days_in_month(year, month),
             |d| u32::from(d.days_in_month()),
         )
@@ -121,7 +115,7 @@ impl CalendarSystem {
         if self.is_gregorian() {
             return 12;
         }
-        self.first_of(year, 1)
+        self.date_in(year, 1, 1)
             .map_or(12, |d| u32::from(d.months_in_year()))
     }
 
@@ -131,7 +125,7 @@ impl CalendarSystem {
         if self.is_gregorian() {
             return first_weekday_pub(year, month);
         }
-        self.first_of(year, month).map_or_else(
+        self.date_in(year, month, 1).map_or_else(
             || first_weekday_pub(year, month),
             |d| (d.weekday() as usize + 6) % 7,
         )
@@ -165,14 +159,46 @@ impl CalendarSystem {
         (year, month)
     }
 
-    fn first_of(&self, year: i32, month: u32) -> Option<IcuDate<Ref<'_, AnyCalendar>>> {
-        IcuDate::try_new(
-            year.into(),
-            types::Month::new(u8::try_from(month).ok()?),
-            1,
-            Ref(&self.calendar),
+    /// Move a Gregorian date by years in this calendar, preserving its month code.
+    pub(crate) fn add_years(&self, date: Date, years: i32) -> Date {
+        if self.is_gregorian() {
+            let year = date.year + years;
+            return Date::new(
+                year,
+                date.month,
+                date.day.min(days_in_month(year, date.month)),
+            );
+        }
+        let Some(mut value) = self.icu(date) else {
+            return date;
+        };
+        if value
+            .try_add_with_options(
+                types::DateDuration {
+                    years: years.unsigned_abs(),
+                    is_negative: years < 0,
+                    ..Default::default()
+                },
+                Default::default(),
+            )
+            .is_err()
+        {
+            return date;
+        }
+        let value = value.to_calendar(Gregorian);
+        Date::new(
+            value.year().extended_year(),
+            u32::from(value.month().ordinal),
+            u32::from(value.day_of_month().0),
         )
-        .ok()
+    }
+
+    fn date_in(&self, year: i32, month: u32, day: u32) -> Option<IcuDate<Ref<'_, AnyCalendar>>> {
+        let mut fields = types::DateFields::default();
+        fields.extended_year = Some(year);
+        fields.ordinal_month = Some(u8::try_from(month).ok()?);
+        fields.day = Some(u8::try_from(day).ok()?);
+        IcuDate::try_from_fields(fields, Default::default(), Ref(&self.calendar)).ok()
     }
 }
 
@@ -195,6 +221,40 @@ pub fn system() -> &'static CalendarSystem {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn year_steps_preserve_calendar_month_codes_and_constrain_leap_days() {
+        let gregorian = CalendarSystem::for_locale("en-US").unwrap();
+        assert_eq!(
+            gregorian.add_years(Date::new(2024, 2, 29), 1),
+            Date::new(2025, 2, 28)
+        );
+        let hebrew = CalendarSystem::for_locale("en-US-u-ca-hebrew").unwrap();
+        assert_eq!(
+            hebrew.add_years(Date::new(2024, 3, 25), 1),
+            Date::new(2025, 3, 15)
+        );
+        assert_eq!(
+            hebrew.add_years(Date::new(2025, 3, 15), -1),
+            Date::new(2024, 3, 25)
+        );
+    }
+
+    #[test]
+    fn leap_month_ordinals_round_trip_without_becoming_month_codes() {
+        let system = CalendarSystem::for_locale("en-US-u-ca-hebrew").unwrap();
+        for date in [
+            Date::new(2024, 2, 20),
+            Date::new(2024, 3, 25),
+            Date::new(2024, 4, 25),
+            Date::new(2024, 9, 25),
+        ] {
+            let (year, month, day) = system.from_gregorian(date);
+            assert_eq!(system.to_gregorian(year, month, day), Some(date));
+        }
+        assert_eq!(system.days_in_month(5784, 6), 30);
+        assert_eq!(system.days_in_month(5784, 7), 29);
+    }
 
     fn indian() -> CalendarSystem {
         CalendarSystem::for_locale("hi-IN-u-ca-indian").unwrap()

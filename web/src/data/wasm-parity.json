@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "artifactSha256": "d1b6f0ddb75ef023bf39dc92d78dbd9132d7a1e261648e098d481911efe59c79",
-  "glueSha256": "de3a1166ed3423da6732fa188bca7b602bf07ccfc04b6d4b0dd38eb6c2aaff5b",
+  "artifactSha256": "a45e289682d2dd63956250748f3db97feca89d6c5cfad90f8c3a503fb5d687c8",
+  "glueSha256": "95a36b0f65ed3744f41cc8ae9df87868c99d893093997662bbda07e2b410971f",
   "examples": {
     "accordion/Controlled": {
       "nativeCodeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -358,6 +358,10 @@
     "calendar/Heading Offset": {
       "nativeCodeSha256": "f671ec0906db0475c8c9415ac4eb00c850be4678586ff46b2a32b70342a42cb0",
       "descriptionSha256": "6b985b0e615125c832d91558b2f3805a03c6c52a4ea1bc2a90e4f18a59f513d0"
+    },
+    "calendar/International Calendars": {
+      "nativeCodeSha256": "410526d90c864b8c61924e68bf16ae1a132105ab02385c228e04006678ae0ba2",
+      "descriptionSha256": "a7d8d77e3619363bad870671171af7c8aa4a4fcaebb77bcd58acdd4db569caf1"
     },
     "calendar/Min and Max Dates": {
       "nativeCodeSha256": "d45aca244688b6f2032d35725f97b4a65c143163e62cbdee948fc000b775e5e4",
@@ -1762,6 +1766,10 @@
     "range-calendar/Heading Offset": {
       "nativeCodeSha256": "aaf52a62af9f44c271a8e3f393a95c0a9efb80f061cf7f8422859ae98bfd8256",
       "descriptionSha256": "dd01b05e2eb2ab81706f60062a0ad2b36937fd69800c6e20292243d7028737c4"
+    },
+    "range-calendar/International Calendars": {
+      "nativeCodeSha256": "4a7e465343b5ce894a1716153fe741264e46ebb1ab62ef5b38228befe9b7ecb3",
+      "descriptionSha256": "1df3e00e3c282f32000df3599b1df21e3fadc3baf2ed57b3475dbd12f7d19a89"
     },
     "range-calendar/Invalid": {
       "nativeCodeSha256": "b981e10db12b5e6be0e1ba85373189c3175314ebd535e9d60cf55b5cc3f710ad",

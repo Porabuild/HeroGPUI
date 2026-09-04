@@ -4279,6 +4279,20 @@ impl Gallery {
             crate::pages::Page::Calendar.import_line(),
             vec![
                 (
+                    "International Calendars",
+                    "Indian and Hebrew calendar grids use English labels here. Navigation follows each calendar while selected values remain Gregorian dates.",
+                    row(vec![
+                        spec("Indian calendar", h::Calendar::new(self.demo_calendar("cal-indian", cx))
+                            .locale("en-US-u-ca-indian")
+                            .default_value(h::Date::new(2026, 1, 15))
+                            .into_any_element(), cx),
+                        spec("Hebrew calendar", h::Calendar::new(self.demo_calendar("cal-hebrew", cx))
+                            .locale("en-US-u-ca-hebrew")
+                            .default_value(h::Date::new(2024, 3, 25))
+                            .into_any_element(), cx),
+                    ]),
+                ),
+                (
                     "Usage",
                     col(vec![
                         h::Calendar::new(self.calendar.clone())
@@ -5059,6 +5073,16 @@ impl Gallery {
             crate::pages::Page::RangeCalendar.description(),
             crate::pages::Page::RangeCalendar.import_line(),
             vec![
+                (
+                    "International Calendars",
+                    "An Indian-calendar range aligned to the end of a two-month view. The January 21-22 Gregorian selection stays in the second displayed month.",
+                    col(vec![h::RangeCalendar::new(self.demo_range("rc-indian", cx))
+                        .locale("en-US-u-ca-indian")
+                        .default_value((h::Date::new(2026, 1, 21), h::Date::new(2026, 1, 22)))
+                        .visible_duration(h::VisibleDuration::Months(2))
+                        .selection_alignment(h::SelectionAlignment::End)
+                        .into_any_element()]),
+                ),
                 (
                     "Disabled",
                     col(vec![h::RangeCalendar::new(

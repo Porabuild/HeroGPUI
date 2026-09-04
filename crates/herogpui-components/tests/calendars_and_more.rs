@@ -147,6 +147,243 @@ fn flush_frame(cx: &mut VisualTestContext) {
 // Calendar & RangeCalendar
 // ---------------------------------------------------------------------------
 
+#[gpui::test]
+fn calendar_selection_keys_consume_browser_defaults_and_ignore_repeats(cx: &mut TestAppContext) {
+    for key in ["enter", "space"] {
+        let state = cx.new(|cx| CalendarState::new(cx));
+        let view_state = state.clone();
+        let changes = events();
+        let recorded = changes.clone();
+        let cx = open_host(cx, move || {
+            let changes = changes.clone();
+            Calendar::new(view_state.clone())
+                .on_change(move |_, _, _| changes.borrow_mut().push(String::new()))
+                .into_any_element()
+        });
+        press(cx, "tab");
+        for is_held in [false, true] {
+            let result = cx.update(|window, cx| {
+                window.dispatch_event(
+                    gpui::PlatformInput::KeyDown(KeyDownEvent {
+                        keystroke: Keystroke::parse(key).unwrap(),
+                        is_held,
+                        prefer_character_input: false,
+                    }),
+                    cx,
+                )
+            });
+            assert!(!result.propagate, "{key} must consume the browser default");
+            flush_frame(cx);
+        }
+        cx.simulate_event(gpui::KeyUpEvent {
+            keystroke: Keystroke::parse(key).unwrap(),
+        });
+        assert_eq!(recorded.borrow().len(), 1);
+    }
+}
+
+#[gpui::test]
+fn range_calendar_selection_keys_consume_browser_defaults_and_ignore_repeats(
+    cx: &mut TestAppContext,
+) {
+    for key in ["enter", "space"] {
+        let state = cx.new(|cx| DateRangeState::new(cx));
+        let view_state = state.clone();
+        let changes = events();
+        let recorded = changes.clone();
+        let cx = open_host(cx, move || {
+            let changes = changes.clone();
+            RangeCalendar::new(view_state.clone())
+                .on_change(move |_, _, _, _| changes.borrow_mut().push(String::new()))
+                .into_any_element()
+        });
+        press(cx, "tab");
+        for is_held in [false, true] {
+            let result = cx.update(|window, cx| {
+                window.dispatch_event(
+                    gpui::PlatformInput::KeyDown(KeyDownEvent {
+                        keystroke: Keystroke::parse(key).unwrap(),
+                        is_held,
+                        prefer_character_input: false,
+                    }),
+                    cx,
+                )
+            });
+            assert!(!result.propagate, "{key} must consume the browser default");
+            flush_frame(cx);
+        }
+        cx.simulate_event(gpui::KeyUpEvent {
+            keystroke: Keystroke::parse(key).unwrap(),
+        });
+        assert!(cx.update(|_, cx| state.read(cx).end.is_none()));
+        assert!(recorded.borrow().is_empty());
+        press(cx, key);
+        assert_eq!(recorded.borrow().len(), 1);
+    }
+}
+
+#[gpui::test]
+fn calendar_indian_locale_grid_selects_gregorian_dates(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let changed = events();
+    let recorded = changed.clone();
+    let cx = open_host(cx, move || {
+        let changed = changed.clone();
+        Calendar::new(state.clone())
+            .locale("hi-IN-u-ca-indian")
+            .first_day_of_week(Weekday::Mon)
+            .default_value(Date::new(2026, 1, 15))
+            .on_change(move |date, _, _| {
+                changed.borrow_mut().push(date.unwrap().format_iso());
+            })
+            .into_any_element()
+    });
+    // Pausha 1947 starts on Monday, 22 December 2025.
+    click(cx, cal_col_x(0), cal_row_y(0));
+    assert_eq!(recorded.borrow().as_slice(), ["2025-12-22"]);
+}
+
+#[gpui::test]
+fn calendar_indian_locale_keyboard_uses_displayed_months(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let focused = events();
+    let recorded = focused.clone();
+    let cx = open_host(cx, move || {
+        let focused = focused.clone();
+        Calendar::new(state.clone())
+            .locale("hi-IN-u-ca-indian")
+            .default_value(Date::new(2026, 1, 15))
+            .on_focus_change(move |date, _, _| focused.borrow_mut().push(date.format_iso()))
+            .into_any_element()
+    });
+    press(cx, "tab");
+    press(cx, "home");
+    press(cx, "end");
+    press(cx, "pagedown");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["2025-12-22", "2026-01-20", "2026-02-19"]
+    );
+}
+
+#[gpui::test]
+fn range_calendar_indian_locale_keyboard_uses_displayed_months(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let focused = events();
+    let recorded = focused.clone();
+    let cx = open_host(cx, move || {
+        let focused = focused.clone();
+        RangeCalendar::new(state.clone())
+            .locale("hi-IN-u-ca-indian")
+            .default_value((Date::new(2026, 1, 15), Date::new(2026, 1, 16)))
+            .on_focus_change(move |date, _, _| focused.borrow_mut().push(date.format_iso()))
+            .into_any_element()
+    });
+    press(cx, "tab");
+    press(cx, "home");
+    press(cx, "end");
+    press(cx, "pagedown");
+    assert_eq!(
+        recorded.borrow().as_slice(),
+        ["2025-12-22", "2026-01-20", "2026-02-19"]
+    );
+}
+
+#[gpui::test]
+fn range_calendar_indian_locale_end_alignment_keeps_selection_visible(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        RangeCalendar::new(state_for_view.clone())
+            .locale("hi-IN-u-ca-indian")
+            .first_day_of_week(Weekday::Mon)
+            .visible_duration(VisibleDuration::Months(2))
+            .selection_alignment(SelectionAlignment::End)
+            .default_value((Date::new(2026, 1, 21), Date::new(2026, 1, 22)))
+            .into_any_element()
+    });
+    // Magha 1 must remain in the second grid; the first grid is Pausha.
+    click(cx, range_col_x(0), range_row_y(0));
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).start),
+        Some(Date::new(2025, 12, 22))
+    );
+}
+
+#[gpui::test]
+fn calendar_indian_locale_bounds_disable_both_month_controls(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let cx = open_host(cx, move || {
+        Calendar::new(state_for_view.clone())
+            .locale("hi-IN-u-ca-indian")
+            .default_value(Date::new(2026, 1, 15))
+            .min_value(Date::new(2025, 12, 22))
+            .max_value(Date::new(2026, 1, 20))
+            .into_any_element()
+    });
+    click(cx, 14., 12.);
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2026, 1, 15)
+    );
+    click(cx, f32::from(CALENDAR_WIDTH) - 14., 12.);
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2026, 1, 15)
+    );
+}
+
+#[gpui::test]
+fn calendar_hebrew_year_picker_preserves_the_month_code(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| CalendarState::new(cx));
+    let state_for_view = state.clone();
+    let focused = events();
+    let recorded = focused.clone();
+    let cx = open_host(cx, move || {
+        let focused = focused.clone();
+        Calendar::new(state_for_view.clone())
+            .locale("en-US-u-ca-hebrew")
+            .default_value(Date::new(2024, 3, 25))
+            .default_year_picker_open(true)
+            .visible_years(3)
+            .on_focus_change(move |date, _, _| focused.borrow_mut().push(date.format_iso()))
+            .into_any_element()
+    });
+    press(cx, "right");
+    press(cx, "enter");
+    assert_eq!(recorded.borrow().as_slice(), ["2025-03-15"]);
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2025, 3, 15)
+    );
+}
+
+#[gpui::test]
+fn range_calendar_hebrew_year_picker_preserves_the_month_code(cx: &mut TestAppContext) {
+    let state = cx.new(|cx| DateRangeState::new(cx));
+    let state_for_view = state.clone();
+    let focused = events();
+    let recorded = focused.clone();
+    let cx = open_host(cx, move || {
+        let focused = focused.clone();
+        RangeCalendar::new(state_for_view.clone())
+            .locale("en-US-u-ca-hebrew")
+            .default_value((Date::new(2024, 3, 25), Date::new(2024, 3, 26)))
+            .default_year_picker_open(true)
+            .visible_years(3)
+            .on_focus_change(move |date, _, _| focused.borrow_mut().push(date.format_iso()))
+            .into_any_element()
+    });
+    press(cx, "right");
+    press(cx, "enter");
+    assert_eq!(recorded.borrow().as_slice(), ["2025-03-15"]);
+    assert_eq!(
+        cx.update(|_, cx| state.read(cx).anchor()),
+        Date::new(2025, 3, 15)
+    );
+}
+
 /// The grid is one tab stop (`util::tab_stop_handle`), so Tab from the host
 /// root puts the keyboard inside it; then the arrows walk a day and a week,
 /// and Enter and Space both take the ring's date. Asserted through

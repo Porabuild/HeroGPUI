@@ -976,6 +976,12 @@
   ],
   "calendar": [
     {
+      "heading": "International Calendars",
+      "description": "Indian and Hebrew calendar grids use English labels here. Navigation follows each calendar while selected values remain Gregorian dates.",
+      "imports": "use herogpui::prelude::{Calendar, CalendarState, Date};\nuse gpui::prelude::*;",
+      "code": "row(vec![\n    Calendar::new(self.demo_calendar(\"cal-indian\", cx))\n        .locale(\"en-US-u-ca-indian\")\n        .default_value(Date::new(2026, 1, 15))\n        .into_any_element(),\n    Calendar::new(self.demo_calendar(\"cal-hebrew\", cx))\n        .locale(\"en-US-u-ca-hebrew\")\n        .default_value(Date::new(2024, 3, 25))\n        .into_any_element(),\n])"
+    },
+    {
       "heading": "Usage",
       "imports": "use herogpui::prelude::{Calendar, CalendarState, Date};\nuse gpui::prelude::*;\nuse gpui::px;",
       "code": "gpui::div()\n    .flex()\n    .flex_col()\n    .items_start()\n    .gap(px(12.))\n    .children(vec![\n        Calendar::new(self.calendar.clone())\n            .on_change(opt_date_cb(cx.listener(\n                |this, d: &Option<Date>, _, cx| {\n                    this.cal_picked = *d;\n                    cx.notify();\n                },\n            )))\n            .into_any_element(),\n        para(\n            &match picked {\n                Some(d) => format!(\"Selected: {}\", d.format_iso()),\n                None => \"No date selected\".to_owned(),\n            },\n            cx,\n        ),\n    ])"
@@ -1238,6 +1244,12 @@
     }
   ],
   "range-calendar": [
+    {
+      "heading": "International Calendars",
+      "description": "An Indian-calendar range aligned to the end of a two-month view. The January 21-22 Gregorian selection stays in the second displayed month.",
+      "imports": "use herogpui::prelude::{Date, RangeCalendar, SelectionAlignment, VisibleDuration};",
+      "code": "RangeCalendar::new(self.demo_range(\"rc-indian\", cx))\n    .locale(\"en-US-u-ca-indian\")\n    .default_value((Date::new(2026, 1, 21), Date::new(2026, 1, 22)))\n    .visible_duration(VisibleDuration::Months(2))\n    .selection_alignment(SelectionAlignment::End)"
+    },
     {
       "heading": "Disabled",
       "imports": "use herogpui::prelude::RangeCalendar;",

@@ -7290,7 +7290,7 @@ const CALENDAR_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Focus visible",
         selector: ":focus-visible, [data-focus-visible=\"true\"]",
-        description: "Roving in-month focus ring driven by the calendar cursor.",
+        description: "Roving in-month focus ring driven by the calendar cursor. Month boundaries, paging, alignment and year selection follow the chosen calendar system while focus values stay Gregorian.",
         rust: "grid_focus + with_focus_ring",
         status: ImplementationStatus::Implemented,
     },
@@ -7759,7 +7759,7 @@ const RANGE_CALENDAR_STATES: &[StateDoc] = &[
     StateDoc {
         state: "Focus visible",
         selector: ":focus-visible or [data-focus-visible=\"true\"]",
-        description: "Roving in-month focus ring shared by hover and keyboard.",
+        description: "Roving in-month focus ring shared by hover and keyboard. Month boundaries, paging, alignment and year selection follow the chosen calendar system while focus values stay Gregorian.",
         rust: "grid_focus + with_focus_ring",
         status: ImplementationStatus::Implemented,
     },

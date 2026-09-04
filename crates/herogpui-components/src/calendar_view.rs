@@ -158,53 +158,107 @@ pub fn focus_section(
     dir: i32,
     larger: bool,
 ) -> Date {
+    focus_section_in(
+        crate::calendar_system::system(),
+        duration,
+        behavior,
+        anchor,
+        dir,
+        larger,
+    )
+}
+
+/// Uses the explicitly selected calendar system.
+pub(crate) fn focus_section_in(
+    system: &crate::calendar_system::CalendarSystem,
+    duration: VisibleDuration,
+    behavior: PageBehavior,
+    anchor: Date,
+    dir: i32,
+    larger: bool,
+) -> Date {
     match (duration, larger) {
-        (VisibleDuration::Days(_), _) => page(duration, behavior, anchor, dir),
-        (VisibleDuration::Weeks(_), false) => {
-            page(VisibleDuration::Weeks(1), PageBehavior::Single, anchor, dir)
-        }
-        (VisibleDuration::Weeks(_), true) => page(
+        (VisibleDuration::Days(_), _) => page_in(system, duration, behavior, anchor, dir),
+        (VisibleDuration::Weeks(_), false) => page_in(
+            system,
+            VisibleDuration::Weeks(1),
+            PageBehavior::Single,
+            anchor,
+            dir,
+        ),
+        (VisibleDuration::Weeks(_), true) => page_in(
+            system,
             VisibleDuration::Months(1),
             PageBehavior::Single,
             anchor,
             dir,
         ),
-        (VisibleDuration::Months(_), false) => page(
+        (VisibleDuration::Months(_), false) => page_in(
+            system,
             VisibleDuration::Months(1),
             PageBehavior::Single,
             anchor,
             dir,
         ),
-        (VisibleDuration::Months(_), true) => page(
-            VisibleDuration::Months(12),
-            PageBehavior::Visible,
-            anchor,
-            dir,
-        ),
+        (VisibleDuration::Months(_), true) => system.add_years(anchor, dir),
     }
 }
 
 /// The date reached by Home in pinned React Stately's calendar grid.
 pub fn section_start(duration: VisibleDuration, visible_start: Date, focused: Date) -> Date {
+    section_start_in(
+        crate::calendar_system::system(),
+        duration,
+        visible_start,
+        focused,
+    )
+}
+
+/// Uses the explicitly selected calendar system.
+pub(crate) fn section_start_in(
+    system: &crate::calendar_system::CalendarSystem,
+    duration: VisibleDuration,
+    visible_start: Date,
+    focused: Date,
+) -> Date {
     match duration {
         VisibleDuration::Days(_) => visible_start,
         // React Stately deliberately uses the locale week here rather than
         // the grid's firstDayOfWeek override.
         VisibleDuration::Weeks(_) => week_start(focused, Weekday::default()),
-        VisibleDuration::Months(_) => Date::new(focused.year, focused.month, 1),
+        VisibleDuration::Months(_) => {
+            let (year, month, _) = system.from_gregorian(focused);
+            system.to_gregorian(year, month, 1).unwrap_or(focused)
+        }
     }
 }
 
 /// The date reached by End in pinned React Stately's calendar grid.
 pub fn section_end(duration: VisibleDuration, visible_end: Date, focused: Date) -> Date {
+    section_end_in(
+        crate::calendar_system::system(),
+        duration,
+        visible_end,
+        focused,
+    )
+}
+
+/// Uses the explicitly selected calendar system.
+pub(crate) fn section_end_in(
+    system: &crate::calendar_system::CalendarSystem,
+    duration: VisibleDuration,
+    visible_end: Date,
+    focused: Date,
+) -> Date {
     match duration {
         VisibleDuration::Days(_) => visible_end,
         VisibleDuration::Weeks(_) => add_days(&week_start(focused, Weekday::default()), 6),
-        VisibleDuration::Months(_) => Date::new(
-            focused.year,
-            focused.month,
-            days_in_month(focused.year, focused.month),
-        ),
+        VisibleDuration::Months(_) => {
+            let (year, month, _) = system.from_gregorian(focused);
+            system
+                .to_gregorian(year, month, system.days_in_month(year, month))
+                .unwrap_or(focused)
+        }
     }
 }
 
@@ -217,10 +271,43 @@ pub fn anchor_following_focus(
     visible_end: Date,
     focused: Date,
 ) -> Date {
+    anchor_following_focus_in(
+        crate::calendar_system::system(),
+        duration,
+        first_day,
+        anchor,
+        visible_start,
+        visible_end,
+        focused,
+    )
+}
+
+/// Uses the explicitly selected calendar system.
+pub(crate) fn anchor_following_focus_in(
+    system: &crate::calendar_system::CalendarSystem,
+    duration: VisibleDuration,
+    first_day: Weekday,
+    anchor: Date,
+    visible_start: Date,
+    visible_end: Date,
+    focused: Date,
+) -> Date {
     if days_from_civil(&focused) < days_from_civil(&visible_start) {
-        aligned_anchor(duration, SelectionAlignment::End, first_day, focused)
+        aligned_anchor_in(
+            system,
+            duration,
+            SelectionAlignment::End,
+            first_day,
+            focused,
+        )
     } else if days_from_civil(&focused) > days_from_civil(&visible_end) {
-        aligned_anchor(duration, SelectionAlignment::Start, first_day, focused)
+        aligned_anchor_in(
+            system,
+            duration,
+            SelectionAlignment::Start,
+            first_day,
+            focused,
+        )
     } else {
         anchor
     }
@@ -236,16 +323,31 @@ pub fn aligned_anchor(
     first_day: Weekday,
     selection: Date,
 ) -> Date {
+    aligned_anchor_in(
+        crate::calendar_system::system(),
+        duration,
+        alignment,
+        first_day,
+        selection,
+    )
+}
+
+/// Uses the explicitly selected calendar system.
+pub(crate) fn aligned_anchor_in(
+    system: &crate::calendar_system::CalendarSystem,
+    duration: VisibleDuration,
+    alignment: SelectionAlignment,
+    first_day: Weekday,
+    selection: Date,
+) -> Date {
     let lead = alignment.lead_units(duration.count());
     match duration {
         VisibleDuration::Months(_) => {
-            let (mut y, mut m) = (selection.year, selection.month);
-            for _ in 0..lead {
-                let (ny, nm) = bump_month(y, m, -1);
-                y = ny;
-                m = nm;
-            }
-            clamp_day(y, m, selection.day)
+            let (year, month, day) = system.from_gregorian(selection);
+            let (year, month) = system.add_months(year, month, -(lead as i32));
+            system
+                .to_gregorian(year, month, day.min(system.days_in_month(year, month)))
+                .unwrap_or(selection)
         }
         VisibleDuration::Weeks(_) => {
             add_days(&week_start(selection, first_day), -(lead as i64) * 7)
@@ -301,18 +403,27 @@ pub fn linear_cells(duration: VisibleDuration, first_day: Weekday, anchor: Date)
 /// cells. React Stately tests the immediately adjacent days to decide whether
 /// the previous and next controls are disabled.
 pub(crate) fn visible_range(
+    system: &crate::calendar_system::CalendarSystem,
     duration: VisibleDuration,
     first_day: Weekday,
     anchor: Date,
 ) -> (Date, Date) {
     match duration {
         VisibleDuration::Months(_) => {
-            let months = month_headings(duration, anchor);
+            let months = month_headings_in(system, duration, anchor);
             let (start_year, start_month) = months[0];
             let (end_year, end_month) = months[months.len() - 1];
             (
-                Date::new(start_year, start_month, 1),
-                Date::new(end_year, end_month, days_in_month(end_year, end_month)),
+                system
+                    .to_gregorian(start_year, start_month, 1)
+                    .unwrap_or(anchor),
+                system
+                    .to_gregorian(
+                        end_year,
+                        end_month,
+                        system.days_in_month(end_year, end_month),
+                    )
+                    .unwrap_or(anchor),
             )
         }
         VisibleDuration::Weeks(_) | VisibleDuration::Days(_) => {
@@ -360,13 +471,16 @@ pub fn range_heading(cells: &[Date]) -> String {
 /// then it shows their full inclusive year span. An explicit `visibleYears`
 /// wins, and the window stays inside either bound.
 pub(crate) fn year_window(
+    system: &crate::calendar_system::CalendarSystem,
     view_year: i32,
     visible_years: Option<usize>,
     min_value: Option<Date>,
     max_value: Option<Date>,
 ) -> Vec<i32> {
-    let available = min_value.zip(max_value).map(|(min, max)| {
-        let span = i64::from(max.year) - i64::from(min.year) + 1;
+    let min_year = min_value.map(|date| system.from_gregorian(date).0);
+    let max_year = max_value.map(|date| system.from_gregorian(date).0);
+    let available = min_year.zip(max_year).map(|(min, max)| {
+        let span = i64::from(max) - i64::from(min) + 1;
         usize::try_from(span.max(1)).unwrap_or(usize::MAX)
     });
     let requested = visible_years.or(available).unwrap_or(20).max(1);
@@ -374,14 +488,14 @@ pub(crate) fn year_window(
     let count_i64 = i64::try_from(count).unwrap_or(i64::MAX);
     let mut start = i64::from(view_year) - count_i64 / 2;
 
-    if let Some(min) = min_value {
-        start = start.max(i64::from(min.year));
+    if let Some(min) = min_year {
+        start = start.max(i64::from(min));
     }
-    if let Some(max) = max_value {
-        start = start.min(i64::from(max.year) - count_i64 + 1);
+    if let Some(max) = max_year {
+        start = start.min(i64::from(max) - count_i64 + 1);
     }
-    if let Some(min) = min_value {
-        start = start.max(i64::from(min.year));
+    if let Some(min) = min_year {
+        start = start.max(i64::from(min));
     }
 
     (0..count)
@@ -402,6 +516,44 @@ pub(crate) struct YearGridView<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_calendar_bounds_and_year_pages_keep_gregorian_values() {
+        let indian =
+            crate::calendar_system::CalendarSystem::for_locale("hi-IN-u-ca-indian").unwrap();
+        assert_eq!(
+            visible_range(
+                &indian,
+                VisibleDuration::Months(1),
+                Weekday::Mon,
+                d(2026, 1, 15)
+            ),
+            (d(2025, 12, 22), d(2026, 1, 20))
+        );
+        assert_eq!(
+            year_window(
+                &indian,
+                1947,
+                None,
+                Some(d(2025, 3, 22)),
+                Some(d(2027, 3, 21))
+            ),
+            vec![1947, 1948]
+        );
+        let hebrew =
+            crate::calendar_system::CalendarSystem::for_locale("en-US-u-ca-hebrew").unwrap();
+        assert_eq!(
+            focus_section_in(
+                &hebrew,
+                VisibleDuration::Months(1),
+                PageBehavior::Single,
+                d(2024, 3, 25),
+                1,
+                true
+            ),
+            d(2025, 3, 15)
+        );
+    }
 
     fn d(y: i32, m: u32, day: u32) -> Date {
         Date::new(y, m, day)
@@ -615,15 +767,30 @@ mod tests {
     #[test]
     fn visible_range_excludes_month_spill_and_spans_linear_views() {
         assert_eq!(
-            visible_range(VisibleDuration::Months(2), Weekday::Mon, d(2026, 8, 15)),
+            visible_range(
+                crate::calendar_system::system(),
+                VisibleDuration::Months(2),
+                Weekday::Mon,
+                d(2026, 8, 15)
+            ),
             (d(2026, 8, 1), d(2026, 9, 30))
         );
         assert_eq!(
-            visible_range(VisibleDuration::Weeks(1), Weekday::Mon, d(2026, 8, 22)),
+            visible_range(
+                crate::calendar_system::system(),
+                VisibleDuration::Weeks(1),
+                Weekday::Mon,
+                d(2026, 8, 22)
+            ),
             (d(2026, 8, 17), d(2026, 8, 23))
         );
         assert_eq!(
-            visible_range(VisibleDuration::Days(3), Weekday::Mon, d(2026, 8, 30)),
+            visible_range(
+                crate::calendar_system::system(),
+                VisibleDuration::Days(3),
+                Weekday::Mon,
+                d(2026, 8, 30)
+            ),
             (d(2026, 8, 30), d(2026, 9, 1))
         );
     }
@@ -641,24 +808,48 @@ mod tests {
 
     #[test]
     fn year_window_centers_and_clamps_to_bounds() {
-        let years = year_window(2026, None, None, None);
+        let years = year_window(crate::calendar_system::system(), 2026, None, None, None);
         assert_eq!(years.len(), 20);
         assert_eq!(years[10], 2026);
 
         assert_eq!(
-            year_window(2026, None, Some(d(2024, 6, 1)), Some(d(2028, 6, 1))),
+            year_window(
+                crate::calendar_system::system(),
+                2026,
+                None,
+                Some(d(2024, 6, 1)),
+                Some(d(2028, 6, 1))
+            ),
             vec![2024, 2025, 2026, 2027, 2028]
         );
         assert_eq!(
-            year_window(2026, Some(3), Some(d(2024, 6, 1)), Some(d(2028, 6, 1))),
+            year_window(
+                crate::calendar_system::system(),
+                2026,
+                Some(3),
+                Some(d(2024, 6, 1)),
+                Some(d(2028, 6, 1))
+            ),
             vec![2025, 2026, 2027]
         );
         assert_eq!(
-            year_window(2024, Some(3), Some(d(2024, 6, 1)), None),
+            year_window(
+                crate::calendar_system::system(),
+                2024,
+                Some(3),
+                Some(d(2024, 6, 1)),
+                None
+            ),
             vec![2024, 2025, 2026]
         );
         assert_eq!(
-            year_window(2028, Some(3), None, Some(d(2028, 6, 1))),
+            year_window(
+                crate::calendar_system::system(),
+                2028,
+                Some(3),
+                None,
+                Some(d(2028, 6, 1))
+            ),
             vec![2026, 2027, 2028]
         );
     }

@@ -187,6 +187,11 @@ fn system_month_names() -> &'static [String; 12] {
 /// a year-first heading in Japanese, which no `"{month} {year}"` format string
 /// can produce.
 pub(crate) fn month_heading_for_locale(locale: &str, year: i32, month: u32) -> Option<String> {
+    date_heading_for_locale(locale, Date::new(year, month.clamp(1, 12), 1))
+}
+
+/// Format the month containing this actual Gregorian day.
+pub(crate) fn date_heading_for_locale(locale: &str, date: Date) -> Option<String> {
     use icu_datetime::{fieldsets, input::Date as IcuDate, options::YearStyle, DateTimeFormatter};
     use icu_locale_core::Locale as IcuLocale;
 
@@ -196,10 +201,11 @@ pub(crate) fn month_heading_for_locale(locale: &str, year: i32, month: u32) -> O
         fieldsets::YM::long().with_year_style(YearStyle::Full),
     )
     .ok()?;
-    let month = u8::try_from(month.clamp(1, 12)).ok()?;
+    let month = u8::try_from(date.month).ok()?;
+    let day = u8::try_from(date.day).ok()?;
     Some(
         formatter
-            .format(&IcuDate::try_new_iso(year, month, 1).ok()?)
+            .format(&IcuDate::try_new_iso(date.year, month, day).ok()?)
             .to_string(),
     )
 }
@@ -969,7 +975,7 @@ impl Calendar {
         let Some(date) = system.to_gregorian(year, month, 1) else {
             return String::new();
         };
-        month_heading_for_locale(system.locale(), date.year, date.month)
+        date_heading_for_locale(system.locale(), date)
             .unwrap_or_else(|| month_year_heading(date.year, date.month))
     }
 
@@ -1119,10 +1125,12 @@ impl Calendar {
                     let on_focus = self.on_focus_change.clone();
                     let own = year_picker_own.clone();
                     let back_to_trigger = heading_focus.clone();
+                    let system = self.system().clone();
                     cell = cell.on_click(move |_, window, cx| {
                         let next = st.update(cx, |s, cx| {
-                            let day = s.view_day.max(1).min(days_in_month(year, s.view_month));
-                            let next = Date::new(year, s.view_month, day);
+                            let anchor = s.anchor();
+                            let next =
+                                system.add_years(anchor, year - system.from_gregorian(anchor).0);
                             s.set_anchor(next);
                             cx.notify();
                             next
@@ -1293,7 +1301,8 @@ impl RenderOnce for Calendar {
         // `selectionAlignment` frames the range around the selection, but only
         // until the user drives navigation themselves.
         let anchor = match (navigated, selected) {
-            (false, Some(sel)) => calendar_view::aligned_anchor(
+            (false, Some(sel)) => calendar_view::aligned_anchor_in(
+                self.system(),
                 self.duration,
                 self.selection_alignment,
                 first_day,
@@ -1303,8 +1312,9 @@ impl RenderOnce for Calendar {
         };
         let anchor = focused_value.map_or(anchor, |focused| {
             let (visible_start, visible_end) =
-                calendar_view::visible_range(self.duration, first_day, anchor);
-            calendar_view::anchor_following_focus(
+                calendar_view::visible_range(self.system(), self.duration, first_day, anchor);
+            calendar_view::anchor_following_focus_in(
+                self.system(),
                 self.duration,
                 first_day,
                 anchor,
@@ -1313,22 +1323,26 @@ impl RenderOnce for Calendar {
                 focused,
             )
         });
-        let initial_year = focused_value.unwrap_or(anchor).year;
+        let initial_year = self
+            .system()
+            .from_gregorian(focused_value.unwrap_or(anchor))
+            .0;
         let years = calendar_view::year_window(
+            self.system(),
             initial_year,
             self.visible_years,
             self.constraints.min_value,
             self.constraints.max_value,
         );
-        let first_year = years.first().copied().unwrap_or(anchor.year);
-        let last_year = years.last().copied().unwrap_or(anchor.year);
+        let first_year = years.first().copied().unwrap_or(initial_year);
+        let last_year = years.last().copied().unwrap_or(initial_year);
         if year_picker_open && !*year_was_open.read(cx) && !self.is_disabled {
             year_cursor.update(cx, |year, _| *year = Some(initial_year));
             window.focus(&year_focus, cx);
         }
         year_was_open.update(cx, |was_open, _| *was_open = year_picker_open);
         let active_year = focused_value
-            .map(|date| date.year)
+            .map(|date| self.system().from_gregorian(date).0)
             .or(*year_cursor.read(cx))
             .unwrap_or(initial_year)
             .max(first_year)
@@ -1352,7 +1366,7 @@ impl RenderOnce for Calendar {
             focused: ring_at,
         };
 
-        let months = calendar_view::month_headings(self.duration, anchor);
+        let months = calendar_view::month_headings_in(self.system(), self.duration, anchor);
         let linear = calendar_view::linear_cells(self.duration, first_day, anchor);
         let columns = months.len().max(1);
         let mut heading_focuses = Vec::with_capacity(columns);
@@ -1379,7 +1393,7 @@ impl RenderOnce for Calendar {
             )
         };
         let (visible_start, visible_end) =
-            calendar_view::visible_range(self.duration, first_day, anchor);
+            calendar_view::visible_range(self.system(), self.duration, first_day, anchor);
         // React Stately checks only the day immediately outside the visible
         // range against minValue/maxValue. Unavailable dates do not block
         // paging, and readOnly prevents selection without preventing paging.
@@ -1599,6 +1613,7 @@ impl RenderOnce for Calendar {
             let on_change = self.on_change.clone();
             let on_change_all = self.on_change_all.clone();
             let on_focus = self.on_focus_change.clone();
+            let system = self.system().clone();
             let duration = self.duration;
             let page_behavior = self.page_behavior;
             root = root.on_key_down(move |event, window, cx| {
@@ -1614,7 +1629,8 @@ impl RenderOnce for Calendar {
                 let key = event.keystroke.key.as_str();
                 let shift = event.keystroke.modifiers.shift;
                 if matches!(key, "enter" | "space") {
-                    if read_only || !constraints.allows(at) {
+                    cx.stop_propagation();
+                    if event.is_held || read_only || !constraints.allows(at) {
                         return;
                     }
                     let selected_dates = state.update(cx, |s, cx| {
@@ -1635,14 +1651,24 @@ impl RenderOnce for Calendar {
                     "right" => add_days(&at, 1),
                     "up" => add_days(&at, -7),
                     "down" => add_days(&at, 7),
-                    "pageup" => {
-                        calendar_view::focus_section(duration, page_behavior, at, -1, shift)
-                    }
-                    "pagedown" => {
-                        calendar_view::focus_section(duration, page_behavior, at, 1, shift)
-                    }
-                    "home" => calendar_view::section_start(duration, visible_start, at),
-                    "end" => calendar_view::section_end(duration, visible_end, at),
+                    "pageup" => calendar_view::focus_section_in(
+                        &system,
+                        duration,
+                        page_behavior,
+                        at,
+                        -1,
+                        shift,
+                    ),
+                    "pagedown" => calendar_view::focus_section_in(
+                        &system,
+                        duration,
+                        page_behavior,
+                        at,
+                        1,
+                        shift,
+                    ),
+                    "home" => calendar_view::section_start_in(&system, duration, visible_start, at),
+                    "end" => calendar_view::section_end_in(&system, duration, visible_end, at),
                     _ => return,
                 };
                 if controlled_focus.is_none() {
@@ -1657,7 +1683,8 @@ impl RenderOnce for Calendar {
                         if matches!(key, "pageup" | "pagedown") {
                             let dir = if key == "pageup" { -1 } else { 1 };
                             let next_anchor = match duration {
-                                VisibleDuration::Days(_) => calendar_view::focus_section(
+                                VisibleDuration::Days(_) => calendar_view::focus_section_in(
+                                    &system,
                                     duration,
                                     page_behavior,
                                     anchor,
@@ -1665,7 +1692,8 @@ impl RenderOnce for Calendar {
                                     shift,
                                 ),
                                 _ if days_from_civil(&next) < days_from_civil(&visible_start) => {
-                                    calendar_view::aligned_anchor(
+                                    calendar_view::aligned_anchor_in(
+                                        &system,
                                         duration,
                                         SelectionAlignment::End,
                                         first_day,
@@ -1673,7 +1701,8 @@ impl RenderOnce for Calendar {
                                     )
                                 }
                                 _ if days_from_civil(&next) > days_from_civil(&visible_end) => {
-                                    calendar_view::aligned_anchor(
+                                    calendar_view::aligned_anchor_in(
+                                        &system,
                                         duration,
                                         SelectionAlignment::Start,
                                         first_day,
@@ -1687,7 +1716,8 @@ impl RenderOnce for Calendar {
                                 cx.notify();
                             }
                         } else {
-                            let next_anchor = calendar_view::anchor_following_focus(
+                            let next_anchor = calendar_view::anchor_following_focus_in(
+                                &system,
                                 duration,
                                 first_day,
                                 anchor,
@@ -1715,7 +1745,8 @@ impl RenderOnce for Calendar {
             let own = year_picker_own.clone();
             let on_open = self.on_year_picker_open_change.clone();
             let on_focus = self.on_focus_change.clone();
-            let controlled_year = focused_value.map(|date| date.year);
+            let system = self.system().clone();
+            let controlled_year = focused_value.map(|date| system.from_gregorian(date).0);
             let back_to_trigger = active_heading_focus.clone();
             root = root.on_key_down(move |event, window, cx| {
                 if !focus.is_focused(window) {
@@ -1761,11 +1792,7 @@ impl RenderOnce for Calendar {
                     }
                     if let Some(cb) = &on_focus {
                         cb(
-                            Date::new(
-                                next,
-                                anchor.month,
-                                anchor.day.min(days_in_month(next, anchor.month)),
-                            ),
+                            system.add_years(anchor, next - system.from_gregorian(anchor).0),
                             window,
                             cx,
                         );
@@ -1939,6 +1966,18 @@ impl RenderOnce for Calendar {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn calendar_heading_keeps_the_day_that_identifies_a_non_gregorian_month() {
+        assert_eq!(
+            date_heading_for_locale("en-US-u-ca-indian", Date::new(2025, 12, 22)),
+            month_heading_for_locale("en-US-u-ca-indian", 2026, 1)
+        );
+        assert!(
+            date_heading_for_locale("en-US-u-ca-hebrew", Date::new(2024, 3, 11))
+                .unwrap()
+                .contains("Adar II")
+        );
+    }
 
     #[test]
     fn a_locale_extension_moves_the_grid_into_that_calendar() {

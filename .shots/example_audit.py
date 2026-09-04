@@ -78,16 +78,6 @@ WONT_DEMO = {
     # v3 composes a third-party npm ripple component as a child
     # (`<Button><Ripple /></Button>`); the example is about that library.
     'Button.Adding Ripple Effect': 'third-party-lib',
-    # All four switch calendar *system* -- v3's example wraps the calendar in an
-    # `I18nProvider` with a `-u-ca-` locale extension. The CLDR data is here now
-    # (`icu_calendar` ships with the crate, and the grid heads itself in the
-    # reader's locale), so what blocks these is the port's own `Date`: a plain
-    # proleptic-Gregorian triple with no era and no other system to switch to.
-    # Same blocker as `Calendar.format` in `api_audit.py`.
-    'Calendar.International Calendars': 'gregorian-only-date',
-    'RangeCalendar.International Calendars': 'gregorian-only-date',
-    'DatePicker.International Calendar': 'gregorian-only-date',
-    'DateRangePicker.International Calendar': 'gregorian-only-date',
     # A React portal renders outside the tree. gpui paints in tree order and
     # `util::floating` (deferred) is the only lift there is, so there is no
     # "render this dialog somewhere else" to show.
@@ -99,7 +89,12 @@ WONT_DEMO = {
 #
 # These are not excused: they are counted separately so the number cannot hide
 # behind "unportable", and each one names the feature it is waiting on.
-NEEDS_FEATURE = {}
+NEEDS_FEATURE = {
+    # Their popovers support calendar systems, but the embedded date fields
+    # still format through the OS locale rather than the component override.
+    'DatePicker.International Calendar': 'date-field-locale',
+    'DateRangePicker.International Calendar': 'date-field-locale',
+}
 
 SYNONYM = {
     'usage': 'basic',

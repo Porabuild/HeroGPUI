@@ -218,6 +218,7 @@
     "Empty and loading"
   ],
   "calendar": [
+    "International Calendars",
     "Usage",
     "Default Value",
     "Controlled",
@@ -275,6 +276,7 @@
     "Usage"
   ],
   "range-calendar": [
+    "International Calendars",
     "Disabled",
     "Cell Indicators",
     "Year Picker",

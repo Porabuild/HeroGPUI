@@ -13,7 +13,7 @@ use gpui::{
 use herogpui_theme::ActiveTheme;
 
 use crate::{
-    calendar::{add_days, days_from_civil, days_in_month, weekday_index, Date},
+    calendar::{add_days, days_from_civil, weekday_index, Date},
     calendar_view::{self, PageBehavior, SelectionAlignment, VisibleDuration},
     date_constraints::{DateConstraints, Weekday},
     date_picker::DateRangeState,
@@ -386,13 +386,14 @@ fn range_allows(
 /// of the active anchor, then probes the next sentinel day. The last available
 /// neighbour becomes a temporary min/max bound for cells, focus and navigation.
 fn unavailable_range_boundary(
+    system: &crate::calendar_system::CalendarSystem,
     anchor: Date,
     direction: i32,
     duration: VisibleDuration,
     constraints: &DateConstraints,
     range_date_unavailable: Option<&RangeDateUnavailable>,
 ) -> Option<Date> {
-    let limit = calendar_view::page(duration, PageBehavior::Visible, anchor, direction);
+    let limit = calendar_view::page_in(system, duration, PageBehavior::Visible, anchor, direction);
     let mut next = add_days(&anchor, i64::from(direction));
     let within_limit = |date: Date| {
         if direction < 0 {
@@ -414,6 +415,7 @@ fn unavailable_range_boundary(
 }
 
 fn effective_range_constraints(
+    system: &crate::calendar_system::CalendarSystem,
     anchor: Option<Date>,
     duration: VisibleDuration,
     constraints: &DateConstraints,
@@ -430,17 +432,27 @@ fn effective_range_constraints(
         return effective;
     }
 
-    if let Some(boundary) =
-        unavailable_range_boundary(anchor, -1, duration, constraints, range_date_unavailable)
-    {
+    if let Some(boundary) = unavailable_range_boundary(
+        system,
+        anchor,
+        -1,
+        duration,
+        constraints,
+        range_date_unavailable,
+    ) {
         effective.min_value = Some(match effective.min_value {
             Some(min) if days_from_civil(&min) > days_from_civil(&boundary) => min,
             _ => boundary,
         });
     }
-    if let Some(boundary) =
-        unavailable_range_boundary(anchor, 1, duration, constraints, range_date_unavailable)
-    {
+    if let Some(boundary) = unavailable_range_boundary(
+        system,
+        anchor,
+        1,
+        duration,
+        constraints,
+        range_date_unavailable,
+    ) {
         effective.max_value = Some(match effective.max_value {
             Some(max) if days_from_civil(&max) < days_from_civil(&boundary) => max,
             _ => boundary,
@@ -842,7 +854,7 @@ impl RangeCalendar {
         let Some(date) = system.to_gregorian(year, month, 1) else {
             return String::new();
         };
-        crate::calendar::month_heading_for_locale(system.locale(), date.year, date.month)
+        crate::calendar::date_heading_for_locale(system.locale(), date)
             .unwrap_or_else(|| crate::calendar::month_year_heading(date.year, date.month))
     }
 
@@ -990,10 +1002,12 @@ impl RangeCalendar {
                     let on_focus = self.on_focus_change.clone();
                     let own = year_picker_own.clone();
                     let back_to_trigger = heading_focus.clone();
+                    let system = self.system().clone();
                     cell = cell.on_click(move |_, window, cx| {
                         let next = st.update(cx, |s, cx| {
-                            let day = s.view_day.max(1).min(days_in_month(year, s.view_month));
-                            let next = Date::new(year, s.view_month, day);
+                            let anchor = s.anchor();
+                            let next =
+                                system.add_years(anchor, year - system.from_gregorian(anchor).0);
                             s.set_anchor(next);
                             cx.notify();
                             next
@@ -1130,6 +1144,7 @@ impl RenderOnce for RangeCalendar {
             (st.anchor(), st.start, st.end, st.hovered, st.user_navigated)
         };
         let effective_constraints = effective_range_constraints(
+            self.system(),
             selection_start.filter(|_| selection_end.is_none()),
             self.duration,
             &self.constraints,
@@ -1159,14 +1174,19 @@ impl RenderOnce for RangeCalendar {
             self.selection_alignment
                 .unwrap_or_else(|| match (selection_start, selection_end) {
                     (Some(start), Some(end)) => {
-                        let centered_anchor = calendar_view::aligned_anchor(
+                        let centered_anchor = calendar_view::aligned_anchor_in(
+                            self.system(),
                             self.duration,
                             SelectionAlignment::Center,
                             first_day,
                             start,
                         );
-                        let (_, centered_end) =
-                            calendar_view::visible_range(self.duration, first_day, centered_anchor);
+                        let (_, centered_end) = calendar_view::visible_range(
+                            self.system(),
+                            self.duration,
+                            first_day,
+                            centered_anchor,
+                        );
                         if days_from_civil(&end) > days_from_civil(&centered_end) {
                             SelectionAlignment::Start
                         } else {
@@ -1178,15 +1198,20 @@ impl RenderOnce for RangeCalendar {
         // `selectionAlignment` frames the range around the selection start,
         // until the user drives navigation themselves.
         let anchor = match (navigated, selection_start) {
-            (false, Some(sel)) => {
-                calendar_view::aligned_anchor(self.duration, selection_alignment, first_day, sel)
-            }
+            (false, Some(sel)) => calendar_view::aligned_anchor_in(
+                self.system(),
+                self.duration,
+                selection_alignment,
+                first_day,
+                sel,
+            ),
             _ => stored_anchor,
         };
         let anchor = focused_value.map_or(anchor, |focused| {
             let (visible_start, visible_end) =
-                calendar_view::visible_range(self.duration, first_day, anchor);
-            calendar_view::anchor_following_focus(
+                calendar_view::visible_range(self.system(), self.duration, first_day, anchor);
+            calendar_view::anchor_following_focus_in(
+                self.system(),
                 self.duration,
                 first_day,
                 anchor,
@@ -1195,22 +1220,26 @@ impl RenderOnce for RangeCalendar {
                 focused,
             )
         });
-        let initial_year = focused_value.unwrap_or(anchor).year;
+        let initial_year = self
+            .system()
+            .from_gregorian(focused_value.unwrap_or(anchor))
+            .0;
         let years = calendar_view::year_window(
+            self.system(),
             initial_year,
             self.visible_years,
             effective_constraints.min_value,
             effective_constraints.max_value,
         );
-        let first_year = years.first().copied().unwrap_or(anchor.year);
-        let last_year = years.last().copied().unwrap_or(anchor.year);
+        let first_year = years.first().copied().unwrap_or(initial_year);
+        let last_year = years.last().copied().unwrap_or(initial_year);
         if year_picker_open && !*year_was_open.read(cx) && !self.is_disabled {
             year_cursor.update(cx, |year, _| *year = Some(initial_year));
             window.focus(&year_focus, cx);
         }
         year_was_open.update(cx, |was_open, _| *was_open = year_picker_open);
         let active_year = focused_value
-            .map(|date| date.year)
+            .map(|date| self.system().from_gregorian(date).0)
             .or(*year_cursor.read(cx))
             .unwrap_or(initial_year)
             .max(first_year)
@@ -1262,7 +1291,7 @@ impl RenderOnce for RangeCalendar {
             )
         };
         let (visible_start, visible_end) =
-            calendar_view::visible_range(self.duration, first_day, anchor);
+            calendar_view::visible_range(self.system(), self.duration, first_day, anchor);
         // React Stately checks only the day immediately outside the visible
         // range against minValue/maxValue. A raw unavailable date does not
         // block paging, but an open contiguous range promotes the nearest
@@ -1476,6 +1505,7 @@ impl RenderOnce for RangeCalendar {
             let range_date_unavailable = self.range_date_unavailable.clone();
             let allows_non_contiguous_ranges = self.allows_non_contiguous_ranges;
             let read_only = self.is_read_only;
+            let system = self.system().clone();
             let duration = self.duration;
             let page_behavior = self.page_behavior;
             root = root.on_key_down(move |event, window, cx| {
@@ -1514,7 +1544,8 @@ impl RenderOnce for RangeCalendar {
                     return;
                 }
                 if matches!(key, "enter" | "space") {
-                    if read_only {
+                    cx.stop_propagation();
+                    if event.is_held || read_only {
                         return;
                     }
                     let (next, previous) = state.update(cx, |s, cx| {
@@ -1560,7 +1591,8 @@ impl RenderOnce for RangeCalendar {
                                 cx.notify();
                             });
                             state.update(cx, |s, cx| {
-                                let next_anchor = calendar_view::anchor_following_focus(
+                                let next_anchor = calendar_view::anchor_following_focus_in(
+                                    &system,
                                     duration,
                                     first_day,
                                     anchor,
@@ -1585,14 +1617,24 @@ impl RenderOnce for RangeCalendar {
                     "right" => add_days(&at, 1),
                     "up" => add_days(&at, -7),
                     "down" => add_days(&at, 7),
-                    "pageup" => {
-                        calendar_view::focus_section(duration, page_behavior, at, -1, shift)
-                    }
-                    "pagedown" => {
-                        calendar_view::focus_section(duration, page_behavior, at, 1, shift)
-                    }
-                    "home" => calendar_view::section_start(duration, visible_start, at),
-                    "end" => calendar_view::section_end(duration, visible_end, at),
+                    "pageup" => calendar_view::focus_section_in(
+                        &system,
+                        duration,
+                        page_behavior,
+                        at,
+                        -1,
+                        shift,
+                    ),
+                    "pagedown" => calendar_view::focus_section_in(
+                        &system,
+                        duration,
+                        page_behavior,
+                        at,
+                        1,
+                        shift,
+                    ),
+                    "home" => calendar_view::section_start_in(&system, duration, visible_start, at),
+                    "end" => calendar_view::section_end_in(&system, duration, visible_end, at),
                     _ => return,
                 };
                 let next = constraints.constrain(next);
@@ -1609,7 +1651,8 @@ impl RenderOnce for RangeCalendar {
                         if matches!(key, "pageup" | "pagedown") {
                             let dir = if key == "pageup" { -1 } else { 1 };
                             let next_anchor = match duration {
-                                VisibleDuration::Days(_) => calendar_view::focus_section(
+                                VisibleDuration::Days(_) => calendar_view::focus_section_in(
+                                    &system,
                                     duration,
                                     page_behavior,
                                     anchor,
@@ -1617,7 +1660,8 @@ impl RenderOnce for RangeCalendar {
                                     shift,
                                 ),
                                 _ if days_from_civil(&next) < days_from_civil(&visible_start) => {
-                                    calendar_view::aligned_anchor(
+                                    calendar_view::aligned_anchor_in(
+                                        &system,
                                         duration,
                                         SelectionAlignment::End,
                                         first_day,
@@ -1625,7 +1669,8 @@ impl RenderOnce for RangeCalendar {
                                     )
                                 }
                                 _ if days_from_civil(&next) > days_from_civil(&visible_end) => {
-                                    calendar_view::aligned_anchor(
+                                    calendar_view::aligned_anchor_in(
+                                        &system,
                                         duration,
                                         SelectionAlignment::Start,
                                         first_day,
@@ -1639,7 +1684,8 @@ impl RenderOnce for RangeCalendar {
                                 cx.notify();
                             }
                         } else {
-                            let next_anchor = calendar_view::anchor_following_focus(
+                            let next_anchor = calendar_view::anchor_following_focus_in(
+                                &system,
                                 duration,
                                 first_day,
                                 anchor,
@@ -1667,7 +1713,8 @@ impl RenderOnce for RangeCalendar {
             let own = year_picker_own.clone();
             let on_open = self.on_year_picker_open_change.clone();
             let on_focus = self.on_focus_change.clone();
-            let controlled_year = focused_value.map(|date| date.year);
+            let system = self.system().clone();
+            let controlled_year = focused_value.map(|date| system.from_gregorian(date).0);
             let back_to_trigger = active_heading_focus.clone();
             root = root.on_key_down(move |event, window, cx| {
                 if !focus.is_focused(window) {
@@ -1713,11 +1760,7 @@ impl RenderOnce for RangeCalendar {
                     }
                     if let Some(cb) = &on_focus {
                         cb(
-                            Date::new(
-                                next,
-                                anchor.month,
-                                anchor.day.min(days_in_month(next, anchor.month)),
-                            ),
+                            system.add_years(anchor, next - system.from_gregorian(anchor).0),
                             window,
                             cx,
                         );
@@ -2037,5 +2080,29 @@ mod hover_tokens {
                  and cap variants; missing {snippet:?}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod calendar_system_tests {
+    use super::*;
+
+    #[test]
+    fn unavailable_scan_uses_the_selected_calendar_month() {
+        let system =
+            crate::calendar_system::CalendarSystem::for_locale("hi-IN-u-ca-indian").unwrap();
+        let constraints = DateConstraints {
+            is_date_unavailable: Some(Arc::new(|date| date == Date::new(2026, 2, 21))),
+            ..Default::default()
+        };
+        let effective = effective_range_constraints(
+            &system,
+            Some(Date::new(2026, 1, 20)),
+            VisibleDuration::Months(1),
+            &constraints,
+            None,
+            false,
+        );
+        assert_eq!(effective.max_value, None);
     }
 }
