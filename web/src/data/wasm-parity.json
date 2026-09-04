@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "artifactSha256": "9d2dbfc78fbdb3b20d61c4173416002234810e750e3de8a51185c873c96826c2",
-  "glueSha256": "5bc2ce6e9f7a2091102eb16276f55a46e99002a90ba0a8228c5f46f2570c1b4b",
+  "artifactSha256": "c8e568e0cb1f83d0b5c54da5e5b9f127b476ae6d99b22c9c16aefffb136eb4b4",
+  "glueSha256": "8d6d4c619806ebb38600d688b4f2621c0b9f915ca412038c40bd95c127ec860a",
   "examples": {
     "accordion/Controlled": {
       "nativeCodeSha256": "2816548407263e0fdeada0ff2ec1e8f9fd45a2d33b24ab2cf163539711fe6f8a",
@@ -786,37 +786,30 @@
     },
     "combo-box/Allows Custom Value": {
       "nativeCodeSha256": "7cc7962309349de88f758d66bcd92ffc5e00873e7ee3898eb154d547e92c3f8a",
-      "wasmCodeSha256": "f0fee1e995b96fadec1b0d013c3055ce7a85caf12e64329836e1f8e7796df1f4",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/Asynchronous Loading": {
       "nativeCodeSha256": "558399097f60b5d16274c37d35f9a70622740985caf6e9504f839a71d3445b39",
-      "wasmCodeSha256": "ede02004df9219cb4412f446ed8ce05be323be7d2d792e8c8cc9e767e0da041d",
       "descriptionSha256": "679be1f6fa6e98f900c02e1d3918394cbf2f0581c097e085ca8f23bf4c88ca19"
     },
     "combo-box/Controlled": {
       "nativeCodeSha256": "b7e238ffa8bddef872dbd241fffd8e5843c91a4f435b019bfd6497e1154496e8",
-      "wasmCodeSha256": "1c187c1d004b1db27907dcdbba6c062196280f0d9b453661f5f1174bedadee10",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/Controlled Input Value": {
       "nativeCodeSha256": "77a6a02e83577cb5d22d68858818f2d643de71ccd6d9ccf66e461e702f1b8289",
-      "wasmCodeSha256": "f37386c465eb58dddfb75b411591ab1100475cc5516e3b2df3af98707ad1c959",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/Controlled Selection": {
       "nativeCodeSha256": "a2be77eea5e2ce1e67b8c92a2d8663f0d28fbf1d88105d13eda0976890d71ae8",
-      "wasmCodeSha256": "7c3deffc66f8ad2caeb3e4f8cd9dca3e9a6c507dce503df1e1a51e28571e3bbf",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/Custom Filtering": {
       "nativeCodeSha256": "c8544784dda8085c753c85e449138d4e6b8e4aae32e154738ec0bdfbe0dd8107",
-      "wasmCodeSha256": "8fcd92f59849e56e20b32a8230269ed10d5633ea11cee5b92e1de3716e08839c",
       "descriptionSha256": "8cfb5aafa2d18f8775e2cde53daf07ce0fd9cc87683a93343076cdde64bc1f92"
     },
     "combo-box/Custom Indicator": {
       "nativeCodeSha256": "30e53f198e481c9806b455723569a1ac3c6548188c71294e9ec130032055e0ed",
-      "wasmCodeSha256": "9957ebbc566748f2441b4775ef6385ca148ba9076be7d03af2626535dd76913f",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/Custom Validation": {
@@ -825,22 +818,18 @@
     },
     "combo-box/Custom values allowed": {
       "nativeCodeSha256": "a9b3d07dd6464ffb24c374ae978b8afd00f28d675a4801c8a3e4286a57457da6",
-      "wasmCodeSha256": "b9398cc720f35b2bac37e51445401841e66f50cff14148f4ee28f22eaf00b77a",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/Default Selected Key": {
       "nativeCodeSha256": "4a997274ce1df169f0cd31e5b2a61a069db713b58b8f0948f83c1557d1f14f47",
-      "wasmCodeSha256": "087d89076a4b3ec2d0871f7cc450ff81f7e2d6093edbf411d38c09d0d07552f9",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/Disabled": {
       "nativeCodeSha256": "b42dc5ece1601f20f944c58cf4b457b55d7d8043d43ea97121514e86ab13710d",
-      "wasmCodeSha256": "b7b4426661b24db85a4eb26c67bafae6a4f2185f41a1fea2570a6feb70f8bf2e",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/Form Value": {
       "nativeCodeSha256": "c12e1395774b8f3f04efb832274199123a613794e56380f923c907798da2ae64",
-      "wasmCodeSha256": "dabbf5c65465456a9a32c484f0eba2730354d1b0632249736383e87278c85554",
       "descriptionSha256": "ba17c4f4f518d266e6c44bc910dfaff4de905bcaa2e2d1d293d9aab00b9c3cac"
     },
     "combo-box/Full Width": {
@@ -850,27 +839,22 @@
     },
     "combo-box/In Surface": {
       "nativeCodeSha256": "683ca3f92d60ae45bfccd4ea39100b56ac08da2f502c5495b3234a01f16bbea5",
-      "wasmCodeSha256": "15d45ab7cfb8ab13fe1ccd7efdc637d338222badc00e2c2b0874d962630be9bd",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/Menu Trigger": {
       "nativeCodeSha256": "86d8417a869be8e89226052cd9b0a3316dcbaa3c4f16a8da037dfe0886b7f692",
-      "wasmCodeSha256": "3c631b92f998bb6acd82c39548427c292fc6ea6efc54904661cd25d4e7754632",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/Multiple Selection": {
       "nativeCodeSha256": "351dac543d00570b35d78f7616cbf7e1dcefb80abb077376976464761bf39a59",
-      "wasmCodeSha256": "85c705d9c6c5efea3a1a7c54406f01e85ceb15c1ea725862891c4bd76f0c3c24",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/Read Only": {
       "nativeCodeSha256": "da31c597c9c8a0a27d9e2dbc156683983e22ef5a38a157e0c845a4209e6f5ef2",
-      "wasmCodeSha256": "3faaee9f881950bb081e6948747f696d4f85672e6076d159249378508173e3f3",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/Required": {
       "nativeCodeSha256": "29e799952372b0296102f41bd2e7a847e8b7fa58f678f430a82175c0c4e8a9f6",
-      "wasmCodeSha256": "d01001d15e43854d0a38c3bc68ec6ba968e1cafe742d54fce4252848d00d52ea",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/Usage": {
@@ -879,12 +863,10 @@
     },
     "combo-box/Validation Behavior": {
       "nativeCodeSha256": "72a57376ced7f24d9f0d102a39db5317b450682f4031a92e92190d5e9864df4e",
-      "wasmCodeSha256": "3f4387940337cff7d949e678b9a1c80d6069bc2ca8fcc6c29e094513023207dc",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/Value Render Props": {
       "nativeCodeSha256": "a3f9b7ee2b57fd44619c52e287747eea5ebc7aef2b270359d55edc53d9e6e81f",
-      "wasmCodeSha256": "53ded083be0f9660815a92572b237983110e26a4eb85f22fcead1ab734be0b88",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/Virtualization": {
@@ -894,17 +876,14 @@
     },
     "combo-box/With Description": {
       "nativeCodeSha256": "e444ec866a903ea9f699f8b63299287a07e3b1ed16eb5f445426d763bc456ac6",
-      "wasmCodeSha256": "ac803034202a7e578dfdc1711efdc2b87cf1d36fd1de62a4e920a526aa6c9a88",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/With Disabled Options": {
       "nativeCodeSha256": "33aae1c316f5ba8f347f621926591430410cdaeb091574667488ec5dd9333144",
-      "wasmCodeSha256": "e95a41db19281f33038dbaa8ce5d99117599ea6c21da39dbdb7cfc2dbdde3ddb",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "combo-box/With Sections": {
       "nativeCodeSha256": "c6f5b2039d78b3be91aca8781ad834fa68a794b3b58208d7ae7553826c7dbd8d",
-      "wasmCodeSha256": "a9cb20c0c04e20b467a363d7dc78ceedc32338700a288b75f6dc974c0043037a",
       "descriptionSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "date-field/Controlled": {
@@ -2663,29 +2642,8 @@
     "alert-dialog/Statuses",
     "alert-dialog/Usage",
     "autocomplete/Full Width",
-    "combo-box/Allows Custom Value",
-    "combo-box/Asynchronous Loading",
-    "combo-box/Controlled",
-    "combo-box/Controlled Input Value",
-    "combo-box/Controlled Selection",
-    "combo-box/Custom Filtering",
-    "combo-box/Custom Indicator",
-    "combo-box/Custom values allowed",
-    "combo-box/Default Selected Key",
-    "combo-box/Disabled",
-    "combo-box/Form Value",
     "combo-box/Full Width",
-    "combo-box/In Surface",
-    "combo-box/Menu Trigger",
-    "combo-box/Multiple Selection",
-    "combo-box/Read Only",
-    "combo-box/Required",
-    "combo-box/Validation Behavior",
-    "combo-box/Value Render Props",
     "combo-box/Virtualization",
-    "combo-box/With Description",
-    "combo-box/With Disabled Options",
-    "combo-box/With Sections",
     "drawer/Backdrop Variants",
     "drawer/Controlled State",
     "drawer/Navigation Drawer",
