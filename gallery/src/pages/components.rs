@@ -1,4 +1,15 @@
 //! Component gallery pages — one page per HeroUI v3 component.
+//!
+//! `redundant_clone` reads this file wrongly. Every page is one doc-page macro
+//! invocation, and the lint analyses the expanded body:
+//! it sees a collection cloned into one example and reports the clone as
+//! needless without accounting for the later example that moves the original.
+//! Removing the ten it flags does not compile -- `items` feeds ListBox's
+//! single-selection example and then its multi-selection one, `options` feeds
+//! three RadioGroup examples in a row, and so on. The lint is allowed here for
+//! that reason and nowhere else; a genuinely redundant clone in a component
+//! crate still fails the gate.
+#![allow(clippy::redundant_clone)]
 
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
